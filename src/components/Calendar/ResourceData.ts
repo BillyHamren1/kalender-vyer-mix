@@ -1,17 +1,16 @@
-
 export interface Resource {
   id: string;
   title: string;
   eventColor?: string;
 }
 
-// Exempel på resurser som kan användas i kalendern
+// Teams to be used in the calendar instead of rooms
 export const sampleResources: Resource[] = [
-  { id: 'a', title: 'Rum 101', eventColor: '#3788d8' },
-  { id: 'b', title: 'Rum 102', eventColor: '#1e90ff' },
-  { id: 'c', title: 'Rum 103', eventColor: '#4169e1' },
-  { id: 'd', title: 'Konferensrum A', eventColor: '#0073cf' },
-  { id: 'e', title: 'Konferensrum B', eventColor: '#4682b4' },
+  { id: 'a', title: 'Team 1', eventColor: '#3788d8' },
+  { id: 'b', title: 'Team 2', eventColor: '#1e90ff' },
+  { id: 'c', title: 'Team 3', eventColor: '#4169e1' },
+  { id: 'd', title: 'Team 4', eventColor: '#0073cf' },
+  { id: 'e', title: 'Team 5', eventColor: '#4682b4' },
 ];
 
 export interface CalendarEvent {
