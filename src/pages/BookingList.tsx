@@ -63,25 +63,25 @@ const BookingList = () => {
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">Bokningslista</h1>
+          <h1 className="text-2xl font-bold text-[#2d3748]">Bokningslista</h1>
         </div>
         
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden border-0 shadow-md rounded-lg">
           <Table>
-            <TableCaption>Lista över alla bokningar</TableCaption>
-            <TableHeader>
+            <TableCaption className="text-gray-500">Lista över alla bokningar</TableCaption>
+            <TableHeader className="bg-gray-50">
               <TableRow>
-                <TableHead>Booking ID</TableHead>
-                <TableHead>Client</TableHead>
-                <TableHead>Rig day date</TableHead>
-                <TableHead>Event date</TableHead>
-                <TableHead>Rig down date</TableHead>
+                <TableHead className="text-[#2d3748]">Booking ID</TableHead>
+                <TableHead className="text-[#2d3748]">Client</TableHead>
+                <TableHead className="text-[#2d3748]">Rig day date</TableHead>
+                <TableHead className="text-[#2d3748]">Event date</TableHead>
+                <TableHead className="text-[#2d3748]">Rig down date</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {sampleBookings.map((booking) => (
-                <TableRow key={booking.id}>
-                  <TableCell className="font-medium">{booking.id}</TableCell>
+                <TableRow key={booking.id} className="hover:bg-gray-50">
+                  <TableCell className="font-medium text-[#2d3748]">{booking.id}</TableCell>
                   <TableCell>{booking.client}</TableCell>
                   <TableCell>{booking.rigDayDate}</TableCell>
                   <TableCell>{booking.eventDate}</TableCell>
