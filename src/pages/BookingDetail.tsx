@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -7,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
-import { MapPin, User, Calendar as CalendarIcon, Package, ArrowLeft, FileText, FilePlus, Pencil, Check } from "lucide-react";
+import { MapPin, User, Calendar as CalendarIcon, Package, ArrowLeft, FileText, FilePlus, Pencil, Check, CalendarPlus } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 
@@ -95,6 +96,25 @@ const BookingDetail = () => {
     }
   };
   
+  // Function to handle adding date to calendar
+  const handleAddToCalendar = (dateName: string, dateValue: string) => {
+    // Create event details
+    const eventTitle = `${bookingData?.id} - ${dateName}`;
+    const eventDetails = `${dateName} for ${bookingData?.client}`;
+    const eventLocation = bookingData?.deliveryAddress || '';
+    
+    // Format date (ensure it's YYYY-MM-DD)
+    const startDate = dateValue.split('T')[0];
+    
+    // Create calendar URL using the ics format
+    const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&details=${encodeURIComponent(eventDetails)}&location=${encodeURIComponent(eventLocation)}&dates=${startDate.replace(/-/g, '')}T090000Z/${startDate.replace(/-/g, '')}T180000Z`;
+    
+    // Open in a new tab
+    window.open(googleUrl, '_blank');
+    
+    toast.success(`${dateName} added to calendar`);
+  };
+  
   if (!bookingData) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -170,74 +190,107 @@ const BookingDetail = () => {
               <div className="space-y-4">
                 <div>
                   <h3 className="text-sm font-medium text-[#4a5568]">Rig Day</h3>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        className="w-full justify-start text-left font-normal hover:bg-gray-100 cursor-pointer"
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {bookingData.rigDayDate}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={new Date(bookingData.rigDayDate)}
-                        onSelect={(date) => handleSaveDates('rigDayDate', date)}
-                        initialFocus
-                        className="p-3 pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <div className="flex gap-2 items-center">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          className="w-full justify-start text-left font-normal hover:bg-gray-100 cursor-pointer"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {bookingData.rigDayDate}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={new Date(bookingData.rigDayDate)}
+                          onSelect={(date) => handleSaveDates('rigDayDate', date)}
+                          initialFocus
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="flex-shrink-0"
+                      onClick={() => handleAddToCalendar('Rig Day', bookingData.rigDayDate)}
+                      title="Save to Calendar"
+                    >
+                      <CalendarPlus className="h-4 w-4 text-[#82b6c6]" />
+                    </Button>
+                  </div>
                 </div>
                 
                 <div>
                   <h3 className="text-sm font-medium text-[#4a5568]">Event Day</h3>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        className="w-full justify-start text-left font-normal hover:bg-gray-100 cursor-pointer"
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {bookingData.eventDate}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={new Date(bookingData.eventDate)}
-                        onSelect={(date) => handleSaveDates('eventDate', date)}
-                        initialFocus
-                        className="p-3 pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <div className="flex gap-2 items-center">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          className="w-full justify-start text-left font-normal hover:bg-gray-100 cursor-pointer"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {bookingData.eventDate}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={new Date(bookingData.eventDate)}
+                          onSelect={(date) => handleSaveDates('eventDate', date)}
+                          initialFocus
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="flex-shrink-0"
+                      onClick={() => handleAddToCalendar('Event Day', bookingData.eventDate)}
+                      title="Save to Calendar"
+                    >
+                      <CalendarPlus className="h-4 w-4 text-[#82b6c6]" />
+                    </Button>
+                  </div>
                 </div>
                 
                 <div>
                   <h3 className="text-sm font-medium text-[#4a5568]">Rig Down Day</h3>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        className="w-full justify-start text-left font-normal hover:bg-gray-100 cursor-pointer"
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {bookingData.rigDownDate}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={new Date(bookingData.rigDownDate)}
-                        onSelect={(date) => handleSaveDates('rigDownDate', date)}
-                        initialFocus
-                        className="p-3 pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <div className="flex gap-2 items-center">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          className="w-full justify-start text-left font-normal hover:bg-gray-100 cursor-pointer"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {bookingData.rigDownDate}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={new Date(bookingData.rigDownDate)}
+                          onSelect={(date) => handleSaveDates('rigDownDate', date)}
+                          initialFocus
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="flex-shrink-0"
+                      onClick={() => handleAddToCalendar('Rig Down Day', bookingData.rigDownDate)}
+                      title="Save to Calendar"
+                    >
+                      <CalendarPlus className="h-4 w-4 text-[#82b6c6]" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardContent>
