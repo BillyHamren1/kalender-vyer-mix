@@ -24,14 +24,6 @@ const Navbar = () => {
               Resursvy
             </Link>
           </li>
-          <li>
-            <Link 
-              to="/timeline-view" 
-              className="text-gray-600 hover:text-blue-600 transition-colors"
-            >
-              Tidslinjvy
-            </Link>
-          </li>
         </ul>
       </div>
     </nav>

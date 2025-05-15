@@ -6,7 +6,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import ResourceView from "./pages/ResourceView";
-import TimelineView from "./pages/TimelineView";
 import NotFound from "./pages/NotFound";
 import Navbar from "./components/Navigation/Navbar";
 
@@ -22,7 +21,6 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/resource-view" element={<ResourceView />} />
-          <Route path="/timeline-view" element={<TimelineView />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
