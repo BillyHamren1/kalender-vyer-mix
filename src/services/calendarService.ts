@@ -1,6 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { CalendarEvent } from "@/components/Calendar/ResourceData";
+import { CalendarEvent, Resource } from "@/components/Calendar/ResourceData";
 
 // Fetch all calendar events
 export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
@@ -149,6 +149,7 @@ export const syncBookingEvents = async (
     await supabase
       .from('calendar_events')
       .update({
+        resource_id: resourceId,
         start_time: startDate.toISOString(),
         end_time: endDate.toISOString(),
         title: title
@@ -178,4 +179,53 @@ export const syncBookingEvents = async (
 
     return data.id;
   }
+};
+
+// Fetch all team resources
+export const fetchTeamResources = async (): Promise<Resource[]> => {
+  try {
+    // For now, we are using the client-side array since there's no teams table in the database
+    // In a real application, you would fetch this from the database
+    const storedResources = localStorage.getItem('calendarResources');
+    if (storedResources) {
+      const resources = JSON.parse(storedResources);
+      // Filter to only include team resources
+      return resources.filter((resource: Resource) => 
+        resource.id.startsWith('team-')
+      );
+    }
+    
+    // Default sample resources if nothing is stored
+    return [
+      { id: 'team-1', title: 'Team 1', eventColor: '#3788d8' },
+      { id: 'team-2', title: 'Team 2', eventColor: '#1e90ff' },
+      { id: 'team-3', title: 'Team 3', eventColor: '#4169e1' },
+    ];
+  } catch (error) {
+    console.error('Error fetching team resources:', error);
+    return [];
+  }
+};
+
+// Get team details by ID
+export const getTeamById = async (teamId: string): Promise<Resource | null> => {
+  try {
+    // For now, we are using the client-side array since there's no teams table in the database
+    const storedResources = localStorage.getItem('calendarResources');
+    if (storedResources) {
+      const resources = JSON.parse(storedResources);
+      const team = resources.find((resource: Resource) => resource.id === teamId);
+      return team || null;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error getting team by ID:', error);
+    return null;
+  }
+};
+
+// Save resources to localStorage
+export const saveResources = (resources: Resource[]): void => {
+  localStorage.setItem('calendarResources', JSON.stringify(resources));
 };

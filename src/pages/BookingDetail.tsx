@@ -18,7 +18,8 @@ import {
   updateBookingNotes,
   addBookingAttachment
 } from "@/services/bookingService";
-import { syncBookingEvents } from "@/services/calendarService";
+import { syncBookingEvents, fetchEventsByBookingId, getTeamById } from "@/services/calendarService";
+import TeamSelector from '@/components/Calendar/TeamSelector';
 
 const BookingDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -28,20 +29,55 @@ const BookingDetail = () => {
   const [bookingData, setBookingData] = useState<Booking | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [selectedTeams, setSelectedTeams] = useState({
+    rig: "team-1",
+    event: "team-1",
+    rigDown: "team-1"
+  });
+  const [eventTeamNames, setEventTeamNames] = useState({
+    rig: "Loading...",
+    event: "Loading...",
+    rigDown: "Loading..."
+  });
   
-  // Load booking data from Supabase
+  // Load booking data from Supabase and existing events
   useEffect(() => {
-    const loadBooking = async () => {
+    const loadBookingAndEvents = async () => {
       if (!id) return;
       
       try {
         setIsLoading(true);
+        // Fetch booking data
         const data = await fetchBookingById(id);
         setBookingData(data);
         
         if (data.internalNotes) {
           setInternalNotes(data.internalNotes);
         }
+        
+        // Fetch existing events for this booking to get their team assignments
+        const bookingEvents = await fetchEventsByBookingId(id);
+        
+        // Set the selected teams based on existing events
+        const newSelectedTeams = { ...selectedTeams };
+        const newEventTeamNames = { ...eventTeamNames };
+        
+        // Process each event and update the selected teams
+        for (const event of bookingEvents) {
+          if (event.eventType && event.resourceId) {
+            newSelectedTeams[event.eventType] = event.resourceId;
+            
+            // Get the team name for display
+            const team = await getTeamById(event.resourceId);
+            if (team) {
+              newEventTeamNames[event.eventType] = team.title;
+            }
+          }
+        }
+        
+        setSelectedTeams(newSelectedTeams);
+        setEventTeamNames(newEventTeamNames);
+        
       } catch (error) {
         console.error('Failed to load booking:', error);
         toast.error('Failed to load booking details');
@@ -50,7 +86,7 @@ const BookingDetail = () => {
       }
     };
     
-    loadBooking();
+    loadBookingAndEvents();
   }, [id]);
   
   const handleSaveNotes = async () => {
@@ -111,12 +147,15 @@ const BookingDetail = () => {
           break;
       }
       
+      // Use the selected team for this event type
+      const teamId = selectedTeams[eventType];
+      
       // Sync with calendar (create or update associated event)
       await syncBookingEvents(
         id,
         eventType,
         formattedDate,
-        'a', // Default resource ID
+        teamId, // Use the selected team ID
         bookingData.client
       );
       
@@ -153,6 +192,62 @@ const BookingDetail = () => {
     }
   };
   
+  // Function to handle team selection for events
+  const handleTeamChange = async (eventType: 'rig' | 'event' | 'rigDown', teamId: string) => {
+    if (!bookingData || !id) return;
+    
+    try {
+      setIsUpdating(true);
+      
+      // Update the selected team in our state
+      setSelectedTeams(prev => ({
+        ...prev,
+        [eventType]: teamId
+      }));
+      
+      // Get the date for this event type
+      let date = '';
+      switch (eventType) {
+        case 'rig':
+          date = bookingData.rigDayDate;
+          break;
+        case 'event':
+          date = bookingData.eventDate;
+          break;
+        case 'rigDown':
+          date = bookingData.rigDownDate;
+          break;
+      }
+      
+      // If we have a date, update the event with the new team
+      if (date) {
+        await syncBookingEvents(
+          id,
+          eventType,
+          date,
+          teamId,
+          bookingData.client
+        );
+        
+        // Update the displayed team name
+        const team = await getTeamById(teamId);
+        if (team) {
+          setEventTeamNames(prev => ({
+            ...prev,
+            [eventType]: team.title
+          }));
+        }
+        
+        toast.success(`${eventType.charAt(0).toUpperCase() + eventType.slice(1)} day assigned to new team`);
+      }
+    } catch (error) {
+      console.error(`Failed to update team for ${eventType}:`, error);
+      toast.error(`Failed to update team assignment`);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+  
   // Function to handle adding date to calendar
   const handleAddToCalendar = async (dateName: string, dateValue: string) => {
     if (!bookingData || !id) return;
@@ -175,16 +270,19 @@ const BookingDetail = () => {
     }
     
     try {
+      // Get the team ID for this event type
+      const teamId = selectedTeams[eventType];
+      
       // Create and add event to calendar
       await syncBookingEvents(
         id,
         eventType,
         dateValue,
-        'a', // Default resource ID
+        teamId,
         bookingData.client
       );
       
-      toast.success(`${dateName} added to calendar`);
+      toast.success(`${dateName} added to calendar with team ${eventTeamNames[eventType]}`);
     } catch (error) {
       console.error('Failed to add event to calendar:', error);
       toast.error('Failed to add event to calendar');
@@ -278,7 +376,10 @@ const BookingDetail = () => {
             <CardContent className="p-6">
               <div className="space-y-4">
                 <div>
-                  <h3 className="text-sm font-medium text-[#4a5568]">Rig Day</h3>
+                  <h3 className="text-sm font-medium text-[#4a5568] flex justify-between">
+                    <span>Rig Day</span>
+                    <span className="text-xs text-blue-500">Team: {eventTeamNames.rig}</span>
+                  </h3>
                   <div className="flex gap-2 items-center">
                     <Popover>
                       <PopoverTrigger asChild>
@@ -312,10 +413,21 @@ const BookingDetail = () => {
                       <CalendarPlus className="h-4 w-4 text-[#82b6c6]" />
                     </Button>
                   </div>
+                  <div className="mt-2">
+                    <TeamSelector 
+                      selectedTeamId={selectedTeams.rig}
+                      onTeamChange={(teamId) => handleTeamChange('rig', teamId)}
+                      label="Assign Team"
+                      disabled={isUpdating || !bookingData.rigDayDate}
+                    />
+                  </div>
                 </div>
                 
                 <div>
-                  <h3 className="text-sm font-medium text-[#4a5568]">Event Day</h3>
+                  <h3 className="text-sm font-medium text-[#4a5568] flex justify-between">
+                    <span>Event Day</span>
+                    <span className="text-xs text-blue-500">Team: {eventTeamNames.event}</span>
+                  </h3>
                   <div className="flex gap-2 items-center">
                     <Popover>
                       <PopoverTrigger asChild>
@@ -349,10 +461,21 @@ const BookingDetail = () => {
                       <CalendarPlus className="h-4 w-4 text-[#82b6c6]" />
                     </Button>
                   </div>
+                  <div className="mt-2">
+                    <TeamSelector 
+                      selectedTeamId={selectedTeams.event}
+                      onTeamChange={(teamId) => handleTeamChange('event', teamId)}
+                      label="Assign Team"
+                      disabled={isUpdating || !bookingData.eventDate}
+                    />
+                  </div>
                 </div>
                 
                 <div>
-                  <h3 className="text-sm font-medium text-[#4a5568]">Rig Down Day</h3>
+                  <h3 className="text-sm font-medium text-[#4a5568] flex justify-between">
+                    <span>Rig Down Day</span>
+                    <span className="text-xs text-blue-500">Team: {eventTeamNames.rigDown}</span>
+                  </h3>
                   <div className="flex gap-2 items-center">
                     <Popover>
                       <PopoverTrigger asChild>
@@ -385,6 +508,14 @@ const BookingDetail = () => {
                     >
                       <CalendarPlus className="h-4 w-4 text-[#82b6c6]" />
                     </Button>
+                  </div>
+                  <div className="mt-2">
+                    <TeamSelector 
+                      selectedTeamId={selectedTeams.rigDown}
+                      onTeamChange={(teamId) => handleTeamChange('rigDown', teamId)}
+                      label="Assign Team"
+                      disabled={isUpdating || !bookingData.rigDownDate}
+                    />
                   </div>
                 </div>
               </div>

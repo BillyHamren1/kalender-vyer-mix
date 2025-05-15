@@ -1,28 +1,37 @@
+
 import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { sampleResources, Resource, CalendarEvent, getEventColor, generateEventId } from '../components/Calendar/ResourceData';
+import { 
+  sampleResources, 
+  Resource, 
+  CalendarEvent, 
+  getEventColor, 
+  generateEventId,
+  saveResourcesToStorage,
+  loadResourcesFromStorage
+} from '../components/Calendar/ResourceData';
 import { Button } from '@/components/ui/button';
 import { Edit } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import TeamManager from '@/components/Calendar/TeamManager';
 import '../styles/calendar.css';
 import { useNavigate } from 'react-router-dom';
-import { fetchCalendarEvents, updateCalendarEvent } from '@/services/calendarService';
+import { fetchCalendarEvents, updateCalendarEvent, saveResources } from '@/services/calendarService';
 
 const ResourceView = () => {
   const [isMounted, setIsMounted] = useState(false);
-  const [resources, setResources] = useState<Resource[]>(sampleResources);
+  const [resources, setResources] = useState<Resource[]>([]);
   const [teamCount, setTeamCount] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -34,6 +43,23 @@ const ResourceView = () => {
     const storedDate = sessionStorage.getItem('calendarDate');
     return storedDate ? new Date(storedDate) : new Date();
   });
+  
+  // Load resources on component mount
+  useEffect(() => {
+    const loadedResources = loadResourcesFromStorage();
+    setResources(loadedResources);
+    
+    // Set teamCount based on the highest team number
+    const teamIds = loadedResources
+      .filter(res => res.id.startsWith('team-'))
+      .map(res => {
+        const match = res.id.match(/team-(\d+)/);
+        return match ? parseInt(match[1]) : 0;
+      });
+    
+    const maxTeamNumber = teamIds.length > 0 ? Math.max(...teamIds) : 0;
+    setTeamCount(maxTeamNumber + 1);
+  }, []);
   
   // Fetch events from Supabase on component mount
   useEffect(() => {
@@ -88,6 +114,14 @@ const ResourceView = () => {
       localStorage.setItem('calendarEvents', JSON.stringify(events));
     }
   }, [events]);
+  
+  // Save resources to localStorage whenever they change
+  useEffect(() => {
+    if (resources.length > 0) {
+      saveResourcesToStorage(resources);
+      saveResources(resources);
+    }
+  }, [resources]);
 
   const addTeam = () => {
     const newTeamId = `team-${teamCount}`;
@@ -122,6 +156,8 @@ const ResourceView = () => {
 
   const handleEventChange = async (info: any) => {
     try {
+      const resourceId = info.event.getResources()[0]?.id || info.event._def.resourceIds[0];
+      
       // Update the event in our state
       const updatedEvents = events.map(event => {
         if (event.id === info.event.id) {
@@ -129,7 +165,7 @@ const ResourceView = () => {
             ...event,
             start: info.event.start.toISOString(),
             end: info.event.end.toISOString(),
-            resourceId: info.event.getResources()[0]?.id || event.resourceId
+            resourceId: resourceId
           };
         }
         return event;
@@ -142,12 +178,15 @@ const ResourceView = () => {
         await updateCalendarEvent(info.event.id, {
           start: info.event.start.toISOString(),
           end: info.event.end.toISOString(),
-          resourceId: info.event.getResources()[0]?.id
+          resourceId: resourceId
         });
       }
       
+      // Find the team name for the toast message
+      const resourceName = resources.find(r => r.id === resourceId)?.title || resourceId;
+      
       toast(`Event flyttat`, {
-        description: `Eventet har flyttats till ${info.event.start.toLocaleTimeString()}`,
+        description: `Eventet har flyttats till ${resourceName} vid ${info.event.start.toLocaleTimeString()}`,
       });
     } catch (error) {
       console.error('Error updating event:', error);
