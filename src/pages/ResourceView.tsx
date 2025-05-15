@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -107,15 +106,13 @@ const ResourceView = () => {
     
     return () => setIsMounted(false);
   }, []);
-  
-  // Save events to localStorage whenever they change
+
   useEffect(() => {
     if (events.length > 0) {
       localStorage.setItem('calendarEvents', JSON.stringify(events));
     }
   }, [events]);
   
-  // Save resources to localStorage whenever they change
   useEffect(() => {
     if (resources.length > 0) {
       saveResourcesToStorage(resources);
