@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
+import timeGridPlugin from '@fullcalendar/timegrid';
 import { sampleResources, sampleEvents, Resource } from '../components/Calendar/ResourceData';
 import { Button } from '@/components/ui/button';
 import { Edit } from 'lucide-react';
@@ -97,7 +98,7 @@ const ResourceView = () => {
         <div className="bg-white rounded-lg shadow-md p-4">
           {isMounted && (
             <FullCalendar
-              plugins={[resourceTimeGridPlugin]}
+              plugins={[resourceTimeGridPlugin, timeGridPlugin]}
               initialView="resourceTimeGridDay"
               resources={resources}
               events={sampleEvents}
@@ -105,7 +106,17 @@ const ResourceView = () => {
               headerToolbar={{
                 left: 'prev,next today',
                 center: 'title',
-                right: 'resourceTimeGridDay,resourceTimeGridWeek'
+                right: 'resourceTimeGridDay,timeGridWeek'
+              }}
+              views={{
+                resourceTimeGridDay: {
+                  type: 'resourceTimeGrid',
+                  duration: { days: 1 }
+                },
+                timeGridWeek: {
+                  type: 'timeGrid',
+                  duration: { weeks: 1 }
+                }
               }}
               slotDuration="00:30:00"
               allDaySlot={false}
