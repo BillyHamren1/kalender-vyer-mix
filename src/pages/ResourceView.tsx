@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -15,6 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import TeamManager from '@/components/Calendar/TeamManager';
+import '../styles/calendar.css';
 
 const ResourceView = () => {
   const [isMounted, setIsMounted] = useState(false);
@@ -71,7 +73,7 @@ const ResourceView = () => {
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button 
-                className="bg-purple-500 hover:bg-purple-600 text-white"
+                className="bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white"
               >
                 <Edit className="mr-1" size={18} />
                 Edit team
