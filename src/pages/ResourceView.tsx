@@ -1,9 +1,7 @@
-
 import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
-import resourceTimelinePlugin from '@fullcalendar/resource-timeline';
 import { sampleResources, sampleEvents, Resource } from '../components/Calendar/ResourceData';
 import { Button } from '@/components/ui/button';
 import { Edit } from 'lucide-react';
@@ -16,17 +14,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import TeamManager from '@/components/Calendar/TeamManager';
-import '../components/Calendar/Calendar.css';
 
 const ResourceView = () => {
   const [isMounted, setIsMounted] = useState(false);
   const [resources, setResources] = useState<Resource[]>(sampleResources);
   const [teamCount, setTeamCount] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [activeView, setActiveView] = useState('timeGridWeek');
-  const [visibleDays, setVisibleDays] = useState(7);
   
   useEffect(() => {
     setIsMounted(true);
@@ -102,54 +96,39 @@ const ResourceView = () => {
         
         <div className="bg-white rounded-lg shadow-md p-4">
           {isMounted && (
-            <ScrollArea className="w-full">
-              <div className="min-w-full calendar-container">
-                <FullCalendar
-                  plugins={[resourceTimeGridPlugin, timeGridPlugin]}
-                  initialView={activeView}
-                  resources={resources}
-                  events={sampleEvents}
-                  height="auto"
-                  headerToolbar={{
-                    left: 'prev,next today',
-                    center: 'title',
-                    right: 'timeGridDay,timeGridWeek'
-                  }}
-                  views={{
-                    timeGridDay: {
-                      type: 'timeGrid',
-                      duration: { days: 3 },
-                      dayCount: visibleDays,
-                      scrollTime: '08:00:00',
-                      dayHeaderFormat: { weekday: 'long', month: 'numeric', day: 'numeric' }
-                    },
-                    timeGridWeek: {
-                      type: 'timeGrid',
-                      duration: { weeks: 1 },
-                      scrollTime: '08:00:00',
-                      dayMaxEventRows: false,
-                      eventDisplay: 'block',
-                      eventOverlap: false,
-                      slotEventOverlap: false
-                    }
-                  }}
-                  slotDuration="00:30:00"
-                  allDaySlot={false}
-                  locale="sv"
-                  contentHeight="auto"
-                  expandRows={true}
-                  nowIndicator={true}
-                  navLinks={true}
-                  dayHeaders={true}
-                  dayHeaderFormat={{ weekday: 'long', month: 'numeric', day: 'numeric' }}
-                  datesSet={(dateInfo) => {
-                    console.log("Date range changed:", dateInfo.startStr, "to", dateInfo.endStr);
-                    setActiveView(dateInfo.view.type);
-                  }}
-                />
-              </div>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
+            <FullCalendar
+              plugins={[resourceTimeGridPlugin, timeGridPlugin]}
+              initialView="resourceTimeGridDay"
+              resources={resources}
+              events={sampleEvents}
+              height="auto"
+              headerToolbar={{
+                left: 'prev,next today',
+                center: 'title',
+                right: 'resourceTimeGridDay,timeGridWeek'
+              }}
+              views={{
+                resourceTimeGridDay: {
+                  type: 'resourceTimeGrid',
+                  duration: { days: 1 }
+                },
+                timeGridWeek: {
+                  type: 'timeGrid',
+                  duration: { weeks: 1 },
+                  dayMaxEventRows: false, // display all events
+                  eventDisplay: 'block', // display as blocks
+                  eventOverlap: false, // don't allow events to overlap
+                  eventShortHeight: 20, // minimum height of an event
+                  slotEventOverlap: false // events won't overlap in time slots
+                }
+              }}
+              slotDuration="00:30:00"
+              allDaySlot={false}
+              locale="sv"
+              datesSet={(dateInfo) => {
+                console.log("Date range changed:", dateInfo.startStr, "to", dateInfo.endStr);
+              }}
+            />
           )}
         </div>
       </div>
