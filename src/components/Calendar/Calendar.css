@@ -1,0 +1,49 @@
+
+/* Calendar specific styles */
+.fc-timeline-body {
+  min-width: 100%;
+  overflow-x: auto !important;
+}
+
+.fc-timeline-header, 
+.fc-timeline-slots, 
+.fc-timeline-body {
+  min-width: 800px;
+}
+
+.fc .fc-resource-timeline-divider {
+  width: 1px;
+  cursor: col-resize;
+}
+
+.fc-timeline-event {
+  border-radius: 3px;
+  padding: 2px 4px;
+  margin: 1px 0;
+}
+
+.fc-resource-timeline-header-table th {
+  position: sticky;
+  z-index: 2;
+  background: white;
+}
+
+.fc-scrollgrid {
+  border-collapse: separate !important;
+}
+
+.fc-scrollgrid-section-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+/* Ensure the scrollArea works correctly with the calendar */
+.scrollbar {
+  display: block !important;
+}
+
+/* Make the horizontal scrolling more obvious */
+.scrollbar[data-orientation="horizontal"] {
+  height: 12px !important;
+}
