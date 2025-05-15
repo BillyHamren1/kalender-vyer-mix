@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -15,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import TeamManager from '@/components/Calendar/TeamManager';
 import '../components/Calendar/Calendar.css';
 
@@ -100,7 +101,7 @@ const ResourceView = () => {
         
         <div className="bg-white rounded-lg shadow-md p-4">
           {isMounted && (
-            <ScrollArea className="w-full" orientation="horizontal">
+            <ScrollArea className="w-full">
               <div className="min-w-full" style={{ minWidth: '100%', overflow: 'visible' }}>
                 <FullCalendar
                   plugins={[resourceTimeGridPlugin, timeGridPlugin, resourceTimelinePlugin]}
@@ -154,6 +155,7 @@ const ResourceView = () => {
                   }}
                 />
               </div>
+              <ScrollBar orientation="horizontal" />
             </ScrollArea>
           )}
         </div>

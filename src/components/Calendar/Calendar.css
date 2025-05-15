@@ -47,3 +47,14 @@
 .scrollbar[data-orientation="horizontal"] {
   height: 12px !important;
 }
+
+/* Ensure the calendar can extend horizontally */
+.fc {
+  width: 100%;
+  min-width: 100%;
+}
+
+/* Allow proper horizontal scrolling */
+.fc-timeline-body {
+  overflow-x: visible !important;
+}
