@@ -1,10 +1,13 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MapPin, User, Calendar, Package, ArrowLeft } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { MapPin, User, Calendar, Package, ArrowLeft, FileText, FilePlus } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { toast } from "sonner";
 
 // Extended mock data for BOK-001
 const mockBookingData = {
@@ -15,6 +18,11 @@ const mockBookingData = {
     eventDate: "2025-05-21",
     rigDownDate: "2025-05-22",
     deliveryAddress: "Volvo Headquarters, Gothenburg 405 31, Sweden",
+    internalNotes: "This is a high-priority client. Make sure to bring extra equipment as backup.",
+    attachments: [
+      "https://images.unsplash.com/photo-1649972904349-6e44c42644a7",
+      "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b"
+    ],
     products: [
       { id: "P1", name: "Stage System", quantity: 1, notes: "Main stage 8x6m" },
       { id: "P2", name: "Sound System", quantity: 2, notes: "Premium audio setup" },
@@ -27,9 +35,31 @@ const mockBookingData = {
 const BookingDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [internalNotes, setInternalNotes] = useState("");
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
   
   // Get booking data based on ID
   const booking = id ? mockBookingData[id as keyof typeof mockBookingData] : undefined;
+  
+  // Initialize notes state with existing notes if available
+  React.useEffect(() => {
+    if (booking?.internalNotes) {
+      setInternalNotes(booking.internalNotes);
+    }
+  }, [booking]);
+  
+  const handleSaveNotes = () => {
+    // In a real application, this would send the updated notes to an API
+    toast.success("Internal notes saved successfully");
+    setIsEditingNotes(false);
+  };
+  
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      // In a real application, this would upload the file to storage
+      toast.success(`File "${e.target.files[0].name}" added successfully`);
+    }
+  };
   
   if (!booking) {
     return (
@@ -152,6 +182,109 @@ const BookingDetail = () => {
                 ))}
               </TableBody>
             </Table>
+          </CardContent>
+        </Card>
+        
+        {/* Internal Notes Card */}
+        <Card className="border-0 shadow-md rounded-lg overflow-hidden mb-6">
+          <CardHeader className="bg-gray-50 border-b pb-4">
+            <CardTitle className="text-xl text-[#2d3748] flex items-center">
+              <FileText className="h-5 w-5 mr-2 text-[#82b6c6]" />
+              <span>Internal Notes</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            {isEditingNotes ? (
+              <div className="space-y-4">
+                <Textarea 
+                  placeholder="Add internal notes here..."
+                  className="w-full min-h-[100px]"
+                  value={internalNotes}
+                  onChange={(e) => setInternalNotes(e.target.value)}
+                />
+                <div className="flex justify-end gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setIsEditingNotes(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleSaveNotes}
+                  >
+                    Save Notes
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-[#2d3748]">
+                  {booking.internalNotes || "No internal notes available."}
+                </p>
+                <div className="flex justify-end">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setIsEditingNotes(true)}
+                  >
+                    Edit Notes
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        
+        {/* Attachments Card */}
+        <Card className="border-0 shadow-md rounded-lg overflow-hidden mb-6">
+          <CardHeader className="bg-gray-50 border-b pb-4">
+            <CardTitle className="text-xl text-[#2d3748] flex items-center">
+              <FilePlus className="h-5 w-5 mr-2 text-[#82b6c6]" />
+              <span>Attachments</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="space-y-6">
+              {/* File Upload Input */}
+              <div className="flex items-center justify-between">
+                <label htmlFor="file-upload" className="cursor-pointer">
+                  <div className="flex items-center gap-2 text-[#2d3748] hover:text-[#82b6c6] transition-colors">
+                    <FilePlus className="h-5 w-5" />
+                    <span className="font-medium">Add picture or file</span>
+                  </div>
+                  <Input 
+                    id="file-upload" 
+                    type="file" 
+                    className="hidden" 
+                    onChange={handleFileUpload}
+                  />
+                </label>
+                <Button variant="outline" size="sm">Upload</Button>
+              </div>
+              
+              {/* Attachments Grid */}
+              {booking.attachments && booking.attachments.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+                  {booking.attachments.map((url, index) => (
+                    <div key={index} className="relative group">
+                      <img 
+                        src={url} 
+                        alt={`Attachment ${index + 1}`} 
+                        className="w-full h-40 object-cover rounded-md border border-gray-200 shadow-sm"
+                      />
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                        <Button variant="outline" size="sm" className="bg-white">
+                          View
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[#4a5568] italic text-center py-6">
+                  No files attached to this booking yet.
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>

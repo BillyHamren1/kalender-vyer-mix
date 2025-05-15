@@ -14,4 +14,6 @@ export interface Booking {
   rigDownDate: string;
   deliveryAddress?: string;
   products?: BookingProduct[];
+  internalNotes?: string;
+  attachments?: string[]; // URLs to attachments
 }
