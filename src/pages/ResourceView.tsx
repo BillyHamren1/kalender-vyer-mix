@@ -1,7 +1,9 @@
+
 import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
+import interactionPlugin from '@fullcalendar/interaction'; // Import interaction plugin for drag-drop
 import { sampleResources, sampleEvents, Resource } from '../components/Calendar/ResourceData';
 import { Button } from '@/components/ui/button';
 import { Edit } from 'lucide-react';
@@ -60,7 +62,7 @@ const ResourceView = () => {
     });
   };
 
-  const handleEventDrop = (info: any) => {
+  const handleEventChange = (info: any) => {
     // Update the event in our state
     const updatedEvents = events.map(event => {
       if (event.id === info.event.id) {
@@ -122,7 +124,7 @@ const ResourceView = () => {
         <div className="bg-white rounded-lg shadow-md p-4">
           {isMounted && (
             <FullCalendar
-              plugins={[resourceTimeGridPlugin, timeGridPlugin]}
+              plugins={[resourceTimeGridPlugin, timeGridPlugin, interactionPlugin]}
               initialView="resourceTimeGridDay"
               resources={resources}
               events={events}
@@ -152,9 +154,29 @@ const ResourceView = () => {
               locale="sv"
               editable={true}
               droppable={true}
-              eventDrop={handleEventDrop}
               eventDurationEditable={true}
               eventResourceEditable={true}
+              eventContent={(args) => {
+                return (
+                  <div className="text-xs p-1">
+                    <div className="font-bold">{args.event.title}</div>
+                    <div>{args.timeText}</div>
+                  </div>
+                )
+              }}
+              eventClick={(info) => {
+                console.log('Event clicked:', info.event.title);
+              }}
+              eventResize={(info) => {
+                handleEventChange(info);
+              }}
+              eventDragStop={(info) => {
+                console.log('Drag stopped:', info.event.title);
+              }}
+              eventDragStart={(info) => {
+                console.log('Drag started:', info.event.title);
+              }}
+              eventDrop={handleEventChange}
               datesSet={(dateInfo) => {
                 console.log("Date range changed:", dateInfo.startStr, "to", dateInfo.endStr);
               }}
