@@ -1,0 +1,63 @@
+
+export interface Resource {
+  id: string;
+  title: string;
+  eventColor?: string;
+}
+
+// Exempel på resurser som kan användas i kalendern
+export const sampleResources: Resource[] = [
+  { id: 'a', title: 'Rum 101', eventColor: '#3788d8' },
+  { id: 'b', title: 'Rum 102', eventColor: '#1e90ff' },
+  { id: 'c', title: 'Rum 103', eventColor: '#4169e1' },
+  { id: 'd', title: 'Konferensrum A', eventColor: '#0073cf' },
+  { id: 'e', title: 'Konferensrum B', eventColor: '#4682b4' },
+];
+
+export interface CalendarEvent {
+  id: string;
+  resourceId: string;
+  title: string;
+  start: string;
+  end: string;
+  color?: string;
+}
+
+// Exempel på bokningar som kan visas i kalendern
+export const sampleEvents: CalendarEvent[] = [
+  {
+    id: '1',
+    resourceId: 'a',
+    title: 'Möte med kund',
+    start: new Date(new Date().setHours(10, 0)).toISOString(),
+    end: new Date(new Date().setHours(12, 0)).toISOString(),
+  },
+  {
+    id: '2',
+    resourceId: 'b',
+    title: 'Teamutbildning',
+    start: new Date(new Date().setHours(11, 0)).toISOString(),
+    end: new Date(new Date().setHours(13, 30)).toISOString(),
+  },
+  {
+    id: '3',
+    resourceId: 'd',
+    title: 'Presentation',
+    start: new Date(new Date().setHours(14, 0)).toISOString(),
+    end: new Date(new Date().setHours(15, 30)).toISOString(),
+  },
+  {
+    id: '4',
+    resourceId: 'c',
+    title: 'Kundmöte',
+    start: new Date(new Date().setHours(9, 0)).toISOString(),
+    end: new Date(new Date().setHours(10, 30)).toISOString(),
+  },
+  {
+    id: '5',
+    resourceId: 'e',
+    title: 'Workshop',
+    start: new Date(new Date().setDate(new Date().getDate() + 1)).toISOString(),
+    end: new Date(new Date().setDate(new Date().getDate() + 1)).setHours(15, 0).toISOString(),
+  },
+];
