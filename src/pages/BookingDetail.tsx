@@ -7,203 +7,188 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, addDays, isAfter, differenceInDays } from "date-fns";
+import { format, isAfter, differenceInDays } from "date-fns";
 import { MapPin, User, Calendar as CalendarIcon, Package, ArrowLeft, FileText, FilePlus, Pencil, Check, CalendarPlus } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { generateEventId } from '@/components/Calendar/ResourceData';
-
-// Extended mock data for BOK-001
-const mockBookingData = {
-  "BOK-001": {
-    id: "BOK-001",
-    client: "Volvo AB",
-    rigDayDate: "2025-05-20",
-    eventDate: "2025-05-21",
-    rigDownDate: "2025-05-22",
-    deliveryAddress: "Volvo Headquarters, Gothenburg 405 31, Sweden",
-    internalNotes: "This is a high-priority client. Make sure to bring extra equipment as backup.",
-    attachments: [
-      "https://images.unsplash.com/photo-1649972904349-6e44c42644a7",
-      "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b"
-    ],
-    products: [
-      { id: "P1", name: "Stage System", quantity: 1, notes: "Main stage 8x6m" },
-      { id: "P2", name: "Sound System", quantity: 2, notes: "Premium audio setup" },
-      { id: "P3", name: "Lighting Kit", quantity: 4, notes: "Including RGB spots" },
-      { id: "P4", name: "Video Wall", quantity: 1, notes: "4x3m LED wall" }
-    ]
-  }
-};
-
-// Helper function to create a single event
-const createCalendarEvent = (
-  bookingId: string, 
-  title: string, 
-  date: string, 
-  resourceId: string = 'a', 
-  eventType: 'rig' | 'event' | 'rigDown',
-  client: string
-) => {
-  // Create a start date object (at 9 AM)
-  const startDate = new Date(date);
-  startDate.setHours(9, 0, 0, 0);
-  
-  // End date (at 5 PM same day)
-  const endDate = new Date(date);
-  endDate.setHours(17, 0, 0, 0);
-  
-  return {
-    resourceId,
-    title: `${bookingId}: ${title} - ${client}`,
-    start: startDate.toISOString(),
-    end: endDate.toISOString(),
-    bookingId,
-    eventType
-  };
-};
-
-// Helper function to create multiple events for a date range
-const createMultiDayEvents = (
-  bookingId: string,
-  title: string,
-  startDate: string,
-  endDate: string,
-  resourceId: string = 'a',
-  eventType: 'rig' | 'event' | 'rigDown',
-  client: string
-) => {
-  const events = [];
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const days = differenceInDays(end, start) + 1;
-  
-  for (let i = 0; i < days; i++) {
-    const currentDate = addDays(new Date(startDate), i);
-    events.push(
-      createCalendarEvent(
-        bookingId,
-        title,
-        currentDate.toISOString(),
-        resourceId,
-        eventType,
-        client
-      )
-    );
-  }
-  
-  return events;
-};
+import { Booking } from "@/types/booking";
+import { 
+  fetchBookingById, 
+  updateBookingDates, 
+  updateBookingNotes,
+  addBookingAttachment
+} from "@/services/bookingService";
+import { syncBookingEvents } from "@/services/calendarService";
 
 const BookingDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [internalNotes, setInternalNotes] = useState("");
   const [isEditingNotes, setIsEditingNotes] = useState(false);
-  const [bookingData, setBookingData] = useState(
-    id ? mockBookingData[id as keyof typeof mockBookingData] : undefined
-  );
+  const [bookingData, setBookingData] = useState<Booking | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false);
   
-  const [tempDates, setTempDates] = useState({
-    rigDayDate: bookingData?.rigDayDate || "",
-    eventDate: bookingData?.eventDate || "",
-    rigDownDate: bookingData?.rigDownDate || "",
-  });
+  // Load booking data from Supabase
+  useEffect(() => {
+    const loadBooking = async () => {
+      if (!id) return;
+      
+      try {
+        setIsLoading(true);
+        const data = await fetchBookingById(id);
+        setBookingData(data);
+        
+        if (data.internalNotes) {
+          setInternalNotes(data.internalNotes);
+        }
+      } catch (error) {
+        console.error('Failed to load booking:', error);
+        toast.error('Failed to load booking details');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadBooking();
+  }, [id]);
   
-  // Initialize notes state with existing notes if available
-  React.useEffect(() => {
-    if (bookingData?.internalNotes) {
-      setInternalNotes(bookingData.internalNotes);
-    }
-  }, [bookingData]);
-  
-  const handleSaveNotes = () => {
-    // In a real application, this would send the updated notes to an API
-    if (bookingData) {
+  const handleSaveNotes = async () => {
+    if (!bookingData || !id) return;
+    
+    try {
+      setIsUpdating(true);
+      await updateBookingNotes(id, internalNotes);
+      
       setBookingData({
         ...bookingData,
         internalNotes: internalNotes
       });
+      
+      toast.success("Internal notes saved successfully");
+      setIsEditingNotes(false);
+    } catch (error) {
+      console.error('Failed to save notes:', error);
+      toast.error('Failed to save notes');
+    } finally {
+      setIsUpdating(false);
     }
-    toast.success("Internal notes saved successfully");
-    setIsEditingNotes(false);
   };
   
-  const handleSaveDates = (field: string, date: Date | undefined) => {
-    if (!date || !bookingData) return;
+  const handleSaveDates = async (field: 'rigDayDate' | 'eventDate' | 'rigDownDate', date: Date | undefined) => {
+    if (!date || !bookingData || !id) return;
     
     const formattedDate = format(date, "yyyy-MM-dd");
-    const updatedDates = {
-      ...tempDates,
-      [field]: formattedDate
-    };
     
-    setTempDates(updatedDates);
-    
-    // In a real application, this would send the updated dates to an API
-    setBookingData({
-      ...bookingData,
-      [field]: formattedDate
-    });
-    
-    toast.success(`${field.charAt(0).toUpperCase() + field.slice(1).replace('Date', '')} date updated to ${formattedDate}`);
+    try {
+      setIsUpdating(true);
+      
+      // Update date in the database
+      await updateBookingDates(id, field, formattedDate);
+      
+      // Update local state
+      setBookingData({
+        ...bookingData,
+        [field]: formattedDate
+      });
+      
+      // Sync with calendar events
+      let eventType: 'rig' | 'event' | 'rigDown';
+      let title: string;
+      
+      switch (field) {
+        case 'rigDayDate':
+          eventType = 'rig';
+          title = 'Rig Day';
+          break;
+        case 'eventDate':
+          eventType = 'event';
+          title = 'Event Day';
+          break;
+        case 'rigDownDate':
+          eventType = 'rigDown';
+          title = 'Rig Down Day';
+          break;
+      }
+      
+      // Sync with calendar (create or update associated event)
+      await syncBookingEvents(
+        id,
+        eventType,
+        formattedDate,
+        'a', // Default resource ID
+        bookingData.client
+      );
+      
+      toast.success(`${field.charAt(0).toUpperCase() + field.slice(1).replace('Date', '')} date updated to ${formattedDate}`);
+    } catch (error) {
+      console.error(`Failed to update ${field}:`, error);
+      toast.error(`Failed to update ${field}`);
+    } finally {
+      setIsUpdating(false);
+    }
   };
   
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      // In a real application, this would upload the file to storage
-      toast.success(`File "${e.target.files[0].name}" added successfully`);
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0 || !bookingData || !id) return;
+    
+    const file = e.target.files[0];
+    const fileUrl = URL.createObjectURL(file);
+    
+    try {
+      // In a real application, this would upload the file to Supabase Storage
+      // For now, we'll just add the local URL to our attachments
+      await addBookingAttachment(id, fileUrl, file.name, file.type);
+      
+      // Update local state
+      setBookingData({
+        ...bookingData,
+        attachments: [...(bookingData.attachments || []), fileUrl]
+      });
+      
+      toast.success(`File "${file.name}" added successfully`);
+    } catch (error) {
+      console.error('Failed to upload file:', error);
+      toast.error('Failed to upload file');
     }
   };
   
   // Function to handle adding date to calendar
-  const handleAddToCalendar = (dateName: string, dateValue: string) => {
-    if (!bookingData) return;
-    
-    // Get the addEventToCalendar function from window
-    // @ts-ignore
-    const addEventToCalendar = window.addEventToCalendar;
-    
-    if (!addEventToCalendar) {
-      toast.error("Calendar function not available. Please try again.");
-      return;
-    }
+  const handleAddToCalendar = async (dateName: string, dateValue: string) => {
+    if (!bookingData || !id) return;
     
     // Determine event type based on date name
     let eventType: 'rig' | 'event' | 'rigDown';
-    let title: string;
     
     switch (dateName) {
       case 'Rig Day':
         eventType = 'rig';
-        title = 'Rig Day';
         break;
       case 'Event Day':
         eventType = 'event';
-        title = 'Event Day';
         break;
       case 'Rig Down Day':
         eventType = 'rigDown';
-        title = 'Rig Down Day';
         break;
       default:
         eventType = 'event';
-        title = dateName;
     }
     
-    // Create and add event to calendar
-    const eventId = addEventToCalendar(
-      createCalendarEvent(
-        bookingData.id,
-        title,
+    try {
+      // Create and add event to calendar
+      await syncBookingEvents(
+        id,
+        eventType,
         dateValue,
         'a', // Default resource ID
-        eventType,
         bookingData.client
-      )
-    );
-    
-    toast.success(`${dateName} added to calendar`);
+      );
+      
+      toast.success(`${dateName} added to calendar`);
+    } catch (error) {
+      console.error('Failed to add event to calendar:', error);
+      toast.error('Failed to add event to calendar');
+    }
   };
   
   // Function to navigate back to calendar view
@@ -211,13 +196,13 @@ const BookingDetail = () => {
     navigate('/resource-view');
   };
   
-  // Add effect to check if we came from calendar and set back button accordingly
-  useEffect(() => {
-    const cameFromCalendar = sessionStorage.getItem('calendarDate') !== null;
-    if (cameFromCalendar) {
-      console.log('Came from calendar view');
-    }
-  }, []);
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-500">Loading booking details...</p>
+      </div>
+    );
+  }
   
   if (!bookingData) {
     return (
@@ -275,7 +260,7 @@ const BookingDetail = () => {
                   <MapPin className="h-5 w-5 text-[#82b6c6] mt-0.5" />
                   <div>
                     <h3 className="text-sm font-medium text-[#4a5568]">Delivery Address</h3>
-                    <p className="text-[#2d3748]">{bookingData.deliveryAddress}</p>
+                    <p className="text-[#2d3748]">{bookingData.deliveryAddress || 'Not specified'}</p>
                   </div>
                 </div>
               </div>
@@ -300,6 +285,7 @@ const BookingDetail = () => {
                         <Button 
                           variant="outline" 
                           className="w-full justify-start text-left font-normal hover:bg-gray-100 cursor-pointer"
+                          disabled={isUpdating}
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
                           {bookingData.rigDayDate}
@@ -308,7 +294,7 @@ const BookingDetail = () => {
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={new Date(bookingData.rigDayDate)}
+                          selected={bookingData.rigDayDate ? new Date(bookingData.rigDayDate) : undefined}
                           onSelect={(date) => handleSaveDates('rigDayDate', date)}
                           initialFocus
                           className="p-3 pointer-events-auto"
@@ -321,6 +307,7 @@ const BookingDetail = () => {
                       className="flex-shrink-0"
                       onClick={() => handleAddToCalendar('Rig Day', bookingData.rigDayDate)}
                       title="Save to Calendar"
+                      disabled={isUpdating || !bookingData.rigDayDate}
                     >
                       <CalendarPlus className="h-4 w-4 text-[#82b6c6]" />
                     </Button>
@@ -335,6 +322,7 @@ const BookingDetail = () => {
                         <Button 
                           variant="outline" 
                           className="w-full justify-start text-left font-normal hover:bg-gray-100 cursor-pointer"
+                          disabled={isUpdating}
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
                           {bookingData.eventDate}
@@ -343,7 +331,7 @@ const BookingDetail = () => {
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={new Date(bookingData.eventDate)}
+                          selected={bookingData.eventDate ? new Date(bookingData.eventDate) : undefined}
                           onSelect={(date) => handleSaveDates('eventDate', date)}
                           initialFocus
                           className="p-3 pointer-events-auto"
@@ -356,6 +344,7 @@ const BookingDetail = () => {
                       className="flex-shrink-0"
                       onClick={() => handleAddToCalendar('Event Day', bookingData.eventDate)}
                       title="Save to Calendar"
+                      disabled={isUpdating || !bookingData.eventDate}
                     >
                       <CalendarPlus className="h-4 w-4 text-[#82b6c6]" />
                     </Button>
@@ -370,6 +359,7 @@ const BookingDetail = () => {
                         <Button 
                           variant="outline" 
                           className="w-full justify-start text-left font-normal hover:bg-gray-100 cursor-pointer"
+                          disabled={isUpdating}
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
                           {bookingData.rigDownDate}
@@ -378,7 +368,7 @@ const BookingDetail = () => {
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={new Date(bookingData.rigDownDate)}
+                          selected={bookingData.rigDownDate ? new Date(bookingData.rigDownDate) : undefined}
                           onSelect={(date) => handleSaveDates('rigDownDate', date)}
                           initialFocus
                           className="p-3 pointer-events-auto"
@@ -391,6 +381,7 @@ const BookingDetail = () => {
                       className="flex-shrink-0"
                       onClick={() => handleAddToCalendar('Rig Down Day', bookingData.rigDownDate)}
                       title="Save to Calendar"
+                      disabled={isUpdating || !bookingData.rigDownDate}
                     >
                       <CalendarPlus className="h-4 w-4 text-[#82b6c6]" />
                     </Button>
@@ -402,36 +393,38 @@ const BookingDetail = () => {
         </div>
         
         {/* Products Card */}
-        <Card className="border-0 shadow-md rounded-lg overflow-hidden mb-6">
-          <CardHeader className="bg-gray-50 border-b pb-4">
-            <CardTitle className="text-xl text-[#2d3748] flex items-center">
-              <Package className="h-5 w-5 mr-2 text-[#82b6c6]" />
-              <span>Product List</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader className="bg-gray-50">
-                <TableRow>
-                  <TableHead className="text-[#2d3748]">Product ID</TableHead>
-                  <TableHead className="text-[#2d3748]">Product Name</TableHead>
-                  <TableHead className="text-[#2d3748]">Quantity</TableHead>
-                  <TableHead className="text-[#2d3748]">Notes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {bookingData.products?.map((product) => (
-                  <TableRow key={product.id} className="hover:bg-gray-50">
-                    <TableCell className="font-medium text-[#2d3748]">{product.id}</TableCell>
-                    <TableCell>{product.name}</TableCell>
-                    <TableCell>{product.quantity}</TableCell>
-                    <TableCell>{product.notes || '-'}</TableCell>
+        {bookingData.products && bookingData.products.length > 0 && (
+          <Card className="border-0 shadow-md rounded-lg overflow-hidden mb-6">
+            <CardHeader className="bg-gray-50 border-b pb-4">
+              <CardTitle className="text-xl text-[#2d3748] flex items-center">
+                <Package className="h-5 w-5 mr-2 text-[#82b6c6]" />
+                <span>Product List</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader className="bg-gray-50">
+                  <TableRow>
+                    <TableHead className="text-[#2d3748]">Product ID</TableHead>
+                    <TableHead className="text-[#2d3748]">Product Name</TableHead>
+                    <TableHead className="text-[#2d3748]">Quantity</TableHead>
+                    <TableHead className="text-[#2d3748]">Notes</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {bookingData.products.map((product) => (
+                    <TableRow key={product.id} className="hover:bg-gray-50">
+                      <TableCell className="font-medium text-[#2d3748]">{product.id}</TableCell>
+                      <TableCell>{product.name}</TableCell>
+                      <TableCell>{product.quantity}</TableCell>
+                      <TableCell>{product.notes || '-'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
         
         {/* Internal Notes Card */}
         <Card className="border-0 shadow-md rounded-lg overflow-hidden mb-6">
@@ -449,18 +442,21 @@ const BookingDetail = () => {
                   className="w-full min-h-[100px]"
                   value={internalNotes}
                   onChange={(e) => setInternalNotes(e.target.value)}
+                  disabled={isUpdating}
                 />
                 <div className="flex justify-end gap-2">
                   <Button 
                     variant="outline" 
                     onClick={() => setIsEditingNotes(false)}
+                    disabled={isUpdating}
                   >
                     Cancel
                   </Button>
                   <Button 
                     onClick={handleSaveNotes}
+                    disabled={isUpdating}
                   >
-                    Save Notes
+                    {isUpdating ? 'Saving...' : 'Save Notes'}
                   </Button>
                 </div>
               </div>
@@ -504,9 +500,10 @@ const BookingDetail = () => {
                     type="file" 
                     className="hidden" 
                     onChange={handleFileUpload}
+                    disabled={isUpdating}
                   />
                 </label>
-                <Button variant="outline" size="sm">Upload</Button>
+                <Button variant="outline" size="sm" disabled={isUpdating}>Upload</Button>
               </div>
               
               {/* Attachments Grid */}

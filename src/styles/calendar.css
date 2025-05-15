@@ -31,6 +31,7 @@
 /* Event styling */
 .fc-event {
   border-radius: 4px !important;
+  cursor: pointer;
 }
 
 /* Weekend day styling */
@@ -39,20 +40,40 @@
 }
 
 /* Event type color styling */
-.event-rig-day {
+.event-rig-day,
+.fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="rig"] {
   background-color: #F2FCE2 !important; /* Soft Green for rig events */
   border-color: #D4EAB5 !important;
   color: #3C682E !important;
 }
 
-.event-event-day {
+.event-event-day,
+.fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="event"] {
   background-color: #FEF7CD !important; /* Soft Yellow for events */
   border-color: #F3E8A3 !important;
   color: #8C6E20 !important;
 }
 
-.event-rig-down {
+.event-rig-down,
+.fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="rigDown"] {
   background-color: #FFDEE2 !important; /* Soft Pink for rig down events */
   border-color: #FFBAC1 !important;
   color: #AF4753 !important;
+}
+
+/* Loading state styling */
+.calendar-loading {
+  height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4a5568;
+  font-size: 16px;
+}
+
+/* Event hover effect */
+.fc-event:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+  transition: all 0.2s ease;
 }

@@ -2,11 +2,11 @@ import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction'; // Import interaction plugin for drag-drop
-import { sampleResources, sampleEvents, Resource, CalendarEvent, getEventColor, generateEventId } from '../components/Calendar/ResourceData';
+import interactionPlugin from '@fullcalendar/interaction';
+import { sampleResources, Resource, CalendarEvent, getEventColor, generateEventId } from '../components/Calendar/ResourceData';
 import { Button } from '@/components/ui/button';
 import { Edit } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
@@ -18,13 +18,15 @@ import {
 import TeamManager from '@/components/Calendar/TeamManager';
 import '../styles/calendar.css';
 import { useNavigate } from 'react-router-dom';
+import { fetchCalendarEvents, updateCalendarEvent } from '@/services/calendarService';
 
 const ResourceView = () => {
   const [isMounted, setIsMounted] = useState(false);
   const [resources, setResources] = useState<Resource[]>(sampleResources);
   const [teamCount, setTeamCount] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [events, setEvents] = useState<CalendarEvent[]>(sampleEvents);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
   
   // Get the date from URL or session storage if it exists
@@ -33,19 +35,49 @@ const ResourceView = () => {
     return storedDate ? new Date(storedDate) : new Date();
   });
   
+  // Fetch events from Supabase on component mount
   useEffect(() => {
-    setIsMounted(true);
-    
-    // Load events from localStorage if available
-    const storedEvents = localStorage.getItem('calendarEvents');
-    if (storedEvents) {
+    const loadEvents = async () => {
       try {
-        const parsedEvents = JSON.parse(storedEvents);
-        setEvents(parsedEvents);
+        setIsLoading(true);
+        const data = await fetchCalendarEvents();
+        
+        // If there are no events from the database, try to get them from localStorage
+        if (data.length === 0) {
+          const storedEvents = localStorage.getItem('calendarEvents');
+          if (storedEvents) {
+            try {
+              setEvents(JSON.parse(storedEvents));
+            } catch (error) {
+              console.error('Error parsing stored events:', error);
+            }
+          }
+        } else {
+          setEvents(data);
+          // Store the events in localStorage as a cache
+          localStorage.setItem('calendarEvents', JSON.stringify(data));
+        }
       } catch (error) {
-        console.error('Error parsing stored events:', error);
+        console.error('Error loading calendar events:', error);
+        
+        // Fallback to localStorage if API fails
+        const storedEvents = localStorage.getItem('calendarEvents');
+        if (storedEvents) {
+          try {
+            setEvents(JSON.parse(storedEvents));
+          } catch (error) {
+            console.error('Error parsing stored events:', error);
+          }
+        }
+        
+        toast.error('Failed to load calendar events');
+      } finally {
+        setIsLoading(false);
+        setIsMounted(true);
       }
-    }
+    };
+    
+    loadEvents();
     
     return () => setIsMounted(false);
   }, []);
@@ -88,27 +120,39 @@ const ResourceView = () => {
     });
   };
 
-  const handleEventChange = (info: any) => {
-    // Update the event in our state
-    const updatedEvents = events.map(event => {
-      if (event.id === info.event.id) {
-        return {
-          ...event,
+  const handleEventChange = async (info: any) => {
+    try {
+      // Update the event in our state
+      const updatedEvents = events.map(event => {
+        if (event.id === info.event.id) {
+          return {
+            ...event,
+            start: info.event.start.toISOString(),
+            end: info.event.end.toISOString(),
+            resourceId: info.event.getResources()[0]?.id || event.resourceId
+          };
+        }
+        return event;
+      });
+      
+      setEvents(updatedEvents);
+      
+      // Update the event in the database
+      if (info.event.id) {
+        await updateCalendarEvent(info.event.id, {
           start: info.event.start.toISOString(),
           end: info.event.end.toISOString(),
-          resourceId: info.event.getResources()[0]?.id || event.resourceId
-        };
+          resourceId: info.event.getResources()[0]?.id
+        });
       }
-      return event;
-    });
-    
-    setEvents(updatedEvents);
-    
-    toast({
-      title: "Event flyttat",
-      description: `Eventet har flyttats till ${info.event.start.toLocaleTimeString()}`,
-      duration: 3000,
-    });
+      
+      toast(`Event flyttat`, {
+        description: `Eventet har flyttats till ${info.event.start.toLocaleTimeString()}`,
+      });
+    } catch (error) {
+      console.error('Error updating event:', error);
+      toast.error('Failed to update event');
+    }
   };
 
   // Handle navigation to booking details when an event is clicked
@@ -191,7 +235,11 @@ const ResourceView = () => {
         </div>
         
         <div className="bg-white rounded-lg shadow-md p-4">
-          {isMounted && (
+          {isLoading ? (
+            <div className="flex justify-center items-center p-12">
+              <p className="text-gray-500">Loading calendar...</p>
+            </div>
+          ) : isMounted && (
             <FullCalendar
               plugins={[resourceTimeGridPlugin, timeGridPlugin, interactionPlugin]}
               initialView="resourceTimeGridDay"
