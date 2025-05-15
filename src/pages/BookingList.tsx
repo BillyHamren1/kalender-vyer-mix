@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Table,
   TableBody,
@@ -11,15 +12,10 @@ import {
 } from "@/components/ui/table";
 import { Card } from '@/components/ui/card';
 
-// Tillfällig bokningsdata som senare kan ersättas med riktig data
-interface Booking {
-  id: string;
-  client: string;
-  rigDayDate: string;
-  eventDate: string;
-  rigDownDate: string;
-}
+// Import the Booking interface from our types
+import { Booking } from '../types/booking';
 
+// Tillfällig bokningsdata som senare kan ersättas med riktig data
 const sampleBookings: Booking[] = [
   {
     id: "BOK-001",
@@ -27,6 +23,7 @@ const sampleBookings: Booking[] = [
     rigDayDate: "2025-05-20",
     eventDate: "2025-05-21",
     rigDownDate: "2025-05-22",
+    deliveryAddress: "Volvo Headquarters, Gothenburg 405 31, Sweden",
   },
   {
     id: "BOK-002",
@@ -59,6 +56,12 @@ const sampleBookings: Booking[] = [
 ];
 
 const BookingList = () => {
+  const navigate = useNavigate();
+  
+  const handleRowClick = (id: string) => {
+    navigate(`/booking/${id}`);
+  };
+  
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
@@ -80,7 +83,11 @@ const BookingList = () => {
             </TableHeader>
             <TableBody>
               {sampleBookings.map((booking) => (
-                <TableRow key={booking.id} className="hover:bg-gray-50">
+                <TableRow 
+                  key={booking.id} 
+                  className="hover:bg-gray-50 cursor-pointer" 
+                  onClick={() => handleRowClick(booking.id)}
+                >
                   <TableCell className="font-medium text-[#2d3748]">{booking.id}</TableCell>
                   <TableCell>{booking.client}</TableCell>
                   <TableCell>{booking.rigDayDate}</TableCell>

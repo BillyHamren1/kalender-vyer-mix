@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import ResourceView from "./pages/ResourceView";
 import BookingList from "./pages/BookingList";
+import BookingDetail from "./pages/BookingDetail";
 import NotFound from "./pages/NotFound";
 import Navbar from "./components/Navigation/Navbar";
 
@@ -24,6 +25,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/resource-view" element={<ResourceView />} />
             <Route path="/booking-list" element={<BookingList />} />
+            <Route path="/booking/:id" element={<BookingDetail />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
