@@ -15,13 +15,15 @@ interface TeamSelectorProps {
   onTeamChange: (teamId: string) => void;
   label?: string;
   disabled?: boolean;
+  allowAuto?: boolean;
 }
 
 const TeamSelector = ({ 
   selectedTeamId, 
   onTeamChange, 
   label = "Select Team", 
-  disabled = false 
+  disabled = false,
+  allowAuto = false
 }: TeamSelectorProps) => {
   const [teams, setTeams] = useState<Resource[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,6 +56,9 @@ const TeamSelector = ({
           <SelectValue placeholder="Select a team" />
         </SelectTrigger>
         <SelectContent>
+          {allowAuto && (
+            <SelectItem value="auto">Auto-assign (first available team)</SelectItem>
+          )}
           {teams.map((team) => (
             <SelectItem key={team.id} value={team.id}>
               {team.title}

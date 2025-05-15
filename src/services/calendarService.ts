@@ -107,12 +107,63 @@ export const fetchEventsByBookingId = async (bookingId: string): Promise<Calenda
   }));
 };
 
+// Find the first available team for a given date and time range
+export const findAvailableTeam = async (startTime: Date, endTime: Date): Promise<string> => {
+  try {
+    // First, get all teams
+    const teamResources = await fetchTeamResources();
+    if (teamResources.length === 0) return 'team-1'; // Default if no teams
+    
+    // Get all events on the given day
+    const start = new Date(startTime);
+    start.setHours(0, 0, 0, 0);
+    
+    const end = new Date(endTime);
+    end.setHours(23, 59, 59, 999);
+    
+    const { data: eventsOnDay } = await supabase
+      .from('calendar_events')
+      .select('*')
+      .gte('start_time', start.toISOString())
+      .lte('end_time', end.toISOString());
+    
+    if (!eventsOnDay) return teamResources[0].id;
+    
+    // Find busy teams during the specific time slot
+    const busyTeams = new Set<string>();
+    eventsOnDay.forEach(event => {
+      const eventStart = new Date(event.start_time);
+      const eventEnd = new Date(event.end_time);
+      
+      if (
+        (startTime <= eventEnd && endTime >= eventStart) && 
+        event.resource_id.startsWith('team-')
+      ) {
+        busyTeams.add(event.resource_id);
+      }
+    });
+    
+    // Find first available team
+    for (const team of teamResources) {
+      if (!busyTeams.has(team.id)) {
+        return team.id;
+      }
+    }
+    
+    // If all teams are busy, return the first team
+    return teamResources[0].id;
+  } catch (error) {
+    console.error('Error finding available team:', error);
+    return 'team-1'; // Fallback
+  }
+};
+
 // Create or update events for a booking date change
 export const syncBookingEvents = async (
   bookingId: string,
   eventType: 'rig' | 'event' | 'rigDown',
   date: string,
-  resourceId: string = 'a',
+  resourceId: string = 'auto',
   client: string
 ): Promise<string> => {
   // Check if an event already exists for this booking and event type
@@ -129,6 +180,12 @@ export const syncBookingEvents = async (
   // End date (at 5 PM same day)
   const endDate = new Date(date);
   endDate.setHours(17, 0, 0, 0);
+
+  // If resourceId is 'auto', find an available team
+  let teamId = resourceId;
+  if (resourceId === 'auto') {
+    teamId = await findAvailableTeam(startDate, endDate);
+  }
 
   let title = '';
   switch (eventType) {
@@ -149,7 +206,7 @@ export const syncBookingEvents = async (
     await supabase
       .from('calendar_events')
       .update({
-        resource_id: resourceId,
+        resource_id: teamId,
         start_time: startDate.toISOString(),
         end_time: endDate.toISOString(),
         title: title
@@ -162,7 +219,7 @@ export const syncBookingEvents = async (
     const { data, error } = await supabase
       .from('calendar_events')
       .insert({
-        resource_id: resourceId,
+        resource_id: teamId,
         booking_id: bookingId,
         title: title,
         start_time: startDate.toISOString(),
