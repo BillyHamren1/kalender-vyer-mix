@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -40,7 +39,6 @@ const BookingDetail = () => {
   const navigate = useNavigate();
   const [internalNotes, setInternalNotes] = useState("");
   const [isEditingNotes, setIsEditingNotes] = useState(false);
-  const [isEditingDates, setIsEditingDates] = useState(false);
   const [bookingData, setBookingData] = useState(
     id ? mockBookingData[id as keyof typeof mockBookingData] : undefined
   );
@@ -70,16 +68,24 @@ const BookingDetail = () => {
     setIsEditingNotes(false);
   };
   
-  const handleSaveDates = () => {
+  const handleSaveDates = (field: string, date: Date | undefined) => {
+    if (!date || !bookingData) return;
+    
+    const formattedDate = format(date, "yyyy-MM-dd");
+    const updatedDates = {
+      ...tempDates,
+      [field]: formattedDate
+    };
+    
+    setTempDates(updatedDates);
+    
     // In a real application, this would send the updated dates to an API
-    if (bookingData) {
-      setBookingData({
-        ...bookingData,
-        ...tempDates
-      });
-    }
-    toast.success("Dates updated successfully");
-    setIsEditingDates(false);
+    setBookingData({
+      ...bookingData,
+      [field]: formattedDate
+    });
+    
+    toast.success(`${field.charAt(0).toUpperCase() + field.slice(1).replace('Date', '')} date updated to ${formattedDate}`);
   };
   
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -155,101 +161,83 @@ const BookingDetail = () => {
           {/* Dates Card */}
           <Card className="border-0 shadow-md rounded-lg overflow-hidden">
             <CardHeader className="bg-gray-50 border-b pb-4">
-              <CardTitle className="text-xl text-[#2d3748] flex items-center justify-between">
-                <div className="flex items-center">
-                  <CalendarIcon className="h-5 w-5 mr-2 text-[#82b6c6]" />
-                  <span>Important Dates</span>
-                </div>
-                {isEditingDates ? (
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    onClick={handleSaveDates} 
-                    className="ml-2"
-                  >
-                    <Check className="h-4 w-4 mr-1" /> Save
-                  </Button>
-                ) : (
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    onClick={() => setIsEditingDates(true)} 
-                    className="ml-2"
-                  >
-                    <Pencil className="h-4 w-4 mr-1" /> Edit
-                  </Button>
-                )}
+              <CardTitle className="text-xl text-[#2d3748] flex items-center">
+                <CalendarIcon className="h-5 w-5 mr-2 text-[#82b6c6]" />
+                <span>Important Dates</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
               <div className="space-y-4">
                 <div>
                   <h3 className="text-sm font-medium text-[#4a5568]">Rig Day</h3>
-                  {isEditingDates ? (
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start text-left font-normal">
-                          {tempDates.rigDayDate ? format(new Date(tempDates.rigDayDate), "yyyy-MM-dd") : "Select date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={tempDates.rigDayDate ? new Date(tempDates.rigDayDate) : undefined}
-                          onSelect={(date) => date && setTempDates({ ...tempDates, rigDayDate: format(date, "yyyy-MM-dd") })}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  ) : (
-                    <p className="text-[#2d3748] font-medium">{bookingData.rigDayDate}</p>
-                  )}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        className="w-full justify-start text-left font-normal hover:bg-gray-100 cursor-pointer"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {bookingData.rigDayDate}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={new Date(bookingData.rigDayDate)}
+                        onSelect={(date) => handleSaveDates('rigDayDate', date)}
+                        initialFocus
+                        className="p-3 pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 
                 <div>
                   <h3 className="text-sm font-medium text-[#4a5568]">Event Day</h3>
-                  {isEditingDates ? (
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start text-left font-normal">
-                          {tempDates.eventDate ? format(new Date(tempDates.eventDate), "yyyy-MM-dd") : "Select date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={tempDates.eventDate ? new Date(tempDates.eventDate) : undefined}
-                          onSelect={(date) => date && setTempDates({ ...tempDates, eventDate: format(date, "yyyy-MM-dd") })}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  ) : (
-                    <p className="text-[#2d3748] font-medium">{bookingData.eventDate}</p>
-                  )}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        className="w-full justify-start text-left font-normal hover:bg-gray-100 cursor-pointer"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {bookingData.eventDate}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={new Date(bookingData.eventDate)}
+                        onSelect={(date) => handleSaveDates('eventDate', date)}
+                        initialFocus
+                        className="p-3 pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 
                 <div>
                   <h3 className="text-sm font-medium text-[#4a5568]">Rig Down Day</h3>
-                  {isEditingDates ? (
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start text-left font-normal">
-                          {tempDates.rigDownDate ? format(new Date(tempDates.rigDownDate), "yyyy-MM-dd") : "Select date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={tempDates.rigDownDate ? new Date(tempDates.rigDownDate) : undefined}
-                          onSelect={(date) => date && setTempDates({ ...tempDates, rigDownDate: format(date, "yyyy-MM-dd") })}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  ) : (
-                    <p className="text-[#2d3748] font-medium">{bookingData.rigDownDate}</p>
-                  )}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        className="w-full justify-start text-left font-normal hover:bg-gray-100 cursor-pointer"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {bookingData.rigDownDate}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={new Date(bookingData.rigDownDate)}
+                        onSelect={(date) => handleSaveDates('rigDownDate', date)}
+                        initialFocus
+                        className="p-3 pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
             </CardContent>
