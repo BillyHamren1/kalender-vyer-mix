@@ -1,25 +1,25 @@
 
 /* Calendar styling to match the light blue theme */
 .fc .fc-button-primary {
-  background-color: var(--primary) !important;
-  border-color: var(--primary) !important;
+  background-color: #2d3748 !important;
+  border-color: #2d3748 !important;
   color: white !important;
 }
 
 .fc .fc-button-primary:hover {
-  background-color: var(--primary-hover) !important;
-  border-color: var(--primary-hover) !important;
+  background-color: #4a5568 !important;
+  border-color: #4a5568 !important;
 }
 
 .fc .fc-button-primary:not(:disabled).fc-button-active,
 .fc .fc-button-primary:not(:disabled):active {
-  background-color: var(--primary-hover) !important;
-  border-color: var(--primary-hover) !important;
+  background-color: #4a5568 !important;
+  border-color: #4a5568 !important;
 }
 
 .fc .fc-button-primary:disabled {
-  background-color: var(--primary) !important;
-  border-color: var(--primary) !important;
+  background-color: #2d3748 !important;
+  border-color: #2d3748 !important;
   opacity: 0.65;
 }
 
