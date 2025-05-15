@@ -58,6 +58,6 @@ export const sampleEvents: CalendarEvent[] = [
     resourceId: 'e',
     title: 'Workshop',
     start: new Date(new Date().setDate(new Date().getDate() + 1)).toISOString(),
-    end: new Date(new Date().setDate(new Date().getDate() + 1)).setHours(15, 0).toISOString(),
+    end: new Date(new Date().setDate(new Date().getDate() + 1).setHours(15, 0)).toISOString(),
   },
 ];
