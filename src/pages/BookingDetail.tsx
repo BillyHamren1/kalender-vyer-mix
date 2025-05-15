@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,10 +7,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
+import { format, addDays, isAfter, differenceInDays } from "date-fns";
 import { MapPin, User, Calendar as CalendarIcon, Package, ArrowLeft, FileText, FilePlus, Pencil, Check, CalendarPlus } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
+import { generateEventId } from '@/components/Calendar/ResourceData';
 
 // Extended mock data for BOK-001
 const mockBookingData = {
@@ -33,6 +34,65 @@ const mockBookingData = {
       { id: "P4", name: "Video Wall", quantity: 1, notes: "4x3m LED wall" }
     ]
   }
+};
+
+// Helper function to create a single event
+const createCalendarEvent = (
+  bookingId: string, 
+  title: string, 
+  date: string, 
+  resourceId: string = 'a', 
+  eventType: 'rig' | 'event' | 'rigDown',
+  client: string
+) => {
+  // Create a start date object (at 9 AM)
+  const startDate = new Date(date);
+  startDate.setHours(9, 0, 0, 0);
+  
+  // End date (at 5 PM same day)
+  const endDate = new Date(date);
+  endDate.setHours(17, 0, 0, 0);
+  
+  return {
+    resourceId,
+    title: `${bookingId}: ${title} - ${client}`,
+    start: startDate.toISOString(),
+    end: endDate.toISOString(),
+    bookingId,
+    eventType
+  };
+};
+
+// Helper function to create multiple events for a date range
+const createMultiDayEvents = (
+  bookingId: string,
+  title: string,
+  startDate: string,
+  endDate: string,
+  resourceId: string = 'a',
+  eventType: 'rig' | 'event' | 'rigDown',
+  client: string
+) => {
+  const events = [];
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const days = differenceInDays(end, start) + 1;
+  
+  for (let i = 0; i < days; i++) {
+    const currentDate = addDays(new Date(startDate), i);
+    events.push(
+      createCalendarEvent(
+        bookingId,
+        title,
+        currentDate.toISOString(),
+        resourceId,
+        eventType,
+        client
+      )
+    );
+  }
+  
+  return events;
 };
 
 const BookingDetail = () => {
@@ -98,22 +158,66 @@ const BookingDetail = () => {
   
   // Function to handle adding date to calendar
   const handleAddToCalendar = (dateName: string, dateValue: string) => {
-    // Create event details
-    const eventTitle = `${bookingData?.id} - ${dateName}`;
-    const eventDetails = `${dateName} for ${bookingData?.client}`;
-    const eventLocation = bookingData?.deliveryAddress || '';
+    if (!bookingData) return;
     
-    // Format date (ensure it's YYYY-MM-DD)
-    const startDate = dateValue.split('T')[0];
+    // Get the addEventToCalendar function from window
+    // @ts-ignore
+    const addEventToCalendar = window.addEventToCalendar;
     
-    // Create calendar URL using the ics format
-    const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&details=${encodeURIComponent(eventDetails)}&location=${encodeURIComponent(eventLocation)}&dates=${startDate.replace(/-/g, '')}T090000Z/${startDate.replace(/-/g, '')}T180000Z`;
+    if (!addEventToCalendar) {
+      toast.error("Calendar function not available. Please try again.");
+      return;
+    }
     
-    // Open in a new tab
-    window.open(googleUrl, '_blank');
+    // Determine event type based on date name
+    let eventType: 'rig' | 'event' | 'rigDown';
+    let title: string;
+    
+    switch (dateName) {
+      case 'Rig Day':
+        eventType = 'rig';
+        title = 'Rig Day';
+        break;
+      case 'Event Day':
+        eventType = 'event';
+        title = 'Event Day';
+        break;
+      case 'Rig Down Day':
+        eventType = 'rigDown';
+        title = 'Rig Down Day';
+        break;
+      default:
+        eventType = 'event';
+        title = dateName;
+    }
+    
+    // Create and add event to calendar
+    const eventId = addEventToCalendar(
+      createCalendarEvent(
+        bookingData.id,
+        title,
+        dateValue,
+        'a', // Default resource ID
+        eventType,
+        bookingData.client
+      )
+    );
     
     toast.success(`${dateName} added to calendar`);
   };
+  
+  // Function to navigate back to calendar view
+  const handleBackToCalendar = () => {
+    navigate('/resource-view');
+  };
+  
+  // Add effect to check if we came from calendar and set back button accordingly
+  useEffect(() => {
+    const cameFromCalendar = sessionStorage.getItem('calendarDate') !== null;
+    if (cameFromCalendar) {
+      console.log('Came from calendar view');
+    }
+  }, []);
   
   if (!bookingData) {
     return (
@@ -142,10 +246,10 @@ const BookingDetail = () => {
           <h1 className="text-2xl font-bold text-[#2d3748]">Booking Details</h1>
           <Button 
             variant="outline" 
-            onClick={() => navigate('/booking-list')}
+            onClick={handleBackToCalendar}
             className="flex items-center gap-2"
           >
-            <ArrowLeft className="h-4 w-4" /> Back to List
+            <ArrowLeft className="h-4 w-4" /> Back to Calendar
           </Button>
         </div>
         

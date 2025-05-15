@@ -1,3 +1,4 @@
+
 export interface Resource {
   id: string;
   title: string;
@@ -20,9 +21,19 @@ export interface CalendarEvent {
   start: string;
   end: string;
   color?: string;
+  bookingId?: string; // Link to the booking
+  eventType?: 'rig' | 'event' | 'rigDown'; // Type of event for color coding
 }
 
-// Exempel på bokningar som kan visas i kalendern
+// Color mappings for different event types
+export const eventColors = {
+  rig: '#F2FCE2', // Soft Green for rig events
+  event: '#FEF7CD', // Soft Yellow for events
+  rigDown: '#FFDEE2', // Soft Pink for rig down events
+  default: '#3788d8', // Default blue
+};
+
+// Sample events for the calendar
 export const sampleEvents: CalendarEvent[] = [
   {
     id: '1',
@@ -57,7 +68,17 @@ export const sampleEvents: CalendarEvent[] = [
     resourceId: 'e',
     title: 'Workshop',
     start: new Date(new Date().setDate(new Date().getDate() + 1)).toISOString(),
-    // Fix the date formatting issue here
     end: new Date(new Date(new Date().setDate(new Date().getDate() + 1)).setHours(15, 0)).toISOString(),
   },
 ];
+
+// Utility function to generate a unique ID for events
+export const generateEventId = (): string => {
+  return `event-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+};
+
+// Function to get color based on event type
+export const getEventColor = (eventType?: 'rig' | 'event' | 'rigDown'): string => {
+  if (!eventType) return eventColors.default;
+  return eventColors[eventType] || eventColors.default;
+};

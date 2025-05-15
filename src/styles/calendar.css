@@ -37,3 +37,22 @@
 .fc-day-sat, .fc-day-sun {
   background-color: rgba(0, 0, 0, 0.02);
 }
+
+/* Event type color styling */
+.event-rig-day {
+  background-color: #F2FCE2 !important; /* Soft Green for rig events */
+  border-color: #D4EAB5 !important;
+  color: #3C682E !important;
+}
+
+.event-event-day {
+  background-color: #FEF7CD !important; /* Soft Yellow for events */
+  border-color: #F3E8A3 !important;
+  color: #8C6E20 !important;
+}
+
+.event-rig-down {
+  background-color: #FFDEE2 !important; /* Soft Pink for rig down events */
+  border-color: #FFBAC1 !important;
+  color: #AF4753 !important;
+}

@@ -1,10 +1,9 @@
-
 import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction'; // Import interaction plugin for drag-drop
-import { sampleResources, sampleEvents, Resource } from '../components/Calendar/ResourceData';
+import { sampleResources, sampleEvents, Resource, CalendarEvent, getEventColor, generateEventId } from '../components/Calendar/ResourceData';
 import { Button } from '@/components/ui/button';
 import { Edit } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -18,18 +17,45 @@ import {
 } from "@/components/ui/dialog";
 import TeamManager from '@/components/Calendar/TeamManager';
 import '../styles/calendar.css';
+import { useNavigate } from 'react-router-dom';
 
 const ResourceView = () => {
   const [isMounted, setIsMounted] = useState(false);
   const [resources, setResources] = useState<Resource[]>(sampleResources);
   const [teamCount, setTeamCount] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [events, setEvents] = useState(sampleEvents);
+  const [events, setEvents] = useState<CalendarEvent[]>(sampleEvents);
+  const navigate = useNavigate();
+  
+  // Get the date from URL or session storage if it exists
+  const [currentDate, setCurrentDate] = useState<Date>(() => {
+    const storedDate = sessionStorage.getItem('calendarDate');
+    return storedDate ? new Date(storedDate) : new Date();
+  });
   
   useEffect(() => {
     setIsMounted(true);
+    
+    // Load events from localStorage if available
+    const storedEvents = localStorage.getItem('calendarEvents');
+    if (storedEvents) {
+      try {
+        const parsedEvents = JSON.parse(storedEvents);
+        setEvents(parsedEvents);
+      } catch (error) {
+        console.error('Error parsing stored events:', error);
+      }
+    }
+    
     return () => setIsMounted(false);
   }, []);
+  
+  // Save events to localStorage whenever they change
+  useEffect(() => {
+    if (events.length > 0) {
+      localStorage.setItem('calendarEvents', JSON.stringify(events));
+    }
+  }, [events]);
 
   const addTeam = () => {
     const newTeamId = `team-${teamCount}`;
@@ -85,6 +111,49 @@ const ResourceView = () => {
     });
   };
 
+  // Handle navigation to booking details when an event is clicked
+  const handleEventClick = (info: any) => {
+    const bookingId = info.event.extendedProps.bookingId;
+    if (bookingId) {
+      // Save current date to session storage before navigating
+      sessionStorage.setItem('calendarDate', currentDate.toISOString());
+      sessionStorage.setItem('calendarView', info.view.type);
+      
+      // Navigate to booking details
+      navigate(`/booking/${bookingId}`);
+    } else {
+      console.log('Event clicked:', info.event.title);
+    }
+  };
+  
+  // Function to add new events to the calendar
+  const addEventToCalendar = (event: Omit<CalendarEvent, 'id'>) => {
+    const newEvent: CalendarEvent = {
+      ...event,
+      id: generateEventId(),
+      color: getEventColor(event.eventType),
+    };
+    
+    setEvents(prevEvents => [...prevEvents, newEvent]);
+    return newEvent.id;
+  };
+  
+  const handleDatesSet = (dateInfo: any) => {
+    setCurrentDate(dateInfo.start);
+    console.log("Date range changed:", dateInfo.startStr, "to", dateInfo.endStr);
+  };
+  
+  // Expose the add event function to window for BookingDetail.tsx to use
+  useEffect(() => {
+    // @ts-ignore
+    window.addEventToCalendar = addEventToCalendar;
+    
+    return () => {
+      // @ts-ignore
+      delete window.addEventToCalendar;
+    };
+  }, []);
+
   // Get only the team resources (not room resources)
   const teamResources = resources.filter(resource => resource.id.startsWith('team-'));
   // Get only the non-team resources (room resources)
@@ -126,6 +195,7 @@ const ResourceView = () => {
             <FullCalendar
               plugins={[resourceTimeGridPlugin, timeGridPlugin, interactionPlugin]}
               initialView="resourceTimeGridDay"
+              initialDate={currentDate}
               resources={resources}
               events={events}
               height="auto"
@@ -164,9 +234,7 @@ const ResourceView = () => {
                   </div>
                 )
               }}
-              eventClick={(info) => {
-                console.log('Event clicked:', info.event.title);
-              }}
+              eventClick={handleEventClick}
               eventResize={(info) => {
                 handleEventChange(info);
               }}
@@ -177,9 +245,7 @@ const ResourceView = () => {
                 console.log('Drag started:', info.event.title);
               }}
               eventDrop={handleEventChange}
-              datesSet={(dateInfo) => {
-                console.log("Date range changed:", dateInfo.startStr, "to", dateInfo.endStr);
-              }}
+              datesSet={handleDatesSet}
             />
           )}
         </div>
