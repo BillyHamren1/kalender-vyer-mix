@@ -25,7 +25,8 @@ const ResourceView = () => {
   const [resources, setResources] = useState<Resource[]>(sampleResources);
   const [teamCount, setTeamCount] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [activeView, setActiveView] = useState('resourceTimelineWeek');
+  const [activeView, setActiveView] = useState('timeGridWeek');
+  const [visibleDays, setVisibleDays] = useState(7);
   
   useEffect(() => {
     setIsMounted(true);
@@ -102,9 +103,9 @@ const ResourceView = () => {
         <div className="bg-white rounded-lg shadow-md p-4">
           {isMounted && (
             <ScrollArea className="w-full">
-              <div className="min-w-full" style={{ minWidth: '100%', overflow: 'visible' }}>
+              <div className="min-w-full calendar-container">
                 <FullCalendar
-                  plugins={[resourceTimeGridPlugin, timeGridPlugin, resourceTimelinePlugin]}
+                  plugins={[resourceTimeGridPlugin, timeGridPlugin]}
                   initialView={activeView}
                   resources={resources}
                   events={sampleEvents}
@@ -112,35 +113,24 @@ const ResourceView = () => {
                   headerToolbar={{
                     left: 'prev,next today',
                     center: 'title',
-                    right: 'resourceTimelineDay,resourceTimelineWeek,resourceTimeGridDay,timeGridWeek'
+                    right: 'timeGridDay,timeGridWeek'
                   }}
                   views={{
-                    resourceTimeGridDay: {
-                      type: 'resourceTimeGrid',
-                      duration: { days: 1 }
-                    },
-                    resourceTimelineDay: {
-                      type: 'resourceTimeline',
-                      duration: { days: 1 },
-                      slotDuration: '01:00:00',
-                      slotMinWidth: 100,
-                      resourceAreaWidth: '150px'
-                    },
-                    resourceTimelineWeek: {
-                      type: 'resourceTimeline',
-                      duration: { days: 5 },
-                      slotDuration: '01:00:00',
-                      slotMinWidth: 100,
-                      resourceAreaWidth: '150px'
+                    timeGridDay: {
+                      type: 'timeGrid',
+                      duration: { days: 3 },
+                      dayCount: visibleDays,
+                      scrollTime: '08:00:00',
+                      dayHeaderFormat: { weekday: 'long', month: 'numeric', day: 'numeric' }
                     },
                     timeGridWeek: {
                       type: 'timeGrid',
                       duration: { weeks: 1 },
-                      dayMaxEventRows: false, // display all events
-                      eventDisplay: 'block', // display as blocks
-                      eventOverlap: false, // don't allow events to overlap
-                      eventShortHeight: 20, // minimum height of an event
-                      slotEventOverlap: false // events won't overlap in time slots
+                      scrollTime: '08:00:00',
+                      dayMaxEventRows: false,
+                      eventDisplay: 'block',
+                      eventOverlap: false,
+                      slotEventOverlap: false
                     }
                   }}
                   slotDuration="00:30:00"
@@ -149,6 +139,9 @@ const ResourceView = () => {
                   contentHeight="auto"
                   expandRows={true}
                   nowIndicator={true}
+                  navLinks={true}
+                  dayHeaders={true}
+                  dayHeaderFormat={{ weekday: 'long', month: 'numeric', day: 'numeric' }}
                   datesSet={(dateInfo) => {
                     console.log("Date range changed:", dateInfo.startStr, "to", dateInfo.endStr);
                     setActiveView(dateInfo.view.type);
