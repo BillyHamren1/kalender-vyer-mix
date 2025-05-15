@@ -24,6 +24,14 @@ const Navbar = () => {
               Resursvy
             </Link>
           </li>
+          <li>
+            <Link 
+              to="/booking-list" 
+              className="text-gray-600 hover:text-blue-600 transition-colors"
+            >
+              Bokningslista
+            </Link>
+          </li>
         </ul>
       </div>
     </nav>
