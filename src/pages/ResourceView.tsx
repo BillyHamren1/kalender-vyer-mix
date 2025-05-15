@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -115,7 +114,12 @@ const ResourceView = () => {
                 },
                 timeGridWeek: {
                   type: 'timeGrid',
-                  duration: { weeks: 1 }
+                  duration: { weeks: 1 },
+                  dayMaxEventRows: false, // display all events
+                  eventDisplay: 'block', // display as blocks
+                  eventOverlap: false, // don't allow events to overlap
+                  eventShortHeight: 20, // minimum height of an event
+                  slotEventOverlap: false // events won't overlap in time slots
                 }
               }}
               slotDuration="00:30:00"
