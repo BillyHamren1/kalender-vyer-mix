@@ -17,11 +17,11 @@ export const fetchBookings = async (): Promise<Booking[]> => {
   return data.map(booking => ({
     id: booking.id,
     client: booking.client,
-    rigDayDate: booking.rigDayDate,
-    eventDate: booking.eventDate,
-    rigDownDate: booking.rigDownDate,
-    deliveryAddress: booking.deliveryAddress || undefined,
-    internalNotes: booking.internalNotes || undefined,
+    rigDayDate: booking.rigdaydate,
+    eventDate: booking.eventdate,
+    rigDownDate: booking.rigdowndate,
+    deliveryAddress: booking.deliveryaddress || undefined,
+    internalNotes: booking.internalnotes || undefined,
   }));
 };
 
@@ -64,11 +64,11 @@ export const fetchBookingById = async (id: string): Promise<Booking> => {
   return {
     id: booking.id,
     client: booking.client,
-    rigDayDate: booking.rigDayDate,
-    eventDate: booking.eventDate,
-    rigDownDate: booking.rigDownDate,
-    deliveryAddress: booking.deliveryAddress || undefined,
-    internalNotes: booking.internalNotes || undefined,
+    rigDayDate: booking.rigdaydate,
+    eventDate: booking.eventdate,
+    rigDownDate: booking.rigdowndate,
+    deliveryAddress: booking.deliveryaddress || undefined,
+    internalNotes: booking.internalnotes || undefined,
     products: products.map(product => ({
       id: product.id,
       name: product.name,
@@ -85,9 +85,18 @@ export const updateBookingDates = async (
   field: 'rigDayDate' | 'eventDate' | 'rigDownDate',
   date: string
 ): Promise<void> => {
+  // Map the camelCase field names to the snake_case column names in the database
+  const fieldMapping: Record<string, string> = {
+    'rigDayDate': 'rigdaydate',
+    'eventDate': 'eventdate',
+    'rigDownDate': 'rigdowndate'
+  };
+  
+  const dbField = fieldMapping[field];
+  
   const { error } = await supabase
     .from('bookings')
-    .update({ [field]: date, updated_at: new Date().toISOString() })
+    .update({ [dbField]: date, updated_at: new Date().toISOString() })
     .eq('id', id);
 
   if (error) {
@@ -100,7 +109,7 @@ export const updateBookingDates = async (
 export const updateBookingNotes = async (id: string, notes: string): Promise<void> => {
   const { error } = await supabase
     .from('bookings')
-    .update({ internalNotes: notes, updated_at: new Date().toISOString() })
+    .update({ internalnotes: notes, updated_at: new Date().toISOString() })
     .eq('id', id);
 
   if (error) {
