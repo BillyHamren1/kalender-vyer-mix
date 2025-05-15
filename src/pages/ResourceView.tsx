@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -23,6 +22,7 @@ const ResourceView = () => {
   const [resources, setResources] = useState<Resource[]>(sampleResources);
   const [teamCount, setTeamCount] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [events, setEvents] = useState(sampleEvents);
   
   useEffect(() => {
     setIsMounted(true);
@@ -56,6 +56,29 @@ const ResourceView = () => {
     toast({
       title: "Team borttaget",
       description: `${teamToRemove.title} har tagits bort från kalendern`,
+      duration: 3000,
+    });
+  };
+
+  const handleEventDrop = (info: any) => {
+    // Update the event in our state
+    const updatedEvents = events.map(event => {
+      if (event.id === info.event.id) {
+        return {
+          ...event,
+          start: info.event.start.toISOString(),
+          end: info.event.end.toISOString(),
+          resourceId: info.event.getResources()[0]?.id || event.resourceId
+        };
+      }
+      return event;
+    });
+    
+    setEvents(updatedEvents);
+    
+    toast({
+      title: "Event flyttat",
+      description: `Eventet har flyttats till ${info.event.start.toLocaleTimeString()}`,
       duration: 3000,
     });
   };
@@ -102,7 +125,7 @@ const ResourceView = () => {
               plugins={[resourceTimeGridPlugin, timeGridPlugin]}
               initialView="resourceTimeGridDay"
               resources={resources}
-              events={sampleEvents}
+              events={events}
               height="auto"
               headerToolbar={{
                 left: 'prev,next today',
@@ -127,6 +150,11 @@ const ResourceView = () => {
               slotDuration="00:30:00"
               allDaySlot={false}
               locale="sv"
+              editable={true}
+              droppable={true}
+              eventDrop={handleEventDrop}
+              eventDurationEditable={true}
+              eventResourceEditable={true}
               datesSet={(dateInfo) => {
                 console.log("Date range changed:", dateInfo.startStr, "to", dateInfo.endStr);
               }}

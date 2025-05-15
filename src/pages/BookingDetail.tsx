@@ -5,7 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { MapPin, User, Calendar, Package, ArrowLeft, FileText, FilePlus } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { MapPin, User, Calendar as CalendarIcon, Package, ArrowLeft, FileText, FilePlus, Pencil, Check } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 
@@ -37,21 +40,46 @@ const BookingDetail = () => {
   const navigate = useNavigate();
   const [internalNotes, setInternalNotes] = useState("");
   const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [isEditingDates, setIsEditingDates] = useState(false);
+  const [bookingData, setBookingData] = useState(
+    id ? mockBookingData[id as keyof typeof mockBookingData] : undefined
+  );
   
-  // Get booking data based on ID
-  const booking = id ? mockBookingData[id as keyof typeof mockBookingData] : undefined;
+  const [tempDates, setTempDates] = useState({
+    rigDayDate: bookingData?.rigDayDate || "",
+    eventDate: bookingData?.eventDate || "",
+    rigDownDate: bookingData?.rigDownDate || "",
+  });
   
   // Initialize notes state with existing notes if available
   React.useEffect(() => {
-    if (booking?.internalNotes) {
-      setInternalNotes(booking.internalNotes);
+    if (bookingData?.internalNotes) {
+      setInternalNotes(bookingData.internalNotes);
     }
-  }, [booking]);
+  }, [bookingData]);
   
   const handleSaveNotes = () => {
     // In a real application, this would send the updated notes to an API
+    if (bookingData) {
+      setBookingData({
+        ...bookingData,
+        internalNotes: internalNotes
+      });
+    }
     toast.success("Internal notes saved successfully");
     setIsEditingNotes(false);
+  };
+  
+  const handleSaveDates = () => {
+    // In a real application, this would send the updated dates to an API
+    if (bookingData) {
+      setBookingData({
+        ...bookingData,
+        ...tempDates
+      });
+    }
+    toast.success("Dates updated successfully");
+    setIsEditingDates(false);
   };
   
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -61,7 +89,7 @@ const BookingDetail = () => {
     }
   };
   
-  if (!booking) {
+  if (!bookingData) {
     return (
       <div className="container mx-auto px-4 py-8">
         <Card className="max-w-4xl mx-auto">
@@ -100,7 +128,7 @@ const BookingDetail = () => {
           <Card className="md:col-span-2 border-0 shadow-md rounded-lg overflow-hidden">
             <CardHeader className="bg-gray-50 border-b pb-4">
               <CardTitle className="text-xl text-[#2d3748] flex items-center">
-                <span>Booking #{booking.id}</span>
+                <span>Booking #{bookingData.id}</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
@@ -109,7 +137,7 @@ const BookingDetail = () => {
                   <User className="h-5 w-5 text-[#82b6c6] mt-0.5" />
                   <div>
                     <h3 className="text-sm font-medium text-[#4a5568]">Client</h3>
-                    <p className="text-[#2d3748] font-medium">{booking.client}</p>
+                    <p className="text-[#2d3748] font-medium">{bookingData.client}</p>
                   </div>
                 </div>
                 
@@ -117,7 +145,7 @@ const BookingDetail = () => {
                   <MapPin className="h-5 w-5 text-[#82b6c6] mt-0.5" />
                   <div>
                     <h3 className="text-sm font-medium text-[#4a5568]">Delivery Address</h3>
-                    <p className="text-[#2d3748]">{booking.deliveryAddress}</p>
+                    <p className="text-[#2d3748]">{bookingData.deliveryAddress}</p>
                   </div>
                 </div>
               </div>
@@ -127,26 +155,101 @@ const BookingDetail = () => {
           {/* Dates Card */}
           <Card className="border-0 shadow-md rounded-lg overflow-hidden">
             <CardHeader className="bg-gray-50 border-b pb-4">
-              <CardTitle className="text-xl text-[#2d3748] flex items-center">
-                <Calendar className="h-5 w-5 mr-2 text-[#82b6c6]" />
-                <span>Important Dates</span>
+              <CardTitle className="text-xl text-[#2d3748] flex items-center justify-between">
+                <div className="flex items-center">
+                  <CalendarIcon className="h-5 w-5 mr-2 text-[#82b6c6]" />
+                  <span>Important Dates</span>
+                </div>
+                {isEditingDates ? (
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={handleSaveDates} 
+                    className="ml-2"
+                  >
+                    <Check className="h-4 w-4 mr-1" /> Save
+                  </Button>
+                ) : (
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => setIsEditingDates(true)} 
+                    className="ml-2"
+                  >
+                    <Pencil className="h-4 w-4 mr-1" /> Edit
+                  </Button>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
               <div className="space-y-4">
                 <div>
                   <h3 className="text-sm font-medium text-[#4a5568]">Rig Day</h3>
-                  <p className="text-[#2d3748] font-medium">{booking.rigDayDate}</p>
+                  {isEditingDates ? (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start text-left font-normal">
+                          {tempDates.rigDayDate ? format(new Date(tempDates.rigDayDate), "yyyy-MM-dd") : "Select date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={tempDates.rigDayDate ? new Date(tempDates.rigDayDate) : undefined}
+                          onSelect={(date) => date && setTempDates({ ...tempDates, rigDayDate: format(date, "yyyy-MM-dd") })}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  ) : (
+                    <p className="text-[#2d3748] font-medium">{bookingData.rigDayDate}</p>
+                  )}
                 </div>
                 
                 <div>
                   <h3 className="text-sm font-medium text-[#4a5568]">Event Day</h3>
-                  <p className="text-[#2d3748] font-medium">{booking.eventDate}</p>
+                  {isEditingDates ? (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start text-left font-normal">
+                          {tempDates.eventDate ? format(new Date(tempDates.eventDate), "yyyy-MM-dd") : "Select date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={tempDates.eventDate ? new Date(tempDates.eventDate) : undefined}
+                          onSelect={(date) => date && setTempDates({ ...tempDates, eventDate: format(date, "yyyy-MM-dd") })}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  ) : (
+                    <p className="text-[#2d3748] font-medium">{bookingData.eventDate}</p>
+                  )}
                 </div>
                 
                 <div>
                   <h3 className="text-sm font-medium text-[#4a5568]">Rig Down Day</h3>
-                  <p className="text-[#2d3748] font-medium">{booking.rigDownDate}</p>
+                  {isEditingDates ? (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start text-left font-normal">
+                          {tempDates.rigDownDate ? format(new Date(tempDates.rigDownDate), "yyyy-MM-dd") : "Select date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={tempDates.rigDownDate ? new Date(tempDates.rigDownDate) : undefined}
+                          onSelect={(date) => date && setTempDates({ ...tempDates, rigDownDate: format(date, "yyyy-MM-dd") })}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  ) : (
+                    <p className="text-[#2d3748] font-medium">{bookingData.rigDownDate}</p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -172,7 +275,7 @@ const BookingDetail = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {booking.products?.map((product) => (
+                {bookingData.products?.map((product) => (
                   <TableRow key={product.id} className="hover:bg-gray-50">
                     <TableCell className="font-medium text-[#2d3748]">{product.id}</TableCell>
                     <TableCell>{product.name}</TableCell>
@@ -219,7 +322,7 @@ const BookingDetail = () => {
             ) : (
               <div className="space-y-4">
                 <p className="text-[#2d3748]">
-                  {booking.internalNotes || "No internal notes available."}
+                  {bookingData.internalNotes || "No internal notes available."}
                 </p>
                 <div className="flex justify-end">
                   <Button 
@@ -262,9 +365,9 @@ const BookingDetail = () => {
               </div>
               
               {/* Attachments Grid */}
-              {booking.attachments && booking.attachments.length > 0 ? (
+              {bookingData.attachments && bookingData.attachments.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-4">
-                  {booking.attachments.map((url, index) => (
+                  {bookingData.attachments.map((url, index) => (
                     <div key={index} className="relative group">
                       <img 
                         src={url} 
