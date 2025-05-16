@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -29,6 +29,20 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
 }) => {
   const navigate = useNavigate();
   const calendarRef = React.useRef<any>(null);
+
+  // Log events and resources for debugging
+  useEffect(() => {
+    console.log('ResourceCalendar received events:', events);
+    console.log('ResourceCalendar received resources:', resources);
+    
+    // Check if there are events with resource IDs that don't match any resources
+    const resourceIds = new Set(resources.map(r => r.id));
+    const unmatchedEvents = events.filter(event => !resourceIds.has(event.resourceId));
+    
+    if (unmatchedEvents.length > 0) {
+      console.warn('Events with unmatched resources:', unmatchedEvents);
+    }
+  }, [events, resources]);
 
   const handleEventChange = async (info: any) => {
     try {
@@ -60,6 +74,23 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     }
   };
 
+  // Ensure all events have valid resources
+  const eventsWithValidResources = events.map(event => {
+    // Check if event's resourceId exists in resources
+    const resourceExists = resources.some(r => r.id === event.resourceId);
+    
+    if (!resourceExists && resources.length > 0) {
+      console.warn(`Event with ID ${event.id} has resourceId ${event.resourceId} that doesn't match any resource. Assigning to first available resource.`);
+      // Assign to the first resource if the resourceId doesn't exist
+      return {
+        ...event,
+        resourceId: resources[0].id
+      };
+    }
+    
+    return event;
+  });
+
   return (
     <FullCalendar
       ref={calendarRef}
@@ -77,7 +108,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         right: 'resourceTimeGridDay,resourceTimeGridWeek,dayGridMonth'
       }}
       resources={resources}
-      events={events}
+      events={eventsWithValidResources}
       editable={true}
       droppable={true}
       selectable={true}

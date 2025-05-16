@@ -20,11 +20,12 @@ export const useCalendarEvents = () => {
 
     const loadEvents = async () => {
       try {
+        console.log('Fetching calendar events...');
         const data = await fetchCalendarEvents();
         if (active) {
+          console.log('Calendar events loaded successfully:', data);
+          console.log('Resource IDs in events:', data.map(event => event.resourceId));
           setEvents(data);
-          // For debugging purposes
-          console.log('Calendar events loaded:', data);
         }
       } catch (error) {
         console.error('Error loading calendar events:', error);
