@@ -1,4 +1,3 @@
-
 import React, { useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -8,6 +7,7 @@ import { CalendarEvent } from './ResourceData';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { updateCalendarEvent } from '@/services/calendarService';
+import { getCalendarOptions } from './CalendarConfig';
 
 interface DayCalendarProps {
   events: CalendarEvent[];
@@ -122,10 +122,16 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
         initialDate={currentDate}
         height="auto"
         allDaySlot={true}
-        slotDuration="01:00:00" // Changed from 30 minutes to 1 hour
+        slotDuration="01:00:00" // One hour per slot
         slotLabelInterval="01:00:00"
         slotMinTime="07:00:00"
         slotMaxTime="20:00:00"
+        slotLabelFormat={{
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false, // Use 24-hour format
+          omitZeroMinute: false // Always show minutes even if 00
+        }}
         eventClassNames={(arg) => {
           const eventType = arg.event.extendedProps?.eventType || 'event';
           return [`event-${eventType}`];

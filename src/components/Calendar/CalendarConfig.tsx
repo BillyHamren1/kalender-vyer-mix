@@ -29,6 +29,11 @@ export const getCalendarOptions = () => {
     slotDuration: "01:00:00", // Changed from 30 minutes to 1 hour
     slotLabelInterval: "01:00", // Keep at 1 hour
     allDaySlot: false,
+    slotLabelFormat: {
+      hour: '2-digit', // Force 2-digit display (00, 01, 02, etc.)
+      minute: '2-digit',
+      hour12: false,   // Use 24-hour format
+    }
   };
 };
 
