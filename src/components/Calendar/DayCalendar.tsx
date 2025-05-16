@@ -18,7 +18,7 @@ interface DayCalendarProps {
   isMounted: boolean;
   currentDate: Date;
   onDateSet: (dateInfo: any) => void;
-  refreshEvents?: () => Promise<CalendarEvent[]>;
+  refreshEvents?: () => Promise<void>;
 }
 
 const DayCalendar: React.FC<DayCalendarProps> = ({
