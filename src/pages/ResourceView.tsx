@@ -4,6 +4,7 @@ import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useEventActions } from '@/hooks/useEventActions';
 import ResourceCalendar from '@/components/Calendar/ResourceCalendar';
+import ResourceHeader from '@/components/Calendar/ResourceHeader';
 import '../styles/calendar.css';
 // react-dnd is imported by StaffAssignmentRow component
 
@@ -33,6 +34,15 @@ const ResourceView = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto pt-2" style={{ maxWidth: '94%' }}>
+        <ResourceHeader 
+          teamResources={teamResources}
+          teamCount={teamCount}
+          onAddTeam={addTeam}
+          onRemoveTeam={removeTeam}
+          dialogOpen={dialogOpen}
+          setDialogOpen={setDialogOpen}
+        />
+        
         <div className="bg-white rounded-lg shadow-md p-3">
           <ResourceCalendar
             events={events}

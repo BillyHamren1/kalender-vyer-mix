@@ -4,7 +4,7 @@
   margin: 0 auto;
   padding: 2rem;
   text-align: center;
-  transform: scale(0.75); /* Apply 25% zoom out */
+  transform: scale(0.55); /* Apply 45% zoom out (75% - 20% more) */
   transform-origin: top center; /* Keep the top centered during scaling */
 }
 
@@ -47,5 +47,5 @@
 /* Fix for fullcalendar height when zoomed out */
 .calendar-container {
   height: auto !important;
-  min-height: 1016px; /* 762px increased by 33.3% to compensate for 0.75 scale */
+  min-height: 1389px; /* 762px increased by 82% to compensate for 0.55 scale */
 }

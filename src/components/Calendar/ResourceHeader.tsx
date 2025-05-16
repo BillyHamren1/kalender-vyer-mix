@@ -1,6 +1,7 @@
 
 import React from 'react';
 import TeamManagementDialog from './TeamManagementDialog';
+import AddTeamButton from './AddTeamButton';
 import { Resource } from '../Calendar/ResourceData';
 
 interface ResourceHeaderProps {
@@ -23,14 +24,17 @@ const ResourceHeader: React.FC<ResourceHeaderProps> = ({
   return (
     <div className="flex justify-between items-center mb-6">
       <h1 className="text-2xl font-bold text-gray-800">Resursvy</h1>
-      <TeamManagementDialog
-        teamResources={teamResources}
-        teamCount={teamCount}
-        onAddTeam={onAddTeam}
-        onRemoveTeam={onRemoveTeam}
-        dialogOpen={dialogOpen}
-        setDialogOpen={setDialogOpen}
-      />
+      <div className="flex space-x-3">
+        <AddTeamButton onAddTeam={onAddTeam} teamCount={teamCount} />
+        <TeamManagementDialog
+          teamResources={teamResources}
+          teamCount={teamCount}
+          onAddTeam={onAddTeam}
+          onRemoveTeam={onRemoveTeam}
+          dialogOpen={dialogOpen}
+          setDialogOpen={setDialogOpen}
+        />
+      </div>
     </div>
   );
 };
