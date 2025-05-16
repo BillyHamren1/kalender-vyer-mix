@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -162,10 +161,10 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         datesSet={onDateSet}
         initialDate={currentDate}
         height="auto"
-        slotMinTime="08:00:00"
+        slotMinTime="05:00:00"
         slotMaxTime="24:00:00"
         scrollTime="08:00:00"
-        slotDuration="00:30:00"
+        slotDuration="01:00:00"
         eventDidMount={(info) => {
           // Add data-event-type attribute to event elements
           if (info.event.extendedProps.eventType) {
