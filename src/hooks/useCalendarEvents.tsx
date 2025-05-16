@@ -25,34 +25,31 @@ export const useCalendarEvents = () => {
         const data = await fetchCalendarEvents();
         if (active) {
           console.log('Calendar events loaded successfully:', data);
-          console.log('Resource IDs in events:', data.map(event => event.resourceId));
           
-          // Log event types to help with debugging
-          console.log('Event types:', data.map(event => event.eventType));
-          
-          // Check if events are within visible date range
-          const today = new Date();
-          const visibleEvents = data.filter(event => {
-            const eventDate = new Date(event.start);
-            const diffDays = Math.abs(Math.floor((eventDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
-            return diffDays < 30; // Show events within 30 days
-          });
-          
-          if (data.length > 0 && visibleEvents.length === 0) {
-            console.warn('Events exist but none are within 30 days of today');
-            toast.info('Events loaded but none visible in current view', {
-              description: 'Navigate to the specific dates to see events'
+          if (data.length === 0) {
+            console.log('No events returned from database');
+            toast.info('No events found', {
+              description: 'No events are available in the database'
             });
+          } else {
+            console.log(`Loaded ${data.length} events from database`);
+            
+            // Log resource IDs for debugging
+            const resourceIds = [...new Set(data.map(event => event.resourceId))];
+            console.log('Resource IDs in events:', resourceIds);
+            
+            // Log event types for debugging
+            const eventTypes = [...new Set(data.map(event => event.eventType))];
+            console.log('Event types:', eventTypes);
+            
+            // Check date ranges
+            const startDates = data.map(event => new Date(event.start));
+            const minDate = new Date(Math.min(...startDates.map(d => d.getTime())));
+            const maxDate = new Date(Math.max(...startDates.map(d => d.getTime())));
+            console.log(`Events span from ${minDate.toLocaleDateString()} to ${maxDate.toLocaleDateString()}`);
           }
           
           setEvents(data);
-          
-          if (data.length > 0) {
-            // Display toast showing how many events were loaded
-            toast.success(`${data.length} events loaded`, {
-              description: `Calendar data loaded with ${data.length} events`
-            });
-          }
         }
       } catch (error) {
         console.error('Error loading calendar events:', error);
@@ -88,12 +85,6 @@ export const useCalendarEvents = () => {
     });
     
     console.log(`${visibleEvents.length} events visible in current date range`);
-    
-    if (events.length > 0 && visibleEvents.length === 0) {
-      toast.info('No events in this date range', {
-        description: 'Try another date range or add new events'
-      });
-    }
   };
   
   // Function to force refresh the calendar events
@@ -108,7 +99,7 @@ export const useCalendarEvents = () => {
     } catch (error) {
       console.error('Error refreshing calendar events:', error);
       toast.error('Could not refresh calendar events');
-      throw error; // Re-throw to allow handling in calling code
+      return []; // Return empty array on error
     } finally {
       setIsLoading(false);
     }

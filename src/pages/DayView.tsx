@@ -1,11 +1,12 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import DayCalendar from '@/components/Calendar/DayCalendar';
 import '../styles/calendar.css';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
 
 const DayView = () => {
   const {
@@ -16,19 +17,15 @@ const DayView = () => {
     handleDatesSet,
     refreshEvents
   } = useCalendarEvents();
+  
+  const [hasNavigatedToEvent, setHasNavigatedToEvent] = useState(false);
 
   useEffect(() => {
     // Log events when they change
     console.log('DayView received events:', events);
     
-    if (events.length > 0) {
-      toast.success(`${events.length} events loaded`, {
-        description: "Calendar data loaded successfully"
-      });
-    }
-    
-    // Navigate to earliest event date if events exist and a date isn't already set
-    if (events.length > 0 && !sessionStorage.getItem('calendarDate')) {
+    if (events.length > 0 && !hasNavigatedToEvent) {
+      // Find the earliest upcoming event
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
@@ -49,19 +46,44 @@ const DayView = () => {
         console.log('Navigating to earliest event date:', earliestDate);
         sessionStorage.setItem('calendarDate', earliestDate.toISOString());
         
-        // Force refresh after setting date
-        setTimeout(() => {
-          refreshEvents();
-        }, 500);
+        toast.success(`Navigated to ${format(earliestDate, 'PPP')}`, {
+          description: `Found event: ${earliestEvent.title}`
+        });
+        
+        setHasNavigatedToEvent(true);
+      } else if (events.length > 0) {
+        // If there are no future events but some past events exist
+        const sortedEvents = [...events].sort((a, b) => 
+          new Date(b.start).getTime() - new Date(a.start).getTime()
+        );
+        
+        const latestEvent = sortedEvents[0];
+        const latestDate = new Date(latestEvent.start);
+        
+        console.log('Navigating to most recent event date:', latestDate);
+        sessionStorage.setItem('calendarDate', latestDate.toISOString());
+        
+        toast.info(`Showing past event from ${format(latestDate, 'PPP')}`, {
+          description: `${latestEvent.title}`
+        });
+        
+        setHasNavigatedToEvent(true);
       }
     }
-  }, [events]);
+  }, [events, hasNavigatedToEvent]);
   
   const handleRefresh = async () => {
     toast.loading("Refreshing calendar...");
     const updatedEvents = await refreshEvents();
     toast.dismiss();
-    toast.success(`Calendar refreshed with ${updatedEvents.length} events`);
+    
+    if (updatedEvents.length > 0) {
+      toast.success(`Calendar refreshed with ${updatedEvents.length} events`);
+    } else {
+      toast.info("No events found in the database", {
+        description: "Try adding events first"
+      });
+    }
   };
 
   return (
