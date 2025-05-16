@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -69,8 +68,17 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
 
   const handleEventClick = (info: any) => {
     const bookingId = info.event.extendedProps.bookingId;
+    console.log('Event clicked:', info.event);
+    console.log('Booking ID:', bookingId);
+    
     if (bookingId) {
-      navigate(`/bookings/${bookingId}`);
+      navigate(`/booking/${bookingId}`);
+      console.log(`Navigating to /booking/${bookingId}`);
+    } else {
+      console.warn('No booking ID found for this event');
+      toast.warning("Cannot open booking details", {
+        description: "This event is not linked to a booking"
+      });
     }
   };
 
