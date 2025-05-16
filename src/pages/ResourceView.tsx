@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -372,19 +373,32 @@ const ResourceView = () => {
               eventDurationEditable={true}
               eventResourceEditable={true}
               eventContent={(args) => {
+                // Get event type for proper color coding
+                const eventType = args.event.extendedProps.eventType;
+                const bookingNumber = args.event.extendedProps.bookingNumber || '';
+                const customer = args.event.extendedProps.customer || '';
+                
                 // Different rendering for month view vs other views
                 if (args.view.type === 'dayGridMonth') {
                   return (
-                    <div className="text-xs p-1 overflow-hidden text-ellipsis whitespace-nowrap">
-                      <div className="font-bold">{args.event.title}</div>
+                    <div className={`text-xs p-1 overflow-hidden text-ellipsis whitespace-nowrap ${eventType ? `event-${eventType.toLowerCase()}` : ''}`}>
+                      {bookingNumber && customer ? (
+                        <div className="font-bold">{bookingNumber}: {customer}</div>
+                      ) : (
+                        <div className="font-bold">{args.event.title}</div>
+                      )}
                     </div>
                   );
                 }
                 
                 // Default rendering for other views
                 return (
-                  <div className="text-xs p-1">
-                    <div className="font-bold">{args.event.title}</div>
+                  <div className={`text-xs p-1 ${eventType ? `event-${eventType.toLowerCase()}` : ''}`}>
+                    {bookingNumber && customer ? (
+                      <div className="font-bold">{bookingNumber}: {customer}</div>
+                    ) : (
+                      <div className="font-bold">{args.event.title}</div>
+                    )}
                     <div>{args.timeText}</div>
                   </div>
                 );

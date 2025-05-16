@@ -1,4 +1,5 @@
 
+
 /* Calendar styling to match the light blue theme */
 .fc .fc-button-primary {
   background-color: #2d3748 !important;
@@ -39,22 +40,22 @@
   background-color: rgba(0, 0, 0, 0.02);
 }
 
-/* Event type color styling */
-.event-rig-day,
+/* Event type color styling - Updated to remove "day" text */
+.event-rig,
 .fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="rig"] {
   background-color: #F2FCE2 !important; /* Soft Green for rig events */
   border-color: #D4EAB5 !important;
   color: #3C682E !important;
 }
 
-.event-event-day,
+.event-event,
 .fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="event"] {
   background-color: #FEF7CD !important; /* Soft Yellow for events */
   border-color: #F3E8A3 !important;
   color: #8C6E20 !important;
 }
 
-.event-rig-down,
+.event-rigdown,
 .fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="rigDown"] {
   background-color: #FFDEE2 !important; /* Soft Pink for rig down events */
   border-color: #FFBAC1 !important;
