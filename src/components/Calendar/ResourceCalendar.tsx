@@ -28,6 +28,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   onDateSet
 }) => {
   const navigate = useNavigate();
+  const calendarRef = React.useRef<any>(null);
 
   const handleEventChange = async (info: any) => {
     try {
@@ -69,6 +70,28 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     }
   };
 
+  // Handle date click to navigate to day view
+  const handleDateClick = (info: any) => {
+    // Change view to resourceTimeGridDay and navigate to the clicked date
+    if (calendarRef.current) {
+      const calendarApi = calendarRef.current.getApi();
+      calendarApi.changeView('resourceTimeGridDay', info.date);
+      
+      // Toast notification
+      toast.info(`Visar ${info.dateStr} i dagvy`);
+    }
+  };
+
+  // Find first available team for the given date (helper for event creation)
+  const findFirstAvailableTeam = (date: Date): string => {
+    // Filter team resources only
+    const teamResources = resources.filter(r => r.id.startsWith('team-'));
+    if (teamResources.length === 0) return 'team-1';
+    
+    // Default to first team if no checking needed
+    return teamResources[0].id;
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center p-12">
@@ -83,6 +106,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
 
   return (
     <FullCalendar
+      ref={calendarRef}
       plugins={[resourceTimeGridPlugin, timeGridPlugin, interactionPlugin, dayGridPlugin]}
       initialView="resourceTimeGridDay"
       initialDate={currentDate}
@@ -144,7 +168,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           );
         }
         
-        // Default rendering for other views
+        // Default rendering for other views (including day view)
         return (
           <div className={`text-xs p-1 ${eventType ? `event-${eventType.toLowerCase()}` : ''}`}>
             {bookingNumber && customer ? (
@@ -166,6 +190,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       }}
       eventDrop={handleEventChange}
       datesSet={onDateSet}
+      dateClick={handleDateClick}
     />
   );
 };

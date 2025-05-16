@@ -13,6 +13,9 @@ export const useEventActions = (
     const teamResources = resources.filter(resource => resource.id.startsWith('team-'));
     if (teamResources.length === 0) return 'team-1'; // Default if no teams exist
     
+    // For simplicity, prioritize teams in order (team-1, team-2, etc.)
+    // This ensures events are placed in order, starting from team-1
+    
     // Find all teams without events at the given time slot
     const busyTeams = new Set<string>();
     
@@ -29,15 +32,23 @@ export const useEventActions = (
       }
     });
     
+    // Find first available team in order
+    const sortedTeams = teamResources.sort((a, b) => {
+      // Extract team numbers for proper numeric sorting
+      const numA = parseInt(a.id.split('-')[1]);
+      const numB = parseInt(b.id.split('-')[1]);
+      return numA - numB;
+    });
+    
     // Find first available team
-    for (const team of teamResources) {
+    for (const team of sortedTeams) {
       if (!busyTeams.has(team.id)) {
         return team.id;
       }
     }
     
     // If all teams are busy, return the first team
-    return teamResources[0].id;
+    return sortedTeams[0].id;
   };
   
   // Function to add new events to the calendar
