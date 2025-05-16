@@ -5,10 +5,10 @@ import { useTeamResources } from '@/hooks/useTeamResources';
 import { useEventActions } from '@/hooks/useEventActions';
 import ResourceCalendar from '@/components/Calendar/ResourceCalendar';
 import ResourceHeader from '@/components/Calendar/ResourceHeader';
+import StaffAssignmentRow from '@/components/Calendar/StaffAssignmentRow';
 import '../styles/calendar.css';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from "sonner";
-// react-dnd is imported by StaffAssignmentRow component
 
 const ResourceView = () => {
   // Use our custom hooks to manage state and logic
@@ -35,6 +35,11 @@ const ResourceView = () => {
   const { addEventToCalendar } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
   
+  // Determine if we should show the Staff Assignment Row - only show on desktop in day view
+  const shouldShowStaffAssignmentRow = () => {
+    return !isMobile;
+  };
+  
   return (
     <div className="min-h-screen bg-gray-50">
       <div className={`container mx-auto pt-2 ${isMobile ? 'px-2' : ''}`} style={{ maxWidth: isMobile ? '100%' : '94%' }}>
@@ -59,6 +64,13 @@ const ResourceView = () => {
             onDateSet={handleDatesSet}
           />
         </div>
+        
+        {/* Staff Assignment Row moved outside the calendar container */}
+        {shouldShowStaffAssignmentRow() && (
+          <div className="mt-4">
+            <StaffAssignmentRow resources={resources} />
+          </div>
+        )}
       </div>
     </div>
   );

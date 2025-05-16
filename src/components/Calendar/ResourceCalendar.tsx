@@ -6,7 +6,6 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import { CalendarEvent, Resource } from '../Calendar/ResourceData';
-import StaffAssignmentRow from './StaffAssignmentRow';
 import WeekTabNavigation from './WeekTabNavigation';
 import { useCalendarEventHandlers } from '@/hooks/useCalendarEventHandlers';
 import { processEvents } from './CalendarEventProcessor';
@@ -92,11 +91,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     return getHeaderToolbar();
   };
 
-  // Determine if we should show the Staff Assignment Row
-  const shouldShowStaffAssignmentRow = () => {
-    return currentView === 'resourceTimeGridDay' && !isMobile;
-  };
-
   return (
     <div className="calendar-container">
       {/* Week Tab Navigation - Only show on desktop */}
@@ -146,9 +140,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           }
         }}
       />
-      
-      {/* Only show Staff Assignment Row in day view */}
-      {shouldShowStaffAssignmentRow() && <StaffAssignmentRow resources={resources} />}
     </div>
   );
 };
