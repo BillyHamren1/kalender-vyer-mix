@@ -8,70 +8,47 @@ export const useCalendarEvents = () => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
-  
-  // Get the date from URL or session storage if it exists
+
+  // Initialize currentDate from sessionStorage or default to today
   const [currentDate, setCurrentDate] = useState<Date>(() => {
-    const storedDate = sessionStorage.getItem('calendarDate');
-    return storedDate ? new Date(storedDate) : new Date();
+    const stored = sessionStorage.getItem('calendarDate');
+    return stored ? new Date(stored) : new Date();
   });
-  
+
   useEffect(() => {
+    let active = true;
+
     const loadEvents = async () => {
       try {
-        setIsLoading(true);
         const data = await fetchCalendarEvents();
-        
-        // If there are no events from the database, try to get them from localStorage
-        if (data.length === 0) {
-          const storedEvents = localStorage.getItem('calendarEvents');
-          if (storedEvents) {
-            try {
-              setEvents(JSON.parse(storedEvents));
-            } catch (error) {
-              console.error('Error parsing stored events:', error);
-            }
-          }
-        } else {
+        if (active) {
           setEvents(data);
-          // Store the events in localStorage as a cache
-          localStorage.setItem('calendarEvents', JSON.stringify(data));
+          // For debugging purposes
+          console.log('Calendar events loaded:', data);
         }
       } catch (error) {
         console.error('Error loading calendar events:', error);
-        
-        // Fallback to localStorage if API fails
-        const storedEvents = localStorage.getItem('calendarEvents');
-        if (storedEvents) {
-          try {
-            setEvents(JSON.parse(storedEvents));
-          } catch (error) {
-            console.error('Error parsing stored events:', error);
-          }
-        }
-        
-        toast.error('Failed to load calendar events');
+        toast.error('Kunde inte ladda kalenderhändelser');
       } finally {
-        setIsLoading(false);
-        setIsMounted(true);
+        if (active) {
+          setIsLoading(false);
+          setIsMounted(true);
+        }
       }
     };
-    
+
     loadEvents();
-    
-    return () => setIsMounted(false);
+
+    return () => {
+      active = false;
+    };
   }, []);
 
-  useEffect(() => {
-    if (events.length > 0) {
-      localStorage.setItem('calendarEvents', JSON.stringify(events));
-    }
-  }, [events]);
-  
   const handleDatesSet = (dateInfo: any) => {
     setCurrentDate(dateInfo.start);
-    console.log("Date range changed:", dateInfo.startStr, "to", dateInfo.endStr);
+    sessionStorage.setItem('calendarDate', dateInfo.start.toISOString());
   };
-  
+
   return {
     events,
     setEvents,
