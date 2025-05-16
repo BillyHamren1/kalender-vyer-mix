@@ -6,6 +6,7 @@ import { useEventActions } from '@/hooks/useEventActions';
 import ResourceHeader from '@/components/Calendar/ResourceHeader';
 import ResourceCalendar from '@/components/Calendar/ResourceCalendar';
 import '../styles/calendar.css';
+// react-dnd is imported by StaffAssignmentRow component
 
 const ResourceView = () => {
   // Use our custom hooks to manage state and logic

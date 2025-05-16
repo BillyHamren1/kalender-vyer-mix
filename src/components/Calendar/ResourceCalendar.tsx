@@ -8,6 +8,7 @@ import { CalendarEvent, Resource, getEventColor } from '../Calendar/ResourceData
 import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/eventService';
 import { useNavigate } from 'react-router-dom';
+import StaffAssignmentRow from './StaffAssignmentRow';
 
 interface ResourceCalendarProps {
   events: CalendarEvent[];
@@ -172,6 +173,9 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           }
         }}
       />
+      
+      {/* Add the Staff Assignment Row component */}
+      <StaffAssignmentRow resources={resources} />
     </div>
   );
 };
