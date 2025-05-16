@@ -29,7 +29,7 @@ const AddTeamButton: React.FC<AddTeamButtonProps> = ({
     <div className="flex">
       <Button 
         onClick={onAddTeam}
-        className="bg-[#9b87f5] hover:bg-[#7E69AB] text-white rounded-r-none border-r border-r-[#8a78d9]"
+        className="bg-[#7BAEBF] hover:bg-[#6E9DAC] text-white rounded-r-none border-r border-r-[#6ca2b4]"
       >
         <Plus className="mr-1" size={18} />
         Add Team {teamCount}
@@ -38,7 +38,7 @@ const AddTeamButton: React.FC<AddTeamButtonProps> = ({
         <DropdownMenu open={showDropdown} onOpenChange={setShowDropdown}>
           <DropdownMenuTrigger asChild>
             <Button 
-              className="bg-[#9b87f5] hover:bg-[#7E69AB] text-white rounded-l-none px-2"
+              className="bg-[#7BAEBF] hover:bg-[#6E9DAC] text-white rounded-l-none px-2"
             >
               <ChevronDown size={18} />
             </Button>
