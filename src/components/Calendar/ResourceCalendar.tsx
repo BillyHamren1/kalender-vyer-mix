@@ -1,3 +1,4 @@
+
 import React from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -68,6 +69,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         interactionPlugin,
         dayGridPlugin
       ]}
+      schedulerLicenseKey="0134084325-fcs-1745193612"
       initialView="resourceTimeGridDay"
       headerToolbar={{
         left: 'prev,next today',
