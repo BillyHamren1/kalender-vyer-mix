@@ -7,17 +7,13 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 interface WeekTabNavigationProps {
   currentDate: Date;
   onDayChange: (date: Date) => void;
-  onViewChange: (view: 'single' | 'dual') => void;
   events: any[];
-  activeView: 'single' | 'dual';
 }
 
 const WeekTabNavigation: React.FC<WeekTabNavigationProps> = ({
   currentDate,
   onDayChange,
-  onViewChange,
-  events,
-  activeView
+  events
 }) => {
   const [weekDays, setWeekDays] = useState<Date[]>([]);
   
@@ -35,22 +31,11 @@ const WeekTabNavigation: React.FC<WeekTabNavigationProps> = ({
       return isSameDay(eventStart, day);
     });
   };
-  
-  // Handle dual view change
-  const handleDualViewToggle = () => {
-    onViewChange(activeView === 'single' ? 'dual' : 'single');
-  };
 
   return (
     <div className="mb-4">
       <div className="flex justify-between items-center mb-2">
         <h3 className="text-sm font-medium text-gray-700">Week Navigation</h3>
-        <button 
-          onClick={handleDualViewToggle}
-          className="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200"
-        >
-          {activeView === 'single' ? 'Show Two Days' : 'Show Single Day'}
-        </button>
       </div>
       
       <Tabs defaultValue={format(currentDate, 'EEE-dd-MM', { locale: sv })} className="w-full">
