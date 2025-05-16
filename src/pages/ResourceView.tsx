@@ -1,9 +1,9 @@
-
 import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
+import dayGridPlugin from '@fullcalendar/daygrid';
 import { 
   sampleResources, 
   Resource, 
@@ -329,7 +329,7 @@ const ResourceView = () => {
             </div>
           ) : isMounted && (
             <FullCalendar
-              plugins={[resourceTimeGridPlugin, timeGridPlugin, interactionPlugin]}
+              plugins={[resourceTimeGridPlugin, timeGridPlugin, interactionPlugin, dayGridPlugin]}
               initialView="resourceTimeGridDay"
               initialDate={currentDate}
               resources={resources}
@@ -338,7 +338,7 @@ const ResourceView = () => {
               headerToolbar={{
                 left: 'prev,next today',
                 center: 'title',
-                right: 'resourceTimeGridDay,timeGridWeek'
+                right: 'resourceTimeGridDay,timeGridWeek,dayGridMonth'
               }}
               views={{
                 resourceTimeGridDay: {
@@ -353,6 +353,15 @@ const ResourceView = () => {
                   eventOverlap: false, // don't allow events to overlap
                   eventShortHeight: 20, // minimum height of an event
                   slotEventOverlap: false // events won't overlap in time slots
+                },
+                dayGridMonth: {
+                  type: 'dayGrid',
+                  duration: { months: 1 },
+                  dayMaxEventRows: true, // Limited number of events per day
+                  moreLinkClick: 'popover', // Show more events in a popover
+                  fixedWeekCount: false, // Allow variable number of weeks
+                  showNonCurrentDates: true, // Show dates from adjacent months
+                  eventDisplay: 'auto' // Let FullCalendar decide the best display mode
                 }
               }}
               slotDuration="00:30:00"
@@ -363,12 +372,22 @@ const ResourceView = () => {
               eventDurationEditable={true}
               eventResourceEditable={true}
               eventContent={(args) => {
+                // Different rendering for month view vs other views
+                if (args.view.type === 'dayGridMonth') {
+                  return (
+                    <div className="text-xs p-1 overflow-hidden text-ellipsis whitespace-nowrap">
+                      <div className="font-bold">{args.event.title}</div>
+                    </div>
+                  );
+                }
+                
+                // Default rendering for other views
                 return (
                   <div className="text-xs p-1">
                     <div className="font-bold">{args.event.title}</div>
                     <div>{args.timeText}</div>
                   </div>
-                )
+                );
               }}
               eventClick={handleEventClick}
               eventResize={(info) => {

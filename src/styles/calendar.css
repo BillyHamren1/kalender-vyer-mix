@@ -77,3 +77,31 @@
   transform: translateY(-1px);
   transition: all 0.2s ease;
 }
+
+/* Month view specific styles */
+.fc-dayGridMonth-view .fc-daygrid-event {
+  margin-top: 1px;
+  margin-bottom: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Month view "more" button styling */
+.fc-daygrid-more-link {
+  color: var(--primary) !important;
+  font-weight: 600;
+  text-decoration: none !important;
+}
+
+/* Month view today highlight */
+.fc-day-today {
+  background-color: rgba(130, 182, 198, 0.1) !important;
+}
+
+/* Adjust event spacing for month view */
+.fc-daygrid-event-harness {
+  margin-top: 1px !important;
+  margin-bottom: 1px !important;
+}
+
