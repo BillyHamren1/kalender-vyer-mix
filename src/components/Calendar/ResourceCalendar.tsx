@@ -115,6 +115,22 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     };
   });
 
+  // Custom view configuration
+  const customViews = {
+    resourceTimeGridDay: {
+      type: 'resourceTimeGrid',
+      duration: { days: 1 }
+    },
+    timeGridWeek: {
+      type: 'timeGrid',
+      duration: { weeks: 1 }
+    },
+    dayGridMonth: {
+      type: 'dayGrid',
+      duration: { months: 1 }
+    }
+  };
+
   return (
     <FullCalendar
       ref={calendarRef}
@@ -129,8 +145,9 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       headerToolbar={{
         left: 'prev,next today',
         center: 'title',
-        right: 'resourceTimeGridDay,resourceTimeGridWeek,dayGridMonth'
+        right: 'resourceTimeGridDay,timeGridWeek,dayGridMonth'
       }}
+      views={customViews}
       resources={resources}
       events={processedEvents}
       editable={true}
@@ -143,6 +160,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       eventClick={handleEventClick}
       datesSet={onDateSet}
       initialDate={currentDate}
+      slotMinTime="05:00:00"
+      slotMaxTime="00:00:00"
       height="auto"
       eventDidMount={(info) => {
         // Add data-event-type attribute to event elements
