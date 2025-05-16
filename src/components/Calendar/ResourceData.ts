@@ -29,9 +29,9 @@ export interface CalendarEvent {
 
 // Color mappings for different event types
 export const eventColors = {
-  rig: '#F2FCE2', // Soft Green for rig events
-  event: '#FEF7CD', // Soft Yellow for events
-  rigDown: '#FFDEE2', // Soft Pink for rig down events
+  rig: '#F2FCE2', // Light green for rig events
+  event: '#FEF7CD', // Light yellow for events
+  rigDown: '#FEC6A1', // Light red for rig down events
   default: '#3788d8', // Default blue
 };
 

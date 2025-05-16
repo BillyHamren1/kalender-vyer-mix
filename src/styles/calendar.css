@@ -46,9 +46,9 @@
 .fc-timegrid-event[data-event-type="rig"],
 .fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="rig"],
 .fc-event.fc-event-start.fc-event-end.fc-event-future.fc-timegrid-event[style*="rig"] {
-  background-color: #F2FCE2 !important; /* Soft Green for rig events */
+  background-color: #F2FCE2 !important; /* Light green for rig events */
   border-color: #D4EAB5 !important;
-  color: #3C682E !important;
+  color: #000000e6 !important; /* Black text */
 }
 
 .event-event,
@@ -57,9 +57,9 @@
 .fc-timegrid-event[data-event-type="event"],
 .fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="event"],
 .fc-event.fc-event-start.fc-event-end.fc-event-future.fc-timegrid-event[style*="event"] {
-  background-color: #FEF7CD !important; /* Soft Yellow for events */
+  background-color: #FEF7CD !important; /* Light yellow for events */
   border-color: #F3E8A3 !important;
-  color: #8C6E20 !important;
+  color: #000000e6 !important; /* Black text */
 }
 
 .event-rigDown,
@@ -68,9 +68,9 @@
 .fc-timegrid-event[data-event-type="rigDown"],
 .fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="rigDown"],
 .fc-event.fc-event-start.fc-event-end.fc-event-future.fc-timegrid-event[style*="rigDown"] {
-  background-color: #FFDEE2 !important; /* Soft Pink for rig down events */
-  border-color: #FFBAC1 !important;
-  color: #AF4753 !important;
+  background-color: #FEC6A1 !important; /* Light red for rig down events */
+  border-color: #FEB190 !important;
+  color: #000000e6 !important; /* Black text */
 }
 
 /* Loading state styling */
