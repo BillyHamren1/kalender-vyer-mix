@@ -211,3 +211,55 @@
   height: 550px !important;
   overflow-y: auto !important;
 }
+
+/* Timeline view styles for two-day view */
+.fc-timeline-slot-label {
+  font-weight: 500;
+}
+
+.fc-timeline-header {
+  border-bottom: 1px solid #ddd;
+}
+
+/* Resource group styling for timeline view */
+.fc-datagrid-cell-cushion {
+  font-weight: 600;
+  color: #3c4043;
+}
+
+.fc-resource-group {
+  background-color: #f9fafb;
+  font-weight: bold;
+  padding: 5px 0;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+/* Resource label styling */
+.resource-label {
+  display: flex;
+  flex-direction: column;
+}
+
+.resource-title {
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+/* Add styles for timeline events */
+.fc-timeline-event {
+  border-radius: 4px;
+  margin: 1px 0;
+  padding: 2px 4px;
+}
+
+/* Set width for resource timeline headers */
+.fc-timeline .fc-datagrid-header .fc-datagrid-cell-frame {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+}
+
+/* Group header styling */
+.fc-theme-standard .fc-scrollgrid {
+  border: 1px solid #ddd;
+}

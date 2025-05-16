@@ -1,7 +1,7 @@
-
 import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
+import resourceTimelinePlugin from '@fullcalendar/resource-timeline';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -11,6 +11,7 @@ import { updateCalendarEvent } from '@/services/eventService';
 import { useNavigate } from 'react-router-dom';
 import StaffAssignmentRow from './StaffAssignmentRow';
 import WeekTabNavigation from './WeekTabNavigation';
+import { addDays, format } from 'date-fns';
 
 interface ResourceCalendarProps {
   events: CalendarEvent[];
@@ -55,7 +56,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     if (activeView === 'single') {
       calendarRef.current.getApi().changeView('resourceTimeGridDay');
     } else {
-      calendarRef.current.getApi().changeView('resourceTimeGridTwoDays');
+      calendarRef.current.getApi().changeView('resourceTimelineMultiDay');
     }
   }, [activeView]);
 
@@ -143,15 +144,97 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     };
   });
 
+  // Prepare resources for two-day view by duplicating them with day identifiers
+  const prepareResourcesForTwoDayView = () => {
+    if (!resources || resources.length === 0) return [];
+    
+    const day1 = selectedDate;
+    const day2 = addDays(selectedDate, 1);
+    
+    const day1Resources = resources.map(resource => ({
+      ...resource,
+      id: `day1-${resource.id}`,
+      title: resource.title,
+      day: format(day1, 'yyyy-MM-dd'),
+      displayDay: format(day1, 'MMM dd'),
+      group: 'Day 1'
+    }));
+    
+    const day2Resources = resources.map(resource => ({
+      ...resource,
+      id: `day2-${resource.id}`,
+      title: resource.title,
+      day: format(day2, 'yyyy-MM-dd'),
+      displayDay: format(day2, 'MMM dd'),
+      group: 'Day 2'
+    }));
+    
+    return [...day1Resources, ...day2Resources];
+  };
+  
+  // Prepare events for two-day view by assigning to correct day-specific resources
+  const prepareEventsForTwoDayView = () => {
+    if (!processedEvents || processedEvents.length === 0) return [];
+    
+    return processedEvents.map(event => {
+      const eventDate = new Date(event.start);
+      const day1 = selectedDate;
+      const day2 = addDays(selectedDate, 1);
+      
+      // Check which day the event belongs to
+      const isSameDay1 = eventDate.getDate() === day1.getDate() && 
+                         eventDate.getMonth() === day1.getMonth() && 
+                         eventDate.getFullYear() === day1.getFullYear();
+                         
+      const isSameDay2 = eventDate.getDate() === day2.getDate() && 
+                         eventDate.getMonth() === day2.getMonth() && 
+                         eventDate.getFullYear() === day2.getFullYear();
+      
+      if (isSameDay1) {
+        return { ...event, resourceId: `day1-${event.resourceId}` };
+      } else if (isSameDay2) {
+        return { ...event, resourceId: `day2-${event.resourceId}` };
+      }
+      
+      // If not on either day, keep as is (will be filtered out by FullCalendar)
+      return event;
+    });
+  };
+
+  // Get appropriate resources and events based on view
+  const getResourcesForActiveView = () => {
+    if (activeView === 'dual') {
+      return prepareResourcesForTwoDayView();
+    }
+    return resources;
+  };
+  
+  const getEventsForActiveView = () => {
+    if (activeView === 'dual') {
+      return prepareEventsForTwoDayView();
+    }
+    return processedEvents;
+  };
+
   // Custom view configuration
   const customViews = {
     resourceTimeGridDay: {
       type: 'resourceTimeGrid',
       duration: { days: 1 }
     },
-    resourceTimeGridTwoDays: {
-      type: 'resourceTimeGrid',
-      duration: { days: 2 }
+    resourceTimelineMultiDay: {
+      type: 'resourceTimeline',
+      duration: { days: 2 },
+      resourceGroupField: 'group',
+      resourceAreaWidth: '15%',
+      resourcesInitiallyExpanded: true,
+      resourceLabelContent: (arg: any) => {
+        return {
+          html: `<div class="resource-label">
+                   <div class="resource-title">${arg.resource.title}</div>
+                 </div>`
+        };
+      }
     },
     timeGridWeek: {
       type: 'timeGrid',
@@ -178,20 +261,21 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         ref={calendarRef}
         plugins={[
           resourceTimeGridPlugin,
+          resourceTimelinePlugin,
           timeGridPlugin,
           interactionPlugin,
           dayGridPlugin
         ]}
         schedulerLicenseKey="0134084325-fcs-1745193612"
-        initialView={activeView === 'single' ? 'resourceTimeGridDay' : 'resourceTimeGridTwoDays'}
+        initialView={activeView === 'single' ? 'resourceTimeGridDay' : 'resourceTimelineMultiDay'}
         headerToolbar={{
           left: 'prev,next today',
           center: 'title',
           right: 'resourceTimeGridDay,timeGridWeek,dayGridMonth'
         }}
         views={customViews}
-        resources={resources}
-        events={processedEvents}
+        resources={getResourcesForActiveView()}
+        events={getEventsForActiveView()}
         editable={true}
         droppable={true}
         selectable={true}
