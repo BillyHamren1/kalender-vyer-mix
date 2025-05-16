@@ -7,7 +7,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import { CalendarEvent, Resource } from '../Calendar/ResourceData';
 import { toast } from 'sonner';
-import { updateCalendarEvent } from '@/services/calendarService';
+import { updateCalendarEvent } from '@/services/eventService';
 import { useNavigate } from 'react-router-dom';
 
 interface ResourceCalendarProps {

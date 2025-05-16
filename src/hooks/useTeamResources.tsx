@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Resource } from '@/components/Calendar/ResourceData';
 import { saveResourcesToStorage, loadResourcesFromStorage } from '@/components/Calendar/ResourceData';
-import { saveResources } from '@/services/calendarService';
+import { saveResources } from '@/services/teamService';
 import { toast } from 'sonner';
 
 export const useTeamResources = () => {

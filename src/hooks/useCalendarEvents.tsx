@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
-import { fetchCalendarEvents } from '@/services/calendarService';
+import { fetchCalendarEvents } from '@/services/eventService';
 import { toast } from 'sonner';
 
 export const useCalendarEvents = () => {

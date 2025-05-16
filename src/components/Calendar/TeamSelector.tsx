@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { 
   Select,
@@ -8,7 +7,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Resource } from '../Calendar/ResourceData';
-import { fetchTeamResources } from '@/services/calendarService';
+import { fetchTeamResources } from '@/services/teamService';
 
 interface TeamSelectorProps {
   selectedTeamId: string;
