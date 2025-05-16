@@ -1,25 +1,25 @@
 
-/* Calendar styling to match the light blue theme */
+/* Calendar styling with teal theme */
 .fc .fc-button-primary {
-  background-color: #2d3748 !important;
-  border-color: #2d3748 !important;
+  background-color: #7BAEBF !important;
+  border-color: #7BAEBF !important;
   color: white !important;
 }
 
 .fc .fc-button-primary:hover {
-  background-color: #4a5568 !important;
-  border-color: #4a5568 !important;
+  background-color: #6E9DAC !important;
+  border-color: #6E9DAC !important;
 }
 
 .fc .fc-button-primary:not(:disabled).fc-button-active,
 .fc .fc-button-primary:not(:disabled):active {
-  background-color: #4a5568 !important;
-  border-color: #4a5568 !important;
+  background-color: #6E9DAC !important;
+  border-color: #6E9DAC !important;
 }
 
 .fc .fc-button-primary:disabled {
-  background-color: #2d3748 !important;
-  border-color: #2d3748 !important;
+  background-color: #7BAEBF !important;
+  border-color: #7BAEBF !important;
   opacity: 0.65;
 }
 
@@ -96,7 +96,7 @@
 
 /* Month view today highlight */
 .fc-day-today {
-  background-color: rgba(130, 182, 198, 0.1) !important;
+  background-color: rgba(123, 174, 191, 0.1) !important;
 }
 
 /* Adjust event spacing for month view */
