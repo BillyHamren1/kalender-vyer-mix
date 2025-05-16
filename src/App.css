@@ -4,7 +4,7 @@
   margin: 0 auto;
   padding: 2rem;
   text-align: center;
-  transform: scale(0.7); /* Scale down by 30% */
+  transform: scale(0.5); /* Scale down by 50% (original 30% + additional 30%) */
   transform-origin: top center;
 }
 
