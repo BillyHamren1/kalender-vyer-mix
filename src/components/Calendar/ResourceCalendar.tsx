@@ -34,6 +34,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   const [selectedDate, setSelectedDate] = useState<Date>(currentDate);
   const { handleEventChange, handleEventClick } = useCalendarEventHandlers(resources);
   const isMobile = useIsMobile();
+  const [currentView, setCurrentView] = useState<string>(getInitialView());
 
   // Log events and resources for debugging
   useEffect(() => {
@@ -63,6 +64,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     setSelectedDate(date);
     if (calendarRef.current) {
       calendarRef.current.getApi().gotoDate(date);
+      setCurrentView('resourceTimeGridDay');
+      calendarRef.current.getApi().changeView('resourceTimeGridDay');
     }
   };
 
@@ -75,9 +78,9 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   }, [processedEvents]);
 
   // Get appropriate initial view based on screen size
-  const getInitialView = () => {
+  function getInitialView() {
     return isMobile ? "timeGridDay" : "resourceTimeGridDay";
-  };
+  }
 
   // Get appropriate header toolbar based on screen size
   const getMobileHeaderToolbar = () => {
@@ -127,6 +130,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         datesSet={(dateInfo) => {
           setSelectedDate(dateInfo.start);
           onDateSet(dateInfo);
+          setCurrentView(dateInfo.view.type);
         }}
         initialDate={currentDate}
         {...getCalendarOptions()}
@@ -141,8 +145,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         }}
       />
       
-      {/* Staff Assignment Row component - Only show on desktop */}
-      {!isMobile && <StaffAssignmentRow resources={resources} />}
+      {/* Staff Assignment Row component - Only show on desktop AND when in day view */}
+      {!isMobile && currentView === 'resourceTimeGridDay' && <StaffAssignmentRow resources={resources} />}
     </div>
   );
 };
