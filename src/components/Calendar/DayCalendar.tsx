@@ -5,6 +5,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { CalendarEvent } from './ResourceData';
+import { toast } from 'sonner';
 
 interface DayCalendarProps {
   events: CalendarEvent[];
@@ -36,9 +37,34 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
   }
 
   console.log('Rendering DayCalendar with events:', events);
+  
+  // Add helper to navigate to a date with events
+  const navigateToTodayOrEventsDate = () => {
+    if (calendarRef.current && events.length > 0) {
+      // Get the date of the first event
+      const firstEventDate = new Date(events[0].start);
+      calendarRef.current.getApi().gotoDate(firstEventDate);
+      toast.info(`Navigated to date with events: ${firstEventDate.toLocaleDateString()}`);
+    }
+  };
 
   return (
     <div className="day-calendar-container">
+      {events.length === 0 && (
+        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+          <p className="text-yellow-700">No events found for the selected date range.</p>
+        </div>
+      )}
+      
+      <div className="mb-4">
+        <button 
+          onClick={navigateToTodayOrEventsDate}
+          className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 text-sm"
+        >
+          Find Events
+        </button>
+      </div>
+      
       <FullCalendar
         ref={calendarRef}
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
@@ -65,8 +91,11 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
         slotMinTime="07:00:00"
         slotMaxTime="20:00:00"
         eventClassNames={(arg) => {
+          // Log event details for debugging
+          console.log('Event in calendar:', arg.event.title, arg.event);
+          
           // Ensure event type classes are applied correctly
-          const eventType = arg.event.extendedProps.eventType || 'event';
+          const eventType = arg.event.extendedProps?.eventType || 'event';
           return [`event-${eventType}`];
         }}
         eventContent={(arg) => {
@@ -75,6 +104,9 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
             <div>
               <div className="fc-event-time">{arg.timeText}</div>
               <div className="fc-event-title">{arg.event.title}</div>
+              <div className="fc-event-resource text-xs italic">
+                {arg.event.getResources?.()?.[0]?.title || arg.event.extendedProps?.resourceId || 'No resource'}
+              </div>
             </div>
           );
         }}
