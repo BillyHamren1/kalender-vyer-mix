@@ -10,7 +10,6 @@ import DayView from "./pages/DayView";
 import BookingList from "./pages/BookingList";
 import BookingDetail from "./pages/BookingDetail";
 import NotFound from "./pages/NotFound";
-import Navbar from "./components/Navigation/Navbar";
 
 const queryClient = new QueryClient();
 
@@ -21,7 +20,6 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <div className="min-h-screen bg-gray-50">
-          <Navbar />
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/resource-view" element={<ResourceView />} />
