@@ -6,6 +6,8 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { CalendarEvent } from './ResourceData';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
+import { updateCalendarEvent } from '@/services/calendarService';
 
 interface DayCalendarProps {
   events: CalendarEvent[];
@@ -13,8 +15,6 @@ interface DayCalendarProps {
   isMounted: boolean;
   currentDate: Date;
   onDateSet: (dateInfo: any) => void;
-  onEventDrop?: (eventDropInfo: any) => void;
-  onEventResize?: (eventResizeInfo: any) => void;
 }
 
 const DayCalendar: React.FC<DayCalendarProps> = ({
@@ -22,10 +22,9 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
   isLoading,
   isMounted,
   currentDate,
-  onDateSet,
-  onEventDrop,
-  onEventResize
+  onDateSet
 }) => {
+  const navigate = useNavigate();
   const calendarRef = useRef<FullCalendar>(null);
 
   if (isLoading && !isMounted) {
@@ -38,13 +37,46 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
 
   console.log('Rendering DayCalendar with events:', events);
   
-  // Add helper to navigate to a date with events
+  const handleEventChange = async (info: any) => {
+    try {
+      const resourceId = info.event.getResources?.()?.[0]?.id || 
+                        info.event._def?.resourceIds?.[0] || 
+                        info.event.extendedProps?.resourceId;
+
+      if (info.event.id) {
+        await updateCalendarEvent(info.event.id, {
+          start: info.event.start.toISOString(),
+          end: info.event.end.toISOString(),
+          resourceId: resourceId
+        });
+      }
+
+      toast("Event updated", {
+        description: `Event time updated to ${info.event.start.toLocaleTimeString()}`,
+      });
+    } catch (error) {
+      console.error('Error updating event:', error);
+      toast.error('Failed to update event');
+    }
+  };
+
+  const handleEventClick = (info: any) => {
+    const bookingId = info.event.extendedProps.bookingId;
+    if (bookingId) {
+      navigate(`/bookings/${bookingId}`);
+    }
+  };
+  
+  // Function to navigate to a date with events
   const navigateToTodayOrEventsDate = () => {
     if (calendarRef.current && events.length > 0) {
       // Get the date of the first event
       const firstEventDate = new Date(events[0].start);
       calendarRef.current.getApi().gotoDate(firstEventDate);
       toast.info(`Navigated to date with events: ${firstEventDate.toLocaleDateString()}`);
+    } else {
+      calendarRef.current?.getApi().today();
+      toast.info('Navigated to today');
     }
   };
 
@@ -76,14 +108,15 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
         }}
         events={events}
         editable={true}
+        droppable={true}
         selectable={true}
-        selectMirror={true}
-        dayMaxEvents={true}
-        weekends={true}
-        initialDate={currentDate}
+        eventDurationEditable={true}
+        eventResizableFromStart={true}
+        eventDrop={handleEventChange}
+        eventResize={handleEventChange}
+        eventClick={handleEventClick}
         datesSet={onDateSet}
-        eventDrop={onEventDrop}
-        eventResize={onEventResize}
+        initialDate={currentDate}
         height="auto"
         allDaySlot={true}
         slotDuration="00:30:00"
@@ -91,15 +124,11 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
         slotMinTime="07:00:00"
         slotMaxTime="20:00:00"
         eventClassNames={(arg) => {
-          // Log event details for debugging
           console.log('Event in calendar:', arg.event.title, arg.event);
-          
-          // Ensure event type classes are applied correctly
           const eventType = arg.event.extendedProps?.eventType || 'event';
           return [`event-${eventType}`];
         }}
         eventContent={(arg) => {
-          // Optional: Custom event rendering
           return (
             <div>
               <div className="fc-event-time">{arg.timeText}</div>
