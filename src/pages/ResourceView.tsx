@@ -7,8 +7,6 @@ import ResourceCalendar from '@/components/Calendar/ResourceCalendar';
 import ResourceHeader from '@/components/Calendar/ResourceHeader';
 import '../styles/calendar.css';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 // react-dnd is imported by StaffAssignmentRow component
 
@@ -37,13 +35,6 @@ const ResourceView = () => {
   const { addEventToCalendar } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
   
-  const handleRefresh = async () => {
-    toast.loading("Refreshing calendar...");
-    await refreshEvents();
-    toast.dismiss();
-    toast.success("Calendar refreshed");
-  };
-  
   return (
     <div className="min-h-screen bg-gray-50">
       <div className={`container mx-auto pt-2 ${isMobile ? 'px-2' : ''}`} style={{ maxWidth: isMobile ? '100%' : '94%' }}>
@@ -56,17 +47,6 @@ const ResourceView = () => {
             dialogOpen={dialogOpen}
             setDialogOpen={setDialogOpen}
           />
-          
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={handleRefresh}
-            className="flex items-center gap-2"
-            disabled={isLoading}
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh Calendar
-          </Button>
         </div>
         
         <div className={`bg-white rounded-lg shadow-md ${isMobile ? 'p-2' : 'p-3'}`}>
