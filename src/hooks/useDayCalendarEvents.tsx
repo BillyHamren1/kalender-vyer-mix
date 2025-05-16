@@ -13,6 +13,31 @@ export const useDayCalendarEvents = () => {
     return storedDate ? new Date(storedDate) : new Date();
   });
 
+  // Resource ID mapping functions
+  const mapResourceId = (databaseId: string): string => {
+    const mapping: Record<string, string> = {
+      'a': 'team-1',
+      'b': 'team-2',
+      'c': 'team-3',
+      'd': 'team-4',
+      'e': 'team-5'
+    };
+    console.log('Mapping database ID to app ID:', databaseId, '->', mapping[databaseId] || databaseId);
+    return mapping[databaseId] || databaseId;
+  };
+
+  const reverseMapResourceId = (appId: string): string => {
+    const reverseMapping: Record<string, string> = {
+      'team-1': 'a',
+      'team-2': 'b',
+      'team-3': 'c',
+      'team-4': 'd',
+      'team-5': 'e'
+    };
+    console.log('Mapping app ID to database ID:', appId, '->', reverseMapping[appId] || appId);
+    return reverseMapping[appId] || appId;
+  };
+
   // Helper function to get event color based on type
   const getEventColor = (eventType: 'rig' | 'event' | 'rigDown') => {
     switch(eventType) {
@@ -45,18 +70,23 @@ export const useDayCalendarEvents = () => {
         if (data) {
           console.log('Calendar events data from Supabase:', data);
           
-          const formattedEvents: CalendarEvent[] = data.map(event => ({
-            id: event.id,
-            resourceId: event.resource_id, // Use the resource_id as is
-            title: event.title,
-            start: event.start_time,
-            end: event.end_time,
-            eventType: (event.event_type as 'rig' | 'event' | 'rigDown') || 'event',
-            bookingId: event.booking_id || undefined,
-            color: getEventColor((event.event_type as 'rig' | 'event' | 'rigDown') || 'event')
-          }));
+          const formattedEvents: CalendarEvent[] = data.map(event => {
+            // Map the database resource_id to the application's resource ID format
+            const mappedResourceId = mapResourceId(event.resource_id);
+            
+            return {
+              id: event.id,
+              resourceId: mappedResourceId, // Use the mapped resource ID
+              title: event.title,
+              start: event.start_time,
+              end: event.end_time,
+              eventType: (event.event_type as 'rig' | 'event' | 'rigDown') || 'event',
+              bookingId: event.booking_id || undefined,
+              color: getEventColor((event.event_type as 'rig' | 'event' | 'rigDown') || 'event')
+            };
+          });
           
-          console.log('Formatted events for calendar:', formattedEvents);
+          console.log('Formatted events for calendar with mapped resource IDs:', formattedEvents);
           setEvents(formattedEvents);
         }
       } catch (error) {
@@ -97,13 +127,16 @@ export const useDayCalendarEvents = () => {
     try {
       console.log('Updating event in Supabase:', updatedEvent);
       
+      // Convert application resourceId back to database format
+      const databaseResourceId = reverseMapResourceId(updatedEvent.resourceId);
+      
       const { error } = await supabase
         .from('calendar_events')
         .update({
           title: updatedEvent.title,
           start_time: updatedEvent.start,
           end_time: updatedEvent.end,
-          resource_id: updatedEvent.resourceId,
+          resource_id: databaseResourceId, // Use the reverse-mapped resource ID
           event_type: updatedEvent.eventType
         })
         .eq('id', updatedEvent.id);

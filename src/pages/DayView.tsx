@@ -28,6 +28,7 @@ const DayView = () => {
       eventType: eventDropInfo.event.extendedProps.eventType || 'event'
     };
     
+    console.log('Sending updated event to service:', updatedEvent);
     updateEvent(updatedEvent);
   };
 
@@ -43,6 +44,7 @@ const DayView = () => {
       eventType: eventResizeInfo.event.extendedProps.eventType || 'event'
     };
     
+    console.log('Sending updated event to service:', updatedEvent);
     updateEvent(updatedEvent);
   };
 
