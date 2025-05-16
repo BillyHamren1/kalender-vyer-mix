@@ -6,7 +6,6 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import { CalendarEvent, Resource } from '../Calendar/ResourceData';
-import WeekTabNavigation from './WeekTabNavigation';
 import { useCalendarEventHandlers } from '@/hooks/useCalendarEventHandlers';
 import { processEvents } from './CalendarEventProcessor';
 import { getCalendarViews, getCalendarOptions, getHeaderToolbar } from './CalendarConfig';
@@ -58,14 +57,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     }
   }, [events, resources]);
 
-  // Handle day change from tabs
-  const handleDayChange = (date: Date) => {
-    setSelectedDate(date);
-    if (calendarRef.current) {
-      calendarRef.current.getApi().gotoDate(date);
-    }
-  };
-
   // Process events to ensure valid resources and add styling
   const processedEvents = processEvents(events, resources);
 
@@ -93,15 +84,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
 
   return (
     <div className="calendar-container">
-      {/* Week Tab Navigation - Only show on desktop */}
-      {!isMobile && (
-        <WeekTabNavigation
-          currentDate={selectedDate}
-          onDayChange={handleDayChange}
-          events={events}
-        />
-      )}
-      
       <FullCalendar
         ref={calendarRef}
         plugins={[
