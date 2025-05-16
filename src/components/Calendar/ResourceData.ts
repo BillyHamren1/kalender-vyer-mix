@@ -31,7 +31,7 @@ export interface CalendarEvent {
 export const eventColors = {
   rig: '#F2FCE2', // Light green for rig events
   event: '#FEF7CD', // Light yellow for events
-  rigDown: '#FEC6A1', // Light red for rig down events
+  rigDown: '#FEC6A1', // Lighter red for rig down events (updated from orange)
   default: '#3788d8', // Default blue
 };
 
