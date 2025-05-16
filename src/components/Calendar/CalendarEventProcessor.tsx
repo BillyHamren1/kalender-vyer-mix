@@ -11,22 +11,10 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]) =>
   // Log events for debugging
   console.log('Processing events for calendar display:', events);
   
-  // Ensure we have events to process
-  if (!events || events.length === 0) {
-    console.log('No events to process');
-    return [];
-  }
-  
   // Ensure all events have valid resources
   const eventsWithValidResources = events.map(event => {
-    // Ensure we're working with a valid event object
-    if (!event) {
-      console.warn('Encountered undefined event during processing');
-      return null;
-    }
-    
     // Check if event's resourceId exists in resources
-    const resourceExists = resources.length > 0 && resources.some(r => r.id === event.resourceId);
+    const resourceExists = resources.some(r => r.id === event.resourceId);
     
     if (!resourceExists && resources.length > 0) {
       console.warn(`Event with ID ${event.id} has resourceId ${event.resourceId} that doesn't match any resource. Assigning to first available resource.`);
@@ -38,15 +26,12 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]) =>
     }
     
     return event;
-  }).filter(Boolean) as CalendarEvent[]; // Filter out any null events
+  });
 
   // Process events to add color based on event type
   const processed = eventsWithValidResources.map(event => {
-    // Ensure the event has an eventType property
-    const eventType = event.eventType || 'default';
-    
     // Log event type for debugging
-    console.log(`Processing event ${event.id}, type: ${eventType}`);
+    console.log(`Processing event ${event.id}, type: ${event.eventType}`);
     
     const backgroundColor = getEventColor(event.eventType);
     
@@ -55,10 +40,10 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]) =>
       backgroundColor: backgroundColor,
       borderColor: backgroundColor,
       textColor: '#000000e6', // Black text for all events
-      classNames: [`event-${eventType}`],
+      classNames: [`event-${event.eventType || 'default'}`],
       extendedProps: {
         ...event,
-        dataEventType: eventType // Add as data attribute
+        dataEventType: event.eventType // Add as data attribute
       }
     };
   });

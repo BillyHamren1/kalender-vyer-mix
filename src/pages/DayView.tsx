@@ -4,8 +4,6 @@ import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import DayCalendar from '@/components/Calendar/DayCalendar';
 import '../styles/calendar.css';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { RefreshCw } from 'lucide-react';
 
 const DayView = () => {
   const {
@@ -13,8 +11,7 @@ const DayView = () => {
     isLoading,
     isMounted,
     currentDate,
-    handleDatesSet,
-    refreshEvents
+    handleDatesSet
   } = useCalendarEvents();
 
   useEffect(() => {
@@ -26,66 +23,17 @@ const DayView = () => {
         description: "Calendar data loaded successfully"
       });
     }
-    
-    // Navigate to earliest event date if events exist and a date isn't already set
-    if (events.length > 0 && !sessionStorage.getItem('calendarDate')) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const futureEvents = events.filter(event => {
-        const eventDate = new Date(event.start);
-        return eventDate >= today;
-      });
-      
-      if (futureEvents.length > 0) {
-        // Sort events by start date
-        const sortedEvents = [...futureEvents].sort((a, b) => 
-          new Date(a.start).getTime() - new Date(b.start).getTime()
-        );
-        
-        const earliestEvent = sortedEvents[0];
-        const earliestDate = new Date(earliestEvent.start);
-        
-        console.log('Navigating to earliest event date:', earliestDate);
-        sessionStorage.setItem('calendarDate', earliestDate.toISOString());
-        
-        // Force refresh after setting date
-        setTimeout(() => {
-          refreshEvents();
-        }, 500);
-      }
-    }
   }, [events]);
-  
-  const handleRefresh = async () => {
-    toast.loading("Refreshing calendar...");
-    await refreshEvents();
-    toast.dismiss();
-    toast.success("Calendar refreshed");
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
-        <div className="mb-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">Calendar Day View</h1>
-            <p className="text-gray-600">Showing all booked events for the selected day</p>
-            <p className="text-sm text-blue-600 mt-2">
-              Currently viewing: {currentDate.toLocaleDateString()}
-            </p>
-          </div>
-          
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={handleRefresh}
-            className="flex items-center gap-2"
-            disabled={isLoading}
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh Calendar
-          </Button>
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-gray-800">Calendar Day View</h1>
+          <p className="text-gray-600">Showing all booked events for the selected day</p>
+          <p className="text-sm text-blue-600 mt-2">
+            Currently viewing: {currentDate.toLocaleDateString()}
+          </p>
         </div>
         
         <div className="bg-white rounded-lg shadow-md p-4">
@@ -101,7 +49,6 @@ const DayView = () => {
             isMounted={isMounted}
             currentDate={currentDate}
             onDateSet={handleDatesSet}
-            refreshEvents={refreshEvents}
           />
         </div>
       </div>

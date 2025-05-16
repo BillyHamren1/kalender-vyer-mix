@@ -53,9 +53,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     console.log('Event types in ResourceCalendar:', eventTypes);
     
     // Force calendar to rerender when events change
-    if (calendarRef.current && events.length > 0) {
-      console.log('Forcing calendar rerender due to new events');
-      calendarRef.current.getApi().refetchEvents();
+    if (calendarRef.current) {
       calendarRef.current.getApi().render();
     }
   }, [events, resources]);
@@ -92,10 +90,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     }
     return getHeaderToolbar();
   };
-
-  if (isLoading) {
-    return <div className="p-4 text-center">Loading calendar...</div>;
-  }
 
   return (
     <div className="calendar-container" style={{ height: isMobile ? 'auto' : '600px', overflow: 'auto' }}>
@@ -144,7 +138,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           if (info.event.extendedProps.eventType) {
             info.el.setAttribute('data-event-type', info.event.extendedProps.eventType);
           }
-          console.log('Event mounted:', info.event.title, info.event.start, info.event.end);
         }}
       />
       
