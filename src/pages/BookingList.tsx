@@ -55,7 +55,7 @@ const BookingList = () => {
             </div>
           ) : (
             <Table>
-              <TableCaption className="text-gray-500">Lista över alla bokningar</TableCaption>
+              {/* Removed the TableCaption with the text "Lista över alla bokningar" */}
               <TableHeader className="bg-gray-50">
                 <TableRow>
                   <TableHead className="text-[#2d3748]">Booking ID</TableHead>
