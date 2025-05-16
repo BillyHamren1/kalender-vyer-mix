@@ -22,7 +22,7 @@ export const getCalendarViews = () => {
 // Calendar options
 export const getCalendarOptions = () => {
   return {
-    height: "550px",
+    height: "700px", // Increased by 25% from 550px
     slotMinTime: "00:00:00",
     slotMaxTime: "24:00:00",
     scrollTime: "07:00:00",

@@ -1,4 +1,3 @@
-
 /* Calendar styling with teal theme */
 .fc .fc-button-primary {
   background-color: #7BAEBF !important;
@@ -29,6 +28,7 @@
   background: white;
   position: relative;
   overflow: auto !important;
+  height: 750px !important; /* Fixed height increased by 25% from 600px */
 }
 
 /* Make sure the visible time range (7-20) fits well */
@@ -194,7 +194,7 @@
 
 /* Fix specific time range for the calendar */
 .fc-timegrid-slots {
-  min-height: 1200px; /* Make sure there's enough room for all hours */
+  min-height: 1500px; /* Increased by 25% from 1200px for taller time slots */
 }
 
 /* Mobile responsive styles */
@@ -214,7 +214,7 @@
   }
   
   .fc-timegrid-slots {
-    min-height: 800px; /* Smaller height for mobile */
+    min-height: 1000px; /* Increased by 25% from 800px for mobile */
   }
   
   .fc-scrollgrid-sync-table {
@@ -223,7 +223,7 @@
   
   .fc-view-harness {
     height: auto !important;
-    min-height: 450px !important;
+    min-height: 562px !important;
   }
   
   .fc-timegrid-event {
@@ -243,13 +243,12 @@
 @media (max-width: 768px) {
   #root {
     transform: none !important;
-    max-width: 100% !important;
     padding: 0.5rem !important;
   }
   
   .calendar-container .fc-view-harness {
     height: auto !important;
-    min-height: 450px !important;
+    min-height: 562px !important; /* Increased by 25% from 450px */
   }
 }
 
@@ -264,7 +263,7 @@
 }
 
 .calendar-container .fc-view-harness {
-  height: 550px !important;
+  height: 700px !important; /* Increased by 25% from 550px */
   overflow-y: auto !important;
 }
 
@@ -289,4 +288,10 @@
 /* Group header styling */
 .fc-theme-standard .fc-scrollgrid {
   border: 1px solid #ddd;
+}
+
+/* Adjust main App.css height to match */
+#root {
+  transform: scale(0.55); /* Apply 45% zoom out (75% - 20% more) */
+  transform-origin: top center; /* Keep the top centered during scaling */
 }

@@ -34,6 +34,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   const [selectedDate, setSelectedDate] = useState<Date>(currentDate);
   const { handleEventChange, handleEventClick } = useCalendarEventHandlers(resources);
   const isMobile = useIsMobile();
+  const [currentView, setCurrentView] = useState<string>("resourceTimeGridDay");
 
   // Log events and resources for debugging
   useEffect(() => {
@@ -91,8 +92,13 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     return getHeaderToolbar();
   };
 
+  // Determine if we should show the Staff Assignment Row
+  const shouldShowStaffAssignmentRow = () => {
+    return currentView === 'resourceTimeGridDay' && !isMobile;
+  };
+
   return (
-    <div className="calendar-container" style={{ height: isMobile ? 'auto' : '600px', overflow: 'auto' }}>
+    <div className="calendar-container" style={{ height: isMobile ? 'auto' : '750px', overflow: 'auto' }}>
       {/* Week Tab Navigation - Only show on desktop */}
       {!isMobile && (
         <WeekTabNavigation
@@ -127,6 +133,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         datesSet={(dateInfo) => {
           setSelectedDate(dateInfo.start);
           onDateSet(dateInfo);
+          setCurrentView(dateInfo.view.type);
         }}
         initialDate={currentDate}
         {...getCalendarOptions()}
@@ -141,8 +148,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         }}
       />
       
-      {/* Staff Assignment Row component - Only show on desktop */}
-      {!isMobile && <StaffAssignmentRow resources={resources} />}
+      {/* Only show Staff Assignment Row in day view */}
+      {shouldShowStaffAssignmentRow() && <StaffAssignmentRow resources={resources} />}
     </div>
   );
 };
