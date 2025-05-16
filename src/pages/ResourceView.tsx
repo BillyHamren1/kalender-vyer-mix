@@ -32,7 +32,7 @@ const ResourceView = () => {
   
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto pt-2" style={{ maxWidth: '75%' }}>
+      <div className="container mx-auto pt-2" style={{ maxWidth: '94%' }}>
         <div className="bg-white rounded-lg shadow-md p-3">
           <ResourceCalendar
             events={events}
