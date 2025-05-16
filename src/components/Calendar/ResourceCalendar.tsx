@@ -144,8 +144,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       datesSet={onDateSet}
       initialDate={currentDate}
       height="auto"
-      slotMinTime="05:00:00"
-      slotMaxTime="00:00:00"
       eventDidMount={(info) => {
         // Add data-event-type attribute to event elements
         if (info.event.extendedProps.eventType) {
