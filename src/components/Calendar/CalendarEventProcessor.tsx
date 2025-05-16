@@ -8,6 +8,9 @@ interface CalendarEventProcessorProps {
 }
 
 export const processEvents = (events: CalendarEvent[], resources: Resource[]) => {
+  // Log events for debugging
+  console.log('Processing events for calendar display:', events);
+  
   // Ensure all events have valid resources
   const eventsWithValidResources = events.map(event => {
     // Check if event's resourceId exists in resources
@@ -26,11 +29,16 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]) =>
   });
 
   // Process events to add color based on event type
-  return eventsWithValidResources.map(event => {
+  const processed = eventsWithValidResources.map(event => {
+    // Log event type for debugging
+    console.log(`Processing event ${event.id}, type: ${event.eventType}`);
+    
+    const backgroundColor = getEventColor(event.eventType);
+    
     return {
       ...event,
-      backgroundColor: getEventColor(event.eventType),
-      borderColor: getEventColor(event.eventType),
+      backgroundColor: backgroundColor,
+      borderColor: backgroundColor,
       textColor: '#000000e6', // Black text for all events
       classNames: [`event-${event.eventType || 'default'}`],
       extendedProps: {
@@ -39,6 +47,9 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]) =>
       }
     };
   });
+  
+  console.log('Processed events with styles:', processed);
+  return processed;
 };
 
 const CalendarEventProcessor: React.FC<CalendarEventProcessorProps> = ({ events, resources }) => {

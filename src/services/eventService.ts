@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { CalendarEvent } from "@/components/Calendar/ResourceData";
+import { getEventColor } from "@/components/Calendar/ResourceData";
 
 // Resource ID mapping - converts between database IDs and application format
 const resourceIdMap: Record<string, string> = {
@@ -37,6 +38,8 @@ export const mapAppToDatabaseResourceId = (appResourceId: string): string => {
 
 // Fetch all calendar events
 export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
+  console.log('Fetching all calendar events from the database...');
+  
   const { data, error } = await supabase
     .from('calendar_events')
     .select('*');
@@ -46,18 +49,28 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
     throw error;
   }
 
-  // Map data to CalendarEvent format and convert resource IDs
-  const mappedEvents = data.map(event => ({
-    id: event.id,
-    resourceId: mapDatabaseToAppResourceId(event.resource_id),
-    title: event.title,
-    start: event.start_time,
-    end: event.end_time,
-    eventType: event.event_type as 'rig' | 'event' | 'rigDown',
-    bookingId: event.booking_id,
-  }));
+  console.log('Raw calendar events from database:', data);
 
-  console.log('Calendar events loaded with mapped resource IDs:', mappedEvents);
+  // Map data to CalendarEvent format and convert resource IDs
+  const mappedEvents = data.map(event => {
+    const mappedResourceId = mapDatabaseToAppResourceId(event.resource_id);
+    const eventType = event.event_type as 'rig' | 'event' | 'rigDown';
+    
+    const calendarEvent: CalendarEvent = {
+      id: event.id,
+      resourceId: mappedResourceId,
+      title: event.title,
+      start: event.start_time,
+      end: event.end_time,
+      eventType: eventType,
+      bookingId: event.booking_id,
+      color: getEventColor(eventType)
+    };
+    
+    return calendarEvent;
+  });
+
+  console.log('Mapped calendar events with app resource IDs:', mappedEvents);
   return mappedEvents;
 };
 
@@ -129,6 +142,8 @@ export const deleteCalendarEvent = async (id: string): Promise<void> => {
 
 // Fetch calendar events by booking ID
 export const fetchEventsByBookingId = async (bookingId: string): Promise<CalendarEvent[]> => {
+  console.log(`Fetching events for booking ID: ${bookingId}`);
+  
   const { data, error } = await supabase
     .from('calendar_events')
     .select('*')
@@ -139,13 +154,20 @@ export const fetchEventsByBookingId = async (bookingId: string): Promise<Calenda
     throw error;
   }
 
-  return data.map(event => ({
-    id: event.id,
-    resourceId: mapDatabaseToAppResourceId(event.resource_id),
-    title: event.title,
-    start: event.start_time,
-    end: event.end_time,
-    eventType: event.event_type as 'rig' | 'event' | 'rigDown',
-    bookingId: event.booking_id,
-  }));
+  console.log(`Found ${data.length} events for booking ID ${bookingId}:`, data);
+
+  return data.map(event => {
+    const eventType = event.event_type as 'rig' | 'event' | 'rigDown';
+    
+    return {
+      id: event.id,
+      resourceId: mapDatabaseToAppResourceId(event.resource_id),
+      title: event.title,
+      start: event.start_time,
+      end: event.end_time,
+      eventType: eventType,
+      bookingId: event.booking_id,
+      color: getEventColor(eventType)
+    };
+  });
 };

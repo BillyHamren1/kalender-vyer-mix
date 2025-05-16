@@ -47,6 +47,15 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     if (unmatchedEvents.length > 0) {
       console.warn('Events with unmatched resources:', unmatchedEvents);
     }
+    
+    // Log event types for debugging
+    const eventTypes = events.map(e => e.eventType);
+    console.log('Event types in ResourceCalendar:', eventTypes);
+    
+    // Force calendar to rerender when events change
+    if (calendarRef.current) {
+      calendarRef.current.getApi().render();
+    }
   }, [events, resources]);
 
   // Handle day change from tabs
@@ -59,6 +68,11 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
 
   // Process events to ensure valid resources and add styling
   const processedEvents = processEvents(events, resources);
+
+  // Log processed events for debugging
+  useEffect(() => {
+    console.log('Processed events for calendar:', processedEvents);
+  }, [processedEvents]);
 
   // Get appropriate initial view based on screen size
   const getInitialView = () => {

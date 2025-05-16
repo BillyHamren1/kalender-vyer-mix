@@ -25,11 +25,15 @@ export const useCalendarEvents = () => {
         if (active) {
           console.log('Calendar events loaded successfully:', data);
           console.log('Resource IDs in events:', data.map(event => event.resourceId));
+          
+          // Log event types to help with debugging
+          console.log('Event types:', data.map(event => event.eventType));
+          
           setEvents(data);
         }
       } catch (error) {
         console.error('Error loading calendar events:', error);
-        toast.error('Kunde inte ladda kalenderhändelser');
+        toast.error('Could not load calendar events');
       } finally {
         if (active) {
           setIsLoading(false);
@@ -51,6 +55,22 @@ export const useCalendarEvents = () => {
     sessionStorage.setItem('calendarDate', newDate.toISOString());
     console.log('Calendar date set to:', newDate);
   };
+  
+  // Function to force refresh the calendar events
+  const refreshEvents = async () => {
+    setIsLoading(true);
+    try {
+      console.log('Manually refreshing calendar events...');
+      const data = await fetchCalendarEvents();
+      console.log('Refreshed calendar events:', data);
+      setEvents(data);
+    } catch (error) {
+      console.error('Error refreshing calendar events:', error);
+      toast.error('Could not refresh calendar events');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return {
     events,
@@ -58,6 +78,7 @@ export const useCalendarEvents = () => {
     isLoading,
     isMounted,
     currentDate,
-    handleDatesSet
+    handleDatesSet,
+    refreshEvents
   };
 };

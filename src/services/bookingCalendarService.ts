@@ -44,14 +44,22 @@ export const syncBookingEvents = async (
     booking_id: bookingId
   };
 
+  console.log("Creating/updating calendar event:", eventData);
+
   if (existingEvents && existingEvents.length > 0) {
     // Update existing event
     const eventId = existingEvents[0].id;
-    await supabase
+    const { error } = await supabase
       .from('calendar_events')
       .update(eventData)
       .eq('id', eventId);
+      
+    if (error) {
+      console.error('Error updating calendar event:', error);
+      throw error;
+    }
     
+    console.log("Updated existing calendar event with ID:", eventId);
     return eventId;
   } else {
     // Create new event
@@ -66,6 +74,7 @@ export const syncBookingEvents = async (
       throw error;
     }
 
+    console.log("Created new calendar event with ID:", data.id);
     return data.id;
   }
 };
