@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -174,7 +175,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         }}
       />
       
-      {/* Add the Staff Assignment Row component */}
+      {/* Staff Assignment Row component */}
       <StaffAssignmentRow resources={resources} />
     </div>
   );

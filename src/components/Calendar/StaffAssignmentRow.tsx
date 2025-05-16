@@ -49,7 +49,7 @@ const DraggableStaffItem: React.FC<{ staff: StaffMember; onRemove: () => void }>
 const TeamDropZone: React.FC<{ 
   resource: Resource; 
   staffMembers: StaffMember[]; 
-  onDrop: (staffId: string, resourceId: string) => void;
+  onDrop: (staffId: string, resourceId: string | null) => void;
   onAddStaff: (resourceId: string) => void;
 }> = ({ resource, staffMembers, onDrop, onAddStaff }) => {
   const [{ isOver }, drop] = useDrop(() => ({
