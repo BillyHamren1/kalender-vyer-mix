@@ -4,11 +4,9 @@ import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useEventActions } from '@/hooks/useEventActions';
 import ResourceCalendar from '@/components/Calendar/ResourceCalendar';
-import ResourceHeader from '@/components/Calendar/ResourceHeader';
 import StaffAssignmentRow from '@/components/Calendar/StaffAssignmentRow';
 import '../styles/calendar.css';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { toast } from "sonner";
 
 const ResourceView = () => {
   // Use our custom hooks to manage state and logic
@@ -43,17 +41,6 @@ const ResourceView = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className={`container mx-auto pt-2 ${isMobile ? 'px-2' : ''}`} style={{ maxWidth: isMobile ? '100%' : '94%' }}>
-        <div className="flex justify-between items-center mb-4">
-          <ResourceHeader 
-            teamResources={teamResources}
-            teamCount={teamCount}
-            onAddTeam={addTeam}
-            onRemoveTeam={removeTeam}
-            dialogOpen={dialogOpen}
-            setDialogOpen={setDialogOpen}
-          />
-        </div>
-        
         <div className={`bg-white rounded-lg shadow-md ${isMobile ? 'p-2' : 'p-3'}`}>
           <ResourceCalendar
             events={events}
