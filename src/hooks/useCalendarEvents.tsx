@@ -97,7 +97,7 @@ export const useCalendarEvents = () => {
   };
   
   // Function to force refresh the calendar events
-  const refreshEvents = async () => {
+  const refreshEvents = async (): Promise<CalendarEvent[]> => {
     setIsLoading(true);
     try {
       console.log('Manually refreshing calendar events...');

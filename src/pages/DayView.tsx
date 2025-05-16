@@ -59,9 +59,9 @@ const DayView = () => {
   
   const handleRefresh = async () => {
     toast.loading("Refreshing calendar...");
-    await refreshEvents();
+    const updatedEvents = await refreshEvents();
     toast.dismiss();
-    toast.success("Calendar refreshed");
+    toast.success(`Calendar refreshed with ${updatedEvents.length} events`);
   };
 
   return (
