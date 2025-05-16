@@ -28,7 +28,8 @@
   background: white;
   position: relative;
   overflow: auto !important;
-  height: 750px !important; /* Fixed height increased by 25% from 600px */
+  height: auto !important;
+  min-height: 750px !important; /* Fixed height */
 }
 
 /* Make sure the visible time range (7-20) fits well */
@@ -194,7 +195,7 @@
 
 /* Fix specific time range for the calendar */
 .fc-timegrid-slots {
-  min-height: 1500px; /* Increased by 25% from 1200px for taller time slots */
+  min-height: 1500px; /* Ensure enough room for all time slots */
 }
 
 /* Mobile responsive styles */
@@ -214,16 +215,12 @@
   }
   
   .fc-timegrid-slots {
-    min-height: 1000px; /* Increased by 25% from 800px for mobile */
-  }
-  
-  .fc-scrollgrid-sync-table {
-    height: auto !important;
+    min-height: 1000px;
   }
   
   .fc-view-harness {
     height: auto !important;
-    min-height: 562px !important; /* Increased by 25% from 450px */
+    min-height: 600px !important;
   }
   
   .fc-timegrid-event {
@@ -248,7 +245,7 @@
   
   .calendar-container .fc-view-harness {
     height: auto !important;
-    min-height: 562px !important; /* Increased by 25% from 450px */
+    min-height: 600px !important;
   }
 }
 

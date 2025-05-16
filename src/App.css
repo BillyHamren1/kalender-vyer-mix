@@ -1,10 +1,8 @@
-
 #root {
   max-width: 1280px;
   margin: 0 auto;
   padding: 2rem;
   text-align: center;
-  /* Removing the scale transformation that made everything too small */
 }
 
 /* Disable the transform on mobile devices */
@@ -54,7 +52,7 @@
 /* Fix for fullcalendar height when zoomed out */
 .calendar-container {
   height: auto !important;
-  min-height: 750px; /* Maintaining the 25% increase but removing compensation for scale */
+  min-height: 750px; /* Fixed height for the calendar container */
 }
 
 /* Adjust for mobile */

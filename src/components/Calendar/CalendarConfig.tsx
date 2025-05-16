@@ -22,7 +22,7 @@ export const getCalendarViews = () => {
 // Calendar options
 export const getCalendarOptions = () => {
   return {
-    height: "700px", // Increased by 25% from 550px
+    height: "auto", // Set to auto to respect container
     slotMinTime: "00:00:00",
     slotMaxTime: "24:00:00",
     scrollTime: "07:00:00",
@@ -41,9 +41,7 @@ export const getHeaderToolbar = () => {
   };
 };
 
-const CalendarConfig: React.FC = () => {
-  // This component doesn't render anything, it's just a utility
-  return null;
-};
+// This component doesn't render anything, it's just a utility
+const CalendarConfig: React.FC = () => null;
 
 export default CalendarConfig;

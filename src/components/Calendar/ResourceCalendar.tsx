@@ -98,7 +98,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   };
 
   return (
-    <div className="calendar-container" style={{ height: isMobile ? 'auto' : '750px', overflow: 'auto' }}>
+    <div className="calendar-container">
       {/* Week Tab Navigation - Only show on desktop */}
       {!isMobile && (
         <WeekTabNavigation
@@ -137,8 +137,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         }}
         initialDate={currentDate}
         {...getCalendarOptions()}
-        height={isMobile ? 'auto' : undefined}
-        contentHeight={isMobile ? 'auto' : undefined}
+        height="auto"
         aspectRatio={isMobile ? 0.8 : 1.8}
         eventDidMount={(info) => {
           // Add data-event-type attribute to event elements
