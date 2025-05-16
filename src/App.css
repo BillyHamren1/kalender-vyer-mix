@@ -4,8 +4,7 @@
   margin: 0 auto;
   padding: 2rem;
   text-align: center;
-  transform: scale(0.55); /* Apply 45% zoom out (75% - 20% more) */
-  transform-origin: top center; /* Keep the top centered during scaling */
+  /* Removing the scale transformation that made everything too small */
 }
 
 /* Disable the transform on mobile devices */
@@ -55,7 +54,7 @@
 /* Fix for fullcalendar height when zoomed out */
 .calendar-container {
   height: auto !important;
-  min-height: 1389px; /* 762px increased by 82% to compensate for 0.55 scale */
+  min-height: 750px; /* Maintaining the 25% increase but removing compensation for scale */
 }
 
 /* Adjust for mobile */

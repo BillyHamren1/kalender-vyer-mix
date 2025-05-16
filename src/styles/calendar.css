@@ -223,7 +223,7 @@
   
   .fc-view-harness {
     height: auto !important;
-    min-height: 562px !important;
+    min-height: 562px !important; /* Increased by 25% from 450px */
   }
   
   .fc-timegrid-event {
@@ -292,6 +292,5 @@
 
 /* Adjust main App.css height to match */
 #root {
-  transform: scale(0.55); /* Apply 45% zoom out (75% - 20% more) */
   transform-origin: top center; /* Keep the top centered during scaling */
 }
