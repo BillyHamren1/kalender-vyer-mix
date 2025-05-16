@@ -30,9 +30,10 @@ export const getCalendarOptions = () => {
     slotLabelInterval: "01:00", // Keep at 1 hour
     allDaySlot: false,
     slotLabelFormat: {
-      hour: '2-digit', // Force 2-digit display (00, 01, 02, etc.)
-      minute: '2-digit',
+      hour: "2-digit" as "2-digit", // Using literal type to match expected FullCalendar type
+      minute: "2-digit" as "2-digit", // Using literal type to match expected FullCalendar type
       hour12: false,   // Use 24-hour format
+      omitZeroMinute: false // Always show minutes even if 00
     }
   };
 };
