@@ -41,8 +41,7 @@ export const syncBookingEvents = async (
     end_time: endDate.toISOString(),
     title: title,
     event_type: eventType,
-    booking_number: bookingId,
-    customer: client
+    booking_id: bookingId
   };
 
   if (existingEvents && existingEvents.length > 0) {
@@ -58,10 +57,7 @@ export const syncBookingEvents = async (
     // Create new event
     const { data, error } = await supabase
       .from('calendar_events')
-      .insert({
-        ...eventData,
-        booking_id: bookingId
-      })
+      .insert(eventData)
       .select('id')
       .single();
 
