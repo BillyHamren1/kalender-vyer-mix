@@ -46,8 +46,10 @@ export const useCalendarEvents = () => {
   }, []);
 
   const handleDatesSet = (dateInfo: any) => {
-    setCurrentDate(dateInfo.start);
-    sessionStorage.setItem('calendarDate', dateInfo.start.toISOString());
+    const newDate = dateInfo.start;
+    setCurrentDate(newDate);
+    sessionStorage.setItem('calendarDate', newDate.toISOString());
+    console.log('Calendar date set to:', newDate);
   };
 
   return {

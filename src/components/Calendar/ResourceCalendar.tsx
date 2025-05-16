@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+
+import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -9,6 +10,7 @@ import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/eventService';
 import { useNavigate } from 'react-router-dom';
 import StaffAssignmentRow from './StaffAssignmentRow';
+import WeekTabNavigation from './WeekTabNavigation';
 
 interface ResourceCalendarProps {
   events: CalendarEvent[];
@@ -29,6 +31,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
 }) => {
   const navigate = useNavigate();
   const calendarRef = React.useRef<any>(null);
+  const [activeView, setActiveView] = useState<'single' | 'dual'>('single');
+  const [selectedDate, setSelectedDate] = useState<Date>(currentDate);
 
   // Log events and resources for debugging
   useEffect(() => {
@@ -43,6 +47,30 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       console.warn('Events with unmatched resources:', unmatchedEvents);
     }
   }, [events, resources]);
+
+  // Update calendar view when active view changes
+  useEffect(() => {
+    if (!calendarRef.current) return;
+    
+    if (activeView === 'single') {
+      calendarRef.current.getApi().changeView('resourceTimeGridDay');
+    } else {
+      calendarRef.current.getApi().changeView('resourceTimeGridTwoDays');
+    }
+  }, [activeView]);
+
+  // Handle day change from tabs
+  const handleDayChange = (date: Date) => {
+    setSelectedDate(date);
+    if (calendarRef.current) {
+      calendarRef.current.getApi().gotoDate(date);
+    }
+  };
+
+  // Handle view change (single/dual)
+  const handleViewChange = (view: 'single' | 'dual') => {
+    setActiveView(view);
+  };
 
   const handleEventChange = async (info: any) => {
     try {
@@ -121,6 +149,10 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       type: 'resourceTimeGrid',
       duration: { days: 1 }
     },
+    resourceTimeGridTwoDays: {
+      type: 'resourceTimeGrid',
+      duration: { days: 2 }
+    },
     timeGridWeek: {
       type: 'timeGrid',
       duration: { weeks: 1 }
@@ -133,6 +165,15 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
 
   return (
     <div className="calendar-container" style={{ height: '762px', overflow: 'auto' }}>
+      {/* Week Tab Navigation */}
+      <WeekTabNavigation
+        currentDate={selectedDate}
+        onDayChange={handleDayChange}
+        onViewChange={handleViewChange}
+        events={events}
+        activeView={activeView}
+      />
+      
       <FullCalendar
         ref={calendarRef}
         plugins={[
@@ -142,7 +183,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           dayGridPlugin
         ]}
         schedulerLicenseKey="0134084325-fcs-1745193612"
-        initialView="resourceTimeGridDay"
+        initialView={activeView === 'single' ? 'resourceTimeGridDay' : 'resourceTimeGridTwoDays'}
         headerToolbar={{
           left: 'prev,next today',
           center: 'title',
@@ -159,7 +200,10 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         eventDrop={handleEventChange}
         eventResize={handleEventChange}
         eventClick={handleEventClick}
-        datesSet={onDateSet}
+        datesSet={(dateInfo) => {
+          setSelectedDate(dateInfo.start);
+          onDateSet(dateInfo);
+        }}
         initialDate={currentDate}
         height="auto"
         slotMinTime="05:00:00"
