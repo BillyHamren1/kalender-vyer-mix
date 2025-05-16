@@ -69,3 +69,18 @@ export const syncBookingEvents = async (
     return data.id;
   }
 };
+
+// Fetch all calendar events for a specific booking ID
+export const fetchEventsByBookingId = async (bookingId: string) => {
+  const { data, error } = await supabase
+    .from('calendar_events')
+    .select('*')
+    .eq('booking_id', bookingId);
+    
+  if (error) {
+    console.error('Error fetching booking events:', error);
+    throw error;
+  }
+  
+  return data || [];
+};

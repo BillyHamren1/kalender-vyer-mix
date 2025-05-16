@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format, isAfter, differenceInDays } from "date-fns";
-import { MapPin, User, Calendar as CalendarIcon, Package, ArrowLeft, FileText, FilePlus, Pencil, Check, CalendarPlus, X, Download, ExternalLink } from "lucide-react";
+import { MapPin, User, Calendar as CalendarIcon, Package, ArrowLeft, FileText, FilePlus, Pencil, Check, CalendarPlus, X, Download, ExternalLink, CheckCircle } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Booking } from "@/types/booking";
@@ -28,6 +28,11 @@ const BookingDetail = () => {
   const [bookingData, setBookingData] = useState<Booking | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [calendarDates, setCalendarDates] = useState<{[key: string]: boolean}>({
+    rig: false,
+    event: false,
+    rigDown: false
+  });
   
   // Load booking data from Supabase and existing events
   useEffect(() => {
@@ -43,6 +48,24 @@ const BookingDetail = () => {
         if (data.internalNotes) {
           setInternalNotes(data.internalNotes);
         }
+        
+        // Fetch existing calendar events for this booking
+        const events = await fetchEventsByBookingId(id);
+        
+        // Check which date types already exist in the calendar
+        const dateStatus = {
+          rig: false,
+          event: false,
+          rigDown: false
+        };
+        
+        events.forEach(event => {
+          if (event.event_type === 'rig') dateStatus.rig = true;
+          if (event.event_type === 'event') dateStatus.event = true;
+          if (event.event_type === 'rigDown') dateStatus.rigDown = true;
+        });
+        
+        setCalendarDates(dateStatus);
       } catch (error) {
         console.error('Failed to load booking:', error);
         toast.error('Failed to load booking details');
@@ -121,6 +144,12 @@ const BookingDetail = () => {
         bookingData.client
       );
       
+      // Update calendar dates status
+      setCalendarDates({
+        ...calendarDates,
+        [eventType]: true
+      });
+      
       toast.success(`${field.charAt(0).toUpperCase() + field.slice(1).replace('Date', '')} date updated to ${formattedDate}`);
     } catch (error) {
       console.error(`Failed to update ${field}:`, error);
@@ -181,6 +210,7 @@ const BookingDetail = () => {
     }
     
     try {
+      setIsUpdating(true);
       // Create and add event to calendar with auto team assignment
       await syncBookingEvents(
         id,
@@ -190,10 +220,18 @@ const BookingDetail = () => {
         bookingData.client
       );
       
+      // Update calendar dates status
+      setCalendarDates({
+        ...calendarDates,
+        [eventType]: true
+      });
+      
       toast.success(`${dateName} added to calendar`);
     } catch (error) {
       console.error('Failed to add event to calendar:', error);
       toast.error('Failed to add event to calendar');
+    } finally {
+      setIsUpdating(false);
     }
   };
   
@@ -284,7 +322,12 @@ const BookingDetail = () => {
             <CardContent className="p-6">
               <div className="space-y-4">
                 <div>
-                  <h3 className="text-sm font-medium text-[#4a5568]">Rig Day</h3>
+                  <h3 className="text-sm font-medium text-[#4a5568] flex items-center">
+                    Rig Day
+                    {calendarDates.rig && (
+                      <CheckCircle className="ml-2 h-4 w-4 text-green-500" title="Added to calendar" />
+                    )}
+                  </h3>
                   <div className="flex gap-2 items-center">
                     <Popover>
                       <PopoverTrigger asChild>
@@ -310,18 +353,26 @@ const BookingDetail = () => {
                     <Button 
                       variant="outline" 
                       size="icon" 
-                      className="flex-shrink-0"
+                      className={`flex-shrink-0 ${calendarDates.rig ? 'bg-green-50 text-green-600 border-green-200' : ''}`}
                       onClick={() => handleAddToCalendar('Rig Day', bookingData.rigDayDate)}
-                      title="Save to Calendar"
+                      title={calendarDates.rig ? "Already in calendar" : "Add to calendar"}
                       disabled={isUpdating || !bookingData.rigDayDate}
                     >
-                      <CalendarPlus className="h-4 w-4 text-[#82b6c6]" />
+                      {calendarDates.rig ? 
+                        <Check className="h-4 w-4 text-green-600" /> : 
+                        <CalendarPlus className="h-4 w-4 text-[#82b6c6]" />
+                      }
                     </Button>
                   </div>
                 </div>
                 
                 <div>
-                  <h3 className="text-sm font-medium text-[#4a5568]">Event Day</h3>
+                  <h3 className="text-sm font-medium text-[#4a5568] flex items-center">
+                    Event Day
+                    {calendarDates.event && (
+                      <CheckCircle className="ml-2 h-4 w-4 text-green-500" title="Added to calendar" />
+                    )}
+                  </h3>
                   <div className="flex gap-2 items-center">
                     <Popover>
                       <PopoverTrigger asChild>
@@ -347,18 +398,26 @@ const BookingDetail = () => {
                     <Button 
                       variant="outline" 
                       size="icon" 
-                      className="flex-shrink-0"
+                      className={`flex-shrink-0 ${calendarDates.event ? 'bg-green-50 text-green-600 border-green-200' : ''}`}
                       onClick={() => handleAddToCalendar('Event Day', bookingData.eventDate)}
-                      title="Save to Calendar"
+                      title={calendarDates.event ? "Already in calendar" : "Add to calendar"}
                       disabled={isUpdating || !bookingData.eventDate}
                     >
-                      <CalendarPlus className="h-4 w-4 text-[#82b6c6]" />
+                      {calendarDates.event ? 
+                        <Check className="h-4 w-4 text-green-600" /> : 
+                        <CalendarPlus className="h-4 w-4 text-[#82b6c6]" />
+                      }
                     </Button>
                   </div>
                 </div>
                 
                 <div>
-                  <h3 className="text-sm font-medium text-[#4a5568]">Rig Down Day</h3>
+                  <h3 className="text-sm font-medium text-[#4a5568] flex items-center">
+                    Rig Down Day
+                    {calendarDates.rigDown && (
+                      <CheckCircle className="ml-2 h-4 w-4 text-green-500" title="Added to calendar" />
+                    )}
+                  </h3>
                   <div className="flex gap-2 items-center">
                     <Popover>
                       <PopoverTrigger asChild>
@@ -384,12 +443,15 @@ const BookingDetail = () => {
                     <Button 
                       variant="outline" 
                       size="icon" 
-                      className="flex-shrink-0"
+                      className={`flex-shrink-0 ${calendarDates.rigDown ? 'bg-green-50 text-green-600 border-green-200' : ''}`}
                       onClick={() => handleAddToCalendar('Rig Down Day', bookingData.rigDownDate)}
-                      title="Save to Calendar"
+                      title={calendarDates.rigDown ? "Already in calendar" : "Add to calendar"}
                       disabled={isUpdating || !bookingData.rigDownDate}
                     >
-                      <CalendarPlus className="h-4 w-4 text-[#82b6c6]" />
+                      {calendarDates.rigDown ? 
+                        <Check className="h-4 w-4 text-green-600" /> : 
+                        <CalendarPlus className="h-4 w-4 text-[#82b6c6]" />
+                      }
                     </Button>
                   </div>
                 </div>
