@@ -44,8 +44,7 @@ export const useTeamResources = () => {
     setResources([...resources, newResource]);
     setTeamCount(prevCount => prevCount + 1);
     
-    toast({
-      title: "Team tillagt",
+    toast("Team tillagt", {
       description: `Team ${teamCount} har lagts till i kalendern`,
       duration: 3000,
     });
@@ -57,8 +56,7 @@ export const useTeamResources = () => {
     
     setResources(resources.filter(resource => resource.id !== teamId));
     
-    toast({
-      title: "Team borttaget",
+    toast("Team borttaget", {
       description: `${teamToRemove.title} har tagits bort från kalendern`,
       duration: 3000,
     });
