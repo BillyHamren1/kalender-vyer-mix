@@ -18,7 +18,7 @@ import {
   updateBookingNotes,
   uploadBookingAttachment
 } from "@/services/bookingService";
-import { syncBookingEvents, fetchEventsByBookingId } from "@/services/calendarService";
+import { syncBookingEvents, fetchEventsByBookingId } from "@/services/bookingCalendarService";
 
 const BookingDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -60,9 +60,9 @@ const BookingDetail = () => {
         };
         
         events.forEach(event => {
-          if (event.event_type === 'rig') dateStatus.rig = true;
-          if (event.event_type === 'event') dateStatus.event = true;
-          if (event.event_type === 'rigDown') dateStatus.rigDown = true;
+          if (event.eventType === 'rig') dateStatus.rig = true;
+          if (event.eventType === 'event') dateStatus.event = true;
+          if (event.eventType === 'rigDown') dateStatus.rigDown = true;
         });
         
         setCalendarDates(dateStatus);
@@ -325,7 +325,9 @@ const BookingDetail = () => {
                   <h3 className="text-sm font-medium text-[#4a5568] flex items-center">
                     Rig Day
                     {calendarDates.rig && (
-                      <CheckCircle className="ml-2 h-4 w-4 text-green-500" title="Added to calendar" />
+                      <span className="ml-2" aria-label="Added to calendar">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      </span>
                     )}
                   </h3>
                   <div className="flex gap-2 items-center">
@@ -355,7 +357,7 @@ const BookingDetail = () => {
                       size="icon" 
                       className={`flex-shrink-0 ${calendarDates.rig ? 'bg-green-50 text-green-600 border-green-200' : ''}`}
                       onClick={() => handleAddToCalendar('Rig Day', bookingData.rigDayDate)}
-                      title={calendarDates.rig ? "Already in calendar" : "Add to calendar"}
+                      aria-label={calendarDates.rig ? "Already in calendar" : "Add to calendar"}
                       disabled={isUpdating || !bookingData.rigDayDate}
                     >
                       {calendarDates.rig ? 
@@ -370,7 +372,9 @@ const BookingDetail = () => {
                   <h3 className="text-sm font-medium text-[#4a5568] flex items-center">
                     Event Day
                     {calendarDates.event && (
-                      <CheckCircle className="ml-2 h-4 w-4 text-green-500" title="Added to calendar" />
+                      <span className="ml-2" aria-label="Added to calendar">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      </span>
                     )}
                   </h3>
                   <div className="flex gap-2 items-center">
@@ -400,7 +404,7 @@ const BookingDetail = () => {
                       size="icon" 
                       className={`flex-shrink-0 ${calendarDates.event ? 'bg-green-50 text-green-600 border-green-200' : ''}`}
                       onClick={() => handleAddToCalendar('Event Day', bookingData.eventDate)}
-                      title={calendarDates.event ? "Already in calendar" : "Add to calendar"}
+                      aria-label={calendarDates.event ? "Already in calendar" : "Add to calendar"}
                       disabled={isUpdating || !bookingData.eventDate}
                     >
                       {calendarDates.event ? 
@@ -415,7 +419,9 @@ const BookingDetail = () => {
                   <h3 className="text-sm font-medium text-[#4a5568] flex items-center">
                     Rig Down Day
                     {calendarDates.rigDown && (
-                      <CheckCircle className="ml-2 h-4 w-4 text-green-500" title="Added to calendar" />
+                      <span className="ml-2" aria-label="Added to calendar">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      </span>
                     )}
                   </h3>
                   <div className="flex gap-2 items-center">
@@ -445,7 +451,7 @@ const BookingDetail = () => {
                       size="icon" 
                       className={`flex-shrink-0 ${calendarDates.rigDown ? 'bg-green-50 text-green-600 border-green-200' : ''}`}
                       onClick={() => handleAddToCalendar('Rig Down Day', bookingData.rigDownDate)}
-                      title={calendarDates.rigDown ? "Already in calendar" : "Add to calendar"}
+                      aria-label={calendarDates.rigDown ? "Already in calendar" : "Add to calendar"}
                       disabled={isUpdating || !bookingData.rigDownDate}
                     >
                       {calendarDates.rigDown ? 
@@ -616,7 +622,7 @@ const BookingDetail = () => {
                               target="_blank" 
                               rel="noopener noreferrer"
                               className="bg-white text-blue-600 p-2 rounded-full hover:bg-blue-50"
-                              title="View"
+                              aria-label="View"
                             >
                               <ExternalLink className="h-4 w-4" />
                             </a>
@@ -624,7 +630,7 @@ const BookingDetail = () => {
                               href={attachment.url} 
                               download={attachment.fileName}
                               className="bg-white text-green-600 p-2 rounded-full hover:bg-green-50"
-                              title="Download"
+                              aria-label="Download"
                             >
                               <Download className="h-4 w-4" />
                             </a>

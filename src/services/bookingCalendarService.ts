@@ -82,5 +82,14 @@ export const fetchEventsByBookingId = async (bookingId: string) => {
     throw error;
   }
   
-  return data || [];
+  // Map database field names to frontend field names
+  return data?.map(event => ({
+    id: event.id,
+    resourceId: event.resource_id,
+    start: event.start_time,
+    end: event.end_time,
+    title: event.title,
+    eventType: event.event_type,
+    bookingId: event.booking_id
+  })) || [];
 };
