@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -133,7 +132,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   };
 
   return (
-    <div className="calendar-container" style={{ height: '650px', overflow: 'auto' }}>
+    <div className="calendar-container" style={{ height: '815px', overflow: 'auto' }}>
       <FullCalendar
         ref={calendarRef}
         plugins={[
