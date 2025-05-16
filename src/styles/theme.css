@@ -1,7 +1,7 @@
 
 :root {
-  --primary: #82b6c6;
-  --primary-hover: #6a99a8;
+  --primary: #7BAEBF;
+  --primary-hover: #6E9DAC;
   --text-primary: #2d3748;
   --text-secondary: #4a5568;
   --background: #f7fafc;
@@ -28,3 +28,6 @@ button[class*="hover:bg-primary"] {
   background-color: var(--card-background);
   border: none;
 }
+
+/* Import calendar styles */
+@import './calendar.css';

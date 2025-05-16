@@ -9,7 +9,150 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      booking_attachments: {
+        Row: {
+          booking_id: string
+          file_name: string | null
+          file_type: string | null
+          id: string
+          uploaded_at: string
+          url: string
+        }
+        Insert: {
+          booking_id: string
+          file_name?: string | null
+          file_type?: string | null
+          id?: string
+          uploaded_at?: string
+          url: string
+        }
+        Update: {
+          booking_id?: string
+          file_name?: string | null
+          file_type?: string | null
+          id?: string
+          uploaded_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_attachments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_products: {
+        Row: {
+          booking_id: string
+          id: string
+          name: string
+          notes: string | null
+          quantity: number
+        }
+        Insert: {
+          booking_id: string
+          id?: string
+          name: string
+          notes?: string | null
+          quantity?: number
+        }
+        Update: {
+          booking_id?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_products_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bookings: {
+        Row: {
+          client: string
+          created_at: string
+          deliveryaddress: string | null
+          eventdate: string | null
+          id: string
+          internalnotes: string | null
+          rigdaydate: string | null
+          rigdowndate: string | null
+          updated_at: string
+        }
+        Insert: {
+          client: string
+          created_at?: string
+          deliveryaddress?: string | null
+          eventdate?: string | null
+          id: string
+          internalnotes?: string | null
+          rigdaydate?: string | null
+          rigdowndate?: string | null
+          updated_at?: string
+        }
+        Update: {
+          client?: string
+          created_at?: string
+          deliveryaddress?: string | null
+          eventdate?: string | null
+          id?: string
+          internalnotes?: string | null
+          rigdaydate?: string | null
+          rigdowndate?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      calendar_events: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          end_time: string
+          event_type: string | null
+          id: string
+          resource_id: string
+          start_time: string
+          title: string
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          end_time: string
+          event_type?: string | null
+          id?: string
+          resource_id: string
+          start_time: string
+          title: string
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          end_time?: string
+          event_type?: string | null
+          id?: string
+          resource_id?: string
+          start_time?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_events_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

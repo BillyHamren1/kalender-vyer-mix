@@ -20,7 +20,7 @@ const TeamManager = ({ teams, onAddTeam, onRemoveTeam, teamCount }: TeamManagerP
           onClick={onAddTeam}
           variant="outline" 
           size="sm"
-          className="text-purple-600 border-purple-600 hover:bg-purple-50"
+          className="text-[var(--primary)] border-[var(--primary)] hover:bg-[color:var(--primary)] hover:bg-opacity-10"
         >
           <Plus size={16} className="mr-1" />
           Lägg till Team {teamCount}
@@ -67,7 +67,7 @@ const TeamManager = ({ teams, onAddTeam, onRemoveTeam, teamCount }: TeamManagerP
         </Button>
         <Button 
           onClick={() => window.location.reload()}
-          className="bg-purple-500 hover:bg-purple-600 text-white"
+          className="bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white"
         >
           Klar
         </Button>

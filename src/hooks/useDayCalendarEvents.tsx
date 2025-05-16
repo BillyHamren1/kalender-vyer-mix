@@ -1,0 +1,171 @@
+
+import { useState, useEffect } from 'react';
+import { CalendarEvent } from '@/components/Calendar/ResourceData';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+export const useDayCalendarEvents = () => {
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
+  const [currentDate, setCurrentDate] = useState<Date>(() => {
+    const storedDate = sessionStorage.getItem('dayCalendarDate');
+    return storedDate ? new Date(storedDate) : new Date();
+  });
+
+  // Resource ID mapping functions
+  const mapResourceId = (databaseId: string): string => {
+    const mapping: Record<string, string> = {
+      'a': 'team-1',
+      'b': 'team-2',
+      'c': 'team-3',
+      'd': 'team-4',
+      'e': 'team-5'
+    };
+    console.log('Mapping database ID to app ID:', databaseId, '->', mapping[databaseId] || databaseId);
+    return mapping[databaseId] || databaseId;
+  };
+
+  const reverseMapResourceId = (appId: string): string => {
+    const reverseMapping: Record<string, string> = {
+      'team-1': 'a',
+      'team-2': 'b',
+      'team-3': 'c',
+      'team-4': 'd',
+      'team-5': 'e'
+    };
+    console.log('Mapping app ID to database ID:', appId, '->', reverseMapping[appId] || appId);
+    return reverseMapping[appId] || appId;
+  };
+
+  // Helper function to get event color based on type
+  const getEventColor = (eventType: 'rig' | 'event' | 'rigDown') => {
+    switch(eventType) {
+      case 'rig':
+        return '#F2FCE2';
+      case 'event':
+        return '#FEF7CD';
+      case 'rigDown':
+        return '#FFDEE2';
+      default:
+        return '#E2F5FC';
+    }
+  };
+
+  // Initial fetch of events
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        setIsLoading(true);
+        console.log('Fetching calendar events from Supabase...');
+        
+        const { data, error } = await supabase
+          .from('calendar_events')
+          .select('*');
+
+        if (error) {
+          throw error;
+        }
+
+        if (data) {
+          console.log('Calendar events data from Supabase:', data);
+          
+          const formattedEvents: CalendarEvent[] = data.map(event => {
+            // Map the database resource_id to the application's resource ID format
+            const mappedResourceId = mapResourceId(event.resource_id);
+            
+            return {
+              id: event.id,
+              resourceId: mappedResourceId, // Use the mapped resource ID
+              title: event.title,
+              start: event.start_time,
+              end: event.end_time,
+              eventType: (event.event_type as 'rig' | 'event' | 'rigDown') || 'event',
+              bookingId: event.booking_id || undefined,
+              color: getEventColor((event.event_type as 'rig' | 'event' | 'rigDown') || 'event')
+            };
+          });
+          
+          console.log('Formatted events for calendar with mapped resource IDs:', formattedEvents);
+          setEvents(formattedEvents);
+        }
+      } catch (error) {
+        console.error('Error fetching events:', error);
+        toast.error('Failed to load calendar events');
+      } finally {
+        setIsLoading(false);
+        setIsMounted(true);
+      }
+    };
+
+    fetchEvents();
+
+    // Subscribe to real-time changes
+    const channel = supabase
+      .channel('calendar_events_changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'calendar_events' 
+        }, 
+        (payload) => {
+          console.log('Real-time update received:', payload);
+          // Update events when database changes
+          fetchEvents();
+        })
+      .subscribe();
+
+    return () => {
+      setIsMounted(false);
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Handle event updates (for drag & drop, resize)
+  const updateEvent = async (updatedEvent: CalendarEvent) => {
+    try {
+      console.log('Updating event in Supabase:', updatedEvent);
+      
+      // Convert application resourceId back to database format
+      const databaseResourceId = reverseMapResourceId(updatedEvent.resourceId);
+      
+      const { error } = await supabase
+        .from('calendar_events')
+        .update({
+          title: updatedEvent.title,
+          start_time: updatedEvent.start,
+          end_time: updatedEvent.end,
+          resource_id: databaseResourceId, // Use the reverse-mapped resource ID
+          event_type: updatedEvent.eventType
+        })
+        .eq('id', updatedEvent.id);
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success('Event updated successfully');
+    } catch (error) {
+      console.error('Error updating event:', error);
+      toast.error('Failed to update event');
+    }
+  };
+
+  // Handle date changes
+  const handleDatesSet = (dateInfo: any) => {
+    console.log('Date set in calendar:', dateInfo.start);
+    setCurrentDate(dateInfo.start);
+    sessionStorage.setItem('dayCalendarDate', dateInfo.start.toISOString());
+  };
+
+  return {
+    events,
+    setEvents,
+    isLoading,
+    isMounted,
+    currentDate,
+    handleDatesSet,
+    updateEvent
+  };
+};

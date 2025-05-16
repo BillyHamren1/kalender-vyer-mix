@@ -1,5 +1,6 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Table,
   TableBody,
@@ -10,55 +11,36 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card } from '@/components/ui/card';
-
-// Tillfällig bokningsdata som senare kan ersättas med riktig data
-interface Booking {
-  id: string;
-  client: string;
-  rigDayDate: string;
-  eventDate: string;
-  rigDownDate: string;
-}
-
-const sampleBookings: Booking[] = [
-  {
-    id: "BOK-001",
-    client: "Volvo AB",
-    rigDayDate: "2025-05-20",
-    eventDate: "2025-05-21",
-    rigDownDate: "2025-05-22",
-  },
-  {
-    id: "BOK-002",
-    client: "Ericsson",
-    rigDayDate: "2025-06-01",
-    eventDate: "2025-06-02",
-    rigDownDate: "2025-06-03",
-  },
-  {
-    id: "BOK-003",
-    client: "IKEA",
-    rigDayDate: "2025-06-15",
-    eventDate: "2025-06-16",
-    rigDownDate: "2025-06-17",
-  },
-  {
-    id: "BOK-004",
-    client: "Scania",
-    rigDayDate: "2025-07-10",
-    eventDate: "2025-07-11",
-    rigDownDate: "2025-07-12",
-  },
-  {
-    id: "BOK-005",
-    client: "H&M",
-    rigDayDate: "2025-07-20",
-    eventDate: "2025-07-21",
-    rigDownDate: "2025-07-22",
-  },
-];
+import { Booking } from '../types/booking';
+import { fetchBookings } from '@/services/bookingService';
+import { toast } from 'sonner';
 
 const BookingList = () => {
+  const navigate = useNavigate();
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    const loadBookings = async () => {
+      try {
+        setIsLoading(true);
+        const data = await fetchBookings();
+        setBookings(data);
+      } catch (error) {
+        console.error('Failed to load bookings:', error);
+        toast.error('Failed to load bookings');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadBookings();
+  }, []);
+  
+  const handleRowClick = (id: string) => {
+    navigate(`/booking/${id}`);
+  };
+  
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
@@ -67,29 +49,39 @@ const BookingList = () => {
         </div>
         
         <Card className="overflow-hidden border-0 shadow-md rounded-lg">
-          <Table>
-            <TableCaption className="text-gray-500">Lista över alla bokningar</TableCaption>
-            <TableHeader className="bg-gray-50">
-              <TableRow>
-                <TableHead className="text-[#2d3748]">Booking ID</TableHead>
-                <TableHead className="text-[#2d3748]">Client</TableHead>
-                <TableHead className="text-[#2d3748]">Rig day date</TableHead>
-                <TableHead className="text-[#2d3748]">Event date</TableHead>
-                <TableHead className="text-[#2d3748]">Rig down date</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sampleBookings.map((booking) => (
-                <TableRow key={booking.id} className="hover:bg-gray-50">
-                  <TableCell className="font-medium text-[#2d3748]">{booking.id}</TableCell>
-                  <TableCell>{booking.client}</TableCell>
-                  <TableCell>{booking.rigDayDate}</TableCell>
-                  <TableCell>{booking.eventDate}</TableCell>
-                  <TableCell>{booking.rigDownDate}</TableCell>
+          {isLoading ? (
+            <div className="flex justify-center items-center p-8">
+              <p className="text-gray-500">Loading bookings...</p>
+            </div>
+          ) : (
+            <Table>
+              <TableCaption className="text-gray-500">Lista över alla bokningar</TableCaption>
+              <TableHeader className="bg-gray-50">
+                <TableRow>
+                  <TableHead className="text-[#2d3748]">Booking ID</TableHead>
+                  <TableHead className="text-[#2d3748]">Client</TableHead>
+                  <TableHead className="text-[#2d3748]">Rig day date</TableHead>
+                  <TableHead className="text-[#2d3748]">Event date</TableHead>
+                  <TableHead className="text-[#2d3748]">Rig down date</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {bookings.map((booking) => (
+                  <TableRow 
+                    key={booking.id} 
+                    className="hover:bg-gray-50 cursor-pointer" 
+                    onClick={() => handleRowClick(booking.id)}
+                  >
+                    <TableCell className="font-medium text-[#2d3748]">{booking.id}</TableCell>
+                    <TableCell>{booking.client}</TableCell>
+                    <TableCell>{booking.rigDayDate}</TableCell>
+                    <TableCell>{booking.eventDate}</TableCell>
+                    <TableCell>{booking.rigDownDate}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </Card>
       </div>
     </div>
