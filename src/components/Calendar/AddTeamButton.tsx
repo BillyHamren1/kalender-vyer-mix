@@ -31,24 +31,26 @@ const AddTeamButton: React.FC<AddTeamButtonProps> = ({
     <div className="flex">
       <Button 
         onClick={onAddTeam}
-        className={`bg-[#7BAEBF] hover:bg-[#6E9DAC] text-white ${
+        className={`bg-[#7BAEBF] hover:bg-[#6E9DAC] text-white text-sm ${
           teamResources.length > 0 ? 'rounded-r-none' : ''
         } border-r border-r-[#6ca2b4] ${
-          isMobile ? 'text-sm px-3 py-1 h-9' : ''
+          isMobile ? 'px-2 py-1 h-8' : 'px-3 py-1 h-9'
         }`}
+        size="sm"
       >
-        <Plus className={`${isMobile ? 'mr-0.5' : 'mr-1'}`} size={isMobile ? 16 : 18} />
-        {isMobile ? `Team ${teamCount}` : `Add Team ${teamCount}`}
+        <Plus className={`${isMobile ? 'mr-0.5' : 'mr-1'}`} size={isMobile ? 14 : 16} />
+        Add team
       </Button>
       {teamResources.length > 0 && (
         <DropdownMenu open={showDropdown} onOpenChange={setShowDropdown}>
           <DropdownMenuTrigger asChild>
             <Button 
               className={`bg-[#7BAEBF] hover:bg-[#6E9DAC] text-white rounded-l-none ${
-                isMobile ? 'px-1.5 h-9' : 'px-2'
+                isMobile ? 'px-1 h-8' : 'px-1.5 h-9'
               }`}
+              size="sm"
             >
-              <ChevronDown size={isMobile ? 16 : 18} />
+              <ChevronDown size={isMobile ? 14 : 16} />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className={`${isMobile ? 'w-40' : 'w-48'}`}>
