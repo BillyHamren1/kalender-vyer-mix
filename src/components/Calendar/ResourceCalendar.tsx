@@ -164,7 +164,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   };
 
   return (
-    <div className="calendar-container" style={{ height: '762px', overflow: 'auto' }}>
+    <div className="calendar-container" style={{ height: '600px', overflow: 'auto' }}>
       {/* Week Tab Navigation */}
       <WeekTabNavigation
         currentDate={selectedDate}
@@ -205,11 +205,13 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           onDateSet(dateInfo);
         }}
         initialDate={currentDate}
-        height="auto"
-        slotMinTime="05:00:00"
+        height="550px"
+        slotMinTime="00:00:00"
         slotMaxTime="24:00:00"
-        scrollTime="08:00:00"
-        slotDuration="01:00:00"
+        scrollTime="07:00:00"
+        slotDuration="00:30:00"
+        slotLabelInterval="01:00"
+        allDaySlot={false}
         eventDidMount={(info) => {
           // Add data-event-type attribute to event elements
           if (info.event.extendedProps.eventType) {

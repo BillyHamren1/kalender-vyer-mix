@@ -1,3 +1,4 @@
+
 /* Calendar styling with teal theme */
 .fc .fc-button-primary {
   background-color: #7BAEBF !important;
@@ -27,6 +28,25 @@
   border-radius: 8px;
   background: white;
   position: relative;
+  overflow: auto !important;
+}
+
+/* Make sure the visible time range (7-20) fits well */
+.fc-timegrid-slot[data-time^="07"],
+.fc-timegrid-slot[data-time^="08"],
+.fc-timegrid-slot[data-time^="09"],
+.fc-timegrid-slot[data-time^="10"],
+.fc-timegrid-slot[data-time^="11"],
+.fc-timegrid-slot[data-time^="12"],
+.fc-timegrid-slot[data-time^="13"],
+.fc-timegrid-slot[data-time^="14"],
+.fc-timegrid-slot[data-time^="15"],
+.fc-timegrid-slot[data-time^="16"],
+.fc-timegrid-slot[data-time^="17"],
+.fc-timegrid-slot[data-time^="18"],
+.fc-timegrid-slot[data-time^="19"],
+.fc-timegrid-slot[data-time^="20"] {
+  background-color: rgba(250, 250, 252, 0.5);
 }
 
 /* Calendar header styling */
@@ -170,4 +190,24 @@
 
 .calendar-container::-webkit-scrollbar-thumb:hover {
   background: #7BAEBF;
+}
+
+/* Fix specific time range for the calendar */
+.fc-timegrid-slots {
+  min-height: 1200px; /* Make sure there's enough room for all hours */
+}
+
+/* Fix for fullcalendar height when zoomed out */
+.fc .fc-scroller {
+  overflow: visible !important;
+}
+
+.fc .fc-scroller-liquid-absolute {
+  position: relative !important;
+  overflow: visible !important;
+}
+
+.calendar-container .fc-view-harness {
+  height: 550px !important;
+  overflow-y: auto !important;
 }
