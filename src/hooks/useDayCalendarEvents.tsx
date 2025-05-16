@@ -13,11 +13,27 @@ export const useDayCalendarEvents = () => {
     return storedDate ? new Date(storedDate) : new Date();
   });
 
+  // Helper function to get event color based on type
+  const getEventColor = (eventType: 'rig' | 'event' | 'rigDown') => {
+    switch(eventType) {
+      case 'rig':
+        return '#F2FCE2';
+      case 'event':
+        return '#FEF7CD';
+      case 'rigDown':
+        return '#FFDEE2';
+      default:
+        return '#E2F5FC';
+    }
+  };
+
   // Initial fetch of events
   useEffect(() => {
     const fetchEvents = async () => {
       try {
         setIsLoading(true);
+        console.log('Fetching calendar events from Supabase...');
+        
         const { data, error } = await supabase
           .from('calendar_events')
           .select('*');
@@ -27,17 +43,20 @@ export const useDayCalendarEvents = () => {
         }
 
         if (data) {
+          console.log('Calendar events data from Supabase:', data);
+          
           const formattedEvents: CalendarEvent[] = data.map(event => ({
             id: event.id,
-            resourceId: event.resource_id,
+            resourceId: event.resource_id, // Use the resource_id as is
             title: event.title,
             start: event.start_time,
             end: event.end_time,
-            eventType: event.event_type as 'rig' | 'event' | 'rigDown',
+            eventType: (event.event_type as 'rig' | 'event' | 'rigDown') || 'event',
             bookingId: event.booking_id || undefined,
-            color: getEventColor(event.event_type as 'rig' | 'event' | 'rigDown')
+            color: getEventColor((event.event_type as 'rig' | 'event' | 'rigDown') || 'event')
           }));
           
+          console.log('Formatted events for calendar:', formattedEvents);
           setEvents(formattedEvents);
         }
       } catch (error) {
@@ -61,6 +80,7 @@ export const useDayCalendarEvents = () => {
           table: 'calendar_events' 
         }, 
         (payload) => {
+          console.log('Real-time update received:', payload);
           // Update events when database changes
           fetchEvents();
         })
@@ -72,23 +92,11 @@ export const useDayCalendarEvents = () => {
     };
   }, []);
 
-  // Helper function to get event color based on type
-  const getEventColor = (eventType: 'rig' | 'event' | 'rigDown') => {
-    switch(eventType) {
-      case 'rig':
-        return '#F2FCE2';
-      case 'event':
-        return '#FEF7CD';
-      case 'rigDown':
-        return '#FFDEE2';
-      default:
-        return '#E2F5FC';
-    }
-  };
-
   // Handle event updates (for drag & drop, resize)
   const updateEvent = async (updatedEvent: CalendarEvent) => {
     try {
+      console.log('Updating event in Supabase:', updatedEvent);
+      
       const { error } = await supabase
         .from('calendar_events')
         .update({
@@ -113,6 +121,7 @@ export const useDayCalendarEvents = () => {
 
   // Handle date changes
   const handleDatesSet = (dateInfo: any) => {
+    console.log('Date set in calendar:', dateInfo.start);
     setCurrentDate(dateInfo.start);
     sessionStorage.setItem('dayCalendarDate', dateInfo.start.toISOString());
   };

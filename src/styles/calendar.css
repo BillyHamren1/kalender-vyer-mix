@@ -41,6 +41,7 @@
 
 /* Event type color styling - Updated to target all event types in all views */
 .event-rig,
+.fc-event[class*="event-rig"],
 .fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="rig"],
 .fc-event.fc-event-start.fc-event-end.fc-event-future.fc-timegrid-event[style*="rig"] {
   background-color: #F2FCE2 !important; /* Soft Green for rig events */
@@ -49,6 +50,7 @@
 }
 
 .event-event,
+.fc-event[class*="event-event"],
 .fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="event"],
 .fc-event.fc-event-start.fc-event-end.fc-event-future.fc-timegrid-event[style*="event"] {
   background-color: #FEF7CD !important; /* Soft Yellow for events */
@@ -56,7 +58,8 @@
   color: #8C6E20 !important;
 }
 
-.event-rigdown,
+.event-rigDown,
+.fc-event[class*="event-rigDown"],
 .fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="rigDown"],
 .fc-event.fc-event-start.fc-event-end.fc-event-future.fc-timegrid-event[style*="rigDown"] {
   background-color: #FFDEE2 !important; /* Soft Pink for rig down events */

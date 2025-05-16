@@ -14,15 +14,18 @@ const DayView = () => {
     updateEvent
   } = useDayCalendarEvents();
 
+  console.log('DayView received events:', events);
+
   // Handle event drag & drop
   const handleEventDrop = (eventDropInfo: any) => {
+    console.log('Event dropped:', eventDropInfo);
     const updatedEvent: any = {
       id: eventDropInfo.event.id,
       title: eventDropInfo.event.title,
       start: eventDropInfo.event.start,
       end: eventDropInfo.event.end,
       resourceId: eventDropInfo.event.extendedProps.resourceId,
-      eventType: eventDropInfo.event.extendedProps.eventType
+      eventType: eventDropInfo.event.extendedProps.eventType || 'event'
     };
     
     updateEvent(updatedEvent);
@@ -30,13 +33,14 @@ const DayView = () => {
 
   // Handle event resize
   const handleEventResize = (eventResizeInfo: any) => {
+    console.log('Event resized:', eventResizeInfo);
     const updatedEvent: any = {
       id: eventResizeInfo.event.id,
       title: eventResizeInfo.event.title,
       start: eventResizeInfo.event.start,
       end: eventResizeInfo.event.end,
       resourceId: eventResizeInfo.event.extendedProps.resourceId,
-      eventType: eventResizeInfo.event.extendedProps.eventType
+      eventType: eventResizeInfo.event.extendedProps.eventType || 'event'
     };
     
     updateEvent(updatedEvent);
@@ -51,6 +55,12 @@ const DayView = () => {
         </div>
         
         <div className="bg-white rounded-lg shadow-md p-4">
+          {events.length === 0 && !isLoading && (
+            <div className="text-center py-6 text-gray-500">
+              No events found for this day. Events will appear here when scheduled.
+            </div>
+          )}
+          
           <DayCalendar
             events={events}
             isLoading={isLoading}

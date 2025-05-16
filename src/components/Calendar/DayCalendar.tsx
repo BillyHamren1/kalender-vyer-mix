@@ -35,6 +35,8 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
     );
   }
 
+  console.log('Rendering DayCalendar with events:', events);
+
   return (
     <div className="day-calendar-container">
       <FullCalendar
@@ -63,7 +65,18 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
         slotMinTime="07:00:00"
         slotMaxTime="20:00:00"
         eventClassNames={(arg) => {
-          return [`event-${arg.event.extendedProps.eventType}`];
+          // Ensure event type classes are applied correctly
+          const eventType = arg.event.extendedProps.eventType || 'event';
+          return [`event-${eventType}`];
+        }}
+        eventContent={(arg) => {
+          // Optional: Custom event rendering
+          return (
+            <div>
+              <div className="fc-event-time">{arg.timeText}</div>
+              <div className="fc-event-title">{arg.event.title}</div>
+            </div>
+          );
         }}
         eventTimeFormat={{
           hour: '2-digit',

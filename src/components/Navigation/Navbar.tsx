@@ -1,8 +1,10 @@
 
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Grid2X2 } from "lucide-react";
 
 const Navbar = () => {
+  const location = useLocation();
+  
   return (
     <nav className="bg-white shadow-sm py-4 px-6">
       <div className="container mx-auto flex justify-between items-center">
@@ -17,7 +19,7 @@ const Navbar = () => {
           <li>
             <Link 
               to="/" 
-              className="text-gray-600 hover:text-[#82b6c6] transition-colors"
+              className={`transition-colors ${location.pathname === '/' ? 'text-[#82b6c6] font-medium' : 'text-gray-600 hover:text-[#82b6c6]'}`}
             >
               Hem
             </Link>
@@ -25,7 +27,7 @@ const Navbar = () => {
           <li>
             <Link 
               to="/resource-view" 
-              className="text-gray-600 hover:text-[#82b6c6] transition-colors"
+              className={`transition-colors ${location.pathname === '/resource-view' ? 'text-[#82b6c6] font-medium' : 'text-gray-600 hover:text-[#82b6c6]'}`}
             >
               Resursvy
             </Link>
@@ -33,7 +35,7 @@ const Navbar = () => {
           <li>
             <Link 
               to="/day-view" 
-              className="text-gray-600 hover:text-[#82b6c6] transition-colors"
+              className={`transition-colors ${location.pathname === '/day-view' ? 'text-[#82b6c6] font-medium' : 'text-gray-600 hover:text-[#82b6c6]'}`}
             >
               Dagvy
             </Link>
@@ -41,7 +43,7 @@ const Navbar = () => {
           <li>
             <Link 
               to="/booking-list" 
-              className="text-gray-600 hover:text-[#82b6c6] transition-colors"
+              className={`transition-colors ${location.pathname === '/booking-list' ? 'text-[#82b6c6] font-medium' : 'text-gray-600 hover:text-[#82b6c6]'}`}
             >
               Bokningslista
             </Link>
