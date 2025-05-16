@@ -39,35 +39,23 @@
   background-color: rgba(0, 0, 0, 0.02);
 }
 
-/* Event type color styling - Updated to target all event types in all views */
+/* Event type color styling - Updated to remove "day" text */
 .event-rig,
-.fc-event[class*="event-rig"],
-.fc-daygrid-event[data-event-type="rig"],
-.fc-timegrid-event[data-event-type="rig"],
-.fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="rig"],
-.fc-event.fc-event-start.fc-event-end.fc-event-future.fc-timegrid-event[style*="rig"] {
+.fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="rig"] {
   background-color: #F2FCE2 !important; /* Soft Green for rig events */
   border-color: #D4EAB5 !important;
   color: #3C682E !important;
 }
 
 .event-event,
-.fc-event[class*="event-event"],
-.fc-daygrid-event[data-event-type="event"],
-.fc-timegrid-event[data-event-type="event"],
-.fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="event"],
-.fc-event.fc-event-start.fc-event-end.fc-event-future.fc-timegrid-event[style*="event"] {
+.fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="event"] {
   background-color: #FEF7CD !important; /* Soft Yellow for events */
   border-color: #F3E8A3 !important;
   color: #8C6E20 !important;
 }
 
-.event-rigDown,
-.fc-event[class*="event-rigDown"],
-.fc-daygrid-event[data-event-type="rigDown"],
-.fc-timegrid-event[data-event-type="rigDown"],
-.fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="rigDown"],
-.fc-event.fc-event-start.fc-event-end.fc-event-future.fc-timegrid-event[style*="rigDown"] {
+.event-rigdown,
+.fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="rigDown"] {
   background-color: #FFDEE2 !important; /* Soft Pink for rig down events */
   border-color: #FFBAC1 !important;
   color: #AF4753 !important;
@@ -115,34 +103,4 @@
 .fc-daygrid-event-harness {
   margin-top: 1px !important;
   margin-bottom: 1px !important;
-}
-
-/* Add specific styles for timegrid events (day view) */
-.fc-timegrid-event {
-  border-radius: 4px !important;
-  margin: 1px 0 !important;
-  padding: 2px 4px !important;
-}
-
-/* Highlight current time line */
-.fc-timegrid-now-indicator-line {
-  border-color: var(--primary) !important;
-}
-
-/* Add a pointer cursor to date cells to indicate they're clickable */
-.fc-daygrid-day, 
-.fc-timegrid-slot-lane {
-  cursor: pointer;
-}
-
-/* Make sure events are visible in day view */
-.fc-timegrid-event-harness {
-  z-index: 5;
-}
-
-/* Ensure resource info is visible */
-.fc-event-resource {
-  opacity: 0.7;
-  font-style: italic;
-  margin-top: 2px;
 }
