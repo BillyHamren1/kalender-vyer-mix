@@ -197,6 +197,62 @@
   min-height: 1200px; /* Make sure there's enough room for all hours */
 }
 
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+  .fc .fc-toolbar-title {
+    font-size: 1.2rem !important;
+  }
+  
+  .fc .fc-button {
+    padding: 0.2rem 0.4rem !important;
+    font-size: 0.8rem !important;
+  }
+  
+  .fc-header-toolbar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .fc-timegrid-slots {
+    min-height: 800px; /* Smaller height for mobile */
+  }
+  
+  .fc-scrollgrid-sync-table {
+    height: auto !important;
+  }
+  
+  .fc-view-harness {
+    height: auto !important;
+    min-height: 450px !important;
+  }
+  
+  .fc-timegrid-event {
+    padding: 1px 2px !important;
+  }
+  
+  .fc-timegrid-event .fc-event-title {
+    font-size: 0.8rem;
+  }
+  
+  .fc-timegrid-event .fc-event-time {
+    font-size: 0.7rem;
+  }
+}
+
+/* Override scale issues on mobile */
+@media (max-width: 768px) {
+  #root {
+    transform: none !important;
+    max-width: 100% !important;
+    padding: 0.5rem !important;
+  }
+  
+  .calendar-container .fc-view-harness {
+    height: auto !important;
+    min-height: 450px !important;
+  }
+}
+
 /* Fix for fullcalendar height when zoomed out */
 .fc .fc-scroller {
   overflow: visible !important;

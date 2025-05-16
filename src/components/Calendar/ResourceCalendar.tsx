@@ -11,6 +11,7 @@ import WeekTabNavigation from './WeekTabNavigation';
 import { useCalendarEventHandlers } from '@/hooks/useCalendarEventHandlers';
 import { processEvents } from './CalendarEventProcessor';
 import { getCalendarViews, getCalendarOptions, getHeaderToolbar } from './CalendarConfig';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface ResourceCalendarProps {
   events: CalendarEvent[];
@@ -32,6 +33,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   const calendarRef = useRef<any>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(currentDate);
   const { handleEventChange, handleEventClick } = useCalendarEventHandlers(resources);
+  const isMobile = useIsMobile();
 
   // Log events and resources for debugging
   useEffect(() => {
@@ -58,14 +60,33 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   // Process events to ensure valid resources and add styling
   const processedEvents = processEvents(events, resources);
 
+  // Get appropriate initial view based on screen size
+  const getInitialView = () => {
+    return isMobile ? "timeGridDay" : "resourceTimeGridDay";
+  };
+
+  // Get appropriate header toolbar based on screen size
+  const getMobileHeaderToolbar = () => {
+    if (isMobile) {
+      return {
+        left: 'prev,next',
+        center: 'title',
+        right: 'timeGridDay,dayGridMonth'
+      };
+    }
+    return getHeaderToolbar();
+  };
+
   return (
-    <div className="calendar-container" style={{ height: '600px', overflow: 'auto' }}>
-      {/* Week Tab Navigation */}
-      <WeekTabNavigation
-        currentDate={selectedDate}
-        onDayChange={handleDayChange}
-        events={events}
-      />
+    <div className="calendar-container" style={{ height: isMobile ? 'auto' : '600px', overflow: 'auto' }}>
+      {/* Week Tab Navigation - Only show on desktop */}
+      {!isMobile && (
+        <WeekTabNavigation
+          currentDate={selectedDate}
+          onDayChange={handleDayChange}
+          events={events}
+        />
+      )}
       
       <FullCalendar
         ref={calendarRef}
@@ -76,10 +97,10 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           dayGridPlugin
         ]}
         schedulerLicenseKey="0134084325-fcs-1745193612"
-        initialView="resourceTimeGridDay"
-        headerToolbar={getHeaderToolbar()}
+        initialView={getInitialView()}
+        headerToolbar={getMobileHeaderToolbar()}
         views={getCalendarViews()}
-        resources={resources}
+        resources={isMobile ? [] : resources}
         events={processedEvents}
         editable={true}
         droppable={true}
@@ -95,6 +116,9 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         }}
         initialDate={currentDate}
         {...getCalendarOptions()}
+        height={isMobile ? 'auto' : undefined}
+        contentHeight={isMobile ? 'auto' : undefined}
+        aspectRatio={isMobile ? 0.8 : 1.8}
         eventDidMount={(info) => {
           // Add data-event-type attribute to event elements
           if (info.event.extendedProps.eventType) {
@@ -103,8 +127,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         }}
       />
       
-      {/* Staff Assignment Row component */}
-      <StaffAssignmentRow resources={resources} />
+      {/* Staff Assignment Row component - Only show on desktop */}
+      {!isMobile && <StaffAssignmentRow resources={resources} />}
     </div>
   );
 };

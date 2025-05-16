@@ -6,6 +6,7 @@ import { useEventActions } from '@/hooks/useEventActions';
 import ResourceCalendar from '@/components/Calendar/ResourceCalendar';
 import ResourceHeader from '@/components/Calendar/ResourceHeader';
 import '../styles/calendar.css';
+import { useIsMobile } from '@/hooks/use-mobile';
 // react-dnd is imported by StaffAssignmentRow component
 
 const ResourceView = () => {
@@ -30,10 +31,11 @@ const ResourceView = () => {
   } = useTeamResources();
   
   const { addEventToCalendar } = useEventActions(events, setEvents, resources);
+  const isMobile = useIsMobile();
   
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto pt-2" style={{ maxWidth: '94%' }}>
+      <div className={`container mx-auto pt-2 ${isMobile ? 'px-2' : ''}`} style={{ maxWidth: isMobile ? '100%' : '94%' }}>
         <ResourceHeader 
           teamResources={teamResources}
           teamCount={teamCount}
@@ -43,7 +45,7 @@ const ResourceView = () => {
           setDialogOpen={setDialogOpen}
         />
         
-        <div className="bg-white rounded-lg shadow-md p-3">
+        <div className={`bg-white rounded-lg shadow-md ${isMobile ? 'p-2' : 'p-3'}`}>
           <ResourceCalendar
             events={events}
             resources={resources}

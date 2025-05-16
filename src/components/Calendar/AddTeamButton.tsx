@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Resource } from '@/components/Calendar/ResourceData';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface AddTeamButtonProps {
   onAddTeam: () => void;
@@ -24,26 +25,33 @@ const AddTeamButton: React.FC<AddTeamButtonProps> = ({
   teamResources 
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
+  const isMobile = useIsMobile();
 
   return (
     <div className="flex">
       <Button 
         onClick={onAddTeam}
-        className="bg-[#7BAEBF] hover:bg-[#6E9DAC] text-white rounded-r-none border-r border-r-[#6ca2b4]"
+        className={`bg-[#7BAEBF] hover:bg-[#6E9DAC] text-white ${
+          teamResources.length > 0 ? 'rounded-r-none' : ''
+        } border-r border-r-[#6ca2b4] ${
+          isMobile ? 'text-sm px-3 py-1 h-9' : ''
+        }`}
       >
-        <Plus className="mr-1" size={18} />
-        Add Team {teamCount}
+        <Plus className={`${isMobile ? 'mr-0.5' : 'mr-1'}`} size={isMobile ? 16 : 18} />
+        {isMobile ? `Team ${teamCount}` : `Add Team ${teamCount}`}
       </Button>
       {teamResources.length > 0 && (
         <DropdownMenu open={showDropdown} onOpenChange={setShowDropdown}>
           <DropdownMenuTrigger asChild>
             <Button 
-              className="bg-[#7BAEBF] hover:bg-[#6E9DAC] text-white rounded-l-none px-2"
+              className={`bg-[#7BAEBF] hover:bg-[#6E9DAC] text-white rounded-l-none ${
+                isMobile ? 'px-1.5 h-9' : 'px-2'
+              }`}
             >
-              <ChevronDown size={18} />
+              <ChevronDown size={isMobile ? 16 : 18} />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuContent align="end" className={`${isMobile ? 'w-40' : 'w-48'}`}>
             {teamResources.map((team) => (
               <DropdownMenuItem 
                 key={team.id}
@@ -54,8 +62,8 @@ const AddTeamButton: React.FC<AddTeamButtonProps> = ({
                 className="cursor-pointer"
               >
                 <div className="flex items-center justify-between w-full">
-                  <span>{team.title}</span>
-                  <Trash2 size={14} className="text-red-500 ml-2" />
+                  <span className={isMobile ? 'text-xs' : ''}>{team.title}</span>
+                  <Trash2 size={isMobile ? 12 : 14} className="text-red-500 ml-2" />
                 </div>
               </DropdownMenuItem>
             ))}

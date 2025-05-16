@@ -8,6 +8,14 @@
   transform-origin: top center; /* Keep the top centered during scaling */
 }
 
+/* Disable the transform on mobile devices */
+@media (max-width: 768px) {
+  #root {
+    transform: none;
+    padding: 0.5rem;
+  }
+}
+
 .logo {
   height: 6em;
   padding: 1.5em;
@@ -48,4 +56,11 @@
 .calendar-container {
   height: auto !important;
   min-height: 1389px; /* 762px increased by 82% to compensate for 0.55 scale */
+}
+
+/* Adjust for mobile */
+@media (max-width: 768px) {
+  .calendar-container {
+    min-height: 550px;
+  }
 }

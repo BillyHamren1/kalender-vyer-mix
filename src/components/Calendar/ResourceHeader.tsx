@@ -3,6 +3,7 @@ import React from 'react';
 import TeamManagementDialog from './TeamManagementDialog';
 import AddTeamButton from './AddTeamButton';
 import { Resource } from '../Calendar/ResourceData';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface ResourceHeaderProps {
   teamResources: Resource[];
@@ -21,10 +22,12 @@ const ResourceHeader: React.FC<ResourceHeaderProps> = ({
   dialogOpen,
   setDialogOpen
 }) => {
+  const isMobile = useIsMobile();
+
   return (
-    <div className="flex justify-between items-center mb-6">
+    <div className={`flex ${isMobile ? 'flex-col gap-3' : 'justify-between'} items-center mb-6`}>
       <h1 className="text-2xl font-bold text-gray-800">Resursvy</h1>
-      <div className="flex space-x-3">
+      <div className={`flex ${isMobile ? 'w-full justify-center' : ''} space-x-3`}>
         <AddTeamButton 
           onAddTeam={onAddTeam} 
           onRemoveTeam={onRemoveTeam} 
