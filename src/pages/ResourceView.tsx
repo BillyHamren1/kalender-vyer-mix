@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -306,9 +307,7 @@ const ResourceView = () => {
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
-                {/* Fix: Pass content as children to DialogTitle instead of using title prop */}
                 <DialogTitle>Hantera Teams</DialogTitle>
-                {/* Fix: Pass content as children to DialogDescription instead of using title prop */}
                 <DialogDescription>
                   Lägg till eller ta bort team i kalendern.
                 </DialogDescription>
