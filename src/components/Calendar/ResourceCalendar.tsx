@@ -160,8 +160,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       eventClick={handleEventClick}
       datesSet={onDateSet}
       initialDate={currentDate}
-      slotMinTime="05:00:00"
-      slotMaxTime="00:00:00"
       height="auto"
       eventDidMount={(info) => {
         // Add data-event-type attribute to event elements
