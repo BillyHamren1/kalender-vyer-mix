@@ -5,6 +5,7 @@ import { useTeamResources } from '@/hooks/useTeamResources';
 import { useEventActions } from '@/hooks/useEventActions';
 import ResourceCalendar from '@/components/Calendar/ResourceCalendar';
 import StaffAssignmentRow from '@/components/Calendar/StaffAssignmentRow';
+import DayNavigation from '@/components/Calendar/DayNavigation';
 import '../styles/calendar.css';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -41,7 +42,10 @@ const ResourceView = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className={`container mx-auto pt-2 ${isMobile ? 'px-2' : ''}`} style={{ maxWidth: isMobile ? '100%' : '94%' }}>
-        <div className={`bg-white rounded-lg shadow-md ${isMobile ? 'p-2' : 'p-3'}`}>
+        <div className={`bg-white rounded-lg shadow-md mb-4 ${isMobile ? 'p-2' : 'p-3'}`}>
+          {/* Day Navigation Bar - displayed above the calendar */}
+          <DayNavigation currentDate={currentDate} />
+          
           <ResourceCalendar
             events={events}
             resources={resources}
