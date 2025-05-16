@@ -1,10 +1,11 @@
+
 import React, { useEffect } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import dayGridPlugin from '@fullcalendar/daygrid';
-import { CalendarEvent, Resource } from '../Calendar/ResourceData';
+import { CalendarEvent, Resource, getEventColor } from '../Calendar/ResourceData';
 import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/eventService';
 import { useNavigate } from 'react-router-dom';
@@ -99,6 +100,21 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     return event;
   });
 
+  // Process events to add color based on event type
+  const processedEvents = eventsWithValidResources.map(event => {
+    return {
+      ...event,
+      backgroundColor: getEventColor(event.eventType),
+      borderColor: getEventColor(event.eventType),
+      textColor: '#000000e6', // Black text for all events
+      classNames: [`event-${event.eventType || 'default'}`],
+      extendedProps: {
+        ...event,
+        dataEventType: event.eventType // Add as data attribute
+      }
+    };
+  });
+
   return (
     <FullCalendar
       ref={calendarRef}
@@ -116,7 +132,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         right: 'resourceTimeGridDay,resourceTimeGridWeek,dayGridMonth'
       }}
       resources={resources}
-      events={eventsWithValidResources}
+      events={processedEvents}
       editable={true}
       droppable={true}
       selectable={true}
@@ -128,6 +144,12 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       datesSet={onDateSet}
       initialDate={currentDate}
       height="auto"
+      eventDidMount={(info) => {
+        // Add data-event-type attribute to event elements
+        if (info.event.extendedProps.eventType) {
+          info.el.setAttribute('data-event-type', info.event.extendedProps.eventType);
+        }
+      }}
     />
   );
 };
