@@ -14,7 +14,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]) =>
   // Ensure all events have valid resources
   const eventsWithValidResources = events.map(event => {
     // Check if event's resourceId exists in resources
-    const resourceExists = resources.some(r => r.id === event.resourceId);
+    const resourceExists = resources.length > 0 && resources.some(r => r.id === event.resourceId);
     
     if (!resourceExists && resources.length > 0) {
       console.warn(`Event with ID ${event.id} has resourceId ${event.resourceId} that doesn't match any resource. Assigning to first available resource.`);

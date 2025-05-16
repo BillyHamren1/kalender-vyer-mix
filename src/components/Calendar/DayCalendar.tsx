@@ -1,4 +1,5 @@
-import React, { useRef } from 'react';
+
+import React, { useRef, useEffect } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -7,6 +8,9 @@ import { CalendarEvent } from './ResourceData';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { updateCalendarEvent } from '@/services/calendarService';
+import { processEvents } from './CalendarEventProcessor';
+import { Button } from '@/components/ui/button';
+import { RefreshCw } from 'lucide-react';
 
 interface DayCalendarProps {
   events: CalendarEvent[];
@@ -14,6 +18,7 @@ interface DayCalendarProps {
   isMounted: boolean;
   currentDate: Date;
   onDateSet: (dateInfo: any) => void;
+  refreshEvents?: () => Promise<void>;
 }
 
 const DayCalendar: React.FC<DayCalendarProps> = ({
@@ -21,10 +26,16 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
   isLoading,
   isMounted,
   currentDate,
-  onDateSet
+  onDateSet,
+  refreshEvents
 }) => {
   const navigate = useNavigate();
   const calendarRef = useRef<FullCalendar>(null);
+
+  // Log when events change
+  useEffect(() => {
+    console.log('DayCalendar received events:', events);
+  }, [events]);
 
   if (isLoading && !isMounted) {
     return (
@@ -34,7 +45,8 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
     );
   }
 
-  console.log('Rendering DayCalendar with events:', events);
+  // Process events to add styling and color
+  const processedEvents = processEvents(events, []);
   
   const handleEventChange = async (info: any) => {
     try {
@@ -88,15 +100,37 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
     }
   };
 
+  const handleRefresh = async () => {
+    if (refreshEvents) {
+      toast.loading("Refreshing calendar...");
+      await refreshEvents();
+      toast.dismiss();
+      toast.success("Calendar refreshed");
+    }
+  };
+
   return (
     <div className="day-calendar-container">
-      <div className="mb-4">
+      <div className="mb-4 flex justify-between items-center">
         <button 
           onClick={navigateToTodayOrEventsDate}
           className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 text-sm"
         >
           Find Events
         </button>
+        
+        {refreshEvents && (
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={handleRefresh}
+            className="flex items-center gap-2"
+            disabled={isLoading}
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh Calendar
+          </Button>
+        )}
       </div>
       
       <FullCalendar
@@ -108,7 +142,7 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
           center: 'title',
           right: 'dayGridMonth,timeGridWeek,timeGridDay'
         }}
-        events={events}
+        events={processedEvents}
         editable={true}
         droppable={true}
         selectable={true}
@@ -125,9 +159,11 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
         slotLabelInterval="01:00:00"
         slotMinTime="07:00:00"
         slotMaxTime="20:00:00"
-        eventClassNames={(arg) => {
-          const eventType = arg.event.extendedProps?.eventType || 'event';
-          return [`event-${eventType}`];
+        eventDidMount={(info) => {
+          // Add data-event-type attribute to event elements
+          if (info.event.extendedProps.eventType) {
+            info.el.setAttribute('data-event-type', info.event.extendedProps.eventType);
+          }
         }}
         eventContent={(arg) => {
           return (

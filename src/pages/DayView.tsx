@@ -11,7 +11,8 @@ const DayView = () => {
     isLoading,
     isMounted,
     currentDate,
-    handleDatesSet
+    handleDatesSet,
+    refreshEvents
   } = useCalendarEvents();
 
   useEffect(() => {
@@ -49,6 +50,7 @@ const DayView = () => {
             isMounted={isMounted}
             currentDate={currentDate}
             onDateSet={handleDatesSet}
+            refreshEvents={refreshEvents}
           />
         </div>
       </div>
