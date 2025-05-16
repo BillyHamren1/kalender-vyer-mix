@@ -21,6 +21,7 @@ export const useCalendarEvents = () => {
     const loadEvents = async () => {
       try {
         console.log('Fetching calendar events...');
+        setIsLoading(true);
         const data = await fetchCalendarEvents();
         if (active) {
           console.log('Calendar events loaded successfully:', data);
@@ -29,7 +30,29 @@ export const useCalendarEvents = () => {
           // Log event types to help with debugging
           console.log('Event types:', data.map(event => event.eventType));
           
+          // Check if events are within visible date range
+          const today = new Date();
+          const visibleEvents = data.filter(event => {
+            const eventDate = new Date(event.start);
+            const diffDays = Math.abs(Math.floor((eventDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
+            return diffDays < 30; // Show events within 30 days
+          });
+          
+          if (data.length > 0 && visibleEvents.length === 0) {
+            console.warn('Events exist but none are within 30 days of today');
+            toast.info('Events loaded but none visible in current view', {
+              description: 'Navigate to the specific dates to see events'
+            });
+          }
+          
           setEvents(data);
+          
+          if (data.length > 0) {
+            // Display toast showing how many events were loaded
+            toast.success(`${data.length} events loaded`, {
+              description: `Calendar data loaded with ${data.length} events`
+            });
+          }
         }
       } catch (error) {
         console.error('Error loading calendar events:', error);
@@ -54,6 +77,23 @@ export const useCalendarEvents = () => {
     setCurrentDate(newDate);
     sessionStorage.setItem('calendarDate', newDate.toISOString());
     console.log('Calendar date set to:', newDate);
+    
+    // Check if any events are visible in the current view
+    const viewStart = new Date(dateInfo.start);
+    const viewEnd = new Date(dateInfo.end);
+    
+    const visibleEvents = events.filter(event => {
+      const eventStart = new Date(event.start);
+      return eventStart >= viewStart && eventStart <= viewEnd;
+    });
+    
+    console.log(`${visibleEvents.length} events visible in current date range`);
+    
+    if (events.length > 0 && visibleEvents.length === 0) {
+      toast.info('No events in this date range', {
+        description: 'Try another date range or add new events'
+      });
+    }
   };
   
   // Function to force refresh the calendar events
@@ -64,9 +104,12 @@ export const useCalendarEvents = () => {
       const data = await fetchCalendarEvents();
       console.log('Refreshed calendar events:', data);
       setEvents(data);
+      
+      return data; // Return the data for chaining
     } catch (error) {
       console.error('Error refreshing calendar events:', error);
       toast.error('Could not refresh calendar events');
+      throw error; // Re-throw to allow handling in calling code
     } finally {
       setIsLoading(false);
     }

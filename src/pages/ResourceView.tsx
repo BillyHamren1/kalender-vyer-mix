@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useEventActions } from '@/hooks/useEventActions';
@@ -37,6 +37,43 @@ const ResourceView = () => {
   const { addEventToCalendar } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
   
+  // Automatically navigate to date of first event if it exists
+  useEffect(() => {
+    if (events.length > 0 && !isLoading && isMounted) {
+      // Find the earliest event from today or future
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const futureEvents = events.filter(event => {
+        const eventDate = new Date(event.start);
+        return eventDate >= today;
+      });
+      
+      if (futureEvents.length > 0) {
+        // Sort events by start date
+        const sortedEvents = [...futureEvents].sort((a, b) => 
+          new Date(a.start).getTime() - new Date(b.start).getTime()
+        );
+        
+        const earliestEvent = sortedEvents[0];
+        const earliestDate = new Date(earliestEvent.start);
+        
+        console.log('Navigating to earliest event date:', earliestDate);
+        
+        // If there's a calendar reference, navigate to the date
+        if (earliestDate) {
+          // We'll use sessionStorage to pass the date to the calendar
+          sessionStorage.setItem('calendarDate', earliestDate.toISOString());
+          
+          // Wait a bit for the calendar to initialize then trigger a refresh
+          setTimeout(() => {
+            refreshEvents();
+          }, 500);
+        }
+      }
+    }
+  }, [events, isLoading, isMounted]);
+  
   const handleRefresh = async () => {
     toast.loading("Refreshing calendar...");
     await refreshEvents();
@@ -70,6 +107,12 @@ const ResourceView = () => {
         </div>
         
         <div className={`bg-white rounded-lg shadow-md ${isMobile ? 'p-2' : 'p-3'}`}>
+          {events.length === 0 && !isLoading && (
+            <div className="text-center py-4 text-gray-500 mb-4">
+              No events found. Events will appear here when scheduled.
+            </div>
+          )}
+          
           <ResourceCalendar
             events={events}
             resources={resources}
