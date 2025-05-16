@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -161,7 +162,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         datesSet={onDateSet}
         initialDate={currentDate}
         height="auto"
-        slotMinTime="00:00:00"
+        slotMinTime="08:00:00"
         slotMaxTime="24:00:00"
         scrollTime="08:00:00"
         slotDuration="00:30:00"
