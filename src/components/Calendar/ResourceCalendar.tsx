@@ -1,136 +1,94 @@
-import { useState } from "react";
-import { Calendar } from "@/components/ui/calendar";
-import { Button } from "@/components/ui/button";
-import {
-  Calendar as CalendarIcon,
-  ChevronLeft,
-  ChevronRight
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import React from 'react';
+import FullCalendar from '@fullcalendar/react';
+import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import interactionPlugin from '@fullcalendar/interaction';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import { CalendarEvent, Resource } from '../Calendar/ResourceData';
+import { toast } from 'sonner';
+import { updateCalendarEvent } from '@/services/calendarService';
+import { useNavigate } from 'react-router-dom';
 
-type DateSelectionStepProps = {
-  onClose: () => void;
-  onBack: () => void;
-};
+interface ResourceCalendarProps {
+  events: CalendarEvent[];
+  resources: Resource[];
+  isLoading: boolean;
+  isMounted: boolean;
+  currentDate: Date;
+  onDateSet: (dateInfo: any) => void;
+}
 
-type BookingDates = {
-  rigUp: Date[];
-  event: Date[];
-  rigDown: Date[];
-};
+const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
+  events,
+  resources,
+  isLoading,
+  isMounted,
+  currentDate,
+  onDateSet
+}) => {
+  const navigate = useNavigate();
+  const calendarRef = React.useRef<any>(null);
 
-const DateSelectionStep = ({ onClose, onBack }: DateSelectionStepProps) => {
-  const [selectedDates, setSelectedDates] = useState<BookingDates>({
-    rigUp: [],
-    event: [],
-    rigDown: [],
-  });
+  const handleEventChange = async (info: any) => {
+    try {
+      const resourceId = info.event.getResources()[0]?.id || info.event._def.resourceIds[0];
 
-  const handleDateSelect = (date: Date | undefined, type: keyof BookingDates) => {
-    if (!date) return;
+      if (info.event.id) {
+        await updateCalendarEvent(info.event.id, {
+          start: info.event.start.toISOString(),
+          end: info.event.end.toISOString(),
+          resourceId: resourceId
+        });
+      }
 
-    setSelectedDates(prev => {
-      const isSelected = prev[type].some(d =>
-        d.getDate() === date.getDate() &&
-        d.getMonth() === date.getMonth() &&
-        d.getFullYear() === date.getFullYear()
-      );
+      const resourceName = resources.find(r => r.id === resourceId)?.title || resourceId;
 
-      const newDates = isSelected
-        ? prev[type].filter(d =>
-            !(d.getDate() === date.getDate() &&
-              d.getMonth() === date.getMonth() &&
-              d.getFullYear() === date.getFullYear())
-          )
-        : [...prev[type], date];
-
-      return {
-        ...prev,
-        [type]: newDates
-      };
-    });
+      toast("Event flyttat", {
+        description: `Eventet har flyttats till ${resourceName} vid ${info.event.start.toLocaleTimeString()}`,
+      });
+    } catch (error) {
+      console.error('Error updating event:', error);
+      toast.error('Failed to update event');
+    }
   };
 
-  const calendarCommonStyles = {
-    className: cn("border-0 w-full"),
-    classNames: {
-      months: "w-full",
-      month: "w-full space-y-6",
-      table: "w-full border-collapse",
-      row: "flex w-full mt-4 justify-between",
-      cell: "relative p-0 text-center w-full focus-within:relative focus-within:z-20",
-      day: cn(
-        "h-12 w-12 p-0 font-normal text-base aria-selected:opacity-100 hover:bg-accent rounded-full mx-auto"
-      ),
-      day_today: "bg-white border-[3px] border-[#ea384c]"
+  const handleEventClick = (info: any) => {
+    const bookingId = info.event.extendedProps.bookingId;
+    if (bookingId) {
+      navigate(`/bookings/${bookingId}`);
     }
   };
 
   return (
-    <div className="space-y-8">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Rig Up */}
-        <Card>
-          <CardHeader>
-            <div className="text-lg font-semibold">Rig Up Dates</div>
-            <div className="text-sm text-muted-foreground">Select dates for setting up</div>
-          </CardHeader>
-          <CardContent>
-            <Calendar
-              selected={selectedDates.rigUp}
-              mode="multiple"
-              onSelect={(date) => handleDateSelect(date, "rigUp")}
-              {...calendarCommonStyles}
-            />
-          </CardContent>
-        </Card>
-
-        {/* Event */}
-        <Card>
-          <CardHeader>
-            <div className="text-lg font-semibold">Event Dates</div>
-            <div className="text-sm text-muted-foreground">Select dates for the event</div>
-          </CardHeader>
-          <CardContent>
-            <Calendar
-              selected={selectedDates.event}
-              mode="multiple"
-              onSelect={(date) => handleDateSelect(date, "event")}
-              {...calendarCommonStyles}
-            />
-          </CardContent>
-        </Card>
-
-        {/* Rig Down */}
-        <Card>
-          <CardHeader>
-            <div className="text-lg font-semibold">Rig Down Dates</div>
-            <div className="text-sm text-muted-foreground">Select dates for teardown</div>
-          </CardHeader>
-          <CardContent>
-            <Calendar
-              selected={selectedDates.rigDown}
-              mode="multiple"
-              onSelect={(date) => handleDateSelect(date, "rigDown")}
-              {...calendarCommonStyles}
-            />
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={onBack}>
-          <ChevronLeft className="w-4 h-4 mr-2" />
-          Back
-        </Button>
-        <Button variant="secondary" onClick={onClose}>
-          Continue
-          <ChevronRight className="w-4 h-4 ml-2" />
-        </Button>
-      </div>
-    </div>
+    <FullCalendar
+      ref={calendarRef}
+      plugins={[
+        resourceTimeGridPlugin,
+        timeGridPlugin,
+        interactionPlugin,
+        dayGridPlugin
+      ]}
+      initialView="resourceTimeGridDay"
+      headerToolbar={{
+        left: 'prev,next today',
+        center: 'title',
+        right: 'resourceTimeGridDay,resourceTimeGridWeek,dayGridMonth'
+      }}
+      resources={resources}
+      events={events}
+      editable={true}
+      droppable={true}
+      selectable={true}
+      eventDurationEditable={true}
+      eventResizableFromStart={true}
+      eventDrop={handleEventChange}
+      eventResize={handleEventChange}
+      eventClick={handleEventClick}
+      datesSet={onDateSet}
+      initialDate={currentDate}
+      height="auto"
+    />
   );
 };
 
-export default DateSelectionStep;
+export default ResourceCalendar;
