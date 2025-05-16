@@ -25,15 +25,17 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]) =>
       return null;
     }
     
-    // Check if event's resourceId exists in resources
-    const resourceExists = resources.length > 0 && resources.some(r => r.id === event.resourceId);
+    // Check if event's resourceId exists in resources (only if resources are provided)
+    const resourceExists = resources.length > 0 ? 
+      resources.some(r => r.id === event.resourceId) : 
+      true; // If no resources provided, assume all resourceIds are valid
     
     if (!resourceExists && resources.length > 0) {
       console.warn(`Event with ID ${event.id} has resourceId ${event.resourceId} that doesn't match any resource. Assigning to first available resource.`);
       // Assign to the first resource if the resourceId doesn't exist
       return {
         ...event,
-        resourceId: resources[0].id
+        resourceId: resources[0]?.id || event.resourceId
       };
     }
     

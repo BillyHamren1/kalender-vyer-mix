@@ -104,7 +104,6 @@ export const useCalendarEvents = () => {
       const data = await fetchCalendarEvents();
       console.log('Refreshed calendar events:', data);
       setEvents(data);
-      
       return data; // Return the data for chaining
     } catch (error) {
       console.error('Error refreshing calendar events:', error);
