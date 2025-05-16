@@ -1,3 +1,4 @@
+
 /* Calendar styling with teal theme */
 .fc .fc-button-primary {
   background-color: #7BAEBF !important;
@@ -27,27 +28,14 @@
   border-radius: 8px;
   background: white;
   position: relative;
-  overflow: auto !important;
+  overflow: visible !important; /* Changed from auto to visible */
   height: auto !important;
   min-height: 750px !important; /* Fixed height */
 }
 
-/* Make sure the visible time range (7-20) fits well */
-.fc-timegrid-slot[data-time^="07"],
-.fc-timegrid-slot[data-time^="08"],
-.fc-timegrid-slot[data-time^="09"],
-.fc-timegrid-slot[data-time^="10"],
-.fc-timegrid-slot[data-time^="11"],
-.fc-timegrid-slot[data-time^="12"],
-.fc-timegrid-slot[data-time^="13"],
-.fc-timegrid-slot[data-time^="14"],
-.fc-timegrid-slot[data-time^="15"],
-.fc-timegrid-slot[data-time^="16"],
-.fc-timegrid-slot[data-time^="17"],
-.fc-timegrid-slot[data-time^="18"],
-.fc-timegrid-slot[data-time^="19"],
-.fc-timegrid-slot[data-time^="20"] {
-  background-color: rgba(250, 250, 252, 0.5);
+/* Make all time slots visible */
+.fc-timegrid-slot {
+  height: 30px !important; /* Reduce height to fit all slots */
 }
 
 /* Calendar header styling */
@@ -174,28 +162,31 @@
   margin-top: 2px;
 }
 
-/* Improve scrollbar appearance for the calendar container */
-.calendar-container::-webkit-scrollbar {
-  width: 8px;
+/* Remove scrolling behavior and show all content */
+.fc-scroller {
+  overflow: visible !important;
+  height: auto !important;
 }
 
-.calendar-container::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
+.fc-scroller-liquid-absolute {
+  position: relative !important;
+  overflow: visible !important;
+  height: auto !important;
 }
 
-.calendar-container::-webkit-scrollbar-thumb {
-  background: #ccc;
-  border-radius: 4px;
+.fc-view-harness, .fc-view-harness-active {
+  height: auto !important;
+  overflow: visible !important;
 }
 
-.calendar-container::-webkit-scrollbar-thumb:hover {
-  background: #7BAEBF;
+.fc-time-grid-container {
+  height: auto !important;
+  overflow: visible !important;
 }
 
-/* Fix specific time range for the calendar */
-.fc-timegrid-slots {
-  min-height: 1500px; /* Ensure enough room for all time slots */
+/* Improve time slot appearance */
+.fc-time-grid-slot {
+  border-bottom: 1px solid #f0f0f0;
 }
 
 /* Mobile responsive styles */
@@ -214,13 +205,8 @@
     gap: 0.5rem;
   }
   
-  .fc-timegrid-slots {
-    min-height: 1000px;
-  }
-  
-  .fc-view-harness {
-    height: auto !important;
-    min-height: 600px !important;
+  .fc-timegrid-slot {
+    height: 25px !important; /* Even smaller for mobile */
   }
   
   .fc-timegrid-event {
@@ -234,34 +220,6 @@
   .fc-timegrid-event .fc-event-time {
     font-size: 0.7rem;
   }
-}
-
-/* Override scale issues on mobile */
-@media (max-width: 768px) {
-  #root {
-    transform: none !important;
-    padding: 0.5rem !important;
-  }
-  
-  .calendar-container .fc-view-harness {
-    height: auto !important;
-    min-height: 600px !important;
-  }
-}
-
-/* Fix for fullcalendar height when zoomed out */
-.fc .fc-scroller {
-  overflow: visible !important;
-}
-
-.fc .fc-scroller-liquid-absolute {
-  position: relative !important;
-  overflow: visible !important;
-}
-
-.calendar-container .fc-view-harness {
-  height: 700px !important; /* Increased by 25% from 550px */
-  overflow-y: auto !important;
 }
 
 /* Resource label styling */
@@ -287,7 +245,7 @@
   border: 1px solid #ddd;
 }
 
-/* Adjust main App.css height to match */
+/* Override root styling */
 #root {
-  transform-origin: top center; /* Keep the top centered during scaling */
+  transform-origin: top center;
 }

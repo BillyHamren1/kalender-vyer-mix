@@ -1,3 +1,4 @@
+
 import React, { useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -124,8 +125,9 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
         allDaySlot={true}
         slotDuration="01:00:00" // One hour per slot
         slotLabelInterval="01:00:00"
-        slotMinTime="07:00:00"
-        slotMaxTime="20:00:00"
+        slotMinTime="00:00:00" // Start from midnight
+        slotMaxTime="24:00:00" // Show all hours
+        scrollTime="00:00:00" // Initial scroll position at midnight
         slotLabelFormat={{
           hour: '2-digit',
           minute: '2-digit',

@@ -22,11 +22,11 @@ export const getCalendarViews = () => {
 // Calendar options
 export const getCalendarOptions = () => {
   return {
-    height: "auto", // Set to auto to respect container
+    height: "auto",
     slotMinTime: "00:00:00",
     slotMaxTime: "24:00:00",
-    scrollTime: "07:00:00",
-    slotDuration: "01:00:00", // Changed from 30 minutes to 1 hour
+    scrollTime: "00:00:00", // Changed to start at midnight
+    slotDuration: "01:00:00", // One hour per slot
     slotLabelInterval: "01:00", // Keep at 1 hour
     allDaySlot: false,
     slotLabelFormat: {
