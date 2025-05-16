@@ -1,8 +1,11 @@
+
 #root {
   max-width: 1280px;
   margin: 0 auto;
   padding: 2rem;
   text-align: center;
+  transform: scale(0.7); /* Scale down by 30% */
+  transform-origin: top center;
 }
 
 /* Disable the transform on mobile devices */
