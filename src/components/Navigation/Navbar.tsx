@@ -32,6 +32,14 @@ const Navbar = () => {
           </li>
           <li>
             <Link 
+              to="/day-view" 
+              className="text-gray-600 hover:text-[#82b6c6] transition-colors"
+            >
+              Dagvy
+            </Link>
+          </li>
+          <li>
+            <Link 
               to="/booking-list" 
               className="text-gray-600 hover:text-[#82b6c6] transition-colors"
             >

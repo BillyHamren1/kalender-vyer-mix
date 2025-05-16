@@ -2,6 +2,8 @@
 import { useEffect } from 'react';
 import { CalendarEvent, generateEventId, getEventColor } from '@/components/Calendar/ResourceData';
 import { Resource } from '@/components/Calendar/ResourceData';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 export const useEventActions = (
   events: CalendarEvent[],
@@ -52,7 +54,7 @@ export const useEventActions = (
   };
   
   // Function to add new events to the calendar
-  const addEventToCalendar = (event: Omit<CalendarEvent, 'id'>) => {
+  const addEventToCalendar = async (event: Omit<CalendarEvent, 'id'>) => {
     // If no resourceId is provided, find an available team
     let resourceId = event.resourceId;
     
@@ -62,16 +64,44 @@ export const useEventActions = (
       resourceId = findAvailableTeam(eventStartTime, eventEndTime);
     }
     
+    const newEventId = generateEventId();
+    
     const newEvent: CalendarEvent = {
       ...event,
-      id: generateEventId(),
+      id: newEventId,
       color: getEventColor(event.eventType),
       resourceId: resourceId
     };
     
+    // Add to local state first for immediate UI update
     setEvents(prevEvents => [...prevEvents, newEvent]);
-    console.log("New event added:", newEvent);
-    return newEvent.id;
+    
+    // Then add to Supabase
+    try {
+      const { error } = await supabase
+        .from('calendar_events')
+        .insert({
+          id: newEventId,
+          resource_id: resourceId,
+          title: event.title,
+          start_time: event.start,
+          end_time: event.end,
+          event_type: event.eventType,
+          booking_id: event.bookingId
+        });
+      
+      if (error) {
+        throw error;
+      }
+      
+      console.log("New event added to Supabase:", newEvent);
+      toast.success("Event added successfully");
+    } catch (error) {
+      console.error("Error adding event to Supabase:", error);
+      toast.error("Failed to add event to database");
+    }
+    
+    return newEventId;
   };
   
   // Expose the add event function to window for BookingDetail.tsx to use
