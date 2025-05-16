@@ -82,12 +82,6 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
 
   return (
     <div className="day-calendar-container">
-      {events.length === 0 && (
-        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-          <p className="text-yellow-700">No events found for the selected date range.</p>
-        </div>
-      )}
-      
       <div className="mb-4">
         <button 
           onClick={navigateToTodayOrEventsDate}
@@ -124,7 +118,6 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
         slotMinTime="07:00:00"
         slotMaxTime="20:00:00"
         eventClassNames={(arg) => {
-          console.log('Event in calendar:', arg.event.title, arg.event);
           const eventType = arg.event.extendedProps?.eventType || 'event';
           return [`event-${eventType}`];
         }}
@@ -133,9 +126,11 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
             <div>
               <div className="fc-event-time">{arg.timeText}</div>
               <div className="fc-event-title">{arg.event.title}</div>
-              <div className="fc-event-resource text-xs italic">
-                {arg.event.getResources?.()?.[0]?.title || arg.event.extendedProps?.resourceId || 'No resource'}
-              </div>
+              {arg.event.extendedProps?.resourceId && (
+                <div className="fc-event-resource text-xs italic">
+                  {arg.event.extendedProps.resourceId}
+                </div>
+              )}
             </div>
           );
         }}

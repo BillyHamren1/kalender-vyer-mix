@@ -40,7 +40,6 @@ const DayView = () => {
           {events.length === 0 && !isLoading && (
             <div className="text-center py-6 text-gray-500">
               No events found for this day. Events will appear here when scheduled.
-              <p className="mt-2 text-sm text-blue-500">Try using the "Find Events" button to navigate to dates with events.</p>
             </div>
           )}
           
