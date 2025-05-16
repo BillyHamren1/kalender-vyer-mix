@@ -308,7 +308,9 @@ const ResourceView = () => {
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
-                <DialogTitle>Hantera Teams</DialogTitle>
+                <DialogTitle>
+                  Hantera Teams
+                </DialogTitle>
                 <DialogDescription>
                   Lägg till eller ta bort team i kalendern.
                 </DialogDescription>

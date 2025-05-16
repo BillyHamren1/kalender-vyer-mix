@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { CalendarEvent, Resource } from "@/components/Calendar/ResourceData";
 
@@ -187,30 +186,26 @@ export const syncBookingEvents = async (
     teamId = await findAvailableTeam(startDate, endDate);
   }
 
-  let title = '';
-  switch (eventType) {
-    case 'rig':
-      title = `${bookingId}: Rig Day - ${client}`;
-      break;
-    case 'event':
-      title = `${bookingId}: Event Day - ${client}`;
-      break;
-    case 'rigDown':
-      title = `${bookingId}: Rig Down Day - ${client}`;
-      break;
-  }
+  // Simplified title with no day text, just booking ID and client name
+  const title = `${bookingId}: ${client}`;
+  
+  // Prepare the data to be saved
+  const eventData = {
+    resource_id: teamId,
+    start_time: startDate.toISOString(),
+    end_time: endDate.toISOString(),
+    title: title,
+    event_type: eventType,
+    booking_number: bookingId,
+    customer: client
+  };
 
   if (existingEvents && existingEvents.length > 0) {
     // Update existing event
     const eventId = existingEvents[0].id;
     await supabase
       .from('calendar_events')
-      .update({
-        resource_id: teamId,
-        start_time: startDate.toISOString(),
-        end_time: endDate.toISOString(),
-        title: title
-      })
+      .update(eventData)
       .eq('id', eventId);
     
     return eventId;
@@ -219,12 +214,8 @@ export const syncBookingEvents = async (
     const { data, error } = await supabase
       .from('calendar_events')
       .insert({
-        resource_id: teamId,
-        booking_id: bookingId,
-        title: title,
-        start_time: startDate.toISOString(),
-        end_time: endDate.toISOString(),
-        event_type: eventType
+        ...eventData,
+        booking_id: bookingId
       })
       .select('id')
       .single();
