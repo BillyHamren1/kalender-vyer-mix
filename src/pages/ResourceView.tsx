@@ -29,6 +29,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchCalendarEvents, updateCalendarEvent, saveResources } from '@/services/calendarService';
 
 const ResourceView = () => {
+  
   const [isMounted, setIsMounted] = useState(false);
   const [resources, setResources] = useState<Resource[]>([]);
   const [teamCount, setTeamCount] = useState(1);
@@ -43,7 +44,7 @@ const ResourceView = () => {
     return storedDate ? new Date(storedDate) : new Date();
   });
   
-  // Load resources on component mount
+  
   useEffect(() => {
     const loadedResources = loadResourcesFromStorage();
     setResources(loadedResources);
@@ -60,7 +61,7 @@ const ResourceView = () => {
     setTeamCount(maxTeamNumber + 1);
   }, []);
   
-  // Fetch events from Supabase on component mount
+  
   useEffect(() => {
     const loadEvents = async () => {
       try {
@@ -107,6 +108,8 @@ const ResourceView = () => {
     return () => setIsMounted(false);
   }, []);
 
+  
+
   useEffect(() => {
     if (events.length > 0) {
       localStorage.setItem('calendarEvents', JSON.stringify(events));
@@ -119,6 +122,8 @@ const ResourceView = () => {
       saveResources(resources);
     }
   }, [resources]);
+
+  
 
   const addTeam = () => {
     const newTeamId = `team-${teamCount}`;
@@ -152,6 +157,7 @@ const ResourceView = () => {
   };
 
   const handleEventChange = async (info: any) => {
+    
     try {
       const resourceId = info.event.getResources()[0]?.id || info.event._def.resourceIds[0];
       
@@ -190,6 +196,8 @@ const ResourceView = () => {
       toast.error('Failed to update event');
     }
   };
+
+  
 
   // Handle navigation to booking details when an event is clicked
   const handleEventClick = (info: any) => {
@@ -298,7 +306,9 @@ const ResourceView = () => {
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
+                {/* Fix: Pass content as children to DialogTitle instead of using title prop */}
                 <DialogTitle>Hantera Teams</DialogTitle>
+                {/* Fix: Pass content as children to DialogDescription instead of using title prop */}
                 <DialogDescription>
                   Lägg till eller ta bort team i kalendern.
                 </DialogDescription>
