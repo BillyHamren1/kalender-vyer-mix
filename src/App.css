@@ -1,8 +1,11 @@
+
 #root {
   max-width: 1280px;
   margin: 0 auto;
   padding: 2rem;
   text-align: center;
+  transform: scale(0.75); /* Apply 25% zoom out */
+  transform-origin: top center; /* Keep the top centered during scaling */
 }
 
 .logo {
@@ -39,4 +42,10 @@
 
 .read-the-docs {
   color: #888;
+}
+
+/* Fix for fullcalendar height when zoomed out */
+.calendar-container {
+  height: auto !important;
+  min-height: 1016px; /* 762px increased by 33.3% to compensate for 0.75 scale */
 }
