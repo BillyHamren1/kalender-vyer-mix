@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -8,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format, isAfter, differenceInDays } from "date-fns";
-import { MapPin, User, Calendar as CalendarIcon, Package, ArrowLeft, FileText, FilePlus, Pencil, Check, CalendarPlus } from "lucide-react";
+import { MapPin, User, Calendar as CalendarIcon, Package, ArrowLeft, FileText, FilePlus, Pencil, Check, CalendarPlus, X, Download, ExternalLink } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Booking } from "@/types/booking";
@@ -16,7 +15,7 @@ import {
   fetchBookingById, 
   updateBookingDates, 
   updateBookingNotes,
-  addBookingAttachment
+  uploadBookingAttachment
 } from "@/services/bookingService";
 import { syncBookingEvents, fetchEventsByBookingId, getTeamById } from "@/services/calendarService";
 import TeamSelector from '@/components/Calendar/TeamSelector';
@@ -172,23 +171,28 @@ const BookingDetail = () => {
     if (!e.target.files || e.target.files.length === 0 || !bookingData || !id) return;
     
     const file = e.target.files[0];
-    const fileUrl = URL.createObjectURL(file);
     
     try {
-      // In a real application, this would upload the file to Supabase Storage
-      // For now, we'll just add the local URL to our attachments
-      await addBookingAttachment(id, fileUrl, file.name, file.type);
+      setIsUpdating(true);
+      toast.loading('Uploading file...');
       
-      // Update local state
-      setBookingData({
-        ...bookingData,
-        attachments: [...(bookingData.attachments || []), fileUrl]
-      });
+      // Upload the file using our new service function
+      await uploadBookingAttachment(id, file);
       
-      toast.success(`File "${file.name}" added successfully`);
+      // Refresh booking data to get the new attachment
+      const updatedBooking = await fetchBookingById(id);
+      setBookingData(updatedBooking);
+      
+      toast.dismiss();
+      toast.success(`File "${file.name}" uploaded successfully`);
     } catch (error) {
       console.error('Failed to upload file:', error);
+      toast.dismiss();
       toast.error('Failed to upload file');
+    } finally {
+      setIsUpdating(false);
+      // Reset the file input
+      e.target.value = '';
     }
   };
   
@@ -634,26 +638,68 @@ const BookingDetail = () => {
                     disabled={isUpdating}
                   />
                 </label>
-                <Button variant="outline" size="sm" disabled={isUpdating}>Upload</Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={isUpdating}
+                  onClick={() => document.getElementById('file-upload')?.click()}
+                >
+                  Upload
+                </Button>
               </div>
               
               {/* Attachments Grid */}
               {bookingData.attachments && bookingData.attachments.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-4">
-                  {bookingData.attachments.map((url, index) => (
-                    <div key={index} className="relative group">
-                      <img 
-                        src={url} 
-                        alt={`Attachment ${index + 1}`} 
-                        className="w-full h-40 object-cover rounded-md border border-gray-200 shadow-sm"
-                      />
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                        <Button variant="outline" size="sm" className="bg-white">
-                          View
-                        </Button>
+                  {bookingData.attachments.map((attachment, index) => {
+                    const isImage = attachment.fileType?.startsWith('image/');
+                    
+                    return (
+                      <div key={attachment.id || index} className="relative group border border-gray-200 rounded-md overflow-hidden shadow-sm">
+                        {isImage ? (
+                          <div className="relative h-40 w-full">
+                            <img 
+                              src={attachment.url} 
+                              alt={attachment.fileName || `Attachment ${index + 1}`} 
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center h-40 w-full bg-gray-100">
+                            <FileText className="h-16 w-16 text-gray-400" />
+                          </div>
+                        )}
+                        
+                        <div className="p-2 bg-white border-t border-gray-200">
+                          <p className="text-sm font-medium text-gray-700 truncate" title={attachment.fileName}>
+                            {attachment.fileName || `File ${index + 1}`}
+                          </p>
+                        </div>
+                        
+                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                          <div className="flex gap-2">
+                            <a 
+                              href={attachment.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="bg-white text-blue-600 p-2 rounded-full hover:bg-blue-50"
+                              title="View"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                            <a 
+                              href={attachment.url} 
+                              download={attachment.fileName}
+                              className="bg-white text-green-600 p-2 rounded-full hover:bg-green-50"
+                              title="Download"
+                            >
+                              <Download className="h-4 w-4" />
+                            </a>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-[#4a5568] italic text-center py-6">

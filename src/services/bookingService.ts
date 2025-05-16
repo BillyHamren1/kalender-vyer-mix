@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { Booking, BookingProduct } from "@/types/booking";
 
@@ -75,7 +74,12 @@ export const fetchBookingById = async (id: string): Promise<Booking> => {
       quantity: product.quantity,
       notes: product.notes || undefined,
     })),
-    attachments: attachments.map(attachment => attachment.url),
+    attachments: attachments.map(attachment => ({
+      id: attachment.id,
+      url: attachment.url,
+      fileName: attachment.file_name || 'Unnamed File',
+      fileType: attachment.file_type || 'application/octet-stream'
+    })),
   };
 };
 
@@ -114,6 +118,45 @@ export const updateBookingNotes = async (id: string, notes: string): Promise<voi
 
   if (error) {
     console.error('Error updating notes:', error);
+    throw error;
+  }
+};
+
+// Upload file to Supabase Storage and add attachment to booking
+export const uploadBookingAttachment = async (
+  bookingId: string,
+  file: File
+): Promise<string> => {
+  try {
+    // Create a unique file path using the booking ID and timestamp
+    const filePath = `${bookingId}/${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+    
+    // Upload the file to Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('booking-attachments')
+      .upload(filePath, file);
+    
+    if (uploadError) {
+      console.error('Error uploading file:', uploadError);
+      throw uploadError;
+    }
+    
+    // Get the public URL for the uploaded file
+    const { data: { publicUrl } } = supabase.storage
+      .from('booking-attachments')
+      .getPublicUrl(filePath);
+    
+    // Add the attachment record to the database
+    await addBookingAttachment(
+      bookingId, 
+      publicUrl,
+      file.name,
+      file.type
+    );
+    
+    return publicUrl;
+  } catch (error) {
+    console.error('Error in uploadBookingAttachment:', error);
     throw error;
   }
 };

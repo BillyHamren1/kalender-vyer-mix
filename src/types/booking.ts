@@ -6,6 +6,13 @@ export interface BookingProduct {
   notes?: string;
 }
 
+export interface BookingAttachment {
+  id: string;
+  url: string;
+  fileName: string;
+  fileType: string;
+}
+
 export interface Booking {
   id: string;
   client: string;
@@ -15,5 +22,5 @@ export interface Booking {
   deliveryAddress?: string;
   products?: BookingProduct[];
   internalNotes?: string;
-  attachments?: string[]; // URLs to attachments
+  attachments?: BookingAttachment[]; // Updated to use the BookingAttachment interface
 }
