@@ -1,9 +1,9 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom";
+import { createContext, useState, useEffect } from "react";
 import Index from "./pages/Index";
 import ResourceView from "./pages/ResourceView";
 import DayView from "./pages/DayView";
@@ -11,14 +11,42 @@ import BookingList from "./pages/BookingList";
 import BookingDetail from "./pages/BookingDetail";
 import NotFound from "./pages/NotFound";
 
+// Create context to share calendar date across components
+export const CalendarContext = createContext<{
+  lastViewedDate: Date | null;
+  setLastViewedDate: (date: Date) => void;
+  lastPath: string | null;
+  setLastPath: (path: string) => void;
+}>({
+  lastViewedDate: null,
+  setLastViewedDate: () => {},
+  lastPath: null,
+  setLastPath: () => {}
+});
+
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
+const AppContent = () => {
+  const [lastViewedDate, setLastViewedDate] = useState<Date | null>(() => {
+    const stored = sessionStorage.getItem('calendarDate');
+    return stored ? new Date(stored) : null;
+  });
+  
+  const [lastPath, setLastPath] = useState<string | null>(null);
+  const location = useLocation();
+  
+  // Keep track of the last path before navigating to booking detail
+  useEffect(() => {
+    if (!location.pathname.includes('/booking/')) {
+      setLastPath(location.pathname);
+    }
+  }, [location.pathname]);
+  
+  return (
+    <CalendarContext.Provider value={{ lastViewedDate, setLastViewedDate, lastPath, setLastPath }}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
         <div className="min-h-screen bg-gray-50">
           <Routes>
             <Route path="/" element={<Index />} />
@@ -29,8 +57,16 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
-      </BrowserRouter>
-    </TooltipProvider>
+      </TooltipProvider>
+    </CalendarContext.Provider>
+  );
+};
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
   </QueryClientProvider>
 );
 

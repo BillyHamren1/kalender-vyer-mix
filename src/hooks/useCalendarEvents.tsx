@@ -1,16 +1,19 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { fetchCalendarEvents } from '@/services/eventService';
 import { toast } from 'sonner';
+import { CalendarContext } from '@/App';
 
 export const useCalendarEvents = () => {
+  const { lastViewedDate, setLastViewedDate } = useContext(CalendarContext);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
 
-  // Initialize currentDate from sessionStorage or default to today
+  // Initialize currentDate from context, sessionStorage, or default to today
   const [currentDate, setCurrentDate] = useState<Date>(() => {
+    if (lastViewedDate) return lastViewedDate;
     const stored = sessionStorage.getItem('calendarDate');
     return stored ? new Date(stored) : new Date();
   });
@@ -52,7 +55,9 @@ export const useCalendarEvents = () => {
   const handleDatesSet = (dateInfo: any) => {
     const newDate = dateInfo.start;
     setCurrentDate(newDate);
+    // Update both session storage and context
     sessionStorage.setItem('calendarDate', newDate.toISOString());
+    setLastViewedDate(newDate);
     console.log('Calendar date set to:', newDate);
   };
   

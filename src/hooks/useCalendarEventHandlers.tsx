@@ -1,12 +1,14 @@
 
-import { useState } from 'react';
+import { useState, useContext } from 'react';
 import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/eventService';
 import { Resource } from '@/components/Calendar/ResourceData';
 import { useNavigate } from 'react-router-dom';
+import { CalendarContext } from '@/App';
 
 export const useCalendarEventHandlers = (resources: Resource[]) => {
   const navigate = useNavigate();
+  const { setLastViewedDate, setLastPath } = useContext(CalendarContext);
 
   const handleEventChange = async (info: any) => {
     try {
@@ -37,6 +39,10 @@ export const useCalendarEventHandlers = (resources: Resource[]) => {
     console.log('Booking ID:', bookingId);
     
     if (bookingId) {
+      // Save current date and path before navigating
+      setLastViewedDate(info.event.start);
+      setLastPath(window.location.pathname);
+      
       navigate(`/booking/${bookingId}`);
       console.log(`Navigating to /booking/${bookingId}`);
     } else {
