@@ -1,3 +1,4 @@
+
 /* Calendar styling with teal theme */
 .fc .fc-button-primary {
   background-color: #7BAEBF !important;
@@ -20,6 +21,13 @@
   background-color: #7BAEBF !important;
   border-color: #7BAEBF !important;
   opacity: 0.65;
+}
+
+/* Calendar container styling */
+.calendar-container {
+  border-radius: 8px;
+  background: white;
+  position: relative;
 }
 
 /* Calendar header styling */
@@ -144,4 +152,23 @@
   opacity: 0.7;
   font-style: italic;
   margin-top: 2px;
+}
+
+/* Improve scrollbar appearance for the calendar container */
+.calendar-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.calendar-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.calendar-container::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+
+.calendar-container::-webkit-scrollbar-thumb:hover {
+  background: #7BAEBF;
 }

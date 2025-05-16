@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -132,42 +131,48 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   };
 
   return (
-    <FullCalendar
-      ref={calendarRef}
-      plugins={[
-        resourceTimeGridPlugin,
-        timeGridPlugin,
-        interactionPlugin,
-        dayGridPlugin
-      ]}
-      schedulerLicenseKey="0134084325-fcs-1745193612"
-      initialView="resourceTimeGridDay"
-      headerToolbar={{
-        left: 'prev,next today',
-        center: 'title',
-        right: 'resourceTimeGridDay,timeGridWeek,dayGridMonth'
-      }}
-      views={customViews}
-      resources={resources}
-      events={processedEvents}
-      editable={true}
-      droppable={true}
-      selectable={true}
-      eventDurationEditable={true}
-      eventResizableFromStart={true}
-      eventDrop={handleEventChange}
-      eventResize={handleEventChange}
-      eventClick={handleEventClick}
-      datesSet={onDateSet}
-      initialDate={currentDate}
-      height="auto"
-      eventDidMount={(info) => {
-        // Add data-event-type attribute to event elements
-        if (info.event.extendedProps.eventType) {
-          info.el.setAttribute('data-event-type', info.event.extendedProps.eventType);
-        }
-      }}
-    />
+    <div className="calendar-container" style={{ height: '650px', overflow: 'auto' }}>
+      <FullCalendar
+        ref={calendarRef}
+        plugins={[
+          resourceTimeGridPlugin,
+          timeGridPlugin,
+          interactionPlugin,
+          dayGridPlugin
+        ]}
+        schedulerLicenseKey="0134084325-fcs-1745193612"
+        initialView="resourceTimeGridDay"
+        headerToolbar={{
+          left: 'prev,next today',
+          center: 'title',
+          right: 'resourceTimeGridDay,timeGridWeek,dayGridMonth'
+        }}
+        views={customViews}
+        resources={resources}
+        events={processedEvents}
+        editable={true}
+        droppable={true}
+        selectable={true}
+        eventDurationEditable={true}
+        eventResizableFromStart={true}
+        eventDrop={handleEventChange}
+        eventResize={handleEventChange}
+        eventClick={handleEventClick}
+        datesSet={onDateSet}
+        initialDate={currentDate}
+        height="auto"
+        slotMinTime="00:00:00"
+        slotMaxTime="24:00:00"
+        scrollTime="08:00:00"
+        slotDuration="00:30:00"
+        eventDidMount={(info) => {
+          // Add data-event-type attribute to event elements
+          if (info.event.extendedProps.eventType) {
+            info.el.setAttribute('data-event-type', info.event.extendedProps.eventType);
+          }
+        }}
+      />
+    </div>
   );
 };
 
