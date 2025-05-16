@@ -26,8 +26,8 @@ export const getCalendarOptions = () => {
     slotMinTime: "00:00:00",
     slotMaxTime: "24:00:00",
     scrollTime: "07:00:00",
-    slotDuration: "00:30:00",
-    slotLabelInterval: "01:00",
+    slotDuration: "01:00:00", // Changed from 30 minutes to 1 hour
+    slotLabelInterval: "01:00", // Keep at 1 hour
     allDaySlot: false,
   };
 };

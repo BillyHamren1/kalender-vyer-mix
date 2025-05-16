@@ -139,6 +139,12 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
             info.el.setAttribute('data-event-type', info.event.extendedProps.eventType);
           }
         }}
+        eventTimeFormat={{
+          hour: '2-digit',
+          minute: '2-digit',
+          meridiem: false, // Don't show AM/PM
+          hour12: false    // Use 24-hour format
+        }}
       />
     </div>
   );
