@@ -3,11 +3,17 @@ import React, { useEffect, useContext, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CalendarContext } from '@/App';
-import { fetchBookingById } from '@/services/bookingService';
+import { fetchBookingById, updateBookingDates } from '@/services/bookingService';
+import { syncBookingEvents } from '@/services/bookingCalendarService';
 import { Booking } from '@/types/booking';
-import { Calendar, Clock, FileText, User, FileImage, Package, Paperclip } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, FileText, User, FileImage, Package, Paperclip, Save } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Input } from '@/components/ui/input';
 
 const BookingDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +22,13 @@ const BookingDetail = () => {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSyncingToCalendar, setIsSyncingToCalendar] = useState(false);
+  
+  // States for date selection
+  const [selectedRigDate, setSelectedRigDate] = useState<Date | undefined>(undefined);
+  const [selectedEventDate, setSelectedEventDate] = useState<Date | undefined>(undefined);
+  const [selectedRigDownDate, setSelectedRigDownDate] = useState<Date | undefined>(undefined);
   
   useEffect(() => {
     const loadBookingData = async () => {
@@ -25,6 +38,18 @@ const BookingDetail = () => {
         setIsLoading(true);
         const bookingData = await fetchBookingById(id);
         setBooking(bookingData);
+        
+        // Initialize date states from booking data
+        if (bookingData.rigDayDate) {
+          setSelectedRigDate(new Date(bookingData.rigDayDate));
+        }
+        if (bookingData.eventDate) {
+          setSelectedEventDate(new Date(bookingData.eventDate));
+        }
+        if (bookingData.rigDownDate) {
+          setSelectedRigDownDate(new Date(bookingData.rigDownDate));
+        }
+        
         setError(null);
       } catch (err) {
         console.error('Error fetching booking:', err);
@@ -49,6 +74,101 @@ const BookingDetail = () => {
   const formatDate = (dateString: string) => {
     if (!dateString) return 'Not scheduled';
     return new Date(dateString).toLocaleDateString();
+  };
+  
+  const handleDateChange = async (date: Date | undefined, dateType: 'rigDayDate' | 'eventDate' | 'rigDownDate') => {
+    if (!booking || !id || !date) return;
+    
+    try {
+      setIsSaving(true);
+      
+      // Format the date as ISO string (without time)
+      const formattedDate = date.toISOString().split('T')[0];
+      
+      // Update the booking date in the database
+      await updateBookingDates(id, dateType, formattedDate);
+      
+      // Update local state to reflect changes
+      setBooking({
+        ...booking,
+        [dateType]: formattedDate
+      });
+      
+      toast.success(`${dateType === 'rigDayDate' ? 'Rig day' : dateType === 'eventDate' ? 'Event day' : 'Rig down day'} updated successfully`);
+    } catch (err) {
+      console.error(`Error updating ${dateType}:`, err);
+      toast.error(`Failed to update ${dateType === 'rigDayDate' ? 'rig day' : dateType === 'eventDate' ? 'event day' : 'rig down day'}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  
+  const syncWithCalendar = async () => {
+    if (!booking || !id) return;
+    
+    setIsSyncingToCalendar(true);
+    
+    try {
+      // Create or update calendar events for each date
+      if (booking.rigDayDate) {
+        await syncBookingEvents(id, 'rig', booking.rigDayDate, 'auto', booking.client);
+      }
+      
+      if (booking.eventDate) {
+        await syncBookingEvents(id, 'event', booking.eventDate, 'auto', booking.client);
+      }
+      
+      if (booking.rigDownDate) {
+        await syncBookingEvents(id, 'rigDown', booking.rigDownDate, 'auto', booking.client);
+      }
+      
+      toast.success('Booking synced to calendar successfully');
+    } catch (err) {
+      console.error('Error syncing with calendar:', err);
+      toast.error('Failed to sync booking with calendar');
+    } finally {
+      setIsSyncingToCalendar(false);
+    }
+  };
+  
+  const DatePickerWithButton = ({ 
+    date, 
+    onSelect, 
+    label, 
+    dateType 
+  }: { 
+    date: Date | undefined; 
+    onSelect: (date: Date | undefined, type: 'rigDayDate' | 'eventDate' | 'rigDownDate') => void;
+    label: string;
+    dateType: 'rigDayDate' | 'eventDate' | 'rigDownDate';
+  }) => {
+    return (
+      <div className="flex flex-col">
+        <p className="font-medium mb-1">{label}:</p>
+        <div className="flex items-center">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className="w-full justify-start text-left font-normal"
+                disabled={isSaving}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {date ? format(date, 'PPP') : 'Select date'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+              <Calendar
+                mode="single"
+                selected={date}
+                onSelect={(newDate) => onSelect(newDate, dateType)}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
+    );
   };
   
   if (isLoading) {
@@ -97,14 +217,25 @@ const BookingDetail = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-4xl mx-auto bg-white rounded-lg shadow p-6">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
           <h1 className="text-2xl font-bold">Booking Details: #{id}</h1>
-          <button 
-            onClick={handleBack}
-            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-          >
-            Back to Calendar
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={syncWithCalendar}
+              disabled={isSyncingToCalendar || !booking}
+              className="whitespace-nowrap"
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {isSyncingToCalendar ? 'Saving...' : 'Save to Calendar'}
+            </Button>
+            <Button 
+              onClick={handleBack}
+              className="whitespace-nowrap"
+            >
+              Back to Calendar
+            </Button>
+          </div>
         </div>
         
         {booking ? (
@@ -136,23 +267,29 @@ const BookingDetail = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
+                  <CalendarIcon className="h-5 w-5" />
                   <span>Schedule</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <p className="font-medium">Rig Day:</p>
-                  <p className="text-gray-700">{formatDate(booking.rigDayDate)}</p>
-                </div>
-                <div>
-                  <p className="font-medium">Event Date:</p>
-                  <p className="text-gray-700">{formatDate(booking.eventDate)}</p>
-                </div>
-                <div>
-                  <p className="font-medium">Rig Down Date:</p>
-                  <p className="text-gray-700">{formatDate(booking.rigDownDate)}</p>
-                </div>
+                <DatePickerWithButton 
+                  date={selectedRigDate} 
+                  onSelect={handleDateChange}
+                  label="Rig Day"
+                  dateType="rigDayDate"
+                />
+                <DatePickerWithButton 
+                  date={selectedEventDate} 
+                  onSelect={handleDateChange}
+                  label="Event Date"
+                  dateType="eventDate"
+                />
+                <DatePickerWithButton 
+                  date={selectedRigDownDate} 
+                  onSelect={handleDateChange}
+                  label="Rig Down Date"
+                  dateType="rigDownDate"
+                />
               </CardContent>
             </Card>
 
