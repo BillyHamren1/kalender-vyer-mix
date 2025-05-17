@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Resource } from './ResourceData';
 import { useDrag, useDrop } from 'react-dnd';
@@ -8,7 +7,8 @@ import {
   fetchStaffMembers, 
   fetchStaffAssignments, 
   assignStaffToTeam, 
-  removeStaffAssignment 
+  removeStaffAssignment,
+  addStaffMember
 } from '@/services/staffService';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";

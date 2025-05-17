@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
@@ -25,9 +24,10 @@ serve(async (req) => {
       }
     )
 
-    const url = new URL(req.url)
-    const staffId = url.searchParams.get('staffId')
-    const date = url.searchParams.get('date')
+    // Get request body
+    const requestData = await req.json();
+    const staffId = requestData.staffId;
+    const date = requestData.date;
 
     // Validate required parameters
     if (!staffId || !date) {
@@ -59,7 +59,7 @@ serve(async (req) => {
     // If no assignment is found, return an empty response
     if (!assignment) {
       return new Response(
-        JSON.stringify({ assignments: [], message: 'No team assignment found for this date' }),
+        JSON.stringify({ staffId, date: formattedDate, teamId: null, bookings: [], eventsCount: 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }

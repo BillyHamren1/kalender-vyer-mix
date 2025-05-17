@@ -32,7 +32,7 @@ export const fetchStaffAssignment = async (staffId: string, date: Date): Promise
     const formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD format
     
     const { data, error } = await supabase.functions.invoke('staff-assignments', {
-      query: {
+      body: {
         staffId,
         date: formattedDate
       }
