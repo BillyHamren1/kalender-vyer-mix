@@ -21,23 +21,6 @@ serve(async (req) => {
   }
 
   try {
-    // Validate local API key for authorization
-    const IMPORT_API_KEY = Deno.env.get('IMPORT_API_KEY')
-    const authHeader = req.headers.get('Authorization')
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ') || authHeader.substring(7) !== IMPORT_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-      )
-    }
-
-    // Create a Supabase client
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-    )
-
     // Get the external API key for the bookings API
     const EXTERNAL_BOOKING_API_KEY = Deno.env.get('EXTERNAL_BOOKING_API_KEY')
     if (!EXTERNAL_BOOKING_API_KEY) {
@@ -46,6 +29,12 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
       )
     }
+
+    // Create a Supabase client
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+    )
 
     // Parse request body for filter parameters
     const requestData = await req.json().catch(() => ({}))

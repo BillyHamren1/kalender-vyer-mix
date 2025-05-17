@@ -27,16 +27,13 @@ export interface ImportFilters {
  */
 export const importBookings = async (filters: ImportFilters = {}): Promise<ImportResults> => {
   try {
-    // Get the import API key from Supabase Edge Function
+    // Call the Supabase Edge Function without custom Authorization header
+    // The supabase client will automatically include authentication
     const { data: secretData, error: secretError } = await supabase.functions.invoke(
       'import-bookings',
       {
         method: 'POST',
-        body: { ...filters },
-        headers: {
-          // Include the Authorization header for the edge function
-          Authorization: 'Bearer ' + 'IMPORT_API_KEY',
-        }
+        body: { ...filters }
       }
     );
 
