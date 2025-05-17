@@ -55,3 +55,5 @@ verify_jwt = true
 [functions.export-bookings]
 verify_jwt = false
 
+[functions.import-bookings]
+verify_jwt = false
