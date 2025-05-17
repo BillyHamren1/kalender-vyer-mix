@@ -56,10 +56,10 @@ const ResourceView = () => {
           />
         </div>
         
-        {/* Staff Assignment Row moved outside the calendar container */}
+        {/* Staff Assignment Row with current date */}
         {shouldShowStaffAssignmentRow() && (
           <div className="mt-4">
-            <StaffAssignmentRow resources={resources} />
+            <StaffAssignmentRow resources={resources} currentDate={currentDate} />
           </div>
         )}
       </div>
