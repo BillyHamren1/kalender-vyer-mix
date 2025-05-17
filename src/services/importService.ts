@@ -32,7 +32,11 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
       'import-bookings',
       {
         method: 'POST',
-        body: filters,
+        body: { ...filters },
+        headers: {
+          // Include the Authorization header for the edge function
+          Authorization: 'Bearer ' + 'IMPORT_API_KEY',
+        }
       }
     );
 
