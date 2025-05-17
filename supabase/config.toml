@@ -51,3 +51,7 @@ port = 54328
 
 [functions.staff-assignments]
 verify_jwt = true
+
+[functions.export-bookings]
+verify_jwt = false
+
