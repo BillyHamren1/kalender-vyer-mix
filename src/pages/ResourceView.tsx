@@ -8,6 +8,10 @@ import StaffAssignmentRow from '@/components/Calendar/StaffAssignmentRow';
 import DayNavigation from '@/components/Calendar/DayNavigation';
 import '../styles/calendar.css';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { Button } from '@/components/ui/button';
+import { ArrowDown, RefreshCcw } from 'lucide-react';
+import { importBookings } from '@/services/importService';
+import { toast } from 'sonner';
 
 const ResourceView = () => {
   // Use our custom hooks to manage state and logic
@@ -33,10 +37,41 @@ const ResourceView = () => {
   
   const { addEventToCalendar } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
+  const [isImporting, setIsImporting] = React.useState(false);
   
   // Determine if we should show the Staff Assignment Row - only show on desktop in day view
   const shouldShowStaffAssignmentRow = () => {
     return !isMobile;
+  };
+  
+  // Handle importing bookings
+  const handleImportBookings = async () => {
+    try {
+      setIsImporting(true);
+      toast.info('Importing bookings...', {
+        description: 'Please wait while we import bookings from the external system'
+      });
+      
+      const result = await importBookings();
+      
+      if (result.success && result.results) {
+        toast.success('Bookings imported successfully', {
+          description: `Imported ${result.results.imported} of ${result.results.total} bookings with ${result.results.calendar_events_created} calendar events`
+        });
+        
+        // Refresh calendar to show the newly imported events
+        await refreshEvents();
+      } else {
+        toast.error('Import failed', {
+          description: result.error || 'Unknown error occurred during import'
+        });
+      }
+    } catch (error) {
+      console.error('Error during import:', error);
+      toast.error('Import operation failed');
+    } finally {
+      setIsImporting(false);
+    }
   };
   
   return (
@@ -44,7 +79,30 @@ const ResourceView = () => {
       <div className={`container mx-auto pt-2 ${isMobile ? 'px-2' : ''}`} style={{ maxWidth: isMobile ? '100%' : '94%' }}>
         <div className={`bg-white rounded-lg shadow-md mb-4 ${isMobile ? 'p-2' : 'p-3'}`}>
           {/* Day Navigation Bar - displayed above the calendar */}
-          <DayNavigation currentDate={currentDate} />
+          <div className="flex justify-between items-center mb-4">
+            <DayNavigation currentDate={currentDate} />
+            <div className="flex space-x-2">
+              <Button 
+                onClick={refreshEvents} 
+                variant="outline" 
+                size="sm"
+                disabled={isLoading}
+                className="flex items-center gap-1"
+              >
+                <RefreshCcw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
+                {isMobile ? '' : 'Uppdatera'}
+              </Button>
+              <Button 
+                onClick={handleImportBookings} 
+                size="sm"
+                disabled={isImporting}
+                className="flex items-center gap-1"
+              >
+                <ArrowDown className="h-3 w-3" />
+                {isMobile ? '' : (isImporting ? 'Importerar...' : 'Importera')}
+              </Button>
+            </div>
+          </div>
           
           <ResourceCalendar
             events={events}

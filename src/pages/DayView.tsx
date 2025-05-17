@@ -4,6 +4,9 @@ import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import DayCalendar from '@/components/Calendar/DayCalendar';
 import '../styles/calendar.css';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { ArrowDown, RefreshCcw } from 'lucide-react';
+import { importBookings } from '@/services/importService';
 
 const DayView = () => {
   const {
@@ -11,8 +14,11 @@ const DayView = () => {
     isLoading,
     isMounted,
     currentDate,
-    handleDatesSet
+    handleDatesSet,
+    refreshEvents
   } = useCalendarEvents();
+
+  const [isImporting, setIsImporting] = React.useState(false);
 
   useEffect(() => {
     // Log events when they change
@@ -25,15 +31,66 @@ const DayView = () => {
     }
   }, [events]);
 
+  // Handle importing bookings
+  const handleImportBookings = async () => {
+    try {
+      setIsImporting(true);
+      toast.info('Importing bookings...', {
+        description: 'Please wait while we import bookings from the external system'
+      });
+      
+      const result = await importBookings();
+      
+      if (result.success && result.results) {
+        toast.success('Bookings imported successfully', {
+          description: `Imported ${result.results.imported} of ${result.results.total} bookings with ${result.results.calendar_events_created} calendar events`
+        });
+        
+        // Refresh calendar to show the newly imported events
+        await refreshEvents();
+      } else {
+        toast.error('Import failed', {
+          description: result.error || 'Unknown error occurred during import'
+        });
+      }
+    } catch (error) {
+      console.error('Error during import:', error);
+      toast.error('Import operation failed');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-800">Calendar Day View</h1>
-          <p className="text-gray-600">Showing all booked events for the selected day</p>
-          <p className="text-sm text-blue-600 mt-2">
-            Currently viewing: {currentDate.toLocaleDateString()}
-          </p>
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800">Calendar Day View</h1>
+            <p className="text-gray-600">Showing all booked events for the selected day</p>
+            <p className="text-sm text-blue-600 mt-2">
+              Currently viewing: {currentDate.toLocaleDateString()}
+            </p>
+          </div>
+          <div className="flex space-x-3">
+            <Button 
+              onClick={refreshEvents} 
+              variant="outline" 
+              disabled={isLoading}
+              className="flex items-center gap-2"
+            >
+              <RefreshCcw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              Uppdatera
+            </Button>
+            <Button 
+              onClick={handleImportBookings} 
+              disabled={isImporting}
+              className="flex items-center gap-2"
+            >
+              <ArrowDown className="h-4 w-4" />
+              {isImporting ? 'Importerar...' : 'Importera bokningar'}
+            </Button>
+          </div>
         </div>
         
         <div className="bg-white rounded-lg shadow-md p-4">
