@@ -1,4 +1,3 @@
-
 import React, { useEffect, useContext, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -14,6 +13,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 
 const BookingDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -24,6 +24,7 @@ const BookingDetail = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncingToCalendar, setIsSyncingToCalendar] = useState(false);
+  const [autoSync, setAutoSync] = useState(false);
   
   // States for date selection
   const [selectedRigDate, setSelectedRigDate] = useState<Date | undefined>(undefined);
@@ -88,6 +89,15 @@ const BookingDetail = () => {
       // Update the booking date in the database
       await updateBookingDates(id, dateType, formattedDate);
       
+      // Update the correct date selection state
+      if (dateType === 'rigDayDate') {
+        setSelectedRigDate(date);
+      } else if (dateType === 'eventDate') {
+        setSelectedEventDate(date);
+      } else if (dateType === 'rigDownDate') {
+        setSelectedRigDownDate(date);
+      }
+      
       // Update local state to reflect changes
       setBooking({
         ...booking,
@@ -95,6 +105,11 @@ const BookingDetail = () => {
       });
       
       toast.success(`${dateType === 'rigDayDate' ? 'Rig day' : dateType === 'eventDate' ? 'Event day' : 'Rig down day'} updated successfully`);
+      
+      // If autoSync is enabled, automatically sync to calendar
+      if (autoSync) {
+        await syncWithCalendar();
+      }
     } catch (err) {
       console.error(`Error updating ${dateType}:`, err);
       toast.error(`Failed to update ${dateType === 'rigDayDate' ? 'rig day' : dateType === 'eventDate' ? 'event day' : 'rig down day'}`);
@@ -110,17 +125,21 @@ const BookingDetail = () => {
     
     try {
       // Create or update calendar events for each date
+      const syncPromises = [];
+      
       if (booking.rigDayDate) {
-        await syncBookingEvents(id, 'rig', booking.rigDayDate, 'auto', booking.client);
+        syncPromises.push(syncBookingEvents(id, 'rig', booking.rigDayDate, 'auto', booking.client));
       }
       
       if (booking.eventDate) {
-        await syncBookingEvents(id, 'event', booking.eventDate, 'auto', booking.client);
+        syncPromises.push(syncBookingEvents(id, 'event', booking.eventDate, 'auto', booking.client));
       }
       
       if (booking.rigDownDate) {
-        await syncBookingEvents(id, 'rigDown', booking.rigDownDate, 'auto', booking.client);
+        syncPromises.push(syncBookingEvents(id, 'rigDown', booking.rigDownDate, 'auto', booking.client));
       }
+      
+      await Promise.all(syncPromises);
       
       toast.success('Booking synced to calendar successfully');
     } catch (err) {
@@ -163,6 +182,7 @@ const BookingDetail = () => {
                 selected={date}
                 onSelect={(newDate) => onSelect(newDate, dateType)}
                 initialFocus
+                className="p-3 pointer-events-auto"
               />
             </PopoverContent>
           </Popover>
@@ -265,13 +285,26 @@ const BookingDetail = () => {
 
             {/* Date Information */}
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="flex items-center gap-2">
                   <CalendarIcon className="h-5 w-5" />
                   <span>Schedule</span>
                 </CardTitle>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="auto-sync"
+                    checked={autoSync}
+                    onCheckedChange={setAutoSync}
+                  />
+                  <label
+                    htmlFor="auto-sync"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Auto sync to calendar
+                  </label>
+                </div>
               </CardHeader>
-              <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
                 <DatePickerWithButton 
                   date={selectedRigDate} 
                   onSelect={handleDateChange}
@@ -291,6 +324,11 @@ const BookingDetail = () => {
                   dateType="rigDownDate"
                 />
               </CardContent>
+              {!autoSync && (
+                <div className="px-6 pb-4 text-sm text-muted-foreground">
+                  Note: Changes to dates will not appear in the calendar until you click "Save to Calendar"
+                </div>
+              )}
             </Card>
 
             {/* Internal Notes if any */}
