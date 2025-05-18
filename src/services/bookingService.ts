@@ -21,6 +21,7 @@ export const fetchBookings = async (): Promise<Booking[]> => {
     rigDownDate: booking.rigdowndate,
     deliveryAddress: booking.deliveryaddress || undefined,
     internalNotes: booking.internalnotes || undefined,
+    viewed: booking.viewed, // Include viewed status
   }));
 };
 
@@ -80,6 +81,7 @@ export const fetchBookingById = async (id: string): Promise<Booking> => {
       fileName: attachment.file_name || 'Unnamed File',
       fileType: attachment.file_type || 'application/octet-stream'
     })),
+    viewed: booking.viewed, // Include viewed status in the returned booking
   };
 };
 
@@ -179,6 +181,19 @@ export const addBookingAttachment = async (
 
   if (error) {
     console.error('Error adding attachment:', error);
+    throw error;
+  }
+};
+
+// Mark a booking as viewed
+export const markBookingAsViewed = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('bookings')
+    .update({ viewed: true, updated_at: new Date().toISOString() })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error marking booking as viewed:', error);
     throw error;
   }
 };
