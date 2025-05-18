@@ -60,7 +60,7 @@ const APITester = () => {
       if (endDate) apiUrl.searchParams.append('endDate', endDate);
       if (clientName) apiUrl.searchParams.append('client', clientName);
       
-      // Store the URL for display
+      // Store the URL for display - make sure this is set before the API call
       setRequestUrl(apiUrl.toString());
       
       // Make the API call with the x-api-key header
@@ -104,6 +104,29 @@ const APITester = () => {
       setIsLoading(true);
       toast.info('Testing import-bookings function...');
       
+      // Get the API key for display first
+      const { data: secretData, error: secretError } = await supabase.functions.invoke(
+        'get-api-key',
+        {
+          method: 'POST',
+        }
+      );
+      
+      if (secretError) {
+        console.error('Error getting API key:', secretError);
+      } else if (secretData && secretData.apiKey) {
+        setApiKey(secretData.apiKey);
+      }
+      
+      // Build the URL that would be used
+      const apiUrl = new URL("https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings");
+      if (startDate) apiUrl.searchParams.append('startDate', startDate);
+      if (endDate) apiUrl.searchParams.append('endDate', endDate);
+      if (clientName) apiUrl.searchParams.append('client', clientName);
+      
+      // Set the URL for display before making the API call
+      setRequestUrl(apiUrl.toString());
+      
       // Build the filter parameters
       const filters = {
         startDate: startDate || undefined,
@@ -126,25 +149,6 @@ const APITester = () => {
       
       setResponse(data);
       setStatusCode(200);
-      
-      // Get the API key for display
-      const { data: secretData } = await supabase.functions.invoke(
-        'get-api-key',
-        {
-          method: 'POST',
-        }
-      );
-      
-      if (secretData && secretData.apiKey) {
-        setApiKey(secretData.apiKey);
-      }
-      
-      // Since we're using the import function, construct the URL it would use
-      const apiUrl = new URL("https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings");
-      if (startDate) apiUrl.searchParams.append('startDate', startDate);
-      if (endDate) apiUrl.searchParams.append('endDate', endDate);
-      if (clientName) apiUrl.searchParams.append('client', clientName);
-      setRequestUrl(apiUrl.toString());
       
       if (data.success) {
         toast.success('Import function successful!', {
@@ -246,35 +250,35 @@ const APITester = () => {
               )}
             </CardTitle>
             
-            {requestUrl && (
-              <div className="bg-gray-100 p-2 rounded mt-2 break-all">
-                <div className="flex items-center gap-2 mb-1">
-                  <Globe className="h-4 w-4 text-gray-600" />
-                  <span className="font-medium">Request URL:</span>
-                </div>
-                <div className="pl-6 text-sm">{requestUrl}</div>
+            {/* Always show API information boxes, just empty if not populated */}
+            <div className="bg-gray-100 p-2 rounded mt-2 break-all">
+              <div className="flex items-center gap-2 mb-1">
+                <Globe className="h-4 w-4 text-gray-600" />
+                <span className="font-medium">Request URL:</span>
               </div>
-            )}
+              <div className="pl-6 text-sm">{requestUrl || "No request made yet"}</div>
+            </div>
             
-            {apiKey && (
-              <div className="bg-gray-100 p-2 rounded mt-2">
-                <div className="flex items-center gap-2 mb-1">
-                  <Key className="h-4 w-4 text-gray-600" />
-                  <span className="font-medium">API Key:</span>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={toggleApiKeyVisibility}
-                    className="ml-auto text-xs py-0 h-6"
-                  >
-                    {showApiKey ? "Hide" : "Show"}
-                  </Button>
-                </div>
-                <div className="pl-6 text-sm">
-                  {showApiKey ? apiKey : "●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●"}
-                </div>
+            <div className="bg-gray-100 p-2 rounded mt-2">
+              <div className="flex items-center gap-2 mb-1">
+                <Key className="h-4 w-4 text-gray-600" />
+                <span className="font-medium">API Key:</span>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={toggleApiKeyVisibility}
+                  className="ml-auto text-xs py-0 h-6"
+                  disabled={!apiKey}
+                >
+                  {showApiKey ? "Hide" : "Show"}
+                </Button>
               </div>
-            )}
+              <div className="pl-6 text-sm">
+                {apiKey 
+                  ? (showApiKey ? apiKey : "●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●") 
+                  : "No API key retrieved yet"}
+              </div>
+            </div>
             
             {statusCode !== null && (
               <CardDescription className="mt-2">
