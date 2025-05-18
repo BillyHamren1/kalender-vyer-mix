@@ -23,9 +23,9 @@ serve(async (req) => {
 
   try {
     // Get the external API key for the bookings API
-    const EXTERNAL_BOOKING_API_KEY = Deno.env.get('EXTERNAL_BOOKING_API_KEY')
+    const EXTERNAL_BOOKING_API_KEY = Deno.env.get('EXPORT_API_KEY')
     if (!EXTERNAL_BOOKING_API_KEY) {
-      console.error('Missing EXTERNAL_BOOKING_API_KEY in environment variables')
+      console.error('Missing EXPORT_API_KEY in environment variables')
       return new Response(
         JSON.stringify({ error: 'External booking API key not configured' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
@@ -43,8 +43,8 @@ serve(async (req) => {
     const { startDate, endDate, clientName } = requestData
 
     // Build the URL for the external bookings API
-    // Use the same Supabase project for both functions - note the hyphen in export-bookings
-    const externalApiUrl = new URL("https://pihrhltinhewhoxefjxv.supabase.co/functions/v1/export-bookings")
+    // Use the correct URL as specified
+    const externalApiUrl = new URL("https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings")
     
     // Add query parameters if provided
     if (startDate) externalApiUrl.searchParams.append('startDate', startDate)
