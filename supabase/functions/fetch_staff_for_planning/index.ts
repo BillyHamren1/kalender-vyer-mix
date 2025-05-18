@@ -48,36 +48,38 @@ serve(async (req) => {
     console.log('Received staff data:', staffData);
     
     // Store staff data in database
-    for (const staff of staffData) {
-      if (!staff.id || !staff.name) continue;
-      
-      // Check if staff exists in database
-      const { data: existingStaff } = await supabase
-        .from('staff_members')
-        .select('id')
-        .eq('id', staff.id)
-        .single();
+    if (staffData && staffData.data) {
+      for (const staff of staffData.data) {
+        if (!staff.id || !staff.name) continue;
         
-      if (!existingStaff) {
-        // Insert new staff
-        await supabase
+        // Check if staff exists in database
+        const { data: existingStaff } = await supabase
           .from('staff_members')
-          .insert({
-            id: staff.id,
-            name: staff.name,
-            email: staff.email || null,
-            phone: staff.phone || null
-          });
-      } else {
-        // Update existing staff
-        await supabase
-          .from('staff_members')
-          .update({
-            name: staff.name,
-            email: staff.email || null,
-            phone: staff.phone || null
-          })
-          .eq('id', staff.id);
+          .select('id')
+          .eq('id', staff.id)
+          .single();
+          
+        if (!existingStaff) {
+          // Insert new staff
+          await supabase
+            .from('staff_members')
+            .insert({
+              id: staff.id,
+              name: staff.name,
+              email: staff.email || null,
+              phone: staff.phone || null
+            });
+        } else {
+          // Update existing staff
+          await supabase
+            .from('staff_members')
+            .update({
+              name: staff.name,
+              email: staff.email || null,
+              phone: staff.phone || null
+            })
+            .eq('id', staff.id);
+        }
       }
     }
     
