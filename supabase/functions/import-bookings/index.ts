@@ -1,3 +1,4 @@
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
@@ -125,6 +126,12 @@ serve(async (req) => {
           .eq('id', externalBooking.booking_number)
           .maybeSingle()
 
+        // Extract location data for geocoding
+        const deliveryLatitude = externalBooking.delivery_latitude || 
+                               (externalBooking.location_lat ? parseFloat(externalBooking.location_lat) : null)
+        const deliveryLongitude = externalBooking.delivery_longitude || 
+                                (externalBooking.location_lng ? parseFloat(externalBooking.location_lng) : null)
+                                
         // Prepare booking data - map external fields to our schema
         const bookingData = {
           id: externalBooking.booking_number, // Use booking_number as our ID
@@ -134,9 +141,20 @@ serve(async (req) => {
           rigdowndate: rigdowndate, // Use first rig_down_date
           deliveryaddress: externalBooking.delivery_address || 
                           (externalBooking.location ? `${externalBooking.location}` : null), // Use delivery_address or location
+          // New fields for delivery address details
+          delivery_city: externalBooking.delivery_city || externalBooking.city || null,
+          delivery_postal_code: externalBooking.delivery_postal_code || externalBooking.postal_code || null,
+          delivery_latitude: deliveryLatitude,
+          delivery_longitude: deliveryLongitude,
+          // New fields for logistics options
+          carry_more_than_10m: externalBooking.carry_more_than_10m || false,
+          ground_nails_allowed: externalBooking.ground_nails_allowed || false,
+          exact_time_needed: externalBooking.exact_time_needed || false,
+          exact_time_info: externalBooking.exact_time_info || null,
           internalnotes: externalBooking.internal_notes,
           created_at: externalBooking.created_at || new Date().toISOString(),
-          updated_at: externalBooking.updated_at || new Date().toISOString()
+          updated_at: externalBooking.updated_at || new Date().toISOString(),
+          viewed: existingBooking ? true : false // Mark new bookings as unviewed
         }
 
         // Insert or update booking

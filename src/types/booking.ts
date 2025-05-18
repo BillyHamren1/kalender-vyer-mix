@@ -1,4 +1,3 @@
-
 export interface BookingProduct {
   id: string;
   name: string;
@@ -20,8 +19,16 @@ export interface Booking {
   eventDate: string;
   rigDownDate: string;
   deliveryAddress?: string;
+  deliveryCity?: string;
+  deliveryPostalCode?: string;
+  deliveryLatitude?: number;
+  deliveryLongitude?: number;
+  carryMoreThan10m?: boolean;
+  groundNailsAllowed?: boolean;
+  exactTimeNeeded?: boolean;
+  exactTimeInfo?: string;
   products?: BookingProduct[];
   internalNotes?: string;
   attachments?: BookingAttachment[];
-  viewed: boolean; // Added 'viewed' property to track new bookings
+  viewed: boolean;
 }

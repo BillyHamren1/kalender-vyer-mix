@@ -2,10 +2,28 @@ import React, { useEffect, useContext, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CalendarContext } from '@/App';
-import { fetchBookingById, updateBookingDates } from '@/services/bookingService';
+import { 
+  fetchBookingById, 
+  updateBookingDates, 
+  updateBookingNotes, 
+  updateBookingLogistics,
+  updateDeliveryDetails
+} from '@/services/bookingService';
 import { syncBookingEvents } from '@/services/bookingCalendarService';
 import { Booking } from '@/types/booking';
-import { Calendar as CalendarIcon, Clock, FileText, User, FileImage, Package, Paperclip, Save } from 'lucide-react';
+import { 
+  Calendar as CalendarIcon, 
+  Clock, 
+  FileText, 
+  User, 
+  FileImage, 
+  Package, 
+  Paperclip, 
+  Save, 
+  MapPin,
+  Truck,
+  Clock4
+} from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
@@ -14,6 +32,9 @@ import { format } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const BookingDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -30,6 +51,17 @@ const BookingDetail = () => {
   const [selectedRigDate, setSelectedRigDate] = useState<Date | undefined>(undefined);
   const [selectedEventDate, setSelectedEventDate] = useState<Date | undefined>(undefined);
   const [selectedRigDownDate, setSelectedRigDownDate] = useState<Date | undefined>(undefined);
+  
+  // States for logistics options
+  const [carryMoreThan10m, setCarryMoreThan10m] = useState(false);
+  const [groundNailsAllowed, setGroundNailsAllowed] = useState(false);
+  const [exactTimeNeeded, setExactTimeNeeded] = useState(false);
+  const [exactTimeInfo, setExactTimeInfo] = useState('');
+  
+  // States for delivery details
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryCity, setDeliveryCity] = useState('');
+  const [deliveryPostalCode, setDeliveryPostalCode] = useState('');
   
   useEffect(() => {
     const loadBookingData = async () => {
@@ -50,6 +82,17 @@ const BookingDetail = () => {
         if (bookingData.rigDownDate) {
           setSelectedRigDownDate(new Date(bookingData.rigDownDate));
         }
+        
+        // Initialize logistics states
+        setCarryMoreThan10m(bookingData.carryMoreThan10m || false);
+        setGroundNailsAllowed(bookingData.groundNailsAllowed || false);
+        setExactTimeNeeded(bookingData.exactTimeNeeded || false);
+        setExactTimeInfo(bookingData.exactTimeInfo || '');
+        
+        // Initialize delivery details
+        setDeliveryAddress(bookingData.deliveryAddress || '');
+        setDeliveryCity(bookingData.deliveryCity || '');
+        setDeliveryPostalCode(bookingData.deliveryPostalCode || '');
         
         setError(null);
       } catch (err) {
@@ -113,6 +156,66 @@ const BookingDetail = () => {
     } catch (err) {
       console.error(`Error updating ${dateType}:`, err);
       toast.error(`Failed to update ${dateType === 'rigDayDate' ? 'rig day' : dateType === 'eventDate' ? 'event day' : 'rig down day'}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  
+  const handleLogisticsChange = async () => {
+    if (!booking || !id) return;
+    
+    try {
+      setIsSaving(true);
+      
+      await updateBookingLogistics(id, {
+        carryMoreThan10m,
+        groundNailsAllowed,
+        exactTimeNeeded,
+        exactTimeInfo
+      });
+      
+      // Update local state
+      setBooking({
+        ...booking,
+        carryMoreThan10m,
+        groundNailsAllowed,
+        exactTimeNeeded,
+        exactTimeInfo
+      });
+      
+      toast.success('Logistics information updated successfully');
+    } catch (err) {
+      console.error('Error updating logistics information:', err);
+      toast.error('Failed to update logistics information');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  
+  const handleDeliveryDetailsChange = async () => {
+    if (!booking || !id) return;
+    
+    try {
+      setIsSaving(true);
+      
+      await updateDeliveryDetails(id, {
+        deliveryAddress,
+        deliveryCity,
+        deliveryPostalCode
+      });
+      
+      // Update local state
+      setBooking({
+        ...booking,
+        deliveryAddress,
+        deliveryCity,
+        deliveryPostalCode
+      });
+      
+      toast.success('Delivery details updated successfully');
+    } catch (err) {
+      console.error('Error updating delivery details:', err);
+      toast.error('Failed to update delivery details');
     } finally {
       setIsSaving(false);
     }
@@ -273,13 +376,142 @@ const BookingDetail = () => {
                   <p className="font-medium">Client:</p>
                   <p className="text-lg">{booking.client}</p>
                 </div>
-                
-                {booking.deliveryAddress && (
-                  <div>
-                    <p className="font-medium">Delivery Address:</p>
-                    <p className="text-gray-700">{booking.deliveryAddress}</p>
+              </CardContent>
+            </Card>
+
+            {/* Delivery Address */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5" />
+                  <span>Delivery Address</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid gap-4">
+                    <div>
+                      <FormLabel>Address</FormLabel>
+                      <Textarea 
+                        value={deliveryAddress}
+                        onChange={(e) => setDeliveryAddress(e.target.value)}
+                        placeholder="Street address"
+                        className="mt-1"
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <FormLabel>City</FormLabel>
+                        <Input 
+                          value={deliveryCity}
+                          onChange={(e) => setDeliveryCity(e.target.value)}
+                          placeholder="City"
+                          className="mt-1"
+                        />
+                      </div>
+                      
+                      <div>
+                        <FormLabel>Postal Code</FormLabel>
+                        <Input 
+                          value={deliveryPostalCode}
+                          onChange={(e) => setDeliveryPostalCode(e.target.value)}
+                          placeholder="Postal code"
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
                   </div>
-                )}
+                  
+                  {(booking.deliveryLatitude && booking.deliveryLongitude) ? (
+                    <div className="mt-4">
+                      <p className="text-sm text-gray-500">Location coordinates: {booking.deliveryLatitude}, {booking.deliveryLongitude}</p>
+                    </div>
+                  ) : null}
+                  
+                  <Button
+                    onClick={handleDeliveryDetailsChange}
+                    disabled={isSaving}
+                    className="mt-2"
+                  >
+                    Save Delivery Details
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Logistics Options */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Truck className="h-5 w-5" />
+                  <span>Logistics Options</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="carry-more-than-10m"
+                      checked={carryMoreThan10m}
+                      onCheckedChange={setCarryMoreThan10m}
+                    />
+                    <label
+                      htmlFor="carry-more-than-10m"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      Items need to be carried more than 10 meters
+                    </label>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="ground-nails-allowed"
+                      checked={groundNailsAllowed}
+                      onCheckedChange={setGroundNailsAllowed}
+                    />
+                    <label
+                      htmlFor="ground-nails-allowed"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      Ground nails are allowed at the venue
+                    </label>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="exact-time-needed"
+                      checked={exactTimeNeeded}
+                      onCheckedChange={setExactTimeNeeded}
+                    />
+                    <label
+                      htmlFor="exact-time-needed"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      Exact delivery time is required
+                    </label>
+                  </div>
+                  
+                  {exactTimeNeeded && (
+                    <div>
+                      <FormLabel>Time Details</FormLabel>
+                      <Textarea 
+                        value={exactTimeInfo}
+                        onChange={(e) => setExactTimeInfo(e.target.value)}
+                        placeholder="Specify the exact time requirements"
+                        className="mt-1"
+                      />
+                    </div>
+                  )}
+                  
+                  <Button
+                    onClick={handleLogisticsChange}
+                    disabled={isSaving}
+                    className="mt-2"
+                  >
+                    Save Logistics Options
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 

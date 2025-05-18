@@ -78,10 +78,18 @@ export type Database = {
       }
       bookings: {
         Row: {
+          carry_more_than_10m: boolean | null
           client: string
           created_at: string
+          delivery_city: string | null
+          delivery_latitude: number | null
+          delivery_longitude: number | null
+          delivery_postal_code: string | null
           deliveryaddress: string | null
           eventdate: string | null
+          exact_time_info: string | null
+          exact_time_needed: boolean | null
+          ground_nails_allowed: boolean | null
           id: string
           internalnotes: string | null
           rigdaydate: string | null
@@ -90,10 +98,18 @@ export type Database = {
           viewed: boolean
         }
         Insert: {
+          carry_more_than_10m?: boolean | null
           client: string
           created_at?: string
+          delivery_city?: string | null
+          delivery_latitude?: number | null
+          delivery_longitude?: number | null
+          delivery_postal_code?: string | null
           deliveryaddress?: string | null
           eventdate?: string | null
+          exact_time_info?: string | null
+          exact_time_needed?: boolean | null
+          ground_nails_allowed?: boolean | null
           id: string
           internalnotes?: string | null
           rigdaydate?: string | null
@@ -102,10 +118,18 @@ export type Database = {
           viewed?: boolean
         }
         Update: {
+          carry_more_than_10m?: boolean | null
           client?: string
           created_at?: string
+          delivery_city?: string | null
+          delivery_latitude?: number | null
+          delivery_longitude?: number | null
+          delivery_postal_code?: string | null
           deliveryaddress?: string | null
           eventdate?: string | null
+          exact_time_info?: string | null
+          exact_time_needed?: boolean | null
+          ground_nails_allowed?: boolean | null
           id?: string
           internalnotes?: string | null
           rigdaydate?: string | null

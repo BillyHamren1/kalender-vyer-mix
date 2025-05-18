@@ -20,8 +20,16 @@ export const fetchBookings = async (): Promise<Booking[]> => {
     eventDate: booking.eventdate,
     rigDownDate: booking.rigdowndate,
     deliveryAddress: booking.deliveryaddress || undefined,
+    deliveryCity: booking.delivery_city || undefined,
+    deliveryPostalCode: booking.delivery_postal_code || undefined,
+    deliveryLatitude: booking.delivery_latitude || undefined,
+    deliveryLongitude: booking.delivery_longitude || undefined,
+    carryMoreThan10m: booking.carry_more_than_10m || false,
+    groundNailsAllowed: booking.ground_nails_allowed || false,
+    exactTimeNeeded: booking.exact_time_needed || false,
+    exactTimeInfo: booking.exact_time_info || undefined,
     internalNotes: booking.internalnotes || undefined,
-    viewed: booking.viewed, // Include viewed status
+    viewed: booking.viewed,
   }));
 };
 
@@ -68,6 +76,14 @@ export const fetchBookingById = async (id: string): Promise<Booking> => {
     eventDate: booking.eventdate,
     rigDownDate: booking.rigdowndate,
     deliveryAddress: booking.deliveryaddress || undefined,
+    deliveryCity: booking.delivery_city || undefined,
+    deliveryPostalCode: booking.delivery_postal_code || undefined,
+    deliveryLatitude: booking.delivery_latitude || undefined,
+    deliveryLongitude: booking.delivery_longitude || undefined,
+    carryMoreThan10m: booking.carry_more_than_10m || false,
+    groundNailsAllowed: booking.ground_nails_allowed || false,
+    exactTimeNeeded: booking.exact_time_needed || false,
+    exactTimeInfo: booking.exact_time_info || undefined,
     internalNotes: booking.internalnotes || undefined,
     products: products.map(product => ({
       id: product.id,
@@ -81,7 +97,7 @@ export const fetchBookingById = async (id: string): Promise<Booking> => {
       fileName: attachment.file_name || 'Unnamed File',
       fileType: attachment.file_type || 'application/octet-stream'
     })),
-    viewed: booking.viewed, // Include viewed status in the returned booking
+    viewed: booking.viewed,
   };
 };
 
@@ -120,6 +136,93 @@ export const updateBookingNotes = async (id: string, notes: string): Promise<voi
 
   if (error) {
     console.error('Error updating notes:', error);
+    throw error;
+  }
+};
+
+// Update booking logistics options
+export const updateBookingLogistics = async (
+  id: string,
+  logisticsData: {
+    carryMoreThan10m?: boolean;
+    groundNailsAllowed?: boolean;
+    exactTimeNeeded?: boolean;
+    exactTimeInfo?: string;
+  }
+): Promise<void> => {
+  const updates: Record<string, any> = {
+    updated_at: new Date().toISOString()
+  };
+  
+  if (logisticsData.carryMoreThan10m !== undefined) {
+    updates.carry_more_than_10m = logisticsData.carryMoreThan10m;
+  }
+  
+  if (logisticsData.groundNailsAllowed !== undefined) {
+    updates.ground_nails_allowed = logisticsData.groundNailsAllowed;
+  }
+  
+  if (logisticsData.exactTimeNeeded !== undefined) {
+    updates.exact_time_needed = logisticsData.exactTimeNeeded;
+  }
+  
+  if (logisticsData.exactTimeInfo !== undefined) {
+    updates.exact_time_info = logisticsData.exactTimeInfo;
+  }
+  
+  const { error } = await supabase
+    .from('bookings')
+    .update(updates)
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error updating booking logistics:', error);
+    throw error;
+  }
+};
+
+// Update delivery address details
+export const updateDeliveryDetails = async (
+  id: string,
+  deliveryData: {
+    deliveryAddress?: string;
+    deliveryCity?: string;
+    deliveryPostalCode?: string;
+    deliveryLatitude?: number;
+    deliveryLongitude?: number;
+  }
+): Promise<void> => {
+  const updates: Record<string, any> = {
+    updated_at: new Date().toISOString()
+  };
+  
+  if (deliveryData.deliveryAddress !== undefined) {
+    updates.deliveryaddress = deliveryData.deliveryAddress;
+  }
+  
+  if (deliveryData.deliveryCity !== undefined) {
+    updates.delivery_city = deliveryData.deliveryCity;
+  }
+  
+  if (deliveryData.deliveryPostalCode !== undefined) {
+    updates.delivery_postal_code = deliveryData.deliveryPostalCode;
+  }
+  
+  if (deliveryData.deliveryLatitude !== undefined) {
+    updates.delivery_latitude = deliveryData.deliveryLatitude;
+  }
+  
+  if (deliveryData.deliveryLongitude !== undefined) {
+    updates.delivery_longitude = deliveryData.deliveryLongitude;
+  }
+  
+  const { error } = await supabase
+    .from('bookings')
+    .update(updates)
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error updating delivery details:', error);
     throw error;
   }
 };
