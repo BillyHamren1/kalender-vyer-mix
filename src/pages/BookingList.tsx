@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Command, CommandInput } from '@/components/ui/command';
-import { importBookings } from '@/services/importService';
+import { importBookings, quietImportBookings } from '@/services/importService';
 import { Booking } from '../types/booking';
 import { fetchBookings, markBookingAsViewed } from '@/services/bookingService';
 import { toast } from 'sonner';
@@ -29,6 +29,7 @@ const BookingList = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [recentlyUpdatedBookingIds, setRecentlyUpdatedBookingIds] = useState<string[]>([]);
   
   // Function to load bookings
   const loadBookings = async () => {
@@ -47,7 +48,7 @@ const BookingList = () => {
     }
   };
   
-  // Function to import bookings
+  // Function to import bookings with UI feedback
   const handleImportBookings = async () => {
     try {
       setIsImporting(true);
@@ -62,6 +63,10 @@ const BookingList = () => {
         toast.success('Bookings imported successfully', {
           description: `Imported ${result.results.imported} of ${result.results.total} bookings with ${result.results.calendar_events_created} calendar events`
         });
+        
+        // Track newly imported or updated bookings
+        const newOrUpdatedIds = [...(result.results.new_bookings || []), ...(result.results.updated_bookings || [])];
+        setRecentlyUpdatedBookingIds(newOrUpdatedIds);
         
         // Reload bookings to show the newly imported ones
         await loadBookings();
@@ -86,6 +91,29 @@ const BookingList = () => {
     }
   };
   
+  // Function for quiet background import
+  const performQuietImport = async () => {
+    try {
+      const result = await quietImportBookings();
+      
+      if (result.success && result.results) {
+        // Track newly imported or updated bookings
+        const newOrUpdatedIds = [...(result.results.new_bookings || []), ...(result.results.updated_bookings || [])];
+        
+        if (newOrUpdatedIds.length > 0) {
+          setRecentlyUpdatedBookingIds(newOrUpdatedIds);
+          // Reload bookings to show the newly imported ones
+          await loadBookings();
+        }
+      } else {
+        // Just log errors but don't show UI error messages
+        console.error('Quiet import failed:', result);
+      }
+    } catch (error) {
+      console.error('Error during quiet import:', error);
+    }
+  };
+  
   // Function to mark a booking as viewed
   const handleMarkAsViewed = async (id: string, event: React.MouseEvent) => {
     event.stopPropagation(); // Prevent row click from navigating
@@ -96,6 +124,8 @@ const BookingList = () => {
       setBookings(prevBookings => prevBookings.map(booking => 
         booking.id === id ? { ...booking, viewed: true } : booking
       ));
+      // Remove from recently updated list if present
+      setRecentlyUpdatedBookingIds(prev => prev.filter(bookingId => bookingId !== id));
     } catch (error) {
       console.error('Error marking booking as viewed:', error);
       toast.error('Failed to mark booking as viewed');
@@ -110,26 +140,34 @@ const BookingList = () => {
       // Try to load existing bookings first
       const hasExistingBookings = await loadBookings();
       
-      // If no bookings or very few, try to import
-      if (!hasExistingBookings || bookings.length < 3) {
-        console.log('Few or no bookings found, attempting auto-import');
-        await handleImportBookings();
-      }
+      // Perform a quiet import in the background
+      await performQuietImport();
     };
     
     initializeBookings();
+    
+    // Set up periodic background imports every 5 minutes
+    const intervalId = setInterval(performQuietImport, 5 * 60 * 1000);
+    
+    return () => {
+      clearInterval(intervalId);
+    };
   }, []);
   
   const handleRowClick = (id: string) => {
     navigate(`/booking/${id}`);
   };
 
-  // Split bookings into new and viewed
+  // Split bookings into categories
   const newBookings = bookings.filter(booking => !booking.viewed);
+  const recentlyUpdatedBookings = bookings.filter(
+    booking => booking.viewed && recentlyUpdatedBookingIds.includes(booking.id)
+  );
   
   // Filter viewed bookings based on search term
   const filteredViewedBookings = bookings
     .filter(booking => booking.viewed)
+    .filter(booking => !recentlyUpdatedBookingIds.includes(booking.id)) // Exclude recently updated
     .filter(booking => 
       searchTerm === '' ? false : // Don't show any if no search term
       booking.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -253,8 +291,60 @@ const BookingList = () => {
               </div>
             )}
 
-            {/* Separator between sections if both are visible */}
-            {newBookings.length > 0 && filteredViewedBookings.length > 0 && (
+            {/* Recently Updated Bookings Section */}
+            {recentlyUpdatedBookings.length > 0 && (
+              <div className="mb-8">
+                <div className="flex items-center mb-4">
+                  <h2 className="text-xl font-semibold text-[#2d3748]">Uppdaterade bokningar</h2>
+                  <Badge className="ml-2 bg-[#22C55E] hover:bg-[#16A34A]">
+                    {recentlyUpdatedBookings.length}
+                  </Badge>
+                </div>
+                <Card className="overflow-hidden border-0 shadow-md rounded-lg">
+                  <Table>
+                    <TableHeader className="bg-[#DCFCE7]">
+                      <TableRow>
+                        <TableHead className="text-[#2d3748]">Booking ID</TableHead>
+                        <TableHead className="text-[#2d3748]">Client</TableHead>
+                        <TableHead className="text-[#2d3748]">Rig day date</TableHead>
+                        <TableHead className="text-[#2d3748]">Event date</TableHead>
+                        <TableHead className="text-[#2d3748]">Rig down date</TableHead>
+                        <TableHead className="text-[#2d3748]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {recentlyUpdatedBookings.map((booking) => (
+                        <TableRow 
+                          key={booking.id} 
+                          className="hover:bg-[#F0FDF4] cursor-pointer" 
+                          onClick={() => handleRowClick(booking.id)}
+                        >
+                          <TableCell className="font-medium text-[#2d3748]">{booking.id}</TableCell>
+                          <TableCell>{booking.client}</TableCell>
+                          <TableCell>{booking.rigDayDate}</TableCell>
+                          <TableCell>{booking.eventDate}</TableCell>
+                          <TableCell>{booking.rigDownDate}</TableCell>
+                          <TableCell>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={(e) => handleMarkAsViewed(booking.id, e)}
+                              className="text-xs bg-[#F0FDF4]"
+                            >
+                              Mark as reviewed
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Card>
+              </div>
+            )}
+
+            {/* Separator between sections if multiple sections are visible */}
+            {((newBookings.length > 0 || recentlyUpdatedBookings.length > 0) && 
+              filteredViewedBookings.length > 0) && (
               <Separator className="my-6" />
             )}
 
@@ -294,12 +384,12 @@ const BookingList = () => {
             )}
 
             {/* Message when no bookings are found */}
-            {newBookings.length === 0 && filteredViewedBookings.length === 0 && (
+            {newBookings.length === 0 && recentlyUpdatedBookings.length === 0 && filteredViewedBookings.length === 0 && (
               <Card className="p-8 text-center border-0 shadow-md rounded-lg">
                 <p className="text-gray-500 mb-4">
                   {searchTerm 
                     ? 'No bookings found matching your search criteria.' 
-                    : 'No new bookings found. Enter a search term to find existing bookings.'}
+                    : 'No new or updated bookings found. Enter a search term to find existing bookings.'}
                 </p>
                 <Button 
                   onClick={handleImportBookings} 
