@@ -121,7 +121,7 @@ serve(async (req) => {
         // Check if booking already exists
         const { data: existingBooking } = await supabaseClient
           .from('bookings')
-          .select('id, viewed')
+          .select('id')
           .eq('id', externalBooking.booking_number)
           .maybeSingle()
 
@@ -136,8 +136,7 @@ serve(async (req) => {
                           (externalBooking.location ? `${externalBooking.location}` : null), // Use delivery_address or location
           internalnotes: externalBooking.internal_notes,
           created_at: externalBooking.created_at || new Date().toISOString(),
-          updated_at: externalBooking.updated_at || new Date().toISOString(),
-          viewed: existingBooking?.viewed || false // Preserve viewed status or set to false for new bookings
+          updated_at: externalBooking.updated_at || new Date().toISOString()
         }
 
         // Insert or update booking
@@ -158,13 +157,10 @@ serve(async (req) => {
           
           console.log(`Updated existing booking ${externalBooking.booking_number}`)
         } else {
-          // Insert new booking (with viewed = false for new bookings)
+          // Insert new booking
           const { error: insertError } = await supabaseClient
             .from('bookings')
-            .insert({
-              ...bookingData,
-              viewed: false // Always mark new bookings as unviewed
-            })
+            .insert(bookingData)
 
           if (insertError) {
             throw new Error(`Failed to insert booking: ${insertError.message}`)
@@ -214,7 +210,7 @@ serve(async (req) => {
           }
         }
 
-        // Automatically create calendar events for each booking
+        // Create calendar events
         await createCalendarEvents(supabaseClient, {
           id: externalBooking.booking_number,
           client: externalBooking.clients?.name,
@@ -261,74 +257,20 @@ serve(async (req) => {
 // Helper function to create calendar events for a booking
 async function createCalendarEvents(supabase, booking) {
   const events = []
-  
-  // Find an available team
-  const findAvailableTeam = async (date) => {
-    if (!date) return 'team-1';
-    
-    try {
-      // Get all teams in a preferred order
-      const teams = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5'];
-      
-      // Create date range for the event day (9 AM to 5 PM)
-      const startDate = new Date(date);
-      startDate.setHours(9, 0, 0, 0);
-      const endDate = new Date(date);
-      endDate.setHours(17, 0, 0, 0);
-      
-      // Get all events on that day
-      const { data: existingEvents } = await supabase
-        .from('calendar_events')
-        .select('resource_id')
-        .gte('start_time', startDate.toISOString())
-        .lte('end_time', endDate.toISOString());
-      
-      // If no events, use the first team
-      if (!existingEvents || existingEvents.length === 0) {
-        return teams[0];
-      }
-      
-      // Count events per team
-      const teamCounts = {};
-      existingEvents.forEach(event => {
-        const teamId = event.resource_id;
-        teamCounts[teamId] = (teamCounts[teamId] || 0) + 1;
-      });
-      
-      // Find the team with the fewest events
-      let bestTeam = teams[0];
-      let lowestCount = Number.MAX_SAFE_INTEGER;
-      
-      for (const team of teams) {
-        const count = teamCounts[team] || 0;
-        if (count < lowestCount) {
-          lowestCount = count;
-          bestTeam = team;
-        }
-      }
-      
-      return bestTeam;
-    } catch (error) {
-      console.error('Error finding available team:', error);
-      return 'team-1'; // Default fallback
-    }
-  };
+  const teamId = 'team-1' // Default team
   
   // Function to create a single event
   async function createEvent(date, eventType) {
-    if (!date) return null;
+    if (!date) return null
 
     // Create a start date (9 AM) and end date (5 PM)
-    const startDate = new Date(date);
-    startDate.setHours(9, 0, 0, 0);
+    const startDate = new Date(date)
+    startDate.setHours(9, 0, 0, 0)
     
-    const endDate = new Date(date);
-    endDate.setHours(17, 0, 0, 0);
+    const endDate = new Date(date)
+    endDate.setHours(17, 0, 0, 0)
 
-    const title = `${booking.id}: ${booking.client}`;
-    
-    // Find the best team for this event
-    const teamId = await findAvailableTeam(date);
+    const title = `${booking.id}: ${booking.client}`
     
     const eventData = {
       resource_id: teamId,
@@ -337,7 +279,7 @@ async function createCalendarEvents(supabase, booking) {
       start_time: startDate.toISOString(),
       end_time: endDate.toISOString(),
       event_type: eventType
-    };
+    }
     
     // Check if event already exists
     const { data: existingEvent } = await supabase
@@ -345,45 +287,45 @@ async function createCalendarEvents(supabase, booking) {
       .select('id')
       .eq('booking_id', booking.id)
       .eq('event_type', eventType)
-      .maybeSingle();
+      .maybeSingle()
     
     if (existingEvent) {
       // Update existing event
       const { error } = await supabase
         .from('calendar_events')
         .update(eventData)
-        .eq('id', existingEvent.id);
+        .eq('id', existingEvent.id)
         
-      if (error) throw error;
-      return existingEvent.id;
+      if (error) throw error
+      return existingEvent.id
     } else {
       // Insert new event
       const { data, error } = await supabase
         .from('calendar_events')
         .insert(eventData)
         .select('id')
-        .single();
+        .single()
       
-      if (error) throw error;
-      return data.id;
+      if (error) throw error
+      return data.id
     }
   }
   
   // Create the three event types if dates exist
   if (booking.rigdaydate) {
-    const rigEventId = await createEvent(booking.rigdaydate, 'rig');
-    if (rigEventId) events.push(rigEventId);
+    const rigEventId = await createEvent(booking.rigdaydate, 'rig')
+    if (rigEventId) events.push(rigEventId)
   }
   
   if (booking.eventdate) {
-    const mainEventId = await createEvent(booking.eventdate, 'event');
-    if (mainEventId) events.push(mainEventId);
+    const mainEventId = await createEvent(booking.eventdate, 'event')
+    if (mainEventId) events.push(mainEventId)
   }
   
   if (booking.rigdowndate) {
-    const rigDownEventId = await createEvent(booking.rigdowndate, 'rigDown');
-    if (rigDownEventId) events.push(rigDownEventId);
+    const rigDownEventId = await createEvent(booking.rigdowndate, 'rigDown')
+    if (rigDownEventId) events.push(rigDownEventId)
   }
   
-  return events;
+  return events
 }

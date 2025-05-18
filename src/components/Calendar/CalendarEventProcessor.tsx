@@ -30,23 +30,20 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]) =>
 
   // Process events to add color based on event type
   const processed = eventsWithValidResources.map(event => {
-    // Get proper color for the event type
-    const eventType = event.eventType || 'event';
-    const backgroundColor = event.color || getEventColor(eventType);
-    const textColor = '#000000'; // Black text for all events
+    // Log event type for debugging
+    console.log(`Processing event ${event.id}, type: ${event.eventType}`);
+    
+    const backgroundColor = getEventColor(event.eventType);
     
     return {
       ...event,
-      backgroundColor, // Set background color directly on the event
+      backgroundColor: backgroundColor,
       borderColor: backgroundColor,
-      textColor,
-      // Don't use classNames array as it may not work properly
+      textColor: '#000000e6', // Black text for all events
+      classNames: [`event-${event.eventType || 'default'}`],
       extendedProps: {
         ...event,
-        eventType, // Ensure eventType is passed through
-        bookingId: event.bookingId,
-        viewed: event.viewed,
-        dataEventType: eventType // Add as data attribute
+        dataEventType: event.eventType // Add as data attribute
       }
     };
   });

@@ -1,118 +1,251 @@
 
-/* General calendar styles */
+/* Calendar styling with teal theme */
+.fc .fc-button-primary {
+  background-color: #7BAEBF !important;
+  border-color: #7BAEBF !important;
+  color: white !important;
+}
+
+.fc .fc-button-primary:hover {
+  background-color: #6E9DAC !important;
+  border-color: #6E9DAC !important;
+}
+
+.fc .fc-button-primary:not(:disabled).fc-button-active,
+.fc .fc-button-primary:not(:disabled):active {
+  background-color: #6E9DAC !important;
+  border-color: #6E9DAC !important;
+}
+
+.fc .fc-button-primary:disabled {
+  background-color: #7BAEBF !important;
+  border-color: #7BAEBF !important;
+  opacity: 0.65;
+}
+
+/* Calendar container styling */
 .calendar-container {
-  width: 100%;
-  min-height: 500px;
-  margin-bottom: 20px;
+  border-radius: 8px;
+  background: white;
+  position: relative;
+  overflow: visible !important; /* Changed from auto to visible */
+  height: auto !important;
+  min-height: 750px !important; /* Fixed height */
 }
 
-/* Make sure the container expands to fit its contents */
-.container {
-  width: 100% !important;
-  max-width: 1400px !important;
-  margin: 0 auto;
+/* Make all time slots visible */
+.fc-timegrid-slot {
+  height: 30px !important; /* Reduce height to fit all slots */
 }
 
-/* Team resources styling */
-.team-resource-card {
-  transition: all 0.2s ease-in-out;
+/* Calendar header styling */
+.fc .fc-toolbar-title {
+  color: var(--text-primary);
+}
+
+/* Event styling */
+.fc-event {
+  border-radius: 4px !important;
   cursor: pointer;
 }
 
-.team-resource-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+/* Weekend day styling */
+.fc-day-sat, .fc-day-sun {
+  background-color: rgba(0, 0, 0, 0.02);
 }
 
-.team-resource-card.active {
-  border-color: #3b82f6;
-  background-color: #eff6ff;
+/* Event type color styling - Updated to target all event types in all views */
+.event-rig,
+.fc-event[class*="event-rig"],
+.fc-daygrid-event[data-event-type="rig"],
+.fc-timegrid-event[data-event-type="rig"],
+.fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="rig"],
+.fc-event.fc-event-start.fc-event-end.fc-event-future.fc-timegrid-event[style*="rig"] {
+  background-color: #F2FCE2 !important; /* Light green for rig events */
+  border-color: #D4EAB5 !important;
+  color: #000000e6 !important; /* Black text */
 }
 
-/* Custom event styling for different event types */
-.fc-event[data-event-type="rig"] {
-  background-color: #F2FCE2 !important;
-  border-left: 3px solid #5B8C32 !important;
-  color: #000000 !important;
+.event-event,
+.fc-event[class*="event-event"],
+.fc-daygrid-event[data-event-type="event"],
+.fc-timegrid-event[data-event-type="event"],
+.fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="event"],
+.fc-event.fc-event-start.fc-event-end.fc-event-future.fc-timegrid-event[style*="event"] {
+  background-color: #FEF7CD !important; /* Light yellow for events */
+  border-color: #F3E8A3 !important;
+  color: #000000e6 !important; /* Black text */
 }
 
-.fc-event[data-event-type="event"] {
-  background-color: #FEF7CD !important;
-  border-left: 3px solid #D4AF37 !important;
-  color: #000000 !important;
+.event-rigDown,
+.fc-event[class*="event-rigDown"],
+.fc-daygrid-event[data-event-type="rigDown"],
+.fc-timegrid-event[data-event-type="rigDown"],
+.fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="rigDown"],
+.fc-event.fc-event-start.fc-event-end.fc-event-future.fc-timegrid-event[style*="rigDown"] {
+  background-color: #FEC6A1 !important; /* Updated to use the light red color */
+  border-color: #FEB190 !important;
+  color: #000000e6 !important; /* Black text */
 }
 
-.fc-event[data-event-type="rigDown"] {
-  background-color: #FFDEE2 !important;
-  border-left: 3px solid #D43762 !important;
-  color: #000000 !important;
+/* Loading state styling */
+.calendar-loading {
+  height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4a5568;
+  font-size: 16px;
 }
 
-/* Default event styling */
-.fc-event {
-  cursor: pointer !important;
+/* Event hover effect */
+.fc-event:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+  transition: all 0.2s ease;
+}
+
+/* Month view specific styles */
+.fc-dayGridMonth-view .fc-daygrid-event {
+  margin-top: 1px;
+  margin-bottom: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Month view "more" button styling */
+.fc-daygrid-more-link {
+  color: var(--primary) !important;
+  font-weight: 600;
+  text-decoration: none !important;
+}
+
+/* Month view today highlight */
+.fc-day-today {
+  background-color: rgba(123, 174, 191, 0.1) !important;
+}
+
+/* Adjust event spacing for month view */
+.fc-daygrid-event-harness {
+  margin-top: 1px !important;
+  margin-bottom: 1px !important;
+}
+
+/* Add specific styles for timegrid events (day view) */
+.fc-timegrid-event {
   border-radius: 4px !important;
-  margin: 1px 1px !important;
-  padding: 0 4px !important;
-  font-size: 0.8rem !important;
-}
-
-/* New booking highlight */
-.new-booking-event {
-  box-shadow: 0 0 0 2px #3b82f6 !important;
-  border-radius: 4px !important;
-  position: relative !important;
-}
-
-.new-booking-event::after {
-  content: '•';
-  position: absolute;
-  top: 2px;
-  right: 4px;
-  font-size: 14px;
-  color: #3b82f6;
-  font-weight: bold;
-}
-
-/* Ensure side-by-side events don't overlap */
-.fc-timegrid-event-harness {
-  margin-right: 2px !important;
-}
-
-/* Make sure calendar events can fit side-by-side properly when they don't overlap */
-.fc-timegrid-col-events {
-  display: flex !important;
-  flex-direction: column !important;
-}
-
-/* Ensure event text is still readable when events are side-by-side */
-.fc-event-title {
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-  font-size: 0.75rem !important;
-}
-
-/* Fix for stacked events display */
-.fc .fc-timegrid-event {
-  display: flex !important;
-  flex-direction: column !important;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-}
-
-/* Force calendar to respect our styling */
-.fc-event-main {
+  margin: 1px 0 !important;
   padding: 2px 4px !important;
 }
 
-/* Responsive styles for mobile */
+/* Highlight current time line */
+.fc-timegrid-now-indicator-line {
+  border-color: var(--primary) !important;
+}
+
+/* Add a pointer cursor to date cells to indicate they're clickable */
+.fc-daygrid-day, 
+.fc-timegrid-slot-lane {
+  cursor: pointer;
+}
+
+/* Make sure events are visible in day view */
+.fc-timegrid-event-harness {
+  z-index: 5;
+}
+
+/* Ensure resource info is visible */
+.fc-event-resource {
+  opacity: 0.7;
+  font-style: italic;
+  margin-top: 2px;
+}
+
+/* Remove scrolling behavior and show all content */
+.fc-scroller {
+  overflow: visible !important;
+  height: auto !important;
+}
+
+.fc-scroller-liquid-absolute {
+  position: relative !important;
+  overflow: visible !important;
+  height: auto !important;
+}
+
+.fc-view-harness, .fc-view-harness-active {
+  height: auto !important;
+  overflow: visible !important;
+}
+
+.fc-time-grid-container {
+  height: auto !important;
+  overflow: visible !important;
+}
+
+/* Improve time slot appearance */
+.fc-time-grid-slot {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+/* Mobile responsive styles */
 @media (max-width: 768px) {
-  .fc-event-title {
-    font-size: 0.7rem !important;
+  .fc .fc-toolbar-title {
+    font-size: 1.2rem !important;
+  }
+  
+  .fc .fc-button {
+    padding: 0.2rem 0.4rem !important;
+    font-size: 0.8rem !important;
   }
   
   .fc-header-toolbar {
-    flex-wrap: wrap !important;
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
+  
+  .fc-timegrid-slot {
+    height: 25px !important; /* Even smaller for mobile */
+  }
+  
+  .fc-timegrid-event {
+    padding: 1px 2px !important;
+  }
+  
+  .fc-timegrid-event .fc-event-title {
+    font-size: 0.8rem;
+  }
+  
+  .fc-timegrid-event .fc-event-time {
+    font-size: 0.7rem;
+  }
+}
+
+/* Resource label styling */
+.resource-label {
+  display: flex;
+  flex-direction: column;
+}
+
+.resource-title {
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+/* Set width for resource timeline headers */
+.fc-datagrid-header .fc-datagrid-cell-frame {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+}
+
+/* Group header styling */
+.fc-theme-standard .fc-scrollgrid {
+  border: 1px solid #ddd;
+}
+
+/* Override root styling */
+#root {
+  transform-origin: top center;
 }

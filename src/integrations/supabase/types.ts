@@ -87,7 +87,6 @@ export type Database = {
           rigdaydate: string | null
           rigdowndate: string | null
           updated_at: string
-          viewed: boolean
         }
         Insert: {
           client: string
@@ -99,7 +98,6 @@ export type Database = {
           rigdaydate?: string | null
           rigdowndate?: string | null
           updated_at?: string
-          viewed?: boolean
         }
         Update: {
           client?: string
@@ -111,7 +109,6 @@ export type Database = {
           rigdaydate?: string | null
           rigdowndate?: string | null
           updated_at?: string
-          viewed?: boolean
         }
         Relationships: []
       }
@@ -125,7 +122,6 @@ export type Database = {
           resource_id: string
           start_time: string
           title: string
-          viewed: boolean | null
         }
         Insert: {
           booking_id?: string | null
@@ -136,7 +132,6 @@ export type Database = {
           resource_id: string
           start_time: string
           title: string
-          viewed?: boolean | null
         }
         Update: {
           booking_id?: string | null
@@ -147,7 +142,6 @@ export type Database = {
           resource_id?: string
           start_time?: string
           title?: string
-          viewed?: boolean | null
         }
         Relationships: [
           {

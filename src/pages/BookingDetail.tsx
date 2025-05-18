@@ -2,17 +2,18 @@ import React, { useEffect, useContext, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CalendarContext } from '@/App';
-import { fetchBookingById, updateBookingDates, markBookingAsViewed } from '@/services/bookingService';
+import { fetchBookingById, updateBookingDates } from '@/services/bookingService';
+import { syncBookingEvents } from '@/services/bookingCalendarService';
 import { Booking } from '@/types/booking';
-import { CalendarIcon, Clock, FileText, User, FileImage, Package, Paperclip } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, FileText, User, FileImage, Package, Paperclip, Save } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/integrations/supabase/client';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 
 const BookingDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -22,7 +23,8 @@ const BookingDetail = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isNewBooking, setIsNewBooking] = useState(false);
+  const [isSyncingToCalendar, setIsSyncingToCalendar] = useState(false);
+  const [autoSync, setAutoSync] = useState(false);
   
   // States for date selection
   const [selectedRigDate, setSelectedRigDate] = useState<Date | undefined>(undefined);
@@ -37,14 +39,6 @@ const BookingDetail = () => {
         setIsLoading(true);
         const bookingData = await fetchBookingById(id);
         setBooking(bookingData);
-        
-        // Check if this is a new/unviewed booking
-        setIsNewBooking(!bookingData.viewed);
-        
-        // If booking is not viewed yet, mark it as viewed
-        if (!bookingData.viewed) {
-          await markBookingAsViewed(id);
-        }
         
         // Initialize date states from booking data
         if (bookingData.rigDayDate) {
@@ -69,66 +63,6 @@ const BookingDetail = () => {
     
     loadBookingData();
   }, [id]);
-  
-  // Subscribe to real-time updates for this booking
-  useEffect(() => {
-    if (!id) return;
-    
-    console.log('Setting up real-time subscription for booking updates');
-    
-    const channel = supabase
-      .channel(`booking-${id}-updates`)
-      .on('postgres_changes', 
-        { 
-          event: 'UPDATE', 
-          schema: 'public', 
-          table: 'bookings',
-          filter: `id=eq.${id}`
-        }, 
-        (payload) => {
-          console.log('Real-time booking update received:', payload);
-          
-          // Update our local state based on the database change
-          if (payload.new) {
-            // Transform the booking data to match our format
-            const updatedBooking: Booking = {
-              id: payload.new.id,
-              client: payload.new.client,
-              rigDayDate: payload.new.rigdaydate,
-              eventDate: payload.new.eventdate,
-              rigDownDate: payload.new.rigdowndate,
-              deliveryAddress: payload.new.deliveryaddress,
-              internalNotes: payload.new.internalnotes,
-              viewed: payload.new.viewed,
-              // Preserve existing products and attachments
-              products: booking?.products || [],
-              attachments: booking?.attachments || []
-            };
-            
-            // Update local state
-            setBooking(updatedBooking);
-            
-            // Update date states
-            if (updatedBooking.rigDayDate) {
-              setSelectedRigDate(new Date(updatedBooking.rigDayDate));
-            }
-            if (updatedBooking.eventDate) {
-              setSelectedEventDate(new Date(updatedBooking.eventDate));
-            }
-            if (updatedBooking.rigDownDate) {
-              setSelectedRigDownDate(new Date(updatedBooking.rigDownDate));
-            }
-            
-            toast.info('Booking details have been updated');
-          }
-        })
-      .subscribe();
-      
-    // Cleanup subscription on unmount
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [id, booking]);
   
   const handleBack = () => {
     if (lastPath) {
@@ -172,11 +106,47 @@ const BookingDetail = () => {
       
       toast.success(`${dateType === 'rigDayDate' ? 'Rig day' : dateType === 'eventDate' ? 'Event day' : 'Rig down day'} updated successfully`);
       
+      // If autoSync is enabled, automatically sync to calendar
+      if (autoSync) {
+        await syncWithCalendar();
+      }
     } catch (err) {
       console.error(`Error updating ${dateType}:`, err);
       toast.error(`Failed to update ${dateType === 'rigDayDate' ? 'rig day' : dateType === 'eventDate' ? 'event day' : 'rig down day'}`);
     } finally {
       setIsSaving(false);
+    }
+  };
+  
+  const syncWithCalendar = async () => {
+    if (!booking || !id) return;
+    
+    setIsSyncingToCalendar(true);
+    
+    try {
+      // Create or update calendar events for each date
+      const syncPromises = [];
+      
+      if (booking.rigDayDate) {
+        syncPromises.push(syncBookingEvents(id, 'rig', booking.rigDayDate, 'auto', booking.client));
+      }
+      
+      if (booking.eventDate) {
+        syncPromises.push(syncBookingEvents(id, 'event', booking.eventDate, 'auto', booking.client));
+      }
+      
+      if (booking.rigDownDate) {
+        syncPromises.push(syncBookingEvents(id, 'rigDown', booking.rigDownDate, 'auto', booking.client));
+      }
+      
+      await Promise.all(syncPromises);
+      
+      toast.success('Booking synced to calendar successfully');
+    } catch (err) {
+      console.error('Error syncing with calendar:', err);
+      toast.error('Failed to sync booking with calendar');
+    } finally {
+      setIsSyncingToCalendar(false);
     }
   };
   
@@ -268,20 +238,24 @@ const BookingDetail = () => {
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-4xl mx-auto bg-white rounded-lg shadow p-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold">Booking Details: #{id}</h1>
-            {isNewBooking && (
-              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                New
-              </Badge>
-            )}
+          <h1 className="text-2xl font-bold">Booking Details: #{id}</h1>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={syncWithCalendar}
+              disabled={isSyncingToCalendar || !booking}
+              className="whitespace-nowrap"
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {isSyncingToCalendar ? 'Saving...' : 'Save to Calendar'}
+            </Button>
+            <Button 
+              onClick={handleBack}
+              className="whitespace-nowrap"
+            >
+              Back to Calendar
+            </Button>
           </div>
-          <Button 
-            onClick={handleBack}
-            className="whitespace-nowrap"
-          >
-            Back to Calendar
-          </Button>
         </div>
         
         {booking ? (
@@ -316,8 +290,18 @@ const BookingDetail = () => {
                   <CalendarIcon className="h-5 w-5" />
                   <span>Schedule</span>
                 </CardTitle>
-                <div className="text-sm text-muted-foreground">
-                  Changes are automatically synced to calendar
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="auto-sync"
+                    checked={autoSync}
+                    onCheckedChange={setAutoSync}
+                  />
+                  <label
+                    htmlFor="auto-sync"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Auto sync to calendar
+                  </label>
                 </div>
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
@@ -340,6 +324,11 @@ const BookingDetail = () => {
                   dateType="rigDownDate"
                 />
               </CardContent>
+              {!autoSync && (
+                <div className="px-6 pb-4 text-sm text-muted-foreground">
+                  Note: Changes to dates will not appear in the calendar until you click "Save to Calendar"
+                </div>
+              )}
             </Card>
 
             {/* Internal Notes if any */}

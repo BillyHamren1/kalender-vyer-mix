@@ -34,15 +34,6 @@ export const syncBookingEvents = async (
   // Simplified title with no day text, just booking ID and client name
   const title = `${bookingId}: ${client}`;
   
-  // Check the viewed status of the booking
-  const { data: bookingData } = await supabase
-    .from('bookings')
-    .select('viewed')
-    .eq('id', bookingId)
-    .single();
-  
-  const isViewed = bookingData?.viewed || false;
-  
   // Prepare the data to be saved
   const eventData = {
     resource_id: teamId,
@@ -50,8 +41,7 @@ export const syncBookingEvents = async (
     end_time: endDate.toISOString(),
     title: title,
     event_type: eventType,
-    booking_id: bookingId,
-    viewed: isViewed  // Add the viewed status to the event
+    booking_id: bookingId
   };
 
   console.log("Creating/updating calendar event:", eventData);
@@ -109,7 +99,6 @@ export const fetchEventsByBookingId = async (bookingId: string) => {
     end: event.end_time,
     title: event.title,
     eventType: event.event_type,
-    bookingId: event.booking_id,
-    viewed: event.viewed || false // Explicitly handle null/undefined viewed value
+    bookingId: event.booking_id
   })) || [];
 };

@@ -83,19 +83,6 @@ export const fetchBookingById = async (id: string): Promise<Booking> => {
   };
 };
 
-// Mark a booking as viewed
-export const markBookingAsViewed = async (id: string): Promise<void> => {
-  const { error } = await supabase
-    .from('bookings')
-    .update({ viewed: true, updated_at: new Date().toISOString() })
-    .eq('id', id);
-
-  if (error) {
-    console.error('Error marking booking as viewed:', error);
-    throw error;
-  }
-};
-
 // Update booking dates
 export const updateBookingDates = async (
   id: string,

@@ -22,6 +22,5 @@ export interface Booking {
   deliveryAddress?: string;
   products?: BookingProduct[];
   internalNotes?: string;
-  attachments?: BookingAttachment[];
-  viewed?: boolean; // Added to track if a booking has been viewed
+  attachments?: BookingAttachment[]; // Updated to use the BookingAttachment interface
 }

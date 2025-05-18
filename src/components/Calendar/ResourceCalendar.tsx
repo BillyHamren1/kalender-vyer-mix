@@ -10,8 +10,6 @@ import { useCalendarEventHandlers } from '@/hooks/useCalendarEventHandlers';
 import { processEvents } from './CalendarEventProcessor';
 import { getCalendarViews, getCalendarOptions, getHeaderToolbar } from './CalendarConfig';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
 
 interface ResourceCalendarProps {
   events: CalendarEvent[];
@@ -35,130 +33,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   const { handleEventChange, handleEventClick } = useCalendarEventHandlers(resources);
   const isMobile = useIsMobile();
   const [currentView, setCurrentView] = useState<string>("resourceTimeGridDay");
-  const [localEvents, setLocalEvents] = useState<CalendarEvent[]>(events);
-
-  // Initialize with props events
-  useEffect(() => {
-    setLocalEvents(events);
-  }, [events]);
-
-  // Subscribe to real-time updates for calendar_events
-  useEffect(() => {
-    console.log('Setting up real-time subscription for calendar events');
-    
-    const channel = supabase
-      .channel('calendar-updates')
-      .on('postgres_changes', 
-        { 
-          event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
-          schema: 'public', 
-          table: 'calendar_events' 
-        }, 
-        (payload) => {
-          console.log('Real-time calendar event update received:', payload);
-          
-          // Handle different event types
-          if (payload.eventType === 'INSERT') {
-            const newEvent = transformDatabaseEvent(payload.new);
-            console.log('Adding new event to calendar:', newEvent);
-            setLocalEvents(prev => [...prev, newEvent]);
-            toast.info('New calendar event added');
-          } 
-          else if (payload.eventType === 'UPDATE') {
-            const updatedEvent = transformDatabaseEvent(payload.new);
-            console.log('Updating event in calendar:', updatedEvent);
-            setLocalEvents(prev => 
-              prev.map(event => event.id === updatedEvent.id ? updatedEvent : event)
-            );
-          } 
-          else if (payload.eventType === 'DELETE') {
-            console.log('Deleting event from calendar:', payload.old.id);
-            setLocalEvents(prev => 
-              prev.filter(event => event.id !== payload.old.id)
-            );
-            toast.info('Calendar event removed');
-          }
-          
-          // Force calendar to rerender
-          if (calendarRef.current) {
-            calendarRef.current.getApi().render();
-          }
-        })
-      .subscribe();
-      
-    // Cleanup subscription on unmount
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  // Subscribe to real-time updates for bookings
-  useEffect(() => {
-    console.log('Setting up real-time subscription for bookings');
-    
-    const channel = supabase
-      .channel('booking-updates')
-      .on('postgres_changes', 
-        { 
-          event: 'INSERT', // Only listen for new bookings
-          schema: 'public', 
-          table: 'bookings' 
-        }, 
-        (payload) => {
-          console.log('New booking received:', payload.new);
-          
-          // Show toast notification for new booking
-          toast.success('New booking received', {
-            description: `Booking #${payload.new.id} for ${payload.new.client}`,
-            action: {
-              label: 'View',
-              onClick: () => {
-                window.location.href = `/booking/${payload.new.id}`;
-              }
-            },
-            duration: 8000
-          });
-        })
-      .subscribe();
-      
-    // Cleanup subscription on unmount
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  // Transform database event to calendar event format
-  const transformDatabaseEvent = (dbEvent: any): CalendarEvent => {
-    // Map resource_id to application format (team-X)
-    const resourceId = dbEvent.resource_id.startsWith('team-') 
-      ? dbEvent.resource_id 
-      : `team-${dbEvent.resource_id}`;
-    
-    const eventType = dbEvent.event_type as 'rig' | 'event' | 'rigDown';
-    
-    // Get event color based on type
-    const getEventColor = (type: 'rig' | 'event' | 'rigDown') => {
-      switch(type) {
-        case 'rig': return '#F2FCE2';
-        case 'event': return '#FEF7CD';
-        case 'rigDown': return '#FFDEE2';
-        default: return '#E2F5FC';
-      }
-    };
-    
-    return {
-      id: dbEvent.id,
-      resourceId: resourceId,
-      title: dbEvent.title,
-      start: dbEvent.start_time,
-      end: dbEvent.end_time,
-      eventType: eventType,
-      bookingId: dbEvent.booking_id,
-      color: getEventColor(eventType),
-      className: dbEvent.booking_id && !dbEvent.viewed ? 'new-booking-event' : '',
-      viewed: dbEvent.viewed
-    };
-  };
 
   // Log events and resources for debugging
   useEffect(() => {
@@ -184,7 +58,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   }, [events, resources]);
 
   // Process events to ensure valid resources and add styling
-  const processedEvents = processEvents(localEvents, resources);
+  const processedEvents = processEvents(events, resources);
 
   // Log processed events for debugging
   useEffect(() => {
@@ -246,11 +120,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           if (info.event.extendedProps.eventType) {
             info.el.setAttribute('data-event-type', info.event.extendedProps.eventType);
           }
-          
-          // Add class for new bookings
-          if (info.event.extendedProps.bookingId && !info.event.extendedProps.viewed) {
-            info.el.classList.add('new-booking-event');
-          }
         }}
         eventTimeFormat={{
           hour: '2-digit',
@@ -259,8 +128,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           hour12: false,
           omitZeroMinute: false // Always show minutes even if 00
         }}
-        slotEventOverlap={false} // Prevent events from overlapping visually
-        eventMaxStack={0} // Force all events to display in parallel rather than stacking
       />
     </div>
   );
