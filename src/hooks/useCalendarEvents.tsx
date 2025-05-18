@@ -85,9 +85,18 @@ export const useCalendarEvents = () => {
       const data = await fetchCalendarEvents();
       console.log('Refreshed calendar events:', data);
       setEvents(data);
+      
+      // Force a re-render of the application - use setTimeout to ensure state is updated
+      setTimeout(() => {
+        setIsMounted(prev => !prev);
+        setIsMounted(prev => !prev);
+      }, 10);
+      
+      return data;
     } catch (error) {
       console.error('Error refreshing calendar events:', error);
       toast.error('Could not refresh calendar events');
+      return [];
     } finally {
       setIsLoading(false);
     }

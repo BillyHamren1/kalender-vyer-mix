@@ -18,6 +18,7 @@ interface ResourceCalendarProps {
   isMounted: boolean;
   currentDate: Date;
   onDateSet: (dateInfo: any) => void;
+  refreshEvents: () => Promise<void>;
 }
 
 const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
@@ -26,11 +27,12 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   isLoading,
   isMounted,
   currentDate,
-  onDateSet
+  onDateSet,
+  refreshEvents
 }) => {
   const calendarRef = useRef<any>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(currentDate);
-  const { handleEventChange, handleEventClick } = useCalendarEventHandlers(resources);
+  const { handleEventChange, handleEventClick } = useCalendarEventHandlers(resources, refreshEvents);
   const isMobile = useIsMobile();
   const [currentView, setCurrentView] = useState<string>("resourceTimeGridDay");
 

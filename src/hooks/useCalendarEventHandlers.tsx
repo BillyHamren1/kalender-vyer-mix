@@ -1,12 +1,12 @@
 
 import { useState, useContext } from 'react';
 import { toast } from 'sonner';
-import { updateCalendarEvent } from '@/services/eventService';
+import { updateCalendarEvent, fetchCalendarEvents } from '@/services/eventService';
 import { Resource } from '@/components/Calendar/ResourceData';
 import { useNavigate } from 'react-router-dom';
 import { CalendarContext } from '@/App';
 
-export const useCalendarEventHandlers = (resources: Resource[]) => {
+export const useCalendarEventHandlers = (resources: Resource[], refreshEvents?: () => Promise<void>) => {
   const navigate = useNavigate();
   const { setLastViewedDate, setLastPath } = useContext(CalendarContext);
 
@@ -49,6 +49,12 @@ export const useCalendarEventHandlers = (resources: Resource[]) => {
         toast.success("Event updated", {
           description: `Event moved to ${resourceName} at ${info.event.start.toLocaleTimeString()}`,
         });
+        
+        // Refresh the events to ensure UI displays the latest data
+        if (refreshEvents) {
+          console.log('Refreshing events after update');
+          await refreshEvents();
+        }
       } else {
         console.error('No event ID found for the moved event');
         toast.error('Could not update event');
