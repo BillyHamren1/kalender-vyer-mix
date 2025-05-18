@@ -1,3 +1,4 @@
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
@@ -24,6 +25,7 @@ serve(async (req) => {
     // Get the external API key for the bookings API
     const EXTERNAL_BOOKING_API_KEY = Deno.env.get('EXTERNAL_BOOKING_API_KEY')
     if (!EXTERNAL_BOOKING_API_KEY) {
+      console.error('Missing EXTERNAL_BOOKING_API_KEY in environment variables')
       return new Response(
         JSON.stringify({ error: 'External booking API key not configured' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }

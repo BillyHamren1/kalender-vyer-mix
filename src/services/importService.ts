@@ -27,6 +27,10 @@ export interface ImportFilters {
  */
 export const importBookings = async (filters: ImportFilters = {}): Promise<ImportResults> => {
   try {
+    toast.info('Connecting to external booking system...', {
+      duration: 3000,
+    });
+    
     // Call the Supabase Edge Function without custom Authorization header
     // The supabase client will automatically include authentication
     const { data: secretData, error: secretError } = await supabase.functions.invoke(
@@ -42,6 +46,15 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
       return {
         success: false,
         error: `Import failed: ${secretError.message}`,
+      };
+    }
+
+    // Check if the response contains an error field
+    if (secretData && secretData.error) {
+      console.error('Error returned from import function:', secretData.error);
+      return {
+        success: false,
+        error: `Import error: ${secretData.error}`,
       };
     }
 
