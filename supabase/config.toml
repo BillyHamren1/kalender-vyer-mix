@@ -1,59 +1,107 @@
 
+# A string used to distinguish different Supabase projects on the same host. Defaults to the working
+# directory name when running `supabase init`.
 project_id = "pihrhltinhewhoxefjxv"
+organization_id = "org_123"
 
 [api]
-enabled = true
+# Port to use for the API URL.
 port = 54321
-schemas = ["public", "storage"]
-extra_search_path = ["public", "extensions"]
+# Schemas to expose in your API. Tables, views and stored procedures in this schema will get API
+# endpoints. public and storage are always included.
+schemas = ["public", "storage", "extensions"]
+# Extra schemas to add to the search_path of every request. public is always included.
+extra_search_path = ["extensions"]
+# Maximum rows to return from a view, table, or stored procedure. Limits payload size for accidental
+# or malicious requests.
 max_rows = 1000
 
 [db]
+# Port to use for the local database URL.
 port = 54322
-shadow_port = 54320
+# The database major version to use. This has to be the same as your remote database's. Run `SHOW
+# server_version;` on the remote database to check.
 major_version = 15
 
 [studio]
-enabled = true
+# Port to use for Supabase Studio.
 port = 54323
-api_url = "http://127.0.0.1:54321"
 
+# Email testing server. Emails sent with the local dev setup are not actually sent - rather, they
+# are monitored, and you can view the emails that would have been sent from the web interface.
 [inbucket]
-enabled = true
+# Port to use for the email testing server web interface.
 port = 54324
 smtp_port = 54325
 pop3_port = 54326
 
 [storage]
-enabled = true
+# The maximum file size allowed (e.g. "5MB", "500KB").
 file_size_limit = "50MiB"
 
 [auth]
-enabled = true
-site_url = "http://127.0.0.1:5173"
-additional_redirect_urls = ["https://localhost:5173"]
+# The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
+# in emails.
+site_url = "http://localhost:3000"
+# A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
+additional_redirect_urls = ["https://localhost:3000"]
+# How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
-enable_refresh_token_rotation = true
-refresh_token_reuse_interval = 10
+# Allow/disallow new user signups to your project.
+enable_signup = true
+# If disabled, the first user to sign-up will be the only user allowed to sign-in in the future.
+enable_multi_user = true
 
 [auth.email]
+# Allow/disallow new user signups via email to your project.
 enable_signup = true
+# If enabled, a user will be required to confirm any email change on both the old, and new email
+# addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
+# If enabled, users need to confirm their email address before signing in.
 enable_confirmations = false
 
-[auth.sms]
-enable_signup = true
-enable_confirmations = true
+# Use an external OAuth provider. The full list of providers are: `apple`, `azure`, `bitbucket`,
+# `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin`, `notion`, `twitch`,
+# `twitter`, `slack`, `spotify`, `workos`, `zoom`.
+[auth.external.apple]
+enabled = false
+client_id = ""
+secret = ""
+# Overrides the default auth redirectUrl.
+redirect_uri = ""
+# Overrides the default auth provider URL. Used to support self-hosted gitlab, single-tenant Azure,
+# or any other third-party OIDC providers.
+url = ""
 
+[analytics]
+enabled = false
+port = 54327
+vector_port = 54328
+# Setup BigQuery project to enable log viewer on local development stack.
+# See: https://supabase.com/docs/guides/getting-started/local-development#enabling-local-logging
+gcp_project_id = ""
+gcp_project_number = ""
+gcp_jwt_path = "supabase/gcloud.json"
+
+# Functions config. Run `supabase functions help` for more details.
 [functions]
-enabled = true
-port = 54328
+# Function logs are persisted in the `/logs` folder. Enable to write logs to stdout.
+log_stdout = true
 
-[functions.staff-assignments]
+# Override the default storage configuration.
+[storage]
+# Set to 1 to reuse connections for improved performance. Frowned upon in development.
+pool_max_conns = 0
+
+[functions.import-bookings]
 verify_jwt = true
 
 [functions.export-bookings]
 verify_jwt = false
 
-[functions.import-bookings]
-verify_jwt = false
+[functions.get-api-key]
+verify_jwt = true
+
+[functions.staff-assignments]
+verify_jwt = true

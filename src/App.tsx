@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,6 +10,7 @@ import ResourceView from "./pages/ResourceView";
 import DayView from "./pages/DayView";
 import BookingList from "./pages/BookingList";
 import BookingDetail from "./pages/BookingDetail";
+import APITester from "./pages/APITester";
 import NotFound from "./pages/NotFound";
 
 // Create context to share calendar date across components
@@ -54,6 +56,7 @@ const AppContent = () => {
             <Route path="/day-view" element={<DayView />} />
             <Route path="/booking-list" element={<BookingList />} />
             <Route path="/booking/:id" element={<BookingDetail />} />
+            <Route path="/api-tester" element={<APITester />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </div>

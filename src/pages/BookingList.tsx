@@ -15,7 +15,7 @@ import { importBookings } from '@/services/importService';
 import { Booking } from '../types/booking';
 import { fetchBookings } from '@/services/bookingService';
 import { toast } from 'sonner';
-import { ArrowDown, RefreshCcw } from 'lucide-react';
+import { ArrowDown, RefreshCcw, Wrench } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const BookingList = () => {
@@ -125,6 +125,14 @@ const BookingList = () => {
             >
               <ArrowDown className="h-4 w-4" />
               {isImporting ? 'Importerar...' : 'Importera bokningar'}
+            </Button>
+            <Button 
+              onClick={() => navigate('/api-tester')} 
+              variant="secondary"
+              className="flex items-center gap-2"
+            >
+              <Wrench className="h-4 w-4" />
+              API Tester
             </Button>
           </div>
         </div>
