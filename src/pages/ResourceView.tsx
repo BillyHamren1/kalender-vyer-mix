@@ -50,7 +50,7 @@ const ResourceView = () => {
     removeTeam
   } = useTeamResources();
   
-  const { addEventToCalendar } = useEventActions(events, setEvents, resources);
+  const { addEventToCalendar, duplicateEvent } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
   const [isImporting, setIsImporting] = React.useState(false);
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);

@@ -10,6 +10,7 @@ import { useCalendarEventHandlers } from '@/hooks/useCalendarEventHandlers';
 import { processEvents } from './CalendarEventProcessor';
 import { getCalendarViews, getCalendarOptions, getHeaderToolbar } from './CalendarConfig';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useEventActions } from '@/hooks/useEventActions';
 
 interface ResourceCalendarProps {
   events: CalendarEvent[];
@@ -32,9 +33,18 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
 }) => {
   const calendarRef = useRef<any>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(currentDate);
-  const { handleEventChange, handleEventClick } = useCalendarEventHandlers(resources, refreshEvents);
   const isMobile = useIsMobile();
   const [currentView, setCurrentView] = useState<string>("resourceTimeGridDay");
+  
+  // Get the event actions hook
+  const { duplicateEvent } = useEventActions(events, () => {}, resources);
+  
+  // Use the calendar event handlers with the duplicate event function
+  const { handleEventChange, handleEventClick, DuplicateEventDialog } = useCalendarEventHandlers(
+    resources, 
+    refreshEvents,
+    duplicateEvent
+  );
 
   // Log events and resources for debugging
   useEffect(() => {
@@ -131,6 +141,9 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           omitZeroMinute: false // Always show minutes even if 00
         }}
       />
+      
+      {/* Render the duplicate dialog */}
+      <DuplicateEventDialog />
     </div>
   );
 };
