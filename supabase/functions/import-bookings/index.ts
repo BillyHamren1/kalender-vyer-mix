@@ -43,7 +43,7 @@ serve(async (req) => {
     const { startDate, endDate, clientName } = requestData
 
     // Build the URL for the external bookings API
-    const externalApiUrl = new URL("https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings")
+    const externalApiUrl = new URL("https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export-bookings")
     
     // Add query parameters if provided
     if (startDate) externalApiUrl.searchParams.append('startDate', startDate)
@@ -76,6 +76,19 @@ serve(async (req) => {
 
     // Parse the external API response
     const externalData = await externalResponse.json()
+    
+    // Check if the response has the expected structure
+    if (!externalData || !externalData.bookings || !Array.isArray(externalData.bookings)) {
+      console.error('Invalid response format from external API:', JSON.stringify(externalData))
+      return new Response(
+        JSON.stringify({ 
+          error: 'External API returned an invalid response format',
+          receivedData: externalData
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 502 }
+      )
+    }
+    
     console.log(`Received ${externalData.count} bookings from external API`)
 
     // Keep track of imports
