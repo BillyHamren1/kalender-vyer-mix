@@ -116,6 +116,7 @@ const ResourceView = () => {
             isMounted={isMounted}
             currentDate={currentDate}
             onDateSet={handleDatesSet}
+            refreshEvents={refreshEvents}
           />
         </div>
         
