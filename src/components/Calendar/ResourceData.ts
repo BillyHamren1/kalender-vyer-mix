@@ -25,6 +25,8 @@ export interface CalendarEvent {
   eventType?: 'rig' | 'event' | 'rigDown'; // Type of event for color coding
   customer?: string; // Customer name for display
   bookingNumber?: string; // Booking number for display
+  className?: string; // Added missing className property for styling
+  viewed?: boolean; // Added missing viewed property from the booking
 }
 
 // Color mappings for different event types

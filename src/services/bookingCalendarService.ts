@@ -110,6 +110,6 @@ export const fetchEventsByBookingId = async (bookingId: string) => {
     title: event.title,
     eventType: event.event_type,
     bookingId: event.booking_id,
-    viewed: event.viewed
+    viewed: event.viewed || false // Add default false value if undefined
   })) || [];
 };
