@@ -18,9 +18,13 @@ export const fetchStaffMembers = async () => {
 
 // Add a new staff member
 export const addStaffMember = async (name: string, email?: string, phone?: string) => {
+  // Generate a unique ID for the staff member
+  const id = `staff-${Date.now()}`;
+
   const { data, error } = await supabase
     .from('staff_members')
     .insert({
+      id,
       name,
       email,
       phone
