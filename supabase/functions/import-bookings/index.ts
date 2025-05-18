@@ -43,7 +43,8 @@ serve(async (req) => {
     const { startDate, endDate, clientName } = requestData
 
     // Build the URL for the external bookings API
-    const externalApiUrl = new URL("https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export-bookings")
+    // Use the same Supabase project for both functions - note the hyphen in export-bookings
+    const externalApiUrl = new URL("https://pihrhltinhewhoxefjxv.supabase.co/functions/v1/export-bookings")
     
     // Add query parameters if provided
     if (startDate) externalApiUrl.searchParams.append('startDate', startDate)

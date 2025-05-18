@@ -16,20 +16,23 @@ import { Booking } from '../types/booking';
 import { fetchBookings } from '@/services/bookingService';
 import { toast } from 'sonner';
 import { ArrowDown, RefreshCcw } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const BookingList = () => {
   const navigate = useNavigate();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
   
   // Function to load bookings
   const loadBookings = async () => {
     try {
       setIsLoading(true);
+      setImportError(null);
       const data = await fetchBookings();
       setBookings(data);
-      return true;
+      return data.length > 0;
     } catch (error) {
       console.error('Failed to load bookings:', error);
       toast.error('Failed to load bookings');
@@ -43,6 +46,7 @@ const BookingList = () => {
   const handleImportBookings = async () => {
     try {
       setIsImporting(true);
+      setImportError(null);
       toast.info('Importing bookings...', {
         description: 'Please wait while we import bookings from the external system'
       });
@@ -57,12 +61,20 @@ const BookingList = () => {
         // Reload bookings to show the newly imported ones
         await loadBookings();
       } else {
+        // Show detailed error information
+        console.error('Import failed:', result);
+        const errorMessage = result.error || 'Unknown error occurred during import';
+        const detailsMessage = result.details ? `Details: ${result.details}` : '';
+        
+        setImportError(`${errorMessage} ${detailsMessage}`);
+        
         toast.error('Import failed', {
-          description: result.error || 'Unknown error occurred during import'
+          description: errorMessage
         });
       }
     } catch (error) {
       console.error('Error during import:', error);
+      setImportError(error instanceof Error ? error.message : 'Unknown error during import');
       toast.error('Import operation failed');
     } finally {
       setIsImporting(false);
@@ -116,6 +128,19 @@ const BookingList = () => {
             </Button>
           </div>
         </div>
+        
+        {importError && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertTitle>Import Error</AlertTitle>
+            <AlertDescription>
+              {importError}
+              <div className="mt-2 text-sm">
+                Please verify that the API keys are correctly configured in the Supabase project settings
+                and that the export-bookings function is properly deployed.
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
         
         <Card className="overflow-hidden border-0 shadow-md rounded-lg">
           {isLoading ? (

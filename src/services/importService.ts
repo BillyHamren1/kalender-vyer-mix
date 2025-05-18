@@ -13,6 +13,8 @@ export interface ImportResults {
     errors?: { booking_id: string; error: string }[];
   };
   error?: string;
+  details?: string;
+  status?: number;
 }
 
 // Type for filter options
@@ -33,7 +35,7 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
     
     // Call the Supabase Edge Function without custom Authorization header
     // The supabase client will automatically include authentication
-    const { data: secretData, error: secretError } = await supabase.functions.invoke(
+    const { data: resultData, error: functionError } = await supabase.functions.invoke(
       'import-bookings',
       {
         method: 'POST',
@@ -41,26 +43,37 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
       }
     );
 
-    if (secretError) {
-      console.error('Error importing bookings:', secretError);
+    if (functionError) {
+      console.error('Error calling import-bookings function:', functionError);
       return {
         success: false,
-        error: `Import failed: ${secretError.message}`,
+        error: `Import function error: ${functionError.message}`,
       };
     }
 
-    // Check if the response contains an error field
-    if (secretData && secretData.error) {
-      console.error('Error returned from import function:', secretData.error);
+    // If we got a response but it contains an error field
+    if (resultData && resultData.error) {
+      console.error('Error returned from import function:', resultData.error);
+      
+      // More detailed error reporting
+      const details = resultData.details || '';
+      const status = resultData.status || 0;
+      
+      // Log the detailed error
+      console.error(`Import error (${status}): ${resultData.error}`, details);
+      
       return {
         success: false,
-        error: `Import error: ${secretData.error}`,
+        error: `Import error: ${resultData.error}`,
+        details: details,
+        status: status
       };
     }
 
+    // Handle successful import
     return {
       success: true,
-      results: secretData.results,
+      results: resultData.results,
     };
   } catch (error) {
     console.error('Exception during import:', error);
