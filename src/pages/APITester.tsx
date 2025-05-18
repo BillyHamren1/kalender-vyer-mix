@@ -6,8 +6,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { AlertCircle, ArrowRight, CheckCircle2 } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, Key, Globe } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogClose
+} from "@/components/ui/dialog";
 
 const APITester = () => {
   const [response, setResponse] = useState<any>(null);
@@ -17,6 +25,8 @@ const APITester = () => {
   const [clientName, setClientName] = useState('');
   const [requestUrl, setRequestUrl] = useState('');
   const [statusCode, setStatusCode] = useState<number | null>(null);
+  const [apiKey, setApiKey] = useState<string>('');
+  const [showApiKey, setShowApiKey] = useState(false);
   
   const testDirectCall = async () => {
     try {
@@ -38,6 +48,9 @@ const APITester = () => {
       if (!secretData || !secretData.apiKey) {
         throw new Error('API key not found in response');
       }
+      
+      // Store the API key for display
+      setApiKey(secretData.apiKey);
       
       // Build the URL
       const apiUrl = new URL("https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings");
@@ -114,6 +127,25 @@ const APITester = () => {
       setResponse(data);
       setStatusCode(200);
       
+      // Get the API key for display
+      const { data: secretData } = await supabase.functions.invoke(
+        'get-api-key',
+        {
+          method: 'POST',
+        }
+      );
+      
+      if (secretData && secretData.apiKey) {
+        setApiKey(secretData.apiKey);
+      }
+      
+      // Since we're using the import function, construct the URL it would use
+      const apiUrl = new URL("https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings");
+      if (startDate) apiUrl.searchParams.append('startDate', startDate);
+      if (endDate) apiUrl.searchParams.append('endDate', endDate);
+      if (clientName) apiUrl.searchParams.append('client', clientName);
+      setRequestUrl(apiUrl.toString());
+      
       if (data.success) {
         toast.success('Import function successful!', {
           description: `Imported ${data.results?.imported || 0} of ${data.results?.total || 0} bookings`
@@ -133,6 +165,10 @@ const APITester = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const toggleApiKeyVisibility = () => {
+    setShowApiKey(!showApiKey);
   };
   
   return (
@@ -209,13 +245,39 @@ const APITester = () => {
                 )
               )}
             </CardTitle>
+            
             {requestUrl && (
-              <CardDescription className="break-all">
-                Request URL: {requestUrl}
-              </CardDescription>
+              <div className="bg-gray-100 p-2 rounded mt-2 break-all">
+                <div className="flex items-center gap-2 mb-1">
+                  <Globe className="h-4 w-4 text-gray-600" />
+                  <span className="font-medium">Request URL:</span>
+                </div>
+                <div className="pl-6 text-sm">{requestUrl}</div>
+              </div>
             )}
+            
+            {apiKey && (
+              <div className="bg-gray-100 p-2 rounded mt-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <Key className="h-4 w-4 text-gray-600" />
+                  <span className="font-medium">API Key:</span>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={toggleApiKeyVisibility}
+                    className="ml-auto text-xs py-0 h-6"
+                  >
+                    {showApiKey ? "Hide" : "Show"}
+                  </Button>
+                </div>
+                <div className="pl-6 text-sm">
+                  {showApiKey ? apiKey : "●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●"}
+                </div>
+              </div>
+            )}
+            
             {statusCode !== null && (
-              <CardDescription>
+              <CardDescription className="mt-2">
                 Status: {statusCode} {statusCode >= 200 && statusCode < 300 ? 'OK' : 'Error'}
               </CardDescription>
             )}
