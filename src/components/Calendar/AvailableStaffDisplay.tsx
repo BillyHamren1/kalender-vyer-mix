@@ -42,11 +42,19 @@ const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({ currentDa
       }
       
       console.log('Fetched staff data:', data);
-      setAvailableStaff(data || []);
+      
+      // Make sure we have an array of staff members
+      const staffArray = data && data.data && Array.isArray(data.data) 
+        ? data.data 
+        : [];
+        
+      setAvailableStaff(staffArray);
       toast.success('Staff data updated');
     } catch (error) {
       console.error('Error fetching staff data:', error);
       toast.error('Failed to fetch staff data');
+      // Ensure we always set an array even on error
+      setAvailableStaff([]);
     } finally {
       setIsLoading(false);
     }

@@ -2,11 +2,14 @@
 import { useState, useContext } from 'react';
 import { toast } from 'sonner';
 import { updateCalendarEvent, fetchCalendarEvents } from '@/services/eventService';
-import { Resource } from '@/components/Calendar/ResourceData';
+import { Resource, CalendarEvent } from '@/components/Calendar/ResourceData';
 import { useNavigate } from 'react-router-dom';
 import { CalendarContext } from '@/App';
 
-export const useCalendarEventHandlers = (resources: Resource[], refreshEvents?: () => Promise<void>) => {
+export const useCalendarEventHandlers = (
+  resources: Resource[], 
+  refreshEvents?: () => Promise<void | CalendarEvent[]>
+) => {
   const navigate = useNavigate();
   const { setLastViewedDate, setLastPath } = useContext(CalendarContext);
 

@@ -48,7 +48,7 @@ serve(async (req) => {
     console.log('Received staff data:', staffData);
     
     // Store staff data in database
-    if (staffData && staffData.data) {
+    if (staffData && staffData.data && Array.isArray(staffData.data)) {
       for (const staff of staffData.data) {
         if (!staff.id || !staff.name) continue;
         
@@ -83,13 +83,24 @@ serve(async (req) => {
       }
     }
     
+    // Make sure we return a properly formatted response with an array
+    const responseData = {
+      success: true,
+      data: Array.isArray(staffData.data) ? staffData.data : []
+    };
+    
     // Return the staff data
-    return new Response(JSON.stringify(staffData), { 
+    return new Response(JSON.stringify(responseData), { 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
     });
   } catch (error) {
     console.error('Error in fetch_staff_for_planning function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    // Return an empty array on error to prevent client-side errors
+    return new Response(JSON.stringify({ 
+      error: error.message, 
+      success: false, 
+      data: [] 
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
