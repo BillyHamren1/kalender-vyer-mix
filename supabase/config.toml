@@ -105,3 +105,6 @@ verify_jwt = true
 
 [functions.staff-assignments]
 verify_jwt = true
+
+[functions.fetch_staff_for_planning]
+verify_jwt = true

@@ -18,7 +18,7 @@ interface ResourceCalendarProps {
   isMounted: boolean;
   currentDate: Date;
   onDateSet: (dateInfo: any) => void;
-  refreshEvents: () => Promise<void>;
+  refreshEvents: () => Promise<void | CalendarEvent[]>;
 }
 
 const ResourceCalendar: React.FC<ResourceCalendarProps> = ({

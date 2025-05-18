@@ -6,6 +6,7 @@ import { useEventActions } from '@/hooks/useEventActions';
 import ResourceCalendar from '@/components/Calendar/ResourceCalendar';
 import StaffAssignmentRow from '@/components/Calendar/StaffAssignmentRow';
 import DayNavigation from '@/components/Calendar/DayNavigation';
+import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
 import '../styles/calendar.css';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
@@ -119,6 +120,13 @@ const ResourceView = () => {
             refreshEvents={refreshEvents}
           />
         </div>
+        
+        {/* Available Staff Display */}
+        {shouldShowStaffAssignmentRow() && (
+          <div className="mt-4">
+            <AvailableStaffDisplay currentDate={currentDate} />
+          </div>
+        )}
         
         {/* Staff Assignment Row with current date */}
         {shouldShowStaffAssignmentRow() && (
