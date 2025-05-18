@@ -5,20 +5,14 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; 
 import { toast } from "sonner";
-import { AlertCircle, ArrowRight, CheckCircle2, Key, Globe } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, Key, Globe, Download, Upload } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
-import { 
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogClose
-} from "@/components/ui/dialog";
 
 const APITester = () => {
-  const [response, setResponse] = useState<any>(null);
+  const [directResponse, setDirectResponse] = useState<any>(null);
+  const [importResponse, setImportResponse] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -28,12 +22,14 @@ const APITester = () => {
   const [apiKey, setApiKey] = useState<string>('');
   const [showApiKey, setShowApiKey] = useState(false);
   
-  const testDirectCall = async () => {
+  // Immediately try to get the API key on component mount
+  React.useEffect(() => {
+    getApiKey();
+  }, []);
+  
+  // Helper function to get the API key
+  const getApiKey = async () => {
     try {
-      setIsLoading(true);
-      toast.info('Testing direct API call...');
-      
-      // Get the API key from the Supabase secrets
       const { data: secretData, error: secretError } = await supabase.functions.invoke(
         'get-api-key',
         {
@@ -42,32 +38,56 @@ const APITester = () => {
       );
       
       if (secretError) {
-        throw new Error(`Failed to get API key: ${secretError.message}`);
+        console.error('Error getting API key:', secretError);
+        return null;
       }
       
-      if (!secretData || !secretData.apiKey) {
-        throw new Error('API key not found in response');
+      if (secretData && secretData.apiKey) {
+        setApiKey(secretData.apiKey);
+        return secretData.apiKey;
       }
       
-      // Store the API key for display
-      setApiKey(secretData.apiKey);
+      return null;
+    } catch (error) {
+      console.error('Error getting API key:', error);
+      return null;
+    }
+  };
+  
+  // Build the URL for display
+  const buildUrl = () => {
+    const apiUrl = new URL("https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings");
+    
+    if (startDate) apiUrl.searchParams.append('startDate', startDate);
+    if (endDate) apiUrl.searchParams.append('endDate', endDate);
+    if (clientName) apiUrl.searchParams.append('client', clientName);
+    
+    setRequestUrl(apiUrl.toString());
+    return apiUrl;
+  };
+  
+  const testDirectCall = async () => {
+    try {
+      setIsLoading(true);
+      toast.info('Testing direct API call...', {
+        description: 'Connecting to export_bookings endpoint'
+      });
       
-      // Build the URL
-      const apiUrl = new URL("https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings");
+      // Get the API key if not already available
+      const key = apiKey || await getApiKey();
       
-      // Add query parameters if provided
-      if (startDate) apiUrl.searchParams.append('startDate', startDate);
-      if (endDate) apiUrl.searchParams.append('endDate', endDate);
-      if (clientName) apiUrl.searchParams.append('client', clientName);
+      if (!key) {
+        throw new Error('Failed to get API key');
+      }
       
-      // Store the URL for display - make sure this is set before the API call
-      setRequestUrl(apiUrl.toString());
+      // Build and set the URL
+      const apiUrl = buildUrl();
       
       // Make the API call with the x-api-key header
       const response = await fetch(apiUrl.toString(), {
         method: 'GET',
         headers: {
-          'x-api-key': secretData.apiKey,
+          'x-api-key': key,
           'Content-Type': 'application/json',
         },
       });
@@ -76,11 +96,12 @@ const APITester = () => {
       
       // Parse the response
       const responseData = await response.json();
-      setResponse(responseData);
+      setDirectResponse(responseData);
       
       if (response.ok) {
+        const bookingCount = responseData.data?.length || responseData.count || 0;
         toast.success('API call successful!', {
-          description: `Received ${responseData.count || 0} bookings`
+          description: `Received ${bookingCount} bookings`
         });
       } else {
         toast.error('API call failed', {
@@ -92,7 +113,7 @@ const APITester = () => {
       toast.error('API test failed', {
         description: error instanceof Error ? error.message : 'Unknown error'
       });
-      setResponse({ error: error instanceof Error ? error.message : 'Unknown error' });
+      setDirectResponse({ error: error instanceof Error ? error.message : 'Unknown error' });
       setStatusCode(500);
     } finally {
       setIsLoading(false);
@@ -102,30 +123,17 @@ const APITester = () => {
   const testImportFunction = async () => {
     try {
       setIsLoading(true);
-      toast.info('Testing import-bookings function...');
+      toast.info('Testing import-bookings function...', {
+        description: 'Processing bookings from external API'
+      });
       
-      // Get the API key for display first
-      const { data: secretData, error: secretError } = await supabase.functions.invoke(
-        'get-api-key',
-        {
-          method: 'POST',
-        }
-      );
-      
-      if (secretError) {
-        console.error('Error getting API key:', secretError);
-      } else if (secretData && secretData.apiKey) {
-        setApiKey(secretData.apiKey);
+      // Get the API key if not already available
+      if (!apiKey) {
+        await getApiKey();
       }
       
-      // Build the URL that would be used
-      const apiUrl = new URL("https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings");
-      if (startDate) apiUrl.searchParams.append('startDate', startDate);
-      if (endDate) apiUrl.searchParams.append('endDate', endDate);
-      if (clientName) apiUrl.searchParams.append('client', clientName);
-      
-      // Set the URL for display before making the API call
-      setRequestUrl(apiUrl.toString());
+      // Build and set the URL (for display purposes)
+      const apiUrl = buildUrl();
       
       // Build the filter parameters
       const filters = {
@@ -147,7 +155,7 @@ const APITester = () => {
         throw new Error(`Function error: ${error.message}`);
       }
       
-      setResponse(data);
+      setImportResponse(data);
       setStatusCode(200);
       
       if (data.success) {
@@ -164,7 +172,7 @@ const APITester = () => {
       toast.error('Import function test failed', {
         description: error instanceof Error ? error.message : 'Unknown error'
       });
-      setResponse({ error: error instanceof Error ? error.message : 'Unknown error' });
+      setImportResponse({ error: error instanceof Error ? error.message : 'Unknown error' });
       setStatusCode(500);
     } finally {
       setIsLoading(false);
@@ -217,46 +225,16 @@ const APITester = () => {
                 placeholder="e.g. Volvo" 
               />
             </div>
-          </CardContent>
-          <CardFooter className="flex flex-col gap-4">
-            <Button 
-              onClick={testDirectCall} 
-              className="w-full"
-              disabled={isLoading}
-            >
-              Test Direct API Call
-            </Button>
-            <Button 
-              onClick={testImportFunction} 
-              className="w-full"
-              disabled={isLoading}
-              variant="outline"
-            >
-              Test Import Function
-            </Button>
-          </CardFooter>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              Response 
-              {statusCode !== null && (
-                statusCode >= 200 && statusCode < 300 ? (
-                  <CheckCircle2 className="h-5 w-5 text-green-500" />
-                ) : (
-                  <AlertCircle className="h-5 w-5 text-red-500" />
-                )
-              )}
-            </CardTitle>
             
-            {/* Always show API information boxes, just empty if not populated */}
+            {/* API information boxes - display immediately */}
             <div className="bg-gray-100 p-2 rounded mt-2 break-all">
               <div className="flex items-center gap-2 mb-1">
                 <Globe className="h-4 w-4 text-gray-600" />
                 <span className="font-medium">Request URL:</span>
               </div>
-              <div className="pl-6 text-sm">{requestUrl || "No request made yet"}</div>
+              <div className="pl-6 text-sm overflow-auto">
+                {requestUrl || buildUrl().toString()}
+              </div>
             </div>
             
             <div className="bg-gray-100 p-2 rounded mt-2">
@@ -275,10 +253,44 @@ const APITester = () => {
               </div>
               <div className="pl-6 text-sm">
                 {apiKey 
-                  ? (showApiKey ? apiKey : "●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●") 
+                  ? (showApiKey ? apiKey : "●●●●●●●●●●●●●●●●●●●●●●●●●●●●●") 
                   : "No API key retrieved yet"}
               </div>
             </div>
+          </CardContent>
+          <CardFooter className="flex flex-col gap-4">
+            <Button 
+              onClick={testDirectCall} 
+              className="w-full flex items-center gap-2"
+              disabled={isLoading}
+            >
+              <Download className="h-4 w-4" />
+              Test Direct API Call
+            </Button>
+            <Button 
+              onClick={testImportFunction} 
+              className="w-full flex items-center gap-2"
+              disabled={isLoading}
+              variant="outline"
+            >
+              <Upload className="h-4 w-4" />
+              Test Import Function
+            </Button>
+          </CardFooter>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              Response 
+              {statusCode !== null && (
+                statusCode >= 200 && statusCode < 300 ? (
+                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                ) : (
+                  <AlertCircle className="h-5 w-5 text-red-500" />
+                )
+              )}
+            </CardTitle>
             
             {statusCode !== null && (
               <CardDescription className="mt-2">
@@ -288,11 +300,28 @@ const APITester = () => {
           </CardHeader>
           <Separator />
           <CardContent className="pt-4">
-            <div className="bg-gray-50 p-4 rounded-md overflow-auto max-h-[500px]">
-              <pre className="text-sm">
-                {response ? JSON.stringify(response, null, 2) : 'No response yet'}
-              </pre>
-            </div>
+            <Tabs defaultValue="direct" className="w-full">
+              <TabsList className="w-full">
+                <TabsTrigger value="direct" className="flex-1">Direct API</TabsTrigger>
+                <TabsTrigger value="import" className="flex-1">Import Function</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="direct" className="mt-4">
+                <div className="bg-gray-50 p-4 rounded-md overflow-auto max-h-[500px]">
+                  <pre className="text-sm">
+                    {directResponse ? JSON.stringify(directResponse, null, 2) : 'No direct API response yet'}
+                  </pre>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="import" className="mt-4">
+                <div className="bg-gray-50 p-4 rounded-md overflow-auto max-h-[500px]">
+                  <pre className="text-sm">
+                    {importResponse ? JSON.stringify(importResponse, null, 2) : 'No import function response yet'}
+                  </pre>
+                </div>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       </div>

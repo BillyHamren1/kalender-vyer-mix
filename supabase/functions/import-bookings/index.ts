@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
@@ -43,7 +42,6 @@ serve(async (req) => {
     const { startDate, endDate, clientName } = requestData
 
     // Build the URL for the external bookings API
-    // Use the correct URL as specified
     const externalApiUrl = new URL("https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings")
     
     // Add query parameters if provided
@@ -78,8 +76,8 @@ serve(async (req) => {
     // Parse the external API response
     const externalData = await externalResponse.json()
     
-    // Check if the response has the expected structure
-    if (!externalData || !externalData.bookings || !Array.isArray(externalData.bookings)) {
+    // Check if we have the data array in the response
+    if (!externalData || !externalData.data || !Array.isArray(externalData.data)) {
       console.error('Invalid response format from external API:', JSON.stringify(externalData))
       return new Response(
         JSON.stringify({ 
@@ -90,11 +88,12 @@ serve(async (req) => {
       )
     }
     
-    console.log(`Received ${externalData.count} bookings from external API`)
+    const bookings = externalData.data
+    console.log(`Received ${bookings.length} bookings from external API`)
 
     // Keep track of imports
     const results = {
-      total: externalData.count,
+      total: bookings.length,
       imported: 0,
       failed: 0,
       calendar_events_created: 0,
@@ -102,26 +101,40 @@ serve(async (req) => {
     }
 
     // Process each booking
-    for (const externalBooking of externalData.bookings) {
+    for (const externalBooking of bookings) {
       try {
-        console.log(`Processing booking ${externalBooking.id}: ${externalBooking.client}`)
+        console.log(`Processing booking ${externalBooking.booking_number}: ${externalBooking.clients?.name || 'Unknown client'}`)
         
+        // Check if the booking has the required fields
+        if (!externalBooking.booking_number || !externalBooking.clients?.name) {
+          throw new Error('Booking is missing required fields (booking_number or client name)')
+        }
+
+        // Extract dates from arrays, using the first item if available
+        const rigdaydate = externalBooking.rig_up_dates && externalBooking.rig_up_dates.length > 0 
+          ? externalBooking.rig_up_dates[0] : null
+        const eventdate = externalBooking.event_dates && externalBooking.event_dates.length > 0 
+          ? externalBooking.event_dates[0] : null
+        const rigdowndate = externalBooking.rig_down_dates && externalBooking.rig_down_dates.length > 0 
+          ? externalBooking.rig_down_dates[0] : null
+
         // Check if booking already exists
         const { data: existingBooking } = await supabaseClient
           .from('bookings')
           .select('id')
-          .eq('id', externalBooking.id)
+          .eq('id', externalBooking.booking_number)
           .maybeSingle()
 
-        // Prepare booking data
+        // Prepare booking data - map external fields to our schema
         const bookingData = {
-          id: externalBooking.id,
-          client: externalBooking.client,
-          rigdaydate: externalBooking.rigdaydate,
-          eventdate: externalBooking.eventdate,
-          rigdowndate: externalBooking.rigdowndate,
-          deliveryaddress: externalBooking.deliveryaddress,
-          internalnotes: externalBooking.internalnotes,
+          id: externalBooking.booking_number, // Use booking_number as our ID
+          client: externalBooking.clients?.name, // Use client name from clients object
+          rigdaydate: rigdaydate, // Use first rig_up_date
+          eventdate: eventdate, // Use first event_date
+          rigdowndate: rigdowndate, // Use first rig_down_date
+          deliveryaddress: externalBooking.delivery_address || 
+                          (externalBooking.location ? `${externalBooking.location}` : null), // Use delivery_address or location
+          internalnotes: externalBooking.internal_notes,
           created_at: externalBooking.created_at || new Date().toISOString(),
           updated_at: externalBooking.updated_at || new Date().toISOString()
         }
@@ -132,17 +145,17 @@ serve(async (req) => {
           const { error: updateError } = await supabaseClient
             .from('bookings')
             .update(bookingData)
-            .eq('id', externalBooking.id)
+            .eq('id', externalBooking.booking_number)
 
           if (updateError) {
             throw new Error(`Failed to update booking: ${updateError.message}`)
           }
           
           // Delete existing products & attachments for clean slate
-          await supabaseClient.from('booking_products').delete().eq('booking_id', externalBooking.id)
-          await supabaseClient.from('booking_attachments').delete().eq('booking_id', externalBooking.id)
+          await supabaseClient.from('booking_products').delete().eq('booking_id', externalBooking.booking_number)
+          await supabaseClient.from('booking_attachments').delete().eq('booking_id', externalBooking.booking_number)
           
-          console.log(`Updated existing booking ${externalBooking.id}`)
+          console.log(`Updated existing booking ${externalBooking.booking_number}`)
         } else {
           // Insert new booking
           const { error: insertError } = await supabaseClient
@@ -153,16 +166,16 @@ serve(async (req) => {
             throw new Error(`Failed to insert booking: ${insertError.message}`)
           }
           
-          console.log(`Inserted new booking ${externalBooking.id}`)
+          console.log(`Inserted new booking ${externalBooking.booking_number}`)
         }
 
         // Insert products if available
         if (externalBooking.products && externalBooking.products.length > 0) {
           const products = externalBooking.products.map(product => ({
-            booking_id: externalBooking.id,
-            name: product.name,
+            booking_id: externalBooking.booking_number,
+            name: product.product_name || product.name,
             quantity: product.quantity,
-            notes: product.notes
+            notes: product.notes || null
           }))
 
           const { error: productsError } = await supabaseClient
@@ -170,19 +183,19 @@ serve(async (req) => {
             .insert(products)
 
           if (productsError) {
-            console.error(`Error inserting products for booking ${externalBooking.id}:`, productsError)
+            console.error(`Error inserting products for booking ${externalBooking.booking_number}:`, productsError)
           } else {
-            console.log(`Inserted ${products.length} products for booking ${externalBooking.id}`)
+            console.log(`Inserted ${products.length} products for booking ${externalBooking.booking_number}`)
           }
         }
 
-        // Insert attachments if available
-        if (externalBooking.attachments && externalBooking.attachments.length > 0) {
-          const attachments = externalBooking.attachments.map(attachment => ({
-            booking_id: externalBooking.id,
+        // Insert attachments if available (files_metadata)
+        if (externalBooking.files_metadata && externalBooking.files_metadata.length > 0) {
+          const attachments = externalBooking.files_metadata.map(attachment => ({
+            booking_id: externalBooking.booking_number,
             url: attachment.url,
-            file_name: attachment.fileName || attachment.file_name,
-            file_type: attachment.fileType || attachment.file_type,
+            file_name: attachment.file_name || attachment.fileName || 'Unknown file',
+            file_type: attachment.file_type || attachment.fileType || 'application/octet-stream',
             uploaded_at: attachment.uploaded_at || new Date().toISOString()
           }))
 
@@ -191,23 +204,30 @@ serve(async (req) => {
             .insert(attachments)
 
           if (attachmentsError) {
-            console.error(`Error inserting attachments for booking ${externalBooking.id}:`, attachmentsError)
+            console.error(`Error inserting attachments for booking ${externalBooking.booking_number}:`, attachmentsError)
           } else {
-            console.log(`Inserted ${attachments.length} attachments for booking ${externalBooking.id}`)
+            console.log(`Inserted ${attachments.length} attachments for booking ${externalBooking.booking_number}`)
           }
         }
 
         // Create calendar events
-        await createCalendarEvents(supabaseClient, externalBooking)
+        await createCalendarEvents(supabaseClient, {
+          id: externalBooking.booking_number,
+          client: externalBooking.clients?.name,
+          rigdaydate,
+          eventdate,
+          rigdowndate
+        })
+        
         results.calendar_events_created += 3 // Assuming 3 events: rig, event, rigdown
         
         results.imported++
-        console.log(`Successfully imported booking ${externalBooking.id}`)
+        console.log(`Successfully imported booking ${externalBooking.booking_number}`)
       } catch (error) {
-        console.error(`Error importing booking ${externalBooking.id}:`, error)
+        console.error(`Error importing booking ${externalBooking.booking_number || 'unknown'}:`, error)
         results.failed++
         results.errors.push({
-          booking_id: externalBooking.id,
+          booking_id: externalBooking.booking_number || 'unknown',
           error: error.message
         })
       }
@@ -216,7 +236,12 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        results
+        results,
+        // Include the original data for debugging
+        originalData: {
+          count: bookings.length,
+          metadata: externalData.metadata
+        }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
