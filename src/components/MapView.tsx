@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { MapPin } from 'lucide-react';
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -22,20 +22,18 @@ const MapView: React.FC<MapViewProps> = ({
   const hasCoordinates = latitude !== undefined && longitude !== undefined;
   const hasAddress = address || city || postalCode;
   
-  // Construct address string for embedding in map URL
-  const addressForMap = hasCoordinates 
-    ? `${latitude},${longitude}` 
-    : encodeURIComponent([address, city, postalCode].filter(Boolean).join(', '));
-  
   // Only show map button if we have coordinates or address information
   if (!hasCoordinates && !hasAddress) {
     return null;
   }
 
+  // Construct address string for embedding in map URL
+  const addressForMap = hasCoordinates 
+    ? `${latitude},${longitude}` 
+    : encodeURIComponent([address, city, postalCode].filter(Boolean).join(', '));
+  
   // Google Maps iframe URL based on coordinates or address
-  const mapUrl = hasCoordinates
-    ? `https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${latitude},${longitude}&zoom=14`
-    : `https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${addressForMap}&zoom=14`;
+  const mapUrl = `https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${addressForMap}&zoom=14`;
 
   return (
     <Dialog>
