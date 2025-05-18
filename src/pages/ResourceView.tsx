@@ -9,14 +9,13 @@ import DayNavigation from '@/components/Calendar/DayNavigation';
 import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
 import '../styles/calendar.css';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { Button } from '@/components/ui/button';
-import { ArrowDown, RefreshCcw } from 'lucide-react';
-import { importBookings } from '@/services/importService';
 import { toast } from 'sonner';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { assignStaffToTeam, removeStaffAssignment, fetchStaffAssignments, syncStaffMember } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
+import AddTeamButton from '@/components/Calendar/AddTeamButton';
+import ResourceHeader from '@/components/Calendar/ResourceHeader';
 
 // Interface for external staff from API
 interface ExternalStaffMember {
@@ -52,7 +51,6 @@ const ResourceView = () => {
   
   const { addEventToCalendar, duplicateEvent } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
-  const [isImporting, setIsImporting] = React.useState(false);
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
   const [isLoadingStaff, setIsLoadingStaff] = useState(false);
   
@@ -108,36 +106,6 @@ const ResourceView = () => {
   useEffect(() => {
     ensureStaffSynced();
   }, [currentDate]);
-  
-  // Handle importing bookings
-  const handleImportBookings = async () => {
-    try {
-      setIsImporting(true);
-      toast.info('Importing bookings...', {
-        description: 'Please wait while we import bookings from the external system'
-      });
-      
-      const result = await importBookings();
-      
-      if (result.success && result.results) {
-        toast.success('Bookings imported successfully', {
-          description: `Imported ${result.results.imported} of ${result.results.total} bookings with ${result.results.calendar_events_created} calendar events`
-        });
-        
-        // Refresh calendar to show the newly imported events
-        await refreshEvents();
-      } else {
-        toast.error('Import failed', {
-          description: result.error || 'Unknown error occurred during import'
-        });
-      }
-    } catch (error) {
-      console.error('Error during import:', error);
-      toast.error('Import operation failed');
-    } finally {
-      setIsImporting(false);
-    }
-  };
 
   // Handle staff drop for assignment
   const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
@@ -167,31 +135,26 @@ const ResourceView = () => {
     <DndProvider backend={HTML5Backend}>
       <div className="min-h-screen bg-gray-50">
         <div className={`container mx-auto pt-2 ${isMobile ? 'px-2' : ''}`} style={{ maxWidth: isMobile ? '100%' : '94%' }}>
+          {/* Resource Header with Add Team Button */}
+          <ResourceHeader
+            teamResources={teamResources}
+            teamCount={teamCount}
+            onAddTeam={addTeam}
+            onRemoveTeam={removeTeam}
+            dialogOpen={dialogOpen}
+            setDialogOpen={setDialogOpen}
+          />
+        
           <div className={`bg-white rounded-lg shadow-md mb-4 ${isMobile ? 'p-2' : 'p-3'}`}>
             {/* Day Navigation Bar - displayed above the calendar */}
             <div className="flex justify-between items-center mb-4">
               <DayNavigation currentDate={currentDate} />
-              <div className="flex space-x-2">
-                <Button 
-                  onClick={refreshEvents} 
-                  variant="outline" 
-                  size="sm"
-                  disabled={isLoading}
-                  className="flex items-center gap-1"
-                >
-                  <RefreshCcw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
-                  {isMobile ? '' : 'Uppdatera'}
-                </Button>
-                <Button 
-                  onClick={handleImportBookings} 
-                  size="sm"
-                  disabled={isImporting}
-                  className="flex items-center gap-1"
-                >
-                  <ArrowDown className="h-3 w-3" />
-                  {isMobile ? '' : (isImporting ? 'Importerar...' : 'Importera')}
-                </Button>
-              </div>
+              <AddTeamButton 
+                onAddTeam={addTeam} 
+                onRemoveTeam={removeTeam} 
+                teamCount={teamCount} 
+                teamResources={teamResources} 
+              />
             </div>
             
             <ResourceCalendar
