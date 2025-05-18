@@ -15,7 +15,18 @@ import { importBookings } from '@/services/importService';
 import { toast } from 'sonner';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { assignStaffToTeam, removeStaffAssignment, fetchStaffAssignments } from '@/services/staffService';
+import { assignStaffToTeam, removeStaffAssignment, fetchStaffAssignments, syncStaffMember } from '@/services/staffService';
+import { supabase } from '@/integrations/supabase/client';
+
+// Interface for external staff from API
+interface ExternalStaffMember {
+  id: string;
+  name: string;
+  role: string;
+  email: string | null;
+  phone: string | null;
+  isavailable: boolean;
+}
 
 const ResourceView = () => {
   // Use our custom hooks to manage state and logic
@@ -43,6 +54,7 @@ const ResourceView = () => {
   const isMobile = useIsMobile();
   const [isImporting, setIsImporting] = React.useState(false);
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
+  const [isLoadingStaff, setIsLoadingStaff] = useState(false);
   
   // Fetch events when this view is mounted
   useEffect(() => {
@@ -53,6 +65,49 @@ const ResourceView = () => {
   const shouldShowStaffAssignmentRow = () => {
     return !isMobile;
   };
+  
+  // Prefetch and sync all staff before assignments
+  const ensureStaffSynced = async () => {
+    try {
+      setIsLoadingStaff(true);
+      const formattedDate = currentDate.toISOString().split('T')[0];
+      
+      // Call the edge function to get all staff
+      const { data, error } = await supabase.functions.invoke('fetch_staff_for_planning', {
+        body: { date: formattedDate }
+      });
+      
+      if (error) {
+        console.error('Error fetching staff data:', error);
+        return;
+      }
+      
+      if (data && data.success && data.data) {
+        // Sync all staff members to our database
+        const staffList = data.data as ExternalStaffMember[];
+        
+        for (const staff of staffList) {
+          await syncStaffMember(
+            staff.id,
+            staff.name,
+            staff.email || undefined,
+            staff.phone || undefined
+          );
+        }
+        
+        console.log(`Synced ${staffList.length} staff members`);
+      }
+    } catch (error) {
+      console.error('Error syncing staff:', error);
+    } finally {
+      setIsLoadingStaff(false);
+    }
+  };
+  
+  // Make sure to sync staff when the page loads
+  useEffect(() => {
+    ensureStaffSynced();
+  }, [currentDate]);
   
   // Handle importing bookings
   const handleImportBookings = async () => {

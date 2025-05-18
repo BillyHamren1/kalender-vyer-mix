@@ -1,32 +1,35 @@
 
 import React, { useState, useEffect } from 'react';
+import { useDrag, useDrop } from 'react-dnd';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
-import { RefreshCcw, Users } from 'lucide-react';
+import { StaffMember } from './StaffAssignmentRow';
+import { syncStaffMember } from '@/services/staffService';
 import { toast } from 'sonner';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { useDrag } from 'react-dnd';
 
-// Staff member type, matching the type in StaffAssignmentRow
-export type StaffMember = {
+// External staff member interface from the API
+interface ExternalStaffMember {
   id: string;
   name: string;
-  email?: string;
-  phone?: string;
-  availability?: string;
-  assignedTeam?: string | null;
-};
+  role: string;
+  email: string | null;
+  phone: string | null;
+  specialties: string[];
+  isavailable: boolean;
+  username: string;
+  password: string;
+  notes: string | null;
+}
 
+// Interface for the available staff display component
 interface AvailableStaffDisplayProps {
   currentDate: Date;
-  onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
+  onStaffDrop: (staffId: string, resourceId: string | null) => Promise<void>;
 }
 
 // Draggable staff item component
-const DraggableStaffItem: React.FC<{ 
-  staff: StaffMember;
-  small?: boolean; 
-}> = ({ staff, small = false }) => {
+const DraggableStaffItem: React.FC<{ staff: StaffMember }> = ({ staff }) => {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'STAFF',
     item: staff,
@@ -38,105 +41,130 @@ const DraggableStaffItem: React.FC<{
   return (
     <div
       ref={drag}
-      className={`border rounded p-2 bg-gray-50 hover:bg-gray-100 transition-colors cursor-move ${
+      className={`p-2 mb-2 bg-white border rounded shadow-sm cursor-move ${
         isDragging ? 'opacity-50' : 'opacity-100'
       }`}
     >
-      <div className="text-xs font-medium">{staff.name}</div>
-      {staff.availability && (
-        <div className="text-xs text-gray-500">
-          {staff.availability}
-        </div>
+      <div className="font-medium">{staff.name}</div>
+      {staff.email && (
+        <div className="text-xs text-gray-500">{staff.email}</div>
+      )}
+      {staff.phone && (
+        <div className="text-xs text-gray-500">{staff.phone}</div>
       )}
     </div>
   );
 };
 
-const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({ 
-  currentDate,
-  onStaffDrop 
-}) => {
+// Main component
+const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({ currentDate, onStaffDrop }) => {
   const [availableStaff, setAvailableStaff] = useState<StaffMember[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const isMobile = useIsMobile();
-  
-  // Format date as YYYY-MM-DD for API
-  const formatDate = (date: Date) => {
-    return date.toISOString().split('T')[0];
-  };
-  
-  const fetchStaffData = async () => {
-    setIsLoading(true);
-    try {
-      toast.info('Fetching available staff...');
-      
-      const { data, error } = await supabase.functions.invoke('fetch_staff_for_planning', {
-        body: { date: formatDate(currentDate) }
-      });
-      
-      if (error) {
-        throw error;
-      }
-      
-      console.log('Fetched staff data:', data);
-      
-      // Make sure we have an array of staff members
-      const staffArray = data && data.data && Array.isArray(data.data) 
-        ? data.data 
-        : [];
-        
-      setAvailableStaff(staffArray);
-      toast.success('Staff data updated');
-    } catch (error) {
-      console.error('Error fetching staff data:', error);
-      toast.error('Failed to fetch staff data');
-      // Ensure we always set an array even on error
-      setAvailableStaff([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  // Fetch staff data when the component mounts or date changes
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch available staff from the edge function
   useEffect(() => {
-    fetchStaffData();
+    const fetchAvailableStaff = async () => {
+      try {
+        setIsLoading(true);
+        const formattedDate = currentDate.toISOString().split('T')[0];
+        
+        // Call the edge function to get staff availability
+        const { data, error } = await supabase.functions.invoke('fetch_staff_for_planning', {
+          body: { date: formattedDate }
+        });
+        
+        if (error) {
+          console.error('Error fetching staff availability:', error);
+          toast.error('Failed to load available staff');
+          setIsLoading(false);
+          return;
+        }
+        
+        console.log('Fetched staff data:', data);
+        
+        if (data && data.success && data.data) {
+          // Transform the data into StaffMember format
+          const staffList: StaffMember[] = [];
+          
+          // Process each staff member and ensure they exist in our database
+          for (const externalStaff of data.data as ExternalStaffMember[]) {
+            if (externalStaff.isavailable) {
+              try {
+                // Sync the staff member to our database
+                await syncStaffMember(
+                  externalStaff.id,
+                  externalStaff.name,
+                  externalStaff.email || undefined,
+                  externalStaff.phone || undefined
+                );
+                
+                // Add to our available staff list
+                staffList.push({
+                  id: externalStaff.id,
+                  name: externalStaff.name,
+                  email: externalStaff.email || undefined,
+                  phone: externalStaff.phone || undefined
+                });
+              } catch (syncError) {
+                console.error(`Error syncing staff member ${externalStaff.id}:`, syncError);
+                toast.error(`Failed to sync staff member: ${externalStaff.name}`);
+              }
+            }
+          }
+          
+          setAvailableStaff(staffList);
+        } else {
+          setAvailableStaff([]);
+        }
+      } catch (error) {
+        console.error('Error in fetchAvailableStaff:', error);
+        toast.error('Failed to load available staff');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAvailableStaff();
   }, [currentDate]);
-  
+
+  // Drop zone for returning staff back to available pool
+  const [{ isOver }, drop] = useDrop(() => ({
+    accept: 'STAFF',
+    drop: (item: StaffMember) => {
+      // When a staff member is dropped back here, we remove their assignment
+      onStaffDrop(item.id, null);
+    },
+    collect: (monitor) => ({
+      isOver: !!monitor.isOver(),
+    }),
+  }));
+
   return (
-    <div className="bg-white rounded-lg shadow-md p-3 mb-4">
-      <div className="flex justify-between items-center mb-2">
-        <h2 className="text-xs font-medium flex items-center">
-          <Users className="mr-2 h-4 w-4" />
-          Available Staff
-        </h2>
-        <Button 
-          onClick={fetchStaffData} 
-          variant="outline" 
-          size="sm"
-          disabled={isLoading}
-          className="flex items-center gap-1"
-        >
-          <RefreshCcw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
-          {isMobile ? '' : 'Refresh'}
-        </Button>
-      </div>
-      
-      {isLoading ? (
-        <div className="text-center py-4 text-xs">Loading staff data...</div>
-      ) : availableStaff.length === 0 ? (
-        <div className="text-center py-4 text-xs text-gray-500">No staff data available</div>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
-          {availableStaff.map((staff) => (
-            <DraggableStaffItem 
-              key={staff.id} 
-              staff={staff}
-              small={true}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+    <Card className={`border ${isOver ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-lg">Available Staff</CardTitle>
+      </CardHeader>
+      <CardContent ref={drop} className="pt-0">
+        {isLoading ? (
+          // Show skeletons while loading
+          <>
+            <Skeleton className="h-12 mb-2" />
+            <Skeleton className="h-12 mb-2" />
+            <Skeleton className="h-12" />
+          </>
+        ) : availableStaff.length > 0 ? (
+          // Show available staff members
+          availableStaff.map(staff => (
+            <DraggableStaffItem key={staff.id} staff={staff} />
+          ))
+        ) : (
+          // Show message when no staff available
+          <div className="text-gray-500 text-center py-4">
+            No staff available for this date
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

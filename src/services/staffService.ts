@@ -36,6 +36,56 @@ export const addStaffMember = async (name: string, email?: string, phone?: strin
   return data;
 };
 
+// Add or update a staff member with a specific ID (for syncing with external API)
+export const syncStaffMember = async (id: string, name: string, email?: string, phone?: string) => {
+  // First check if the staff member already exists
+  const { data: existingStaff } = await supabase
+    .from('staff_members')
+    .select('id')
+    .eq('id', id)
+    .maybeSingle();
+    
+  if (existingStaff) {
+    // Update existing staff member
+    const { data, error } = await supabase
+      .from('staff_members')
+      .update({
+        name,
+        email,
+        phone
+      })
+      .eq('id', id)
+      .select()
+      .single();
+      
+    if (error) {
+      console.error('Error updating staff member:', error);
+      throw error;
+    }
+    
+    return data;
+  } else {
+    // Insert new staff member with specific ID
+    const { data, error } = await supabase
+      .from('staff_members')
+      .insert({
+        id,
+        name,
+        email,
+        phone
+      })
+      .select()
+      .single();
+      
+    if (error) {
+      console.error('Error adding staff member with ID:', error);
+      throw error;
+    }
+    
+    return data;
+  }
+};
+
 // Update a staff member
 export const updateStaffMember = async (id: string, updates: { name?: string, email?: string, phone?: string }) => {
   const { data, error } = await supabase
@@ -189,3 +239,4 @@ export const getStaffAssignmentsForPeriod = async (staffId: string, startDate: D
   
   return data || [];
 };
+
