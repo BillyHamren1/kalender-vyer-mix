@@ -64,16 +64,17 @@ const DraggableStaffItem: React.FC<{ staff: StaffMember }> = ({ staff }) => {
   return (
     <div
       ref={drag}
-      className={`p-1.5 mb-1.5 bg-white border rounded-md shadow-sm cursor-move flex items-center gap-1.5 ${
+      className={`p-1 mb-1 bg-white border rounded-md shadow-sm cursor-move flex items-center gap-1 ${
         isDragging ? 'opacity-50' : 'opacity-100'
       }`}
+      style={{ width: '95px', height: '24px' }}
     >
-      <Avatar className="h-6 w-6 bg-purple-100">
-        <AvatarFallback className="text-xs text-purple-700">
+      <Avatar className="h-4 w-4 bg-purple-100">
+        <AvatarFallback className="text-[10px] text-purple-700">
           {getInitials(staff.name)}
         </AvatarFallback>
       </Avatar>
-      <span className="text-sm font-medium">{displayName}</span>
+      <span className="text-xs font-medium truncate">{displayName}</span>
     </div>
   );
 };
@@ -163,20 +164,20 @@ const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({ currentDa
 
   return (
     <Card className={`border ${isOver ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-lg flex items-center gap-1.5">
-          <Users className="h-5 w-5" />
+      <CardHeader className="pb-1 pt-2">
+        <CardTitle className="text-sm flex items-center gap-1">
+          <Users className="h-4 w-4" />
           Available Staff
         </CardTitle>
       </CardHeader>
-      <CardContent ref={drop} className="pt-0 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5">
+      <CardContent ref={drop} className="pt-0 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-1">
         {isLoading ? (
           // Show skeletons while loading
           <>
-            <Skeleton className="h-8 mb-1.5" />
-            <Skeleton className="h-8 mb-1.5" />
-            <Skeleton className="h-8 mb-1.5" />
-            <Skeleton className="h-8 mb-1.5" />
+            <Skeleton className="h-6 mb-1" />
+            <Skeleton className="h-6 mb-1" />
+            <Skeleton className="h-6 mb-1" />
+            <Skeleton className="h-6 mb-1" />
           </>
         ) : availableStaff.length > 0 ? (
           // Show available staff members
@@ -185,7 +186,7 @@ const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({ currentDa
           ))
         ) : (
           // Show message when no staff available
-          <div className="text-gray-500 text-center py-4 col-span-full">
+          <div className="text-gray-500 text-center py-2 col-span-full text-xs">
             No staff available for this date
           </div>
         )}

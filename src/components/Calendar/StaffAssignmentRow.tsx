@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Resource } from './ResourceData';
 import { useDrag, useDrop } from 'react-dnd';
@@ -88,21 +87,22 @@ const DraggableStaffItem: React.FC<{
   return (
     <div
       ref={drag}
-      className={`p-1.5 bg-white border border-gray-200 rounded-md mb-1 cursor-move flex justify-between items-center ${
+      className={`p-1 bg-white border border-gray-200 rounded-md mb-1 cursor-move flex justify-between items-center ${
         isDragging ? 'opacity-50' : 'opacity-100'
       }`}
+      style={{ width: '95px', height: '24px' }}
     >
-      <div className="flex items-center gap-1.5">
-        <Avatar className="h-6 w-6 bg-purple-100">
-          <AvatarFallback className="text-xs text-purple-700">
+      <div className="flex items-center gap-1">
+        <Avatar className="h-4 w-4 bg-purple-100">
+          <AvatarFallback className="text-[10px] text-purple-700">
             {getInitials(staff.name)}
           </AvatarFallback>
         </Avatar>
-        <span className="text-sm font-medium">{displayName}</span>
+        <span className="text-xs font-medium truncate">{displayName}</span>
       </div>
       <button 
         onClick={onRemove}
-        className="text-gray-400 hover:text-red-500 ml-1"
+        className="text-gray-400 hover:text-red-500 text-xs ml-1"
         aria-label="Remove assignment"
       >
         &times;
@@ -326,7 +326,7 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
     return (
       <div className="mt-4 border border-gray-200 rounded-md overflow-hidden">
         <div className="bg-gray-100 p-2 border-b border-gray-200">
-          <h3 className="text-sm font-semibold">Loading Staff Assignments...</h3>
+          <h3 className="text-xs font-semibold">Loading Staff Assignments...</h3>
         </div>
       </div>
     );
@@ -336,7 +336,7 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
   return (
     <div className="mt-4 border border-gray-200 rounded-md overflow-hidden">
       <div className="bg-gray-100 p-2 border-b border-gray-200 flex justify-between items-center">
-        <h3 className="text-sm font-semibold">
+        <h3 className="text-xs font-semibold">
           Assign Staff for {currentDate.toLocaleDateString()}
         </h3>
         <Dialog open={staffDialogOpen} onOpenChange={setStaffDialogOpen}>
@@ -346,6 +346,7 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
                 setSelectedTeam(null);
                 setStaffDialogOpen(true);
               }}
+              className="text-xs py-1 h-7"
             >
               Add New Staff
             </Button>
