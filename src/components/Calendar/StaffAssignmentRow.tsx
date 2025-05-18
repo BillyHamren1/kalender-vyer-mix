@@ -43,6 +43,8 @@ interface StaffAssignment {
 interface StaffAssignmentRowProps {
   resources: Resource[];
   currentDate: Date;
+  onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
+  forceRefresh?: boolean;
 }
 
 // Component for draggable staff item
@@ -198,7 +200,12 @@ const StaffForm: React.FC<{
 };
 
 // Main StaffAssignmentRow component
-const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({ resources, currentDate }) => {
+const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({ 
+  resources, 
+  currentDate, 
+  onStaffDrop,
+  forceRefresh 
+}) => {
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
   const [assignments, setAssignments] = useState<StaffAssignment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -229,7 +236,7 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({ resources, curr
     };
 
     loadData();
-  }, [currentDate]);
+  }, [currentDate, forceRefresh]);
 
   // Handler for adding a new staff member
   const handleAddStaff = async (name: string, email: string, phone: string) => {
@@ -258,14 +265,20 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({ resources, curr
   // Handler for dropping a staff member into a team column
   const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
     try {
-      if (resourceId) {
-        // Assign staff to team
-        await assignStaffToTeam(staffId, resourceId, currentDate);
-        toast.success('Staff assigned to team');
+      // If an external onStaffDrop is provided, use that instead
+      if (onStaffDrop) {
+        await onStaffDrop(staffId, resourceId);
       } else {
-        // Remove assignment
-        await removeStaffAssignment(staffId, currentDate);
-        toast.success('Staff assignment removed');
+        // Otherwise use the internal implementation
+        if (resourceId) {
+          // Assign staff to team
+          await assignStaffToTeam(staffId, resourceId, currentDate);
+          toast.success('Staff assigned to team');
+        } else {
+          // Remove assignment
+          await removeStaffAssignment(staffId, currentDate);
+          toast.success('Staff assignment removed');
+        }
       }
       
       // Refresh assignments
@@ -294,8 +307,7 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({ resources, curr
     );
   }
 
-  // Main component render - we don't need to wrap with DndProvider anymore
-  // since it's provided by ResourceView
+  // Main component render
   return (
     <div className="mt-4 border border-gray-200 rounded-md overflow-hidden">
       <div className="bg-gray-100 p-2 border-b border-gray-200 flex justify-between items-center">

@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useEventActions } from '@/hooks/useEventActions';
@@ -15,6 +15,7 @@ import { importBookings } from '@/services/importService';
 import { toast } from 'sonner';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
+import { assignStaffToTeam, removeStaffAssignment, fetchStaffAssignments } from '@/services/staffService';
 
 const ResourceView = () => {
   // Use our custom hooks to manage state and logic
@@ -41,6 +42,7 @@ const ResourceView = () => {
   const { addEventToCalendar } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
   const [isImporting, setIsImporting] = React.useState(false);
+  const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
   
   // Fetch events when this view is mounted
   useEffect(() => {
@@ -87,12 +89,17 @@ const ResourceView = () => {
     try {
       if (resourceId) {
         toast.info(`Assigning staff ${staffId} to team ${resourceId}...`);
+        await assignStaffToTeam(staffId, resourceId, currentDate);
+        toast.success('Staff assigned to team successfully');
       } else {
         toast.info(`Removing staff ${staffId} assignment...`);
+        await removeStaffAssignment(staffId, currentDate);
+        toast.success('Staff assignment removed successfully');
       }
-
-      // Assuming we're using the StaffAssignmentRow's existing handler
-      // This will be passed to both components so they can share functionality
+      
+      // Trigger a refresh of the staff assignments
+      setStaffAssignmentsUpdated(prev => !prev);
+      
       return Promise.resolve();
     } catch (error) {
       console.error('Error handling staff drop:', error);
@@ -158,7 +165,9 @@ const ResourceView = () => {
             <div className="mt-4">
               <StaffAssignmentRow 
                 resources={resources} 
-                currentDate={currentDate} 
+                currentDate={currentDate}
+                onStaffDrop={handleStaffDrop}
+                forceRefresh={staffAssignmentsUpdated}
               />
             </div>
           )}
