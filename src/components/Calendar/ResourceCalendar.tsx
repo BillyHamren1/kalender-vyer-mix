@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -17,7 +18,7 @@ interface ResourceCalendarProps {
   isMounted: boolean;
   currentDate: Date;
   onDateSet: (dateInfo: any) => void;
-  refreshEvents: () => Promise<void | CalendarEvent[]>; // Updated to accept Promise<void | CalendarEvent[]>
+  refreshEvents: () => Promise<void | CalendarEvent[]>;
 }
 
 const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
