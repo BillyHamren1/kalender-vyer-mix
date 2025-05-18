@@ -5,20 +5,59 @@ import { Button } from '@/components/ui/button';
 import { RefreshCcw, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useDrag } from 'react-dnd';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 
-type StaffMember = {
+// Staff member type, matching the type in StaffAssignmentRow
+export type StaffMember = {
   id: string;
   name: string;
   email?: string;
   phone?: string;
   availability?: string;
+  assignedTeam?: string | null;
 };
 
 interface AvailableStaffDisplayProps {
   currentDate: Date;
+  onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
 }
 
-const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({ currentDate }) => {
+// Draggable staff item component
+const DraggableStaffItem: React.FC<{ 
+  staff: StaffMember;
+  small?: boolean; 
+}> = ({ staff, small = false }) => {
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: 'STAFF',
+    item: staff,
+    collect: (monitor) => ({
+      isDragging: !!monitor.isDragging(),
+    }),
+  }));
+
+  return (
+    <div
+      ref={drag}
+      className={`border rounded p-2 bg-gray-50 hover:bg-gray-100 transition-colors cursor-move ${
+        isDragging ? 'opacity-50' : 'opacity-100'
+      }`}
+    >
+      <div className={`${small ? 'text-sm' : 'font-medium'}`}>{staff.name}</div>
+      {staff.availability && (
+        <div className="text-xs text-gray-500">
+          {staff.availability}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({ 
+  currentDate,
+  onStaffDrop 
+}) => {
   const [availableStaff, setAvailableStaff] = useState<StaffMember[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const isMobile = useIsMobile();
@@ -68,8 +107,8 @@ const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({ currentDa
   return (
     <div className="bg-white rounded-lg shadow-md p-3 mb-4">
       <div className="flex justify-between items-center mb-2">
-        <h2 className="text-lg font-medium flex items-center">
-          <Users className="mr-2 h-5 w-5" />
+        <h2 className="text-sm font-medium flex items-center">
+          <Users className="mr-2 h-4 w-4" />
           Available Staff
         </h2>
         <Button 
@@ -85,27 +124,31 @@ const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({ currentDa
       </div>
       
       {isLoading ? (
-        <div className="text-center py-4">Loading staff data...</div>
+        <div className="text-center py-4 text-sm">Loading staff data...</div>
       ) : availableStaff.length === 0 ? (
-        <div className="text-center py-4 text-gray-500">No staff data available</div>
+        <div className="text-center py-4 text-sm text-gray-500">No staff data available</div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
           {availableStaff.map((staff) => (
-            <div 
+            <DraggableStaffItem 
               key={staff.id} 
-              className="border rounded p-2 bg-gray-50 hover:bg-gray-100 transition-colors"
-            >
-              <div className="font-medium">{staff.name}</div>
-              {staff.availability && (
-                <div className="text-xs text-gray-500">
-                  {staff.availability}
-                </div>
-              )}
-            </div>
+              staff={staff}
+              small={true}
+            />
           ))}
         </div>
       )}
     </div>
+  );
+};
+
+// Wrap with DndProvider for export
+const DraggableAvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = (props) => {
+  // Only use DndProvider if it's not already provided by a parent component
+  return (
+    <DndProvider backend={HTML5Backend}>
+      <AvailableStaffDisplay {...props} />
+    </DndProvider>
   );
 };
 

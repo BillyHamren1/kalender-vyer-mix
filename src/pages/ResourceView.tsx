@@ -13,6 +13,8 @@ import { Button } from '@/components/ui/button';
 import { ArrowDown, RefreshCcw } from 'lucide-react';
 import { importBookings } from '@/services/importService';
 import { toast } from 'sonner';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 
 const ResourceView = () => {
   // Use our custom hooks to manage state and logic
@@ -79,63 +81,66 @@ const ResourceView = () => {
       setIsImporting(false);
     }
   };
-  
+
+  // Use a single DndProvider for all components
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className={`container mx-auto pt-2 ${isMobile ? 'px-2' : ''}`} style={{ maxWidth: isMobile ? '100%' : '94%' }}>
-        <div className={`bg-white rounded-lg shadow-md mb-4 ${isMobile ? 'p-2' : 'p-3'}`}>
-          {/* Day Navigation Bar - displayed above the calendar */}
-          <div className="flex justify-between items-center mb-4">
-            <DayNavigation currentDate={currentDate} />
-            <div className="flex space-x-2">
-              <Button 
-                onClick={refreshEvents} 
-                variant="outline" 
-                size="sm"
-                disabled={isLoading}
-                className="flex items-center gap-1"
-              >
-                <RefreshCcw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
-                {isMobile ? '' : 'Uppdatera'}
-              </Button>
-              <Button 
-                onClick={handleImportBookings} 
-                size="sm"
-                disabled={isImporting}
-                className="flex items-center gap-1"
-              >
-                <ArrowDown className="h-3 w-3" />
-                {isMobile ? '' : (isImporting ? 'Importerar...' : 'Importera')}
-              </Button>
+    <DndProvider backend={HTML5Backend}>
+      <div className="min-h-screen bg-gray-50">
+        <div className={`container mx-auto pt-2 ${isMobile ? 'px-2' : ''}`} style={{ maxWidth: isMobile ? '100%' : '94%' }}>
+          <div className={`bg-white rounded-lg shadow-md mb-4 ${isMobile ? 'p-2' : 'p-3'}`}>
+            {/* Day Navigation Bar - displayed above the calendar */}
+            <div className="flex justify-between items-center mb-4">
+              <DayNavigation currentDate={currentDate} />
+              <div className="flex space-x-2">
+                <Button 
+                  onClick={refreshEvents} 
+                  variant="outline" 
+                  size="sm"
+                  disabled={isLoading}
+                  className="flex items-center gap-1"
+                >
+                  <RefreshCcw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
+                  {isMobile ? '' : 'Uppdatera'}
+                </Button>
+                <Button 
+                  onClick={handleImportBookings} 
+                  size="sm"
+                  disabled={isImporting}
+                  className="flex items-center gap-1"
+                >
+                  <ArrowDown className="h-3 w-3" />
+                  {isMobile ? '' : (isImporting ? 'Importerar...' : 'Importera')}
+                </Button>
+              </div>
             </div>
+            
+            <ResourceCalendar
+              events={events}
+              resources={resources}
+              isLoading={isLoading}
+              isMounted={isMounted}
+              currentDate={currentDate}
+              onDateSet={handleDatesSet}
+              refreshEvents={refreshEvents}
+            />
           </div>
           
-          <ResourceCalendar
-            events={events}
-            resources={resources}
-            isLoading={isLoading}
-            isMounted={isMounted}
-            currentDate={currentDate}
-            onDateSet={handleDatesSet}
-            refreshEvents={refreshEvents}
-          />
+          {/* Available Staff Display */}
+          {shouldShowStaffAssignmentRow() && (
+            <div className="mt-4">
+              <AvailableStaffDisplay currentDate={currentDate} />
+            </div>
+          )}
+          
+          {/* Staff Assignment Row with current date */}
+          {shouldShowStaffAssignmentRow() && (
+            <div className="mt-4">
+              <StaffAssignmentRow resources={resources} currentDate={currentDate} />
+            </div>
+          )}
         </div>
-        
-        {/* Available Staff Display */}
-        {shouldShowStaffAssignmentRow() && (
-          <div className="mt-4">
-            <AvailableStaffDisplay currentDate={currentDate} />
-          </div>
-        )}
-        
-        {/* Staff Assignment Row with current date */}
-        {shouldShowStaffAssignmentRow() && (
-          <div className="mt-4">
-            <StaffAssignmentRow resources={resources} currentDate={currentDate} />
-          </div>
-        )}
       </div>
-    </div>
+    </DndProvider>
   );
 };
 

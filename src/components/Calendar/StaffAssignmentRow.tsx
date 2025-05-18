@@ -16,8 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-// Interface for a staff member
-interface StaffMember {
+// Interface for a staff member - export this type to share with AvailableStaffDisplay
+export interface StaffMember {
   id: string;
   name: string;
   email?: string;
@@ -294,54 +294,54 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({ resources, curr
     );
   }
 
+  // Main component render - we don't need to wrap with DndProvider anymore
+  // since it's provided by ResourceView
   return (
-    <DndProvider backend={HTML5Backend}>
-      <div className="mt-4 border border-gray-200 rounded-md overflow-hidden">
-        <div className="bg-gray-100 p-2 border-b border-gray-200 flex justify-between items-center">
-          <h3 className="text-sm font-semibold">
-            Assign Staff for {currentDate.toLocaleDateString()}
-          </h3>
-          <Dialog open={staffDialogOpen} onOpenChange={setStaffDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" 
-                onClick={() => {
-                  setSelectedTeam(null);
-                  setStaffDialogOpen(true);
-                }}
-              >
-                Add New Staff
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>
-                  {selectedTeam 
-                    ? `Add Staff to ${resources.find(r => r.id === selectedTeam)?.title || 'Team'}` 
-                    : 'Add New Staff Member'}
-                </DialogTitle>
-              </DialogHeader>
-              <StaffForm 
-                onSave={handleAddStaff} 
-                onCancel={() => setStaffDialogOpen(false)} 
-              />
-            </DialogContent>
-          </Dialog>
-        </div>
-        <div className="grid" style={{ gridTemplateColumns: `repeat(${resources.length}, 1fr)` }}>
-          {resources.map(resource => (
-            <TeamDropZone
-              key={resource.id}
-              resource={resource}
-              staffMembers={staffMembers}
-              assignments={assignments}
-              onDrop={handleStaffDrop}
-              onAddStaff={handleAddStaffToTeam}
-              currentDate={currentDate}
+    <div className="mt-4 border border-gray-200 rounded-md overflow-hidden">
+      <div className="bg-gray-100 p-2 border-b border-gray-200 flex justify-between items-center">
+        <h3 className="text-sm font-semibold">
+          Assign Staff for {currentDate.toLocaleDateString()}
+        </h3>
+        <Dialog open={staffDialogOpen} onOpenChange={setStaffDialogOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm" 
+              onClick={() => {
+                setSelectedTeam(null);
+                setStaffDialogOpen(true);
+              }}
+            >
+              Add New Staff
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {selectedTeam 
+                  ? `Add Staff to ${resources.find(r => r.id === selectedTeam)?.title || 'Team'}` 
+                  : 'Add New Staff Member'}
+              </DialogTitle>
+            </DialogHeader>
+            <StaffForm 
+              onSave={handleAddStaff} 
+              onCancel={() => setStaffDialogOpen(false)} 
             />
-          ))}
-        </div>
+          </DialogContent>
+        </Dialog>
       </div>
-    </DndProvider>
+      <div className="grid" style={{ gridTemplateColumns: `repeat(${resources.length}, 1fr)` }}>
+        {resources.map(resource => (
+          <TeamDropZone
+            key={resource.id}
+            resource={resource}
+            staffMembers={staffMembers}
+            assignments={assignments}
+            onDrop={handleStaffDrop}
+            onAddStaff={handleAddStaffToTeam}
+            currentDate={currentDate}
+          />
+        ))}
+      </div>
+    </div>
   );
 };
 
