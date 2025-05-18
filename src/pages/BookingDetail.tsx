@@ -1,9 +1,16 @@
-
 import React, { useEffect, useContext, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CalendarContext } from '@/App';
-import { useBookingDetail } from '@/hooks/useBookingDetail';
+import { 
+  fetchBookingById, 
+  updateBookingDates, 
+  updateBookingNotes, 
+  updateBookingLogistics,
+  updateDeliveryDetails
+} from '@/services/bookingService';
+import { syncBookingEvents } from '@/services/bookingCalendarService';
+import { Booking } from '@/types/booking';
 import { 
   Calendar as CalendarIcon, 
   Clock, 
@@ -28,12 +35,17 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import MapView from '@/components/MapView';
+import { useForm } from 'react-hook-form';
 
 const BookingDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { lastViewedDate, lastPath } = useContext(CalendarContext);
+  const [booking, setBooking] = useState<Booking | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSyncingToCalendar, setIsSyncingToCalendar] = useState(false);
   const [autoSync, setAutoSync] = useState(false);
   
   // States for date selection
@@ -52,24 +64,15 @@ const BookingDetail = () => {
   const [deliveryCity, setDeliveryCity] = useState('');
   const [deliveryPostalCode, setDeliveryPostalCode] = useState('');
   
-  const {
-    booking,
-    isLoading,
-    error,
-    isSaving,
-    isSyncingToCalendar,
-    loadBookingData,
-    handleDateChange,
-    handleLogisticsChange,
-    handleDeliveryDetailsChange,
-    syncWithCalendar,
-    setBooking
-  } = useBookingDetail(id);
-  
   useEffect(() => {
-    const fetchBookingData = async () => {
-      const bookingData = await loadBookingData();
-      if (bookingData) {
+    const loadBookingData = async () => {
+      if (!id) return;
+      
+      try {
+        setIsLoading(true);
+        const bookingData = await fetchBookingById(id);
+        setBooking(bookingData);
+        
         // Initialize date states from booking data
         if (bookingData.rigDayDate) {
           setSelectedRigDate(new Date(bookingData.rigDayDate));
@@ -91,11 +94,19 @@ const BookingDetail = () => {
         setDeliveryAddress(bookingData.deliveryAddress || '');
         setDeliveryCity(bookingData.deliveryCity || '');
         setDeliveryPostalCode(bookingData.deliveryPostalCode || '');
+        
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching booking:', err);
+        setError('Failed to load booking details');
+        toast.error('Could not load booking details');
+      } finally {
+        setIsLoading(false);
       }
     };
     
-    fetchBookingData();
-  }, [id, loadBookingData]);
+    loadBookingData();
+  }, [id]);
   
   const handleBack = () => {
     if (lastPath) {
@@ -110,12 +121,19 @@ const BookingDetail = () => {
     return new Date(dateString).toLocaleDateString();
   };
   
-  // Wrapper functions to handle UI interactions
-  const onDateChange = (date: Date | undefined, dateType: 'rigDayDate' | 'eventDate' | 'rigDownDate') => {
-    if (date) {
-      handleDateChange(date, dateType, autoSync);
+  const handleDateChange = async (date: Date | undefined, dateType: 'rigDayDate' | 'eventDate' | 'rigDownDate') => {
+    if (!booking || !id || !date) return;
+    
+    try {
+      setIsSaving(true);
       
-      // Update the local state without waiting for the API
+      // Format the date as ISO string (without time)
+      const formattedDate = date.toISOString().split('T')[0];
+      
+      // Update the booking date in the database
+      await updateBookingDates(id, dateType, formattedDate);
+      
+      // Update the correct date selection state
       if (dateType === 'rigDayDate') {
         setSelectedRigDate(date);
       } else if (dateType === 'eventDate') {
@@ -123,24 +141,117 @@ const BookingDetail = () => {
       } else if (dateType === 'rigDownDate') {
         setSelectedRigDownDate(date);
       }
+      
+      // Update local state to reflect changes
+      setBooking({
+        ...booking,
+        [dateType]: formattedDate
+      });
+      
+      toast.success(`${dateType === 'rigDayDate' ? 'Rig day' : dateType === 'eventDate' ? 'Event day' : 'Rig down day'} updated successfully`);
+      
+      // If autoSync is enabled, automatically sync to calendar
+      if (autoSync) {
+        await syncWithCalendar();
+      }
+    } catch (err) {
+      console.error(`Error updating ${dateType}:`, err);
+      toast.error(`Failed to update ${dateType === 'rigDayDate' ? 'rig day' : dateType === 'eventDate' ? 'event day' : 'rig down day'}`);
+    } finally {
+      setIsSaving(false);
     }
   };
   
-  const onLogisticsChange = () => {
-    handleLogisticsChange({
-      carryMoreThan10m,
-      groundNailsAllowed,
-      exactTimeNeeded,
-      exactTimeInfo
-    });
+  const handleLogisticsChange = async () => {
+    if (!booking || !id) return;
+    
+    try {
+      setIsSaving(true);
+      
+      await updateBookingLogistics(id, {
+        carryMoreThan10m,
+        groundNailsAllowed,
+        exactTimeNeeded,
+        exactTimeInfo
+      });
+      
+      // Update local state
+      setBooking({
+        ...booking,
+        carryMoreThan10m,
+        groundNailsAllowed,
+        exactTimeNeeded,
+        exactTimeInfo
+      });
+      
+      toast.success('Logistics information updated successfully');
+    } catch (err) {
+      console.error('Error updating logistics information:', err);
+      toast.error('Failed to update logistics information');
+    } finally {
+      setIsSaving(false);
+    }
   };
   
-  const onDeliveryDetailsChange = () => {
-    handleDeliveryDetailsChange({
-      deliveryAddress,
-      deliveryCity,
-      deliveryPostalCode
-    });
+  const handleDeliveryDetailsChange = async () => {
+    if (!booking || !id) return;
+    
+    try {
+      setIsSaving(true);
+      
+      await updateDeliveryDetails(id, {
+        deliveryAddress,
+        deliveryCity,
+        deliveryPostalCode
+      });
+      
+      // Update local state
+      setBooking({
+        ...booking,
+        deliveryAddress,
+        deliveryCity,
+        deliveryPostalCode
+      });
+      
+      toast.success('Delivery details updated successfully');
+    } catch (err) {
+      console.error('Error updating delivery details:', err);
+      toast.error('Failed to update delivery details');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  
+  const syncWithCalendar = async () => {
+    if (!booking || !id) return;
+    
+    setIsSyncingToCalendar(true);
+    
+    try {
+      // Create or update calendar events for each date
+      const syncPromises = [];
+      
+      if (booking.rigDayDate) {
+        syncPromises.push(syncBookingEvents(id, 'rig', booking.rigDayDate, 'auto', booking.client));
+      }
+      
+      if (booking.eventDate) {
+        syncPromises.push(syncBookingEvents(id, 'event', booking.eventDate, 'auto', booking.client));
+      }
+      
+      if (booking.rigDownDate) {
+        syncPromises.push(syncBookingEvents(id, 'rigDown', booking.rigDownDate, 'auto', booking.client));
+      }
+      
+      await Promise.all(syncPromises);
+      
+      toast.success('Booking synced to calendar successfully');
+    } catch (err) {
+      console.error('Error syncing with calendar:', err);
+      toast.error('Failed to sync booking with calendar');
+    } finally {
+      setIsSyncingToCalendar(false);
+    }
   };
   
   const DatePickerWithButton = ({ 
@@ -316,25 +427,14 @@ const BookingDetail = () => {
                     </div>
                   </div>
                   
-                  {/* Map view component */}
-                  <div className="mt-4">
-                    <MapView 
-                      address={deliveryAddress}
-                      city={deliveryCity}
-                      postalCode={deliveryPostalCode}
-                      latitude={booking.deliveryLatitude}
-                      longitude={booking.deliveryLongitude}
-                    />
-                  </div>
-                  
                   {(booking.deliveryLatitude && booking.deliveryLongitude) ? (
-                    <div className="mt-2">
+                    <div className="mt-4">
                       <p className="text-sm text-gray-500">Location coordinates: {booking.deliveryLatitude}, {booking.deliveryLongitude}</p>
                     </div>
                   ) : null}
                   
                   <Button
-                    onClick={onDeliveryDetailsChange}
+                    onClick={handleDeliveryDetailsChange}
                     disabled={isSaving}
                     className="mt-2"
                   >
@@ -410,7 +510,7 @@ const BookingDetail = () => {
                   )}
                   
                   <Button
-                    onClick={onLogisticsChange}
+                    onClick={handleLogisticsChange}
                     disabled={isSaving}
                     className="mt-2"
                   >
@@ -444,19 +544,19 @@ const BookingDetail = () => {
               <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
                 <DatePickerWithButton 
                   date={selectedRigDate} 
-                  onSelect={onDateChange}
+                  onSelect={handleDateChange}
                   label="Rig Day"
                   dateType="rigDayDate"
                 />
                 <DatePickerWithButton 
                   date={selectedEventDate} 
-                  onSelect={onDateChange}
+                  onSelect={handleDateChange}
                   label="Event Date"
                   dateType="eventDate"
                 />
                 <DatePickerWithButton 
                   date={selectedRigDownDate} 
-                  onSelect={onDateChange}
+                  onSelect={handleDateChange}
                   label="Rig Down Date"
                   dateType="rigDownDate"
                 />
