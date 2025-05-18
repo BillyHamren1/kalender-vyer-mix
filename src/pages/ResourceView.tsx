@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useEventActions } from '@/hooks/useEventActions';
@@ -38,6 +38,11 @@ const ResourceView = () => {
   const { addEventToCalendar } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
   const [isImporting, setIsImporting] = React.useState(false);
+  
+  // Fetch events when this view is mounted
+  useEffect(() => {
+    refreshEvents();
+  }, []);
   
   // Determine if we should show the Staff Assignment Row - only show on desktop in day view
   const shouldShowStaffAssignmentRow = () => {

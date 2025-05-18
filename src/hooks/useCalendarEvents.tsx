@@ -18,12 +18,15 @@ export const useCalendarEvents = () => {
     return stored ? new Date(stored) : new Date();
   });
 
+  // Fetch events initially and set up polling for updates
   useEffect(() => {
     let active = true;
+    let pollInterval: number | null = null;
 
     const loadEvents = async () => {
       try {
         console.log('Fetching calendar events...');
+        setIsLoading(true);
         const data = await fetchCalendarEvents();
         if (active) {
           console.log('Calendar events loaded successfully:', data);
@@ -36,7 +39,9 @@ export const useCalendarEvents = () => {
         }
       } catch (error) {
         console.error('Error loading calendar events:', error);
-        toast.error('Could not load calendar events');
+        if (active) {
+          toast.error('Could not load calendar events');
+        }
       } finally {
         if (active) {
           setIsLoading(false);
@@ -45,10 +50,21 @@ export const useCalendarEvents = () => {
       }
     };
 
+    // Initial load
     loadEvents();
+
+    // Set up polling every 30 seconds to fetch updates
+    pollInterval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        loadEvents();
+      }
+    }, 30000);
 
     return () => {
       active = false;
+      if (pollInterval !== null) {
+        clearInterval(pollInterval);
+      }
     };
   }, []);
 
