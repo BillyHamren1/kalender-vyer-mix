@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Resource } from './ResourceData';
 import { useDrag, useDrop } from 'react-dnd';
@@ -15,6 +16,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Users } from 'lucide-react';
 
 // Interface for a staff member - export this type to share with AvailableStaffDisplay
 export interface StaffMember {
@@ -39,6 +42,17 @@ interface StaffAssignment {
   };
 }
 
+// Helper function to format staff name
+const formatStaffName = (fullName: string): string => {
+  const nameParts = fullName.trim().split(' ');
+  if (nameParts.length === 1) return nameParts[0];
+  
+  const firstName = nameParts[0];
+  const lastNameInitial = nameParts[nameParts.length - 1][0];
+  
+  return `${firstName} ${lastNameInitial}`;
+};
+
 // Props for the StaffAssignmentRow component
 interface StaffAssignmentRowProps {
   resources: Resource[];
@@ -61,30 +75,38 @@ const DraggableStaffItem: React.FC<{
     }),
   }));
 
-  const formattedDate = currentDate.toLocaleDateString('sv-SE', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
+  // Get the initials for avatar
+  const getInitials = (name: string): string => {
+    const nameParts = name.trim().split(' ');
+    if (nameParts.length === 1) return nameParts[0].substring(0, 2).toUpperCase();
+    return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
+  };
+
+  // Format the name for display
+  const displayName = formatStaffName(staff.name);
 
   return (
     <div
       ref={drag}
-      className={`p-2 bg-white border border-gray-200 rounded mb-1 cursor-move flex justify-between items-center ${
+      className={`p-1.5 bg-white border border-gray-200 rounded-md mb-1 cursor-move flex justify-between items-center ${
         isDragging ? 'opacity-50' : 'opacity-100'
       }`}
     >
-      <span>{staff.name}</span>
-      <div className="flex items-center">
-        <span className="text-xs text-gray-500 mr-2">{formattedDate}</span>
-        <button 
-          onClick={onRemove}
-          className="text-gray-500 hover:text-red-500"
-          aria-label="Remove assignment"
-        >
-          &times;
-        </button>
+      <div className="flex items-center gap-1.5">
+        <Avatar className="h-6 w-6 bg-purple-100">
+          <AvatarFallback className="text-xs text-purple-700">
+            {getInitials(staff.name)}
+          </AvatarFallback>
+        </Avatar>
+        <span className="text-sm font-medium">{displayName}</span>
       </div>
+      <button 
+        onClick={onRemove}
+        className="text-gray-400 hover:text-red-500 ml-1"
+        aria-label="Remove assignment"
+      >
+        &times;
+      </button>
     </div>
   );
 };
@@ -121,7 +143,10 @@ const TeamDropZone: React.FC<{
       ref={drop}
       className={`p-2 border-r border-gray-200 h-full ${isOver ? 'bg-blue-50' : 'bg-gray-50'}`}
     >
-      <div className="text-sm font-medium mb-2">{resource.title}</div>
+      <div className="text-sm font-medium mb-2 flex items-center gap-1">
+        <Users className="h-4 w-4" />
+        <span>{resource.title}</span>
+      </div>
       
       {teamStaff.map(staff => (
         <DraggableStaffItem 

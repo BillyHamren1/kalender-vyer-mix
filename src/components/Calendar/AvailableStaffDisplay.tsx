@@ -7,6 +7,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { StaffMember } from './StaffAssignmentRow';
 import { syncStaffMember } from '@/services/staffService';
 import { toast } from 'sonner';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Users } from 'lucide-react';
 
 // External staff member interface from the API
 interface ExternalStaffMember {
@@ -28,6 +30,17 @@ interface AvailableStaffDisplayProps {
   onStaffDrop: (staffId: string, resourceId: string | null) => Promise<void>;
 }
 
+// Helper function to format staff name
+const formatStaffName = (fullName: string): string => {
+  const nameParts = fullName.trim().split(' ');
+  if (nameParts.length === 1) return nameParts[0];
+  
+  const firstName = nameParts[0];
+  const lastNameInitial = nameParts[nameParts.length - 1][0];
+  
+  return `${firstName} ${lastNameInitial}`;
+};
+
 // Draggable staff item component
 const DraggableStaffItem: React.FC<{ staff: StaffMember }> = ({ staff }) => {
   const [{ isDragging }, drag] = useDrag(() => ({
@@ -38,20 +51,29 @@ const DraggableStaffItem: React.FC<{ staff: StaffMember }> = ({ staff }) => {
     }),
   }));
 
+  // Get the initials for avatar
+  const getInitials = (name: string): string => {
+    const nameParts = name.trim().split(' ');
+    if (nameParts.length === 1) return nameParts[0].substring(0, 2).toUpperCase();
+    return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
+  };
+
+  // Format the name for display
+  const displayName = formatStaffName(staff.name);
+
   return (
     <div
       ref={drag}
-      className={`p-2 mb-2 bg-white border rounded shadow-sm cursor-move ${
+      className={`p-1.5 mb-1.5 bg-white border rounded-md shadow-sm cursor-move flex items-center gap-1.5 ${
         isDragging ? 'opacity-50' : 'opacity-100'
       }`}
     >
-      <div className="font-medium">{staff.name}</div>
-      {staff.email && (
-        <div className="text-xs text-gray-500">{staff.email}</div>
-      )}
-      {staff.phone && (
-        <div className="text-xs text-gray-500">{staff.phone}</div>
-      )}
+      <Avatar className="h-6 w-6 bg-purple-100">
+        <AvatarFallback className="text-xs text-purple-700">
+          {getInitials(staff.name)}
+        </AvatarFallback>
+      </Avatar>
+      <span className="text-sm font-medium">{displayName}</span>
     </div>
   );
 };
@@ -142,15 +164,19 @@ const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({ currentDa
   return (
     <Card className={`border ${isOver ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
       <CardHeader className="pb-2">
-        <CardTitle className="text-lg">Available Staff</CardTitle>
+        <CardTitle className="text-lg flex items-center gap-1.5">
+          <Users className="h-5 w-5" />
+          Available Staff
+        </CardTitle>
       </CardHeader>
-      <CardContent ref={drop} className="pt-0">
+      <CardContent ref={drop} className="pt-0 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5">
         {isLoading ? (
           // Show skeletons while loading
           <>
-            <Skeleton className="h-12 mb-2" />
-            <Skeleton className="h-12 mb-2" />
-            <Skeleton className="h-12" />
+            <Skeleton className="h-8 mb-1.5" />
+            <Skeleton className="h-8 mb-1.5" />
+            <Skeleton className="h-8 mb-1.5" />
+            <Skeleton className="h-8 mb-1.5" />
           </>
         ) : availableStaff.length > 0 ? (
           // Show available staff members
@@ -159,7 +185,7 @@ const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({ currentDa
           ))
         ) : (
           // Show message when no staff available
-          <div className="text-gray-500 text-center py-4">
+          <div className="text-gray-500 text-center py-4 col-span-full">
             No staff available for this date
           </div>
         )}
