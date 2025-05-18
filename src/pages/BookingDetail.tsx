@@ -1,16 +1,9 @@
+
 import React, { useEffect, useContext, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CalendarContext } from '@/App';
-import { 
-  fetchBookingById, 
-  updateBookingDates, 
-  updateBookingNotes, 
-  updateBookingLogistics,
-  updateDeliveryDetails
-} from '@/services/bookingService';
-import { syncBookingEvents } from '@/services/bookingCalendarService';
-import { Booking } from '@/types/booking';
+import { useBookingDetail } from '@/hooks/useBookingDetail';
 import { 
   Calendar as CalendarIcon, 
   Clock, 
@@ -35,18 +28,27 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useForm } from 'react-hook-form';
+import MapView from '@/components/MapView';
 
 const BookingDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { lastViewedDate, lastPath } = useContext(CalendarContext);
-  const [booking, setBooking] = useState<Booking | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isSyncingToCalendar, setIsSyncingToCalendar] = useState(false);
   const [autoSync, setAutoSync] = useState(false);
+  
+  const {
+    booking,
+    isLoading,
+    error,
+    isSaving,
+    isSyncingToCalendar,
+    loadBookingData,
+    handleDateChange,
+    handleLogisticsChange,
+    handleDeliveryDetailsChange,
+    syncWithCalendar,
+    setBooking
+  } = useBookingDetail(id);
   
   // States for date selection
   const [selectedRigDate, setSelectedRigDate] = useState<Date | undefined>(undefined);
@@ -65,14 +67,9 @@ const BookingDetail = () => {
   const [deliveryPostalCode, setDeliveryPostalCode] = useState('');
   
   useEffect(() => {
-    const loadBookingData = async () => {
-      if (!id) return;
-      
-      try {
-        setIsLoading(true);
-        const bookingData = await fetchBookingById(id);
-        setBooking(bookingData);
-        
+    const fetchBookingData = async () => {
+      const bookingData = await loadBookingData();
+      if (bookingData) {
         // Initialize date states from booking data
         if (bookingData.rigDayDate) {
           setSelectedRigDate(new Date(bookingData.rigDayDate));
@@ -94,19 +91,11 @@ const BookingDetail = () => {
         setDeliveryAddress(bookingData.deliveryAddress || '');
         setDeliveryCity(bookingData.deliveryCity || '');
         setDeliveryPostalCode(bookingData.deliveryPostalCode || '');
-        
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching booking:', err);
-        setError('Failed to load booking details');
-        toast.error('Could not load booking details');
-      } finally {
-        setIsLoading(false);
       }
     };
     
-    loadBookingData();
-  }, [id]);
+    fetchBookingData();
+  }, [id, loadBookingData]);
   
   const handleBack = () => {
     if (lastPath) {
@@ -427,8 +416,19 @@ const BookingDetail = () => {
                     </div>
                   </div>
                   
+                  {/* Map view component */}
+                  <div className="mt-4">
+                    <MapView 
+                      address={deliveryAddress}
+                      city={deliveryCity}
+                      postalCode={deliveryPostalCode}
+                      latitude={booking.deliveryLatitude}
+                      longitude={booking.deliveryLongitude}
+                    />
+                  </div>
+                  
                   {(booking.deliveryLatitude && booking.deliveryLongitude) ? (
-                    <div className="mt-4">
+                    <div className="mt-2">
                       <p className="text-sm text-gray-500">Location coordinates: {booking.deliveryLatitude}, {booking.deliveryLongitude}</p>
                     </div>
                   ) : null}
