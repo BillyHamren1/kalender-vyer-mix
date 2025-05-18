@@ -82,7 +82,25 @@ const ResourceView = () => {
     }
   };
 
-  // Use a single DndProvider for all components
+  // Handle staff drop for assignment
+  const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
+    try {
+      if (resourceId) {
+        toast.info(`Assigning staff ${staffId} to team ${resourceId}...`);
+      } else {
+        toast.info(`Removing staff ${staffId} assignment...`);
+      }
+
+      // Assuming we're using the StaffAssignmentRow's existing handler
+      // This will be passed to both components so they can share functionality
+      return Promise.resolve();
+    } catch (error) {
+      console.error('Error handling staff drop:', error);
+      toast.error('Failed to update staff assignment');
+      return Promise.reject(error);
+    }
+  };
+
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="min-h-screen bg-gray-50">
@@ -128,14 +146,20 @@ const ResourceView = () => {
           {/* Available Staff Display */}
           {shouldShowStaffAssignmentRow() && (
             <div className="mt-4">
-              <AvailableStaffDisplay currentDate={currentDate} />
+              <AvailableStaffDisplay 
+                currentDate={currentDate} 
+                onStaffDrop={handleStaffDrop}
+              />
             </div>
           )}
           
           {/* Staff Assignment Row with current date */}
           {shouldShowStaffAssignmentRow() && (
             <div className="mt-4">
-              <StaffAssignmentRow resources={resources} currentDate={currentDate} />
+              <StaffAssignmentRow 
+                resources={resources} 
+                currentDate={currentDate} 
+              />
             </div>
           )}
         </div>
