@@ -155,7 +155,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       eventType: eventType,
       bookingId: dbEvent.booking_id,
       color: getEventColor(eventType),
-      className: dbEvent.booking_id && !dbEvent.viewed ? 'new-booking-event' : ''
+      className: dbEvent.booking_id && !dbEvent.viewed ? 'new-booking-event' : '',
+      viewed: dbEvent.viewed
     };
   };
 
@@ -258,6 +259,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           hour12: false,
           omitZeroMinute: false // Always show minutes even if 00
         }}
+        slotEventOverlap={false} // Prevent events from overlapping visually
+        eventMaxStack={0} // Force all events to display in parallel rather than stacking
       />
     </div>
   );

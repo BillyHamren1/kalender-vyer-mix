@@ -30,19 +30,22 @@
 }
 
 /* Custom event styling for different event types */
-[data-event-type="rig"] {
+.fc-event[data-event-type="rig"] {
   background-color: #F2FCE2 !important;
   border-left: 3px solid #5B8C32 !important;
+  color: #000000 !important;
 }
 
-[data-event-type="event"] {
+.fc-event[data-event-type="event"] {
   background-color: #FEF7CD !important;
   border-left: 3px solid #D4AF37 !important;
+  color: #000000 !important;
 }
 
-[data-event-type="rigDown"] {
+.fc-event[data-event-type="rigDown"] {
   background-color: #FFDEE2 !important;
   border-left: 3px solid #D43762 !important;
+  color: #000000 !important;
 }
 
 /* Default event styling */
@@ -88,6 +91,19 @@
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
   font-size: 0.75rem !important;
+}
+
+/* Fix for stacked events display */
+.fc .fc-timegrid-event {
+  display: flex !important;
+  flex-direction: column !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* Force calendar to respect our styling */
+.fc-event-main {
+  padding: 2px 4px !important;
 }
 
 /* Responsive styles for mobile */
