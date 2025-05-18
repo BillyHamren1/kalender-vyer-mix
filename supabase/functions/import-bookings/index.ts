@@ -4,7 +4,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-api-key',
 }
 
 serve(async (req) => {
@@ -52,11 +52,11 @@ serve(async (req) => {
 
     console.log(`Fetching bookings from external API: ${externalApiUrl.toString()}`)
 
-    // Fetch bookings from the external API
+    // Fetch bookings from the external API using x-api-key header
     const externalResponse = await fetch(externalApiUrl.toString(), {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${EXTERNAL_BOOKING_API_KEY}`,
+        'x-api-key': EXTERNAL_BOOKING_API_KEY,
         'Content-Type': 'application/json',
       },
     })

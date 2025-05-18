@@ -4,7 +4,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-api-key',
 }
 
 serve(async (req) => {
@@ -22,13 +22,14 @@ serve(async (req) => {
   }
 
   try {
-    // Validate API key
+    // Validate API key using x-api-key header
     const API_KEY = Deno.env.get('EXPORT_API_KEY')
-    const authHeader = req.headers.get('Authorization')
+    const apiKey = req.headers.get('x-api-key')
     
-    if (!authHeader || !authHeader.startsWith('Bearer ') || authHeader.substring(7) !== API_KEY) {
+    if (!apiKey || apiKey !== API_KEY) {
+      console.error('Invalid or missing API key in x-api-key header')
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
+        JSON.stringify({ error: 'Unauthorized', message: 'Invalid or missing API key' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
       )
     }
