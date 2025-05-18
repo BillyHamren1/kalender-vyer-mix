@@ -33,7 +33,28 @@ export const mapDatabaseToAppResourceId = (dbResourceId: string): string => {
 
 // Convert application resource ID to database format
 export const mapAppToDatabaseResourceId = (appResourceId: string): string => {
-  return reverseResourceIdMap[appResourceId] || appResourceId;
+  // If it's already a single character like 'a', 'b', etc., return as is
+  if (appResourceId.length === 1 && reverseResourceIdMap[`team-${appResourceId}`]) {
+    return appResourceId;
+  }
+  
+  // Handle direct team-X format
+  const result = reverseResourceIdMap[appResourceId];
+  
+  if (result) {
+    console.log(`Mapped app ID ${appResourceId} to database ID ${result}`);
+    return result;
+  }
+  
+  // If the ID has format "team-X" but isn't in our map, extract the X
+  if (appResourceId.startsWith('team-')) {
+    const teamNumber = appResourceId.split('-')[1];
+    console.log(`Team ID ${appResourceId} not in mapping, using extracted value ${teamNumber}`);
+    return teamNumber;
+  }
+  
+  console.log(`No mapping found for ${appResourceId}, using as is`);
+  return appResourceId;
 };
 
 // Fetch all calendar events
@@ -105,16 +126,21 @@ export const updateCalendarEvent = async (
   id: string,
   updates: Partial<Omit<CalendarEvent, 'id'>>
 ): Promise<void> => {
+  console.log(`Updating calendar event ${id} with:`, updates);
+  
   const updateData: any = {};
   
   if (updates.resourceId) {
     // Convert resourceId to database format
     updateData.resource_id = mapAppToDatabaseResourceId(updates.resourceId);
+    console.log(`Converted resource ID ${updates.resourceId} to ${updateData.resource_id} for database update`);
   }
   if (updates.title) updateData.title = updates.title;
   if (updates.start) updateData.start_time = updates.start;
   if (updates.end) updateData.end_time = updates.end;
   if (updates.eventType) updateData.event_type = updates.eventType;
+
+  console.log('Final update data for database:', updateData);
 
   const { error } = await supabase
     .from('calendar_events')
@@ -125,6 +151,8 @@ export const updateCalendarEvent = async (
     console.error('Error updating calendar event:', error);
     throw error;
   }
+  
+  console.log(`Successfully updated event ${id} in database`);
 };
 
 // Delete a calendar event
