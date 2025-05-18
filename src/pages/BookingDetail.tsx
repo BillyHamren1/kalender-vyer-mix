@@ -33,8 +33,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useForm } from 'react-hook-form';
 
 const BookingDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -391,8 +392,9 @@ const BookingDetail = () => {
                 <div className="space-y-4">
                   <div className="grid gap-4">
                     <div>
-                      <FormLabel>Address</FormLabel>
+                      <Label htmlFor="delivery-address">Address</Label>
                       <Textarea 
+                        id="delivery-address"
                         value={deliveryAddress}
                         onChange={(e) => setDeliveryAddress(e.target.value)}
                         placeholder="Street address"
@@ -402,8 +404,9 @@ const BookingDetail = () => {
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <FormLabel>City</FormLabel>
+                        <Label htmlFor="delivery-city">City</Label>
                         <Input 
+                          id="delivery-city"
                           value={deliveryCity}
                           onChange={(e) => setDeliveryCity(e.target.value)}
                           placeholder="City"
@@ -412,8 +415,9 @@ const BookingDetail = () => {
                       </div>
                       
                       <div>
-                        <FormLabel>Postal Code</FormLabel>
+                        <Label htmlFor="delivery-postal-code">Postal Code</Label>
                         <Input 
+                          id="delivery-postal-code"
                           value={deliveryPostalCode}
                           onChange={(e) => setDeliveryPostalCode(e.target.value)}
                           placeholder="Postal code"
@@ -456,12 +460,12 @@ const BookingDetail = () => {
                       checked={carryMoreThan10m}
                       onCheckedChange={setCarryMoreThan10m}
                     />
-                    <label
+                    <Label
                       htmlFor="carry-more-than-10m"
                       className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                     >
                       Items need to be carried more than 10 meters
-                    </label>
+                    </Label>
                   </div>
                   
                   <div className="flex items-center space-x-2">
@@ -470,12 +474,12 @@ const BookingDetail = () => {
                       checked={groundNailsAllowed}
                       onCheckedChange={setGroundNailsAllowed}
                     />
-                    <label
+                    <Label
                       htmlFor="ground-nails-allowed"
                       className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                     >
                       Ground nails are allowed at the venue
-                    </label>
+                    </Label>
                   </div>
                   
                   <div className="flex items-center space-x-2">
@@ -484,18 +488,19 @@ const BookingDetail = () => {
                       checked={exactTimeNeeded}
                       onCheckedChange={setExactTimeNeeded}
                     />
-                    <label
+                    <Label
                       htmlFor="exact-time-needed"
                       className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                     >
                       Exact delivery time is required
-                    </label>
+                    </Label>
                   </div>
                   
                   {exactTimeNeeded && (
                     <div>
-                      <FormLabel>Time Details</FormLabel>
+                      <Label htmlFor="exact-time-info">Time Details</Label>
                       <Textarea 
+                        id="exact-time-info"
                         value={exactTimeInfo}
                         onChange={(e) => setExactTimeInfo(e.target.value)}
                         placeholder="Specify the exact time requirements"
@@ -528,12 +533,12 @@ const BookingDetail = () => {
                     checked={autoSync}
                     onCheckedChange={setAutoSync}
                   />
-                  <label
+                  <Label
                     htmlFor="auto-sync"
                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                   >
                     Auto sync to calendar
-                  </label>
+                  </Label>
                 </div>
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
