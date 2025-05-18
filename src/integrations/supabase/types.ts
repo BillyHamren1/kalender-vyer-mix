@@ -87,6 +87,7 @@ export type Database = {
           rigdaydate: string | null
           rigdowndate: string | null
           updated_at: string
+          viewed: boolean
         }
         Insert: {
           client: string
@@ -98,6 +99,7 @@ export type Database = {
           rigdaydate?: string | null
           rigdowndate?: string | null
           updated_at?: string
+          viewed?: boolean
         }
         Update: {
           client?: string
@@ -109,6 +111,7 @@ export type Database = {
           rigdaydate?: string | null
           rigdowndate?: string | null
           updated_at?: string
+          viewed?: boolean
         }
         Relationships: []
       }

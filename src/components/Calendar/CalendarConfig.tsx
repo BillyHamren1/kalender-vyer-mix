@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 // Calendar view configuration
@@ -34,7 +33,11 @@ export const getCalendarOptions = () => {
       minute: "2-digit" as "2-digit", // Using literal type to match expected FullCalendar type
       hour12: false,   // Use 24-hour format
       omitZeroMinute: false // Always show minutes even if 00
-    }
+    },
+    slotEventOverlap: false, // Prevent events from overlapping visually
+    eventMaxStack: 0, // Force all events to display in parallel rather than stacking
+    eventMinHeight: 20, // Minimum height for events
+    eventShortHeight: 30 // Height for short duration events
   };
 };
 
