@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { useDrop } from 'react-dnd';
+import { useDrop, useDrag } from 'react-dnd';
 import { Resource } from './ResourceData';
 import { StaffMember } from './StaffTypes';
 import { ArrowDown, User, Users } from 'lucide-react';
@@ -13,6 +13,59 @@ interface ResourceHeaderDropZoneProps {
   currentDate?: Date;
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
 }
+
+// DraggableStaffBadge component for the resource header
+const DraggableStaffBadge: React.FC<{
+  staff: StaffMember;
+  onRemove: () => Promise<void>;
+}> = ({ staff, onRemove }) => {
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: 'STAFF',
+    item: staff,
+    collect: (monitor) => ({
+      isDragging: !!monitor.isDragging(),
+    }),
+  }));
+
+  // Helper function to get initials for avatar
+  const getInitials = (name: string): string => {
+    const nameParts = name.trim().split(' ');
+    if (nameParts.length === 1) return nameParts[0].substring(0, 2).toUpperCase();
+    return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
+  };
+
+  return (
+    <Badge 
+      ref={drag}
+      key={staff.id}
+      variant="outline"
+      className={`staff-badge flex items-center bg-purple-100 text-purple-800 text-xs rounded-md px-1.5 py-0.5 z-20 shadow-sm cursor-move ${
+        isDragging ? 'opacity-50' : 'opacity-100'
+      }`}
+      title={staff.name}
+      onClick={(e) => {
+        e.stopPropagation();
+      }}
+    >
+      <Avatar className="h-4 w-4 mr-1 bg-purple-200">
+        <AvatarFallback className="text-[8px] text-purple-800">
+          {getInitials(staff.name)}
+        </AvatarFallback>
+      </Avatar>
+      <span className="truncate max-w-[50px] font-medium">{staff.name.split(' ')[0]}</span>
+      <button 
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove();
+        }}
+        className="text-gray-400 hover:text-red-500 text-xs ml-1"
+        aria-label="Remove assignment"
+      >
+        &times;
+      </button>
+    </Badge>
+  );
+};
 
 export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({ 
   resource,
@@ -46,15 +99,11 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         setIsLoading(true);
         const formattedDate = currentDate.toISOString().split('T')[0];
         
-        // Get staff assigned to this team on this date
-        const staffAssignments = await fetchStaffAssignments(currentDate);
+        // Get staff assigned to this specific team on this date
+        const staffAssignments = await fetchStaffAssignments(currentDate, resource.id);
         
-        // Filter assignments to only show staff assigned to this resource
-        const resourceAssignments = staffAssignments.filter(
-          assignment => assignment.team_id === resource.id
-        );
-        
-        setAssignedStaff(resourceAssignments.map(assignment => ({
+        // Now staffAssignments only contains assignments for this resource
+        setAssignedStaff(staffAssignments.map(assignment => ({
           id: assignment.staff_id,
           name: assignment.staff_members?.name || 'Unknown',
           email: assignment.staff_members?.email,
@@ -71,11 +120,14 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     loadAssignedStaff();
   }, [resource.id, currentDate]);
   
-  // Helper function to get initials for avatar
-  const getInitials = (name: string): string => {
-    const nameParts = name.trim().split(' ');
-    if (nameParts.length === 1) return nameParts[0].substring(0, 2).toUpperCase();
-    return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
+  // Handle staff removal
+  const handleRemoveStaff = async (staffId: string) => {
+    if (onStaffDrop) {
+      await onStaffDrop(staffId, null);
+      
+      // Remove from local state immediately for responsive UI
+      setAssignedStaff(prev => prev.filter(staff => staff.id !== staffId));
+    }
   };
 
   return (
@@ -91,19 +143,11 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       {/* Assigned staff area - styled to match the reference image */}
       <div className="assigned-staff-area flex flex-wrap gap-1 mb-1 overflow-visible min-h-[24px]">
         {assignedStaff.map((staff) => (
-          <Badge 
-            key={staff.id}
-            variant="outline"
-            className="staff-badge flex items-center bg-purple-100 text-purple-800 text-xs rounded-md px-1.5 py-0.5 z-20 shadow-sm cursor-move"
-            title={staff.name}
-          >
-            <Avatar className="h-4 w-4 mr-1 bg-purple-200">
-              <AvatarFallback className="text-[8px] text-purple-800">
-                {getInitials(staff.name)}
-              </AvatarFallback>
-            </Avatar>
-            <span className="truncate max-w-[50px] font-medium">{staff.name.split(' ')[0]}</span>
-          </Badge>
+          <DraggableStaffBadge 
+            key={staff.id} 
+            staff={staff} 
+            onRemove={() => handleRemoveStaff(staff.id)} 
+          />
         ))}
       </div>
       
@@ -134,3 +178,4 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     </div>
   );
 };
+

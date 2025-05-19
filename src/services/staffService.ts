@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 // Fetch all staff members
@@ -122,11 +121,11 @@ export const deleteStaffMember = async (id: string) => {
   return true;
 };
 
-// Fetch staff assignments for a specific date
-export const fetchStaffAssignments = async (date: Date) => {
+// Fetch staff assignments for a specific date and optionally for a specific team
+export const fetchStaffAssignments = async (date: Date, teamId?: string) => {
   const formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD format
   
-  const { data, error } = await supabase
+  let query = supabase
     .from('staff_assignments')
     .select(`
       id,
@@ -141,6 +140,13 @@ export const fetchStaffAssignments = async (date: Date) => {
       )
     `)
     .eq('assignment_date', formattedDate);
+  
+  // If teamId is provided, filter by team_id as well
+  if (teamId) {
+    query = query.eq('team_id', teamId);
+  }
+    
+  const { data, error } = await query;
     
   if (error) {
     console.error('Error fetching staff assignments:', error);
@@ -243,4 +249,3 @@ export const getStaffAssignmentsForPeriod = async (staffId: string, startDate: D
   
   return data || [];
 };
-
