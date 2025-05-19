@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useDrag, useDrop } from 'react-dnd';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -102,7 +103,6 @@ const DraggableStaffItem: React.FC<{
         )}
       </div>
       
-      {/* Confirmation Dialog for reassigning staff */}
       <ConfirmationDialog
         title="Staff Already Assigned"
         description={`${staff.name} is already assigned to a team for this day. Are you sure you want to reassign to a different team?`}
@@ -273,8 +273,10 @@ const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({ currentDa
   }));
 
   return (
-    <Card className={`border h-full ${isOver ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`} 
-          style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Card 
+      className={`border ${isOver ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`} 
+      style={{ height: 'calc(100vh - 190px)', display: 'flex', flexDirection: 'column' }}
+    >
       <CardHeader className="pb-1 pt-2">
         <CardTitle className="text-sm flex items-center gap-1">
           <Users className="h-4 w-4" />

@@ -194,11 +194,11 @@ const ResourceView = () => {
 
             {/* Two-column layout for staff and calendar - Use grid or flex based on screen size */}
             <div className={`${isMobile ? 'flex flex-col' : 'grid'}`} 
-                 style={{ gridTemplateColumns: isMobile ? '1fr' : '250px 1fr', gap: '1rem' }}>
+                 style={{ gridTemplateColumns: isMobile ? '1fr' : '200px 1fr', gap: '1rem' }}>
               
               {/* Left column: Available Staff Display */}
               {shouldShowAvailableStaff() && (
-                <div className={`${isMobile ? 'mb-4' : ''}`}>
+                <div className={`${isMobile ? 'mb-4' : ''}`} style={{ marginTop: '39px' }}>
                   <AvailableStaffDisplay 
                     currentDate={currentDate} 
                     onStaffDrop={handleStaffDrop}
