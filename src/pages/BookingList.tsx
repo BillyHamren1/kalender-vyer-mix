@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Command, CommandInput } from '@/components/ui/command';
-import { importBookings, quietImportBookings } from '@/services/importService';
+import { quietImportBookings } from '@/services/importService';
 import { Booking } from '../types/booking';
 import { 
   fetchBookings, 
@@ -24,7 +24,7 @@ import {
   fetchConfirmedBookings 
 } from '@/services/bookingService';
 import { toast } from 'sonner';
-import { ArrowDown, CalendarDays, RefreshCcw, Search, Wrench } from 'lucide-react';
+import { RefreshCcw, Search, CalendarDays } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import StatusBadge from '@/components/booking/StatusBadge';
 
@@ -81,49 +81,6 @@ const BookingList = () => {
     }
   };
 
-  // Function to import bookings with UI feedback
-  const handleImportBookings = async () => {
-    try {
-      setIsImporting(true);
-      setImportError(null);
-      toast.info('Importing bookings...', {
-        description: 'Please wait while we import bookings from the external system'
-      });
-      
-      const result = await importBookings();
-      
-      if (result.success && result.results) {
-        toast.success('Bookings imported successfully', {
-          description: `Imported ${result.results.imported} of ${result.results.total} bookings with ${result.results.calendar_events_created} calendar events`
-        });
-        
-        // Track newly imported or updated bookings
-        const newOrUpdatedIds = [...(result.results.new_bookings || []), ...(result.results.updated_bookings || [])];
-        setRecentlyUpdatedBookingIds(newOrUpdatedIds);
-        
-        // Reload bookings to show the newly imported ones
-        await loadBookings();
-      } else {
-        // Show detailed error information
-        console.error('Import failed:', result);
-        const errorMessage = result.error || 'Unknown error occurred during import';
-        const detailsMessage = result.details ? `Details: ${result.details}` : '';
-        
-        setImportError(`${errorMessage} ${detailsMessage}`);
-        
-        toast.error('Import failed', {
-          description: errorMessage
-        });
-      }
-    } catch (error) {
-      console.error('Error during import:', error);
-      setImportError(error instanceof Error ? error.message : 'Unknown error during import');
-      toast.error('Import operation failed');
-    } finally {
-      setIsImporting(false);
-    }
-  };
-  
   // Function for quiet background import
   const performQuietImport = async () => {
     try {
@@ -230,22 +187,6 @@ const BookingList = () => {
             >
               <RefreshCcw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
               Update
-            </Button>
-            <Button 
-              onClick={handleImportBookings} 
-              disabled={isImporting}
-              className="flex items-center gap-2"
-            >
-              <ArrowDown className="h-4 w-4" />
-              {isImporting ? 'Importing...' : 'Import bookings'}
-            </Button>
-            <Button 
-              onClick={() => navigate('/api-tester')} 
-              variant="secondary"
-              className="flex items-center gap-2"
-            >
-              <Wrench className="h-4 w-4" />
-              API Tester
             </Button>
           </div>
         </div>
@@ -506,14 +447,6 @@ const BookingList = () => {
                     ? 'No bookings found matching your search criteria.' 
                     : 'No new or updated confirmed bookings found. Enter a search term to find existing bookings.'}
                 </p>
-                <Button 
-                  onClick={handleImportBookings} 
-                  disabled={isImporting}
-                  className="flex items-center gap-2 mx-auto"
-                >
-                  <ArrowDown className="h-4 w-4" />
-                  {isImporting ? 'Importerar...' : 'Importera bokningar'}
-                </Button>
               </Card>
             )}
           </>
