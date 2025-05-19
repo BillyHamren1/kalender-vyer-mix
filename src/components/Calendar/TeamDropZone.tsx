@@ -4,7 +4,7 @@ import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
 import { StaffMember, StaffAssignment } from './StaffAssignmentRow';
 import DraggableStaffItem from './DraggableStaffItem';
-import { Users, UserPlus } from 'lucide-react';
+import { Users, UserPlus, MoveDown } from 'lucide-react';
 
 interface TeamDropZoneProps {
   resource: Resource;
@@ -25,11 +25,13 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
   onSelectStaff,
   currentDate 
 }) => {
-  const [{ isOver }, drop] = useDrop(() => ({
+  // Make the entire column a drop zone
+  const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: 'STAFF',
     drop: (item: StaffMember) => onDrop(item.id, resource.id),
     collect: (monitor) => ({
       isOver: !!monitor.isOver(),
+      canDrop: !!monitor.canDrop(),
     }),
   }));
 
@@ -43,14 +45,20 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
     } : null;
   }).filter(Boolean) as StaffMember[];
 
+  // Determine visual styles based on drop state
+  const dropZoneStyle = isOver 
+    ? 'border-2 border-dashed border-blue-400 bg-blue-50' 
+    : canDrop 
+      ? 'border-2 border-dashed border-gray-300'
+      : 'border border-gray-200';
+
   return (
-    <div className="border-r border-gray-200 h-full bg-gray-50">
-      {/* Header and drop zone section */}
-      <div 
-        ref={drop}
-        className={`p-2 border-b border-gray-200 ${isOver ? 'bg-blue-50' : ''}`}
-      >
-        {/* Team header */}
+    <div 
+      ref={drop}
+      className={`h-full flex flex-col ${dropZoneStyle} transition-all duration-200 rounded-md overflow-hidden`}
+    >
+      {/* Team header */}
+      <div className="bg-gray-100 p-2 border-b border-gray-200">
         <div className="text-sm font-medium mb-2 flex items-center gap-1">
           <Users className="h-4 w-4" />
           <span>{resource.title}</span>
@@ -76,17 +84,37 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
         </div>
       </div>
       
-      {/* Staff members list */}
-      <div className="p-2">
-        {teamStaff.map(staff => (
-          <DraggableStaffItem 
-            key={staff.id} 
-            staff={staff}
-            onRemove={() => onDrop(staff.id, null)}
-            currentDate={currentDate}
-          />
-        ))}
+      {/* Staff members list section with drop indicator when empty */}
+      <div className="p-2 flex-1 flex flex-col bg-white">
+        {teamStaff.length > 0 ? (
+          teamStaff.map(staff => (
+            <DraggableStaffItem 
+              key={staff.id} 
+              staff={staff}
+              onRemove={() => onDrop(staff.id, null)}
+              currentDate={currentDate}
+            />
+          ))
+        ) : (
+          <div className={`
+            flex-1 flex flex-col items-center justify-center p-3 
+            text-xs text-gray-500 min-h-[100px]
+            ${isOver ? 'bg-blue-50' : ''}
+          `}>
+            <MoveDown className="h-5 w-5 mb-1 animate-bounce" />
+            <p>Drop staff here</p>
+          </div>
+        )}
       </div>
+      
+      {/* Visual indicator that appears while dragging */}
+      {isOver && (
+        <div className="absolute inset-0 bg-blue-100 bg-opacity-30 pointer-events-none z-10 flex items-center justify-center">
+          <div className="bg-white px-2 py-1 rounded-md text-xs font-medium text-blue-600 shadow-sm">
+            Drop to assign
+          </div>
+        </div>
+      )}
     </div>
   );
 };

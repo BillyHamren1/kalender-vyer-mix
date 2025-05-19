@@ -184,7 +184,7 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
           </DialogContent>
         </Dialog>
       </div>
-      <div className="grid" style={{ gridTemplateColumns: `repeat(${resources.length}, 1fr)` }}>
+      <div className="grid gap-2 p-2" style={{ gridTemplateColumns: `repeat(${resources.length}, 1fr)` }}>
         {resources.map(resource => (
           <TeamDropZone
             key={resource.id}
