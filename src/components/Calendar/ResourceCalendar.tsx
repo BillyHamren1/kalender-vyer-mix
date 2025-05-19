@@ -158,16 +158,31 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           omitZeroMinute: false // Always show minutes even if 00
         }}
         resourceLabelDidMount={(info) => {
-          // This helps ensure our custom resource header content renders properly
+          // Ensure proper rendering of resource headers
           const headerEl = info.el.querySelector('.fc-datagrid-cell-main');
           if (headerEl) {
-            // Fix: Use proper type assertion for the HTMLElement
+            // Set the height and make it overflow visible
             const headerHTMLElement = headerEl as HTMLElement;
             headerHTMLElement.style.height = '100%';
             headerHTMLElement.style.width = '100%';
+            headerHTMLElement.style.overflow = 'visible';
+            headerHTMLElement.style.position = 'relative';
+            headerHTMLElement.style.zIndex = '10';
+            
+            // Also fix the parent elements
+            const cellFrame = info.el.querySelector('.fc-datagrid-cell-frame');
+            if (cellFrame) {
+              const cellFrameElement = cellFrame as HTMLElement;
+              cellFrameElement.style.overflow = 'visible';
+              cellFrameElement.style.position = 'relative';
+            }
           }
         }}
         resourceLabelContent={resourceHeaderContent}
+        slotLabelDidMount={(info) => {
+          // Add z-index to time slots to ensure they appear behind staff badges
+          info.el.style.zIndex = '1';
+        }}
       />
       
       {/* Render the duplicate dialog */}

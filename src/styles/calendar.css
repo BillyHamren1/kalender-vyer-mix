@@ -206,21 +206,31 @@
   border-bottom: 1px solid #f0f0f0;
 }
 
-/* Resource header drop zone styling */
+/* Resource header drop zone styling - Updated for better positioning */
 .resource-header-wrapper {
-  padding: 2px;
   width: 100%;
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 2px;
+  position: relative;
+  z-index: 5;
 }
 
 .resource-drop-zone {
+  margin-top: auto;
   z-index: 10;
 }
 
 /* Assigned staff badges in resource header */
 .assigned-staff-area {
-  max-height: 40px;
-  overflow-y: auto;
+  overflow-y: visible;
+  z-index: 20;
+  padding-bottom: 2px;
+  min-height: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
 }
 
 .staff-badge {
@@ -228,6 +238,8 @@
   line-height: 1.2;
   white-space: nowrap;
   max-width: 70px;
+  z-index: 15;
+  position: relative;
 }
 
 /* Ensure resource headers have enough height for staff display */
@@ -244,12 +256,52 @@
 .fc-datagrid-cell-frame {
   display: flex;
   flex-direction: column;
-  min-height: 85px !important;  /* Increased to accommodate staff display */
+  min-height: 90px !important;  /* Increased height for staff badges */
   padding: 5px !important;
+  position: relative;
+  overflow: visible !important;
 }
 
 .fc-datagrid-cell-cushion {
   padding: 0 !important;
+  overflow: visible !important;
+  position: relative;
+  height: 100%;
+}
+
+/* Ensure header content is visible - critical for staff display */
+.fc-datagrid-cell-main {
+  overflow: visible !important;
+  height: 100% !important;
+  z-index: 10;
+  position: relative;
+}
+
+/* Reset some FC container heights to allow for our content */
+.fc-datagrid-body,
+.fc-datagrid-body-inner,
+.fc-scrollgrid-sync-inner,
+.fc-scrollgrid-sync-table,
+.fc-scrollgrid-section-body,
+.fc-scrollgrid-section-header,
+.fc-scrollgrid-section {
+  overflow: visible !important;
+}
+
+/* Ensure FC slat labels don't overlap our content */
+.fc-timegrid-axis-cushion {
+  z-index: 5;
+}
+
+/* Ensure time slots appear below our header content */
+.fc-timegrid-slots {
+  z-index: 1;
+}
+
+/* Make sure slot labels stay in their proper position */
+.fc-timegrid-slot-label {
+  position: relative;
+  z-index: 5;
 }
 
 /* Mobile responsive styles */

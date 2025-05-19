@@ -6,6 +6,7 @@ import { StaffMember } from './StaffTypes';
 import { ArrowDown, User, Users } from 'lucide-react';
 import { fetchStaffAssignments } from '@/services/staffService';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 
 interface ResourceHeaderDropZoneProps {
   resource: Resource;
@@ -79,42 +80,43 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   };
 
   return (
-    <div className="resource-header-wrapper flex flex-col h-full w-full">
+    <div 
+      ref={drop}
+      className="resource-header-wrapper flex flex-col h-full w-full"
+    >
       {/* Team title */}
-      <div className="resource-title-area font-medium text-sm mb-1">
+      <div className="resource-title-area font-medium text-sm mb-1 sticky top-0 z-10">
         {resource.title}
       </div>
       
-      {/* Assigned staff area */}
-      {assignedStaff.length > 0 && (
-        <div className="assigned-staff-area mb-1 flex flex-wrap gap-1">
-          {assignedStaff.map((staff) => (
-            <div 
-              key={staff.id}
-              className="staff-badge flex items-center bg-purple-100 text-purple-800 text-xs rounded px-1 py-0.5"
-              title={staff.name}
-            >
-              <Avatar className="h-3 w-3 mr-1 bg-purple-200">
-                <AvatarFallback className="text-[8px] text-purple-800">
-                  {getInitials(staff.name)}
-                </AvatarFallback>
-              </Avatar>
-              <span className="truncate max-w-[50px]">{staff.name.split(' ')[0]}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Assigned staff area - now a main focus area */}
+      <div className="assigned-staff-area flex flex-wrap gap-1 mb-1 overflow-visible min-h-[24px]">
+        {assignedStaff.map((staff) => (
+          <Badge 
+            key={staff.id}
+            variant="outline"
+            className="staff-badge flex items-center bg-purple-100 text-purple-800 text-xs rounded px-1 py-0.5 z-20"
+            title={staff.name}
+          >
+            <Avatar className="h-3 w-3 mr-1 bg-purple-200">
+              <AvatarFallback className="text-[8px] text-purple-800">
+                {getInitials(staff.name)}
+              </AvatarFallback>
+            </Avatar>
+            <span className="truncate max-w-[50px]">{staff.name.split(' ')[0]}</span>
+          </Badge>
+        ))}
+      </div>
       
       {/* Drop zone area */}
       <div 
-        ref={drop}
         className={`
-          resource-drop-zone text-xs flex items-center justify-center
-          border-y border-dashed p-1 rounded-sm
+          resource-drop-zone text-xs flex items-center justify-center 
+          border border-dashed p-1 rounded-sm mt-auto
           ${isOver ? 'bg-blue-100 border-blue-400 text-blue-800' : 'border-gray-300 text-gray-500 hover:bg-gray-50'}
-          transition-colors duration-200
+          transition-colors duration-200 z-10
         `}
-        style={{ minHeight: '24px' }}
+        style={{ minHeight: "20px" }}
       >
         <div className="flex items-center gap-1">
           {assignedStaff.length > 0 ? (
