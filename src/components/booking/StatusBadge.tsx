@@ -27,7 +27,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({
   // Handle different status values
   switch (status?.toUpperCase()) {
     case 'CONFIRMED':
-      badgeClasses = 'bg-green-500 hover:bg-green-600';
+      badgeClasses = 'bg-[#7BAEBF] hover:bg-[#6E9DAC]'; // Using the teal color from theme.css
       statusText = 'Confirmed';
       icon = <CheckCircle className="h-3 w-3" />;
       break;
