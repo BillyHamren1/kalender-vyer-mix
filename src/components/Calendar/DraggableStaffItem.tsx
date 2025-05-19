@@ -1,0 +1,74 @@
+
+import React from 'react';
+import { useDrag } from 'react-dnd';
+import { StaffMember } from './StaffAssignmentRow';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+
+// Helper function to format staff name
+const formatStaffName = (fullName: string): string => {
+  const nameParts = fullName.trim().split(' ');
+  if (nameParts.length === 1) return nameParts[0];
+  
+  const firstName = nameParts[0];
+  const lastNameInitial = nameParts[nameParts.length - 1][0];
+  
+  return `${firstName} ${lastNameInitial}`;
+};
+
+interface DraggableStaffItemProps {
+  staff: StaffMember;
+  onRemove: () => void;
+  currentDate: Date;
+}
+
+const DraggableStaffItem: React.FC<DraggableStaffItemProps> = ({ 
+  staff, 
+  onRemove, 
+  currentDate 
+}) => {
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: 'STAFF',
+    item: staff,
+    collect: (monitor) => ({
+      isDragging: !!monitor.isDragging(),
+    }),
+  }));
+
+  // Get the initials for avatar
+  const getInitials = (name: string): string => {
+    const nameParts = name.trim().split(' ');
+    if (nameParts.length === 1) return nameParts[0].substring(0, 2).toUpperCase();
+    return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
+  };
+
+  // Format the name for display
+  const displayName = formatStaffName(staff.name);
+
+  return (
+    <div
+      ref={drag}
+      className={`p-1 bg-white border border-gray-200 rounded-md mb-1 cursor-move flex justify-between items-center ${
+        isDragging ? 'opacity-50' : 'opacity-100'
+      }`}
+      style={{ width: '95px', height: '24px' }}
+    >
+      <div className="flex items-center gap-1">
+        <Avatar className="h-4 w-4 bg-purple-100">
+          <AvatarFallback className="text-[10px] text-purple-700">
+            {getInitials(staff.name)}
+          </AvatarFallback>
+        </Avatar>
+        <span className="text-xs font-medium truncate">{displayName}</span>
+      </div>
+      <button 
+        onClick={onRemove}
+        className="text-gray-400 hover:text-red-500 text-xs ml-1"
+        aria-label="Remove assignment"
+      >
+        &times;
+      </button>
+    </div>
+  );
+};
+
+export default DraggableStaffItem;

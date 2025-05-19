@@ -1,7 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
 import { Resource } from './ResourceData';
-import { useDrag, useDrop } from 'react-dnd';
 import { 
   fetchStaffMembers, 
   fetchStaffAssignments, 
@@ -12,45 +10,13 @@ import {
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Users, UserPlus } from 'lucide-react';
+import TeamDropZone from './TeamDropZone';
+import StaffForm from './StaffForm';
 import StaffSelectionDialog from './StaffSelectionDialog';
+import { StaffMember, StaffAssignment } from './StaffTypes';
 
-// Interface for a staff member - export this type to share with AvailableStaffDisplay
-export interface StaffMember {
-  id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  assignedTeam?: string | null;
-}
-
-// Interface for a staff assignment
-interface StaffAssignment {
-  id: string;
-  staff_id: string;
-  team_id: string;
-  assignment_date: string;
-  staff_members?: {
-    id: string;
-    name: string;
-    email?: string;
-    phone?: string;
-  };
-}
-
-// Helper function to format staff name
-const formatStaffName = (fullName: string): string => {
-  const nameParts = fullName.trim().split(' ');
-  if (nameParts.length === 1) return nameParts[0];
-  
-  const firstName = nameParts[0];
-  const lastNameInitial = nameParts[nameParts.length - 1][0];
-  
-  return `${firstName} ${lastNameInitial}`;
-};
+// Exporting types for other components
+export { StaffMember, StaffAssignment };
 
 // Props for the StaffAssignmentRow component
 interface StaffAssignmentRowProps {
@@ -59,180 +25,6 @@ interface StaffAssignmentRowProps {
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
   forceRefresh?: boolean;
 }
-
-// Component for draggable staff item
-const DraggableStaffItem: React.FC<{ 
-  staff: StaffMember; 
-  onRemove: () => void;
-  currentDate: Date;
-}> = ({ staff, onRemove, currentDate }) => {
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: 'STAFF',
-    item: staff,
-    collect: (monitor) => ({
-      isDragging: !!monitor.isDragging(),
-    }),
-  }));
-
-  // Get the initials for avatar
-  const getInitials = (name: string): string => {
-    const nameParts = name.trim().split(' ');
-    if (nameParts.length === 1) return nameParts[0].substring(0, 2).toUpperCase();
-    return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
-  };
-
-  // Format the name for display
-  const displayName = formatStaffName(staff.name);
-
-  return (
-    <div
-      ref={drag}
-      className={`p-1 bg-white border border-gray-200 rounded-md mb-1 cursor-move flex justify-between items-center ${
-        isDragging ? 'opacity-50' : 'opacity-100'
-      }`}
-      style={{ width: '95px', height: '24px' }}
-    >
-      <div className="flex items-center gap-1">
-        <Avatar className="h-4 w-4 bg-purple-100">
-          <AvatarFallback className="text-[10px] text-purple-700">
-            {getInitials(staff.name)}
-          </AvatarFallback>
-        </Avatar>
-        <span className="text-xs font-medium truncate">{displayName}</span>
-      </div>
-      <button 
-        onClick={onRemove}
-        className="text-gray-400 hover:text-red-500 text-xs ml-1"
-        aria-label="Remove assignment"
-      >
-        &times;
-      </button>
-    </div>
-  );
-};
-
-// Component for the team column drop target
-const TeamDropZone: React.FC<{ 
-  resource: Resource; 
-  staffMembers: StaffMember[]; 
-  assignments: StaffAssignment[];
-  onDrop: (staffId: string, resourceId: string | null) => void;
-  onAddStaff: (resourceId: string) => void;
-  onSelectStaff: (resourceId: string, resourceTitle: string) => void;
-  currentDate: Date;
-}> = ({ resource, staffMembers, assignments, onDrop, onAddStaff, onSelectStaff, currentDate }) => {
-  const [{ isOver }, drop] = useDrop(() => ({
-    accept: 'STAFF',
-    drop: (item: StaffMember) => onDrop(item.id, resource.id),
-    collect: (monitor) => ({
-      isOver: !!monitor.isOver(),
-    }),
-  }));
-
-  // Find staff members assigned to this team
-  const teamAssignments = assignments.filter(assignment => assignment.team_id === resource.id);
-  const teamStaff = teamAssignments.map(assignment => {
-    const staffMember = staffMembers.find(staff => staff.id === assignment.staff_id);
-    return staffMember ? {
-      ...staffMember,
-      assignedTeam: resource.id
-    } : null;
-  }).filter(Boolean) as StaffMember[];
-
-  return (
-    <div 
-      ref={drop}
-      className={`p-2 border-r border-gray-200 h-full ${isOver ? 'bg-blue-50' : 'bg-gray-50'}`}
-    >
-      <div className="text-sm font-medium mb-2 flex items-center gap-1">
-        <Users className="h-4 w-4" />
-        <span>{resource.title}</span>
-      </div>
-      
-      {teamStaff.map(staff => (
-        <DraggableStaffItem 
-          key={staff.id} 
-          staff={staff}
-          onRemove={() => onDrop(staff.id, null)}
-          currentDate={currentDate}
-        />
-      ))}
-      
-      <div className="flex flex-col gap-1 mt-2">
-        <button 
-          className="w-full text-xs py-1 border border-dashed border-gray-300 text-gray-500 hover:bg-gray-100 rounded flex items-center justify-center gap-1"
-          onClick={() => onSelectStaff(resource.id, resource.title)}
-        >
-          <UserPlus className="h-3 w-3" />
-          <span>Select Staff</span>
-        </button>
-        <button 
-          className="w-full text-xs py-1 border border-dashed border-gray-300 text-gray-500 hover:bg-gray-100 rounded"
-          onClick={() => onAddStaff(resource.id)}
-        >
-          + Add New Staff
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// Staff form component for adding/editing staff
-const StaffForm: React.FC<{
-  onSave: (name: string, email: string, phone: string) => void;
-  onCancel: () => void;
-}> = ({ onSave, onCancel }) => {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) {
-      toast.error('Name is required');
-      return;
-    }
-    onSave(name, email, phone);
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label htmlFor="name">Name</Label>
-        <Input 
-          id="name" 
-          value={name} 
-          onChange={(e) => setName(e.target.value)} 
-          placeholder="Full name" 
-          required 
-        />
-      </div>
-      <div>
-        <Label htmlFor="email">Email</Label>
-        <Input 
-          id="email" 
-          type="email" 
-          value={email} 
-          onChange={(e) => setEmail(e.target.value)} 
-          placeholder="Email address" 
-        />
-      </div>
-      <div>
-        <Label htmlFor="phone">Phone</Label>
-        <Input 
-          id="phone" 
-          value={phone} 
-          onChange={(e) => setPhone(e.target.value)} 
-          placeholder="Phone number" 
-        />
-      </div>
-      <div className="flex justify-end space-x-2">
-        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button type="submit">Save Staff</Button>
-      </div>
-    </form>
-  );
-};
 
 // Main StaffAssignmentRow component
 const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({ 
@@ -247,7 +39,7 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
   const [staffDialogOpen, setStaffDialogOpen] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   
-  // New state for the staff selection dialog
+  // State for the staff selection dialog
   const [staffSelectionOpen, setStaffSelectionOpen] = useState(false);
   const [selectedResourceForStaff, setSelectedResourceForStaff] = useState<{id: string, title: string} | null>(null);
 
