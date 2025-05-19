@@ -20,11 +20,11 @@ import { Booking } from '../types/booking';
 import { 
   fetchBookings, 
   markBookingAsViewed, 
-  fetchUpcomingBookings, 
+  fetchUpcomingBookings,
   fetchConfirmedBookings 
 } from '@/services/bookingService';
 import { toast } from 'sonner';
-import { RefreshCcw, Search, CalendarDays } from 'lucide-react';
+import { RefreshCcw, Search, CalendarDays, AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import StatusBadge from '@/components/booking/StatusBadge';
 
@@ -36,16 +36,17 @@ const BookingList = () => {
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [recentlyUpdatedBookingIds, setRecentlyUpdatedBookingIds] = useState<string[]>([]);
+  const [statusChangedBookingIds, setStatusChangedBookingIds] = useState<string[]>([]);
   const [showPlannedBookings, setShowPlannedBookings] = useState(false);
   const [plannedBookings, setPlannedBookings] = useState<Booking[]>([]);
   const [isLoadingPlanned, setIsLoadingPlanned] = useState(false);
   
-  // Function to load bookings - always loads confirmed bookings
+  // Function to load bookings - now loads ALL bookings, not just confirmed ones
   const loadBookings = async () => {
     try {
       setIsLoading(true);
       setImportError(null);
-      const data = await fetchConfirmedBookings();
+      const data = await fetchBookings(); // Use fetchBookings instead of fetchConfirmedBookings
       setBookings(data);
       return data.length > 0;
     } catch (error) {
@@ -61,7 +62,7 @@ const BookingList = () => {
   const loadPlannedBookings = async () => {
     try {
       setIsLoadingPlanned(true);
-      const data = await fetchUpcomingBookings(15); 
+      const data = await fetchUpcomingBookings(15, true); // Only confirmed bookings for planned view
       setPlannedBookings(data);
       setShowPlannedBookings(true);
     } catch (error) {
@@ -84,14 +85,27 @@ const BookingList = () => {
   // Function for quiet background import
   const performQuietImport = async () => {
     try {
+      setIsImporting(true);
       const result = await quietImportBookings();
       
       if (result.success && result.results) {
-        // Track newly imported or updated bookings
+        // Track newly imported, updated, and status changed bookings
         const newOrUpdatedIds = [...(result.results.new_bookings || []), ...(result.results.updated_bookings || [])];
+        const statusChangedIds = [...(result.results.status_changed_bookings || [])];
         
-        if (newOrUpdatedIds.length > 0) {
-          setRecentlyUpdatedBookingIds(newOrUpdatedIds);
+        if (newOrUpdatedIds.length > 0 || statusChangedIds.length > 0) {
+          setRecentlyUpdatedBookingIds(prevIds => {
+            const combined = [...prevIds, ...newOrUpdatedIds];
+            // Remove duplicates
+            return [...new Set(combined)];
+          });
+          
+          setStatusChangedBookingIds(prevIds => {
+            const combined = [...prevIds, ...statusChangedIds];
+            // Remove duplicates
+            return [...new Set(combined)];
+          });
+          
           // Reload bookings to show the newly imported ones
           await loadBookings();
         }
@@ -101,6 +115,8 @@ const BookingList = () => {
       }
     } catch (error) {
       console.error('Error during quiet import:', error);
+    } finally {
+      setIsImporting(false);
     }
   };
   
@@ -114,8 +130,9 @@ const BookingList = () => {
       setBookings(prevBookings => prevBookings.map(booking => 
         booking.id === id ? { ...booking, viewed: true } : booking
       ));
-      // Remove from recently updated list if present
+      // Remove from recently updated list and status changed list if present
       setRecentlyUpdatedBookingIds(prev => prev.filter(bookingId => bookingId !== id));
+      setStatusChangedBookingIds(prev => prev.filter(bookingId => bookingId !== id));
     } catch (error) {
       console.error('Error marking booking as viewed:', error);
       toast.error('Failed to mark booking as viewed');
@@ -136,8 +153,8 @@ const BookingList = () => {
     
     initializeBookings();
     
-    // Set up periodic background imports every 5 minutes
-    const intervalId = setInterval(performQuietImport, 5 * 60 * 1000);
+    // Set up periodic background imports more frequently (every 2 minutes instead of 5)
+    const intervalId = setInterval(performQuietImport, 2 * 60 * 1000);
     
     return () => {
       clearInterval(intervalId);
@@ -150,14 +167,23 @@ const BookingList = () => {
 
   // Split bookings into categories
   const newBookings = bookings.filter(booking => !booking.viewed);
+  
+  // Status changed bookings (shown in a special section with warning)
+  const statusChangedBookings = bookings.filter(
+    booking => booking.viewed && statusChangedBookingIds.includes(booking.id)
+  );
+  
   const recentlyUpdatedBookings = bookings.filter(
-    booking => booking.viewed && recentlyUpdatedBookingIds.includes(booking.id)
+    booking => booking.viewed && 
+               recentlyUpdatedBookingIds.includes(booking.id) && 
+               !statusChangedBookingIds.includes(booking.id) // Don't show bookings that changed status here
   );
   
   // Filter viewed bookings based on search term
   const filteredViewedBookings = bookings
     .filter(booking => booking.viewed)
     .filter(booking => !recentlyUpdatedBookingIds.includes(booking.id)) // Exclude recently updated
+    .filter(booking => !statusChangedBookingIds.includes(booking.id)) // Exclude status changed
     .filter(booking => 
       searchTerm === '' ? false : // Don't show any if no search term
       booking.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -182,11 +208,11 @@ const BookingList = () => {
             <Button 
               onClick={() => loadBookings()} 
               variant="outline" 
-              disabled={isLoading}
+              disabled={isLoading || isImporting}
               className="flex items-center gap-2"
             >
-              <RefreshCcw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-              Update
+              <RefreshCcw className={`h-4 w-4 ${isLoading || isImporting ? 'animate-spin' : ''}`} />
+              {isImporting ? 'Importing...' : 'Update'}
             </Button>
           </div>
         </div>
@@ -284,6 +310,64 @@ const BookingList = () => {
           </div>
         ) : (
           <>
+            {/* Status Changed Bookings Section - New section for bookings that changed status */}
+            {statusChangedBookings.length > 0 && (
+              <div className="mb-8">
+                <div className="flex items-center mb-4">
+                  <h2 className="text-xl font-semibold text-[#2d3748] flex items-center">
+                    <AlertTriangle className="h-5 w-5 text-amber-500 mr-2" />
+                    Status Changed
+                  </h2>
+                  <Badge className="ml-2 bg-[#F59E0B] hover:bg-[#D97706]">
+                    {statusChangedBookings.length}
+                  </Badge>
+                </div>
+                <Card className="overflow-hidden border-0 shadow-md rounded-lg border-l-4 border-l-amber-500">
+                  <Table>
+                    <TableHeader className="bg-[#FFFBEB]">
+                      <TableRow>
+                        <TableHead className="text-[#2d3748]">Booking ID</TableHead>
+                        <TableHead className="text-[#2d3748]">Client</TableHead>
+                        <TableHead className="text-[#2d3748]">Rig day date</TableHead>
+                        <TableHead className="text-[#2d3748]">Event date</TableHead>
+                        <TableHead className="text-[#2d3748]">Rig down date</TableHead>
+                        <TableHead className="text-[#2d3748]">Status</TableHead>
+                        <TableHead className="text-[#2d3748]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {statusChangedBookings.map((booking) => (
+                        <TableRow 
+                          key={booking.id} 
+                          className="hover:bg-[#FEF3C7] cursor-pointer" 
+                          onClick={() => handleRowClick(booking.id)}
+                        >
+                          <TableCell className="font-medium text-[#2d3748]">{booking.id}</TableCell>
+                          <TableCell>{booking.client}</TableCell>
+                          <TableCell>{booking.rigDayDate}</TableCell>
+                          <TableCell>{booking.eventDate}</TableCell>
+                          <TableCell>{booking.rigDownDate}</TableCell>
+                          <TableCell>
+                            <StatusBadge status={booking.status} />
+                          </TableCell>
+                          <TableCell>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={(e) => handleMarkAsViewed(booking.id, e)}
+                              className="text-xs bg-[#FEF3C7]"
+                            >
+                              Acknowledge
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Card>
+              </div>
+            )}
+
             {/* New Bookings Section */}
             {newBookings.length > 0 && (
               <div className="mb-8">
@@ -395,7 +479,7 @@ const BookingList = () => {
             )}
 
             {/* Separator between sections if multiple sections are visible */}
-            {((newBookings.length > 0 || recentlyUpdatedBookings.length > 0) && 
+            {((newBookings.length > 0 || recentlyUpdatedBookings.length > 0 || statusChangedBookings.length > 0) && 
               filteredViewedBookings.length > 0) && (
               <Separator className="my-6" />
             )}
@@ -440,12 +524,15 @@ const BookingList = () => {
             )}
 
             {/* Message when no bookings are found */}
-            {newBookings.length === 0 && recentlyUpdatedBookings.length === 0 && filteredViewedBookings.length === 0 && (
+            {newBookings.length === 0 && 
+             recentlyUpdatedBookings.length === 0 && 
+             statusChangedBookings.length === 0 && 
+             filteredViewedBookings.length === 0 && (
               <Card className="p-8 text-center border-0 shadow-md rounded-lg">
                 <p className="text-gray-500 mb-4">
                   {searchTerm 
                     ? 'No bookings found matching your search criteria.' 
-                    : 'No new or updated confirmed bookings found. Enter a search term to find existing bookings.'}
+                    : 'No new or updated bookings found. Enter a search term to find existing bookings.'}
                 </p>
               </Card>
             )}

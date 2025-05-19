@@ -104,6 +104,7 @@ serve(async (req) => {
       calendar_events_created: 0,
       new_bookings: [] as string[],
       updated_bookings: [] as string[],
+      status_changed_bookings: [] as string[],
       errors: [] as { booking_id: string; error: string }[],
     }
 
@@ -131,7 +132,7 @@ serve(async (req) => {
         // Check if booking already exists
         const { data: existingBooking } = await supabaseClient
           .from('bookings')
-          .select('id, updated_at')
+          .select('id, updated_at, status')
           .eq('id', externalBooking.booking_number)
           .maybeSingle()
 
@@ -141,6 +142,33 @@ serve(async (req) => {
         const deliveryLongitude = externalBooking.delivery_longitude || 
                                 (externalBooking.location_lng ? parseFloat(externalBooking.location_lng) : null)
                                 
+        // Get the status from external booking, defaulting to 'PENDING' if not provided
+        const externalStatus = externalBooking.status || 'PENDING'
+                              
+        // Check for status change (especially CONFIRMED to any other status)
+        let statusChanged = false
+        if (existingBooking && existingBooking.status !== externalStatus) {
+          if (!quiet) {
+            console.log(`Status changed for booking ${externalBooking.booking_number}: ${existingBooking.status} -> ${externalStatus}`)
+          }
+          
+          statusChanged = true
+          results.status_changed_bookings.push(externalBooking.booking_number)
+          
+          // If status was previously CONFIRMED and now it's not, we need to remove calendar events
+          if (existingBooking.status === 'CONFIRMED' && externalStatus !== 'CONFIRMED') {
+            if (!quiet) {
+              console.log(`Removing calendar events for booking ${externalBooking.booking_number} as status changed from CONFIRMED to ${externalStatus}`)
+            }
+            
+            try {
+              await deleteAllBookingEvents(supabaseClient, externalBooking.booking_number)
+            } catch (error) {
+              console.error(`Error removing calendar events for booking ${externalBooking.booking_number}:`, error)
+            }
+          }
+        }
+        
         // Prepare booking data - map external fields to our schema
         const bookingData = {
           id: externalBooking.booking_number, // Use booking_number as our ID
@@ -163,7 +191,8 @@ serve(async (req) => {
           internalnotes: externalBooking.internal_notes,
           created_at: externalBooking.created_at || new Date().toISOString(),
           updated_at: externalBooking.updated_at || new Date().toISOString(),
-          viewed: existingBooking ? true : false // Mark new bookings as unviewed
+          status: externalStatus, // Use the status from external booking
+          viewed: existingBooking ? (statusChanged ? false : true) : false // Mark as unviewed for new bookings or status changes
         }
 
         // Check if external booking has a newer update timestamp when existing booking exists
@@ -193,7 +222,7 @@ serve(async (req) => {
           }
           
           // Track updated bookings
-          if (isUpdated) {
+          if (isUpdated && !statusChanged) {
             results.updated_bookings.push(externalBooking.booking_number);
           }
         } else {
@@ -255,16 +284,18 @@ serve(async (req) => {
           }
         }
 
-        // Create calendar events for all dates in the arrays
-        const eventsCreated = await createCalendarEvents(supabaseClient, {
-          id: externalBooking.booking_number,
-          client: externalBooking.clients?.name,
-          rig_up_dates: externalBooking.rig_up_dates || [],
-          event_dates: externalBooking.event_dates || [],
-          rig_down_dates: externalBooking.rig_down_dates || []
-        })
-        
-        results.calendar_events_created += eventsCreated
+        // Create calendar events for all dates in the arrays, but only if status is CONFIRMED
+        if (externalStatus === 'CONFIRMED') {
+          const eventsCreated = await createCalendarEvents(supabaseClient, {
+            id: externalBooking.booking_number,
+            client: externalBooking.clients?.name,
+            rig_up_dates: externalBooking.rig_up_dates || [],
+            event_dates: externalBooking.event_dates || [],
+            rig_down_dates: externalBooking.rig_down_dates || []
+          })
+          
+          results.calendar_events_created += eventsCreated
+        }
         
         results.imported++
         if (!quiet) {
@@ -396,4 +427,19 @@ async function createCalendarEvents(supabase, booking) {
   }
   
   return events.length
+}
+
+// Function to delete all calendar events for a booking
+async function deleteAllBookingEvents(supabase, bookingId) {
+  const { error } = await supabase
+    .from('calendar_events')
+    .delete()
+    .eq('booking_id', bookingId)
+    
+  if (error) {
+    console.error(`Error deleting calendar events for booking ${bookingId}:`, error)
+    throw error
+  }
+  
+  return true
 }

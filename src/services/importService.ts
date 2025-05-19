@@ -12,6 +12,7 @@ export interface ImportResults {
     calendar_events_created: number;
     new_bookings?: string[];
     updated_bookings?: string[];
+    status_changed_bookings?: string[];
     errors?: { booking_id: string; error: string }[];
   };
   error?: string;
@@ -123,15 +124,10 @@ export const quietImportBookings = async (filters: ImportFilters = {}): Promise<
     }
 
     // Only show toast if there are new or updated bookings
-    if (
-      resultData.results && 
-      (
-        (resultData.results.new_bookings && resultData.results.new_bookings.length > 0) || 
-        (resultData.results.updated_bookings && resultData.results.updated_bookings.length > 0)
-      )
-    ) {
+    if (resultData.results) {
       const newCount = resultData.results.new_bookings?.length || 0;
       const updatedCount = resultData.results.updated_bookings?.length || 0;
+      const statusChangedCount = resultData.results.status_changed_bookings?.length || 0;
       
       if (newCount > 0 || updatedCount > 0) {
         const message = [];
@@ -140,6 +136,13 @@ export const quietImportBookings = async (filters: ImportFilters = {}): Promise<
         
         toast.success('Bookings synchronized', {
           description: `${message.join(' and ')} found`
+        });
+      }
+      
+      // Show a different toast for status changes
+      if (statusChangedCount > 0) {
+        toast.warning('Booking status changes detected', {
+          description: `${statusChangedCount} booking${statusChangedCount > 1 ? 's' : ''} changed status in external system`
         });
       }
     }
