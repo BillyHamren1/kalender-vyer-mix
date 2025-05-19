@@ -54,10 +54,30 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     duplicateEvent
   );
 
+  // Sort resources in the correct order before passing to FullCalendar
+  const sortedResources = [...resources].sort((a, b) => {
+    // Special case for "Todays events" (team-6) - it should be last
+    if (a.id === 'team-6') return 1;
+    if (b.id === 'team-6') return -1;
+    
+    // Extract team numbers for comparison
+    const aMatch = a.id.match(/team-(\d+)/);
+    const bMatch = b.id.match(/team-(\d+)/);
+    
+    if (!aMatch || !bMatch) return 0;
+    
+    const aNum = parseInt(aMatch[1]);
+    const bNum = parseInt(bMatch[1]);
+    
+    // Sort by team number
+    return aNum - bNum;
+  });
+
   // Log events and resources for debugging
   useEffect(() => {
     console.log('ResourceCalendar received events:', events);
     console.log('ResourceCalendar received resources:', resources);
+    console.log('ResourceCalendar sorted resources:', sortedResources);
     
     // Check if there are events with resource IDs that don't match any resources
     const resourceIds = new Set(resources.map(r => r.id));
@@ -156,7 +176,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         initialView={getInitialView()}
         headerToolbar={getMobileHeaderToolbar()}
         views={getCalendarViews()}
-        resources={isMobile ? [] : resources}
+        resources={isMobile ? [] : sortedResources}
         events={processedEvents}
         editable={true}
         droppable={true}

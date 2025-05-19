@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Resource } from '@/components/Calendar/ResourceData';
 import { saveResourcesToStorage, loadResourcesFromStorage } from '@/components/Calendar/ResourceData';
@@ -171,8 +172,24 @@ export const useTeamResources = () => {
     });
   };
 
-  // Get only the team resources (not room resources)
-  const teamResources = resources.filter(resource => resource.id.startsWith('team-'));
+  // Get only the team resources (not room resources) and sort them correctly
+  const teamResources = resources
+    .filter(resource => resource.id.startsWith('team-'))
+    .sort((a, b) => {
+      // Special case for "Todays events" (team-6) - it should be last
+      if (a.id === 'team-6') return 1;
+      if (b.id === 'team-6') return -1;
+      
+      // Extract team numbers for comparison
+      const aMatch = a.id.match(/team-(\d+)/);
+      const bMatch = b.id.match(/team-(\d+)/);
+      
+      const aNum = aMatch ? parseInt(aMatch[1]) : 0;
+      const bNum = bMatch ? parseInt(bMatch[1]) : 0;
+      
+      // Sort by team number
+      return aNum - bNum;
+    });
   
   return {
     resources,
