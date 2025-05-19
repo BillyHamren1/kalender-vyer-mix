@@ -1,9 +1,9 @@
+
 import React, { useEffect, useState } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useEventActions } from '@/hooks/useEventActions';
 import ResourceCalendar from '@/components/Calendar/ResourceCalendar';
-import StaffAssignmentRow from '@/components/Calendar/StaffAssignmentRow';
 import DayNavigation from '@/components/Calendar/DayNavigation';
 import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
 import '../styles/calendar.css';
@@ -60,8 +60,8 @@ const ResourceView = () => {
     refreshEvents();
   }, []);
   
-  // Determine if we should show the Staff Assignment Row - only show on desktop in day view
-  const shouldShowStaffAssignmentRow = () => {
+  // Determine if we should show the Available Staff Display - only show on desktop in day view
+  const shouldShowAvailableStaff = () => {
     return !isMobile;
   };
   
@@ -193,8 +193,8 @@ const ResourceView = () => {
               </div>
             </div>
 
-            {/* Available Staff Display - moved above the calendar */}
-            {shouldShowStaffAssignmentRow() && (
+            {/* Available Staff Display - kept above the calendar */}
+            {shouldShowAvailableStaff() && (
               <div className="mb-4">
                 <AvailableStaffDisplay 
                   currentDate={currentDate} 
@@ -203,19 +203,7 @@ const ResourceView = () => {
               </div>
             )}
             
-            {/* Staff Assignment Row - moved above the calendar */}
-            {shouldShowStaffAssignmentRow() && (
-              <div className="mb-4">
-                <StaffAssignmentRow 
-                  resources={resources} 
-                  currentDate={currentDate}
-                  onStaffDrop={handleStaffDrop}
-                  forceRefresh={staffAssignmentsUpdated}
-                />
-              </div>
-            )}
-            
-            {/* Calendar - now positioned below the staff assignment components */}
+            {/* Calendar - positioned below the available staff component */}
             <ResourceCalendar
               events={events}
               resources={resources}
@@ -225,7 +213,7 @@ const ResourceView = () => {
               onDateSet={handleDatesSet}
               refreshEvents={refreshEvents}
               onStaffDrop={handleStaffDrop}
-              forceRefresh={staffAssignmentsUpdated} // Pass the forceRefresh prop
+              forceRefresh={staffAssignmentsUpdated} // Keep passing the forceRefresh prop
             />
           </div>
         </div>
