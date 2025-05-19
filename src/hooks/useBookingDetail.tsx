@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Booking } from '@/types/booking';
@@ -25,6 +26,14 @@ export const useBookingDetail = (id: string | undefined) => {
   const [rigDates, setRigDates] = useState<string[]>([]);
   const [eventDates, setEventDates] = useState<string[]>([]);
   const [rigDownDates, setRigDownDates] = useState<string[]>([]);
+
+  // Helper function to format date as YYYY-MM-DD without timezone conversion
+  const formatDateToLocalString = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   const loadBookingData = async () => {
     if (!id) return;
@@ -126,8 +135,8 @@ export const useBookingDetail = (id: string | undefined) => {
     try {
       setIsSaving(true);
       
-      // Format the date as ISO string (without time)
-      const formattedDate = date.toISOString().split('T')[0];
+      // Format the date as YYYY-MM-DD without timezone conversion
+      const formattedDate = formatDateToLocalString(date);
       
       // Get the current state for this type of date
       let currentDates: string[];
@@ -258,8 +267,8 @@ export const useBookingDetail = (id: string | undefined) => {
     try {
       setIsSaving(true);
       
-      // Format the date as ISO string (without time)
-      const formattedDate = date.toISOString().split('T')[0];
+      // Format the date without timezone conversion
+      const formattedDate = formatDateToLocalString(date);
       
       // Update the booking date in the database
       await updateBookingDates(id, dateType, formattedDate);
