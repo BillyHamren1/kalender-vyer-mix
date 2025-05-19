@@ -40,7 +40,7 @@ const BookingList = () => {
   const [plannedBookings, setPlannedBookings] = useState<Booking[]>([]);
   const [isLoadingPlanned, setIsLoadingPlanned] = useState(false);
   
-  // Function to load bookings - now always loads confirmed bookings
+  // Function to load bookings - always loads confirmed bookings
   const loadBookings = async () => {
     try {
       setIsLoading(true);
@@ -57,11 +57,11 @@ const BookingList = () => {
     }
   };
   
-  // Function to load upcoming bookings - now always loads confirmed bookings
+  // Function to load upcoming bookings - always loads confirmed bookings
   const loadPlannedBookings = async () => {
     try {
       setIsLoadingPlanned(true);
-      const data = await fetchUpcomingBookings(15, true); // Always true for confirmed only
+      const data = await fetchUpcomingBookings(15); 
       setPlannedBookings(data);
       setShowPlannedBookings(true);
     } catch (error) {
@@ -271,9 +271,6 @@ const BookingList = () => {
               <Badge className="ml-2 bg-[#4299E1] hover:bg-[#3182CE]">
                 {plannedBookings.length}
               </Badge>
-              <Badge className="ml-2 bg-green-500 hover:bg-green-600">
-                Confirmed only
-              </Badge>
             </div>
             {isLoadingPlanned ? (
               <div className="flex justify-center items-center p-8">
@@ -354,9 +351,6 @@ const BookingList = () => {
                   <Badge className="ml-2 bg-[#9b87f5] hover:bg-[#8B5CF6]">
                     {newBookings.length}
                   </Badge>
-                  <Badge className="ml-2 bg-green-500 hover:bg-green-600">
-                    Confirmed only
-                  </Badge>
                 </div>
                 <Card className="overflow-hidden border-0 shadow-md rounded-lg">
                   <Table>
@@ -411,9 +405,6 @@ const BookingList = () => {
                   <h2 className="text-xl font-semibold text-[#2d3748]">Uppdaterade bokningar</h2>
                   <Badge className="ml-2 bg-[#22C55E] hover:bg-[#16A34A]">
                     {recentlyUpdatedBookings.length}
-                  </Badge>
-                  <Badge className="ml-2 bg-green-500 hover:bg-green-600">
-                    Confirmed only
                   </Badge>
                 </div>
                 <Card className="overflow-hidden border-0 shadow-md rounded-lg">
