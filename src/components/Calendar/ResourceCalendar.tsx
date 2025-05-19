@@ -14,6 +14,7 @@ import { useEventActions } from '@/hooks/useEventActions';
 import { ResourceHeaderDropZone } from './ResourceHeaderDropZone';
 import { useDrop } from 'react-dnd';
 import { StaffMember } from './StaffTypes';
+import { Copy } from 'lucide-react';
 
 interface ResourceCalendarProps {
   events: CalendarEvent[];
@@ -110,9 +111,35 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         resource={info.resource}
         currentDate={currentDate}
         onStaffDrop={onStaffDrop}
-        forceRefresh={forceRefresh} // Pass the forceRefresh prop to ResourceHeaderDropZone
+        forceRefresh={forceRefresh}
       />
     );
+  };
+
+  // Handler for duplicate button click
+  const handleDuplicateButtonClick = (eventId: string) => {
+    console.log('Duplicate button clicked for event:', eventId);
+    // Find the event in the events array
+    const event = events.find(event => event.id === eventId);
+    if (event) {
+      // Store the selected event for the duplicate dialog
+      const dialogEvent = {
+        id: event.id,
+        title: event.title,
+        resourceId: event.resourceId
+      };
+      
+      // Trigger the duplicate dialog via the event handlers
+      if (typeof window !== 'undefined') {
+        // Set the selected event in the window object for the dialog to use
+        // @ts-ignore
+        window._selectedEventForDuplicate = dialogEvent;
+        
+        // Create and dispatch a custom event to trigger the dialog
+        const customEvent = new CustomEvent('openDuplicateDialog', { detail: dialogEvent });
+        document.dispatchEvent(customEvent);
+      }
+    }
   };
 
   return (
@@ -153,6 +180,64 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           if (info.event.extendedProps.eventType) {
             info.el.setAttribute('data-event-type', info.event.extendedProps.eventType);
           }
+          
+          // Add duplicate button to event
+          const eventEl = info.el;
+          const eventId = info.event.id;
+          
+          // Create a container for the duplicate button
+          const actionContainer = document.createElement('div');
+          actionContainer.className = 'event-actions';
+          actionContainer.style.position = 'absolute';
+          actionContainer.style.top = '2px';
+          actionContainer.style.right = '2px';
+          actionContainer.style.display = 'none'; // Hidden by default, shown on hover
+          actionContainer.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+          actionContainer.style.borderRadius = '4px';
+          actionContainer.style.padding = '2px';
+          actionContainer.style.zIndex = '10';
+          
+          // Create the duplicate button with icon
+          const duplicateButton = document.createElement('button');
+          duplicateButton.className = 'duplicate-event-btn';
+          duplicateButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2" ry="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>';
+          duplicateButton.title = 'Duplicate this event';
+          duplicateButton.style.cursor = 'pointer';
+          duplicateButton.style.border = 'none';
+          duplicateButton.style.background = 'transparent';
+          duplicateButton.style.display = 'flex';
+          duplicateButton.style.alignItems = 'center';
+          duplicateButton.style.justifyContent = 'center';
+          
+          // Add duplicate button to the container
+          actionContainer.appendChild(duplicateButton);
+          
+          // Add container to the event element
+          eventEl.appendChild(actionContainer);
+          
+          // Add event listeners
+          duplicateButton.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent event click handler from being triggered
+            handleDuplicateButtonClick(eventId);
+          });
+          
+          // Show actions on hover (for desktop)
+          eventEl.addEventListener('mouseenter', () => {
+            actionContainer.style.display = 'block';
+          });
+          
+          eventEl.addEventListener('mouseleave', () => {
+            actionContainer.style.display = 'none';
+          });
+          
+          // For mobile, show on touch start and hide after a delay
+          eventEl.addEventListener('touchstart', () => {
+            actionContainer.style.display = 'block';
+            // Hide after 5 seconds to prevent it from staying visible forever
+            setTimeout(() => {
+              actionContainer.style.display = 'none';
+            }, 5000);
+          });
         }}
         eventTimeFormat={{
           hour: '2-digit',

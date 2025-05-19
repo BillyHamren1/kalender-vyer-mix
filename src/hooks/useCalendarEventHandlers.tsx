@@ -1,4 +1,5 @@
-import { useState, useContext } from 'react';
+
+import { useState, useContext, useEffect } from 'react';
 import { toast } from 'sonner';
 import { updateCalendarEvent, fetchCalendarEvents } from '@/services/eventService';
 import { Resource, CalendarEvent } from '@/components/Calendar/ResourceData';
@@ -27,6 +28,39 @@ export const useCalendarEventHandlers = (
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [targetTeam, setTargetTeam] = useState<string>("");
+
+  // Effect to listen for custom duplicate dialog event
+  useEffect(() => {
+    const handleOpenDuplicateDialog = (event: CustomEvent) => {
+      const eventData = event.detail;
+      console.log('Received duplicate dialog event with data:', eventData);
+      setSelectedEvent(eventData);
+      setShowDuplicateDialog(true);
+    };
+
+    // Add event listener for the custom event
+    document.addEventListener('openDuplicateDialog', handleOpenDuplicateDialog as EventListener);
+
+    // Check for window selected event (alternative method)
+    const checkWindowSelectedEvent = () => {
+      // @ts-ignore
+      if (window._selectedEventForDuplicate) {
+        // @ts-ignore
+        setSelectedEvent(window._selectedEventForDuplicate);
+        setShowDuplicateDialog(true);
+        // @ts-ignore
+        delete window._selectedEventForDuplicate;
+      }
+    };
+
+    // Check once on mount
+    checkWindowSelectedEvent();
+
+    // Cleanup
+    return () => {
+      document.removeEventListener('openDuplicateDialog', handleOpenDuplicateDialog as EventListener);
+    };
+  }, []);
 
   const handleEventChange = async (info: any) => {
     try {
@@ -150,10 +184,18 @@ export const useCalendarEventHandlers = (
         <DialogHeader>
           <DialogTitle>Duplicate Event</DialogTitle>
           <DialogDescription>
-            Select a team to duplicate this event to
+            {selectedEvent?.title ? `Duplicate "${selectedEvent.title}" to another team` : 'Select a team to duplicate this event to'}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="sourceTeam" className="text-right">
+              Source Team
+            </Label>
+            <div className="col-span-3 text-sm text-gray-700">
+              {resources.find(r => r.id === selectedEvent?.resourceId)?.title || selectedEvent?.resourceId || 'Unknown'}
+            </div>
+          </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="teamSelect" className="text-right">
               Target Team

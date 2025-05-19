@@ -373,3 +373,33 @@
 #root {
   transform-origin: top center;
 }
+
+/* Event action buttons styling */
+.event-actions {
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+  pointer-events: all;
+}
+
+.fc-event:hover .event-actions,
+.fc-event:focus .event-actions,
+.fc-event:active .event-actions {
+  opacity: 1;
+}
+
+.duplicate-event-btn {
+  opacity: 0.8;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.duplicate-event-btn:hover {
+  opacity: 1;
+}
+
+/* Make sure the duplicate button is visible on mobile */
+@media (max-width: 768px) {
+  .event-actions {
+    opacity: 0.8;
+    background: rgba(255, 255, 255, 0.9);
+  }
+}
