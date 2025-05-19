@@ -1,4 +1,3 @@
-
 export interface Resource {
   id: string;
   title: string;
@@ -12,6 +11,7 @@ export const sampleResources: Resource[] = [
   { id: 'team-3', title: 'Team 3', eventColor: '#4169e1' },
   { id: 'team-4', title: 'Team 4', eventColor: '#0073cf' },
   { id: 'team-5', title: 'Team 5', eventColor: '#4682b4' },
+  { id: 'team-6', title: 'Todays events', eventColor: '#FEF7CD' },
 ];
 
 export interface CalendarEvent {
@@ -95,7 +95,26 @@ export const loadResourcesFromStorage = (): Resource[] => {
   const stored = localStorage.getItem('calendarResources');
   if (stored) {
     try {
-      return JSON.parse(stored);
+      const parsedResources = JSON.parse(stored);
+      
+      // Ensure we have all the default teams
+      const defaultTeams = sampleResources;
+      let needsUpdate = false;
+      
+      // Check if each default team exists
+      defaultTeams.forEach(defaultTeam => {
+        if (!parsedResources.some((res: Resource) => res.id === defaultTeam.id)) {
+          parsedResources.push(defaultTeam);
+          needsUpdate = true;
+        }
+      });
+      
+      // If we added missing teams, save back to localStorage
+      if (needsUpdate) {
+        localStorage.setItem('calendarResources', JSON.stringify(parsedResources));
+      }
+      
+      return parsedResources;
     } catch (e) {
       console.error('Error parsing stored resources:', e);
       return sampleResources;
