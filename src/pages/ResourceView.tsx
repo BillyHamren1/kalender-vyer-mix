@@ -15,6 +15,7 @@ import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { assignStaffToTeam, removeStaffAssignment, fetchStaffAssignments, syncStaffMember } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
+import WeekTabNavigation from '@/components/Calendar/WeekTabNavigation';
 
 // Interface for external staff from API
 interface ExternalStaffMember {
@@ -135,21 +136,21 @@ const ResourceView = () => {
       <div className="min-h-screen bg-gray-50">
         <div className={`container mx-auto pt-2 ${isMobile ? 'px-2' : ''}`} style={{ maxWidth: isMobile ? '100%' : '94%' }}>
           <div className={`bg-white rounded-lg shadow-md mb-4 ${isMobile ? 'p-2' : 'p-3'}`}>
-            {/* Day Navigation Bar - displayed above the calendar */}
+            {/* Week Navigation with Update Button positioned to the right */}
             <div className="flex justify-between items-center mb-4">
-              <div className="flex items-center gap-2">
+              <div className="flex-grow">
                 <DayNavigation currentDate={currentDate} />
-                <Button 
-                  onClick={refreshEvents} 
-                  variant="outline" 
-                  size="sm"
-                  disabled={isLoading}
-                  className="flex items-center gap-1 ml-2"
-                >
-                  <RefreshCcw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
-                  {isMobile ? '' : 'Uppdatera'}
-                </Button>
               </div>
+              <Button 
+                onClick={refreshEvents} 
+                variant="outline" 
+                size="sm"
+                disabled={isLoading}
+                className="flex items-center gap-1 ml-2"
+              >
+                <RefreshCcw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
+                {isMobile ? '' : 'Update'}
+              </Button>
             </div>
 
             {/* Main content area with calendar and resources */}
