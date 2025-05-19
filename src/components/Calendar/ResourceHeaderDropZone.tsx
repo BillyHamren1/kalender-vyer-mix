@@ -7,6 +7,7 @@ import { ArrowDown, User, Users } from 'lucide-react';
 import { fetchStaffAssignments } from '@/services/staffService';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import ConfirmationDialog from '@/components/ConfirmationDialog';
 
 interface ResourceHeaderDropZoneProps {
   resource: Resource;
@@ -78,13 +79,21 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
 }) => {
   const [assignedStaff, setAssignedStaff] = useState<StaffMember[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [staffToReassign, setStaffToReassign] = useState<StaffMember | null>(null);
   
   // Create a drop zone specifically for the calendar resource header
   const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: 'STAFF',
-    drop: (item: StaffMember) => {
+    drop: (item: StaffMember & { assignedTeam?: string | null }) => {
       if (onStaffDrop) {
-        onStaffDrop(item.id, resource.id);
+        // Check if staff is already assigned elsewhere
+        if (item.assignedTeam && item.assignedTeam !== resource.id) {
+          setStaffToReassign(item);
+          setShowConfirmation(true);
+        } else {
+          onStaffDrop(item.id, resource.id);
+        }
       }
       return { resourceId: resource.id };
     },
@@ -134,6 +143,15 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     }
   };
 
+  // Handle confirmation of staff reassignment
+  const handleConfirmReassign = async () => {
+    if (staffToReassign && onStaffDrop) {
+      await onStaffDrop(staffToReassign.id, resource.id);
+      setShowConfirmation(false);
+      setStaffToReassign(null);
+    }
+  };
+
   return (
     <div 
       ref={drop}
@@ -179,6 +197,19 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
           )}
         </div>
       </div>
+
+      {/* Confirmation Dialog for reassigning staff */}
+      {staffToReassign && (
+        <ConfirmationDialog
+          title="Staff Already Assigned"
+          description={`${staffToReassign.name} is already assigned to a team for this day. Are you sure you want to reassign to ${resource.title}?`}
+          confirmLabel="Yes, Reassign"
+          cancelLabel="Cancel"
+          onConfirm={handleConfirmReassign}
+        >
+          <span style={{ display: 'none' }}></span>
+        </ConfirmationDialog>
+      )}
     </div>
   );
 };
