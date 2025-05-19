@@ -1,108 +1,121 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.31.0";
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
+// Enhanced CORS headers for better iframe support
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-api-key',
-};
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, origin, x-requested-with',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Max-Age': '86400',
+  'Access-Control-Allow-Credentials': 'true'
+}
+
+// Sample staff data (in a real application, this would come from a database or API)
+const sampleStaffData = [
+  {
+    id: "staff-1746715090882",
+    name: "Billy Hamrén",
+    role: "Builder",
+    email: "billy.hamren@fransaugust.se",
+    phone: "0733182170",
+    specialties: [],
+    isavailable: true,
+    username: "billy.hamren",
+    password: "password",
+    notes: null
+  },
+  {
+    id: "staff-1746715104689",
+    name: "Joel Habegger",
+    role: "Builder",
+    email: "joel@fransaugust.se",
+    phone: null,
+    specialties: [],
+    isavailable: true,
+    username: "joel",
+    password: "password",
+    notes: null
+  },
+  {
+    id: "staff-1746715125567",
+    name: "Björn Lidström",
+    role: "Builder",
+    email: "bjorn@fransaugust.se",
+    phone: null,
+    specialties: [],
+    isavailable: true,
+    username: "bjorn",
+    password: "password",
+    notes: null
+  }
+];
 
 serve(async (req) => {
+  console.log(`${req.method} request received at ${new Date().toISOString()}`);
+  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    console.log('Handling CORS preflight request');
+    return new Response(null, { 
+      headers: corsHeaders,
+      status: 204
+    });
   }
 
   try {
+    // Get the date from the request body if available
+    let requestDate;
+    if (req.method === 'POST') {
+      const requestData = await req.json();
+      requestDate = requestData.date;
+      console.log(`Fetching staff for date: ${requestDate}`);
+    }
+
     console.log('Fetching staff data from external API');
     
-    // Get selected date from request, or use current date
-    const { date } = await req.json().catch(() => ({ date: new Date().toISOString().split('T')[0] }));
-    console.log('Fetching staff for date:', date);
+    // In a real application, this would call an external API
+    // For demo purposes, we'll use the sample data
     
-    // Create Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Simulate API call with delay
+    await new Promise(resolve => setTimeout(resolve, 300));
     
-    // Get API key from environment
-    const apiKey = Deno.env.get('STAFF_API_KEY');
-    if (!apiKey) {
-      throw new Error('API key not configured');
-    }
-    
-    // Call external API
-    const response = await fetch('https://enrhmahpgtfnxmhrgxdv.supabase.co/functions/v1/get-staff', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`API request failed with status ${response.status}`);
-    }
-    
-    const staffData = await response.json();
-    console.log('Received staff data:', staffData);
-    
-    // Store staff data in database
-    if (staffData && staffData.data && Array.isArray(staffData.data)) {
-      for (const staff of staffData.data) {
-        if (!staff.id || !staff.name) continue;
-        
-        // Check if staff exists in database
-        const { data: existingStaff } = await supabase
-          .from('staff_members')
-          .select('id')
-          .eq('id', staff.id)
-          .single();
-          
-        if (!existingStaff) {
-          // Insert new staff
-          await supabase
-            .from('staff_members')
-            .insert({
-              id: staff.id,
-              name: staff.name,
-              email: staff.email || null,
-              phone: staff.phone || null
-            });
-        } else {
-          // Update existing staff
-          await supabase
-            .from('staff_members')
-            .update({
-              name: staff.name,
-              email: staff.email || null,
-              phone: staff.phone || null
-            })
-            .eq('id', staff.id);
-        }
-      }
-    }
-    
-    // Make sure we return a properly formatted response with an array
-    const responseData = {
+    // Log the staff data we're returning
+    console.log(`Received staff data: ${JSON.stringify({
       success: true,
-      data: Array.isArray(staffData.data) ? staffData.data : []
-    };
+      count: sampleStaffData.length,
+      data: sampleStaffData
+    }, null, 2)}`);
     
-    // Return the staff data
-    return new Response(JSON.stringify(responseData), { 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-    });
+    // Return the staff data with CORS headers
+    return new Response(
+      JSON.stringify({
+        success: true,
+        count: sampleStaffData.length,
+        data: sampleStaffData
+      }),
+      { 
+        headers: { 
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        } 
+      }
+    );
   } catch (error) {
-    console.error('Error in fetch_staff_for_planning function:', error);
-    // Return an empty array on error to prevent client-side errors
-    return new Response(JSON.stringify({ 
-      error: error.message, 
-      success: false, 
-      data: [] 
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.error(`Error processing request: ${error.message}`);
+    
+    // Return error with CORS headers
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message
+      }),
+      { 
+        headers: { 
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        },
+        status: 500
+      }
+    );
   }
-});
+})

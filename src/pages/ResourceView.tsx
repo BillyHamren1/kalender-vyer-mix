@@ -12,6 +12,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from 'sonner';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
+import { TouchBackend } from 'react-dnd-touch-backend';
 import { assignStaffToTeam, removeStaffAssignment, fetchStaffAssignments, syncStaffMember } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
 import AddTeamButton from '@/components/Calendar/AddTeamButton';
@@ -53,6 +54,13 @@ const ResourceView = () => {
   const isMobile = useIsMobile();
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
   const [isLoadingStaff, setIsLoadingStaff] = useState(false);
+  const [isInIframe, setIsInIframe] = useState(false);
+  
+  // Detect if we're running in an iframe
+  useEffect(() => {
+    setIsInIframe(window.self !== window.top);
+    console.log('Running in iframe:', window.self !== window.top);
+  }, []);
   
   // Fetch events when this view is mounted
   useEffect(() => {
@@ -67,38 +75,53 @@ const ResourceView = () => {
   // Prefetch and sync all staff before assignments
   const ensureStaffSynced = async () => {
     try {
+      console.log('Starting staff sync process');
       setIsLoadingStaff(true);
       const formattedDate = currentDate.toISOString().split('T')[0];
       
       // Call the edge function to get all staff
+      console.log('Fetching staff data from edge function for date:', formattedDate);
       const { data, error } = await supabase.functions.invoke('fetch_staff_for_planning', {
         body: { date: formattedDate }
       });
       
       if (error) {
         console.error('Error fetching staff data:', error);
+        toast.error('Failed to load staff data');
         return;
       }
+      
+      console.log('Staff data response:', data);
       
       if (data && data.success && data.data) {
         // Sync all staff members to our database
         const staffList = data.data as ExternalStaffMember[];
+        console.log(`Processing ${staffList.length} staff members for sync`);
         
         for (const staff of staffList) {
-          await syncStaffMember(
-            staff.id,
-            staff.name,
-            staff.email || undefined,
-            staff.phone || undefined
-          );
+          try {
+            await syncStaffMember(
+              staff.id,
+              staff.name,
+              staff.email || undefined,
+              staff.phone || undefined
+            );
+            console.log(`Synced staff member: ${staff.name} (${staff.id})`);
+          } catch (syncError) {
+            console.error(`Error syncing staff member ${staff.id}:`, syncError);
+          }
         }
         
-        console.log(`Synced ${staffList.length} staff members`);
+        console.log(`Synced ${staffList.length} staff members successfully`);
+      } else {
+        console.warn('No staff data returned from API or invalid response format');
       }
     } catch (error) {
-      console.error('Error syncing staff:', error);
+      console.error('Error in ensureStaffSynced:', error);
+      toast.error('Failed to sync staff data');
     } finally {
       setIsLoadingStaff(false);
+      console.log('Staff sync process completed');
     }
   };
   
@@ -110,6 +133,7 @@ const ResourceView = () => {
   // Handle staff drop for assignment
   const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
     try {
+      console.log(`Handling staff drop: ${staffId} to team ${resourceId || 'none'}`);
       if (resourceId) {
         toast.info(`Assigning staff ${staffId} to team ${resourceId}...`);
         await assignStaffToTeam(staffId, resourceId, currentDate);
@@ -122,6 +146,7 @@ const ResourceView = () => {
       
       // Trigger a refresh of the staff assignments
       setStaffAssignmentsUpdated(prev => !prev);
+      console.log('Staff assignment updated successfully');
       
       return Promise.resolve();
     } catch (error) {
@@ -131,8 +156,26 @@ const ResourceView = () => {
     }
   };
 
+  // Choose the appropriate backend based on environment
+  const getDndBackend = () => {
+    if (isInIframe) {
+      console.log('Using TouchBackend for iframe compatibility');
+      return TouchBackend;
+    }
+    console.log('Using HTML5Backend for regular page');
+    return HTML5Backend;
+  };
+
+  // Configure backend options
+  const dndOptions = {
+    enableMouseEvents: true,
+    enableTouchEvents: true,
+    enableKeyboardEvents: true,
+    delayTouchStart: 0
+  };
+
   return (
-    <DndProvider backend={HTML5Backend}>
+    <DndProvider backend={getDndBackend()} options={isInIframe ? dndOptions : undefined}>
       <div className="min-h-screen bg-gray-50">
         <div className={`container mx-auto pt-2 ${isMobile ? 'px-2' : ''}`} style={{ maxWidth: isMobile ? '100%' : '94%' }}>
           {/* Resource Header with Add Team Button */}
