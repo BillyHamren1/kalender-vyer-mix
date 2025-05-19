@@ -1,4 +1,3 @@
-
 /* Calendar styling with teal theme */
 .fc .fc-button-primary {
   background-color: #7BAEBF !important;
@@ -218,7 +217,20 @@
   z-index: 10;
 }
 
-/* Ensure resource headers have enough height for dropzone */
+/* Assigned staff badges in resource header */
+.assigned-staff-area {
+  max-height: 40px;
+  overflow-y: auto;
+}
+
+.staff-badge {
+  font-size: 10px;
+  line-height: 1.2;
+  white-space: nowrap;
+  max-width: 70px;
+}
+
+/* Ensure resource headers have enough height for staff display */
 .fc-resource-timeline .fc-resource-group,
 .fc-resource-timeline .fc-datagrid-cell,
 .fc-resource-timeline .fc-datagrid-cell-cushion,
@@ -232,7 +244,7 @@
 .fc-datagrid-cell-frame {
   display: flex;
   flex-direction: column;
-  min-height: 65px !important;
+  min-height: 85px !important;  /* Increased to accommodate staff display */
   padding: 5px !important;
 }
 

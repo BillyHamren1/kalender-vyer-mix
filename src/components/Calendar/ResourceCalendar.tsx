@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -106,6 +105,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     return (
       <ResourceHeaderDropZone 
         resource={info.resource}
+        currentDate={currentDate}
         onStaffDrop={onStaffDrop}
       />
     );
