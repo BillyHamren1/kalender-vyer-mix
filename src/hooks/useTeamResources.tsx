@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Resource } from '@/components/Calendar/ResourceData';
 import { saveResourcesToStorage, loadResourcesFromStorage } from '@/components/Calendar/ResourceData';
@@ -10,6 +9,7 @@ export const useTeamResources = () => {
   const [teamCount, setTeamCount] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [initialSetupComplete, setInitialSetupComplete] = useState(false);
+  const [cleanupDone, setCleanupDone] = useState(false);
   
   // Load resources on initial mount only
   useEffect(() => {
@@ -30,9 +30,46 @@ export const useTeamResources = () => {
     setInitialSetupComplete(true);
   }, []);
   
+  // Clean up teams - remove duplicates and keep only the basic teams
+  useEffect(() => {
+    if (!initialSetupComplete || cleanupDone) return;
+    
+    // Get all team resources
+    const teamResources = resources.filter(res => res.id.startsWith('team-'));
+    
+    // If we have more than 6 teams, clean up
+    if (teamResources.length > 6) {
+      // Keep only teams 1-5 and team-6 (Todays events)
+      const teamsToKeep = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5', 'team-6'];
+      
+      const cleanedResources = resources.filter(resource => {
+        // Keep non-team resources
+        if (!resource.id.startsWith('team-')) return true;
+        
+        // Keep only the specified teams
+        return teamsToKeep.includes(resource.id);
+      });
+      
+      // Save cleaned resources
+      setResources(cleanedResources);
+      saveResourcesToStorage(cleanedResources);
+      saveResources(cleanedResources);
+      
+      // Show notification
+      const removedCount = teamResources.length - (cleanedResources.filter(res => res.id.startsWith('team-')).length);
+      toast.success(`Cleaned up ${removedCount} extra teams`, {
+        description: "Removed duplicate and unnecessary teams"
+      });
+      
+      setCleanupDone(true);
+    } else {
+      setCleanupDone(true);
+    }
+  }, [resources, initialSetupComplete, cleanupDone]);
+  
   // Setup "Todays events" team (Team 6) only once after initial loading
   useEffect(() => {
-    if (!initialSetupComplete || resources.length === 0) return;
+    if (!initialSetupComplete || resources.length === 0 || !cleanupDone) return;
     
     // Check if Team 6 exists
     const team6Index = resources.findIndex(res => res.id === 'team-6');
@@ -64,7 +101,7 @@ export const useTeamResources = () => {
         description: 'All yellow events will be moved to this team.'
       });
     }
-  }, [initialSetupComplete, resources.length]);
+  }, [initialSetupComplete, resources.length, cleanupDone]);
   
   // Save resources whenever they change
   useEffect(() => {

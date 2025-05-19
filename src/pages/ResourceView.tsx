@@ -54,43 +54,38 @@ const ResourceView = () => {
   const isMobile = useIsMobile();
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
   const [isLoadingStaff, setIsLoadingStaff] = useState(false);
-  const [showMoveOptions, setShowMoveOptions] = useState(false);
   const [setupDone, setSetupDone] = useState(false);
   
   // Fetch events when this view is mounted
   useEffect(() => {
     refreshEvents();
   }, []);
-
+  
   // Setup completed flag to prevent multiple setups
   useEffect(() => {
-    if (resources.length > 0 && !setupDone) {
+    if (resources.length > 0 && !setupDone && teamResources.some(r => r.id === 'team-6')) {
       // Move all yellow events (event type = "event") to Team 6
       const team6Id = 'team-6';
-      if (resources.some(r => r.id === team6Id)) {
-        const moveYellowEvents = async () => {
-          try {
-            const movedCount = await moveEventsToTeam('event', team6Id);
-            if (movedCount > 0) {
-              toast.success(`Moved ${movedCount} events to "Todays events"`, {
-                description: "All yellow events have been moved to Team 6"
-              });
-              // Refresh to show the changes
-              refreshEvents();
-            }
-          } catch (error) {
-            console.error('Error moving events:', error);
-          } finally {
-            setSetupDone(true);
+      const moveYellowEvents = async () => {
+        try {
+          const movedCount = await moveEventsToTeam('event', team6Id);
+          if (movedCount > 0) {
+            toast.success(`Moved ${movedCount} events to "Todays events"`, {
+              description: "All yellow events have been moved to Team 6"
+            });
+            // Refresh to show the changes
+            refreshEvents();
           }
-        };
-        
-        moveYellowEvents();
-      } else {
-        setSetupDone(true);
-      }
+        } catch (error) {
+          console.error('Error moving events:', error);
+        } finally {
+          setSetupDone(true);
+        }
+      };
+      
+      moveYellowEvents();
     }
-  }, [resources, setupDone]);
+  }, [resources, setupDone, teamResources]);
   
   // Determine if we should show the Available Staff Display - only show on desktop
   const shouldShowAvailableStaff = () => {
