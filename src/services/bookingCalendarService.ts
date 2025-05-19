@@ -9,7 +9,7 @@ export const syncBookingEvents = async (
   date: string | string[],
   resourceId: string = 'auto',
   client: string
-): Promise<string | string[]> {
+): Promise<string | string[]> => {
   // Convert single date to array for consistent handling
   const dates = Array.isArray(date) ? date : [date];
   const eventIds: string[] = [];
