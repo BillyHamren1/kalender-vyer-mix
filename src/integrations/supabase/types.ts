@@ -42,6 +42,13 @@ export type Database = {
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "booking_attachments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "confirmed_bookings"
+            referencedColumns: ["id"]
+          },
         ]
       }
       booking_products: {
@@ -74,6 +81,13 @@ export type Database = {
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "booking_products_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "confirmed_bookings"
+            referencedColumns: ["id"]
+          },
         ]
       }
       bookings: {
@@ -94,6 +108,7 @@ export type Database = {
           internalnotes: string | null
           rigdaydate: string | null
           rigdowndate: string | null
+          status: string | null
           updated_at: string
           viewed: boolean
         }
@@ -114,6 +129,7 @@ export type Database = {
           internalnotes?: string | null
           rigdaydate?: string | null
           rigdowndate?: string | null
+          status?: string | null
           updated_at?: string
           viewed?: boolean
         }
@@ -134,6 +150,7 @@ export type Database = {
           internalnotes?: string | null
           rigdaydate?: string | null
           rigdowndate?: string | null
+          status?: string | null
           updated_at?: string
           viewed?: boolean
         }
@@ -179,6 +196,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_events_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "confirmed_bookings"
             referencedColumns: ["id"]
           },
         ]
@@ -244,7 +268,12 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      confirmed_bookings: {
+        Row: {
+          id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never

@@ -1,3 +1,4 @@
+
 export interface BookingProduct {
   id: string;
   name: string;
@@ -31,4 +32,5 @@ export interface Booking {
   internalNotes?: string;
   attachments?: BookingAttachment[];
   viewed: boolean;
+  status: string;
 }

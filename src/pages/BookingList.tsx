@@ -17,10 +17,16 @@ import { Separator } from '@/components/ui/separator';
 import { Command, CommandInput } from '@/components/ui/command';
 import { importBookings, quietImportBookings } from '@/services/importService';
 import { Booking } from '../types/booking';
-import { fetchBookings, markBookingAsViewed, fetchUpcomingBookings } from '@/services/bookingService';
+import { 
+  fetchBookings, 
+  markBookingAsViewed, 
+  fetchUpcomingBookings, 
+  fetchConfirmedBookings 
+} from '@/services/bookingService';
 import { toast } from 'sonner';
-import { ArrowDown, CalendarDays, RefreshCcw, Search, Wrench } from 'lucide-react';
+import { ArrowDown, CalendarDays, RefreshCcw, Search, Wrench, CheckCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Switch } from "@/components/ui/switch";
 
 const BookingList = () => {
   const navigate = useNavigate();
@@ -33,13 +39,16 @@ const BookingList = () => {
   const [showPlannedBookings, setShowPlannedBookings] = useState(false);
   const [plannedBookings, setPlannedBookings] = useState<Booking[]>([]);
   const [isLoadingPlanned, setIsLoadingPlanned] = useState(false);
+  const [confirmedOnly, setConfirmedOnly] = useState(false);
   
   // Function to load bookings
   const loadBookings = async () => {
     try {
       setIsLoading(true);
       setImportError(null);
-      const data = await fetchBookings();
+      const data = confirmedOnly 
+        ? await fetchConfirmedBookings() 
+        : await fetchBookings();
       setBookings(data);
       return data.length > 0;
     } catch (error) {
@@ -55,7 +64,7 @@ const BookingList = () => {
   const loadPlannedBookings = async () => {
     try {
       setIsLoadingPlanned(true);
-      const data = await fetchUpcomingBookings(15);
+      const data = await fetchUpcomingBookings(15, confirmedOnly);
       setPlannedBookings(data);
       setShowPlannedBookings(true);
     } catch (error) {
@@ -72,6 +81,34 @@ const BookingList = () => {
       await loadPlannedBookings();
     } else {
       setShowPlannedBookings(false);
+    }
+  };
+
+  // Function to toggle confirmed-only mode
+  const toggleConfirmedOnly = async () => {
+    const newValue = !confirmedOnly;
+    setConfirmedOnly(newValue);
+    
+    // Reload the data with the new filter
+    setIsLoading(true);
+    
+    try {
+      const data = newValue 
+        ? await fetchConfirmedBookings() 
+        : await fetchBookings();
+      setBookings(data);
+      
+      // Also refresh planned bookings if they're visible
+      if (showPlannedBookings) {
+        await loadPlannedBookings();
+      }
+      
+      toast.success(newValue ? 'Showing confirmed bookings only' : 'Showing all bookings');
+    } catch (error) {
+      console.error('Failed to update bookings:', error);
+      toast.error('Failed to update bookings');
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -201,12 +238,35 @@ const BookingList = () => {
       booking.client.toLowerCase().includes(searchTerm.toLowerCase())
     );
   
+  // Helper function to render status badge
+  const renderStatusBadge = (status: string) => {
+    if (status === 'CONFIRMED') {
+      return (
+        <Badge className="bg-green-500 hover:bg-green-600 ml-2 flex items-center gap-1">
+          <CheckCircle className="h-3 w-3" />
+          Confirmed
+        </Badge>
+      );
+    }
+    return null;
+  };
+  
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-[#2d3748]">Bokningslista</h1>
           <div className="flex space-x-3">
+            <div className="flex items-center space-x-2 mr-2">
+              <Switch 
+                id="confirmed-only" 
+                checked={confirmedOnly}
+                onCheckedChange={toggleConfirmedOnly}
+              />
+              <label htmlFor="confirmed-only" className="text-sm font-medium">
+                Confirmed only
+              </label>
+            </div>
             <Button 
               onClick={togglePlannedBookings} 
               variant="outline" 
@@ -265,6 +325,11 @@ const BookingList = () => {
               <Badge className="ml-2 bg-[#4299E1] hover:bg-[#3182CE]">
                 {plannedBookings.length}
               </Badge>
+              {confirmedOnly && (
+                <Badge className="ml-2 bg-green-500 hover:bg-green-600">
+                  Confirmed only
+                </Badge>
+              )}
             </div>
             {isLoadingPlanned ? (
               <div className="flex justify-center items-center p-8">
@@ -281,6 +346,7 @@ const BookingList = () => {
                         <TableHead className="text-[#2d3748]">Rig day date</TableHead>
                         <TableHead className="text-[#2d3748]">Event date</TableHead>
                         <TableHead className="text-[#2d3748]">Rig down date</TableHead>
+                        <TableHead className="text-[#2d3748]">Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -295,6 +361,18 @@ const BookingList = () => {
                           <TableCell>{booking.rigDayDate}</TableCell>
                           <TableCell>{booking.eventDate}</TableCell>
                           <TableCell>{booking.rigDownDate}</TableCell>
+                          <TableCell>
+                            {booking.status === 'CONFIRMED' ? (
+                              <Badge className="bg-green-500 hover:bg-green-600 flex items-center gap-1">
+                                <CheckCircle className="h-3 w-3" />
+                                Confirmed
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-gray-400 hover:bg-gray-500">
+                                Pending
+                              </Badge>
+                            )}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -302,7 +380,9 @@ const BookingList = () => {
                 </Card>
               ) : (
                 <Card className="p-8 text-center border-0 shadow-md rounded-lg">
-                  <p className="text-gray-500">No upcoming bookings found.</p>
+                  <p className="text-gray-500">
+                    {confirmedOnly ? 'No upcoming confirmed bookings found.' : 'No upcoming bookings found.'}
+                  </p>
                 </Card>
               )
             )}
@@ -339,6 +419,11 @@ const BookingList = () => {
                   <Badge className="ml-2 bg-[#9b87f5] hover:bg-[#8B5CF6]">
                     {newBookings.length}
                   </Badge>
+                  {confirmedOnly && (
+                    <Badge className="ml-2 bg-green-500 hover:bg-green-600">
+                      Confirmed only
+                    </Badge>
+                  )}
                 </div>
                 <Card className="overflow-hidden border-0 shadow-md rounded-lg">
                   <Table>
@@ -349,6 +434,7 @@ const BookingList = () => {
                         <TableHead className="text-[#2d3748]">Rig day date</TableHead>
                         <TableHead className="text-[#2d3748]">Event date</TableHead>
                         <TableHead className="text-[#2d3748]">Rig down date</TableHead>
+                        <TableHead className="text-[#2d3748]">Status</TableHead>
                         <TableHead className="text-[#2d3748]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -364,6 +450,18 @@ const BookingList = () => {
                           <TableCell>{booking.rigDayDate}</TableCell>
                           <TableCell>{booking.eventDate}</TableCell>
                           <TableCell>{booking.rigDownDate}</TableCell>
+                          <TableCell>
+                            {booking.status === 'CONFIRMED' ? (
+                              <Badge className="bg-green-500 hover:bg-green-600 flex items-center gap-1">
+                                <CheckCircle className="h-3 w-3" />
+                                Confirmed
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-gray-400 hover:bg-gray-500">
+                                Pending
+                              </Badge>
+                            )}
+                          </TableCell>
                           <TableCell>
                             <Button 
                               variant="outline" 
@@ -390,6 +488,11 @@ const BookingList = () => {
                   <Badge className="ml-2 bg-[#22C55E] hover:bg-[#16A34A]">
                     {recentlyUpdatedBookings.length}
                   </Badge>
+                  {confirmedOnly && (
+                    <Badge className="ml-2 bg-green-500 hover:bg-green-600">
+                      Confirmed only
+                    </Badge>
+                  )}
                 </div>
                 <Card className="overflow-hidden border-0 shadow-md rounded-lg">
                   <Table>
@@ -400,6 +503,7 @@ const BookingList = () => {
                         <TableHead className="text-[#2d3748]">Rig day date</TableHead>
                         <TableHead className="text-[#2d3748]">Event date</TableHead>
                         <TableHead className="text-[#2d3748]">Rig down date</TableHead>
+                        <TableHead className="text-[#2d3748]">Status</TableHead>
                         <TableHead className="text-[#2d3748]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -415,6 +519,18 @@ const BookingList = () => {
                           <TableCell>{booking.rigDayDate}</TableCell>
                           <TableCell>{booking.eventDate}</TableCell>
                           <TableCell>{booking.rigDownDate}</TableCell>
+                          <TableCell>
+                            {booking.status === 'CONFIRMED' ? (
+                              <Badge className="bg-green-500 hover:bg-green-600 flex items-center gap-1">
+                                <CheckCircle className="h-3 w-3" />
+                                Confirmed
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-gray-400 hover:bg-gray-500">
+                                Pending
+                              </Badge>
+                            )}
+                          </TableCell>
                           <TableCell>
                             <Button 
                               variant="outline" 
@@ -452,6 +568,7 @@ const BookingList = () => {
                         <TableHead className="text-[#2d3748]">Rig day date</TableHead>
                         <TableHead className="text-[#2d3748]">Event date</TableHead>
                         <TableHead className="text-[#2d3748]">Rig down date</TableHead>
+                        <TableHead className="text-[#2d3748]">Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -466,6 +583,18 @@ const BookingList = () => {
                           <TableCell>{booking.rigDayDate}</TableCell>
                           <TableCell>{booking.eventDate}</TableCell>
                           <TableCell>{booking.rigDownDate}</TableCell>
+                          <TableCell>
+                            {booking.status === 'CONFIRMED' ? (
+                              <Badge className="bg-green-500 hover:bg-green-600 flex items-center gap-1">
+                                <CheckCircle className="h-3 w-3" />
+                                Confirmed
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-gray-400 hover:bg-gray-500">
+                                Pending
+                              </Badge>
+                            )}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -480,7 +609,9 @@ const BookingList = () => {
                 <p className="text-gray-500 mb-4">
                   {searchTerm 
                     ? 'No bookings found matching your search criteria.' 
-                    : 'No new or updated bookings found. Enter a search term to find existing bookings.'}
+                    : confirmedOnly 
+                      ? 'No confirmed bookings found. Enter a search term to find existing confirmed bookings.'
+                      : 'No new or updated bookings found. Enter a search term to find existing bookings.'}
                 </p>
                 <Button 
                   onClick={handleImportBookings} 

@@ -30,19 +30,59 @@ export const fetchBookings = async (): Promise<Booking[]> => {
     exactTimeInfo: booking.exact_time_info || undefined,
     internalNotes: booking.internalnotes || undefined,
     viewed: booking.viewed,
+    status: booking.status || 'PENDING',
+  }));
+};
+
+// Fetch confirmed bookings only
+export const fetchConfirmedBookings = async (): Promise<Booking[]> => {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('*')
+    .eq('status', 'CONFIRMED')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching confirmed bookings:', error);
+    throw error;
+  }
+
+  return data.map(booking => ({
+    id: booking.id,
+    client: booking.client,
+    rigDayDate: booking.rigdaydate,
+    eventDate: booking.eventdate,
+    rigDownDate: booking.rigdowndate,
+    deliveryAddress: booking.deliveryaddress || undefined,
+    deliveryCity: booking.delivery_city || undefined,
+    deliveryPostalCode: booking.delivery_postal_code || undefined,
+    deliveryLatitude: booking.delivery_latitude || undefined,
+    deliveryLongitude: booking.delivery_longitude || undefined,
+    carryMoreThan10m: booking.carry_more_than_10m || false,
+    groundNailsAllowed: booking.ground_nails_allowed || false,
+    exactTimeNeeded: booking.exact_time_needed || false,
+    exactTimeInfo: booking.exact_time_info || undefined,
+    internalNotes: booking.internalnotes || undefined,
+    viewed: booking.viewed,
+    status: booking.status || 'PENDING',
   }));
 };
 
 // Fetch upcoming bookings sorted by event date
-export const fetchUpcomingBookings = async (limit: number = 15): Promise<Booking[]> => {
+export const fetchUpcomingBookings = async (limit: number = 15, confirmedOnly: boolean = false): Promise<Booking[]> => {
   const currentDate = new Date().toISOString().split('T')[0]; // Get current date in YYYY-MM-DD format
   
-  const { data, error } = await supabase
+  let query = supabase
     .from('bookings')
     .select('*')
     .gt('eventdate', currentDate) // Get bookings with event date after today
-    .order('eventdate', { ascending: true }) // Sort by event date ascending
-    .limit(limit);
+    .order('eventdate', { ascending: true }); // Sort by event date ascending
+  
+  if (confirmedOnly) {
+    query = query.eq('status', 'CONFIRMED');
+  }
+  
+  const { data, error } = await query.limit(limit);
 
   if (error) {
     console.error('Error fetching upcoming bookings:', error);
@@ -66,6 +106,7 @@ export const fetchUpcomingBookings = async (limit: number = 15): Promise<Booking
     exactTimeInfo: booking.exact_time_info || undefined,
     internalNotes: booking.internalnotes || undefined,
     viewed: booking.viewed,
+    status: booking.status || 'PENDING',
   }));
 };
 
