@@ -1,4 +1,3 @@
-
 import React, { useEffect, useContext, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -282,6 +281,26 @@ const BookingDetail = () => {
     );
   }
   
+  // Create handler functions for button clicks
+  const handleDeliveryDetailsSave = (e: React.MouseEvent) => {
+    e.preventDefault();
+    handleDeliveryDetailsChange({
+      deliveryAddress,
+      deliveryCity,
+      deliveryPostalCode
+    });
+  };
+
+  const handleLogisticsOptionsSave = (e: React.MouseEvent) => {
+    e.preventDefault();
+    handleLogisticsChange({
+      carryMoreThan10m,
+      groundNailsAllowed,
+      exactTimeNeeded,
+      exactTimeInfo
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-4xl mx-auto bg-white rounded-lg shadow p-6">
@@ -378,7 +397,7 @@ const BookingDetail = () => {
                   ) : null}
                   
                   <Button
-                    onClick={handleDeliveryDetailsChange}
+                    onClick={handleDeliveryDetailsSave}
                     disabled={isSaving}
                     className="mt-2"
                   >
@@ -454,7 +473,7 @@ const BookingDetail = () => {
                   )}
                   
                   <Button
-                    onClick={handleLogisticsChange}
+                    onClick={handleLogisticsOptionsSave}
                     disabled={isSaving}
                     className="mt-2"
                   >
