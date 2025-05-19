@@ -47,7 +47,6 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         const formattedDate = currentDate.toISOString().split('T')[0];
         
         // Get staff assigned to this team on this date
-        // Fixed: Passing only one argument (the date) to fetchStaffAssignments
         const staffAssignments = await fetchStaffAssignments(currentDate);
         
         // Filter assignments to only show staff assigned to this resource
@@ -89,45 +88,45 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         {resource.title}
       </div>
       
-      {/* Assigned staff area - now a main focus area */}
+      {/* Assigned staff area - styled to match the reference image */}
       <div className="assigned-staff-area flex flex-wrap gap-1 mb-1 overflow-visible min-h-[24px]">
         {assignedStaff.map((staff) => (
           <Badge 
             key={staff.id}
             variant="outline"
-            className="staff-badge flex items-center bg-purple-100 text-purple-800 text-xs rounded px-1 py-0.5 z-20"
+            className="staff-badge flex items-center bg-purple-100 text-purple-800 text-xs rounded-md px-1.5 py-0.5 z-20 shadow-sm cursor-move"
             title={staff.name}
           >
-            <Avatar className="h-3 w-3 mr-1 bg-purple-200">
+            <Avatar className="h-4 w-4 mr-1 bg-purple-200">
               <AvatarFallback className="text-[8px] text-purple-800">
                 {getInitials(staff.name)}
               </AvatarFallback>
             </Avatar>
-            <span className="truncate max-w-[50px]">{staff.name.split(' ')[0]}</span>
+            <span className="truncate max-w-[50px] font-medium">{staff.name.split(' ')[0]}</span>
           </Badge>
         ))}
       </div>
       
-      {/* Drop zone area */}
+      {/* Drop zone area - styled to match the reference image */}
       <div 
         className={`
           resource-drop-zone text-xs flex items-center justify-center 
-          border border-dashed p-1 rounded-sm mt-auto
-          ${isOver ? 'bg-blue-100 border-blue-400 text-blue-800' : 'border-gray-300 text-gray-500 hover:bg-gray-50'}
+          border border-dashed p-1.5 rounded-md mt-auto
+          ${isOver ? 'bg-blue-50 border-blue-400 text-blue-800' : 'border-gray-300 text-gray-500 hover:bg-gray-50'}
           transition-colors duration-200 z-10
         `}
-        style={{ minHeight: "20px" }}
+        style={{ minHeight: "24px" }}
       >
         <div className="flex items-center gap-1">
           {assignedStaff.length > 0 ? (
             <>
               <ArrowDown className="h-3 w-3" />
-              <span className="text-xs">Add more</span>
+              <span className="text-xs font-medium">Add more</span>
             </>
           ) : (
             <>
               <ArrowDown className="h-3 w-3" />
-              <span className="text-xs">Drop staff</span>
+              <span className="text-xs font-medium">Drop staff</span>
             </>
           )}
         </div>

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -167,7 +168,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
             headerHTMLElement.style.width = '100%';
             headerHTMLElement.style.overflow = 'visible';
             headerHTMLElement.style.position = 'relative';
-            headerHTMLElement.style.zIndex = '10';
+            headerHTMLElement.style.zIndex = '20'; // Increased z-index to ensure visibility
             
             // Also fix the parent elements
             const cellFrame = info.el.querySelector('.fc-datagrid-cell-frame');
@@ -175,6 +176,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
               const cellFrameElement = cellFrame as HTMLElement;
               cellFrameElement.style.overflow = 'visible';
               cellFrameElement.style.position = 'relative';
+              cellFrameElement.style.minHeight = '100px'; // Ensure enough space for staff badges
             }
           }
         }}
