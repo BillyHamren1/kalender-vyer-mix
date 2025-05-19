@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useDrag, useDrop } from 'react-dnd';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -274,14 +273,15 @@ const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({ currentDa
   }));
 
   return (
-    <Card className={`border h-full ${isOver ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
+    <Card className={`border h-full ${isOver ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`} 
+          style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <CardHeader className="pb-1 pt-2">
         <CardTitle className="text-sm flex items-center gap-1">
           <Users className="h-4 w-4" />
           Available Staff
         </CardTitle>
       </CardHeader>
-      <CardContent ref={drop} className="pt-0 flex flex-col gap-1">
+      <CardContent ref={drop} className="pt-0 flex-1 overflow-y-auto">
         {isLoading ? (
           // Show skeletons while loading
           <>

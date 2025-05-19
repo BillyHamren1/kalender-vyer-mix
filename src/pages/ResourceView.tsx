@@ -88,9 +88,9 @@ const ResourceView = () => {
     }
   }, [resources, setupDone, teamResources]);
   
-  // Determine if we should show the Available Staff Display - only show on desktop
+  // Determine if we should show the Available Staff Display - always show it now
   const shouldShowAvailableStaff = () => {
-    return !isMobile;
+    return true; // Always show the staff display
   };
   
   // Prefetch and sync all staff before assignments
@@ -192,30 +192,35 @@ const ResourceView = () => {
               </div>
             </div>
 
-            {/* Main content area with calendar and resources */}
-            <div className="flex-grow">
-              <ResourceCalendar
-                events={events}
-                resources={resources}
-                isLoading={isLoading}
-                isMounted={isMounted}
-                currentDate={currentDate}
-                onDateSet={handleDatesSet}
-                refreshEvents={refreshEvents}
-                onStaffDrop={handleStaffDrop}
-                forceRefresh={staffAssignmentsUpdated}
-              />
-            </div>
-            
-            {/* Available Staff Display - shown below the calendar */}
-            {shouldShowAvailableStaff() && (
-              <div className="mt-4 mb-4">
-                <AvailableStaffDisplay 
-                  currentDate={currentDate} 
+            {/* Two-column layout for staff and calendar - Use grid or flex based on screen size */}
+            <div className={`${isMobile ? 'flex flex-col' : 'grid'}`} 
+                 style={{ gridTemplateColumns: isMobile ? '1fr' : '250px 1fr', gap: '1rem' }}>
+              
+              {/* Left column: Available Staff Display */}
+              {shouldShowAvailableStaff() && (
+                <div className={`${isMobile ? 'mb-4' : ''}`}>
+                  <AvailableStaffDisplay 
+                    currentDate={currentDate} 
+                    onStaffDrop={handleStaffDrop}
+                  />
+                </div>
+              )}
+              
+              {/* Right column: Calendar */}
+              <div className="flex-grow">
+                <ResourceCalendar
+                  events={events}
+                  resources={resources}
+                  isLoading={isLoading}
+                  isMounted={isMounted}
+                  currentDate={currentDate}
+                  onDateSet={handleDatesSet}
+                  refreshEvents={refreshEvents}
                   onStaffDrop={handleStaffDrop}
+                  forceRefresh={staffAssignmentsUpdated}
                 />
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
