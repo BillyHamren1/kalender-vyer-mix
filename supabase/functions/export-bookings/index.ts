@@ -77,7 +77,7 @@ serve(async (req) => {
     
     console.log(`Retrieved ${bookingsData?.length || 0} bookings from database`)
     
-    // Process bookings to include products and attachments
+    // Process bookings to include products, attachments, and staff
     const bookings = []
     
     for (const booking of bookingsData || []) {
@@ -101,6 +101,73 @@ serve(async (req) => {
       if (attachmentsError) {
         console.error(`Error fetching attachments for booking ${booking.id}:`, attachmentsError)
         continue // Skip this booking if we can't fetch its attachments
+      }
+      
+      // Fetch calendar events for this booking to get related team IDs
+      const { data: calendarEventsData, error: calendarEventsError } = await supabaseClient
+        .from('calendar_events')
+        .select('resource_id')
+        .eq('booking_id', booking.id)
+        .order('start_time', { ascending: true })
+      
+      if (calendarEventsError) {
+        console.error(`Error fetching calendar events for booking ${booking.id}:`, calendarEventsError)
+      }
+      
+      // Get unique team IDs from calendar events
+      const teamIds = calendarEventsData ? 
+        [...new Set(calendarEventsData.map(event => event.resource_id))] : 
+        []
+      
+      // For each team, fetch assigned staff members
+      const assignedStaff = []
+      
+      for (const teamId of teamIds) {
+        // Find the relevant dates from booking for staff assignments
+        const relevantDates = [
+          booking.rigdaydate, 
+          booking.eventdate, 
+          booking.rigdowndate
+        ].filter(date => date) // Filter out null/undefined dates
+        
+        if (relevantDates.length === 0) continue
+        
+        for (const date of relevantDates) {
+          // Fetch staff assignments for this team on this date
+          const { data: staffAssignmentsData, error: staffAssignmentsError } = await supabaseClient
+            .from('staff_assignments')
+            .select(`
+              id,
+              team_id,
+              staff_id,
+              assignment_date,
+              staff_members (
+                id,
+                name,
+                email,
+                phone
+              )
+            `)
+            .eq('team_id', teamId)
+            .eq('assignment_date', date)
+          
+          if (staffAssignmentsError) {
+            console.error(`Error fetching staff assignments for team ${teamId} on ${date}:`, staffAssignmentsError)
+            continue
+          }
+          
+          if (staffAssignmentsData && staffAssignmentsData.length > 0) {
+            // Add staff members with assignment details
+            for (const assignment of staffAssignmentsData) {
+              assignedStaff.push({
+                assignment_id: assignment.id,
+                team_id: assignment.team_id,
+                date: assignment.assignment_date,
+                staff: assignment.staff_members
+              })
+            }
+          }
+        }
       }
       
       // Format products and attachments
@@ -136,12 +203,14 @@ serve(async (req) => {
         internalnotes: booking.internalnotes || undefined,
         products,
         attachments,
+        staff: assignedStaff,
+        teams: teamIds,
         created_at: booking.created_at,
         updated_at: booking.updated_at
       })
     }
     
-    console.log(`Returning ${bookings.length} processed bookings with their products and attachments`)
+    console.log(`Returning ${bookings.length} processed bookings with their products, attachments, and assigned staff`)
 
     // Return the real data in the expected format
     return new Response(
