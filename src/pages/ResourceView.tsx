@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -226,6 +225,7 @@ const ResourceView = () => {
               onDateSet={handleDatesSet}
               refreshEvents={refreshEvents}
               onStaffDrop={handleStaffDrop}
+              forceRefresh={staffAssignmentsUpdated} // Pass the forceRefresh prop
             />
           </div>
         </div>

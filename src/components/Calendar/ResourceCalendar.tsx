@@ -24,6 +24,7 @@ interface ResourceCalendarProps {
   onDateSet: (dateInfo: any) => void;
   refreshEvents: () => Promise<void | CalendarEvent[]>;
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
+  forceRefresh?: boolean; // Add this prop to force refresh
 }
 
 const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
@@ -34,7 +35,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   currentDate,
   onDateSet,
   refreshEvents,
-  onStaffDrop
+  onStaffDrop,
+  forceRefresh
 }) => {
   const calendarRef = useRef<any>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(currentDate);
@@ -108,6 +110,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         resource={info.resource}
         currentDate={currentDate}
         onStaffDrop={onStaffDrop}
+        forceRefresh={forceRefresh} // Pass the forceRefresh prop to ResourceHeaderDropZone
       />
     );
   };

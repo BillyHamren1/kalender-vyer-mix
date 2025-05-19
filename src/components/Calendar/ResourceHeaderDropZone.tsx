@@ -12,6 +12,7 @@ interface ResourceHeaderDropZoneProps {
   resource: Resource;
   currentDate?: Date;
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
+  forceRefresh?: boolean; // Add this prop to force refresh
 }
 
 // DraggableStaffBadge component for the resource header
@@ -72,7 +73,8 @@ const DraggableStaffBadge: React.FC<{
 export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({ 
   resource,
   currentDate = new Date(),
-  onStaffDrop
+  onStaffDrop,
+  forceRefresh
 }) => {
   const [assignedStaff, setAssignedStaff] = useState<StaffMember[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -120,7 +122,7 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     };
     
     loadAssignedStaff();
-  }, [resource.id, currentDate]);
+  }, [resource.id, currentDate, forceRefresh]); // Add forceRefresh to the dependency array
   
   // Handle staff removal
   const handleRemoveStaff = async (staffId: string) => {
