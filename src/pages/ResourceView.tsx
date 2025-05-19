@@ -197,7 +197,7 @@ const ResourceView = () => {
             <div className="flex flex-col md:flex-row gap-4">
               {/* Available Staff Display - moved to the left side */}
               {shouldShowAvailableStaff() && (
-                <div className="md:w-60 shrink-0">
+                <div className="md:w-45 shrink-0">
                   <AvailableStaffDisplay 
                     currentDate={currentDate} 
                     onStaffDrop={handleStaffDrop}
