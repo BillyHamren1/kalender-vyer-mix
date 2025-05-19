@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useDrop, useDrag } from 'react-dnd';
 import { Resource } from './ResourceData';
@@ -173,7 +172,7 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         ))}
       </div>
       
-      {/* Drop zone area - styled to match the reference image */}
+      {/* Drop zone area - now shows only the arrow icon when staff are assigned */}
       <div 
         className={`
           resource-drop-zone text-xs flex items-center justify-center 
@@ -184,16 +183,9 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         style={{ minHeight: "24px" }}
       >
         <div className="flex items-center gap-1">
-          {assignedStaff.length > 0 ? (
-            <>
-              <ArrowDown className="h-3 w-3" />
-              <span className="text-xs font-medium">Add more</span>
-            </>
-          ) : (
-            <>
-              <ArrowDown className="h-3 w-3" />
-              <span className="text-xs font-medium">Drop staff</span>
-            </>
+          <ArrowDown className="h-3 w-3" />
+          {assignedStaff.length === 0 && (
+            <span className="text-xs font-medium">Drop staff</span>
           )}
         </div>
       </div>
