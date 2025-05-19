@@ -17,9 +17,9 @@ import { Separator } from '@/components/ui/separator';
 import { Command, CommandInput } from '@/components/ui/command';
 import { importBookings, quietImportBookings } from '@/services/importService';
 import { Booking } from '../types/booking';
-import { fetchBookings, markBookingAsViewed } from '@/services/bookingService';
+import { fetchBookings, markBookingAsViewed, fetchUpcomingBookings } from '@/services/bookingService';
 import { toast } from 'sonner';
-import { ArrowDown, RefreshCcw, Search, Wrench } from 'lucide-react';
+import { ArrowDown, CalendarDays, RefreshCcw, Search, Wrench } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const BookingList = () => {
@@ -30,6 +30,9 @@ const BookingList = () => {
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [recentlyUpdatedBookingIds, setRecentlyUpdatedBookingIds] = useState<string[]>([]);
+  const [showPlannedBookings, setShowPlannedBookings] = useState(false);
+  const [plannedBookings, setPlannedBookings] = useState<Booking[]>([]);
+  const [isLoadingPlanned, setIsLoadingPlanned] = useState(false);
   
   // Function to load bookings
   const loadBookings = async () => {
@@ -45,6 +48,30 @@ const BookingList = () => {
       return false;
     } finally {
       setIsLoading(false);
+    }
+  };
+  
+  // Function to load upcoming bookings
+  const loadPlannedBookings = async () => {
+    try {
+      setIsLoadingPlanned(true);
+      const data = await fetchUpcomingBookings(15);
+      setPlannedBookings(data);
+      setShowPlannedBookings(true);
+    } catch (error) {
+      console.error('Failed to load planned bookings:', error);
+      toast.error('Failed to load planned bookings');
+    } finally {
+      setIsLoadingPlanned(false);
+    }
+  };
+  
+  // Function to toggle the display of planned bookings
+  const togglePlannedBookings = async () => {
+    if (!showPlannedBookings) {
+      await loadPlannedBookings();
+    } else {
+      setShowPlannedBookings(false);
     }
   };
   
@@ -181,13 +208,22 @@ const BookingList = () => {
           <h1 className="text-2xl font-bold text-[#2d3748]">Bokningslista</h1>
           <div className="flex space-x-3">
             <Button 
+              onClick={togglePlannedBookings} 
+              variant="outline" 
+              disabled={isLoadingPlanned}
+              className="flex items-center gap-2"
+            >
+              <CalendarDays className="h-4 w-4" />
+              {showPlannedBookings ? 'Hide planned bookings' : 'Show planned bookings'}
+            </Button>
+            <Button 
               onClick={() => loadBookings()} 
               variant="outline" 
               disabled={isLoading}
               className="flex items-center gap-2"
             >
               <RefreshCcw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-              Uppdatera
+              Update
             </Button>
             <Button 
               onClick={handleImportBookings} 
@@ -195,7 +231,7 @@ const BookingList = () => {
               className="flex items-center gap-2"
             >
               <ArrowDown className="h-4 w-4" />
-              {isImporting ? 'Importerar...' : 'Importera bokningar'}
+              {isImporting ? 'Importing...' : 'Import bookings'}
             </Button>
             <Button 
               onClick={() => navigate('/api-tester')} 
@@ -221,13 +257,68 @@ const BookingList = () => {
           </Alert>
         )}
 
+        {/* Planned Bookings Section */}
+        {showPlannedBookings && (
+          <div className="mb-8">
+            <div className="flex items-center mb-4">
+              <h2 className="text-xl font-semibold text-[#2d3748]">Planned Bookings</h2>
+              <Badge className="ml-2 bg-[#4299E1] hover:bg-[#3182CE]">
+                {plannedBookings.length}
+              </Badge>
+            </div>
+            {isLoadingPlanned ? (
+              <div className="flex justify-center items-center p-8">
+                <p className="text-gray-500">Loading planned bookings...</p>
+              </div>
+            ) : (
+              plannedBookings.length > 0 ? (
+                <Card className="overflow-hidden border-0 shadow-md rounded-lg">
+                  <Table>
+                    <TableHeader className="bg-[#EBF8FF]">
+                      <TableRow>
+                        <TableHead className="text-[#2d3748]">Booking ID</TableHead>
+                        <TableHead className="text-[#2d3748]">Client</TableHead>
+                        <TableHead className="text-[#2d3748]">Rig day date</TableHead>
+                        <TableHead className="text-[#2d3748]">Event date</TableHead>
+                        <TableHead className="text-[#2d3748]">Rig down date</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {plannedBookings.map((booking) => (
+                        <TableRow 
+                          key={booking.id} 
+                          className="hover:bg-[#F7FAFC] cursor-pointer" 
+                          onClick={() => handleRowClick(booking.id)}
+                        >
+                          <TableCell className="font-medium text-[#2d3748]">{booking.id}</TableCell>
+                          <TableCell>{booking.client}</TableCell>
+                          <TableCell>{booking.rigDayDate}</TableCell>
+                          <TableCell>{booking.eventDate}</TableCell>
+                          <TableCell>{booking.rigDownDate}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Card>
+              ) : (
+                <Card className="p-8 text-center border-0 shadow-md rounded-lg">
+                  <p className="text-gray-500">No upcoming bookings found.</p>
+                </Card>
+              )
+            )}
+            {plannedBookings.length > 0 && (
+              <Separator className="my-6" />
+            )}
+          </div>
+        )}
+
         {/* Search input */}
         <div className="flex w-full max-w-sm mb-6 mt-4 shadow-sm">
           <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               className="pl-10 border border-gray-300 rounded-md w-full focus-visible:ring-1 focus-visible:ring-[#9b87f5]"
-              placeholder="Sök efter kund eller boknings-ID"
+              placeholder="Search for client or booking ID"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />

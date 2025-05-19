@@ -33,6 +33,42 @@ export const fetchBookings = async (): Promise<Booking[]> => {
   }));
 };
 
+// Fetch upcoming bookings sorted by event date
+export const fetchUpcomingBookings = async (limit: number = 15): Promise<Booking[]> => {
+  const currentDate = new Date().toISOString().split('T')[0]; // Get current date in YYYY-MM-DD format
+  
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('*')
+    .gt('eventdate', currentDate) // Get bookings with event date after today
+    .order('eventdate', { ascending: true }) // Sort by event date ascending
+    .limit(limit);
+
+  if (error) {
+    console.error('Error fetching upcoming bookings:', error);
+    throw error;
+  }
+
+  return data.map(booking => ({
+    id: booking.id,
+    client: booking.client,
+    rigDayDate: booking.rigdaydate,
+    eventDate: booking.eventdate,
+    rigDownDate: booking.rigdowndate,
+    deliveryAddress: booking.deliveryaddress || undefined,
+    deliveryCity: booking.delivery_city || undefined,
+    deliveryPostalCode: booking.delivery_postal_code || undefined,
+    deliveryLatitude: booking.delivery_latitude || undefined,
+    deliveryLongitude: booking.delivery_longitude || undefined,
+    carryMoreThan10m: booking.carry_more_than_10m || false,
+    groundNailsAllowed: booking.ground_nails_allowed || false,
+    exactTimeNeeded: booking.exact_time_needed || false,
+    exactTimeInfo: booking.exact_time_info || undefined,
+    internalNotes: booking.internalnotes || undefined,
+    viewed: booking.viewed,
+  }));
+};
+
 // Fetch a single booking by ID
 export const fetchBookingById = async (id: string): Promise<Booking> => {
   // Fetch booking details
