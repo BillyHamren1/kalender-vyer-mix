@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { format, addDays, subDays } from 'date-fns';
-import { sv } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
 import { CalendarContext } from '@/App';
 import { useContext } from 'react';
@@ -38,9 +37,9 @@ const DayNavigation: React.FC<DayNavigationProps> = ({ currentDate }) => {
     return format(date, 'yyyy-MM-dd') === format(currentDate, 'yyyy-MM-dd');
   };
   
-  // Format the day name (mån, tis, ons, etc.)
+  // Format the day name in English (Mon, Tue, Wed, etc.)
   const formatDayName = (date: Date) => {
-    return format(date, 'EEE', { locale: sv }).toLowerCase();
+    return format(date, 'EEE').toLowerCase();
   };
   
   // Format the day number (12/5, 13/5, etc.)

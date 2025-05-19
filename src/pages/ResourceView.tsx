@@ -136,21 +136,21 @@ const ResourceView = () => {
       <div className="min-h-screen bg-gray-50">
         <div className={`container mx-auto pt-2 ${isMobile ? 'px-2' : ''}`} style={{ maxWidth: isMobile ? '100%' : '94%' }}>
           <div className={`bg-white rounded-lg shadow-md mb-4 ${isMobile ? 'p-2' : 'p-3'}`}>
-            {/* Week Navigation with Update Button positioned to the right */}
-            <div className="flex justify-between items-center mb-4">
-              <div className="flex-grow">
-                <DayNavigation currentDate={currentDate} />
-              </div>
+            {/* Week Navigation with Update Button positioned to the left */}
+            <div className="flex items-center mb-4">
               <Button 
                 onClick={refreshEvents} 
                 variant="outline" 
                 size="sm"
                 disabled={isLoading}
-                className="flex items-center gap-1 ml-2"
+                className="flex items-center gap-1 mr-3"
               >
                 <RefreshCcw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
                 {isMobile ? '' : 'Update'}
               </Button>
+              <div className="flex-grow">
+                <DayNavigation currentDate={currentDate} />
+              </div>
             </div>
 
             {/* Main content area with calendar and resources */}
@@ -168,7 +168,7 @@ const ResourceView = () => {
               />
             </div>
             
-            {/* Available Staff Display - moved down to align with teams */}
+            {/* Available Staff Display - shown below the calendar */}
             {shouldShowAvailableStaff() && (
               <div className="mt-4 mb-4">
                 <AvailableStaffDisplay 
