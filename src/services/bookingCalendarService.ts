@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { findAvailableTeam } from "./teamService";
 
@@ -157,4 +156,19 @@ export const deleteBookingEvent = async (bookingId: string, eventType: 'rig' | '
   }
   
   console.log(`Deleted ${eventType} event for booking ${bookingId} on ${date}`);
+};
+
+// Delete all calendar events for a booking
+export const deleteAllBookingEvents = async (bookingId: string): Promise<void> => {
+  const { error } = await supabase
+    .from('calendar_events')
+    .delete()
+    .eq('booking_id', bookingId);
+    
+  if (error) {
+    console.error(`Error deleting all events for booking ${bookingId}:`, error);
+    throw error;
+  }
+  
+  console.log(`Deleted all calendar events for booking ${bookingId}`);
 };

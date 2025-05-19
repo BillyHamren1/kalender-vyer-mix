@@ -1,6 +1,6 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { Booking, BookingProduct } from "@/types/booking";
+import { deleteAllBookingEvents } from '@/services/bookingCalendarService';
 
 // Fetch all bookings
 export const fetchBookings = async (): Promise<Booking[]> => {
@@ -377,5 +377,50 @@ export const markBookingAsViewed = async (id: string): Promise<void> => {
   if (error) {
     console.error('Error marking booking as viewed:', error);
     throw error;
+  }
+};
+
+// Update booking status
+export const updateBookingStatus = async (id: string, newStatus: string): Promise<void> => {
+  // First get the current status of the booking
+  const { data: booking, error: fetchError } = await supabase
+    .from('bookings')
+    .select('status')
+    .eq('id', id)
+    .single();
+  
+  if (fetchError) {
+    console.error('Error fetching booking status:', fetchError);
+    throw fetchError;
+  }
+
+  const currentStatus = booking.status;
+  
+  // Update the booking status
+  const { error: updateError } = await supabase
+    .from('bookings')
+    .update({ 
+      status: newStatus, 
+      updated_at: new Date().toISOString(),
+      // If changing from any status to anything else, mark as unviewed to highlight the change
+      viewed: false 
+    })
+    .eq('id', id);
+  
+  if (updateError) {
+    console.error('Error updating booking status:', updateError);
+    throw updateError;
+  }
+  
+  // If the status was CONFIRMED and is now changing to something else,
+  // we need to remove all calendar events for this booking
+  if (currentStatus === 'CONFIRMED' && newStatus !== 'CONFIRMED') {
+    try {
+      await deleteAllBookingEvents(id);
+      console.log(`Removed all calendar events for booking ${id} due to status change from CONFIRMED to ${newStatus}`);
+    } catch (error) {
+      console.error('Error removing calendar events after status change:', error);
+      // We don't re-throw here as the status update itself was successful
+    }
   }
 };

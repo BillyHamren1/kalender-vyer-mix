@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -24,7 +23,7 @@ import {
   fetchConfirmedBookings 
 } from '@/services/bookingService';
 import { toast } from 'sonner';
-import { ArrowDown, CalendarDays, RefreshCcw, Search, Wrench, CheckCircle } from 'lucide-react';
+import { ArrowDown, CalendarDays, RefreshCcw, Search, Wrench, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 
@@ -240,15 +239,35 @@ const BookingList = () => {
   
   // Helper function to render status badge
   const renderStatusBadge = (status: string) => {
-    if (status === 'CONFIRMED') {
-      return (
-        <Badge className="bg-green-500 hover:bg-green-600 ml-2 flex items-center gap-1">
-          <CheckCircle className="h-3 w-3" />
-          Confirmed
-        </Badge>
-      );
+    switch (status) {
+      case 'CONFIRMED':
+        return (
+          <Badge className="bg-green-500 hover:bg-green-600 ml-2 flex items-center gap-1">
+            <CheckCircle className="h-3 w-3" />
+            Confirmed
+          </Badge>
+        );
+      case 'CANCELLED':
+        return (
+          <Badge className="bg-red-500 hover:bg-red-600 ml-2 flex items-center gap-1">
+            <XCircle className="h-3 w-3" />
+            Cancelled
+          </Badge>
+        );
+      case 'OFFER':
+        return (
+          <Badge className="bg-yellow-500 hover:bg-yellow-600 ml-2 flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            Offer
+          </Badge>
+        );
+      default:
+        return (
+          <Badge className="bg-gray-400 hover:bg-gray-500 ml-2">
+            Pending
+          </Badge>
+        );
     }
-    return null;
   };
   
   return (
@@ -362,16 +381,7 @@ const BookingList = () => {
                           <TableCell>{booking.eventDate}</TableCell>
                           <TableCell>{booking.rigDownDate}</TableCell>
                           <TableCell>
-                            {booking.status === 'CONFIRMED' ? (
-                              <Badge className="bg-green-500 hover:bg-green-600 flex items-center gap-1">
-                                <CheckCircle className="h-3 w-3" />
-                                Confirmed
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-gray-400 hover:bg-gray-500">
-                                Pending
-                              </Badge>
-                            )}
+                            {renderStatusBadge(booking.status)}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -451,16 +461,7 @@ const BookingList = () => {
                           <TableCell>{booking.eventDate}</TableCell>
                           <TableCell>{booking.rigDownDate}</TableCell>
                           <TableCell>
-                            {booking.status === 'CONFIRMED' ? (
-                              <Badge className="bg-green-500 hover:bg-green-600 flex items-center gap-1">
-                                <CheckCircle className="h-3 w-3" />
-                                Confirmed
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-gray-400 hover:bg-gray-500">
-                                Pending
-                              </Badge>
-                            )}
+                            {renderStatusBadge(booking.status)}
                           </TableCell>
                           <TableCell>
                             <Button 
@@ -520,16 +521,7 @@ const BookingList = () => {
                           <TableCell>{booking.eventDate}</TableCell>
                           <TableCell>{booking.rigDownDate}</TableCell>
                           <TableCell>
-                            {booking.status === 'CONFIRMED' ? (
-                              <Badge className="bg-green-500 hover:bg-green-600 flex items-center gap-1">
-                                <CheckCircle className="h-3 w-3" />
-                                Confirmed
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-gray-400 hover:bg-gray-500">
-                                Pending
-                              </Badge>
-                            )}
+                            {renderStatusBadge(booking.status)}
                           </TableCell>
                           <TableCell>
                             <Button 
@@ -584,16 +576,7 @@ const BookingList = () => {
                           <TableCell>{booking.eventDate}</TableCell>
                           <TableCell>{booking.rigDownDate}</TableCell>
                           <TableCell>
-                            {booking.status === 'CONFIRMED' ? (
-                              <Badge className="bg-green-500 hover:bg-green-600 flex items-center gap-1">
-                                <CheckCircle className="h-3 w-3" />
-                                Confirmed
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-gray-400 hover:bg-gray-500">
-                                Pending
-                              </Badge>
-                            )}
+                            {renderStatusBadge(booking.status)}
                           </TableCell>
                         </TableRow>
                       ))}
