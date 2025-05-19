@@ -149,7 +149,6 @@ const BookingDetail = () => {
 
             {/* Schedule */}
             <ScheduleCard
-              bookingId={id || ''} // Pass the bookingId from the URL params
               rigDates={rigDates}
               eventDates={eventDates}
               rigDownDates={rigDownDates}
