@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -23,9 +24,9 @@ import {
   fetchConfirmedBookings 
 } from '@/services/bookingService';
 import { toast } from 'sonner';
-import { ArrowDown, CalendarDays, RefreshCcw, Search, Wrench, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { ArrowDown, CalendarDays, RefreshCcw, Search, Wrench } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Switch } from "@/components/ui/switch";
+import StatusBadge from '@/components/booking/StatusBadge';
 
 const BookingList = () => {
   const navigate = useNavigate();
@@ -38,16 +39,13 @@ const BookingList = () => {
   const [showPlannedBookings, setShowPlannedBookings] = useState(false);
   const [plannedBookings, setPlannedBookings] = useState<Booking[]>([]);
   const [isLoadingPlanned, setIsLoadingPlanned] = useState(false);
-  const [confirmedOnly, setConfirmedOnly] = useState(false);
   
-  // Function to load bookings
+  // Function to load bookings - now always loads confirmed bookings
   const loadBookings = async () => {
     try {
       setIsLoading(true);
       setImportError(null);
-      const data = confirmedOnly 
-        ? await fetchConfirmedBookings() 
-        : await fetchBookings();
+      const data = await fetchConfirmedBookings();
       setBookings(data);
       return data.length > 0;
     } catch (error) {
@@ -59,11 +57,11 @@ const BookingList = () => {
     }
   };
   
-  // Function to load upcoming bookings
+  // Function to load upcoming bookings - now always loads confirmed bookings
   const loadPlannedBookings = async () => {
     try {
       setIsLoadingPlanned(true);
-      const data = await fetchUpcomingBookings(15, confirmedOnly);
+      const data = await fetchUpcomingBookings(15, true); // Always true for confirmed only
       setPlannedBookings(data);
       setShowPlannedBookings(true);
     } catch (error) {
@@ -83,34 +81,6 @@ const BookingList = () => {
     }
   };
 
-  // Function to toggle confirmed-only mode
-  const toggleConfirmedOnly = async () => {
-    const newValue = !confirmedOnly;
-    setConfirmedOnly(newValue);
-    
-    // Reload the data with the new filter
-    setIsLoading(true);
-    
-    try {
-      const data = newValue 
-        ? await fetchConfirmedBookings() 
-        : await fetchBookings();
-      setBookings(data);
-      
-      // Also refresh planned bookings if they're visible
-      if (showPlannedBookings) {
-        await loadPlannedBookings();
-      }
-      
-      toast.success(newValue ? 'Showing confirmed bookings only' : 'Showing all bookings');
-    } catch (error) {
-      console.error('Failed to update bookings:', error);
-      toast.error('Failed to update bookings');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
   // Function to import bookings with UI feedback
   const handleImportBookings = async () => {
     try {
@@ -237,55 +207,12 @@ const BookingList = () => {
       booking.client.toLowerCase().includes(searchTerm.toLowerCase())
     );
   
-  // Helper function to render status badge
-  const renderStatusBadge = (status: string) => {
-    switch (status) {
-      case 'CONFIRMED':
-        return (
-          <Badge className="bg-green-500 hover:bg-green-600 ml-2 flex items-center gap-1">
-            <CheckCircle className="h-3 w-3" />
-            Confirmed
-          </Badge>
-        );
-      case 'CANCELLED':
-        return (
-          <Badge className="bg-red-500 hover:bg-red-600 ml-2 flex items-center gap-1">
-            <XCircle className="h-3 w-3" />
-            Cancelled
-          </Badge>
-        );
-      case 'OFFER':
-        return (
-          <Badge className="bg-yellow-500 hover:bg-yellow-600 ml-2 flex items-center gap-1">
-            <Clock className="h-3 w-3" />
-            Offer
-          </Badge>
-        );
-      default:
-        return (
-          <Badge className="bg-gray-400 hover:bg-gray-500 ml-2">
-            Pending
-          </Badge>
-        );
-    }
-  };
-  
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-[#2d3748]">Bokningslista</h1>
           <div className="flex space-x-3">
-            <div className="flex items-center space-x-2 mr-2">
-              <Switch 
-                id="confirmed-only" 
-                checked={confirmedOnly}
-                onCheckedChange={toggleConfirmedOnly}
-              />
-              <label htmlFor="confirmed-only" className="text-sm font-medium">
-                Confirmed only
-              </label>
-            </div>
             <Button 
               onClick={togglePlannedBookings} 
               variant="outline" 
@@ -344,11 +271,9 @@ const BookingList = () => {
               <Badge className="ml-2 bg-[#4299E1] hover:bg-[#3182CE]">
                 {plannedBookings.length}
               </Badge>
-              {confirmedOnly && (
-                <Badge className="ml-2 bg-green-500 hover:bg-green-600">
-                  Confirmed only
-                </Badge>
-              )}
+              <Badge className="ml-2 bg-green-500 hover:bg-green-600">
+                Confirmed only
+              </Badge>
             </div>
             {isLoadingPlanned ? (
               <div className="flex justify-center items-center p-8">
@@ -381,7 +306,7 @@ const BookingList = () => {
                           <TableCell>{booking.eventDate}</TableCell>
                           <TableCell>{booking.rigDownDate}</TableCell>
                           <TableCell>
-                            {renderStatusBadge(booking.status)}
+                            <StatusBadge status={booking.status} />
                           </TableCell>
                         </TableRow>
                       ))}
@@ -391,7 +316,7 @@ const BookingList = () => {
               ) : (
                 <Card className="p-8 text-center border-0 shadow-md rounded-lg">
                   <p className="text-gray-500">
-                    {confirmedOnly ? 'No upcoming confirmed bookings found.' : 'No upcoming bookings found.'}
+                    No upcoming confirmed bookings found.
                   </p>
                 </Card>
               )
@@ -429,11 +354,9 @@ const BookingList = () => {
                   <Badge className="ml-2 bg-[#9b87f5] hover:bg-[#8B5CF6]">
                     {newBookings.length}
                   </Badge>
-                  {confirmedOnly && (
-                    <Badge className="ml-2 bg-green-500 hover:bg-green-600">
-                      Confirmed only
-                    </Badge>
-                  )}
+                  <Badge className="ml-2 bg-green-500 hover:bg-green-600">
+                    Confirmed only
+                  </Badge>
                 </div>
                 <Card className="overflow-hidden border-0 shadow-md rounded-lg">
                   <Table>
@@ -461,7 +384,7 @@ const BookingList = () => {
                           <TableCell>{booking.eventDate}</TableCell>
                           <TableCell>{booking.rigDownDate}</TableCell>
                           <TableCell>
-                            {renderStatusBadge(booking.status)}
+                            <StatusBadge status={booking.status} />
                           </TableCell>
                           <TableCell>
                             <Button 
@@ -489,11 +412,9 @@ const BookingList = () => {
                   <Badge className="ml-2 bg-[#22C55E] hover:bg-[#16A34A]">
                     {recentlyUpdatedBookings.length}
                   </Badge>
-                  {confirmedOnly && (
-                    <Badge className="ml-2 bg-green-500 hover:bg-green-600">
-                      Confirmed only
-                    </Badge>
-                  )}
+                  <Badge className="ml-2 bg-green-500 hover:bg-green-600">
+                    Confirmed only
+                  </Badge>
                 </div>
                 <Card className="overflow-hidden border-0 shadow-md rounded-lg">
                   <Table>
@@ -521,7 +442,7 @@ const BookingList = () => {
                           <TableCell>{booking.eventDate}</TableCell>
                           <TableCell>{booking.rigDownDate}</TableCell>
                           <TableCell>
-                            {renderStatusBadge(booking.status)}
+                            <StatusBadge status={booking.status} />
                           </TableCell>
                           <TableCell>
                             <Button 
@@ -576,7 +497,7 @@ const BookingList = () => {
                           <TableCell>{booking.eventDate}</TableCell>
                           <TableCell>{booking.rigDownDate}</TableCell>
                           <TableCell>
-                            {renderStatusBadge(booking.status)}
+                            <StatusBadge status={booking.status} />
                           </TableCell>
                         </TableRow>
                       ))}
@@ -592,9 +513,7 @@ const BookingList = () => {
                 <p className="text-gray-500 mb-4">
                   {searchTerm 
                     ? 'No bookings found matching your search criteria.' 
-                    : confirmedOnly 
-                      ? 'No confirmed bookings found. Enter a search term to find existing confirmed bookings.'
-                      : 'No new or updated bookings found. Enter a search term to find existing bookings.'}
+                    : 'No new or updated confirmed bookings found. Enter a search term to find existing bookings.'}
                 </p>
                 <Button 
                   onClick={handleImportBookings} 

@@ -24,16 +24,23 @@ export interface ImportFilters {
   startDate?: string;
   endDate?: string;
   clientName?: string;
+  confirmedOnly?: boolean; // Adding this option
 }
 
 /**
  * Import bookings from external API
  */
-export const importBookings = async (filters: ImportFilters = {}): Promise<ImportResults> => {
+export const importBookings = async (filters: ImportFilters = { confirmedOnly: true }): Promise<ImportResults> => {
   try {
     toast.info('Connecting to external booking system...', {
       duration: 3000,
     });
+    
+    // Always set confirmedOnly to true
+    const requestFilters = {
+      ...filters,
+      confirmedOnly: true
+    };
     
     // Call the Supabase Edge Function without custom Authorization header
     // The supabase client will automatically include authentication
@@ -41,7 +48,7 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
       'import-bookings',
       {
         method: 'POST',
-        body: { ...filters }
+        body: requestFilters
       }
     );
 
@@ -89,14 +96,21 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
 /**
  * Import bookings quietly in the background, without showing toasts unless there are new/updated bookings
  */
-export const quietImportBookings = async (filters: ImportFilters = {}): Promise<ImportResults> => {
+export const quietImportBookings = async (filters: ImportFilters = { confirmedOnly: true }): Promise<ImportResults> => {
   try {    
+    // Always set confirmedOnly to true
+    const requestFilters = {
+      ...filters,
+      confirmedOnly: true,
+      quiet: true
+    };
+    
     // Call the Supabase Edge Function with quiet parameter
     const { data: resultData, error: functionError } = await supabase.functions.invoke(
       'import-bookings',
       {
         method: 'POST',
-        body: { ...filters, quiet: true }
+        body: requestFilters
       }
     );
 
