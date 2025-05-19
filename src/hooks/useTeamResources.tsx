@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Resource } from '@/components/Calendar/ResourceData';
 import { saveResourcesToStorage, loadResourcesFromStorage } from '@/components/Calendar/ResourceData';
-import { saveResources, renameTeam } from '@/services/teamService';
+import { saveResources } from '@/services/teamService';
 import { toast } from 'sonner';
 
 export const useTeamResources = () => {
@@ -24,18 +24,6 @@ export const useTeamResources = () => {
     
     const maxTeamNumber = teamIds.length > 0 ? Math.max(...teamIds) : 0;
     setTeamCount(maxTeamNumber + 1);
-    
-    // Ensure "Todays events" team exists and has the right name
-    const team6Index = loadedResources.findIndex(res => res.id === 'team-6');
-    if (team6Index !== -1 && loadedResources[team6Index].title !== "Todays events") {
-      // Rename Team 6 to "Todays events"
-      const updatedResources = [...loadedResources];
-      updatedResources[team6Index].title = "Todays events";
-      updatedResources[team6Index].eventColor = '#FEF7CD'; // Match yellow event color
-      setResources(updatedResources);
-      saveResourcesToStorage(updatedResources);
-      saveResources(updatedResources);
-    }
   }, []);
   
   useEffect(() => {
