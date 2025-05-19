@@ -35,35 +35,37 @@ const DraggableStaffBadge: React.FC<{
   };
 
   return (
-    <Badge 
+    <div 
       ref={drag}
-      key={staff.id}
-      variant="outline"
-      className={`staff-badge flex items-center bg-purple-100 text-purple-800 text-xs rounded-md px-1.5 py-0.5 z-20 shadow-sm cursor-move ${
-        isDragging ? 'opacity-50' : 'opacity-100'
-      }`}
-      title={staff.name}
-      onClick={(e) => {
-        e.stopPropagation();
-      }}
+      className={`${isDragging ? 'opacity-50' : 'opacity-100'}`}
     >
-      <Avatar className="h-4 w-4 mr-1 bg-purple-200">
-        <AvatarFallback className="text-[8px] text-purple-800">
-          {getInitials(staff.name)}
-        </AvatarFallback>
-      </Avatar>
-      <span className="truncate max-w-[50px] font-medium">{staff.name.split(' ')[0]}</span>
-      <button 
+      <Badge 
+        key={staff.id}
+        variant="outline"
+        className="staff-badge flex items-center bg-purple-100 text-purple-800 text-xs rounded-md px-1.5 py-0.5 z-20 shadow-sm cursor-move"
+        title={staff.name}
         onClick={(e) => {
           e.stopPropagation();
-          onRemove();
         }}
-        className="text-gray-400 hover:text-red-500 text-xs ml-1"
-        aria-label="Remove assignment"
       >
-        &times;
-      </button>
-    </Badge>
+        <Avatar className="h-4 w-4 mr-1 bg-purple-200">
+          <AvatarFallback className="text-[8px] text-purple-800">
+            {getInitials(staff.name)}
+          </AvatarFallback>
+        </Avatar>
+        <span className="truncate max-w-[50px] font-medium">{staff.name.split(' ')[0]}</span>
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="text-gray-400 hover:text-red-500 text-xs ml-1"
+          aria-label="Remove assignment"
+        >
+          &times;
+        </button>
+      </Badge>
+    </div>
   );
 };
 
@@ -178,4 +180,3 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     </div>
   );
 };
-
