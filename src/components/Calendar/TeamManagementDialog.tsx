@@ -16,7 +16,7 @@ import { Resource } from '../Calendar/ResourceData';
 interface TeamManagementDialogProps {
   teamResources: Resource[];
   teamCount: number;
-  onAddTeam: () => void;
+  onAddTeam: (teamName: string) => void;
   onRemoveTeam: (teamId: string) => void;
   dialogOpen: boolean;
   setDialogOpen: (open: boolean) => void;

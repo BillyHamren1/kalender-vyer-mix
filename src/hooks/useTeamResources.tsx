@@ -111,7 +111,7 @@ export const useTeamResources = () => {
     }
   }, [resources, initialSetupComplete]);
 
-  const addTeam = () => {
+  const addTeam = (teamName: string = '') => {
     // First check if we already have too many teams (e.g., more than 10)
     const teamResources = resources.filter(resource => resource.id.startsWith('team-'));
     if (teamResources.length >= 10) {
@@ -141,9 +141,12 @@ export const useTeamResources = () => {
       return;
     }
     
+    // Use the provided team name or default to "Team X"
+    const displayName = teamName.trim() !== '' ? teamName : `Team ${teamCount}`;
+    
     const newResource: Resource = {
       id: newTeamId,
-      title: `Team ${teamCount}`,
+      title: displayName,
       eventColor: '#9b87f5'
     };
     
@@ -151,7 +154,7 @@ export const useTeamResources = () => {
     setTeamCount(prevCount => prevCount + 1);
     
     toast("Team tillagt", {
-      description: `Team ${teamCount} har lagts till i kalendern`,
+      description: `${displayName} har lagts till i kalendern`,
       duration: 3000,
     });
   };

@@ -10,13 +10,23 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Resource } from '@/components/Calendar/ResourceData';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Form, FormField, FormItem, FormControl, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 
 interface AddTeamButtonProps {
-  onAddTeam: () => void;
+  onAddTeam: (teamName: string) => void;
   onRemoveTeam: (teamId: string) => void;
   teamCount: number;
   teamResources: Resource[];
 }
+
+const formSchema = z.object({
+  teamName: z.string().min(1, { message: "Team name is required" }).max(30, { message: "Team name cannot exceed 30 characters" })
+});
 
 const AddTeamButton: React.FC<AddTeamButtonProps> = ({ 
   onAddTeam, 
@@ -25,12 +35,26 @@ const AddTeamButton: React.FC<AddTeamButtonProps> = ({
   teamResources 
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const isMobile = useIsMobile();
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      teamName: `Team ${teamCount}`
+    }
+  });
+
+  const handleSubmit = (values: z.infer<typeof formSchema>) => {
+    onAddTeam(values.teamName);
+    setDialogOpen(false);
+    form.reset({ teamName: `Team ${teamCount + 1}` });
+  };
 
   return (
     <div className="flex">
       <Button 
-        onClick={onAddTeam}
+        onClick={() => setDialogOpen(true)}
         className={`bg-[#7BAEBF] hover:bg-[#6E9DAC] text-white text-sm ${
           teamResources.length > 0 ? 'rounded-r-none' : ''
         } border-r border-r-[#6ca2b4] ${
@@ -41,6 +65,7 @@ const AddTeamButton: React.FC<AddTeamButtonProps> = ({
         <Plus className={`${isMobile ? 'mr-0.5' : 'mr-1'}`} size={isMobile ? 14 : 16} />
         Add team
       </Button>
+      
       {teamResources.length > 0 && (
         <DropdownMenu open={showDropdown} onOpenChange={setShowDropdown}>
           <DropdownMenuTrigger asChild>
@@ -72,6 +97,51 @@ const AddTeamButton: React.FC<AddTeamButtonProps> = ({
           </DropdownMenuContent>
         </DropdownMenu>
       )}
+
+      {/* Add Team Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Add New Team</DialogTitle>
+            <DialogDescription>
+              Enter a name for your new team.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="teamName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input placeholder="Team name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <div className="flex justify-end gap-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit"
+                  className="bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white"
+                >
+                  Add Team
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

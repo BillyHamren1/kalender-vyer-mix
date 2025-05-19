@@ -8,7 +8,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 interface ResourceHeaderProps {
   teamResources: Resource[];
   teamCount: number;
-  onAddTeam: () => void;
+  onAddTeam: (teamName: string) => void;
   onRemoveTeam: (teamId: string) => void;
   dialogOpen: boolean;
   setDialogOpen: (open: boolean) => void;
