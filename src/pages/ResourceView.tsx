@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -16,6 +15,8 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 import { assignStaffToTeam, removeStaffAssignment, fetchStaffAssignments, syncStaffMember } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
 import WeekTabNavigation from '@/components/Calendar/WeekTabNavigation';
+import { moveEventsToTeam } from '@/services/teamService';
+import TeamManagementDialog from '@/components/Calendar/TeamManagementDialog';
 
 // Interface for external staff from API
 interface ExternalStaffMember {
@@ -53,11 +54,38 @@ const ResourceView = () => {
   const isMobile = useIsMobile();
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
   const [isLoadingStaff, setIsLoadingStaff] = useState(false);
+  const [setupDone, setSetupDone] = useState(false);
   
   // Fetch events when this view is mounted
   useEffect(() => {
     refreshEvents();
   }, []);
+  
+  // Setup completed flag to prevent multiple setups
+  useEffect(() => {
+    if (resources.length > 0 && !setupDone && teamResources.some(r => r.id === 'team-6')) {
+      // Move all yellow events (event type = "event") to Team 6
+      const team6Id = 'team-6';
+      const moveYellowEvents = async () => {
+        try {
+          const movedCount = await moveEventsToTeam('event', team6Id);
+          if (movedCount > 0) {
+            toast.success(`Moved ${movedCount} events to "Todays events"`, {
+              description: "All yellow events have been moved to Team 6"
+            });
+            // Refresh to show the changes
+            refreshEvents();
+          }
+        } catch (error) {
+          console.error('Error moving events:', error);
+        } finally {
+          setSetupDone(true);
+        }
+      };
+      
+      moveYellowEvents();
+    }
+  }, [resources, setupDone, teamResources]);
   
   // Determine if we should show the Available Staff Display - only show on desktop
   const shouldShowAvailableStaff = () => {
@@ -150,6 +178,16 @@ const ResourceView = () => {
               </Button>
               <div className="flex-grow">
                 <DayNavigation currentDate={currentDate} />
+              </div>
+              <div className="ml-2">
+                <TeamManagementDialog
+                  teamResources={teamResources}
+                  teamCount={teamCount}
+                  onAddTeam={addTeam}
+                  onRemoveTeam={removeTeam}
+                  dialogOpen={dialogOpen}
+                  setDialogOpen={setDialogOpen}
+                />
               </div>
             </div>
 
