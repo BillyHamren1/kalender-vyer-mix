@@ -67,7 +67,7 @@ const DraggableStaffItem: React.FC<{ staff: StaffMember }> = ({ staff }) => {
       className={`p-1 mb-1 bg-white border rounded-md shadow-sm cursor-move flex items-center gap-1 ${
         isDragging ? 'opacity-50' : 'opacity-100'
       }`}
-      style={{ width: '95px', height: '24px' }}
+      style={{ height: '28px' }}
     >
       <Avatar className="h-4 w-4 bg-purple-100">
         <AvatarFallback className="text-[10px] text-purple-700">
@@ -163,14 +163,14 @@ const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({ currentDa
   }));
 
   return (
-    <Card className={`border ${isOver ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
+    <Card className={`border h-full ${isOver ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
       <CardHeader className="pb-1 pt-2">
         <CardTitle className="text-sm flex items-center gap-1">
           <Users className="h-4 w-4" />
           Available Staff
         </CardTitle>
       </CardHeader>
-      <CardContent ref={drop} className="pt-0 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-1">
+      <CardContent ref={drop} className="pt-0 flex flex-col gap-1">
         {isLoading ? (
           // Show skeletons while loading
           <>
@@ -180,13 +180,13 @@ const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({ currentDa
             <Skeleton className="h-6 mb-1" />
           </>
         ) : availableStaff.length > 0 ? (
-          // Show available staff members
+          // Show available staff members in a vertical list
           availableStaff.map(staff => (
             <DraggableStaffItem key={staff.id} staff={staff} />
           ))
         ) : (
           // Show message when no staff available
-          <div className="text-gray-500 text-center py-2 col-span-full text-xs">
+          <div className="text-gray-500 text-center py-2 text-xs">
             No staff available for this date
           </div>
         )}

@@ -60,7 +60,7 @@ const ResourceView = () => {
     refreshEvents();
   }, []);
   
-  // Determine if we should show the Available Staff Display - only show on desktop in day view
+  // Determine if we should show the Available Staff Display - only show on desktop
   const shouldShowAvailableStaff = () => {
     return !isMobile;
   };
@@ -193,28 +193,33 @@ const ResourceView = () => {
               </div>
             </div>
 
-            {/* Available Staff Display - kept above the calendar */}
-            {shouldShowAvailableStaff() && (
-              <div className="mb-4">
-                <AvailableStaffDisplay 
-                  currentDate={currentDate} 
+            {/* Main content area with available staff and calendar side by side */}
+            <div className="flex flex-col md:flex-row gap-4">
+              {/* Available Staff Display - moved to the left side */}
+              {shouldShowAvailableStaff() && (
+                <div className="md:w-60 shrink-0">
+                  <AvailableStaffDisplay 
+                    currentDate={currentDate} 
+                    onStaffDrop={handleStaffDrop}
+                  />
+                </div>
+              )}
+              
+              {/* Calendar - positioned to the right of available staff */}
+              <div className="flex-grow">
+                <ResourceCalendar
+                  events={events}
+                  resources={resources}
+                  isLoading={isLoading}
+                  isMounted={isMounted}
+                  currentDate={currentDate}
+                  onDateSet={handleDatesSet}
+                  refreshEvents={refreshEvents}
                   onStaffDrop={handleStaffDrop}
+                  forceRefresh={staffAssignmentsUpdated} // Keep passing the forceRefresh prop
                 />
               </div>
-            )}
-            
-            {/* Calendar - positioned below the available staff component */}
-            <ResourceCalendar
-              events={events}
-              resources={resources}
-              isLoading={isLoading}
-              isMounted={isMounted}
-              currentDate={currentDate}
-              onDateSet={handleDatesSet}
-              refreshEvents={refreshEvents}
-              onStaffDrop={handleStaffDrop}
-              forceRefresh={staffAssignmentsUpdated} // Keep passing the forceRefresh prop
-            />
+            </div>
           </div>
         </div>
       </div>
