@@ -72,49 +72,6 @@ serve(async (req) => {
             file_type: "application/pdf", 
             uploaded_at: new Date().toISOString() 
           }
-        ],
-        staff_assignments: [
-          {
-            date: "2025-05-20",
-            event_type: "rig",
-            team_id: "team-1",
-            staff: [
-              {
-                id: "staff-1746715090882",
-                name: "Billy Hamrén",
-                uuid: "f8c7d1a3-e2b6-4f37-9c1a-5d8f4e3b2a1c"
-              },
-              {
-                id: "staff-1746715104689",
-                name: "Joel Habegger",
-                uuid: "a7b6c5d4-3e2f-1g8h-9i0j-k1l2m3n4o5p6"
-              }
-            ]
-          },
-          {
-            date: "2025-05-21",
-            event_type: "event",
-            team_id: "team-1",
-            staff: [
-              {
-                id: "staff-1746715090882",
-                name: "Billy Hamrén",
-                uuid: "f8c7d1a3-e2b6-4f37-9c1a-5d8f4e3b2a1c"
-              }
-            ]
-          },
-          {
-            date: "2025-05-22",
-            event_type: "rigDown",
-            team_id: "team-1",
-            staff: [
-              {
-                id: "staff-1746715125567",
-                name: "Björn Lidström",
-                uuid: "q9r8s7t6-5u4v-3w2x-1y0z-a1b2c3d4e5f6"
-              }
-            ]
-          }
         ]
       },
       {
@@ -132,50 +89,7 @@ serve(async (req) => {
           { name: "Lighting Rig", quantity: 1, notes: "Moving heads + LED" },
           { name: "Video Package", quantity: 1, notes: "Cameras + Mixing" }
         ],
-        attachments: [],
-        staff_assignments: [
-          {
-            date: "2025-06-01",
-            event_type: "rig",
-            team_id: "team-2",
-            staff: [
-              {
-                id: "staff-1746715104689",
-                name: "Joel Habegger",
-                uuid: "a7b6c5d4-3e2f-1g8h-9i0j-k1l2m3n4o5p6"
-              },
-              {
-                id: "staff-1746715125567",
-                name: "Björn Lidström",
-                uuid: "q9r8s7t6-5u4v-3w2x-1y0z-a1b2c3d4e5f6"
-              }
-            ]
-          },
-          {
-            date: "2025-06-02",
-            event_type: "event",
-            team_id: "team-2",
-            staff: [
-              {
-                id: "staff-1746715090882",
-                name: "Billy Hamrén",
-                uuid: "f8c7d1a3-e2b6-4f37-9c1a-5d8f4e3b2a1c"
-              }
-            ]
-          },
-          {
-            date: "2025-06-03",
-            event_type: "rigDown",
-            team_id: "team-2",
-            staff: [
-              {
-                id: "staff-1746715125567",
-                name: "Björn Lidström",
-                uuid: "q9r8s7t6-5u4v-3w2x-1y0z-a1b2c3d4e5f6"
-              }
-            ]
-          }
-        ]
+        attachments: []
       },
       {
         id: "2505-003",
@@ -191,50 +105,7 @@ serve(async (req) => {
           { name: "Sound System", quantity: 1, notes: "Medium sized" },
           { name: "Lighting", quantity: 1, notes: "Basic package" }
         ],
-        attachments: [],
-        staff_assignments: [
-          {
-            date: "2025-06-15",
-            event_type: "rig",
-            team_id: "team-3",
-            staff: [
-              {
-                id: "staff-1746715090882",
-                name: "Billy Hamrén",
-                uuid: "f8c7d1a3-e2b6-4f37-9c1a-5d8f4e3b2a1c"
-              }
-            ]
-          },
-          {
-            date: "2025-06-16",
-            event_type: "event",
-            team_id: "team-3",
-            staff: [
-              {
-                id: "staff-1746715090882",
-                name: "Billy Hamrén",
-                uuid: "f8c7d1a3-e2b6-4f37-9c1a-5d8f4e3b2a1c"
-              },
-              {
-                id: "staff-1746715104689",
-                name: "Joel Habegger",
-                uuid: "a7b6c5d4-3e2f-1g8h-9i0j-k1l2m3n4o5p6"
-              }
-            ]
-          },
-          {
-            date: "2025-06-17",
-            event_type: "rigDown",
-            team_id: "team-3",
-            staff: [
-              {
-                id: "staff-1746715090882",
-                name: "Billy Hamrén",
-                uuid: "f8c7d1a3-e2b6-4f37-9c1a-5d8f4e3b2a1c"
-              }
-            ]
-          }
-        ]
+        attachments: []
       },
       {
         id: "2505-004",
@@ -258,59 +129,6 @@ serve(async (req) => {
             file_name: "hm-fashion-plan.pdf", 
             file_type: "application/pdf", 
             uploaded_at: new Date().toISOString() 
-          }
-        ],
-        staff_assignments: [
-          {
-            date: "2025-07-20",
-            event_type: "rig",
-            team_id: "team-1",
-            staff: [
-              {
-                id: "staff-1746715104689",
-                name: "Joel Habegger",
-                uuid: "a7b6c5d4-3e2f-1g8h-9i0j-k1l2m3n4o5p6"
-              },
-              {
-                id: "staff-1746715125567",
-                name: "Björn Lidström",
-                uuid: "q9r8s7t6-5u4v-3w2x-1y0z-a1b2c3d4e5f6"
-              }
-            ]
-          },
-          {
-            date: "2025-07-21",
-            event_type: "event",
-            team_id: "team-1",
-            staff: [
-              {
-                id: "staff-1746715090882",
-                name: "Billy Hamrén",
-                uuid: "f8c7d1a3-e2b6-4f37-9c1a-5d8f4e3b2a1c"
-              },
-              {
-                id: "staff-1746715104689",
-                name: "Joel Habegger",
-                uuid: "a7b6c5d4-3e2f-1g8h-9i0j-k1l2m3n4o5p6"
-              },
-              {
-                id: "staff-1746715125567",
-                name: "Björn Lidström",
-                uuid: "q9r8s7t6-5u4v-3w2x-1y0z-a1b2c3d4e5f6"
-              }
-            ]
-          },
-          {
-            date: "2025-07-22",
-            event_type: "rigDown",
-            team_id: "team-1",
-            staff: [
-              {
-                id: "staff-1746715104689",
-                name: "Joel Habegger",
-                uuid: "a7b6c5d4-3e2f-1g8h-9i0j-k1l2m3n4o5p6"
-              }
-            ]
           }
         ]
       }

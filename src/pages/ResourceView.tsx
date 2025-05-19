@@ -9,14 +9,14 @@ import DayNavigation from '@/components/Calendar/DayNavigation';
 import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
 import '../styles/calendar.css';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { Button } from '@/components/ui/button';
+import { ArrowDown, RefreshCcw } from 'lucide-react';
+import { importBookings } from '@/services/importService';
 import { toast } from 'sonner';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { TouchBackend } from 'react-dnd-touch-backend';
 import { assignStaffToTeam, removeStaffAssignment, fetchStaffAssignments, syncStaffMember } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
-import AddTeamButton from '@/components/Calendar/AddTeamButton';
-import ResourceHeader from '@/components/Calendar/ResourceHeader';
 
 // Interface for external staff from API
 interface ExternalStaffMember {
@@ -52,15 +52,9 @@ const ResourceView = () => {
   
   const { addEventToCalendar, duplicateEvent } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
+  const [isImporting, setIsImporting] = React.useState(false);
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
   const [isLoadingStaff, setIsLoadingStaff] = useState(false);
-  const [isInIframe, setIsInIframe] = useState(false);
-  
-  // Detect if we're running in an iframe
-  useEffect(() => {
-    setIsInIframe(window.self !== window.top);
-    console.log('Running in iframe:', window.self !== window.top);
-  }, []);
   
   // Fetch events when this view is mounted
   useEffect(() => {
@@ -75,53 +69,38 @@ const ResourceView = () => {
   // Prefetch and sync all staff before assignments
   const ensureStaffSynced = async () => {
     try {
-      console.log('Starting staff sync process');
       setIsLoadingStaff(true);
       const formattedDate = currentDate.toISOString().split('T')[0];
       
       // Call the edge function to get all staff
-      console.log('Fetching staff data from edge function for date:', formattedDate);
       const { data, error } = await supabase.functions.invoke('fetch_staff_for_planning', {
         body: { date: formattedDate }
       });
       
       if (error) {
         console.error('Error fetching staff data:', error);
-        toast.error('Failed to load staff data');
         return;
       }
-      
-      console.log('Staff data response:', data);
       
       if (data && data.success && data.data) {
         // Sync all staff members to our database
         const staffList = data.data as ExternalStaffMember[];
-        console.log(`Processing ${staffList.length} staff members for sync`);
         
         for (const staff of staffList) {
-          try {
-            await syncStaffMember(
-              staff.id,
-              staff.name,
-              staff.email || undefined,
-              staff.phone || undefined
-            );
-            console.log(`Synced staff member: ${staff.name} (${staff.id})`);
-          } catch (syncError) {
-            console.error(`Error syncing staff member ${staff.id}:`, syncError);
-          }
+          await syncStaffMember(
+            staff.id,
+            staff.name,
+            staff.email || undefined,
+            staff.phone || undefined
+          );
         }
         
-        console.log(`Synced ${staffList.length} staff members successfully`);
-      } else {
-        console.warn('No staff data returned from API or invalid response format');
+        console.log(`Synced ${staffList.length} staff members`);
       }
     } catch (error) {
-      console.error('Error in ensureStaffSynced:', error);
-      toast.error('Failed to sync staff data');
+      console.error('Error syncing staff:', error);
     } finally {
       setIsLoadingStaff(false);
-      console.log('Staff sync process completed');
     }
   };
   
@@ -129,11 +108,40 @@ const ResourceView = () => {
   useEffect(() => {
     ensureStaffSynced();
   }, [currentDate]);
+  
+  // Handle importing bookings
+  const handleImportBookings = async () => {
+    try {
+      setIsImporting(true);
+      toast.info('Importing bookings...', {
+        description: 'Please wait while we import bookings from the external system'
+      });
+      
+      const result = await importBookings();
+      
+      if (result.success && result.results) {
+        toast.success('Bookings imported successfully', {
+          description: `Imported ${result.results.imported} of ${result.results.total} bookings with ${result.results.calendar_events_created} calendar events`
+        });
+        
+        // Refresh calendar to show the newly imported events
+        await refreshEvents();
+      } else {
+        toast.error('Import failed', {
+          description: result.error || 'Unknown error occurred during import'
+        });
+      }
+    } catch (error) {
+      console.error('Error during import:', error);
+      toast.error('Import operation failed');
+    } finally {
+      setIsImporting(false);
+    }
+  };
 
   // Handle staff drop for assignment
   const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
     try {
-      console.log(`Handling staff drop: ${staffId} to team ${resourceId || 'none'}`);
       if (resourceId) {
         toast.info(`Assigning staff ${staffId} to team ${resourceId}...`);
         await assignStaffToTeam(staffId, resourceId, currentDate);
@@ -146,7 +154,6 @@ const ResourceView = () => {
       
       // Trigger a refresh of the staff assignments
       setStaffAssignmentsUpdated(prev => !prev);
-      console.log('Staff assignment updated successfully');
       
       return Promise.resolve();
     } catch (error) {
@@ -156,48 +163,35 @@ const ResourceView = () => {
     }
   };
 
-  // Choose the appropriate backend based on environment
-  const getDndBackend = () => {
-    if (isInIframe) {
-      console.log('Using TouchBackend for iframe compatibility');
-      return TouchBackend;
-    }
-    console.log('Using HTML5Backend for regular page');
-    return HTML5Backend;
-  };
-
-  // Configure backend options
-  const dndOptions = {
-    enableMouseEvents: true,
-    enableTouchEvents: true,
-    enableKeyboardEvents: true,
-    delayTouchStart: 0
-  };
-
   return (
-    <DndProvider backend={getDndBackend()} options={isInIframe ? dndOptions : undefined}>
+    <DndProvider backend={HTML5Backend}>
       <div className="min-h-screen bg-gray-50">
         <div className={`container mx-auto pt-2 ${isMobile ? 'px-2' : ''}`} style={{ maxWidth: isMobile ? '100%' : '94%' }}>
-          {/* Resource Header with Add Team Button */}
-          <ResourceHeader
-            teamResources={teamResources}
-            teamCount={teamCount}
-            onAddTeam={addTeam}
-            onRemoveTeam={removeTeam}
-            dialogOpen={dialogOpen}
-            setDialogOpen={setDialogOpen}
-          />
-        
           <div className={`bg-white rounded-lg shadow-md mb-4 ${isMobile ? 'p-2' : 'p-3'}`}>
             {/* Day Navigation Bar - displayed above the calendar */}
             <div className="flex justify-between items-center mb-4">
               <DayNavigation currentDate={currentDate} />
-              <AddTeamButton 
-                onAddTeam={addTeam} 
-                onRemoveTeam={removeTeam} 
-                teamCount={teamCount} 
-                teamResources={teamResources} 
-              />
+              <div className="flex space-x-2">
+                <Button 
+                  onClick={refreshEvents} 
+                  variant="outline" 
+                  size="sm"
+                  disabled={isLoading}
+                  className="flex items-center gap-1"
+                >
+                  <RefreshCcw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
+                  {isMobile ? '' : 'Uppdatera'}
+                </Button>
+                <Button 
+                  onClick={handleImportBookings} 
+                  size="sm"
+                  disabled={isImporting}
+                  className="flex items-center gap-1"
+                >
+                  <ArrowDown className="h-3 w-3" />
+                  {isMobile ? '' : (isImporting ? 'Importerar...' : 'Importera')}
+                </Button>
+              </div>
             </div>
             
             <ResourceCalendar

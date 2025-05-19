@@ -1,7 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { Resource } from './ResourceData';
 import { useDrag, useDrop } from 'react-dnd';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 import { 
   fetchStaffMembers, 
   fetchStaffAssignments, 
@@ -121,10 +122,7 @@ const TeamDropZone: React.FC<{
 }> = ({ resource, staffMembers, assignments, onDrop, onAddStaff, currentDate }) => {
   const [{ isOver }, drop] = useDrop(() => ({
     accept: 'STAFF',
-    drop: (item: StaffMember) => {
-      console.log('Staff dropped on team:', resource.title, item);
-      onDrop(item.id, resource.id);
-    },
+    drop: (item: StaffMember) => onDrop(item.id, resource.id),
     collect: (monitor) => ({
       isOver: !!monitor.isOver(),
     }),
@@ -238,69 +236,22 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [staffDialogOpen, setStaffDialogOpen] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
-  const [isInIframe, setIsInIframe] = useState(false);
-
-  // Detect if in iframe
-  useEffect(() => {
-    setIsInIframe(window.self !== window.top);
-    console.log('StaffAssignmentRow running in iframe:', window.self !== window.top);
-  }, []);
-
-  // Handle messages from parent if in iframe
-  useEffect(() => {
-    if (isInIframe) {
-      const handleMessage = (event: MessageEvent) => {
-        if (event.data?.type === 'STAFF_ASSIGNMENTS_DATA') {
-          console.log('Received staff assignments via postMessage:', event.data);
-          if (event.data.staffMembers) setStaffMembers(event.data.staffMembers);
-          if (event.data.assignments) setAssignments(event.data.assignments);
-          setIsLoading(false);
-        }
-      };
-
-      window.addEventListener('message', handleMessage);
-      
-      // Request data from parent
-      try {
-        window.parent.postMessage({ 
-          type: 'READY_FOR_STAFF_ASSIGNMENTS', 
-          date: currentDate.toISOString() 
-        }, '*');
-        console.log('Sent READY_FOR_STAFF_ASSIGNMENTS message to parent');
-      } catch (e) {
-        console.error('Error sending message to parent:', e);
-      }
-
-      return () => {
-        window.removeEventListener('message', handleMessage);
-      };
-    }
-  }, [isInIframe, currentDate]);
 
   // Load staff members and assignments from the database
   useEffect(() => {
     const loadData = async () => {
       try {
-        console.log('Loading staff data, isInIframe:', isInIframe);
-        if (isInIframe) {
-          // In iframe mode, we'll get data via postMessage
-          console.log('In iframe - waiting for staff data from parent window');
-          return;
-        }
-
         setIsLoading(true);
-        console.log('Fetching staff members and assignments for date:', currentDate.toISOString());
-        
         // Fetch staff members
         const staffData = await fetchStaffMembers();
         setStaffMembers(staffData);
-        console.log('Loaded staff members:', staffData.length);
         
         // Fetch assignments for the current date
         const assignmentData = await fetchStaffAssignments(currentDate);
         setAssignments(assignmentData);
-        console.log('Loaded assignments:', assignmentData.length);
 
+        console.log('Loaded staff members:', staffData);
+        console.log('Loaded assignments:', assignmentData);
       } catch (error) {
         console.error('Error loading staff data:', error);
         toast.error('Failed to load staff data');
@@ -310,19 +261,17 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
     };
 
     loadData();
-  }, [currentDate, forceRefresh, isInIframe]);
+  }, [currentDate, forceRefresh]);
 
   // Handler for adding a new staff member
   const handleAddStaff = async (name: string, email: string, phone: string) => {
     try {
-      console.log('Adding new staff member:', name);
       const newStaff = await addStaffMember(name, email || undefined, phone || undefined);
       
       setStaffMembers(prev => [...prev, newStaff]);
       
       // If a team was selected, assign the new staff member to it
       if (selectedTeam) {
-        console.log('Assigning new staff to team:', selectedTeam);
         await assignStaffToTeam(newStaff.id, selectedTeam, currentDate);
         
         // Refresh assignments
@@ -341,46 +290,25 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
   // Handler for dropping a staff member into a team column
   const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
     try {
-      console.log(`Staff drop handler called: staffId=${staffId}, resourceId=${resourceId || 'null'}`);
-      
       // If an external onStaffDrop is provided, use that instead
       if (onStaffDrop) {
-        console.log('Using external onStaffDrop handler');
         await onStaffDrop(staffId, resourceId);
       } else {
         // Otherwise use the internal implementation
         if (resourceId) {
           // Assign staff to team
-          console.log(`Assigning staff ${staffId} to team ${resourceId}`);
           await assignStaffToTeam(staffId, resourceId, currentDate);
           toast.success('Staff assigned to team');
         } else {
           // Remove assignment
-          console.log(`Removing assignment for staff ${staffId}`);
           await removeStaffAssignment(staffId, currentDate);
           toast.success('Staff assignment removed');
         }
       }
       
-      if (!isInIframe) {
-        // Only refresh assignments directly if not in iframe
-        console.log('Refreshing assignments after staff drop');
-        const assignmentData = await fetchStaffAssignments(currentDate);
-        setAssignments(assignmentData);
-      } else {
-        // In iframe, signal to parent that assignments changed
-        try {
-          window.parent.postMessage({ 
-            type: 'STAFF_ASSIGNMENT_CHANGED',
-            staffId,
-            resourceId,
-            date: currentDate.toISOString()
-          }, '*');
-          console.log('Sent STAFF_ASSIGNMENT_CHANGED message to parent');
-        } catch (e) {
-          console.error('Error sending message to parent:', e);
-        }
-      }
+      // Refresh assignments
+      const assignmentData = await fetchStaffAssignments(currentDate);
+      setAssignments(assignmentData);
     } catch (error) {
       console.error('Error updating staff assignment:', error);
       toast.error('Failed to update staff assignment');
@@ -409,7 +337,7 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
     <div className="mt-4 border border-gray-200 rounded-md overflow-hidden">
       <div className="bg-gray-100 p-2 border-b border-gray-200 flex justify-between items-center">
         <h3 className="text-xs font-semibold">
-          Assign Staff for {currentDate.toLocaleDateString()} {isInIframe ? '(iframe mode)' : ''}
+          Assign Staff for {currentDate.toLocaleDateString()}
         </h3>
         <Dialog open={staffDialogOpen} onOpenChange={setStaffDialogOpen}>
           <DialogTrigger asChild>
