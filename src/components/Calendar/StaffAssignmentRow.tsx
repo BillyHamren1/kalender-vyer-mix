@@ -15,8 +15,8 @@ import StaffForm from './StaffForm';
 import StaffSelectionDialog from './StaffSelectionDialog';
 import { StaffMember, StaffAssignment } from './StaffTypes';
 
-// Exporting types for other components
-export { StaffMember, StaffAssignment };
+// Exporting types for other components - using `export type` as required
+export type { StaffMember, StaffAssignment };
 
 // Props for the StaffAssignmentRow component
 interface StaffAssignmentRowProps {
