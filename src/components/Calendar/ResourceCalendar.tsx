@@ -13,7 +13,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useEventActions } from '@/hooks/useEventActions';
 import { ResourceHeaderDropZone } from './ResourceHeaderDropZone';
 import { useDrop } from 'react-dnd';
-import { StaffMember } from './StaffAssignmentRow';
+import { StaffMember } from './StaffTypes';
 
 interface ResourceCalendarProps {
   events: CalendarEvent[];
@@ -161,8 +161,10 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           // This helps ensure our custom resource header content renders properly
           const headerEl = info.el.querySelector('.fc-datagrid-cell-main');
           if (headerEl) {
-            headerEl.style.height = '100%';
-            headerEl.style.width = '100%';
+            // Fix: Use proper type assertion for the HTMLElement
+            const headerHTMLElement = headerEl as HTMLElement;
+            headerHTMLElement.style.height = '100%';
+            headerHTMLElement.style.width = '100%';
           }
         }}
         resourceLabelContent={resourceHeaderContent}
