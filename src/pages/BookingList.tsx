@@ -348,7 +348,10 @@ const BookingList = () => {
                           <TableCell>{booking.eventDate}</TableCell>
                           <TableCell>{booking.rigDownDate}</TableCell>
                           <TableCell>
-                            <StatusBadge status={booking.status} />
+                            <StatusBadge 
+                              status={booking.status} 
+                              isUpdated={true}
+                            />
                           </TableCell>
                           <TableCell>
                             <Button 
@@ -403,7 +406,10 @@ const BookingList = () => {
                           <TableCell>{booking.eventDate}</TableCell>
                           <TableCell>{booking.rigDownDate}</TableCell>
                           <TableCell>
-                            <StatusBadge status={booking.status} />
+                            <StatusBadge 
+                              status={booking.status} 
+                              isNew={true}
+                            />
                           </TableCell>
                           <TableCell>
                             <Button 
@@ -458,7 +464,10 @@ const BookingList = () => {
                           <TableCell>{booking.eventDate}</TableCell>
                           <TableCell>{booking.rigDownDate}</TableCell>
                           <TableCell>
-                            <StatusBadge status={booking.status} />
+                            <StatusBadge 
+                              status={booking.status} 
+                              isUpdated={true}
+                            />
                           </TableCell>
                           <TableCell>
                             <Button 
