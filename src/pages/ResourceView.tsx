@@ -9,8 +9,7 @@ import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
 import '../styles/calendar.css';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
-import { ArrowDown, RefreshCcw } from 'lucide-react';
-import { importBookings } from '@/services/importService';
+import { RefreshCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -51,7 +50,6 @@ const ResourceView = () => {
   
   const { addEventToCalendar, duplicateEvent } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
-  const [isImporting, setIsImporting] = React.useState(false);
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
   const [isLoadingStaff, setIsLoadingStaff] = useState(false);
   
@@ -107,36 +105,6 @@ const ResourceView = () => {
   useEffect(() => {
     ensureStaffSynced();
   }, [currentDate]);
-  
-  // Handle importing bookings
-  const handleImportBookings = async () => {
-    try {
-      setIsImporting(true);
-      toast.info('Importing bookings...', {
-        description: 'Please wait while we import bookings from the external system'
-      });
-      
-      const result = await importBookings();
-      
-      if (result.success && result.results) {
-        toast.success('Bookings imported successfully', {
-          description: `Imported ${result.results.imported} of ${result.results.total} bookings with ${result.results.calendar_events_created} calendar events`
-        });
-        
-        // Refresh calendar to show the newly imported events
-        await refreshEvents();
-      } else {
-        toast.error('Import failed', {
-          description: result.error || 'Unknown error occurred during import'
-        });
-      }
-    } catch (error) {
-      console.error('Error during import:', error);
-      toast.error('Import operation failed');
-    } finally {
-      setIsImporting(false);
-    }
-  };
 
   // Handle staff drop for assignment
   const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
@@ -169,57 +137,45 @@ const ResourceView = () => {
           <div className={`bg-white rounded-lg shadow-md mb-4 ${isMobile ? 'p-2' : 'p-3'}`}>
             {/* Day Navigation Bar - displayed above the calendar */}
             <div className="flex justify-between items-center mb-4">
-              <DayNavigation currentDate={currentDate} />
-              <div className="flex space-x-2">
+              <div className="flex items-center gap-2">
+                <DayNavigation currentDate={currentDate} />
                 <Button 
                   onClick={refreshEvents} 
                   variant="outline" 
                   size="sm"
                   disabled={isLoading}
-                  className="flex items-center gap-1"
+                  className="flex items-center gap-1 ml-2"
                 >
                   <RefreshCcw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
                   {isMobile ? '' : 'Uppdatera'}
                 </Button>
-                <Button 
-                  onClick={handleImportBookings} 
-                  size="sm"
-                  disabled={isImporting}
-                  className="flex items-center gap-1"
-                >
-                  <ArrowDown className="h-3 w-3" />
-                  {isMobile ? '' : (isImporting ? 'Importerar...' : 'Importera')}
-                </Button>
               </div>
             </div>
 
-            {/* Main content area with available staff and calendar side by side */}
-            <div className="flex flex-col md:flex-row gap-4">
-              {/* Available Staff Display - moved to the left side */}
-              {shouldShowAvailableStaff() && (
-                <div className="md:w-45 shrink-0">
-                  <AvailableStaffDisplay 
-                    currentDate={currentDate} 
-                    onStaffDrop={handleStaffDrop}
-                  />
-                </div>
-              )}
-              
-              {/* Calendar - positioned to the right of available staff */}
-              <div className="flex-grow">
-                <ResourceCalendar
-                  events={events}
-                  resources={resources}
-                  isLoading={isLoading}
-                  isMounted={isMounted}
-                  currentDate={currentDate}
-                  onDateSet={handleDatesSet}
-                  refreshEvents={refreshEvents}
+            {/* Main content area with calendar and resources */}
+            <div className="flex-grow">
+              <ResourceCalendar
+                events={events}
+                resources={resources}
+                isLoading={isLoading}
+                isMounted={isMounted}
+                currentDate={currentDate}
+                onDateSet={handleDatesSet}
+                refreshEvents={refreshEvents}
+                onStaffDrop={handleStaffDrop}
+                forceRefresh={staffAssignmentsUpdated}
+              />
+            </div>
+            
+            {/* Available Staff Display - moved down to align with teams */}
+            {shouldShowAvailableStaff() && (
+              <div className="mt-4 mb-4">
+                <AvailableStaffDisplay 
+                  currentDate={currentDate} 
                   onStaffDrop={handleStaffDrop}
-                  forceRefresh={staffAssignmentsUpdated} // Keep passing the forceRefresh prop
                 />
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
