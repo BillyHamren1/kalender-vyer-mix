@@ -1,12 +1,15 @@
 
 import React from 'react';
-import { CalendarIcon } from 'lucide-react';
+import { CalendarIcon, RefreshCcw } from 'lucide-react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { DatesSection } from './DatesSection';
+import { Button } from '@/components/ui/button';
+import { resyncBookingCalendarEvents } from '@/services/importService';
 
 interface ScheduleCardProps {
+  bookingId: string;
   rigDates: string[];
   eventDates: string[];
   rigDownDates: string[];
@@ -17,6 +20,7 @@ interface ScheduleCardProps {
 }
 
 export const ScheduleCard = ({
+  bookingId,
   rigDates,
   eventDates,
   rigDownDates,
@@ -25,6 +29,11 @@ export const ScheduleCard = ({
   onAddDate,
   onRemoveDate
 }: ScheduleCardProps) => {
+  // Function to handle manual resync to calendar
+  const handleManualResync = async () => {
+    await resyncBookingCalendarEvents(bookingId);
+  };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -75,8 +84,14 @@ export const ScheduleCard = ({
         />
       </CardContent>
       {!autoSync && (
-        <div className="px-6 pb-4 text-sm text-muted-foreground">
-          Note: Changes to dates will not appear in the calendar until you click "Save to Calendar"
+        <div className="px-6 pb-4 flex justify-between items-center">
+          <span className="text-sm text-muted-foreground">
+            Changes to dates will not appear in the calendar until you sync
+          </span>
+          <Button size="sm" variant="outline" onClick={handleManualResync} className="gap-1">
+            <RefreshCcw className="h-3.5 w-3.5" />
+            Sync to Calendar
+          </Button>
         </div>
       )}
     </Card>

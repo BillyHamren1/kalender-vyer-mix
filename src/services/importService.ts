@@ -184,3 +184,10 @@ export const resyncBookingCalendarEvents = async (bookingId: string): Promise<bo
     return false;
   }
 };
+
+// Immediately resync booking 2505-3
+(async () => {
+  console.log("Automatically resyncing booking 2505-3 to calendar...");
+  const success = await resyncBookingCalendarEvents("2505-3");
+  console.log("Auto-resync result:", success ? "Success" : "Failed");
+})();
