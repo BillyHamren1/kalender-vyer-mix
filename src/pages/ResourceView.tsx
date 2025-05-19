@@ -193,7 +193,30 @@ const ResourceView = () => {
                 </Button>
               </div>
             </div>
+
+            {/* Available Staff Display - moved above the calendar */}
+            {shouldShowStaffAssignmentRow() && (
+              <div className="mb-4">
+                <AvailableStaffDisplay 
+                  currentDate={currentDate} 
+                  onStaffDrop={handleStaffDrop}
+                />
+              </div>
+            )}
             
+            {/* Staff Assignment Row - moved above the calendar */}
+            {shouldShowStaffAssignmentRow() && (
+              <div className="mb-4">
+                <StaffAssignmentRow 
+                  resources={resources} 
+                  currentDate={currentDate}
+                  onStaffDrop={handleStaffDrop}
+                  forceRefresh={staffAssignmentsUpdated}
+                />
+              </div>
+            )}
+            
+            {/* Calendar - now positioned below the staff assignment components */}
             <ResourceCalendar
               events={events}
               resources={resources}
@@ -204,28 +227,6 @@ const ResourceView = () => {
               refreshEvents={refreshEvents}
             />
           </div>
-          
-          {/* Available Staff Display */}
-          {shouldShowStaffAssignmentRow() && (
-            <div className="mt-4">
-              <AvailableStaffDisplay 
-                currentDate={currentDate} 
-                onStaffDrop={handleStaffDrop}
-              />
-            </div>
-          )}
-          
-          {/* Staff Assignment Row with current date */}
-          {shouldShowStaffAssignmentRow() && (
-            <div className="mt-4">
-              <StaffAssignmentRow 
-                resources={resources} 
-                currentDate={currentDate}
-                onStaffDrop={handleStaffDrop}
-                forceRefresh={staffAssignmentsUpdated}
-              />
-            </div>
-          )}
         </div>
       </div>
     </DndProvider>
