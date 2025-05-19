@@ -1,8 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
 import { Resource } from './ResourceData';
 import { useDrag, useDrop } from 'react-dnd';
-import { DndProvider } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
 import { 
   fetchStaffMembers, 
   fetchStaffAssignments, 
@@ -16,7 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Users } from 'lucide-react';
+import { Users, UserPlus } from 'lucide-react';
+import StaffSelectionDialog from './StaffSelectionDialog';
 
 // Interface for a staff member - export this type to share with AvailableStaffDisplay
 export interface StaffMember {
@@ -118,8 +118,9 @@ const TeamDropZone: React.FC<{
   assignments: StaffAssignment[];
   onDrop: (staffId: string, resourceId: string | null) => void;
   onAddStaff: (resourceId: string) => void;
+  onSelectStaff: (resourceId: string, resourceTitle: string) => void;
   currentDate: Date;
-}> = ({ resource, staffMembers, assignments, onDrop, onAddStaff, currentDate }) => {
+}> = ({ resource, staffMembers, assignments, onDrop, onAddStaff, onSelectStaff, currentDate }) => {
   const [{ isOver }, drop] = useDrop(() => ({
     accept: 'STAFF',
     drop: (item: StaffMember) => onDrop(item.id, resource.id),
@@ -157,12 +158,21 @@ const TeamDropZone: React.FC<{
         />
       ))}
       
-      <button 
-        className="w-full mt-2 text-xs py-1 border border-dashed border-gray-300 text-gray-500 hover:bg-gray-100 rounded"
-        onClick={() => onAddStaff(resource.id)}
-      >
-        + Add Staff
-      </button>
+      <div className="flex flex-col gap-1 mt-2">
+        <button 
+          className="w-full text-xs py-1 border border-dashed border-gray-300 text-gray-500 hover:bg-gray-100 rounded flex items-center justify-center gap-1"
+          onClick={() => onSelectStaff(resource.id, resource.title)}
+        >
+          <UserPlus className="h-3 w-3" />
+          <span>Select Staff</span>
+        </button>
+        <button 
+          className="w-full text-xs py-1 border border-dashed border-gray-300 text-gray-500 hover:bg-gray-100 rounded"
+          onClick={() => onAddStaff(resource.id)}
+        >
+          + Add New Staff
+        </button>
+      </div>
     </div>
   );
 };
@@ -236,6 +246,10 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [staffDialogOpen, setStaffDialogOpen] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
+  
+  // New state for the staff selection dialog
+  const [staffSelectionOpen, setStaffSelectionOpen] = useState(false);
+  const [selectedResourceForStaff, setSelectedResourceForStaff] = useState<{id: string, title: string} | null>(null);
 
   // Load staff members and assignments from the database
   useEffect(() => {
@@ -320,6 +334,18 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
     setSelectedTeam(resourceId);
     setStaffDialogOpen(true);
   };
+  
+  // Handler for selecting existing staff for a team
+  const handleSelectStaffForTeam = (resourceId: string, resourceTitle: string) => {
+    setSelectedResourceForStaff({id: resourceId, title: resourceTitle});
+    setStaffSelectionOpen(true);
+  };
+  
+  // Handler for refreshing the staff list after a staff member is assigned
+  const handleStaffAssignmentRefresh = async () => {
+    const assignmentData = await fetchStaffAssignments(currentDate);
+    setAssignments(assignmentData);
+  };
 
   // If still loading, show a loading indicator
   if (isLoading) {
@@ -375,10 +401,23 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
             assignments={assignments}
             onDrop={handleStaffDrop}
             onAddStaff={handleAddStaffToTeam}
+            onSelectStaff={handleSelectStaffForTeam}
             currentDate={currentDate}
           />
         ))}
       </div>
+      
+      {/* Staff Selection Dialog */}
+      {selectedResourceForStaff && (
+        <StaffSelectionDialog
+          resourceId={selectedResourceForStaff.id}
+          resourceTitle={selectedResourceForStaff.title}
+          currentDate={currentDate}
+          open={staffSelectionOpen}
+          onOpenChange={setStaffSelectionOpen}
+          onStaffAssigned={handleStaffAssignmentRefresh}
+        />
+      )}
     </div>
   );
 };
