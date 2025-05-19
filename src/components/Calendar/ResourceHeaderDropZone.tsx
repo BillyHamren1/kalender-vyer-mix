@@ -46,8 +46,15 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         const formattedDate = currentDate.toISOString().split('T')[0];
         
         // Get staff assigned to this team on this date
-        const staffAssignments = await fetchStaffAssignments(resource.id, formattedDate);
-        setAssignedStaff(staffAssignments.map(assignment => ({
+        // Fixed: Passing only one argument (the date) to fetchStaffAssignments
+        const staffAssignments = await fetchStaffAssignments(currentDate);
+        
+        // Filter assignments to only show staff assigned to this resource
+        const resourceAssignments = staffAssignments.filter(
+          assignment => assignment.team_id === resource.id
+        );
+        
+        setAssignedStaff(resourceAssignments.map(assignment => ({
           id: assignment.staff_id,
           name: assignment.staff_members?.name || 'Unknown',
           email: assignment.staff_members?.email,
