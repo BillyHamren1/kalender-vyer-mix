@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -16,7 +17,7 @@ import { assignStaffToTeam, removeStaffAssignment, fetchStaffAssignments, syncSt
 import { supabase } from '@/integrations/supabase/client';
 import WeekTabNavigation from '@/components/Calendar/WeekTabNavigation';
 import { moveEventsToTeam } from '@/services/teamService';
-import TeamManagementDialog from '@/components/Calendar/TeamManagementDialog';
+import ResourceHeader from '@/components/Calendar/ResourceHeader';
 
 // Interface for external staff from API
 interface ExternalStaffMember {
@@ -164,6 +165,16 @@ const ResourceView = () => {
       <div className="min-h-screen bg-gray-50">
         <div className={`container mx-auto pt-2 ${isMobile ? 'px-2' : ''}`} style={{ maxWidth: isMobile ? '100%' : '94%' }}>
           <div className={`bg-white rounded-lg shadow-md mb-4 ${isMobile ? 'p-2' : 'p-3'}`}>
+            {/* ResourceHeader component with team management controls */}
+            <ResourceHeader
+              teamResources={teamResources}
+              teamCount={teamCount}
+              onAddTeam={addTeam}
+              onRemoveTeam={removeTeam}
+              dialogOpen={dialogOpen}
+              setDialogOpen={setDialogOpen}
+            />
+
             {/* Week Navigation with Update Button positioned to the left */}
             <div className="flex items-center mb-4">
               <Button 
@@ -178,16 +189,6 @@ const ResourceView = () => {
               </Button>
               <div className="flex-grow">
                 <DayNavigation currentDate={currentDate} />
-              </div>
-              <div className="ml-2">
-                <TeamManagementDialog
-                  teamResources={teamResources}
-                  teamCount={teamCount}
-                  onAddTeam={addTeam}
-                  onRemoveTeam={removeTeam}
-                  dialogOpen={dialogOpen}
-                  setDialogOpen={setDialogOpen}
-                />
               </div>
             </div>
 
