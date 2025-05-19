@@ -1,16 +1,9 @@
+
 import React, { useEffect, useContext, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CalendarContext } from '@/App';
-import { 
-  fetchBookingById, 
-  updateBookingDates, 
-  updateBookingNotes, 
-  updateBookingLogistics,
-  updateDeliveryDetails
-} from '@/services/bookingService';
-import { syncBookingEvents } from '@/services/bookingCalendarService';
-import { Booking } from '@/types/booking';
+import { useBookingDetail } from '@/hooks/useBookingDetail';
 import { 
   Calendar as CalendarIcon, 
   Clock, 
@@ -22,7 +15,11 @@ import {
   Save, 
   MapPin,
   Truck,
-  Clock4
+  Clock4,
+  Plus,
+  Trash2,
+  X,
+  CalendarX
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -35,23 +32,37 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useForm } from 'react-hook-form';
+import { Badge } from '@/components/ui/badge';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 const BookingDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { lastViewedDate, lastPath } = useContext(CalendarContext);
-  const [booking, setBooking] = useState<Booking | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isSyncingToCalendar, setIsSyncingToCalendar] = useState(false);
   const [autoSync, setAutoSync] = useState(false);
   
-  // States for date selection
-  const [selectedRigDate, setSelectedRigDate] = useState<Date | undefined>(undefined);
-  const [selectedEventDate, setSelectedEventDate] = useState<Date | undefined>(undefined);
-  const [selectedRigDownDate, setSelectedRigDownDate] = useState<Date | undefined>(undefined);
+  // States for date selection for multi-date support
+  const [selectedNewDate, setSelectedNewDate] = useState<Date | undefined>(undefined);
+  
+  // Use our custom hook for booking details
+  const {
+    booking,
+    isLoading,
+    error,
+    isSaving,
+    isSyncingToCalendar,
+    rigDates,
+    eventDates,
+    rigDownDates,
+    loadBookingData,
+    handleDateChange,
+    handleLogisticsChange,
+    handleDeliveryDetailsChange,
+    syncWithCalendar,
+    setBooking,
+    addDate,
+    removeDate
+  } = useBookingDetail(id);
   
   // States for logistics options
   const [carryMoreThan10m, setCarryMoreThan10m] = useState(false);
@@ -65,48 +76,23 @@ const BookingDetail = () => {
   const [deliveryPostalCode, setDeliveryPostalCode] = useState('');
   
   useEffect(() => {
-    const loadBookingData = async () => {
-      if (!id) return;
-      
-      try {
-        setIsLoading(true);
-        const bookingData = await fetchBookingById(id);
-        setBooking(bookingData);
-        
-        // Initialize date states from booking data
-        if (bookingData.rigDayDate) {
-          setSelectedRigDate(new Date(bookingData.rigDayDate));
-        }
-        if (bookingData.eventDate) {
-          setSelectedEventDate(new Date(bookingData.eventDate));
-        }
-        if (bookingData.rigDownDate) {
-          setSelectedRigDownDate(new Date(bookingData.rigDownDate));
-        }
-        
-        // Initialize logistics states
-        setCarryMoreThan10m(bookingData.carryMoreThan10m || false);
-        setGroundNailsAllowed(bookingData.groundNailsAllowed || false);
-        setExactTimeNeeded(bookingData.exactTimeNeeded || false);
-        setExactTimeInfo(bookingData.exactTimeInfo || '');
-        
-        // Initialize delivery details
-        setDeliveryAddress(bookingData.deliveryAddress || '');
-        setDeliveryCity(bookingData.deliveryCity || '');
-        setDeliveryPostalCode(bookingData.deliveryPostalCode || '');
-        
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching booking:', err);
-        setError('Failed to load booking details');
-        toast.error('Could not load booking details');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
     loadBookingData();
   }, [id]);
+  
+  useEffect(() => {
+    if (booking) {
+      // Initialize logistics states
+      setCarryMoreThan10m(booking.carryMoreThan10m || false);
+      setGroundNailsAllowed(booking.groundNailsAllowed || false);
+      setExactTimeNeeded(booking.exactTimeNeeded || false);
+      setExactTimeInfo(booking.exactTimeInfo || '');
+      
+      // Initialize delivery details
+      setDeliveryAddress(booking.deliveryAddress || '');
+      setDeliveryCity(booking.deliveryCity || '');
+      setDeliveryPostalCode(booking.deliveryPostalCode || '');
+    }
+  }, [booking]);
   
   const handleBack = () => {
     if (lastPath) {
@@ -121,176 +107,134 @@ const BookingDetail = () => {
     return new Date(dateString).toLocaleDateString();
   };
   
-  const handleDateChange = async (date: Date | undefined, dateType: 'rigDayDate' | 'eventDate' | 'rigDownDate') => {
-    if (!booking || !id || !date) return;
-    
-    try {
-      setIsSaving(true);
-      
-      // Format the date as ISO string (without time)
-      const formattedDate = date.toISOString().split('T')[0];
-      
-      // Update the booking date in the database
-      await updateBookingDates(id, dateType, formattedDate);
-      
-      // Update the correct date selection state
-      if (dateType === 'rigDayDate') {
-        setSelectedRigDate(date);
-      } else if (dateType === 'eventDate') {
-        setSelectedEventDate(date);
-      } else if (dateType === 'rigDownDate') {
-        setSelectedRigDownDate(date);
-      }
-      
-      // Update local state to reflect changes
-      setBooking({
-        ...booking,
-        [dateType]: formattedDate
-      });
-      
-      toast.success(`${dateType === 'rigDayDate' ? 'Rig day' : dateType === 'eventDate' ? 'Event day' : 'Rig down day'} updated successfully`);
-      
-      // If autoSync is enabled, automatically sync to calendar
-      if (autoSync) {
-        await syncWithCalendar();
-      }
-    } catch (err) {
-      console.error(`Error updating ${dateType}:`, err);
-      toast.error(`Failed to update ${dateType === 'rigDayDate' ? 'rig day' : dateType === 'eventDate' ? 'event day' : 'rig down day'}`);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-  
-  const handleLogisticsChange = async () => {
-    if (!booking || !id) return;
-    
-    try {
-      setIsSaving(true);
-      
-      await updateBookingLogistics(id, {
-        carryMoreThan10m,
-        groundNailsAllowed,
-        exactTimeNeeded,
-        exactTimeInfo
-      });
-      
-      // Update local state
-      setBooking({
-        ...booking,
-        carryMoreThan10m,
-        groundNailsAllowed,
-        exactTimeNeeded,
-        exactTimeInfo
-      });
-      
-      toast.success('Logistics information updated successfully');
-    } catch (err) {
-      console.error('Error updating logistics information:', err);
-      toast.error('Failed to update logistics information');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-  
-  const handleDeliveryDetailsChange = async () => {
-    if (!booking || !id) return;
-    
-    try {
-      setIsSaving(true);
-      
-      await updateDeliveryDetails(id, {
-        deliveryAddress,
-        deliveryCity,
-        deliveryPostalCode
-      });
-      
-      // Update local state
-      setBooking({
-        ...booking,
-        deliveryAddress,
-        deliveryCity,
-        deliveryPostalCode
-      });
-      
-      toast.success('Delivery details updated successfully');
-    } catch (err) {
-      console.error('Error updating delivery details:', err);
-      toast.error('Failed to update delivery details');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-  
-  const syncWithCalendar = async () => {
-    if (!booking || !id) return;
-    
-    setIsSyncingToCalendar(true);
-    
-    try {
-      // Create or update calendar events for each date
-      const syncPromises = [];
-      
-      if (booking.rigDayDate) {
-        syncPromises.push(syncBookingEvents(id, 'rig', booking.rigDayDate, 'auto', booking.client));
-      }
-      
-      if (booking.eventDate) {
-        syncPromises.push(syncBookingEvents(id, 'event', booking.eventDate, 'auto', booking.client));
-      }
-      
-      if (booking.rigDownDate) {
-        syncPromises.push(syncBookingEvents(id, 'rigDown', booking.rigDownDate, 'auto', booking.client));
-      }
-      
-      await Promise.all(syncPromises);
-      
-      toast.success('Booking synced to calendar successfully');
-    } catch (err) {
-      console.error('Error syncing with calendar:', err);
-      toast.error('Failed to sync booking with calendar');
-    } finally {
-      setIsSyncingToCalendar(false);
-    }
-  };
-  
-  const DatePickerWithButton = ({ 
-    date, 
-    onSelect, 
-    label, 
-    dateType 
+  // Component for adding a new date
+  const AddDateButton = ({ 
+    eventType 
   }: { 
-    date: Date | undefined; 
-    onSelect: (date: Date | undefined, type: 'rigDayDate' | 'eventDate' | 'rigDownDate') => void;
-    label: string;
-    dateType: 'rigDayDate' | 'eventDate' | 'rigDownDate';
+    eventType: 'rig' | 'event' | 'rigDown' 
+  }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    
+    const handleAddDate = () => {
+      if (selectedNewDate) {
+        addDate(selectedNewDate, eventType, autoSync);
+        setSelectedNewDate(undefined);
+        setIsOpen(false);
+      }
+    };
+    
+    return (
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="mt-2 flex items-center gap-1">
+            <Plus className="h-3 w-3" />
+            Add date
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-4" align="start">
+          <div className="space-y-4">
+            <h4 className="font-medium">Add new date</h4>
+            <Calendar
+              mode="single"
+              selected={selectedNewDate}
+              onSelect={setSelectedNewDate}
+              initialFocus
+            />
+            <div className="flex justify-end gap-2">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setIsOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="default" 
+                size="sm" 
+                onClick={handleAddDate} 
+                disabled={!selectedNewDate}
+              >
+                Add Date
+              </Button>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+    );
+  };
+  
+  // Component for displaying a date with delete option
+  const DateBadge = ({ 
+    date, 
+    eventType,
+    canDelete = true
+  }: { 
+    date: string; 
+    eventType: 'rig' | 'event' | 'rigDown';
+    canDelete?: boolean;
   }) => {
     return (
-      <div className="flex flex-col">
-        <p className="font-medium mb-1">{label}:</p>
-        <div className="flex items-center">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="w-full justify-start text-left font-normal"
-                disabled={isSaving}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {date ? format(date, 'PPP') : 'Select date'}
+      <div className="flex items-center gap-1 mb-1">
+        <Badge variant="secondary" className="px-2 py-1">
+          {formatDate(date)}
+        </Badge>
+        
+        {canDelete && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full">
+                <X className="h-3 w-3" />
               </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
-              <Calendar
-                mode="single"
-                selected={date}
-                onSelect={(newDate) => onSelect(newDate, dateType)}
-                initialFocus
-                className="p-3 pointer-events-auto"
-              />
-            </PopoverContent>
-          </Popover>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remove date?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to remove this date? This action will also remove the associated calendar event.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => removeDate(date, eventType, autoSync)}>
+                  Remove
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+      </div>
+    );
+  };
+  
+  // Component for displaying multiple dates of a specific type
+  const DatesSection = ({ 
+    title, 
+    dates, 
+    eventType 
+  }: { 
+    title: string; 
+    dates: string[]; 
+    eventType: 'rig' | 'event' | 'rigDown' 
+  }) => {
+    return (
+      <div>
+        <div className="flex items-center justify-between">
+          <p className="font-medium mb-1">{title}:</p>
+          <AddDateButton eventType={eventType} />
         </div>
+        
+        {dates.length > 0 ? (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {dates.map(date => (
+              <DateBadge key={date} date={date} eventType={eventType} />
+            ))}
+          </div>
+        ) : (
+          <div className="text-gray-500 text-sm flex items-center mt-2">
+            <CalendarX className="h-4 w-4 mr-1" />
+            No dates scheduled
+          </div>
+        )}
       </div>
     );
   };
@@ -541,24 +485,23 @@ const BookingDetail = () => {
                   </Label>
                 </div>
               </CardHeader>
-              <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
-                <DatePickerWithButton 
-                  date={selectedRigDate} 
-                  onSelect={handleDateChange}
-                  label="Rig Day"
-                  dateType="rigDayDate"
+              <CardContent className="grid grid-cols-1 gap-6 pt-4">
+                <DatesSection 
+                  title="Rig Days" 
+                  dates={rigDates} 
+                  eventType="rig" 
                 />
-                <DatePickerWithButton 
-                  date={selectedEventDate} 
-                  onSelect={handleDateChange}
-                  label="Event Date"
-                  dateType="eventDate"
+                
+                <DatesSection 
+                  title="Event Dates" 
+                  dates={eventDates} 
+                  eventType="event" 
                 />
-                <DatePickerWithButton 
-                  date={selectedRigDownDate} 
-                  onSelect={handleDateChange}
-                  label="Rig Down Date"
-                  dateType="rigDownDate"
+                
+                <DatesSection 
+                  title="Rig Down Dates" 
+                  dates={rigDownDates} 
+                  eventType="rigDown" 
                 />
               </CardContent>
               {!autoSync && (

@@ -6,77 +6,87 @@ import { findAvailableTeam } from "./teamService";
 export const syncBookingEvents = async (
   bookingId: string,
   eventType: 'rig' | 'event' | 'rigDown',
-  date: string,
+  date: string | string[],
   resourceId: string = 'auto',
   client: string
-): Promise<string> => {
-  // Check if an event already exists for this booking and event type
-  const { data: existingEvents } = await supabase
-    .from('calendar_events')
-    .select('*')
-    .eq('booking_id', bookingId)
-    .eq('event_type', eventType);
+): Promise<string | string[]> {
+  // Convert single date to array for consistent handling
+  const dates = Array.isArray(date) ? date : [date];
+  const eventIds: string[] = [];
 
-  // Create a start date object (at 9 AM)
-  const startDate = new Date(date);
-  startDate.setHours(9, 0, 0, 0);
-  
-  // End date (at 5 PM same day)
-  const endDate = new Date(date);
-  endDate.setHours(17, 0, 0, 0);
-
-  // If resourceId is 'auto', find an available team
-  let teamId = resourceId;
-  if (resourceId === 'auto') {
-    teamId = await findAvailableTeam(startDate, endDate);
-  }
-
-  // Simplified title with no day text, just booking ID and client name
-  const title = `${bookingId}: ${client}`;
-  
-  // Prepare the data to be saved
-  const eventData = {
-    resource_id: teamId,
-    start_time: startDate.toISOString(),
-    end_time: endDate.toISOString(),
-    title: title,
-    event_type: eventType,
-    booking_id: bookingId
-  };
-
-  console.log("Creating/updating calendar event:", eventData);
-
-  if (existingEvents && existingEvents.length > 0) {
-    // Update existing event
-    const eventId = existingEvents[0].id;
-    const { error } = await supabase
-      .from('calendar_events')
-      .update(eventData)
-      .eq('id', eventId);
-      
-    if (error) {
-      console.error('Error updating calendar event:', error);
-      throw error;
-    }
+  // Process each date in the array
+  for (const singleDate of dates) {
+    // For each date, check if an event already exists for this booking, event type, and date
+    const startDate = new Date(singleDate);
+    startDate.setHours(9, 0, 0, 0);
     
-    console.log("Updated existing calendar event with ID:", eventId);
-    return eventId;
-  } else {
-    // Create new event
-    const { data, error } = await supabase
-      .from('calendar_events')
-      .insert(eventData)
-      .select('id')
-      .single();
+    const endDate = new Date(singleDate);
+    endDate.setHours(17, 0, 0, 0);
 
-    if (error) {
-      console.error('Error creating calendar event:', error);
-      throw error;
+    const { data: existingEvents } = await supabase
+      .from('calendar_events')
+      .select('*')
+      .eq('booking_id', bookingId)
+      .eq('event_type', eventType)
+      .eq('start_time', startDate.toISOString())
+      .eq('end_time', endDate.toISOString());
+
+    // If resourceId is 'auto', find an available team
+    let teamId = resourceId;
+    if (resourceId === 'auto') {
+      teamId = await findAvailableTeam(startDate, endDate);
     }
 
-    console.log("Created new calendar event with ID:", data.id);
-    return data.id;
+    // Simplified title with no day text, just booking ID and client name
+    const title = `${bookingId}: ${client}`;
+    
+    // Prepare the data to be saved
+    const eventData = {
+      resource_id: teamId,
+      start_time: startDate.toISOString(),
+      end_time: endDate.toISOString(),
+      title: title,
+      event_type: eventType,
+      booking_id: bookingId
+    };
+
+    console.log(`Creating/updating calendar event for ${singleDate}:`, eventData);
+
+    if (existingEvents && existingEvents.length > 0) {
+      // Update existing event
+      const eventId = existingEvents[0].id;
+      const { error } = await supabase
+        .from('calendar_events')
+        .update(eventData)
+        .eq('id', eventId);
+        
+      if (error) {
+        console.error('Error updating calendar event:', error);
+        throw error;
+      }
+      
+      console.log("Updated existing calendar event with ID:", eventId);
+      eventIds.push(eventId);
+    } else {
+      // Create new event
+      const { data, error } = await supabase
+        .from('calendar_events')
+        .insert(eventData)
+        .select('id')
+        .single();
+
+      if (error) {
+        console.error('Error creating calendar event:', error);
+        throw error;
+      }
+
+      console.log("Created new calendar event with ID:", data.id);
+      eventIds.push(data.id);
+    }
   }
+
+  // Return single ID or array of IDs depending on input type
+  return Array.isArray(date) ? eventIds : eventIds[0];
 };
 
 // Fetch all calendar events for a specific booking ID
@@ -101,4 +111,50 @@ export const fetchEventsByBookingId = async (bookingId: string) => {
     eventType: event.event_type,
     bookingId: event.booking_id
   })) || [];
+};
+
+// New function to get all dates of a specific type for a booking
+export const fetchBookingDatesByType = async (bookingId: string, eventType: 'rig' | 'event' | 'rigDown'): Promise<string[]> => {
+  const { data, error } = await supabase
+    .from('calendar_events')
+    .select('start_time')
+    .eq('booking_id', bookingId)
+    .eq('event_type', eventType)
+    .order('start_time', { ascending: true });
+    
+  if (error) {
+    console.error(`Error fetching ${eventType} dates for booking ${bookingId}:`, error);
+    throw error;
+  }
+  
+  // Extract dates from start_time and format as YYYY-MM-DD
+  return data?.map(event => {
+    const date = new Date(event.start_time);
+    return date.toISOString().split('T')[0];
+  }) || [];
+};
+
+// Delete a specific calendar event for a booking
+export const deleteBookingEvent = async (bookingId: string, eventType: 'rig' | 'event' | 'rigDown', date: string): Promise<void> => {
+  // Convert date to start and end times (9 AM to 5 PM)
+  const startDate = new Date(date);
+  startDate.setHours(9, 0, 0, 0);
+  
+  const endDate = new Date(date);
+  endDate.setHours(17, 0, 0, 0);
+
+  const { error } = await supabase
+    .from('calendar_events')
+    .delete()
+    .eq('booking_id', bookingId)
+    .eq('event_type', eventType)
+    .eq('start_time', startDate.toISOString())
+    .eq('end_time', endDate.toISOString());
+    
+  if (error) {
+    console.error(`Error deleting ${eventType} event for booking ${bookingId} on ${date}:`, error);
+    throw error;
+  }
+  
+  console.log(`Deleted ${eventType} event for booking ${bookingId} on ${date}`);
 };

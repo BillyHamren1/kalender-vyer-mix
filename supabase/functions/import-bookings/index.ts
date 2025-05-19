@@ -1,3 +1,4 @@
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
@@ -118,7 +119,8 @@ serve(async (req) => {
           throw new Error('Booking is missing required fields (booking_number or client name)')
         }
 
-        // Extract dates from arrays, using the first item if available
+        // Extract dates from arrays, using the first item for backward compatibility
+        // But we'll store all dates when creating calendar events
         const rigdaydate = externalBooking.rig_up_dates && externalBooking.rig_up_dates.length > 0 
           ? externalBooking.rig_up_dates[0] : null
         const eventdate = externalBooking.event_dates && externalBooking.event_dates.length > 0 
@@ -143,9 +145,9 @@ serve(async (req) => {
         const bookingData = {
           id: externalBooking.booking_number, // Use booking_number as our ID
           client: externalBooking.clients?.name, // Use client name from clients object
-          rigdaydate: rigdaydate, // Use first rig_up_date
-          eventdate: eventdate, // Use first event_date
-          rigdowndate: rigdowndate, // Use first rig_down_date
+          rigdaydate: rigdaydate, // Use first rig_up_date for backward compatibility
+          eventdate: eventdate, // Use first event_date for backward compatibility
+          rigdowndate: rigdowndate, // Use first rig_down_date for backward compatibility
           deliveryaddress: externalBooking.delivery_address || 
                           (externalBooking.location ? `${externalBooking.location}` : null), // Use delivery_address or location
           // Delivery address details
@@ -253,16 +255,16 @@ serve(async (req) => {
           }
         }
 
-        // Create calendar events
-        await createCalendarEvents(supabaseClient, {
+        // Create calendar events for all dates in the arrays
+        const eventsCreated = await createCalendarEvents(supabaseClient, {
           id: externalBooking.booking_number,
           client: externalBooking.clients?.name,
-          rigdaydate,
-          eventdate,
-          rigdowndate
+          rig_up_dates: externalBooking.rig_up_dates || [],
+          event_dates: externalBooking.event_dates || [],
+          rig_down_dates: externalBooking.rig_down_dates || []
         })
         
-        results.calendar_events_created += 3 // Assuming 3 events: rig, event, rigdown
+        results.calendar_events_created += eventsCreated
         
         results.imported++
         if (!quiet) {
@@ -299,7 +301,7 @@ serve(async (req) => {
   }
 })
 
-// Helper function to create calendar events for a booking
+// Modified function to create calendar events for multiple dates per booking
 async function createCalendarEvents(supabase, booking) {
   const events = []
   const teamId = 'team-1' // Default team
@@ -326,23 +328,24 @@ async function createCalendarEvents(supabase, booking) {
       event_type: eventType
     }
     
-    // Check if event already exists
-    const { data: existingEvent } = await supabase
+    // Check if event already exists for this specific date and event type
+    const { data: existingEvents } = await supabase
       .from('calendar_events')
       .select('id')
       .eq('booking_id', booking.id)
       .eq('event_type', eventType)
-      .maybeSingle()
+      .eq('start_time', startDate.toISOString())
+      .eq('end_time', endDate.toISOString())
     
-    if (existingEvent) {
+    if (existingEvents && existingEvents.length > 0) {
       // Update existing event
       const { error } = await supabase
         .from('calendar_events')
         .update(eventData)
-        .eq('id', existingEvent.id)
+        .eq('id', existingEvents[0].id)
         
       if (error) throw error
-      return existingEvent.id
+      return existingEvents[0].id
     } else {
       // Insert new event
       const { data, error } = await supabase
@@ -356,21 +359,41 @@ async function createCalendarEvents(supabase, booking) {
     }
   }
   
-  // Create the three event types if dates exist
-  if (booking.rigdaydate) {
+  // Process all rig day dates
+  if (booking.rig_up_dates && booking.rig_up_dates.length > 0) {
+    for (const date of booking.rig_up_dates) {
+      const rigEventId = await createEvent(date, 'rig')
+      if (rigEventId) events.push(rigEventId)
+    }
+  } else if (booking.rigdaydate) {
+    // Backward compatibility
     const rigEventId = await createEvent(booking.rigdaydate, 'rig')
     if (rigEventId) events.push(rigEventId)
   }
   
-  if (booking.eventdate) {
+  // Process all event dates
+  if (booking.event_dates && booking.event_dates.length > 0) {
+    for (const date of booking.event_dates) {
+      const mainEventId = await createEvent(date, 'event')
+      if (mainEventId) events.push(mainEventId)
+    }
+  } else if (booking.eventdate) {
+    // Backward compatibility
     const mainEventId = await createEvent(booking.eventdate, 'event')
     if (mainEventId) events.push(mainEventId)
   }
   
-  if (booking.rigdowndate) {
+  // Process all rig down dates
+  if (booking.rig_down_dates && booking.rig_down_dates.length > 0) {
+    for (const date of booking.rig_down_dates) {
+      const rigDownEventId = await createEvent(date, 'rigDown')
+      if (rigDownEventId) events.push(rigDownEventId)
+    }
+  } else if (booking.rigdowndate) {
+    // Backward compatibility
     const rigDownEventId = await createEvent(booking.rigdowndate, 'rigDown')
     if (rigDownEventId) events.push(rigDownEventId)
   }
   
-  return events
+  return events.length
 }
