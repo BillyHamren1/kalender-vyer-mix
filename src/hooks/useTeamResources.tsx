@@ -9,7 +9,9 @@ export const useTeamResources = () => {
   const [resources, setResources] = useState<Resource[]>([]);
   const [teamCount, setTeamCount] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [initialSetupComplete, setInitialSetupComplete] = useState(false);
   
+  // Load resources on initial mount only
   useEffect(() => {
     const loadedResources = loadResourcesFromStorage();
     setResources(loadedResources);
@@ -25,28 +27,83 @@ export const useTeamResources = () => {
     const maxTeamNumber = teamIds.length > 0 ? Math.max(...teamIds) : 0;
     setTeamCount(maxTeamNumber + 1);
     
-    // Ensure "Todays events" team exists and has the right name
-    const team6Index = loadedResources.findIndex(res => res.id === 'team-6');
-    if (team6Index !== -1 && loadedResources[team6Index].title !== "Todays events") {
-      // Rename Team 6 to "Todays events"
-      const updatedResources = [...loadedResources];
-      updatedResources[team6Index].title = "Todays events";
-      updatedResources[team6Index].eventColor = '#FEF7CD'; // Match yellow event color
+    setInitialSetupComplete(true);
+  }, []);
+  
+  // Setup "Todays events" team (Team 6) only once after initial loading
+  useEffect(() => {
+    if (!initialSetupComplete || resources.length === 0) return;
+    
+    // Check if Team 6 exists
+    const team6Index = resources.findIndex(res => res.id === 'team-6');
+    
+    if (team6Index !== -1) {
+      // Team 6 exists - check if it has the correct name
+      if (resources[team6Index].title !== "Todays events") {
+        const updatedResources = [...resources];
+        updatedResources[team6Index].title = "Todays events";
+        updatedResources[team6Index].eventColor = '#FEF7CD'; // Match yellow event color
+        setResources(updatedResources);
+        saveResourcesToStorage(updatedResources);
+        saveResources(updatedResources);
+      }
+    } else {
+      // Team 6 doesn't exist, create it
+      const newTeam6: Resource = {
+        id: 'team-6',
+        title: 'Todays events',
+        eventColor: '#FEF7CD' // Match yellow event color
+      };
+      
+      const updatedResources = [...resources, newTeam6];
       setResources(updatedResources);
       saveResourcesToStorage(updatedResources);
       saveResources(updatedResources);
+      
+      toast.success('Created "Todays events" team', {
+        description: 'All yellow events will be moved to this team.'
+      });
     }
-  }, []);
+  }, [initialSetupComplete, resources.length]);
   
+  // Save resources whenever they change
   useEffect(() => {
-    if (resources.length > 0) {
+    if (resources.length > 0 && initialSetupComplete) {
       saveResourcesToStorage(resources);
       saveResources(resources);
     }
-  }, [resources]);
+  }, [resources, initialSetupComplete]);
 
   const addTeam = () => {
+    // First check if we already have too many teams (e.g., more than 10)
+    const teamResources = resources.filter(resource => resource.id.startsWith('team-'));
+    if (teamResources.length >= 10) {
+      toast.error("Maximum teams reached", {
+        description: "You cannot add more than 10 teams.",
+        duration: 3000,
+      });
+      return;
+    }
+    
     const newTeamId = `team-${teamCount}`;
+    
+    // Check if a team with this ID already exists
+    if (resources.some(resource => resource.id === newTeamId)) {
+      // Find the next available team number
+      let nextTeamCount = teamCount + 1;
+      while (resources.some(resource => resource.id === `team-${nextTeamCount}`)) {
+        nextTeamCount++;
+      }
+      
+      setTeamCount(nextTeamCount);
+      
+      toast.error("Team already exists", {
+        description: `Team ${teamCount} already exists. Try again to add Team ${nextTeamCount}.`,
+        duration: 3000,
+      });
+      return;
+    }
+    
     const newResource: Resource = {
       id: newTeamId,
       title: `Team ${teamCount}`,
