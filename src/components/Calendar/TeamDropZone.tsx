@@ -25,7 +25,7 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
   onSelectStaff,
   currentDate 
 }) => {
-  // Make the entire column a drop zone
+  // Create a drop zone specifically for the area below the header
   const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: 'STAFF',
     drop: (item: StaffMember) => onDrop(item.id, resource.id),
@@ -45,19 +45,9 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
     } : null;
   }).filter(Boolean) as StaffMember[];
 
-  // Determine visual styles based on drop state
-  const dropZoneStyle = isOver 
-    ? 'border-2 border-dashed border-blue-400 bg-blue-50' 
-    : canDrop 
-      ? 'border-2 border-dashed border-gray-300'
-      : 'border border-gray-200';
-
   return (
-    <div 
-      ref={drop}
-      className={`h-full flex flex-col ${dropZoneStyle} transition-all duration-200 rounded-md overflow-hidden`}
-    >
-      {/* Team header */}
+    <div className="h-full flex flex-col border border-gray-200 rounded-md overflow-hidden">
+      {/* Team header - not a drop zone */}
       <div className="bg-gray-100 p-2 border-b border-gray-200">
         <div className="text-sm font-medium mb-2 flex items-center gap-1">
           <Users className="h-4 w-4" />
@@ -84,7 +74,23 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
         </div>
       </div>
       
-      {/* Staff members list section with drop indicator when empty */}
+      {/* Dedicated drop zone area directly under the header */}
+      <div 
+        ref={drop}
+        className={`
+          p-2 border-b border-gray-200 
+          ${isOver ? 'bg-blue-50 border-dashed border-blue-400' : 'bg-gray-50 border-dashed border-gray-300'} 
+          transition-all duration-200 flex items-center justify-center
+        `}
+        style={{ minHeight: '40px' }}
+      >
+        <div className="flex flex-col items-center justify-center text-xs text-gray-500">
+          <MoveDown className="h-4 w-4 mb-1" />
+          <p>Drop staff here</p>
+        </div>
+      </div>
+      
+      {/* Staff members list section - not a drop zone */}
       <div className="p-2 flex-1 flex flex-col bg-white">
         {teamStaff.length > 0 ? (
           teamStaff.map(staff => (
@@ -96,25 +102,11 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
             />
           ))
         ) : (
-          <div className={`
-            flex-1 flex flex-col items-center justify-center p-3 
-            text-xs text-gray-500 min-h-[100px]
-            ${isOver ? 'bg-blue-50' : ''}
-          `}>
-            <MoveDown className="h-5 w-5 mb-1 animate-bounce" />
-            <p>Drop staff here</p>
+          <div className="flex-1 flex flex-col items-center justify-center p-3 text-xs text-gray-400 min-h-[60px]">
+            <p>No staff assigned</p>
           </div>
         )}
       </div>
-      
-      {/* Visual indicator that appears while dragging */}
-      {isOver && (
-        <div className="absolute inset-0 bg-blue-100 bg-opacity-30 pointer-events-none z-10 flex items-center justify-center">
-          <div className="bg-white px-2 py-1 rounded-md text-xs font-medium text-blue-600 shadow-sm">
-            Drop to assign
-          </div>
-        </div>
-      )}
     </div>
   );
 };
