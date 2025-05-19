@@ -11,6 +11,9 @@ import { processEvents } from './CalendarEventProcessor';
 import { getCalendarViews, getCalendarOptions, getHeaderToolbar } from './CalendarConfig';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useEventActions } from '@/hooks/useEventActions';
+import { ResourceHeaderDropZone } from './ResourceHeaderDropZone';
+import { useDrop } from 'react-dnd';
+import { StaffMember } from './StaffAssignmentRow';
 
 interface ResourceCalendarProps {
   events: CalendarEvent[];
@@ -20,6 +23,7 @@ interface ResourceCalendarProps {
   currentDate: Date;
   onDateSet: (dateInfo: any) => void;
   refreshEvents: () => Promise<void | CalendarEvent[]>;
+  onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
 }
 
 const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
@@ -29,7 +33,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   isMounted,
   currentDate,
   onDateSet,
-  refreshEvents
+  refreshEvents,
+  onStaffDrop
 }) => {
   const calendarRef = useRef<any>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(currentDate);
@@ -94,6 +99,18 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     return getHeaderToolbar();
   };
 
+  // Custom resource header content renderer
+  const resourceHeaderContent = (info: any) => {
+    if (isMobile) return info.resource.title;
+    
+    return (
+      <ResourceHeaderDropZone 
+        resource={info.resource}
+        onStaffDrop={onStaffDrop}
+      />
+    );
+  };
+
   return (
     <div className="calendar-container">
       <FullCalendar
@@ -140,6 +157,15 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           hour12: false,
           omitZeroMinute: false // Always show minutes even if 00
         }}
+        resourceLabelDidMount={(info) => {
+          // This helps ensure our custom resource header content renders properly
+          const headerEl = info.el.querySelector('.fc-datagrid-cell-main');
+          if (headerEl) {
+            headerEl.style.height = '100%';
+            headerEl.style.width = '100%';
+          }
+        }}
+        resourceLabelContent={resourceHeaderContent}
       />
       
       {/* Render the duplicate dialog */}

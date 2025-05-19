@@ -1,3 +1,4 @@
+
 /* Calendar styling with teal theme */
 .fc .fc-button-primary {
   background-color: #7BAEBF !important;
@@ -204,6 +205,39 @@
 /* Improve time slot appearance */
 .fc-time-grid-slot {
   border-bottom: 1px solid #f0f0f0;
+}
+
+/* Resource header drop zone styling */
+.resource-header-wrapper {
+  padding: 2px;
+  width: 100%;
+  height: 100%;
+}
+
+.resource-drop-zone {
+  z-index: 10;
+}
+
+/* Ensure resource headers have enough height for dropzone */
+.fc-resource-timeline .fc-resource-group,
+.fc-resource-timeline .fc-datagrid-cell,
+.fc-resource-timeline .fc-datagrid-cell-cushion,
+.fc-timegrid-axis,
+.fc-datagrid-cell,
+.fc-datagrid-cell-frame,
+.fc-datagrid-cell-cushion {
+  height: 100% !important;
+}
+
+.fc-datagrid-cell-frame {
+  display: flex;
+  flex-direction: column;
+  min-height: 65px !important;
+  padding: 5px !important;
+}
+
+.fc-datagrid-cell-cushion {
+  padding: 0 !important;
 }
 
 /* Mobile responsive styles */

@@ -225,6 +225,7 @@ const ResourceView = () => {
               currentDate={currentDate}
               onDateSet={handleDatesSet}
               refreshEvents={refreshEvents}
+              onStaffDrop={handleStaffDrop}
             />
           </div>
         </div>
