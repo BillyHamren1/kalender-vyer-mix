@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { Booking, BookingProduct } from "@/types/booking";
 
@@ -64,7 +65,7 @@ export const fetchConfirmedBookings = async (): Promise<Booking[]> => {
     exactTimeInfo: booking.exact_time_info || undefined,
     internalNotes: booking.internalnotes || undefined,
     viewed: booking.viewed,
-    status: booking.status || 'PENDING',
+    status: booking.status || 'CONFIRMED',
   }));
 };
 
@@ -175,6 +176,7 @@ export const fetchBookingById = async (id: string): Promise<Booking> => {
       fileType: attachment.file_type || 'application/octet-stream'
     })),
     viewed: booking.viewed,
+    status: booking.status || 'PENDING',
   };
 };
 
