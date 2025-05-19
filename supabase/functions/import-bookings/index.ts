@@ -156,7 +156,8 @@ serve(async (req) => {
           results.status_changed_bookings.push(externalBooking.booking_number)
           
           // If status was previously CONFIRMED and now it's not, we need to remove calendar events
-          if (existingBooking.status === 'CONFIRMED' && externalStatus !== 'CONFIRMED') {
+          // Make this case-insensitive by converting both to uppercase
+          if (existingBooking.status.toUpperCase() === 'CONFIRMED' && externalStatus.toUpperCase() !== 'CONFIRMED') {
             if (!quiet) {
               console.log(`Removing calendar events for booking ${externalBooking.booking_number} as status changed from CONFIRMED to ${externalStatus}`)
             }
@@ -285,7 +286,8 @@ serve(async (req) => {
         }
 
         // Create calendar events for all dates in the arrays, but only if status is CONFIRMED
-        if (externalStatus === 'CONFIRMED') {
+        // Make this case-insensitive by converting to uppercase before comparison
+        if (externalStatus.toUpperCase() === 'CONFIRMED') {
           const eventsCreated = await createCalendarEvents(supabaseClient, {
             id: externalBooking.booking_number,
             client: externalBooking.clients?.name,

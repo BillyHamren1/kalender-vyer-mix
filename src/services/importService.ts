@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { resyncBookingToCalendar } from "./bookingCalendarService";
 
 // Type for import results
 export interface ImportResults {
@@ -158,5 +159,28 @@ export const quietImportBookings = async (filters: ImportFilters = {}): Promise<
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error during import',
     };
+  }
+};
+
+/**
+ * Manually resync a specific booking calendar events
+ */
+export const resyncBookingCalendarEvents = async (bookingId: string): Promise<boolean> => {
+  try {
+    toast.info(`Resyncing booking ${bookingId} to calendar...`);
+    
+    const success = await resyncBookingToCalendar(bookingId);
+    
+    if (success) {
+      toast.success(`Successfully resynced booking ${bookingId} calendar events`);
+    } else {
+      toast.error(`Failed to resync booking ${bookingId}`);
+    }
+    
+    return success;
+  } catch (error) {
+    console.error(`Error resyncing booking ${bookingId}:`, error);
+    toast.error(`Error resyncing booking: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    return false;
   }
 };

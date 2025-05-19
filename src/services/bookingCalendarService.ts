@@ -173,3 +173,57 @@ export const deleteAllBookingEvents = async (bookingId: string): Promise<void> =
   
   console.log(`Deleted all calendar events for booking ${bookingId}`);
 };
+
+// New function to manually resync a booking's calendar events
+export const resyncBookingToCalendar = async (bookingId: string): Promise<boolean> => {
+  try {
+    // First, get the booking details
+    const { data: booking, error: bookingError } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('id', bookingId)
+      .single();
+    
+    if (bookingError || !booking) {
+      console.error(`Error fetching booking ${bookingId}:`, bookingError);
+      return false;
+    }
+    
+    // Only create calendar events if the status is confirmed (case insensitive)
+    if (booking.status.toUpperCase() !== 'CONFIRMED') {
+      console.log(`Booking ${bookingId} is not confirmed (status: ${booking.status}), skipping calendar sync`);
+      return false;
+    }
+    
+    // First remove any existing calendar events
+    await deleteAllBookingEvents(bookingId);
+    
+    // Create events for each date type if available
+    let eventsCreated = 0;
+    
+    // Rig day dates
+    if (booking.rigdaydate) {
+      await syncBookingEvents(bookingId, 'rig', booking.rigdaydate, 'team-1', booking.client);
+      eventsCreated++;
+    }
+    
+    // Event dates
+    if (booking.eventdate) {
+      await syncBookingEvents(bookingId, 'event', booking.eventdate, 'team-1', booking.client);
+      eventsCreated++;
+    }
+    
+    // Rig down dates
+    if (booking.rigdowndate) {
+      await syncBookingEvents(bookingId, 'rigDown', booking.rigdowndate, 'team-1', booking.client);
+      eventsCreated++;
+    }
+    
+    console.log(`Successfully resynced ${eventsCreated} calendar events for booking ${bookingId}`);
+    return true;
+    
+  } catch (error) {
+    console.error(`Error resyncing booking ${bookingId} to calendar:`, error);
+    return false;
+  }
+};
