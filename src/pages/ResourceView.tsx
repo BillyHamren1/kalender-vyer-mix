@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -8,14 +9,14 @@ import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
 import '../styles/calendar.css';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
-import { RefreshCcw } from 'lucide-react';
+import { RefreshCcw, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { assignStaffToTeam, removeStaffAssignment, fetchStaffAssignments, syncStaffMember } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
 import WeekTabNavigation from '@/components/Calendar/WeekTabNavigation';
-import { moveEventsToTeam } from '@/services/teamService';
+import { renameTeam, moveEventsToTeam } from '@/services/teamService';
 import TeamManagementDialog from '@/components/Calendar/TeamManagementDialog';
 
 // Interface for external staff from API
@@ -54,38 +55,50 @@ const ResourceView = () => {
   const isMobile = useIsMobile();
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
   const [isLoadingStaff, setIsLoadingStaff] = useState(false);
-  const [setupDone, setSetupDone] = useState(false);
+  const [showMoveOptions, setShowMoveOptions] = useState(false);
   
   // Fetch events when this view is mounted
   useEffect(() => {
     refreshEvents();
   }, []);
-  
-  // Setup completed flag to prevent multiple setups
+
+  // Special effect for setting up Team 6 as "Todays events"
   useEffect(() => {
-    if (resources.length > 0 && !setupDone && teamResources.some(r => r.id === 'team-6')) {
-      // Move all yellow events (event type = "event") to Team 6
+    const setupTodaysEventsTeam = async () => {
+      // Check if Team 6 exists, if not create it
       const team6Id = 'team-6';
-      const moveYellowEvents = async () => {
-        try {
-          const movedCount = await moveEventsToTeam('event', team6Id);
-          if (movedCount > 0) {
-            toast.success(`Moved ${movedCount} events to "Todays events"`, {
-              description: "All yellow events have been moved to Team 6"
-            });
-            // Refresh to show the changes
-            refreshEvents();
-          }
-        } catch (error) {
-          console.error('Error moving events:', error);
-        } finally {
-          setSetupDone(true);
-        }
-      };
+      const team6Resource = resources.find(r => r.id === team6Id);
       
-      moveYellowEvents();
-    }
-  }, [resources, setupDone, teamResources]);
+      let renamed = false;
+      if (team6Resource) {
+        // Rename to "Todays events" if not already named that
+        if (team6Resource.title !== "Todays events") {
+          renamed = renameTeam(team6Id, "Todays events");
+        }
+      } else {
+        // We need to add Team 6 before we can rename it
+        addTeam();
+        setTimeout(() => {
+          renameTeam(team6Id, "Todays events");
+          renamed = true;
+        }, 500); // Small delay to ensure team is added first
+      }
+      
+      // Move all yellow events (event type = "event") to Team 6
+      if (renamed || team6Resource) {
+        const movedCount = await moveEventsToTeam('event', team6Id);
+        if (movedCount > 0) {
+          toast.success(`Moved ${movedCount} events to "Todays events"`, {
+            description: "All yellow events have been moved to Team 6"
+          });
+          // Refresh to show the changes
+          refreshEvents();
+        }
+      }
+    };
+    
+    setupTodaysEventsTeam();
+  }, [resources]);
   
   // Determine if we should show the Available Staff Display - only show on desktop
   const shouldShowAvailableStaff = () => {
