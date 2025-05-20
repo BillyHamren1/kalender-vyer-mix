@@ -157,13 +157,21 @@ serve(async (req) => {
           }
           
           if (staffAssignmentsData && staffAssignmentsData.length > 0) {
-            // Add staff members with assignment details
+            // Add staff members with assignment details including both ID formats
             for (const assignment of staffAssignmentsData) {
               assignedStaff.push({
-                assignment_id: assignment.id,
+                assignment_id: assignment.id, // UUID format
+                assignment_string_id: assignment.id, // Same UUID as string for compatibility
                 team_id: assignment.team_id,
                 date: assignment.assignment_date,
-                staff: assignment.staff_members
+                staff: {
+                  id: assignment.staff_members.id, // Original ID format (likely string)
+                  uuid: assignment.staff_id, // String format ID
+                  uuid_id: assignment.staff_members.id, // UUID format when available
+                  name: assignment.staff_members.name,
+                  email: assignment.staff_members.email || undefined,
+                  phone: assignment.staff_members.phone || undefined
+                }
               })
             }
           }
