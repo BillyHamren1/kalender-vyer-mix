@@ -30,8 +30,8 @@ export const getCalendarOptions = () => {
     slotLabelInterval: "01:00", // Keep at 1 hour
     allDaySlot: false,
     slotLabelFormat: {
-      hour: "2-digit" as "2-digit", // Using literal type to match expected FullCalendar type
-      minute: "2-digit" as "2-digit", // Using literal type to match expected FullCalendar type
+      hour: "2-digit" as "2-digit", 
+      minute: "2-digit" as "2-digit",
       hour12: false,   // Use 24-hour format
       omitZeroMinute: false // Always show minutes even if 00
     }

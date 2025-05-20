@@ -137,8 +137,8 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
         slotMaxTime="24:00:00" // Show all hours
         scrollTime="00:00:00" // Initial scroll position at midnight
         slotLabelFormat={{
-          hour: '2-digit',
-          minute: '2-digit',
+          hour: '2-digit' as '2-digit',
+          minute: '2-digit' as '2-digit',
           hour12: false, // Use 24-hour format
           omitZeroMinute: false // Always show minutes even if 00
         }}
@@ -179,8 +179,8 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
           );
         }}
         eventTimeFormat={{
-          hour: '2-digit',
-          minute: '2-digit',
+          hour: '2-digit' as '2-digit',
+          minute: '2-digit' as '2-digit',
           meridiem: false, // Don't show AM/PM
           hour12: false    // Use 24-hour format
         }}

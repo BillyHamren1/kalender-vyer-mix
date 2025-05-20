@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 
@@ -36,8 +37,8 @@ export const getEventHandlers = (
 export const getCalendarTimeFormatting = () => {
   return {
     eventTimeFormat: {
-      hour: '2-digit',
-      minute: '2-digit',
+      hour: '2-digit' as '2-digit', // Use literal type assertion
+      minute: '2-digit' as '2-digit', // Use literal type assertion
       meridiem: false,
       hour12: false,
       omitZeroMinute: false // Always show minutes even if 00
