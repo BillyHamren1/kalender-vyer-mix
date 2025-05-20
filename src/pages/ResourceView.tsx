@@ -55,12 +55,11 @@ const ResourceView = () => {
   const isMobile = useIsMobile();
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
   const [isLoadingStaff, setIsLoadingStaff] = useState(false);
-  const [setupDone, setSetupDone] = useState(false);
   
-  // Fetch events when this view is mounted
-  useEffect(() => {
-    refreshEvents();
-  }, []);
+  // Using useState with localStorage to track setup completion
+  const [setupDone, setSetupDone] = useState(() => {
+    return localStorage.getItem('eventsSetupDone') === 'true';
+  });
   
   // Setup completed flag to prevent multiple setups
   useEffect(() => {
@@ -76,11 +75,13 @@ const ResourceView = () => {
             });
             // Refresh to show the changes
             refreshEvents();
+            
+            // Set the flag in localStorage to prevent running this again
+            localStorage.setItem('eventsSetupDone', 'true');
+            setSetupDone(true);
           }
         } catch (error) {
           console.error('Error moving events:', error);
-        } finally {
-          setSetupDone(true);
         }
       };
       

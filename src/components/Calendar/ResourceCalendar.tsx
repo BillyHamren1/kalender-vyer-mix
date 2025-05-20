@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -162,6 +161,49 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     }
   };
 
+  // Custom event content renderer to handle stacked events differently
+  const renderEventContent = (eventInfo: any) => {
+    const isTeam6Event = eventInfo.event.getResources()[0]?.id === 'team-6';
+    const isModifiedDisplay = eventInfo.event.extendedProps?.isModifiedDisplay;
+    
+    // If it's a team-6 event with modified display, format it specially
+    if (isTeam6Event && isModifiedDisplay) {
+      return (
+        <div className="stacked-event-content">
+          <div className="fc-event-time">{eventInfo.timeText}</div>
+          <div className="fc-event-title">{eventInfo.event.title}</div>
+          {eventInfo.event.extendedProps?.bookingId && (
+            <div className="fc-event-booking-id text-xs opacity-75">
+              ID: {eventInfo.event.extendedProps.bookingId}
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    // Default rendering for regular events
+    return (
+      <div>
+        <div className="fc-event-time">{eventInfo.timeText}</div>
+        <div className="fc-event-title">{eventInfo.event.title}</div>
+      </div>
+    );
+  };
+
+  // Custom handler for event drops that prevents changes to team-6 events
+  const handleEventDrop = (info: any) => {
+    const isTeam6Event = info.event.getResources()[0]?.id === 'team-6';
+    
+    // If it's a team-6 event, revert the drop operation
+    if (isTeam6Event) {
+      info.revert();
+      return;
+    }
+    
+    // Otherwise, let the regular handler process it
+    handleEventChange(info);
+  };
+
   return (
     <div className="calendar-container">
       <FullCalendar
@@ -183,7 +225,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         selectable={true}
         eventDurationEditable={true}
         eventResizableFromStart={true}
-        eventDrop={handleEventChange}
+        eventDrop={handleEventDrop}
         eventResize={handleEventChange}
         eventClick={handleEventClick}
         datesSet={(dateInfo) => {
@@ -195,69 +237,78 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         {...getCalendarOptions()}
         height="auto"
         aspectRatio={isMobile ? 0.8 : 1.8}
+        eventContent={renderEventContent}
         eventDidMount={(info) => {
           // Add data-event-type attribute to event elements
           if (info.event.extendedProps.eventType) {
             info.el.setAttribute('data-event-type', info.event.extendedProps.eventType);
           }
           
-          // Add duplicate button to event
-          const eventEl = info.el;
-          const eventId = info.event.id;
+          // Identify team-6 events for special handling
+          const isTeam6Event = info.event.getResources()[0]?.id === 'team-6';
+          if (isTeam6Event) {
+            info.el.setAttribute('data-team6-event', 'true');
+          }
           
-          // Create a container for the duplicate button
-          const actionContainer = document.createElement('div');
-          actionContainer.className = 'event-actions';
-          actionContainer.style.position = 'absolute';
-          actionContainer.style.top = '2px';
-          actionContainer.style.right = '2px';
-          actionContainer.style.display = 'none'; // Hidden by default, shown on hover
-          actionContainer.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
-          actionContainer.style.borderRadius = '4px';
-          actionContainer.style.padding = '2px';
-          actionContainer.style.zIndex = '10';
-          
-          // Create the duplicate button with icon
-          const duplicateButton = document.createElement('button');
-          duplicateButton.className = 'duplicate-event-btn';
-          duplicateButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2" ry="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>';
-          duplicateButton.title = 'Duplicate this event';
-          duplicateButton.style.cursor = 'pointer';
-          duplicateButton.style.border = 'none';
-          duplicateButton.style.background = 'transparent';
-          duplicateButton.style.display = 'flex';
-          duplicateButton.style.alignItems = 'center';
-          duplicateButton.style.justifyContent = 'center';
-          
-          // Add duplicate button to the container
-          actionContainer.appendChild(duplicateButton);
-          
-          // Add container to the event element
-          eventEl.appendChild(actionContainer);
-          
-          // Add event listeners
-          duplicateButton.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent event click handler from being triggered
-            handleDuplicateButtonClick(eventId);
-          });
-          
-          // Show actions on hover (for desktop)
-          eventEl.addEventListener('mouseenter', () => {
-            actionContainer.style.display = 'block';
-          });
-          
-          eventEl.addEventListener('mouseleave', () => {
-            actionContainer.style.display = 'none';
-          });
-          
-          // For mobile, show on touch start and hide after a delay
-          eventEl.addEventListener('touchstart', () => {
-            actionContainer.style.display = 'block';
-            // Hide after 5 seconds to prevent it from staying visible forever
-            setTimeout(() => {
+          // Add duplicate button to event (only for non-team-6 events)
+          if (!isTeam6Event) {
+            const eventEl = info.el;
+            const eventId = info.event.id;
+            
+            // Create a container for the duplicate button
+            const actionContainer = document.createElement('div');
+            actionContainer.className = 'event-actions';
+            actionContainer.style.position = 'absolute';
+            actionContainer.style.top = '2px';
+            actionContainer.style.right = '2px';
+            actionContainer.style.display = 'none'; // Hidden by default, shown on hover
+            actionContainer.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+            actionContainer.style.borderRadius = '4px';
+            actionContainer.style.padding = '2px';
+            actionContainer.style.zIndex = '10';
+            
+            // Create the duplicate button with icon
+            const duplicateButton = document.createElement('button');
+            duplicateButton.className = 'duplicate-event-btn';
+            duplicateButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2" ry="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>';
+            duplicateButton.title = 'Duplicate this event';
+            duplicateButton.style.cursor = 'pointer';
+            duplicateButton.style.border = 'none';
+            duplicateButton.style.background = 'transparent';
+            duplicateButton.style.display = 'flex';
+            duplicateButton.style.alignItems = 'center';
+            duplicateButton.style.justifyContent = 'center';
+            
+            // Add duplicate button to the container
+            actionContainer.appendChild(duplicateButton);
+            
+            // Add container to the event element
+            eventEl.appendChild(actionContainer);
+            
+            // Add event listeners
+            duplicateButton.addEventListener('click', (e) => {
+              e.stopPropagation(); // Prevent event click handler from being triggered
+              handleDuplicateButtonClick(eventId);
+            });
+            
+            // Show actions on hover (for desktop)
+            eventEl.addEventListener('mouseenter', () => {
+              actionContainer.style.display = 'block';
+            });
+            
+            eventEl.addEventListener('mouseleave', () => {
               actionContainer.style.display = 'none';
-            }, 5000);
-          });
+            });
+            
+            // For mobile, show on touch start and hide after a delay
+            eventEl.addEventListener('touchstart', () => {
+              actionContainer.style.display = 'block';
+              // Hide after 5 seconds to prevent it from staying visible forever
+              setTimeout(() => {
+                actionContainer.style.display = 'none';
+              }, 5000);
+            });
+          }
         }}
         eventTimeFormat={{
           hour: '2-digit',
