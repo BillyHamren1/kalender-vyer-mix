@@ -58,8 +58,8 @@ const processTeam6Events = (events: CalendarEvent[]) => {
         originalEnd,
         isModifiedDisplay: true, // Flag to indicate this event's display time was modified
         clientName: event.title, // Store client name separately
-        bookingId: event.bookingId, // Store booking ID
-        deliveryAddress: event.deliveryAddress || 'No address provided' // Store delivery address
+        bookingId: event.bookingId || 'No ID', // Store booking ID
+        deliveryAddress: event.customer || 'No address provided' // Use customer field for address since deliveryAddress is not available in CalendarEvent
       }
     };
   });
