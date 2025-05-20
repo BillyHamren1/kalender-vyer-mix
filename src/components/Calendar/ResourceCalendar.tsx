@@ -172,11 +172,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         <div className="stacked-event-content">
           <div className="fc-event-time">{eventInfo.timeText}</div>
           <div className="fc-event-title">{eventInfo.event.title}</div>
-          {eventInfo.event.extendedProps?.bookingId && (
-            <div className="fc-event-booking-id text-xs opacity-75">
-              ID: {eventInfo.event.extendedProps.bookingId}
-            </div>
-          )}
+          {/* Only show the booking ID once with cleaner formatting */}
         </div>
       );
     }

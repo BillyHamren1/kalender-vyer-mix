@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
 
@@ -6,7 +7,7 @@ interface CalendarEventProcessorProps {
   resources: Resource[];
 }
 
-// Function to stack and arrange team-6 events with 2-hour durations
+// Function to stack and arrange team-6 events with 2-hour durations and 1-hour gaps
 const processTeam6Events = (events: CalendarEvent[]) => {
   // Get only events for team-6
   const team6Events = events.filter(event => event.resourceId === 'team-6');
@@ -19,8 +20,8 @@ const processTeam6Events = (events: CalendarEvent[]) => {
     return a.title.localeCompare(b.title);
   });
   
-  // Define standard start positions (hours from midnight)
-  const startPositions = [5, 8, 10, 12, 14, 16, 18];
+  // Define standard start positions (hours from midnight) with 1-hour gaps
+  const startPositions = [5, 8, 11, 14, 17, 20];
   
   // Map booking IDs to deduplicate events
   const processedBookingIds = new Set<string>();

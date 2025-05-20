@@ -409,16 +409,38 @@
   border-left: 4px solid #FEF7CD !important;
   margin-bottom: 2px !important;
   border-radius: 4px !important;
+  height: auto !important;
+  min-height: 30px !important;
+  padding: 2px 4px !important;
 }
 
-.fc-daygrid-event-harness {
-  margin-bottom: 2px !important;
+.stacked-event-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0px;
+  padding: 2px;
+}
+
+.stacked-event-content .fc-event-time {
+  font-weight: bold;
+  font-size: 0.85em;
+  line-height: 1.2;
+}
+
+.stacked-event-content .fc-event-title {
+  font-size: 0.9em;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Make team-6 events have a distinct appearance */
 [data-resource-id="team-6"] .fc-event {
   border-radius: 6px !important;
   box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+  max-height: 50px !important;
+  overflow: hidden !important;
 }
 
 /* Special styling for events based on their type */
