@@ -6,6 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription } from '@/components/ui/form';
+import { useForm } from 'react-hook-form';
+import { toast } from 'sonner';
 
 interface DeliveryAddressFormProps {
   initialAddress: string;
@@ -35,6 +38,9 @@ export const DeliveryAddressForm = ({
   const [deliveryAddress, setDeliveryAddress] = useState(initialAddress);
   const [deliveryCity, setDeliveryCity] = useState(initialCity);
   const [deliveryPostalCode, setDeliveryPostalCode] = useState(initialPostalCode);
+  const [latitude, setLatitude] = useState<number | undefined>(deliveryLatitude);
+  const [longitude, setLongitude] = useState<number | undefined>(deliveryLongitude);
+  const [showCoordinates, setShowCoordinates] = useState(false);
 
   const handleSave = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -42,9 +48,36 @@ export const DeliveryAddressForm = ({
       deliveryAddress,
       deliveryCity,
       deliveryPostalCode,
-      deliveryLatitude,
-      deliveryLongitude
+      deliveryLatitude: latitude,
+      deliveryLongitude: longitude
     });
+  };
+
+  const handleToggleCoordinates = () => {
+    setShowCoordinates(!showCoordinates);
+  };
+
+  const validateCoordinate = (value: string, min: number, max: number, type: string): number | undefined => {
+    const num = parseFloat(value);
+    if (isNaN(num)) {
+      toast.error(`Invalid ${type}: must be a number`);
+      return undefined;
+    }
+    if (num < min || num > max) {
+      toast.error(`Invalid ${type}: must be between ${min} and ${max}`);
+      return undefined;
+    }
+    return num;
+  };
+
+  const handleLatitudeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = validateCoordinate(e.target.value, -90, 90, 'latitude');
+    setLatitude(val);
+  };
+
+  const handleLongitudeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = validateCoordinate(e.target.value, -180, 180, 'longitude');
+    setLongitude(val);
   };
 
   return (
@@ -94,18 +127,63 @@ export const DeliveryAddressForm = ({
             </div>
           </div>
           
-          {(deliveryLatitude && deliveryLongitude) ? (
-            <div className="mt-4">
-              <p className="text-sm text-gray-500">Location coordinates: {deliveryLatitude}, {deliveryLongitude}</p>
+          <div className="flex justify-between items-center mt-2">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={handleToggleCoordinates}
+              size="sm"
+            >
+              {showCoordinates ? "Hide Coordinates" : "Set Coordinates Manually"}
+            </Button>
+          
+            {(latitude && longitude) && !showCoordinates && (
+              <p className="text-sm text-gray-500">
+                Location coordinates: {latitude}, {longitude}
+              </p>
+            )}
+          </div>
+          
+          {showCoordinates && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 border p-3 rounded-md">
+              <div>
+                <Label htmlFor="latitude">Latitude (-90 to 90)</Label>
+                <Input 
+                  id="latitude"
+                  type="number"
+                  step="0.000001"
+                  min="-90"
+                  max="90"
+                  value={latitude || ''}
+                  onChange={handleLatitudeChange}
+                  placeholder="Latitude (e.g. 52.520008)"
+                  className="mt-1"
+                />
+              </div>
+                
+              <div>
+                <Label htmlFor="longitude">Longitude (-180 to 180)</Label>
+                <Input 
+                  id="longitude"
+                  type="number"
+                  step="0.000001"
+                  min="-180"
+                  max="180"
+                  value={longitude || ''}
+                  onChange={handleLongitudeChange}
+                  placeholder="Longitude (e.g. 13.404954)"
+                  className="mt-1"
+                />
+              </div>
             </div>
-          ) : null}
+          )}
           
           <Button
             onClick={handleSave}
             disabled={isSaving}
-            className="mt-2"
+            className="mt-4 w-full"
           >
-            Save Delivery Details
+            {isSaving ? 'Saving...' : 'Save Delivery Details'}
           </Button>
         </div>
       </CardContent>
