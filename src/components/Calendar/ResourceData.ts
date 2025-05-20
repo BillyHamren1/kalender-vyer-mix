@@ -1,3 +1,4 @@
+
 export interface Resource {
   id: string;
   title: string;
@@ -25,6 +26,7 @@ export interface CalendarEvent {
   eventType?: 'rig' | 'event' | 'rigDown'; // Type of event for color coding
   customer?: string; // Customer name for display
   bookingNumber?: string; // Booking number for display
+  deliveryAddress?: string; // Delivery address for display
 }
 
 // Color mappings for different event types
