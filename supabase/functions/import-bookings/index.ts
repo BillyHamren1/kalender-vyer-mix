@@ -136,11 +136,59 @@ serve(async (req) => {
           .eq('id', externalBooking.booking_number)
           .maybeSingle()
 
-        // Extract location data for geocoding
-        const deliveryLatitude = externalBooking.delivery_latitude || 
-                               (externalBooking.location_lat ? parseFloat(externalBooking.location_lat) : null)
-        const deliveryLongitude = externalBooking.delivery_longitude || 
-                                (externalBooking.location_lng ? parseFloat(externalBooking.location_lng) : null)
+        // Extract location data for geocoding - improved with better handling of nested data
+        let deliveryLatitude = null;
+        let deliveryLongitude = null;
+
+        // Check for location data in different places and formats
+        if (externalBooking.delivery_latitude !== undefined && externalBooking.delivery_latitude !== null) {
+          deliveryLatitude = parseFloat(externalBooking.delivery_latitude);
+          if (!quiet) {
+            console.log(`Found delivery_latitude directly: ${deliveryLatitude}`);
+          }
+        } else if (externalBooking.location_lat !== undefined && externalBooking.location_lat !== null) {
+          deliveryLatitude = parseFloat(externalBooking.location_lat);
+          if (!quiet) {
+            console.log(`Found location_lat: ${deliveryLatitude}`);
+          }
+        } else if (externalBooking.location?.lat !== undefined && externalBooking.location?.lat !== null) {
+          deliveryLatitude = parseFloat(externalBooking.location.lat);
+          if (!quiet) {
+            console.log(`Found location.lat: ${deliveryLatitude}`);
+          }
+        }
+
+        if (externalBooking.delivery_longitude !== undefined && externalBooking.delivery_longitude !== null) {
+          deliveryLongitude = parseFloat(externalBooking.delivery_longitude);
+          if (!quiet) {
+            console.log(`Found delivery_longitude directly: ${deliveryLongitude}`);
+          }
+        } else if (externalBooking.location_lng !== undefined && externalBooking.location_lng !== null) {
+          deliveryLongitude = parseFloat(externalBooking.location_lng);
+          if (!quiet) {
+            console.log(`Found location_lng: ${deliveryLongitude}`);
+          }
+        } else if (externalBooking.location?.lng !== undefined && externalBooking.location?.lng !== null) {
+          deliveryLongitude = parseFloat(externalBooking.location.lng);
+          if (!quiet) {
+            console.log(`Found location.lng: ${deliveryLongitude}`);
+          }
+        }
+        
+        // Validate coordinates are numbers and within valid ranges
+        if (deliveryLatitude !== null && (isNaN(deliveryLatitude) || deliveryLatitude < -90 || deliveryLatitude > 90)) {
+          console.warn(`Invalid latitude value for booking ${externalBooking.booking_number}: ${deliveryLatitude}`);
+          deliveryLatitude = null;
+        }
+        
+        if (deliveryLongitude !== null && (isNaN(deliveryLongitude) || deliveryLongitude < -180 || deliveryLongitude > 180)) {
+          console.warn(`Invalid longitude value for booking ${externalBooking.booking_number}: ${deliveryLongitude}`);
+          deliveryLongitude = null;
+        }
+        
+        if (!quiet && (deliveryLatitude !== null || deliveryLongitude !== null)) {
+          console.log(`Using coordinates for booking ${externalBooking.booking_number}: ${deliveryLatitude}, ${deliveryLongitude}`);
+        }
                                 
         // Get the status from external booking, defaulting to 'PENDING' if not provided
         const externalStatus = externalBooking.status || 'PENDING'
@@ -170,6 +218,14 @@ serve(async (req) => {
           }
         }
         
+        // Extract address components
+        const deliveryAddress = externalBooking.delivery_address || 
+                              (externalBooking.location ? `${externalBooking.location}` : null);
+        const deliveryCity = externalBooking.delivery_city || externalBooking.city || 
+                           (externalBooking.location?.city ? externalBooking.location.city : null);
+        const deliveryPostalCode = externalBooking.delivery_postal_code || externalBooking.postal_code || 
+                                 (externalBooking.location?.postal_code ? externalBooking.location.postal_code : null);
+        
         // Prepare booking data - map external fields to our schema
         const bookingData = {
           id: externalBooking.booking_number, // Use booking_number as our ID
@@ -177,11 +233,10 @@ serve(async (req) => {
           rigdaydate: rigdaydate, // Use first rig_up_date for backward compatibility
           eventdate: eventdate, // Use first event_date for backward compatibility
           rigdowndate: rigdowndate, // Use first rig_down_date for backward compatibility
-          deliveryaddress: externalBooking.delivery_address || 
-                          (externalBooking.location ? `${externalBooking.location}` : null), // Use delivery_address or location
+          deliveryaddress: deliveryAddress,
           // Delivery address details
-          delivery_city: externalBooking.delivery_city || externalBooking.city || null,
-          delivery_postal_code: externalBooking.delivery_postal_code || externalBooking.postal_code || null,
+          delivery_city: deliveryCity,
+          delivery_postal_code: deliveryPostalCode,
           delivery_latitude: deliveryLatitude,
           delivery_longitude: deliveryLongitude,
           // Logistics options
@@ -194,6 +249,18 @@ serve(async (req) => {
           updated_at: externalBooking.updated_at || new Date().toISOString(),
           status: externalStatus, // Use the status from external booking
           viewed: existingBooking ? (statusChanged ? false : true) : false // Mark as unviewed for new bookings or status changes
+        }
+
+        if (!quiet) {
+          console.log(`Booking data to be saved:`, JSON.stringify({
+            id: bookingData.id,
+            client: bookingData.client,
+            delivery_latitude: bookingData.delivery_latitude,
+            delivery_longitude: bookingData.delivery_longitude,
+            deliveryaddress: bookingData.deliveryaddress,
+            delivery_city: bookingData.delivery_city,
+            delivery_postal_code: bookingData.delivery_postal_code
+          }));
         }
 
         // Check if external booking has a newer update timestamp when existing booking exists

@@ -18,6 +18,8 @@ interface DeliveryAddressFormProps {
     deliveryAddress: string;
     deliveryCity: string;
     deliveryPostalCode: string;
+    deliveryLatitude?: number;
+    deliveryLongitude?: number;
   }) => Promise<void>;
 }
 
@@ -39,7 +41,9 @@ export const DeliveryAddressForm = ({
     onSave({
       deliveryAddress,
       deliveryCity,
-      deliveryPostalCode
+      deliveryPostalCode,
+      deliveryLatitude,
+      deliveryLongitude
     });
   };
 

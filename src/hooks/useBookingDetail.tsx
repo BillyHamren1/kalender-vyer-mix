@@ -341,18 +341,26 @@ export const useBookingDetail = (id: string | undefined) => {
     deliveryAddress: string;
     deliveryCity: string;
     deliveryPostalCode: string;
+    deliveryLatitude?: number;
+    deliveryLongitude?: number;
   }) => {
     if (!booking || !id) return;
     
     try {
       setIsSaving(true);
       
+      console.log('Updating delivery details with data:', deliveryData);
+      
       await updateDeliveryDetails(id, deliveryData);
       
       // Update local state
       setBooking({
         ...booking,
-        ...deliveryData
+        deliveryAddress: deliveryData.deliveryAddress,
+        deliveryCity: deliveryData.deliveryCity,
+        deliveryPostalCode: deliveryData.deliveryPostalCode,
+        deliveryLatitude: deliveryData.deliveryLatitude,
+        deliveryLongitude: deliveryData.deliveryLongitude
       });
       
       toast.success('Delivery details updated successfully');
