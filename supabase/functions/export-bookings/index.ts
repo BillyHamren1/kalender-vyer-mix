@@ -184,6 +184,9 @@ serve(async (req) => {
         uploaded_at: attachment.uploaded_at
       }))
       
+      // Log the geodata being added
+      console.log(`Booking ${booking.id} geodata: latitude=${booking.delivery_latitude}, longitude=${booking.delivery_longitude}`)
+      
       // Construct the booking object with all information
       bookings.push({
         id: booking.id,
@@ -204,7 +207,6 @@ serve(async (req) => {
         products,
         attachments,
         staff: assignedStaff,
-        teams: teamIds,
         created_at: booking.created_at,
         updated_at: booking.updated_at
       })
