@@ -2,11 +2,13 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
+// CORS headers for cross-origin requests
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-api-key',
 }
 
+// Main handler function
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -22,12 +24,8 @@ serve(async (req) => {
   }
 
   try {
-    // Validate API key using x-api-key header
-    const API_KEY = Deno.env.get('EXPORT_API_KEY')
-    const apiKey = req.headers.get('x-api-key')
-    
-    if (!apiKey || apiKey !== API_KEY) {
-      console.error('Invalid or missing API key in x-api-key header')
+    // Validate API key
+    if (!await validateApiKey(req)) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized', message: 'Invalid or missing API key' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
@@ -41,156 +39,233 @@ serve(async (req) => {
     )
 
     // Parse URL parameters for filtering
-    const url = new URL(req.url)
-    const startDate = url.searchParams.get('startDate')
-    const endDate = url.searchParams.get('endDate')
-    const clientName = url.searchParams.get('client')
+    const filters = getFiltersFromUrl(req.url);
+    console.log(`Export request received with filters - startDate: ${filters.startDate}, endDate: ${filters.endDate}, client: ${filters.clientName}`)
     
-    console.log(`Export request received with filters - startDate: ${startDate}, endDate: ${endDate}, client: ${clientName}`)
-    
-    // Build base query for bookings
-    let query = supabaseClient
-      .from('bookings')
-      .select()
-      .order('eventdate', { ascending: true })
-    
-    // Apply filters
-    if (startDate) {
-      query = query.gte('eventdate', startDate)
+    // Fetch filtered bookings data
+    const bookingsData = await fetchFilteredBookings(supabaseClient, filters);
+    if (!bookingsData) {
+      throw new Error('Failed to fetch bookings data')
     }
     
-    if (endDate) {
-      query = query.lte('eventdate', endDate)
+    console.log(`Retrieved ${bookingsData.length || 0} bookings from database`)
+    
+    // Process bookings to include all related data
+    const bookings = await processBookings(supabaseClient, bookingsData);
+    
+    console.log(`Returning ${bookings.length} processed bookings with their products, attachments, and assigned staff`)
+
+    // Return the response
+    return new Response(
+      JSON.stringify({
+        count: bookings.length,
+        bookings: bookings
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  } catch (error) {
+    console.error('Error processing request:', error)
+    return new Response(
+      JSON.stringify({ error: 'Internal Server Error', details: error.message }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+    )
+  }
+})
+
+// Validate API key from request headers
+async function validateApiKey(req: Request): Promise<boolean> {
+  const API_KEY = Deno.env.get('EXPORT_API_KEY')
+  const apiKey = req.headers.get('x-api-key')
+  
+  if (!apiKey || apiKey !== API_KEY) {
+    console.error('Invalid or missing API key in x-api-key header')
+    return false
+  }
+  
+  return true
+}
+
+// Extract filter parameters from URL
+function getFiltersFromUrl(url: string) {
+  const urlObj = new URL(url)
+  return {
+    startDate: urlObj.searchParams.get('startDate'),
+    endDate: urlObj.searchParams.get('endDate'),
+    clientName: urlObj.searchParams.get('client')
+  }
+}
+
+// Fetch bookings with filters applied
+async function fetchFilteredBookings(supabase, filters) {
+  // Build base query for bookings
+  let query = supabase
+    .from('bookings')
+    .select()
+    .order('eventdate', { ascending: true })
+  
+  // Apply filters
+  if (filters.startDate) {
+    query = query.gte('eventdate', filters.startDate)
+  }
+  
+  if (filters.endDate) {
+    query = query.lte('eventdate', filters.endDate)
+  }
+  
+  if (filters.clientName) {
+    query = query.ilike('client', `%${filters.clientName}%`)
+  }
+  
+  const { data, error } = await query
+  
+  if (error) {
+    console.error('Error fetching bookings:', error)
+    throw new Error(`Failed to fetch bookings: ${error.message}`)
+  }
+  
+  return data
+}
+
+// Get all products for a booking
+async function fetchBookingProducts(supabase, bookingId) {
+  const { data, error } = await supabase
+    .from('booking_products')
+    .select('*')
+    .eq('booking_id', bookingId)
+  
+  if (error) {
+    console.error(`Error fetching products for booking ${bookingId}:`, error)
+    return null
+  }
+  
+  return data.map(product => ({
+    name: product.name,
+    quantity: product.quantity,
+    notes: product.notes || undefined
+  }))
+}
+
+// Get all attachments for a booking
+async function fetchBookingAttachments(supabase, bookingId) {
+  const { data, error } = await supabase
+    .from('booking_attachments')
+    .select('*')
+    .eq('booking_id', bookingId)
+  
+  if (error) {
+    console.error(`Error fetching attachments for booking ${bookingId}:`, error)
+    return null
+  }
+  
+  return data.map(attachment => ({
+    url: attachment.url,
+    file_name: attachment.file_name || 'Unnamed File',
+    file_type: attachment.file_type || 'application/octet-stream',
+    uploaded_at: attachment.uploaded_at
+  }))
+}
+
+// Get team IDs for a booking from calendar events
+async function fetchBookingTeamIds(supabase, bookingId) {
+  const { data, error } = await supabase
+    .from('calendar_events')
+    .select('resource_id')
+    .eq('booking_id', bookingId)
+    .order('start_time', { ascending: true })
+  
+  if (error) {
+    console.error(`Error fetching calendar events for booking ${bookingId}:`, error)
+    return []
+  }
+  
+  // Get unique team IDs
+  return data ? [...new Set(data.map(event => event.resource_id))] : []
+}
+
+// Get staff assignments for a team on specific dates
+async function fetchStaffAssignments(supabase, teamId, relevantDates) {
+  const assignedStaff = []
+  
+  for (const date of relevantDates) {
+    const { data: staffAssignmentsData, error: staffAssignmentsError } = await supabase
+      .from('staff_assignments')
+      .select(`
+        id,
+        team_id,
+        staff_id,
+        assignment_date,
+        staff_members (
+          id,
+          name,
+          email,
+          phone
+        )
+      `)
+      .eq('team_id', teamId)
+      .eq('assignment_date', date)
+    
+    if (staffAssignmentsError) {
+      console.error(`Error fetching staff assignments for team ${teamId} on ${date}:`, staffAssignmentsError)
+      continue
     }
     
-    if (clientName) {
-      query = query.ilike('client', `%${clientName}%`)
-    }
-    
-    // Fetch bookings with applied filters
-    const { data: bookingsData, error: bookingsError } = await query
-    
-    if (bookingsError) {
-      console.error('Error fetching bookings:', bookingsError)
-      throw new Error(`Failed to fetch bookings: ${bookingsError.message}`)
-    }
-    
-    console.log(`Retrieved ${bookingsData?.length || 0} bookings from database`)
-    
-    // Process bookings to include products, attachments, and staff
-    const bookings = []
-    
-    for (const booking of bookingsData || []) {
-      // Fetch products for this booking
-      const { data: productsData, error: productsError } = await supabaseClient
-        .from('booking_products')
-        .select('*')
-        .eq('booking_id', booking.id)
-      
-      if (productsError) {
-        console.error(`Error fetching products for booking ${booking.id}:`, productsError)
-        continue // Skip this booking if we can't fetch its products
+    if (staffAssignmentsData && staffAssignmentsData.length > 0) {
+      // Add staff members with assignment details including both ID formats
+      for (const assignment of staffAssignmentsData) {
+        assignedStaff.push({
+          assignment_id: assignment.id, // UUID format
+          assignment_string_id: assignment.id, // Same UUID as string for compatibility
+          team_id: assignment.team_id,
+          date: assignment.assignment_date,
+          staff: {
+            id: assignment.staff_members.id, // Original ID format (likely string)
+            uuid: assignment.staff_id, // String format ID
+            uuid_id: assignment.staff_members.id, // UUID format when available
+            name: assignment.staff_members.name,
+            email: assignment.staff_members.email || undefined,
+            phone: assignment.staff_members.phone || undefined
+          }
+        })
       }
+    }
+  }
+  
+  return assignedStaff
+}
+
+// Process all bookings to include their related data
+async function processBookings(supabase, bookingsData) {
+  const bookings = []
+  
+  for (const booking of bookingsData || []) {
+    try {
+      // Fetch products for this booking
+      const products = await fetchBookingProducts(supabase, booking.id)
+      if (!products) continue
       
       // Fetch attachments for this booking
-      const { data: attachmentsData, error: attachmentsError } = await supabaseClient
-        .from('booking_attachments')
-        .select('*')
-        .eq('booking_id', booking.id)
+      const attachments = await fetchBookingAttachments(supabase, booking.id)
+      if (!attachments) continue
       
-      if (attachmentsError) {
-        console.error(`Error fetching attachments for booking ${booking.id}:`, attachmentsError)
-        continue // Skip this booking if we can't fetch its attachments
-      }
+      // Fetch team IDs for this booking
+      const teamIds = await fetchBookingTeamIds(supabase, booking.id)
       
-      // Fetch calendar events for this booking to get related team IDs
-      const { data: calendarEventsData, error: calendarEventsError } = await supabaseClient
-        .from('calendar_events')
-        .select('resource_id')
-        .eq('booking_id', booking.id)
-        .order('start_time', { ascending: true })
-      
-      if (calendarEventsError) {
-        console.error(`Error fetching calendar events for booking ${booking.id}:`, calendarEventsError)
-      }
-      
-      // Get unique team IDs from calendar events
-      const teamIds = calendarEventsData ? 
-        [...new Set(calendarEventsData.map(event => event.resource_id))] : 
-        []
+      // Find the relevant dates from booking for staff assignments
+      const relevantDates = [
+        booking.rigdaydate, 
+        booking.eventdate, 
+        booking.rigdowndate
+      ].filter(date => date) // Filter out null/undefined dates
       
       // For each team, fetch assigned staff members
-      const assignedStaff = []
+      let assignedStaff = []
       
       for (const teamId of teamIds) {
-        // Find the relevant dates from booking for staff assignments
-        const relevantDates = [
-          booking.rigdaydate, 
-          booking.eventdate, 
-          booking.rigdowndate
-        ].filter(date => date) // Filter out null/undefined dates
-        
         if (relevantDates.length === 0) continue
         
-        for (const date of relevantDates) {
-          // Fetch staff assignments for this team on this date
-          const { data: staffAssignmentsData, error: staffAssignmentsError } = await supabaseClient
-            .from('staff_assignments')
-            .select(`
-              id,
-              team_id,
-              staff_id,
-              assignment_date,
-              staff_members (
-                id,
-                name,
-                email,
-                phone
-              )
-            `)
-            .eq('team_id', teamId)
-            .eq('assignment_date', date)
-          
-          if (staffAssignmentsError) {
-            console.error(`Error fetching staff assignments for team ${teamId} on ${date}:`, staffAssignmentsError)
-            continue
-          }
-          
-          if (staffAssignmentsData && staffAssignmentsData.length > 0) {
-            // Add staff members with assignment details including both ID formats
-            for (const assignment of staffAssignmentsData) {
-              assignedStaff.push({
-                assignment_id: assignment.id, // UUID format
-                assignment_string_id: assignment.id, // Same UUID as string for compatibility
-                team_id: assignment.team_id,
-                date: assignment.assignment_date,
-                staff: {
-                  id: assignment.staff_members.id, // Original ID format (likely string)
-                  uuid: assignment.staff_id, // String format ID
-                  uuid_id: assignment.staff_members.id, // UUID format when available
-                  name: assignment.staff_members.name,
-                  email: assignment.staff_members.email || undefined,
-                  phone: assignment.staff_members.phone || undefined
-                }
-              })
-            }
-          }
-        }
+        const teamStaff = await fetchStaffAssignments(supabase, teamId, relevantDates)
+        assignedStaff = [...assignedStaff, ...teamStaff]
       }
-      
-      // Format products and attachments
-      const products = productsData.map(product => ({
-        name: product.name,
-        quantity: product.quantity,
-        notes: product.notes || undefined
-      }))
-      
-      const attachments = attachmentsData.map(attachment => ({
-        url: attachment.url,
-        file_name: attachment.file_name || 'Unnamed File',
-        file_type: attachment.file_type || 'application/octet-stream',
-        uploaded_at: attachment.uploaded_at
-      }))
       
       // Log the geodata being added
       console.log(`Booking ${booking.id} geodata: latitude=${booking.delivery_latitude}, longitude=${booking.delivery_longitude}`)
@@ -218,23 +293,10 @@ serve(async (req) => {
         created_at: booking.created_at,
         updated_at: booking.updated_at
       })
+    } catch (error) {
+      console.error(`Error processing booking ${booking.id}:`, error)
     }
-    
-    console.log(`Returning ${bookings.length} processed bookings with their products, attachments, and assigned staff`)
-
-    // Return the real data in the expected format
-    return new Response(
-      JSON.stringify({
-        count: bookings.length,
-        bookings: bookings
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  } catch (error) {
-    console.error('Error processing request:', error)
-    return new Response(
-      JSON.stringify({ error: 'Internal Server Error', details: error.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-    )
   }
-})
+  
+  return bookings
+}
