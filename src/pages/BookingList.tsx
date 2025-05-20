@@ -257,15 +257,6 @@ const BookingList = () => {
           <h1 className="text-2xl font-bold text-[#2d3748]">Bokningslista</h1>
           <div className="flex space-x-3">
             <Button 
-              onClick={togglePlannedBookings} 
-              variant="outline" 
-              disabled={isLoadingPlanned}
-              className="flex items-center gap-2"
-            >
-              <CalendarDays className="h-4 w-4" />
-              {showPlannedBookings ? 'Hide planned bookings' : 'Show planned bookings'}
-            </Button>
-            <Button 
               onClick={() => loadBookings()} 
               variant="outline" 
               disabled={isLoading || isImporting}
