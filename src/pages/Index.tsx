@@ -55,11 +55,6 @@ const Index = () => {
               <p className="text-gray-600 mb-6">
                 Hantera betalningar, fakturor och rapporter
               </p>
-              <Link to="/" className="mt-auto">
-                <Button className="bg-[#82b6c6] hover:bg-[#6a99a8] text-white">
-                  Fakturering
-                </Button>
-              </Link>
             </div>
           </div>
         </div>
