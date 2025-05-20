@@ -48,8 +48,8 @@ const processTeam6Events = (events: CalendarEvent[]) => {
     const end = new Date(start);
     end.setHours(start.getHours() + 2);
     
-    // Get the delivery address from the event's extendedProps if available
-    const deliveryAddress = event.deliveryAddress || 'No address provided';
+    // Get the delivery address from the event's customer property or extendedProps if available
+    const deliveryAddress = event.customer || event.deliveryAddress || 'No address provided';
     
     return {
       ...event,
