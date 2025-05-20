@@ -140,14 +140,27 @@ const ResourceView = () => {
   // Handle staff drop for assignment
   const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
     try {
+      console.log(`Handling staff drop: staff=${staffId}, resource=${resourceId}`);
       if (resourceId) {
         toast.info(`Assigning staff ${staffId} to team ${resourceId}...`);
-        await assignStaffToTeam(staffId, resourceId, currentDate);
-        toast.success('Staff assigned to team successfully');
+        try {
+          await assignStaffToTeam(staffId, resourceId, currentDate);
+          toast.success('Staff assigned to team successfully');
+        } catch (error) {
+          console.error('Error assigning staff to team:', error);
+          toast.error('Failed to assign staff to team. Please try again.');
+          return Promise.reject(error);
+        }
       } else {
         toast.info(`Removing staff ${staffId} assignment...`);
-        await removeStaffAssignment(staffId, currentDate);
-        toast.success('Staff assignment removed successfully');
+        try {
+          await removeStaffAssignment(staffId, currentDate);
+          toast.success('Staff assignment removed successfully');
+        } catch (error) {
+          console.error('Error removing staff assignment:', error);
+          toast.error('Failed to remove staff assignment. Please try again.');
+          return Promise.reject(error);
+        }
       }
       
       // Trigger a refresh of the staff assignments

@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 // Fetch all staff members
@@ -41,51 +42,56 @@ export const addStaffMember = async (name: string, email?: string, phone?: strin
 
 // Add or update a staff member with a specific ID (for syncing with external API)
 export const syncStaffMember = async (id: string, name: string, email?: string, phone?: string) => {
-  // First check if the staff member already exists
-  const { data: existingStaff } = await supabase
-    .from('staff_members')
-    .select('id')
-    .eq('id', id)
-    .maybeSingle();
-    
-  if (existingStaff) {
-    // Update existing staff member
-    const { data, error } = await supabase
+  try {
+    // First check if the staff member already exists
+    const { data: existingStaff } = await supabase
       .from('staff_members')
-      .update({
-        name,
-        email,
-        phone
-      })
+      .select('id')
       .eq('id', id)
-      .select()
-      .single();
+      .maybeSingle();
       
-    if (error) {
-      console.error('Error updating staff member:', error);
-      throw error;
-    }
-    
-    return data;
-  } else {
-    // Insert new staff member with specific ID
-    const { data, error } = await supabase
-      .from('staff_members')
-      .insert({
-        id,
-        name,
-        email,
-        phone
-      })
-      .select()
-      .single();
+    if (existingStaff) {
+      // Update existing staff member
+      const { data, error } = await supabase
+        .from('staff_members')
+        .update({
+          name,
+          email,
+          phone
+        })
+        .eq('id', id)
+        .select()
+        .single();
+        
+      if (error) {
+        console.error('Error updating staff member:', error);
+        throw error;
+      }
       
-    if (error) {
-      console.error('Error adding staff member with ID:', error);
-      throw error;
+      return data;
+    } else {
+      // Insert new staff member with specific ID
+      const { data, error } = await supabase
+        .from('staff_members')
+        .insert({
+          id,
+          name,
+          email,
+          phone
+        })
+        .select()
+        .single();
+        
+      if (error) {
+        console.error('Error adding staff member with ID:', error);
+        throw error;
+      }
+      
+      return data;
     }
-    
-    return data;
+  } catch (error) {
+    console.error('Error in syncStaffMember:', error);
+    throw error;
   }
 };
 
@@ -123,106 +129,136 @@ export const deleteStaffMember = async (id: string) => {
 
 // Fetch staff assignments for a specific date and optionally for a specific team
 export const fetchStaffAssignments = async (date: Date, teamId?: string) => {
-  const formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD format
-  
-  let query = supabase
-    .from('staff_assignments')
-    .select(`
-      id,
-      team_id,
-      staff_id,
-      assignment_date,
-      staff_members (
+  try {
+    const formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    console.log(`Fetching staff assignments for date: ${formattedDate}, team: ${teamId || 'all teams'}`);
+    
+    let query = supabase
+      .from('staff_assignments')
+      .select(`
         id,
-        name,
-        email,
-        phone
-      )
-    `)
-    .eq('assignment_date', formattedDate);
-  
-  // If teamId is provided, filter by team_id as well
-  if (teamId) {
-    query = query.eq('team_id', teamId);
-  }
+        team_id,
+        staff_id,
+        assignment_date,
+        staff_members (
+          id,
+          name,
+          email,
+          phone
+        )
+      `)
+      .eq('assignment_date', formattedDate);
     
-  const { data, error } = await query;
+    // If teamId is provided, filter by team_id as well
+    if (teamId) {
+      query = query.eq('team_id', teamId);
+    }
+      
+    const { data, error } = await query;
+      
+    if (error) {
+      console.error('Error fetching staff assignments:', error);
+      throw error;
+    }
     
-  if (error) {
-    console.error('Error fetching staff assignments:', error);
+    console.log(`Retrieved ${data?.length || 0} staff assignments`);
+    return data || [];
+  } catch (error) {
+    console.error('Error in fetchStaffAssignments:', error);
     throw error;
   }
-  
-  return data || [];
 };
 
 // Assign a staff member to a team for a specific date
 export const assignStaffToTeam = async (staffId: string, teamId: string, date: Date) => {
-  const formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD format
-  
-  // Check if an assignment already exists for this staff member on this date
-  const { data: existingAssignment } = await supabase
-    .from('staff_assignments')
-    .select('id')
-    .eq('staff_id', staffId)
-    .eq('assignment_date', formattedDate)
-    .maybeSingle();
-  
-  if (existingAssignment) {
-    // Update existing assignment
-    const { data, error } = await supabase
+  try {
+    console.log(`Assigning staff ${staffId} to team ${teamId} on ${date.toISOString().split('T')[0]}`);
+    const formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    // Check if an assignment already exists for this staff member on this date
+    const { data: existingAssignment, error: checkError } = await supabase
       .from('staff_assignments')
-      .update({
-        team_id: teamId,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', existingAssignment.id)
-      .select()
-      .single();
-      
-    if (error) {
-      console.error('Error updating staff assignment:', error);
-      throw error;
+      .select('id')
+      .eq('staff_id', staffId)
+      .eq('assignment_date', formattedDate)
+      .maybeSingle();
+    
+    if (checkError) {
+      console.error('Error checking existing assignment:', checkError);
+      throw checkError;
     }
     
-    return data;
-  } else {
-    // Create new assignment
-    const { data, error } = await supabase
-      .from('staff_assignments')
-      .insert({
-        staff_id: staffId,
-        team_id: teamId,
-        assignment_date: formattedDate
-      })
-      .select()
-      .single();
+    if (existingAssignment) {
+      console.log(`Updating existing assignment ${existingAssignment.id}`);
+      // Update existing assignment
+      const { data, error } = await supabase
+        .from('staff_assignments')
+        .update({
+          team_id: teamId,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingAssignment.id)
+        .select()
+        .single();
+        
+      if (error) {
+        console.error('Error updating staff assignment:', error);
+        throw error;
+      }
       
-    if (error) {
-      console.error('Error creating staff assignment:', error);
-      throw error;
+      console.log('Assignment updated successfully');
+      return data;
+    } else {
+      console.log('Creating new assignment');
+      // Create new assignment
+      const { data, error } = await supabase
+        .from('staff_assignments')
+        .insert({
+          staff_id: staffId,
+          team_id: teamId,
+          assignment_date: formattedDate
+        })
+        .select()
+        .single();
+        
+      if (error) {
+        console.error('Error creating staff assignment:', error);
+        throw error;
+      }
+      
+      console.log('New assignment created successfully');
+      return data;
     }
-    
-    return data;
+  } catch (error) {
+    console.error('Error in assignStaffToTeam:', error);
+    throw error;
   }
 };
 
 // Remove a staff assignment for a specific date
 export const removeStaffAssignment = async (staffId: string, date: Date) => {
-  const formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD format
-  
-  const { error } = await supabase
-    .from('staff_assignments')
-    .delete()
-    .eq('staff_id', staffId)
-    .eq('assignment_date', formattedDate);
+  try {
+    console.log(`Removing assignment for staff ${staffId} on ${date.toISOString().split('T')[0]}`);
+    const formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD format
     
-  if (error) {
-    console.error('Error removing staff assignment:', error);
+    const { error } = await supabase
+      .from('staff_assignments')
+      .delete()
+      .eq('staff_id', staffId)
+      .eq('assignment_date', formattedDate);
+      
+    if (error) {
+      console.error('Error removing staff assignment:', error);
+      throw error;
+    }
+    
+    console.log('Assignment removed successfully');
+    return true;
+  } catch (error) {
+    console.error('Error in removeStaffAssignment:', error);
     throw error;
   }
-  
-  return true;
 };
 
 // Get all assignments for a staff member within a date range

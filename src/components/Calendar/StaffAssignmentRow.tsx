@@ -96,27 +96,52 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
   // Handler for dropping a staff member into a team column
   const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
     try {
+      console.log(`StaffAssignmentRow: Handling staff drop: ${staffId} to ${resourceId || 'unassigned'}`);
+      
       // If an external onStaffDrop is provided, use that instead
       if (onStaffDrop) {
-        await onStaffDrop(staffId, resourceId);
+        try {
+          await onStaffDrop(staffId, resourceId);
+        } catch (error) {
+          console.error('Error in external onStaffDrop handler:', error);
+          toast.error('Failed to update staff assignment through external handler');
+          return;
+        }
       } else {
         // Otherwise use the internal implementation
         if (resourceId) {
           // Assign staff to team
-          await assignStaffToTeam(staffId, resourceId, currentDate);
-          toast.success('Staff assigned to team');
+          try {
+            await assignStaffToTeam(staffId, resourceId, currentDate);
+            toast.success('Staff assigned to team');
+          } catch (error) {
+            console.error('Error assigning staff to team:', error);
+            toast.error('Failed to assign staff to team');
+            return;
+          }
         } else {
           // Remove assignment
-          await removeStaffAssignment(staffId, currentDate);
-          toast.success('Staff assignment removed');
+          try {
+            await removeStaffAssignment(staffId, currentDate);
+            toast.success('Staff assignment removed');
+          } catch (error) {
+            console.error('Error removing staff assignment:', error);
+            toast.error('Failed to remove staff assignment');
+            return;
+          }
         }
       }
       
       // Refresh assignments
-      const assignmentData = await fetchStaffAssignments(currentDate);
-      setAssignments(assignmentData);
+      try {
+        const assignmentData = await fetchStaffAssignments(currentDate);
+        setAssignments(assignmentData);
+      } catch (error) {
+        console.error('Error refreshing assignments after drop:', error);
+        toast.error('Failed to refresh staff assignments');
+      }
     } catch (error) {
-      console.error('Error updating staff assignment:', error);
+      console.error('Error handling staff drop in StaffAssignmentRow:', error);
       toast.error('Failed to update staff assignment');
     }
   };

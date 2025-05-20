@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useDrag, useDrop } from 'react-dnd';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -128,18 +127,37 @@ const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({ currentDa
 
   // Function to handle staff dropping, with confirmation if needed
   const handleStaffDrop = async (staffId: string, targetTeamId: string | null) => {
-    const staffMember = availableStaff.find(s => s.id === staffId);
-    
-    if (staffMember && staffMember.assignedTeam && targetTeamId) {
-      // If already assigned and being assigned to a different team, show confirmation
-      try {
-        // Ask for confirmation
-        const confirmReassign = window.confirm(
-          `${staffMember.name} is already assigned to a team for this day. Are you sure you want to reassign to ${targetTeamId}?`
-        );
-        
-        if (confirmReassign) {
-          // User confirmed, proceed with reassignment
+    try {
+      const staffMember = availableStaff.find(s => s.id === staffId);
+      
+      if (staffMember && staffMember.assignedTeam && targetTeamId) {
+        // If already assigned and being assigned to a different team, show confirmation
+        try {
+          // Ask for confirmation
+          const confirmReassign = window.confirm(
+            `${staffMember.name} is already assigned to a team for this day. Are you sure you want to reassign to a different team?`
+          );
+          
+          if (confirmReassign) {
+            // User confirmed, proceed with reassignment
+            await onStaffDrop(staffId, targetTeamId);
+            
+            // Update staff in local state
+            setAvailableStaff(prev => 
+              prev.map(staff => 
+                staff.id === staffId 
+                  ? { ...staff, assignedTeam: targetTeamId } 
+                  : staff
+              )
+            );
+          }
+        } catch (error) {
+          console.error('Error in handleStaffDrop:', error);
+          toast.error('Failed to update staff assignment');
+        }
+      } else {
+        // Normal assignment/unassignment
+        try {
           await onStaffDrop(staffId, targetTeamId);
           
           // Update staff in local state
@@ -150,23 +168,14 @@ const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({ currentDa
                 : staff
             )
           );
+        } catch (error) {
+          console.error('Error in handleStaffDrop:', error);
+          toast.error('Failed to update staff assignment');
         }
-      } catch (error) {
-        console.error('Error in handleStaffDrop:', error);
-        toast.error('Failed to update staff assignment');
       }
-    } else {
-      // Normal assignment/unassignment
-      await onStaffDrop(staffId, targetTeamId);
-      
-      // Update staff in local state
-      setAvailableStaff(prev => 
-        prev.map(staff => 
-          staff.id === staffId 
-            ? { ...staff, assignedTeam: targetTeamId } 
-            : staff
-        )
-      );
+    } catch (error) {
+      console.error('Error in handleStaffDrop:', error);
+      toast.error('Failed to update staff assignment');
     }
   };
 
