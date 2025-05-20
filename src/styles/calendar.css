@@ -410,8 +410,8 @@
   margin-bottom: 2px !important;
   border-radius: 4px !important;
   height: auto !important;
-  min-height: 30px !important;
-  padding: 2px 4px !important;
+  min-height: 40px !important; /* Increased height for three lines */
+  padding: 4px !important;
 }
 
 .stacked-event-content {
@@ -421,18 +421,40 @@
   padding: 2px;
 }
 
-.stacked-event-content .fc-event-time {
+/* Client name styling - bold and slightly larger */
+.stacked-event-content .event-client-name {
   font-weight: bold;
-  font-size: 0.85em;
-  line-height: 1.2;
-}
-
-.stacked-event-content .fc-event-title {
   font-size: 0.9em;
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Booking ID styling - smaller and lighter */
+.stacked-event-content .event-booking-id {
+  font-size: 0.8em;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.8;
+}
+
+/* Delivery address styling - smaller and italicized */
+.stacked-event-content .event-delivery-address {
+  font-size: 0.8em;
+  font-style: italic;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.7;
+}
+
+/* Hide the original event time for team-6 events */
+[data-resource-id="team-6"] .fc-event-time {
+  display: none !important;
 }
 
 /* Make team-6 events have a distinct appearance */

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -166,13 +167,17 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     const isTeam6Event = eventInfo.event.getResources()[0]?.id === 'team-6';
     const isModifiedDisplay = eventInfo.event.extendedProps?.isModifiedDisplay;
     
-    // If it's a team-6 event with modified display, format it specially
+    // If it's a team-6 event with modified display, format it specially with three lines
     if (isTeam6Event && isModifiedDisplay) {
+      const clientName = eventInfo.event.title;
+      const bookingId = eventInfo.event.extendedProps?.bookingId || 'No ID';
+      const deliveryAddress = eventInfo.event.extendedProps?.deliveryAddress || 'No address';
+      
       return (
         <div className="stacked-event-content">
-          <div className="fc-event-time">{eventInfo.timeText}</div>
-          <div className="fc-event-title">{eventInfo.event.title}</div>
-          {/* Only show the booking ID once with cleaner formatting */}
+          <div className="event-client-name">{clientName}</div>
+          <div className="event-booking-id">ID: {bookingId}</div>
+          <div className="event-delivery-address">{deliveryAddress}</div>
         </div>
       );
     }

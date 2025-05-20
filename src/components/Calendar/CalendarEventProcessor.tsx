@@ -56,7 +56,10 @@ const processTeam6Events = (events: CalendarEvent[]) => {
         ...event,
         originalStart,
         originalEnd,
-        isModifiedDisplay: true // Flag to indicate this event's display time was modified
+        isModifiedDisplay: true, // Flag to indicate this event's display time was modified
+        clientName: event.title, // Store client name separately
+        bookingId: event.bookingId, // Store booking ID
+        deliveryAddress: event.deliveryAddress || 'No address provided' // Store delivery address
       }
     };
   });
