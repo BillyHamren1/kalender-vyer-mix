@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -18,6 +17,7 @@ import { supabase } from '@/integrations/supabase/client';
 import WeekTabNavigation from '@/components/Calendar/WeekTabNavigation';
 import { moveEventsToTeam } from '@/services/teamService';
 import ResourceHeader from '@/components/Calendar/ResourceHeader';
+import AddTaskButton from '@/components/Calendar/AddTaskButton';
 
 // Interface for external staff from API
 interface ExternalStaffMember {
@@ -51,6 +51,7 @@ const ResourceView = () => {
     removeTeam
   } = useTeamResources();
   
+  // Get the event actions hook
   const { addEventToCalendar, duplicateEvent } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
@@ -201,6 +202,14 @@ const ResourceView = () => {
                 <RefreshCcw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
                 {isMobile ? '' : 'Update'}
               </Button>
+              
+              {/* Add Task Button */}
+              <AddTaskButton 
+                resources={resources}
+                onTaskAdd={addEventToCalendar}
+                currentDate={currentDate}
+              />
+              
               <div className="flex-grow">
                 <DayNavigation currentDate={currentDate} />
               </div>

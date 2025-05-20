@@ -1,4 +1,3 @@
-
 export interface Resource {
   id: string;
   title: string;
@@ -23,7 +22,7 @@ export interface CalendarEvent {
   end: string;
   color?: string;
   bookingId?: string; // Link to the booking
-  eventType?: 'rig' | 'event' | 'rigDown'; // Type of event for color coding
+  eventType?: 'rig' | 'event' | 'rigDown' | 'task'; // Added 'task' type
   customer?: string; // Customer name for display
   bookingNumber?: string; // Booking number for display
   deliveryAddress?: string; // Delivery address for display
@@ -34,6 +33,7 @@ export const eventColors = {
   rig: '#F2FCE2', // Light green for rig events
   event: '#FEF7CD', // Light yellow for events
   rigDown: '#FEC6A1', // Lighter red for rig down events (updated from orange)
+  task: '#E5DEFF', // Light purple for manual tasks
   default: '#3788d8', // Default blue
 };
 
@@ -82,7 +82,7 @@ export const generateEventId = (): string => {
 };
 
 // Function to get color based on event type
-export const getEventColor = (eventType?: 'rig' | 'event' | 'rigDown'): string => {
+export const getEventColor = (eventType?: 'rig' | 'event' | 'rigDown' | 'task'): string => {
   if (!eventType) return eventColors.default;
   return eventColors[eventType] || eventColors.default;
 };
