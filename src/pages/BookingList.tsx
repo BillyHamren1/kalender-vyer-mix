@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   Table,
   TableBody,
@@ -23,7 +23,7 @@ import {
   fetchConfirmedBookings 
 } from '@/services/bookingService';
 import { toast } from 'sonner';
-import { RefreshCcw, Search, CalendarDays, AlertTriangle, Filter, CalendarRange } from 'lucide-react';
+import { RefreshCcw, Search, CalendarDays, AlertTriangle, Filter, CalendarRange, Calendar } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import StatusBadge from '@/components/booking/StatusBadge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -256,6 +256,15 @@ const BookingList = () => {
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-[#2d3748]">Bokningslista</h1>
           <div className="flex space-x-3">
+            <Link to="/resource-view">
+              <Button 
+                variant="outline" 
+                className="flex items-center gap-2"
+              >
+                <Calendar className="h-4 w-4" />
+                Calendar view
+              </Button>
+            </Link>
             <Button 
               onClick={() => loadBookings()} 
               variant="outline" 
