@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -58,7 +57,7 @@ const BookingList = () => {
     }
   };
   
-  // Function to load upcoming bookings - always loads confirmed bookings
+  // Function to load upcoming bookings - always loads confirmed bookings with case-insensitive handling
   const loadPlannedBookings = async () => {
     try {
       setIsLoadingPlanned(true);

@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle, XCircle, Clock, AlertTriangle, HelpCircle } from 'lucide-react';
 
 // Define all possible status types that can come from the external system
-type BookingStatus = 'CONFIRMED' | 'CANCELLED' | 'OFFER' | 'PENDING' | string;
+type BookingStatus = 'CONFIRMED' | 'Confirmed' | 'confirmed' | 'CANCELLED' | 'Cancelled' | 'cancelled' | 'OFFER' | 'Offer' | 'offer' | 'PENDING' | 'Pending' | 'pending' | string;
 
 interface StatusBadgeProps {
   status: BookingStatus;
@@ -24,8 +24,10 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({
   let statusText = '';
   let icon = null;
 
-  // Handle different status values
-  switch (status?.toUpperCase()) {
+  const normalizedStatus = status?.toUpperCase() || '';
+
+  // Handle different status values with case-insensitive comparisons
+  switch (normalizedStatus) {
     case 'CONFIRMED':
       badgeClasses = 'bg-[#7BAEBF] hover:bg-[#6E9DAC]'; // Using the teal color from theme.css
       statusText = 'Confirmed';

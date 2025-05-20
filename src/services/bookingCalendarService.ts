@@ -174,7 +174,7 @@ export const deleteAllBookingEvents = async (bookingId: string): Promise<void> =
   console.log(`Deleted all calendar events for booking ${bookingId}`);
 };
 
-// New function to manually resync a booking's calendar events
+// New function to manually resync a booking's calendar events - updated for case-insensitive comparison
 export const resyncBookingToCalendar = async (bookingId: string): Promise<boolean> => {
   try {
     // First, get the booking details

@@ -35,12 +35,13 @@ export const fetchBookings = async (): Promise<Booking[]> => {
   }));
 };
 
-// Fetch confirmed bookings only
+// Fetch confirmed bookings only - now using case-insensitive comparison
 export const fetchConfirmedBookings = async (): Promise<Booking[]> => {
+  // Using ilike for case-insensitive comparison
   const { data, error } = await supabase
     .from('bookings')
     .select('*')
-    .eq('status', 'CONFIRMED')
+    .ilike('status', 'confirmed')
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -69,7 +70,7 @@ export const fetchConfirmedBookings = async (): Promise<Booking[]> => {
   }));
 };
 
-// Fetch upcoming bookings sorted by event date
+// Fetch upcoming bookings sorted by event date - now using case-insensitive comparison
 export const fetchUpcomingBookings = async (limit: number = 15, confirmedOnly: boolean = false): Promise<Booking[]> => {
   const currentDate = new Date().toISOString().split('T')[0]; // Get current date in YYYY-MM-DD format
   
@@ -80,7 +81,8 @@ export const fetchUpcomingBookings = async (limit: number = 15, confirmedOnly: b
     .order('eventdate', { ascending: true }); // Sort by event date ascending
   
   if (confirmedOnly) {
-    query = query.eq('status', 'CONFIRMED');
+    // Using ilike for case-insensitive comparison of "confirmed" status
+    query = query.ilike('status', 'confirmed');
   }
   
   const { data, error } = await query.limit(limit);
@@ -380,7 +382,7 @@ export const markBookingAsViewed = async (id: string): Promise<void> => {
   }
 };
 
-// Update booking status
+// Update booking status - now using case-insensitive comparison for status check
 export const updateBookingStatus = async (id: string, newStatus: string): Promise<void> => {
   // First get the current status of the booking
   const { data: booking, error: fetchError } = await supabase
@@ -412,9 +414,9 @@ export const updateBookingStatus = async (id: string, newStatus: string): Promis
     throw updateError;
   }
   
-  // If the status was CONFIRMED and is now changing to something else,
+  // If the status was CONFIRMED (case insensitive) and is now changing to something else,
   // we need to remove all calendar events for this booking
-  if (currentStatus === 'CONFIRMED' && newStatus !== 'CONFIRMED') {
+  if (currentStatus.toLowerCase() === 'confirmed' && newStatus.toLowerCase() !== 'confirmed') {
     try {
       await deleteAllBookingEvents(id);
       console.log(`Removed all calendar events for booking ${id} due to status change from CONFIRMED to ${newStatus}`);
