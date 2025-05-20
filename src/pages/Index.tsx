@@ -16,7 +16,7 @@ const Index = () => {
             Välkommen till ditt kompletta event management system
           </p>
           
-          <div className="grid md:grid-cols-3 gap-6 mt-16">
+          <div className="grid md:grid-cols-2 gap-6 mt-16">
             <div className="bg-white rounded-lg shadow-md p-8 flex flex-col items-center text-center">
               <div className="bg-gray-100 p-4 rounded-full mb-6">
                 <ShoppingCart className="text-[#82b6c6] h-8 w-8" />
@@ -45,16 +45,6 @@ const Index = () => {
                   Se resursvy
                 </Button>
               </Link>
-            </div>
-            
-            <div className="bg-white rounded-lg shadow-md p-8 flex flex-col items-center text-center">
-              <div className="bg-gray-100 p-4 rounded-full mb-6">
-                <ShoppingCart className="text-[#82b6c6] h-8 w-8" />
-              </div>
-              <h2 className="text-xl font-semibold text-[#2d3748] mb-3">Fakturering</h2>
-              <p className="text-gray-600 mb-6">
-                Hantera betalningar, fakturor och rapporter
-              </p>
             </div>
           </div>
         </div>
