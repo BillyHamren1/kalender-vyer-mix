@@ -1,3 +1,4 @@
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
@@ -112,6 +113,8 @@ serve(async (req) => {
       try {
         if (!quiet) {
           console.log(`Processing booking ${externalBooking.booking_number}: ${externalBooking.clients?.name || 'Unknown client'}`)
+          // Log raw booking structure for debugging
+          console.log(`Raw booking data for ${externalBooking.booking_number}:`, JSON.stringify(externalBooking, null, 2))
         }
         
         // Check if the booking has the required fields
@@ -135,40 +138,48 @@ serve(async (req) => {
           .eq('id', externalBooking.booking_number)
           .maybeSingle()
 
-        // Extract location data for geocoding - improved with better handling of nested data
+        // Extract location data for geocoding - improved handling for different formats
         let deliveryLatitude = null;
         let deliveryLongitude = null;
 
-        // Check for location data in different places and formats
-        if (externalBooking.delivery_latitude !== undefined && externalBooking.delivery_latitude !== null) {
-          deliveryLatitude = parseFloat(externalBooking.delivery_latitude);
+        // Check for delivery_geocode format (this is the format used in API response)
+        if (externalBooking.delivery_geocode?.lat !== undefined && externalBooking.delivery_geocode?.lng !== undefined) {
+          deliveryLatitude = parseFloat(String(externalBooking.delivery_geocode.lat));
+          deliveryLongitude = parseFloat(String(externalBooking.delivery_geocode.lng));
+          if (!quiet) {
+            console.log(`Found coordinates in delivery_geocode: lat=${deliveryLatitude}, lng=${deliveryLongitude}`);
+          }
+        }
+        // Check for direct coordinate fields as fallback
+        else if (externalBooking.delivery_latitude !== undefined && externalBooking.delivery_latitude !== null) {
+          deliveryLatitude = parseFloat(String(externalBooking.delivery_latitude));
           if (!quiet) {
             console.log(`Found delivery_latitude directly: ${deliveryLatitude}`);
           }
         } else if (externalBooking.location_lat !== undefined && externalBooking.location_lat !== null) {
-          deliveryLatitude = parseFloat(externalBooking.location_lat);
+          deliveryLatitude = parseFloat(String(externalBooking.location_lat));
           if (!quiet) {
             console.log(`Found location_lat: ${deliveryLatitude}`);
           }
         } else if (externalBooking.location?.lat !== undefined && externalBooking.location?.lat !== null) {
-          deliveryLatitude = parseFloat(externalBooking.location.lat);
+          deliveryLatitude = parseFloat(String(externalBooking.location.lat));
           if (!quiet) {
             console.log(`Found location.lat: ${deliveryLatitude}`);
           }
         }
 
-        if (externalBooking.delivery_longitude !== undefined && externalBooking.delivery_longitude !== null) {
-          deliveryLongitude = parseFloat(externalBooking.delivery_longitude);
+        if (deliveryLatitude === null && externalBooking.delivery_longitude !== undefined && externalBooking.delivery_longitude !== null) {
+          deliveryLongitude = parseFloat(String(externalBooking.delivery_longitude));
           if (!quiet) {
             console.log(`Found delivery_longitude directly: ${deliveryLongitude}`);
           }
-        } else if (externalBooking.location_lng !== undefined && externalBooking.location_lng !== null) {
-          deliveryLongitude = parseFloat(externalBooking.location_lng);
+        } else if (deliveryLatitude === null && externalBooking.location_lng !== undefined && externalBooking.location_lng !== null) {
+          deliveryLongitude = parseFloat(String(externalBooking.location_lng));
           if (!quiet) {
             console.log(`Found location_lng: ${deliveryLongitude}`);
           }
-        } else if (externalBooking.location?.lng !== undefined && externalBooking.location?.lng !== null) {
-          deliveryLongitude = parseFloat(externalBooking.location.lng);
+        } else if (deliveryLatitude === null && externalBooking.location?.lng !== undefined && externalBooking.location?.lng !== null) {
+          deliveryLongitude = parseFloat(String(externalBooking.location.lng));
           if (!quiet) {
             console.log(`Found location.lng: ${deliveryLongitude}`);
           }
@@ -185,9 +196,8 @@ serve(async (req) => {
           deliveryLongitude = null;
         }
         
-        if (!quiet && (deliveryLatitude !== null || deliveryLongitude !== null)) {
-          console.log(`Using coordinates for booking ${externalBooking.booking_number}: ${deliveryLatitude}, ${deliveryLongitude}`);
-        }
+        // Log geodata debug information
+        console.log(`Geodata for booking ${externalBooking.booking_number}: latitude=${deliveryLatitude}, longitude=${deliveryLongitude}`);
                                 
         // Get the status from external booking, defaulting to 'PENDING' if not provided
         const externalStatus = externalBooking.status || 'PENDING'
