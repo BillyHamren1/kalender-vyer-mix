@@ -4,7 +4,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CalendarContext } from '@/App';
 import { useBookingDetail } from '@/hooks/useBookingDetail';
-import { Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 // Import refactored components
@@ -20,7 +19,8 @@ const BookingDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { lastViewedDate, lastPath } = useContext(CalendarContext);
-  const [autoSync, setAutoSync] = useState(false);
+  // Set autoSync to true by default
+  const [autoSync, setAutoSync] = useState(true);
   
   // Use our custom hook for booking details
   const {
@@ -103,15 +103,7 @@ const BookingDetail = () => {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
           <h1 className="text-2xl font-bold">Booking Details: #{id}</h1>
           <div className="flex flex-col sm:flex-row gap-2">
-            <Button
-              variant="outline"
-              onClick={syncWithCalendar}
-              disabled={isSyncingToCalendar || !booking}
-              className="whitespace-nowrap"
-            >
-              <Save className="mr-2 h-4 w-4" />
-              {isSyncingToCalendar ? 'Saving...' : 'Save to Calendar'}
-            </Button>
+            {/* Removed the "Save to Calendar" button as syncing now happens automatically */}
             <Button 
               onClick={handleBack}
               className="whitespace-nowrap"
