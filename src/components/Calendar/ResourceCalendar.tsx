@@ -171,7 +171,9 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     if (isTeam6Event && isModifiedDisplay) {
       const clientName = eventInfo.event.title;
       const bookingId = eventInfo.event.extendedProps?.bookingId || 'No ID';
-      const deliveryAddress = eventInfo.event.extendedProps?.deliveryAddress || 'No address';
+      
+      // Get the delivery address from extendedProps or from the booking data if available
+      const deliveryAddress = eventInfo.event.extendedProps?.deliveryAddress || 'No address provided';
       
       return (
         <div className="stacked-event-content">

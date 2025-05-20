@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { supabase } from '@/integrations/supabase/client';
@@ -46,24 +45,54 @@ export const useDayCalendarEvents = () => {
         if (data) {
           console.log('Calendar events data from Supabase:', data);
           
-          const formattedEvents: CalendarEvent[] = data.map(event => {
+          // Process events with addresses
+          const processedEvents = [];
+          
+          for (const event of data) {
             // Map the database resource_id to the application's resource ID format
             const mappedResourceId = mapDatabaseToAppResourceId(event.resource_id);
             
-            return {
+            // If the event has a booking_id, fetch the booking to get the address
+            let deliveryAddress = 'No address provided';
+            
+            if (event.booking_id) {
+              try {
+                const { data: bookingData } = await supabase
+                  .from('bookings')
+                  .select('deliveryaddress, delivery_city, delivery_postal_code')
+                  .eq('id', event.booking_id)
+                  .single();
+                
+                if (bookingData && bookingData.deliveryaddress) {
+                  deliveryAddress = bookingData.deliveryaddress;
+                  if (bookingData.delivery_city) {
+                    deliveryAddress += `, ${bookingData.delivery_city}`;
+                  }
+                  if (bookingData.delivery_postal_code) {
+                    deliveryAddress += ` ${bookingData.delivery_postal_code}`;
+                  }
+                }
+              } catch (bookingError) {
+                console.warn(`Could not fetch address for booking ${event.booking_id}:`, bookingError);
+              }
+            }
+            
+            processedEvents.push({
               id: event.id,
-              resourceId: mappedResourceId, // Use the mapped resource ID
+              resourceId: mappedResourceId,
               title: event.title,
               start: event.start_time,
               end: event.end_time,
               eventType: (event.event_type as 'rig' | 'event' | 'rigDown') || 'event',
               bookingId: event.booking_id || undefined,
-              color: getEventColor((event.event_type as 'rig' | 'event' | 'rigDown') || 'event')
-            };
-          });
+              color: getEventColor((event.event_type as 'rig' | 'event' | 'rigDown') || 'event'),
+              deliveryAddress: deliveryAddress,
+              customer: deliveryAddress // Use this field as it may be used by some components
+            });
+          }
           
-          console.log('Formatted events for calendar with mapped resource IDs:', formattedEvents);
-          setEvents(formattedEvents);
+          console.log('Formatted events for calendar with mapped resource IDs:', processedEvents);
+          setEvents(processedEvents);
         }
       } catch (error) {
         console.error('Error fetching events:', error);

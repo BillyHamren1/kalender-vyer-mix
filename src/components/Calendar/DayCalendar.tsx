@@ -1,4 +1,3 @@
-
 import React, { useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -148,6 +147,25 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
           return [`event-${eventType}`];
         }}
         eventContent={(arg) => {
+          // Get the event type to determine styling
+          const eventType = arg.event.extendedProps?.eventType || 'event';
+          
+          // For event type 'event' (yellow events), include delivery address 
+          if (eventType === 'event') {
+            const deliveryAddress = arg.event.extendedProps?.deliveryAddress || 'No address provided';
+            const bookingId = arg.event.extendedProps?.bookingId || '';
+            
+            return (
+              <div>
+                <div className="fc-event-time">{arg.timeText}</div>
+                <div className="fc-event-title">{arg.event.title}</div>
+                {bookingId && <div className="fc-event-id text-xs">ID: {bookingId}</div>}
+                <div className="fc-event-address text-xs italic">{deliveryAddress}</div>
+              </div>
+            );
+          }
+          
+          // Default rendering for other event types
           return (
             <div>
               <div className="fc-event-time">{arg.timeText}</div>

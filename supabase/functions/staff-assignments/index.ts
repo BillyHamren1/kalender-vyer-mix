@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
@@ -148,13 +147,28 @@ serve(async (req) => {
 
       // Find all events for this booking (rig, event, rigDown)
       const bookingEvents = events.filter(event => event.booking_id === bookingId)
-        .map(event => ({
-          id: event.id,
-          type: event.event_type,
-          start: event.start_time,
-          end: event.end_time,
-          title: event.title
-        }))
+        .map(event => {
+          // Format address for event display
+          let formattedAddress = 'No address provided';
+          if (booking.deliveryaddress) {
+            formattedAddress = booking.deliveryaddress;
+            if (booking.delivery_city) {
+              formattedAddress += `, ${booking.delivery_city}`;
+            }
+            if (booking.delivery_postal_code) {
+              formattedAddress += ` ${booking.delivery_postal_code}`;
+            }
+          }
+          
+          return {
+            id: event.id,
+            type: event.event_type,
+            start: event.start_time,
+            end: event.end_time,
+            title: event.title,
+            deliveryAddress: formattedAddress
+          }
+        })
 
       // Add complete booking details to the result
       bookingDetails.push({
@@ -163,7 +177,9 @@ serve(async (req) => {
         rigDayDate: booking.rigdaydate,
         eventDate: booking.eventdate,
         rigDownDate: booking.rigdowndate,
-        deliveryAddress: booking.deliveryaddress,
+        deliveryAddress: booking.deliveryaddress || 'No address provided',
+        deliveryCity: booking.delivery_city,
+        deliveryPostalCode: booking.delivery_postal_code,
         internalNotes: booking.internalnotes,
         products: products || [],
         attachments: attachments || [],

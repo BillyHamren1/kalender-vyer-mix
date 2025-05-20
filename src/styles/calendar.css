@@ -433,7 +433,7 @@
 
 /* Booking ID styling - smaller and lighter */
 .stacked-event-content .event-booking-id {
-  font-size: 0.8em;
+  font-size: 0.75rem;
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
@@ -443,7 +443,7 @@
 
 /* Delivery address styling - smaller and italicized */
 .stacked-event-content .event-delivery-address {
-  font-size: 0.8em;
+  font-size: 0.75rem;
   font-style: italic;
   line-height: 1.2;
   white-space: nowrap;
@@ -487,4 +487,21 @@
 /* Make sure the events are not editable in team-6 */
 [data-resource-id="team-6"] .fc-event {
   cursor: default !important;
+}
+
+/* Event content styling */
+.fc-event-title {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fc-event-address,
+.fc-event-id {
+  font-size: 0.75rem;
+  opacity: 0.8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

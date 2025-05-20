@@ -48,6 +48,9 @@ const processTeam6Events = (events: CalendarEvent[]) => {
     const end = new Date(start);
     end.setHours(start.getHours() + 2);
     
+    // Get the delivery address from the event's extendedProps if available
+    const deliveryAddress = event.deliveryAddress || 'No address provided';
+    
     return {
       ...event,
       start: start.toISOString(),
@@ -59,7 +62,7 @@ const processTeam6Events = (events: CalendarEvent[]) => {
         isModifiedDisplay: true, // Flag to indicate this event's display time was modified
         clientName: event.title, // Store client name separately
         bookingId: event.bookingId || 'No ID', // Store booking ID
-        deliveryAddress: event.customer || 'No address provided' // Use customer field for address since deliveryAddress is not available in CalendarEvent
+        deliveryAddress: deliveryAddress // Store delivery address from event or use a default
       }
     };
   });
