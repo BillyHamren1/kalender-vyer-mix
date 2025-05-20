@@ -26,7 +26,7 @@ const ResourceHeader: React.FC<ResourceHeaderProps> = ({
 
   return (
     <div className={`flex ${isMobile ? 'flex-col gap-3' : 'justify-between'} items-center mb-6`}>
-      <h1 className="text-2xl font-bold text-gray-800">Resursvy</h1>
+      <h1 className="text-2xl font-bold text-gray-800"></h1>
       <div className={`flex ${isMobile ? 'w-full justify-center' : ''} space-x-3`}>
         <TeamManagementDialog
           teamResources={teamResources}

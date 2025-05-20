@@ -1,3 +1,4 @@
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
@@ -21,6 +22,9 @@ serve(async (req) => {
         global: {
           headers: { Authorization: req.headers.get('Authorization')! },
         },
+        db: {
+          schema: 'public',
+        },
       }
     )
 
@@ -28,6 +32,9 @@ serve(async (req) => {
     const requestData = await req.json();
     const staffId = requestData.staffId;
     const date = requestData.date;
+
+    // Add a cache busting parameter to prevent cached responses
+    const cacheBuster = new Date().getTime();
 
     // Validate required parameters
     if (!staffId || !date) {
@@ -39,6 +46,8 @@ serve(async (req) => {
 
     // Format the date (ensure it's in YYYY-MM-DD format)
     const formattedDate = new Date(date).toISOString().split('T')[0]
+
+    console.log(`Fetching staff assignment for staff ID ${staffId} on date ${formattedDate}, cache: ${cacheBuster}`);
 
     // Step 1: Find the team assignment for the staff member on the specified date
     const { data: assignment, error: assignmentError } = await supabaseClient
@@ -54,6 +63,13 @@ serve(async (req) => {
         JSON.stringify({ error: 'Failed to fetch staff assignment' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
       )
+    }
+
+    // Log assignment status for debugging
+    if (assignment) {
+      console.log(`Staff ${staffId} is assigned to team ${assignment.team_id} on ${formattedDate}`);
+    } else {
+      console.log(`No assignment found for staff ${staffId} on ${formattedDate}`);
     }
 
     // If no assignment is found, return an empty response
@@ -88,8 +104,11 @@ serve(async (req) => {
       )
     }
 
+    console.log(`Found ${events.length} events for team ${teamId} on ${formattedDate}`);
+
     // Collect all unique booking IDs
     const bookingIds = [...new Set(events.map(event => event.booking_id).filter(Boolean))]
+    console.log(`Found ${bookingIds.length} unique bookings for these events`);
 
     // Step 3: Fetch detailed booking information for all events
     const bookingDetails = []
@@ -153,21 +172,28 @@ serve(async (req) => {
       })
     }
 
-    // Return the complete staff assignment information
+    // Return the complete staff assignment information with cache control headers
     return new Response(
       JSON.stringify({
         staffId,
         date: formattedDate,
         teamId,
         bookings: bookingDetails,
-        eventsCount: events.length
+        eventsCount: events.length,
+        timestamp: new Date().toISOString() // Add timestamp for debugging
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, max-age=0' // Prevent caching
+        } 
+      }
     )
   } catch (error) {
     console.error('Error processing request:', error)
     return new Response(
-      JSON.stringify({ error: 'Internal Server Error' }),
+      JSON.stringify({ error: 'Internal Server Error', details: error.message }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     )
   }
