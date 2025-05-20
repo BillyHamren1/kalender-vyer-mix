@@ -23,9 +23,11 @@ import {
   fetchConfirmedBookings 
 } from '@/services/bookingService';
 import { toast } from 'sonner';
-import { RefreshCcw, Search, CalendarDays, AlertTriangle } from 'lucide-react';
+import { RefreshCcw, Search, CalendarDays, AlertTriangle, Filter } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import StatusBadge from '@/components/booking/StatusBadge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const BookingList = () => {
   const navigate = useNavigate();
@@ -39,6 +41,11 @@ const BookingList = () => {
   const [showPlannedBookings, setShowPlannedBookings] = useState(false);
   const [plannedBookings, setPlannedBookings] = useState<Booking[]>([]);
   const [isLoadingPlanned, setIsLoadingPlanned] = useState(false);
+  
+  // New state for planned bookings filters
+  const [plannedDaysAhead, setPlannedDaysAhead] = useState<number>(30);
+  const [plannedStatusFilter, setPlannedStatusFilter] = useState<string>("confirmed");
+  const [includeTodayBookings, setIncludeTodayBookings] = useState<boolean>(true);
   
   // Function to load bookings - now loads ALL bookings, not just confirmed ones
   const loadBookings = async () => {
@@ -57,12 +64,66 @@ const BookingList = () => {
     }
   };
   
-  // Function to load upcoming bookings - always loads confirmed bookings with case-insensitive handling
+  // Updated function to load planned bookings with custom filters
   const loadPlannedBookings = async () => {
     try {
       setIsLoadingPlanned(true);
-      const data = await fetchUpcomingBookings(15, true); // Only confirmed bookings for planned view
-      setPlannedBookings(data);
+      
+      // Calculate date range based on user preferences
+      const today = new Date();
+      let startDate = new Date(today);
+      
+      // Set hours to start of day to ensure proper comparison
+      startDate.setHours(0, 0, 0, 0);
+      
+      // If not including today, add 1 day to start date
+      if (!includeTodayBookings) {
+        startDate.setDate(startDate.getDate() + 1);
+      }
+      
+      // Convert to ISO string and extract the date part (YYYY-MM-DD)
+      const startDateString = startDate.toISOString().split('T')[0];
+      
+      // Fetch all bookings - we'll filter them client-side based on user preferences
+      const allBookings = await fetchBookings();
+      
+      // Apply filters
+      const filtered = allBookings.filter(booking => {
+        // Date filter - check if event date is after or equal to start date
+        // and within the specified days ahead range
+        if (booking.eventDate) {
+          const eventDate = new Date(booking.eventDate);
+          eventDate.setHours(0, 0, 0, 0);
+          
+          // Calculate end date based on days ahead
+          const endDate = new Date(startDate);
+          endDate.setDate(endDate.getDate() + plannedDaysAhead);
+          
+          const isInDateRange = eventDate >= startDate && eventDate <= endDate;
+          if (!isInDateRange) return false;
+        } else {
+          // Skip bookings without event date
+          return false;
+        }
+        
+        // Status filter
+        if (plannedStatusFilter) {
+          const bookingStatus = booking.status?.toLowerCase() || '';
+          // If status filter is "all", show all bookings, otherwise filter by status
+          if (plannedStatusFilter !== "all" && bookingStatus !== plannedStatusFilter.toLowerCase()) {
+            return false;
+          }
+        }
+        
+        return true;
+      });
+      
+      // Sort by event date ascending
+      const sorted = [...filtered].sort((a, b) => {
+        return new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime();
+      });
+      
+      setPlannedBookings(sorted);
       setShowPlannedBookings(true);
     } catch (error) {
       console.error('Failed to load planned bookings:', error);
@@ -229,15 +290,80 @@ const BookingList = () => {
           </Alert>
         )}
 
-        {/* Planned Bookings Section */}
+        {/* Planned Bookings Section with Filtering Controls */}
         {showPlannedBookings && (
           <div className="mb-8">
-            <div className="flex items-center mb-4">
-              <h2 className="text-xl font-semibold text-[#2d3748]">Planned Bookings</h2>
-              <Badge className="ml-2 bg-[#4299E1] hover:bg-[#3182CE]">
-                {plannedBookings.length}
-              </Badge>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <h2 className="text-xl font-semibold text-[#2d3748]">Planned Bookings</h2>
+                <Badge className="ml-2 bg-[#4299E1] hover:bg-[#3182CE]">
+                  {plannedBookings.length}
+                </Badge>
+              </div>
+              
+              {/* Filter controls for planned bookings */}
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-600">Status:</span>
+                  <Select value={plannedStatusFilter} onValueChange={setPlannedStatusFilter}>
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="confirmed">Confirmed</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="offer">Offer</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-600">Days ahead:</span>
+                  <Select 
+                    value={plannedDaysAhead.toString()} 
+                    onValueChange={(value) => setPlannedDaysAhead(parseInt(value))}
+                  >
+                    <SelectTrigger className="w-[100px]">
+                      <SelectValue placeholder="Days" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="7">7 days</SelectItem>
+                      <SelectItem value="14">14 days</SelectItem>
+                      <SelectItem value="30">30 days</SelectItem>
+                      <SelectItem value="60">60 days</SelectItem>
+                      <SelectItem value="90">90 days</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="includeTodayBookings" 
+                    checked={includeTodayBookings}
+                    onCheckedChange={(checked) => setIncludeTodayBookings(checked as boolean)}
+                  />
+                  <label 
+                    htmlFor="includeTodayBookings" 
+                    className="text-sm text-gray-600 cursor-pointer"
+                  >
+                    Include today
+                  </label>
+                </div>
+                
+                <Button 
+                  onClick={loadPlannedBookings} 
+                  size="sm" 
+                  variant="outline" 
+                  className="flex items-center gap-1"
+                >
+                  <Filter className="h-3 w-3" />
+                  Apply
+                </Button>
+              </div>
             </div>
+            
             {isLoadingPlanned ? (
               <div className="flex justify-center items-center p-8">
                 <p className="text-gray-500">Loading planned bookings...</p>
@@ -279,7 +405,7 @@ const BookingList = () => {
               ) : (
                 <Card className="p-8 text-center border-0 shadow-md rounded-lg">
                   <p className="text-gray-500">
-                    No upcoming confirmed bookings found.
+                    No bookings found matching your filter criteria.
                   </p>
                 </Card>
               )

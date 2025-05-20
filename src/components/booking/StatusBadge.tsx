@@ -29,39 +29,39 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({
   // Handle different status values with case-insensitive comparisons
   switch (normalizedStatus) {
     case 'CONFIRMED':
-      badgeClasses = 'bg-[#7BAEBF] hover:bg-[#6E9DAC]'; // Using the teal color from theme.css
+      badgeClasses = 'bg-[#7BAEBF] hover:bg-[#7BAEBF]'; // Using the teal color from theme.css
       statusText = 'Confirmed';
       icon = <CheckCircle className="h-3 w-3" />;
       break;
     case 'CANCELLED':
-      badgeClasses = 'bg-red-500 hover:bg-red-600';
+      badgeClasses = 'bg-red-500 hover:bg-red-500';
       statusText = 'Cancelled';
       icon = <XCircle className="h-3 w-3" />;
       break;
     case 'OFFER':
-      badgeClasses = 'bg-yellow-500 hover:bg-yellow-600';
+      badgeClasses = 'bg-yellow-500 hover:bg-yellow-500';
       statusText = 'Offer';
       icon = <Clock className="h-3 w-3" />;
       break;
     case 'PENDING':
-      badgeClasses = 'bg-gray-400 hover:bg-gray-500';
+      badgeClasses = 'bg-gray-400 hover:bg-gray-400';
       statusText = 'Pending';
       icon = <Clock className="h-3 w-3" />;
       break;
     default:
       // If we get an unknown status, display it with warning styling
-      badgeClasses = 'bg-orange-400 hover:bg-orange-500';
+      badgeClasses = 'bg-orange-400 hover:bg-orange-400';
       statusText = status || 'Unknown';
       icon = <AlertTriangle className="h-3 w-3" />;
   }
 
   // Add indicator for new or updated status
   const indicator = isNew ? (
-    <Badge className="ml-1 px-1 py-0 text-[0.6rem] bg-blue-500 hover:bg-blue-600">
+    <Badge className="ml-1 px-1 py-0 text-[0.6rem] bg-blue-500 hover:bg-blue-500">
       New
     </Badge>
   ) : isUpdated ? (
-    <Badge className="ml-1 px-1 py-0 text-[0.6rem] bg-purple-500 hover:bg-purple-600">
+    <Badge className="ml-1 px-1 py-0 text-[0.6rem] bg-purple-500 hover:bg-purple-500">
       Updated
     </Badge>
   ) : null;
