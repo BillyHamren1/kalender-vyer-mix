@@ -70,7 +70,8 @@ export const useCalendarEventHandlers = (
       // Try multiple ways to get the resource ID as FullCalendar handles it differently depending on view
       const resourceId = info.event.getResources?.()?.[0]?.id || 
                          info.event._def?.resourceIds?.[0] || 
-                         info.newResource?.id;
+                         info.newResource?.id ||
+                         info.event.extendedProps?.resourceId;
       
       console.log('Resource ID for the moved event:', resourceId);
 

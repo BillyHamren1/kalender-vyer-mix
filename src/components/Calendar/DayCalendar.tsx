@@ -40,21 +40,30 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
   
   const handleEventChange = async (info: any) => {
     try {
+      // Get the resource ID in the correct format
       const resourceId = info.event.getResources?.()?.[0]?.id || 
                         info.event._def?.resourceIds?.[0] || 
                         info.event.extendedProps?.resourceId;
 
+      console.log('Event change detected:', info);
+      console.log('Resource ID for updated event:', resourceId);
+
       if (info.event.id) {
-        await updateCalendarEvent(info.event.id, {
+        // Prepare update data
+        const updateData = {
           start: info.event.start.toISOString(),
           end: info.event.end.toISOString(),
           resourceId: resourceId
+        };
+        
+        console.log('Updating event with data:', updateData);
+        
+        await updateCalendarEvent(info.event.id, updateData);
+
+        toast("Event updated", {
+          description: `Event time updated to ${info.event.start.toLocaleTimeString()}`,
         });
       }
-
-      toast("Event updated", {
-        description: `Event time updated to ${info.event.start.toLocaleTimeString()}`,
-      });
     } catch (error) {
       console.error('Error updating event:', error);
       toast.error('Failed to update event');
