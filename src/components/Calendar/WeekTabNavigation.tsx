@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface WeekTabNavigationProps {
   currentDate: Date;
@@ -33,39 +32,38 @@ const WeekTabNavigation: React.FC<WeekTabNavigationProps> = ({
   };
 
   return (
-    <div className="mb-4">
-      <div className="flex justify-between items-center mb-2">
-        <h3 className="text-sm font-medium text-gray-700">Week Navigation</h3>
+    <div className="mb-4 w-full">
+      <div className="grid grid-cols-7 w-full bg-gray-50 rounded-md">
+        {weekDays.map((day) => {
+          const dayHasEvents = hasEvents(day);
+          const isActive = isSameDay(day, currentDate);
+          const dayName = format(day, 'EEE', { locale: sv }).toLowerCase();
+          const dayDate = format(day, 'd/M');
+          
+          return (
+            <div
+              key={format(day, 'EEE-dd-MM', { locale: sv })}
+              onClick={() => onDayChange(day)}
+              className={`text-center py-2 cursor-pointer ${
+                isActive ? 'bg-blue-100' : 'hover:bg-gray-100'
+              }`}
+            >
+              <div className="flex flex-col items-center">
+                <span className={`text-xs font-medium ${isActive ? 'text-blue-600' : ''}`}>
+                  {dayName}
+                </span>
+                <span className={`text-xs ${isActive ? 'text-blue-600' : ''}`}>
+                  {dayDate}
+                </span>
+              </div>
+              
+              {dayHasEvents && (
+                <div className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-1 mx-auto" />
+              )}
+            </div>
+          );
+        })}
       </div>
-      
-      <Tabs defaultValue={format(currentDate, 'EEE-dd-MM', { locale: sv })} className="w-full">
-        <TabsList className="w-full">
-          {weekDays.map((day) => {
-            const dayHasEvents = hasEvents(day);
-            const isActive = isSameDay(day, currentDate);
-            
-            return (
-              <TabsTrigger
-                key={format(day, 'EEE-dd-MM', { locale: sv })}
-                value={format(day, 'EEE-dd-MM', { locale: sv })}
-                onClick={() => onDayChange(day)}
-                className="flex-1 flex flex-col items-center py-2"
-              >
-                <div className="flex flex-col items-center">
-                  <span>{format(day, 'EEE', { locale: sv })}</span>
-                  <span className={`text-xs ${isActive ? 'text-[#9b87f5]' : ''}`}>
-                    {format(day, 'd/M')}
-                  </span>
-                </div>
-                
-                {dayHasEvents && (
-                  <span className="w-1.5 h-1.5 bg-[#9b87f5] rounded-full mt-1" />
-                )}
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
-      </Tabs>
     </div>
   );
 };

@@ -50,8 +50,8 @@ const DayNavigation: React.FC<DayNavigationProps> = ({ currentDate }) => {
   const dates = generateDates();
   
   return (
-    <div className="w-full bg-gray-50 rounded-md mb-3 overflow-hidden">
-      <div className="flex justify-between">
+    <div className="w-full bg-gray-50 rounded-md mb-3">
+      <div className="grid grid-cols-7 w-full">
         {dates.map((date, index) => {
           const isActive = isCurrentDate(date);
           
@@ -59,7 +59,7 @@ const DayNavigation: React.FC<DayNavigationProps> = ({ currentDate }) => {
             <div 
               key={index}
               onClick={() => goToDate(date)}
-              className={`flex-1 flex flex-col items-center py-2 cursor-pointer ${
+              className={`text-center py-2 cursor-pointer ${
                 isActive ? 'bg-blue-100' : 'hover:bg-gray-100'
               }`}
             >
@@ -71,7 +71,7 @@ const DayNavigation: React.FC<DayNavigationProps> = ({ currentDate }) => {
               </div>
               
               {isActive && (
-                <div className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-1" />
+                <div className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-1 mx-auto" />
               )}
             </div>
           );

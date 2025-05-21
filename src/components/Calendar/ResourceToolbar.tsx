@@ -29,7 +29,7 @@ const ResourceToolbar: React.FC<ResourceToolbarProps> = ({
 
   return (
     <div className="space-y-4 mb-4">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center justify-start gap-3 mb-4">
         <Button 
           onClick={onRefresh} 
           variant="outline" 
@@ -49,9 +49,8 @@ const ResourceToolbar: React.FC<ResourceToolbarProps> = ({
         />
       </div>
       
-      <div className="w-full">
-        <DayNavigation currentDate={currentDate} />
-      </div>
+      {/* Full width day navigation */}
+      <DayNavigation currentDate={currentDate} />
     </div>
   );
 };
