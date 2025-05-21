@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -15,7 +14,6 @@ import ResourceHeader from '@/components/Calendar/ResourceHeader';
 import ResourceLayout from '@/components/Calendar/ResourceLayout';
 import ResourceToolbar from '@/components/Calendar/ResourceToolbar';
 import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
-import { fetchAllStaffBookings } from '@/services/staffAssignmentService';
 
 const ResourceView = () => {
   // Use our custom hooks to manage state and logic

@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { Resource } from './ResourceData';
 
 interface ResourceLayoutProps {
   children: React.ReactNode;
@@ -23,23 +22,23 @@ const ResourceLayout: React.FC<ResourceLayoutProps> = ({
     <div className="min-h-screen bg-gray-50">
       <div className={`container mx-auto pt-2 ${isMobile ? 'px-2' : ''}`} style={{ maxWidth: isMobile ? '100%' : '94%' }}>
         <div className={`bg-white rounded-lg shadow-md mb-4 ${isMobile ? 'p-2' : 'p-3'}`}>
-          {/* Children contains header and navigation */}
-          {children}
-
-          {/* Always use grid layout for side-by-side display regardless of screen size */}
-          <div className="grid" 
-               style={{ gridTemplateColumns: '200px 1fr', gap: '1rem' }}>
-            
+          {/* Header content */}
+          <div className="mb-4">
+            {children}
+          </div>
+          
+          {/* Layout container with staff on left and calendar on right */}
+          <div className="grid grid-cols-[200px_1fr] gap-4">
             {/* Left column: Available Staff Display */}
             {showStaffDisplay && (
-              <div style={{ marginTop: '39px' }}>
+              <div>
                 {staffDisplay}
               </div>
             )}
             
-            {/* Right column: Calendar */}
+            {/* Right column: Calendar (hidden in this component but rendered by parent) */}
             <div className="flex-grow">
-              {/* Calendar will be rendered here */}
+              {/* Calendar is rendered here by the parent component */}
             </div>
           </div>
         </div>
