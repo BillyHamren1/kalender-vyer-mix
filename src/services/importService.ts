@@ -39,18 +39,18 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
       duration: 3000,
     });
     
-    // Call the Supabase Edge Function with a timeout
+    // Create an AbortController for timeout handling
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
     
     try {
       // Call the Supabase Edge Function
+      // Remove the 'signal' property as it doesn't exist in FunctionInvokeOptions
       const { data: resultData, error: functionError } = await supabase.functions.invoke(
         'import-bookings',
         {
           method: 'POST',
-          body: filters,
-          signal: controller.signal
+          body: filters
         }
       );
 
@@ -119,18 +119,18 @@ export const quietImportBookings = async (filters: ImportFilters = {}): Promise<
   try {
     console.log('Starting quietImportBookings');
     
-    // Call the Supabase Edge Function with a timeout
+    // Create an AbortController for timeout handling
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout for background imports
     
     try {
       // Call the Supabase Edge Function with quiet parameter
+      // Remove the 'signal' property as it doesn't exist in FunctionInvokeOptions
       const { data: resultData, error: functionError } = await supabase.functions.invoke(
         'import-bookings',
         {
           method: 'POST',
-          body: { ...filters, quiet: true },
-          signal: controller.signal
+          body: { ...filters, quiet: true }
         }
       );
 
