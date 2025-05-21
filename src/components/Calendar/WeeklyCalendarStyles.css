@@ -15,7 +15,7 @@
 }
 
 .day-calendar-wrapper {
-  min-width: 400px;
+  min-width: 480px; /* Increased from 400px to 480px (20% more) */
   flex: 1;
   border-right: 1px solid #e5e7eb;
 }
