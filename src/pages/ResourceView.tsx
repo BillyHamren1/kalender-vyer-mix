@@ -42,11 +42,23 @@ const ResourceView = () => {
   const isMobile = useIsMobile();
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
   
-  // Prevent any automatic event duplication by immediately setting the setup flag
+  // Ensure events duplication prevention is always active
   useEffect(() => {
-    // Make sure this is always set to true to prevent any automatic event movement
+    // This prevents any automatic event duplication by always setting the flag to true
     localStorage.setItem('eventsSetupDone', 'true');
-  }, []);
+    
+    // Clean up any potential duplicate events
+    const cleanupDuplicateEvents = async () => {
+      try {
+        // Force a refresh to get the latest events and remove duplicates
+        await refreshEvents();
+      } catch (error) {
+        console.error('Error cleaning up duplicate events:', error);
+      }
+    };
+    
+    cleanupDuplicateEvents();
+  }, [refreshEvents]);
 
   // Handle staff drop for assignment
   const handleStaffDrop = async (staffId: string, resourceId: string | null) => {

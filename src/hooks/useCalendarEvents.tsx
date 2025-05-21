@@ -13,6 +13,7 @@ export const useCalendarEvents = () => {
   const pollIntervalRef = useRef<number | null>(null);
   const activeRef = useRef(true);
   const lastUpdateRef = useRef<Date | null>(null);
+  const eventIdsSet = useRef(new Set<string>());
 
   // Initialize currentDate from context, sessionStorage, or default to today
   const [currentDate, setCurrentDate] = useState<Date>(() => {
@@ -43,8 +44,11 @@ export const useCalendarEvents = () => {
         // Log event types to help with debugging
         console.log('Event types:', data.map(event => event.eventType));
         
+        // Deduplicate events based on ID
+        const uniqueEvents = removeDuplicateEvents(data);
+        
         // Update the events state
-        setEvents(data);
+        setEvents(uniqueEvents);
         
         // Update the last update timestamp
         lastUpdateRef.current = new Date();
@@ -62,9 +66,38 @@ export const useCalendarEvents = () => {
     }
   }, []);
 
+  // Function to remove duplicate events
+  const removeDuplicateEvents = (events: CalendarEvent[]): CalendarEvent[] => {
+    const uniqueEventsMap = new Map<string, CalendarEvent>();
+    const seenEventIds = new Set<string>();
+    
+    // First, process non-team-6 events (they have priority)
+    events
+      .filter(event => event.resourceId !== 'team-6')
+      .forEach(event => {
+        uniqueEventsMap.set(event.id, event);
+        seenEventIds.add(event.id);
+      });
+    
+    // Then, only add team-6 events if they don't already exist in another team
+    events
+      .filter(event => event.resourceId === 'team-6')
+      .forEach(event => {
+        if (!seenEventIds.has(event.id)) {
+          uniqueEventsMap.set(event.id, event);
+          seenEventIds.add(event.id);
+        }
+      });
+    
+    return Array.from(uniqueEventsMap.values());
+  };
+
   // Fetch events initially and set up polling for updates
   useEffect(() => {
     activeRef.current = true;
+    
+    // Set the eventsSetupDone flag immediately to prevent duplication
+    localStorage.setItem('eventsSetupDone', 'true');
 
     // Initial load
     loadEvents(true);
