@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
 import { Copy } from 'lucide-react';
@@ -9,31 +8,24 @@ interface RenderEventContentProps {
 }
 
 export const renderEventContent = (eventInfo: any) => {
-  const isTeam6Event = eventInfo.event.getResources()[0]?.id === 'team-6';
-  const isModifiedDisplay = eventInfo.event.extendedProps?.isModifiedDisplay;
+  // Get the event details
+  const eventTitle = eventInfo.event.title;
+  const eventTime = eventInfo.timeText;
+  const bookingId = eventInfo.event.extendedProps?.bookingId || '';
+  const deliveryAddress = eventInfo.event.extendedProps?.deliveryAddress || 'No address';
   
-  // If it's a team-6 event with modified display, format it specially with three lines
-  if (isTeam6Event && isModifiedDisplay) {
-    const clientName = eventInfo.event.title;
-    const bookingId = eventInfo.event.extendedProps?.bookingId || 'No ID';
-    
-    // Get the delivery address from extendedProps or from the booking data if available
-    const deliveryAddress = eventInfo.event.extendedProps?.deliveryAddress || 'No address provided';
-    
-    return (
-      <div className="stacked-event-content">
-        <div className="event-client-name">{clientName}</div>
-        <div className="event-booking-id">ID: {bookingId}</div>
-        <div className="event-delivery-address">{deliveryAddress}</div>
-      </div>
-    );
-  }
+  // Extract the client name (remove the booking ID if it's in the title)
+  const clientName = eventTitle.includes(':') 
+    ? eventTitle.split(':')[1].trim() 
+    : eventTitle;
   
-  // Default rendering for regular events
+  // Display the four-row format for all events
   return (
-    <div>
-      <div className="fc-event-time">{eventInfo.timeText}</div>
-      <div className="fc-event-title">{eventInfo.event.title}</div>
+    <div className="event-content-wrapper">
+      <div className="event-time font-semibold">{eventTime}</div>
+      <div className="event-client-name text-sm truncate">{clientName}</div>
+      <div className="event-booking-id text-xs opacity-80 truncate">ID: {bookingId}</div>
+      <div className="event-delivery-address text-xs truncate">{deliveryAddress}</div>
     </div>
   );
 };

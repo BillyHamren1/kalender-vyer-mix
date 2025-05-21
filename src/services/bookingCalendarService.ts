@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { findAvailableTeam } from "./teamService";
 
@@ -8,7 +7,8 @@ export const syncBookingEvents = async (
   eventType: 'rig' | 'event' | 'rigDown',
   date: string | string[],
   resourceId: string = 'auto',
-  client: string
+  client: string,
+  deliveryAddress?: string
 ): Promise<string | string[]> => {
   // Convert single date to array for consistent handling
   const dates = Array.isArray(date) ? date : [date];
@@ -47,7 +47,8 @@ export const syncBookingEvents = async (
       end_time: endDate.toISOString(),
       title: title,
       event_type: eventType,
-      booking_id: bookingId
+      booking_id: bookingId,
+      delivery_address: deliveryAddress || null
     };
 
     console.log(`Creating/updating calendar event for ${singleDate}:`, eventData);
@@ -201,21 +202,26 @@ export const resyncBookingToCalendar = async (bookingId: string): Promise<boolea
     // Create events for each date type if available
     let eventsCreated = 0;
     
+    // Format the delivery address for the event
+    const deliveryAddress = booking.deliveryAddress 
+      ? `${booking.deliveryAddress}, ${booking.deliveryCity || ''} ${booking.deliveryPostalCode || ''}`
+      : 'No address provided';
+    
     // Rig day dates
     if (booking.rigdaydate) {
-      await syncBookingEvents(bookingId, 'rig', booking.rigdaydate, 'auto', booking.client);
+      await syncBookingEvents(bookingId, 'rig', booking.rigdaydate, 'auto', booking.client, deliveryAddress);
       eventsCreated++;
     }
     
     // Event dates
     if (booking.eventdate) {
-      await syncBookingEvents(bookingId, 'event', booking.eventdate, 'auto', booking.client);
+      await syncBookingEvents(bookingId, 'event', booking.eventdate, 'auto', booking.client, deliveryAddress);
       eventsCreated++;
     }
     
     // Rig down dates
     if (booking.rigdowndate) {
-      await syncBookingEvents(bookingId, 'rigDown', booking.rigdowndate, 'auto', booking.client);
+      await syncBookingEvents(bookingId, 'rigDown', booking.rigdowndate, 'auto', booking.client, deliveryAddress);
       eventsCreated++;
     }
     
