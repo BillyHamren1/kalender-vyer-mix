@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 
 interface ConfirmationDialogProps {
   title: string;
-  description: string;
+  description: React.ReactNode; // Changed from string to ReactNode to accept JSX elements
   confirmLabel?: string;
   cancelLabel?: string;
   onConfirm: () => void;

@@ -115,8 +115,8 @@ const BookingDetail = () => {
         
         {booking ? (
           <div className="space-y-6">
-            {/* Client Information */}
-            <ClientInformation client={booking.client} />
+            {/* Client Information - Pass the entire booking object instead of just client */}
+            <ClientInformation booking={booking} onBookingUpdated={loadBookingData} />
 
             {/* Delivery Address */}
             <DeliveryAddressForm
