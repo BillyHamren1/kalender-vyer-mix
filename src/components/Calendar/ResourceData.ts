@@ -1,6 +1,6 @@
 
 // Change import to fix the EventInput import error
-import type { EventImpl } from '@fullcalendar/core';
+import type { EventApi } from '@fullcalendar/core';
 
 // Define the structure for resources (teams)
 export interface Resource {
