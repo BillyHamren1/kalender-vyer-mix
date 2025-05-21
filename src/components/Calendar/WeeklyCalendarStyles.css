@@ -254,24 +254,3 @@
   min-width: 180px !important; /* 20% wider than default */
   width: 180px !important;
 }
-
-/* Additional fix for weekly resource containers - make each day container 20% wider */
-.weekly-view-calendar {
-  min-width: 480px !important; /* 20% wider than the previous value */
-  width: 100%;
-}
-
-/* Ensure internal calendar components within each day respect the wider width */
-.weekly-view-calendar .fc-view-harness,
-.weekly-view-calendar .fc-scrollgrid,
-.weekly-view-calendar .fc-scrollgrid-sync-table {
-  min-width: 100% !important;
-  width: 100% !important;
-}
-
-/* Force each cell in weekly view to be wider */
-.weekly-view-calendar .fc-timegrid-axis,
-.weekly-view-calendar .fc-timegrid-slot,
-.weekly-view-calendar .fc-col-header-cell {
-  min-width: 180px !important; /* 20% wider than default */
-}
