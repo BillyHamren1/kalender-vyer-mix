@@ -52,20 +52,27 @@ const processTeam6Events = (events: CalendarEvent[]) => {
     // Get the delivery address from the event's deliveryAddress or use default message
     const deliveryAddress = event.deliveryAddress || 'No address provided';
     
-    return {
+    // Create a new object with proper typing
+    const result: CalendarEvent = {
       ...event,
       start: start.toISOString(),
       end: end.toISOString(),
-      extendedProps: {
-        ...event,
-        originalStart,
-        originalEnd,
-        isModifiedDisplay: true, // Flag to indicate this event's display time was modified
-        clientName: event.title, // Store client name separately
-        bookingId: event.bookingId || 'No ID', // Store booking ID
-        deliveryAddress: deliveryAddress // Store delivery address from event or use a default
-      }
+      originalStart,
+      originalEnd,
+      isModifiedDisplay: true
     };
+    
+    // Add extendedProps as a separate property
+    result.extendedProps = {
+      originalStart,
+      originalEnd,
+      isModifiedDisplay: true,
+      clientName: event.title,
+      bookingId: event.bookingId || 'No ID',
+      deliveryAddress: deliveryAddress
+    };
+    
+    return result;
   });
 };
 
@@ -121,16 +128,21 @@ const stackTeamEvents = (teamEvents: CalendarEvent[]) => {
       const end = new Date(start);
       end.setHours(start.getHours() + 4); // Make event 4 hours long
       
-      processedEvents.push({
+      const processedEvent: CalendarEvent = {
         ...event,
         end: end.toISOString(),
-        extendedProps: {
-          ...event,
-          originalStart: event.start,
-          originalEnd: event.end,
-          isModifiedDisplay: true
-        }
-      });
+        originalStart: event.start,
+        originalEnd: event.end,
+        isModifiedDisplay: true
+      };
+      
+      processedEvent.extendedProps = {
+        originalStart: event.start,
+        originalEnd: event.end,
+        isModifiedDisplay: true
+      };
+      
+      processedEvents.push(processedEvent);
     } else {
       // Multiple overlapping events, stack them
       group.forEach((event, index) => {
@@ -141,17 +153,22 @@ const stackTeamEvents = (teamEvents: CalendarEvent[]) => {
         const end = new Date(baseStart);
         end.setHours(baseStart.getHours() + 4); // Make each event 4 hours long
         
-        processedEvents.push({
+        const processedEvent: CalendarEvent = {
           ...event,
           start: baseStart.toISOString(),
           end: end.toISOString(),
-          extendedProps: {
-            ...event,
-            originalStart: event.start,
-            originalEnd: event.end,
-            isModifiedDisplay: true
-          }
-        });
+          originalStart: event.start,
+          originalEnd: event.end,
+          isModifiedDisplay: true
+        };
+        
+        processedEvent.extendedProps = {
+          originalStart: event.start,
+          originalEnd: event.end,
+          isModifiedDisplay: true
+        };
+        
+        processedEvents.push(processedEvent);
       });
     }
   });
@@ -218,19 +235,24 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]) =>
     // Get delivery address from booking if available
     const deliveryAddress = event.deliveryAddress || 'No address provided';
     
-    return {
+    const styledEvent: CalendarEvent = {
       ...event,
-      backgroundColor: backgroundColor,
-      borderColor: backgroundColor,
-      textColor: '#000000e6', // Black text for all events
-      classNames: [`event-${event.eventType || 'default'}`],
-      extendedProps: {
-        ...event.extendedProps || {},
-        dataEventType: event.eventType, // Add as data attribute
-        deliveryAddress: deliveryAddress, // Ensure deliveryAddress is available
-        originalResourceId: event.resourceId // Store the original resource ID
-      }
+      color: backgroundColor
     };
+    
+    // Set extendedProps correctly
+    styledEvent.extendedProps = {
+      ...(event.extendedProps || {}),
+      dataEventType: event.eventType,
+      deliveryAddress: deliveryAddress,
+      originalResourceId: event.resourceId,
+      backgroundColor,
+      borderColor: backgroundColor,
+      textColor: '#000000e6',
+      classNames: [`event-${event.eventType || 'default'}`]
+    };
+    
+    return styledEvent;
   });
   
   // Then process and stack team-6 events
@@ -242,17 +264,22 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]) =>
     
     const backgroundColor = getEventColor(event.eventType);
     
-    return {
+    const styledEvent: CalendarEvent = {
       ...event,
-      backgroundColor: backgroundColor,
+      color: backgroundColor
+    };
+    
+    // Ensure extendedProps is properly set
+    styledEvent.extendedProps = {
+      ...(event.extendedProps || {}),
+      originalResourceId: event.resourceId,
+      backgroundColor,
       borderColor: backgroundColor,
       textColor: '#000000e6',
-      classNames: [`event-${event.eventType || 'default'}`, 'stacked-event'],
-      extendedProps: {
-        ...event.extendedProps,
-        originalResourceId: event.resourceId // Store the original resource ID
-      }
+      classNames: [`event-${event.eventType || 'default'}`, 'stacked-event']
     };
+    
+    return styledEvent;
   });
   
   // Combine both sets of events

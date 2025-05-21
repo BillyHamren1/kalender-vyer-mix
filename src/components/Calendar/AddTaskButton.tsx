@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -93,7 +94,7 @@ const AddTaskButton: React.FC<AddTaskButtonProps> = ({ resources, onTaskAdd, cur
         start: createISODateString(startDate, startTime),
         end: createISODateString(endDate, endTime),
         eventType: 'rig', // New event type for tasks
-        customer: taskDescription // Store description in customer field
+        deliveryAddress: taskDescription // Store description as deliveryAddress instead of customer
       };
       
       // Add the task to the calendar

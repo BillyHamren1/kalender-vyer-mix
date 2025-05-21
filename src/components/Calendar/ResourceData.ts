@@ -1,4 +1,6 @@
-import { EventInput } from '@fullcalendar/react';
+
+// Change import to fix the EventInput import error
+import type { EventImpl } from '@fullcalendar/core';
 
 // Define the structure for resources (teams)
 export interface Resource {
@@ -37,15 +39,18 @@ export interface CalendarEvent {
   color?: string;
   bookingId?: string;
   deliveryAddress?: string;
+  customer?: string; // Add the missing customer property
   // Additional fields for event processing
   originalStart?: string;
   originalEnd?: string;
   isModifiedDisplay?: boolean;
   originalResourceId?: string;
+  // Add extendedProps for FullCalendar compatibility
+  extendedProps?: Record<string, any>;
 }
 
 // Type guard to check if an object is a CalendarEvent
-export const isCalendarEvent = (event: EventInput): event is CalendarEvent => {
+export const isCalendarEvent = (event: any): event is CalendarEvent => {
   return (
     typeof event === 'object' &&
     event !== null &&
@@ -55,4 +60,25 @@ export const isCalendarEvent = (event: EventInput): event is CalendarEvent => {
     'end' in event &&
     'title' in event
   );
+};
+
+// Add the missing storage functions
+export const saveResourcesToStorage = (resources: Resource[]): void => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('calendarResources', JSON.stringify(resources));
+  }
+};
+
+export const loadResourcesFromStorage = (): Resource[] => {
+  if (typeof window !== 'undefined') {
+    const storedResources = localStorage.getItem('calendarResources');
+    if (storedResources) {
+      try {
+        return JSON.parse(storedResources);
+      } catch (error) {
+        console.error('Error parsing stored resources:', error);
+      }
+    }
+  }
+  return [];
 };
