@@ -71,11 +71,11 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
                   height: 'auto',
                   headerToolbar: false, // Hide the header to save space
                   allDaySlot: false,    // Hide all-day slot to save space
-                  initialView: 'resourceTimeGridDay',
-                  dayMinWidth: 520,
-                  contentHeight: 'auto', // Ensure content fits properly
-                  resourceAreaWidth: '15%', // Narrow resource area
-                  slotMinWidth: 'auto', // Allow slots to shrink
+                  initialView: 'timeGrid', // Changed from resourceTimeGridDay to timeGrid
+                  dayHeaderFormat: { weekday: 'short' }, // Add compact day header
+                  slotDuration: '01:00:00', // 1-hour slots
+                  contentHeight: 'auto',
+                  resourceAreaWidth: '15%'
                 }}
               />
             </div>

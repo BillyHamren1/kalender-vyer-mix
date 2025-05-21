@@ -18,6 +18,7 @@
     "@fullcalendar/resource": "^6.1.17",
     "@fullcalendar/resource-timegrid": "^6.1.17",
     "@fullcalendar/resource-timeline": "^6.1.17",
+    "@fullcalendar/scrollgrid": "^6.1.17",
     "@fullcalendar/timegrid": "^6.1.17",
     "@fullcalendar/timeline": "^6.1.17",
     "@hookform/resolvers": "^3.9.0",
