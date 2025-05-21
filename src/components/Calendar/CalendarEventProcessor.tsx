@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
 
@@ -7,24 +6,30 @@ interface CalendarEventProcessorProps {
   resources: Resource[];
 }
 
-// Function to stack and arrange team-6 events with 2-hour durations and 1-hour gaps
+// Function to stack and arrange team-6 events with 2-hour durations and stacked from bottom up
 const processTeam6Events = (events: CalendarEvent[]) => {
   // Get only events for team-6
   const team6Events = events.filter(event => event.resourceId === 'team-6');
   
   // Sort events by booking ID to keep related bookings together
+  // and then by start time within the same booking ID
   const sortedEvents = [...team6Events].sort((a, b) => {
+    // First sort by booking ID
     if (a.bookingId && b.bookingId) {
-      return a.bookingId.localeCompare(b.bookingId);
+      if (a.bookingId !== b.bookingId) {
+        return a.bookingId.localeCompare(b.bookingId);
+      }
     }
-    return a.title.localeCompare(b.title);
+    
+    // Then sort by original start time within same booking ID
+    const aStartDate = new Date(a.start);
+    const bStartDate = new Date(b.start);
+    return aStartDate.getTime() - bStartDate.getTime();
   });
   
-  // Define standard start positions (hours from midnight) with 1-hour gaps
-  const startPositions = [5, 8, 11, 14, 17, 20];
-  
-  // Map booking IDs to deduplicate events
-  const processedBookingIds = new Set<string>();
+  // Define start positions (hours from midnight) ordered from BOTTOM TO TOP
+  // This creates a stacked appearance from the bottom of the day upward
+  const startPositions = [20, 17, 14, 11, 8, 5]; // Reversed order to stack from bottom up
   
   // Set fixed time slots for each event, using 2-hour slots
   return sortedEvents.map((event, index) => {
@@ -32,7 +37,7 @@ const processTeam6Events = (events: CalendarEvent[]) => {
     const originalStart = event.start;
     const originalEnd = event.end;
 
-    // Calculate which start time to use
+    // Calculate which start time to use - from the bottom up
     const position = index % startPositions.length;
     
     // Create the current date at the specified hour
