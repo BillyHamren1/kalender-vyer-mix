@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { assignStaffToTeam, removeStaffAssignment } from '@/services/staffService';
+import { moveEventsToTeam } from '@/services/teamService';
 import ResourceHeader from '@/components/Calendar/ResourceHeader';
 import ResourceLayout from '@/components/Calendar/ResourceLayout';
 import ResourceToolbar from '@/components/Calendar/ResourceToolbar';
