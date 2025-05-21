@@ -19,7 +19,7 @@ const CancelledBookingDialog: React.FC<CancelledBookingDialogProps> = ({
     <ConfirmationDialog
       title="Delete Cancelled Booking"
       description={
-        <>
+        <div>
           <div className="flex items-center gap-2 mb-2 text-amber-600">
             <AlertTriangle className="h-5 w-5" />
             <span className="font-semibold">Warning: This action cannot be undone</span>
@@ -31,7 +31,7 @@ const CancelledBookingDialog: React.FC<CancelledBookingDialogProps> = ({
           <p className="mt-2">
             Marking it as viewed will permanently delete this booking and all its related data from the database.
           </p>
-        </>
+        </div>
       }
       confirmLabel="Delete Booking"
       cancelLabel="Keep for Now"

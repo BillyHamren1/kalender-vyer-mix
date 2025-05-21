@@ -7,7 +7,7 @@ import { useBookingDetail } from '@/hooks/useBookingDetail';
 import { Button } from '@/components/ui/button';
 
 // Import refactored components
-import { ClientInformation } from '@/components/booking/ClientInformation';
+import ClientInformation from '@/components/booking/ClientInformation';
 import { DeliveryAddressForm } from '@/components/booking/DeliveryAddressForm';
 import { LogisticsOptionsForm } from '@/components/booking/LogisticsOptionsForm';
 import { ScheduleCard } from '@/components/booking/ScheduleCard';

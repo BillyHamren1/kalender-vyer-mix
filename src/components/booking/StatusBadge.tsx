@@ -12,20 +12,24 @@ import { toast } from 'sonner';
 import { markBookingAsViewed } from '@/services/bookingService';
 import CancelledBookingDialog from './CancelledBookingDialog';
 
-interface StatusBadgeProps {
+export interface StatusBadgeProps {
   status: string;
-  viewed: boolean;
-  bookingId: string;
-  clientName: string;
+  viewed?: boolean;
+  bookingId?: string;
+  clientName?: string;
   onStatusUpdate?: () => void;
+  isNew?: boolean;
+  isUpdated?: boolean;
 }
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ 
   status, 
-  viewed, 
-  bookingId,
-  clientName,
-  onStatusUpdate 
+  viewed = false, 
+  bookingId = '', 
+  clientName = '',
+  onStatusUpdate,
+  isNew,
+  isUpdated
 }) => {
   let color = 'bg-gray-500';
   let icon = <HelpCircle className="h-3.5 w-3.5 mr-1" />;
@@ -79,7 +83,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({
   return (
     <div className="flex items-center gap-2">
       <Badge 
-        className={`${color} text-white capitalize py-1`}
+        className={`${color} text-white capitalize py-1 ${isNew ? 'animate-pulse' : ''} ${isUpdated ? 'ring-2 ring-blue-300' : ''}`}
       >
         <div className="flex items-center">
           {icon}
@@ -87,7 +91,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({
         </div>
       </Badge>
       
-      {!viewed && (
+      {!viewed && bookingId && clientName && (
         statusLower === 'cancelled' ? (
           <CancelledBookingDialog 
             bookingId={bookingId}
