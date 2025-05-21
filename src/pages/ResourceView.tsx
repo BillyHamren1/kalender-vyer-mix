@@ -9,7 +9,6 @@ import { toast } from 'sonner';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { assignStaffToTeam, removeStaffAssignment } from '@/services/staffService';
-import { moveEventsToTeam } from '@/services/teamService';
 import ResourceHeader from '@/components/Calendar/ResourceHeader';
 import ResourceLayout from '@/components/Calendar/ResourceLayout';
 import ResourceToolbar from '@/components/Calendar/ResourceToolbar';
@@ -42,38 +41,16 @@ const ResourceView = () => {
   const isMobile = useIsMobile();
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
   
-  // Using useState with localStorage to track setup completion
-  const [setupDone, setSetupDone] = useState(() => {
-    return localStorage.getItem('eventsSetupDone') === 'true';
+  // IMPORTANT: Removing the automatic event movement logic that was causing duplicates
+  // We're keeping the setup flag but not running the code that creates duplicates
+  const [setupDone] = useState(() => {
+    return localStorage.getItem('eventsSetupDone') === 'true' || true;
   });
   
-  // Setup completed flag to prevent multiple setups
+  // Setting the flag in localStorage to prevent any future runs
   useEffect(() => {
-    if (resources.length > 0 && !setupDone && teamResources.some(r => r.id === 'team-6')) {
-      // Move all yellow events (event type = "event") to Team 6
-      const team6Id = 'team-6';
-      const moveYellowEvents = async () => {
-        try {
-          const movedCount = await moveEventsToTeam('event', team6Id);
-          if (movedCount > 0) {
-            toast.success(`Moved ${movedCount} events to "Todays events"`, {
-              description: "All yellow events have been moved to Team 6"
-            });
-            // Refresh to show the changes
-            refreshEvents();
-            
-            // Set the flag in localStorage to prevent running this again
-            localStorage.setItem('eventsSetupDone', 'true');
-            setSetupDone(true);
-          }
-        } catch (error) {
-          console.error('Error moving events:', error);
-        }
-      };
-      
-      moveYellowEvents();
-    }
-  }, [resources, setupDone, teamResources]);
+    localStorage.setItem('eventsSetupDone', 'true');
+  }, []);
 
   // Handle staff drop for assignment
   const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
