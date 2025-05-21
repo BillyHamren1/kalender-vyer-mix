@@ -48,15 +48,34 @@ export interface StaffSummary {
   }[];
 }
 
+// Helper function to get the staff API key
+const getStaffApiKey = async (): Promise<string> => {
+  try {
+    const { data, error } = await supabase.functions.invoke('get-api-key', {
+      body: { key_type: 'staff' }
+    });
+    
+    if (error) throw error;
+    return data.apiKey;
+  } catch (error) {
+    console.error('Error getting staff API key:', error);
+    throw error;
+  }
+};
+
 // Fetch a staff member's assignments and bookings for a specific date
 export const fetchStaffAssignment = async (staffId: string, date: Date): Promise<StaffAssignmentResponse> => {
   try {
     const formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+    const apiKey = await getStaffApiKey();
     
     const { data, error } = await supabase.functions.invoke('staff-assignments', {
       body: {
         staffId,
         date: formattedDate
+      },
+      headers: {
+        'x-api-key': apiKey
       }
     });
     

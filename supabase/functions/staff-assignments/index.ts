@@ -4,7 +4,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-api-key',
 }
 
 // Map team IDs to readable names
@@ -17,6 +17,14 @@ const teamNameMap: Record<string, string> = {
   'team-6': 'Today\'s Events'
 };
 
+// Function to validate the API key
+const validateApiKey = (apiKey: string | null): boolean => {
+  if (!apiKey) return false;
+  
+  const validApiKey = Deno.env.get('STAFF_API_KEY');
+  return apiKey === validApiKey;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -24,10 +32,19 @@ serve(async (req) => {
   }
 
   try {
-    // Create a Supabase client with the Auth context of the logged in user
+    // Validate API key from x-api-key header
+    const apiKey = req.headers.get('x-api-key');
+    if (!validateApiKey(apiKey)) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized. Invalid or missing API key.' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      )
+    }
+
+    // Create a Supabase client with the service role key
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '', // Use service role key for admin access
       {
         global: {
           headers: { Authorization: req.headers.get('Authorization')! },
