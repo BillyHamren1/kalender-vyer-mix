@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
 import { Copy } from 'lucide-react';
@@ -6,7 +5,6 @@ import { Copy } from 'lucide-react';
 export const renderEventContent = (eventInfo: any) => {
   // Get the event details
   const eventTitle = eventInfo.event.title;
-  const eventTime = eventInfo.timeText;
   const bookingId = eventInfo.event.extendedProps?.bookingId || '';
   
   // Get delivery address from event extendedProps or use default message
@@ -16,19 +14,31 @@ export const renderEventContent = (eventInfo: any) => {
   const clientName = eventTitle.includes(':') 
     ? eventTitle.split(':')[1].trim() 
     : eventTitle;
+    
+  // Extract street and city from delivery address
+  let street = '';
+  let city = '';
+  
+  if (deliveryAddress && deliveryAddress !== 'No address provided') {
+    const addressParts = deliveryAddress.split(',');
+    if (addressParts.length > 0) {
+      street = addressParts[0].trim();
+      
+      if (addressParts.length > 1) {
+        city = addressParts[1].trim();
+      }
+    }
+  }
 
   // Different rendering based on view type
   if (eventInfo.view.type === 'resourceTimelineWeek') {
     // More compact display for timeline view
     return (
       <div className="event-content-wrapper">
-        <div className="event-time font-semibold text-xs">{eventTime}</div>
-        <div className="event-client-name text-sm truncate">{clientName}</div>
+        <div className="event-client-name text-sm font-semibold truncate">{clientName}</div>
+        <div className="event-street text-xs truncate">{street}</div>
+        <div className="event-city text-xs truncate">{city}</div>
         <div className="event-booking-id text-xs opacity-80 truncate">ID: {bookingId}</div>
-        <div className="event-delivery-address text-xs break-words whitespace-normal" 
-             style={{ wordWrap: 'break-word', lineHeight: '1.1', maxHeight: '2.2em', overflow: 'hidden' }}>
-          {deliveryAddress}
-        </div>
       </div>
     );
   }
@@ -36,13 +46,10 @@ export const renderEventContent = (eventInfo: any) => {
   // Default display for other views
   return (
     <div className="event-content-wrapper">
-      <div className="event-time font-semibold">{eventTime}</div>
-      <div className="event-client-name text-sm truncate">{clientName}</div>
+      <div className="event-client-name text-sm font-semibold truncate">{clientName}</div>
+      <div className="event-street text-xs truncate">{street}</div>
+      <div className="event-city text-xs truncate">{city}</div>
       <div className="event-booking-id text-xs opacity-80 truncate">ID: {bookingId}</div>
-      <div className="event-delivery-address text-xs break-words whitespace-normal" 
-           style={{ wordWrap: 'break-word', lineHeight: '1.2' }}>
-        {deliveryAddress}
-      </div>
     </div>
   );
 };

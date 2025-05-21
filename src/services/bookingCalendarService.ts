@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { findAvailableTeam } from "./teamService";
 
@@ -42,51 +41,51 @@ export const syncBookingEvents = async (
     // Simplified title with no day text, just booking ID and client name
     const title = `${bookingId}: ${client}`;
     
-    // Prepare the data to be saved
-    const eventData = {
-      resource_id: teamId,
-      start_time: startDate.toISOString(),
-      end_time: endDate.toISOString(),
-      title: title,
-      event_type: eventType,
-      booking_id: bookingId,
-      delivery_address: deliveryAddress || null
-    };
+  // Prepare the data to be saved
+  const eventData = {
+    resource_id: teamId,
+    start_time: startDate.toISOString(),
+    end_time: endDate.toISOString(),
+    title: title,
+    event_type: eventType,
+    booking_id: bookingId,
+    delivery_address: deliveryAddress || null
+  };
 
-    console.log(`Creating/updating calendar event for ${singleDate}:`, eventData);
+  console.log(`Creating/updating calendar event for ${singleDate}:`, eventData);
 
-    if (existingEvents && existingEvents.length > 0) {
-      // Update existing event
-      const eventId = existingEvents[0].id;
-      const { error } = await supabase
-        .from('calendar_events')
-        .update(eventData)
-        .eq('id', eventId);
+  if (existingEvents && existingEvents.length > 0) {
+    // Update existing event
+    const eventId = existingEvents[0].id;
+    const { error } = await supabase
+      .from('calendar_events')
+      .update(eventData)
+      .eq('id', eventId);
         
-      if (error) {
-        console.error('Error updating calendar event:', error);
-        throw error;
-      }
-      
-      console.log("Updated existing calendar event with ID:", eventId);
-      eventIds.push(eventId);
-    } else {
-      // Create new event
-      const { data, error } = await supabase
-        .from('calendar_events')
-        .insert(eventData)
-        .select('id')
-        .single();
-
-      if (error) {
-        console.error('Error creating calendar event:', error);
-        throw error;
-      }
-
-      console.log("Created new calendar event with ID:", data.id);
-      eventIds.push(data.id);
+    if (error) {
+      console.error('Error updating calendar event:', error);
+      throw error;
     }
+      
+    console.log("Updated existing calendar event with ID:", eventId);
+    eventIds.push(eventId);
+  } else {
+    // Create new event
+    const { data, error } = await supabase
+      .from('calendar_events')
+      .insert(eventData)
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('Error creating calendar event:', error);
+      throw error;
+    }
+
+    console.log("Created new calendar event with ID:", data.id);
+    eventIds.push(data.id);
   }
+}
 
   // Return single ID or array of IDs depending on input type
   return Array.isArray(date) ? eventIds : eventIds[0];

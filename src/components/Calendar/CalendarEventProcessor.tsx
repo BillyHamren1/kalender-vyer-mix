@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
 import { format } from 'date-fns';
