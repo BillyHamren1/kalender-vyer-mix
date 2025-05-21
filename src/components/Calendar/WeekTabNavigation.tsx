@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 interface WeekTabNavigationProps {
   currentDate: Date;
@@ -49,17 +50,44 @@ const WeekTabNavigation: React.FC<WeekTabNavigationProps> = ({
                 key={format(day, 'EEE-dd-MM', { locale: sv })}
                 value={format(day, 'EEE-dd-MM', { locale: sv })}
                 onClick={() => onDayChange(day)}
-                className={`flex-1 ${dayHasEvents ? 'font-semibold' : ''}`}
+                className="flex-1 flex flex-col items-center pb-1"
               >
                 <div className="flex flex-col items-center">
                   <span>{format(day, 'EEE', { locale: sv })}</span>
                   <span className={`text-xs ${isActive ? 'text-[#9b87f5]' : ''}`}>
                     {format(day, 'd/M')}
                   </span>
-                  {dayHasEvents && (
-                    <span className="w-1.5 h-1.5 bg-[#9b87f5] rounded-full mt-1" />
-                  )}
                 </div>
+                
+                <div className="mt-1 w-full">
+                  <ToggleGroup type="single" value={isActive ? "morning" : undefined} className="flex justify-center space-x-1">
+                    <ToggleGroupItem 
+                      value="morning" 
+                      size="sm"
+                      className="h-5 w-5 rounded-sm text-[9px]"
+                    >
+                      F
+                    </ToggleGroupItem>
+                    <ToggleGroupItem 
+                      value="afternoon" 
+                      size="sm"
+                      className="h-5 w-5 rounded-sm text-[9px]"
+                    >
+                      E
+                    </ToggleGroupItem>
+                    <ToggleGroupItem 
+                      value="evening" 
+                      size="sm"
+                      className="h-5 w-5 rounded-sm text-[9px]"
+                    >
+                      M
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+                </div>
+                
+                {dayHasEvents && (
+                  <span className="w-1.5 h-1.5 bg-[#9b87f5] rounded-full mt-1" />
+                )}
               </TabsTrigger>
             );
           })}

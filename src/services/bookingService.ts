@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { Booking, BookingProduct } from "@/types/booking";
 import { deleteAllBookingEvents } from '@/services/bookingCalendarService';
@@ -32,6 +33,7 @@ export const fetchBookings = async (): Promise<Booking[]> => {
     internalNotes: booking.internalnotes || undefined,
     viewed: booking.viewed,
     status: booking.status || 'PENDING',
+    version: booking.version || 1,
   }));
 };
 
@@ -67,6 +69,7 @@ export const fetchConfirmedBookings = async (): Promise<Booking[]> => {
     internalNotes: booking.internalnotes || undefined,
     viewed: booking.viewed,
     status: booking.status || 'CONFIRMED',
+    version: booking.version || 1,
   }));
 };
 
@@ -110,6 +113,7 @@ export const fetchUpcomingBookings = async (limit: number = 15, confirmedOnly: b
     internalNotes: booking.internalnotes || undefined,
     viewed: booking.viewed,
     status: booking.status || 'PENDING',
+    version: booking.version || 1,
   }));
 };
 
@@ -179,6 +183,7 @@ export const fetchBookingById = async (id: string): Promise<Booking> => {
     })),
     viewed: booking.viewed,
     status: booking.status || 'PENDING',
+    version: booking.version || 1,
   };
 };
 
