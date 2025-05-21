@@ -7,6 +7,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Map team IDs to readable names
+const teamNameMap: Record<string, string> = {
+  'team-1': 'Team 1',
+  'team-2': 'Team 2',
+  'team-3': 'Team 3',
+  'team-4': 'Team 4',
+  'team-5': 'Team 5',
+  'team-6': 'Today\'s Events'
+};
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -32,6 +42,7 @@ serve(async (req) => {
     const requestData = await req.json();
     const staffId = requestData.staffId;
     const date = requestData.date;
+    const simpleMode = requestData.simpleMode || false; // New option for simplified response
 
     // Add a cache busting parameter to prevent cached responses
     const cacheBuster = new Date().getTime();
@@ -75,12 +86,25 @@ serve(async (req) => {
     // If no assignment is found, return an empty response
     if (!assignment) {
       return new Response(
-        JSON.stringify({ staffId, date: formattedDate, teamId: null, bookings: [], eventsCount: 0 }),
+        JSON.stringify({ 
+          staffId, 
+          date: formattedDate, 
+          teamId: null, 
+          teamName: null,
+          bookings: [], 
+          eventsCount: 0,
+          summary: {
+            totalBookings: 0,
+            eventsByType: { rig: 0, event: 0, rigDown: 0 },
+            locationCoordinates: []
+          }
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     const teamId = assignment.team_id
+    const teamName = teamNameMap[teamId] || teamId; // Get human-readable team name
 
     // Step 2: Find all calendar events for the assigned team on the specified date
     const startOfDay = new Date(formattedDate)
@@ -109,6 +133,12 @@ serve(async (req) => {
     // Collect all unique booking IDs
     const bookingIds = [...new Set(events.map(event => event.booking_id).filter(Boolean))]
     console.log(`Found ${bookingIds.length} unique bookings for these events`);
+
+    // Initialize summary counters
+    const eventsByType = { rig: 0, event: 0, rigDown: 0 };
+    let firstEventTime: string | undefined;
+    let lastEventTime: string | undefined;
+    const locationCoordinates: {latitude: number | null, longitude: number | null}[] = [];
 
     // Step 3: Fetch detailed booking information for all events
     const bookingDetails = []
@@ -149,6 +179,20 @@ serve(async (req) => {
       // Find all events for this booking (rig, event, rigDown)
       const bookingEvents = events.filter(event => event.booking_id === bookingId)
         .map(event => {
+          // Update event type counts for summary
+          if (event.event_type) {
+            eventsByType[event.event_type as keyof typeof eventsByType] = 
+              (eventsByType[event.event_type as keyof typeof eventsByType] || 0) + 1;
+          }
+          
+          // Track earliest and latest event times
+          if (!firstEventTime || event.start_time < firstEventTime) {
+            firstEventTime = event.start_time;
+          }
+          if (!lastEventTime || event.end_time > lastEventTime) {
+            lastEventTime = event.end_time;
+          }
+          
           // Format address for event display
           let formattedAddress = 'No address provided';
           if (booking.deliveryaddress) {
@@ -171,6 +215,14 @@ serve(async (req) => {
           }
         })
 
+      // Add location coordinates if available
+      if (booking.delivery_latitude !== null && booking.delivery_longitude !== null) {
+        locationCoordinates.push({
+          latitude: booking.delivery_latitude,
+          longitude: booking.delivery_longitude
+        });
+      }
+
       // Add complete booking details to the result
       bookingDetails.push({
         id: booking.id,
@@ -181,6 +233,11 @@ serve(async (req) => {
         deliveryAddress: booking.deliveryaddress || 'No address provided',
         deliveryCity: booking.delivery_city,
         deliveryPostalCode: booking.delivery_postal_code,
+        // Clearly display coordinates at the booking level
+        coordinates: booking.delivery_latitude !== null && booking.delivery_longitude !== null ? {
+          latitude: booking.delivery_latitude,
+          longitude: booking.delivery_longitude
+        } : null,
         internalNotes: booking.internalnotes,
         products: products || [],
         attachments: attachments || [],
@@ -189,16 +246,30 @@ serve(async (req) => {
       })
     }
 
+    // Create a summary object
+    const summary = {
+      totalBookings: bookingDetails.length,
+      eventsByType,
+      firstEventTime,
+      lastEventTime,
+      locationCoordinates
+    };
+
+    // Create the response based on mode
+    const responseData = {
+      staffId,
+      date: formattedDate,
+      teamId,
+      teamName,
+      bookings: bookingDetails,
+      eventsCount: events.length,
+      summary,
+      timestamp: new Date().toISOString()
+    };
+
     // Return the complete staff assignment information with cache control headers
     return new Response(
-      JSON.stringify({
-        staffId,
-        date: formattedDate,
-        teamId,
-        bookings: bookingDetails,
-        eventsCount: events.length,
-        timestamp: new Date().toISOString() // Add timestamp for debugging
-      }),
+      JSON.stringify(responseData),
       { 
         headers: { 
           ...corsHeaders, 

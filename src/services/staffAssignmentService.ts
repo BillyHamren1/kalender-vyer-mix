@@ -7,8 +7,10 @@ export interface StaffAssignmentResponse {
   staffId: string;
   date: string;
   teamId: string;
+  teamName?: string; // Added human-readable team name
   bookings: StaffBooking[];
   eventsCount: number;
+  summary?: StaffSummary; // Added summary information
 }
 
 // Enhanced booking interface with events
@@ -24,6 +26,22 @@ export interface BookingEvent {
   start: string;
   end: string;
   title: string;
+}
+
+// New summary interface for quick overview of assignments
+export interface StaffSummary {
+  totalBookings: number;
+  eventsByType: {
+    rig: number;
+    event: number;
+    rigDown: number;
+  };
+  firstEventTime?: string;
+  lastEventTime?: string;
+  locationCoordinates?: {
+    latitude: number | null;
+    longitude: number | null;
+  }[];
 }
 
 // Fetch a staff member's assignments and bookings for a specific date

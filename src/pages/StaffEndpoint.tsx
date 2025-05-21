@@ -4,6 +4,8 @@ import { useParams } from "react-router-dom";
 import { fetchStaffAssignment, StaffAssignmentResponse } from "@/services/staffAssignmentService";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { MapPin } from "lucide-react";
 import { toast } from "sonner";
 
 const StaffEndpoint = () => {
@@ -38,6 +40,14 @@ const StaffEndpoint = () => {
     setSelectedDate(newDate);
   };
 
+  // Format coordinates for display
+  const formatCoordinates = (lat?: number | null, lng?: number | null) => {
+    if (lat === undefined || lat === null || lng === undefined || lng === null) {
+      return "No coordinates available";
+    }
+    return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  };
+
   if (!staffId) {
     return (
       <div className="container mx-auto p-4">
@@ -67,9 +77,32 @@ const StaffEndpoint = () => {
             <CardHeader>
               <CardTitle>Team Assignment</CardTitle>
               <CardDescription>
-                You are assigned to {assignmentData.teamId} on {assignmentData.date}
+                You are assigned to {assignmentData.teamName || assignmentData.teamId} on {assignmentData.date}
               </CardDescription>
             </CardHeader>
+            
+            {assignmentData.summary && (
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <div className="bg-gray-50 p-2 rounded">
+                    <div className="text-sm text-gray-500">Total Bookings</div>
+                    <div className="font-medium">{assignmentData.summary.totalBookings}</div>
+                  </div>
+                  <div className="bg-gray-50 p-2 rounded">
+                    <div className="text-sm text-gray-500">Rig Events</div>
+                    <div className="font-medium">{assignmentData.summary.eventsByType.rig}</div>
+                  </div>
+                  <div className="bg-gray-50 p-2 rounded">
+                    <div className="text-sm text-gray-500">Main Events</div>
+                    <div className="font-medium">{assignmentData.summary.eventsByType.event}</div>
+                  </div>
+                  <div className="bg-gray-50 p-2 rounded">
+                    <div className="text-sm text-gray-500">Rig Down Events</div>
+                    <div className="font-medium">{assignmentData.summary.eventsByType.rigDown}</div>
+                  </div>
+                </div>
+              </CardContent>
+            )}
           </Card>
 
           <h2 className="text-xl font-semibold mt-6 mb-4">
@@ -109,9 +142,21 @@ const StaffEndpoint = () => {
                   </div>
 
                   {booking.deliveryAddress && (
-                    <div>
+                    <div className="space-y-1">
                       <h3 className="font-medium">Delivery Address</h3>
                       <p className="text-gray-600">{booking.deliveryAddress}</p>
+                      
+                      {/* Display coordinates at the top level */}
+                      {"coordinates" in booking && booking.coordinates && (
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <Badge variant="outline" className="flex items-center gap-1 bg-blue-50">
+                            <MapPin className="h-3 w-3" />
+                            <span className="text-xs">
+                              {formatCoordinates(booking.coordinates.latitude, booking.coordinates.longitude)}
+                            </span>
+                          </Badge>
+                        </div>
+                      )}
                     </div>
                   )}
 
