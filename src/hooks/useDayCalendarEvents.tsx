@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { supabase } from '@/integrations/supabase/client';
@@ -59,17 +60,17 @@ export const useDayCalendarEvents = () => {
               try {
                 const { data: bookingData } = await supabase
                   .from('bookings')
-                  .select('deliveryaddress, delivery_city, delivery_postal_code')
+                  .select('deliveryaddress, delivery_city')
                   .eq('id', event.booking_id)
                   .single();
                 
-                if (bookingData && bookingData.deliveryaddress) {
-                  deliveryAddress = bookingData.deliveryaddress;
-                  if (bookingData.delivery_city) {
-                    deliveryAddress += `, ${bookingData.delivery_city}`;
-                  }
-                  if (bookingData.delivery_postal_code) {
-                    deliveryAddress += ` ${bookingData.delivery_postal_code}`;
+                if (bookingData) {
+                  // Format the address to only include street address and city
+                  if (bookingData.deliveryaddress) {
+                    deliveryAddress = bookingData.deliveryaddress;
+                    if (bookingData.delivery_city) {
+                      deliveryAddress += `, ${bookingData.delivery_city}`;
+                    }
                   }
                 }
               } catch (bookingError) {

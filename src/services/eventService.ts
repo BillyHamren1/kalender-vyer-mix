@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { CalendarEvent } from "@/components/Calendar/ResourceData";
 import { getEventColor } from "@/components/Calendar/ResourceData";
@@ -82,7 +81,7 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
   // Fetch delivery addresses for all bookings in one request
   const { data: bookingData, error: bookingError } = await supabase
     .from('bookings')
-    .select('id, deliveryaddress, delivery_city, delivery_postal_code')
+    .select('id, deliveryaddress, delivery_city')
     .in('id', bookingIds);
 
   if (bookingError) {
@@ -96,13 +95,11 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
     bookingData.forEach(booking => {
       const address = booking.deliveryaddress || '';
       const city = booking.delivery_city || '';
-      const postalCode = booking.delivery_postal_code || '';
       
-      // Format the complete address
+      // Format the address to only include street address and city, not postal code
       const formattedAddress = [
         address,
-        city,
-        postalCode
+        city
       ].filter(Boolean).join(', ');
       
       bookingAddresses[booking.id] = formattedAddress || 'No address provided';
