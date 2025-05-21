@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -9,12 +10,10 @@ import { toast } from 'sonner';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { assignStaffToTeam, removeStaffAssignment } from '@/services/staffService';
-import { moveEventsToTeam } from '@/services/teamService';
 import ResourceHeader from '@/components/Calendar/ResourceHeader';
 import ResourceLayout from '@/components/Calendar/ResourceLayout';
 import ResourceToolbar from '@/components/Calendar/ResourceToolbar';
 import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
-import { Button } from '@/components/ui/button';
 
 const ResourceView = () => {
   // Use our custom hooks to manage state and logic
@@ -42,7 +41,6 @@ const ResourceView = () => {
   const { addEventToCalendar, duplicateEvent } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
-  const [isMovingEvents, setIsMovingEvents] = useState(false);
   
   // Using useState with localStorage to track setup completion
   const [setupDone, setSetupDone] = useState(() => {
@@ -76,41 +74,6 @@ const ResourceView = () => {
       moveYellowEvents();
     }
   }, [resources, setupDone, teamResources]);
-
-  // Function to force move all yellow events to team-6
-  const forceMoveTodaysEvents = async () => {
-    if (isMovingEvents) return; // Prevent multiple clicks
-    
-    setIsMovingEvents(true);
-    try {
-      const team6Id = 'team-6';
-      if (!teamResources.some(r => r.id === team6Id)) {
-        toast.error('Team 6 (Todays events) not found');
-        return;
-      }
-      
-      toast.info('Moving all yellow events to "Todays events"...', {
-        description: "This may take a moment"
-      });
-      
-      const movedCount = await moveEventsToTeam('event', team6Id);
-      
-      if (movedCount > 0) {
-        toast.success(`Moved ${movedCount} events to "Todays events"`, {
-          description: "All yellow events have been moved to Team 6"
-        });
-        // Refresh to show the changes
-        await refreshEvents();
-      } else {
-        toast.info('No yellow events found to move');
-      }
-    } catch (error) {
-      console.error('Error moving events:', error);
-      toast.error('Failed to move events. Please try again.');
-    } finally {
-      setIsMovingEvents(false);
-    }
-  };
 
   // Handle staff drop for assignment
   const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
@@ -172,19 +135,6 @@ const ResourceView = () => {
           dialogOpen={dialogOpen}
           setDialogOpen={setDialogOpen}
         />
-
-        {/* Move Events Button - Moved to top for better visibility */}
-        <div className="flex justify-center my-3">
-          <Button 
-            variant="default" 
-            onClick={forceMoveTodaysEvents}
-            disabled={isMovingEvents}
-            className="text-sm font-bold"
-            size="lg"
-          >
-            {isMovingEvents ? 'Moving...' : 'Move All Yellow Events to Todays Events'}
-          </Button>
-        </div>
 
         {/* Toolbar with Update Button, Add Task Button, and Navigation */}
         <ResourceToolbar

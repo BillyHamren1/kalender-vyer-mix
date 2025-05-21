@@ -29,14 +29,18 @@ const ResourceHeader: React.FC<ResourceHeaderProps> = ({
 
   return (
     <div className={`flex ${isMobile ? 'flex-col gap-3' : 'justify-between'} items-center mb-6`}>
-      <h1 className="text-2xl font-bold text-gray-800"></h1>
-      <div className={`flex ${isMobile ? 'w-full justify-center' : ''} space-x-3`}>
+      <div className="flex items-center">
         <Link to="/booking-list">
-          <Button variant="outline" className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            className="flex items-center gap-2 bg-[#7BAEBF] text-white hover:bg-[#6E9DAC]"
+          >
             <List className="h-4 w-4" />
             List view
           </Button>
         </Link>
+      </div>
+      <div className={`flex ${isMobile ? 'w-full justify-center' : ''} space-x-3`}>
         <TeamManagementDialog
           teamResources={teamResources}
           teamCount={teamCount}
