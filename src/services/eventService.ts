@@ -61,6 +61,7 @@ export const mapAppToDatabaseResourceId = (appResourceId: string): string => {
 export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
   console.log('Fetching all calendar events from the database...');
   
+  // First, fetch all the events
   const { data, error } = await supabase
     .from('calendar_events')
     .select('*');
@@ -72,10 +73,50 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
 
   console.log('Raw calendar events from database:', data);
 
+  // Get all unique booking IDs to fetch their delivery addresses
+  const bookingIds = data
+    .filter(event => event.booking_id)
+    .map(event => event.booking_id)
+    .filter((id, index, self) => id && self.indexOf(id) === index); // Only unique, non-null booking IDs
+
+  // Fetch delivery addresses for all bookings in one request
+  const { data: bookingData, error: bookingError } = await supabase
+    .from('bookings')
+    .select('id, deliveryaddress, delivery_city, delivery_postal_code')
+    .in('id', bookingIds);
+
+  if (bookingError) {
+    console.error('Error fetching booking addresses:', bookingError);
+    // Continue with the events even if we couldn't get the addresses
+  }
+
+  // Create a map of booking IDs to delivery addresses
+  const bookingAddresses: Record<string, string> = {};
+  if (bookingData) {
+    bookingData.forEach(booking => {
+      const address = booking.deliveryaddress || '';
+      const city = booking.delivery_city || '';
+      const postalCode = booking.delivery_postal_code || '';
+      
+      // Format the complete address
+      const formattedAddress = [
+        address,
+        city,
+        postalCode
+      ].filter(Boolean).join(', ');
+      
+      bookingAddresses[booking.id] = formattedAddress || 'No address provided';
+    });
+  }
+
   // Map data to CalendarEvent format and convert resource IDs
   const mappedEvents = data.map(event => {
     const mappedResourceId = mapDatabaseToAppResourceId(event.resource_id);
     const eventType = event.event_type as 'rig' | 'event' | 'rigDown';
+    const bookingId = event.booking_id || '';
+    
+    // Get the delivery address for this event's booking
+    const deliveryAddress = bookingAddresses[bookingId] || 'No address provided';
     
     const calendarEvent: CalendarEvent = {
       id: event.id,
@@ -84,14 +125,15 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
       start: event.start_time,
       end: event.end_time,
       eventType: eventType,
-      bookingId: event.booking_id,
-      color: getEventColor(eventType)
+      bookingId: bookingId,
+      color: getEventColor(eventType),
+      deliveryAddress: deliveryAddress
     };
     
     return calendarEvent;
   });
 
-  console.log('Mapped calendar events with app resource IDs:', mappedEvents);
+  console.log('Mapped calendar events with app resource IDs and addresses:', mappedEvents);
   return mappedEvents;
 };
 

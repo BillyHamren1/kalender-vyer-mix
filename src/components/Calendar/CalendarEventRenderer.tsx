@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
 import { Copy } from 'lucide-react';
@@ -12,7 +13,9 @@ export const renderEventContent = (eventInfo: any) => {
   const eventTitle = eventInfo.event.title;
   const eventTime = eventInfo.timeText;
   const bookingId = eventInfo.event.extendedProps?.bookingId || '';
-  const deliveryAddress = eventInfo.event.extendedProps?.deliveryAddress || 'No address';
+  
+  // Get delivery address from event extendedProps or use default message
+  const deliveryAddress = eventInfo.event.extendedProps?.deliveryAddress || 'No address provided';
   
   // Extract the client name (remove the booking ID if it's in the title)
   const clientName = eventTitle.includes(':') 
