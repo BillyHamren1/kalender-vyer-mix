@@ -6,7 +6,7 @@ import AddTeamButton from './AddTeamButton';
 import { Resource } from '../Calendar/ResourceData';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
-import { List } from 'lucide-react';
+import { List, InfoIcon } from 'lucide-react';
 
 interface ResourceHeaderProps {
   teamResources: Resource[];
@@ -15,6 +15,8 @@ interface ResourceHeaderProps {
   onRemoveTeam: (teamId: string) => void;
   dialogOpen: boolean;
   setDialogOpen: (open: boolean) => void;
+  onLoadAllBookings: () => Promise<void>;
+  isLoadingAllBookings: boolean;
 }
 
 const ResourceHeader: React.FC<ResourceHeaderProps> = ({
@@ -23,7 +25,9 @@ const ResourceHeader: React.FC<ResourceHeaderProps> = ({
   onAddTeam,
   onRemoveTeam,
   dialogOpen,
-  setDialogOpen
+  setDialogOpen,
+  onLoadAllBookings,
+  isLoadingAllBookings
 }) => {
   const isMobile = useIsMobile();
 
@@ -40,6 +44,21 @@ const ResourceHeader: React.FC<ResourceHeaderProps> = ({
           </Button>
         </Link>
       </div>
+      
+      {/* Load all bookings button in the middle */}
+      <div className="flex items-center">
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={onLoadAllBookings}
+          disabled={isLoadingAllBookings}
+          className="flex items-center gap-2"
+        >
+          <InfoIcon className="h-4 w-4" />
+          {isLoadingAllBookings ? 'Loading...' : 'Load all bookings'}
+        </Button>
+      </div>
+      
       <div className={`flex ${isMobile ? 'w-full justify-center' : ''} space-x-3`}>
         <TeamManagementDialog
           teamResources={teamResources}

@@ -15,7 +15,6 @@ import ResourceLayout from '@/components/Calendar/ResourceLayout';
 import ResourceToolbar from '@/components/Calendar/ResourceToolbar';
 import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
 import { fetchAllStaffBookings } from '@/services/staffAssignmentService';
-import { Button } from '@/components/ui/button';
 import { InfoIcon } from 'lucide-react';
 
 const ResourceView = () => {
@@ -150,7 +149,7 @@ const ResourceView = () => {
         showStaffDisplay={true}
         isMobile={isMobile}
       >
-        {/* ResourceHeader component with team management controls */}
+        {/* ResourceHeader component with team management controls and load all bookings button */}
         <ResourceHeader
           teamResources={teamResources}
           teamCount={teamCount}
@@ -158,6 +157,8 @@ const ResourceView = () => {
           onRemoveTeam={removeTeam}
           dialogOpen={dialogOpen}
           setDialogOpen={setDialogOpen}
+          onLoadAllBookings={loadAllBookings}
+          isLoadingAllBookings={isLoadingAllBookings}
         />
 
         {/* Toolbar with Update Button, Add Task Button, and Navigation */}
@@ -169,20 +170,6 @@ const ResourceView = () => {
           onAddTask={addEventToCalendar}
           className="w-full"
         />
-        
-        {/* Load all bookings button in its own row */}
-        <div className="mb-4 flex justify-end">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={loadAllBookings}
-            disabled={isLoadingAllBookings}
-            className="flex items-center gap-2"
-          >
-            <InfoIcon className="h-4 w-4" />
-            {isLoadingAllBookings ? 'Loading all bookings...' : 'Load all bookings'}
-          </Button>
-        </div>
         
         {/* Calendar */}
         <ResourceCalendar
