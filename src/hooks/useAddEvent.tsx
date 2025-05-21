@@ -26,11 +26,25 @@ export const useAddEvent = (
     
     const newEventId = generateEventId();
     
+    // Ensure the event is 4 hours long
+    const startTime = new Date(event.start);
+    let endTime = new Date(event.end);
+    
+    // Calculate duration in milliseconds
+    const duration = endTime.getTime() - startTime.getTime();
+    const fourHoursInMs = 4 * 60 * 60 * 1000;
+    
+    // If duration is not 4 hours, set it to 4 hours
+    if (duration !== fourHoursInMs) {
+      endTime = new Date(startTime.getTime() + fourHoursInMs);
+    }
+    
     const newEvent: CalendarEvent = {
       ...event,
       id: newEventId,
       color: getEventColor(event.eventType),
-      resourceId: resourceId
+      resourceId: resourceId,
+      end: endTime.toISOString()
     };
     
     // Add to local state first for immediate UI update
@@ -45,7 +59,7 @@ export const useAddEvent = (
           resource_id: resourceId,
           title: event.title,
           start_time: event.start,
-          end_time: event.end,
+          end_time: endTime.toISOString(),
           event_type: event.eventType,
           booking_id: event.bookingId
         });

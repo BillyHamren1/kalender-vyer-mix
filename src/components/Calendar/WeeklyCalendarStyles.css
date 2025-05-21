@@ -1,23 +1,24 @@
 
-/* Weekly Calendar Styles */
 .weekly-view-container {
   width: 100%;
   overflow-x: auto;
-  position: relative;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .weekly-calendar-container {
-  min-width: 1400px; /* Adjusted from 1800px to accommodate smaller columns */
-  width: 100%;
   display: flex;
-  overflow-x: auto;
-  scroll-behavior: smooth;
+  flex-direction: row;
+  min-width: 550px;
+  gap: 1px;
+  background-color: #f0f0f0;
 }
 
 .day-calendar-wrapper {
-  min-width: 550px; /* Keep this width, but with smaller resource columns */
   flex: 1;
-  border-right: 1px solid #e5e7eb;
+  min-width: 550px;
+  border-right: 1px solid #e0e0e0;
 }
 
 .day-calendar-wrapper:last-child {
@@ -25,207 +26,54 @@
 }
 
 .day-header {
-  font-weight: 600;
-  font-size: 1.1rem;
-  padding: 8px 4px;
+  padding: 8px 12px;
+  background-color: #f3f4f6;
+  border-bottom: 1px solid #e0e0e0;
+  font-weight: 500;
   text-align: center;
-  background-color: #f3f4f6;
-  border-bottom: 2px solid #d1d5db;
-}
-
-/* Make resource timeline work properly */
-.fc-resource-timeline-divider {
-  width: 3px !important;
-  background-color: #e5e7eb;
-}
-
-/* Ensure scrolling works properly */
-.fc-scroller {
-  overflow: visible !important;
-}
-
-/* Day header styling */
-.day-resource-header {
-  font-weight: 600;
-  font-size: 1.1rem;
-  padding: 8px 4px;
-  background-color: #f3f4f6;
-  border-bottom: 2px solid #d1d5db;
-}
-
-/* Enforce fixed width for ALL resource columns - REDUCED WIDTH */
-.fc-resource-area td,
-.fc-resource-area th,
-.fc-resource-lane,
-.fc-datagrid-cell,
-.fc-datagrid-cell-frame,
-.fc-timegrid-col {
-  min-width: 80px !important;
-  width: 80px !important;
-  max-width: 80px !important;
-}
-
-/* Fix for resource header hierarchical nesting */
-.fc-datagrid-cell-cushion {
-  font-weight: 500;
-}
-
-/* Day header cells */
-.fc-datagrid-group-cushion {
-  font-weight: 600;
   color: #374151;
-  text-transform: capitalize;
 }
 
-/* Improve event rendering */
-.fc-timeline-event {
-  min-height: 25px;
-  padding: 2px 4px;
+.weekly-view-calendar {
+  height: 700px;
+  overflow-y: auto;
 }
 
-/* Critical fix for team-6 (Today's events) column */
-[data-resource-id="team-6"] .fc-datagrid-cell,
-[data-resource-id="team-6"].fc-datagrid-cell,
-[data-resource-id="team-6"] .fc-datagrid-cell-frame,
-[data-resource-id="team-6"].fc-datagrid-cell-frame,
-[data-resource-id="team-6"] .fc-timegrid-col,
-[data-resource-id="team-6"].fc-timegrid-col {
-  min-width: 80px !important;
-  width: 80px !important;
-  max-width: 80px !important;
+/* Styles for stacked events */
+.stacked-event {
+  position: relative;
+  z-index: 1;
+  margin-top: 2px !important;
+  margin-bottom: 2px !important;
 }
 
-/* Ensure timeline slot width */
-.fc-timeline-slot {
-  min-width: 80px !important;
-  width: 80px !important;
-}
-
-/* Optimize event content */
-.event-content-wrapper {
-  display: flex;
-  flex-direction: column;
-  min-height: 100%;
-  padding: 2px;
-}
-
-.event-delivery-address {
-  overflow-wrap: break-word;
-  word-wrap: break-word;
-  hyphens: auto;
-  max-height: none !important;
-  white-space: normal !important;
-  font-size: 11px;
-}
-
-.fc-event-title {
-  white-space: normal !important;
+/* When events overlap, make sure they're visible */
+.fc-timegrid-event {
   overflow: visible !important;
 }
 
-.fc-event-time {
-  white-space: nowrap;
-  font-size: 11px;
-  font-weight: 500;
+/* Style for modified display events */
+[data-team6-event="true"] {
+  border-radius: 4px;
+  overflow: hidden;
 }
 
-.event-client-name {
-  font-size: 12px;
-  font-weight: 500;
+/* Ensure the event content is visible */
+.fc .fc-timegrid-event .fc-event-main {
+  padding: 2px !important;
 }
 
-.event-booking-id {
-  font-size: 11px;
-  opacity: 0.8;
+/* Ensure events don't get cut off when stacked */
+.fc-timegrid-event-harness {
+  z-index: auto !important;
 }
 
-/* ... keep existing code */
-
-/* Reduced height for weekly view calendars */
-.weekly-view-calendar .fc-view-harness {
-  min-height: 400px !important;
-  max-height: 600px !important;
+/* Styling for event actions on hover */
+.event-actions {
+  transition: opacity 0.2s ease;
 }
 
-/* Make weekly calendars more compact */
-.weekly-view-calendar .fc-timegrid-slot {
-  height: 30px !important;
+/* Make events more visible when stacked */
+.fc-timegrid-event {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
-
-/* Week navigation styles */
-.week-navigation {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-}
-
-.week-date-range {
-  font-size: 1.25rem;
-  font-weight: 600;
-}
-
-/* Critical fix - enforce resource column width in weekly view */
-.weekly-view-calendar .fc-resource-timeline-divider {
-  width: 3px !important;
-}
-
-.weekly-view-calendar .fc-timegrid-col {
-  min-width: 80px !important;
-  width: 80px !important;
-  max-width: 80px !important;
-}
-
-/* Make sure day columns in weekly view have adequate space */
-.weekly-view-calendar .fc-timegrid-cols {
-  min-width: 450px !important;
-}
-
-/* Critical fix - ensure ALL resource column headers have consistent width */
-.weekly-view-calendar .fc-col-header-cell {
-  min-width: 80px !important;
-  width: 80px !important;
-  max-width: 80px !important;
-}
-
-/* Fix for resource container width */
-.weekly-view-calendar .fc-resource-timeline-body {
-  min-width: 450px !important;
-}
-
-/* Critical fix - ensure ALL resource cells have exact same width */
-.weekly-view-calendar .fc-resource-group,
-.weekly-view-calendar .fc-datagrid-cell {
-  min-width: 80px !important;
-  width: 80px !important;
-  max-width: 80px !important;
-}
-
-/* Ensure time labels have enough room */
-.weekly-view-calendar .fc-timegrid-axis {
-  width: 60px !important;
-  min-width: 60px !important;
-}
-
-/* Force consistent column widths for team-6 (Today's events) */
-.weekly-view-calendar [data-resource-id="team-6"] td,
-.weekly-view-calendar [data-resource-id="team-6"] th,
-.weekly-view-calendar [data-resource-id="team-6"].fc-datagrid-cell,
-.weekly-view-calendar [data-resource-id="team-6"] .fc-datagrid-cell-frame,
-.weekly-view-calendar [data-resource-id="team-6"] .fc-timegrid-col {
-  min-width: 80px !important;
-  width: 80px !important;
-  max-width: 80px !important;
-}
-
-/* Ensure ALL columns in weekly view are exactly the same width */
-.weekly-view-calendar .fc-datagrid-cell,
-.weekly-view-calendar .fc-datagrid-cell-frame,
-.weekly-view-calendar .fc-timegrid-col,
-.weekly-view-calendar .fc-col-header-cell {
-  min-width: 80px !important;
-  width: 80px !important;
-  max-width: 80px !important;
-}
-
-/* ... keep existing code */

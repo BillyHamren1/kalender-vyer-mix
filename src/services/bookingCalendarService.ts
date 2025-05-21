@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { findAvailableTeam } from "./teamService";
 
@@ -18,18 +19,19 @@ export const syncBookingEvents = async (
   for (const singleDate of dates) {
     // For each date, check if an event already exists for this booking, event type, and date
     const startDate = new Date(singleDate);
+    // Set start time to 9 AM
     startDate.setHours(9, 0, 0, 0);
     
-    const endDate = new Date(singleDate);
-    endDate.setHours(17, 0, 0, 0);
+    // Set end time to 4 hours after start (1 PM)
+    const endDate = new Date(startDate);
+    endDate.setHours(startDate.getHours() + 4, 0, 0, 0);
 
     const { data: existingEvents } = await supabase
       .from('calendar_events')
       .select('*')
       .eq('booking_id', bookingId)
       .eq('event_type', eventType)
-      .eq('start_time', startDate.toISOString())
-      .eq('end_time', endDate.toISOString());
+      .eq('start_time', startDate.toISOString());
 
     // If resourceId is 'auto', find an available team
     let teamId = resourceId;
