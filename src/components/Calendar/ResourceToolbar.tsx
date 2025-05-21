@@ -13,6 +13,7 @@ interface ResourceToolbarProps {
   resources: Resource[];
   onRefresh: () => Promise<void | CalendarEvent[]>;
   onAddTask: (event: Omit<CalendarEvent, 'id'>) => Promise<string>;
+  className?: string;
 }
 
 /**
@@ -23,13 +24,15 @@ const ResourceToolbar: React.FC<ResourceToolbarProps> = ({
   currentDate,
   resources,
   onRefresh,
-  onAddTask
+  onAddTask,
+  className = ''
 }) => {
   const isMobile = useIsMobile();
 
   return (
-    <div className="mb-4">
-      <div className="flex justify-between items-center mb-4">
+    <div className={`mb-4 ${className}`}>
+      {/* Controls row */}
+      <div className="flex justify-start items-center mb-4">
         <div className="flex items-center gap-2">
           <Button 
             onClick={onRefresh} 

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -162,21 +161,23 @@ const ResourceView = () => {
         />
 
         {/* Toolbar with Update Button, Add Task Button, and Navigation */}
-        <div className="flex items-center gap-2 mb-4">
-          <ResourceToolbar
-            isLoading={isLoading}
-            currentDate={currentDate}
-            resources={resources}
-            onRefresh={refreshEvents}
-            onAddTask={addEventToCalendar}
-          />
-          
+        <ResourceToolbar
+          isLoading={isLoading}
+          currentDate={currentDate}
+          resources={resources}
+          onRefresh={refreshEvents}
+          onAddTask={addEventToCalendar}
+          className="w-full"
+        />
+        
+        {/* Load all bookings button in its own row */}
+        <div className="mb-4 flex justify-end">
           <Button 
             variant="outline" 
             size="sm"
             onClick={loadAllBookings}
             disabled={isLoadingAllBookings}
-            className="ml-auto flex items-center gap-2"
+            className="flex items-center gap-2"
           >
             <InfoIcon className="h-4 w-4" />
             {isLoadingAllBookings ? 'Loading all bookings...' : 'Load all bookings'}
