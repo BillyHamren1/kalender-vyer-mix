@@ -1,3 +1,4 @@
+
 /* Weekly Calendar Styles */
 .weekly-view-container {
   width: 100%;
@@ -52,28 +53,19 @@
   border-bottom: 2px solid #d1d5db;
 }
 
-/* Ensure resource columns have proper width */
-.fc-resource-area td {
-  min-width: 120px !important; /* Minimum width for resource columns */
+/* Enforce fixed width for ALL resource columns - critical fix */
+.fc-resource-area td,
+.fc-resource-area th,
+.fc-resource-lane,
+.fc-datagrid-cell,
+.fc-datagrid-cell-frame,
+.fc-timegrid-col {
+  min-width: 150px !important;
+  width: 150px !important;
+  max-width: 150px !important;
 }
 
-/* Ensure resources have proper width in day view */
-.fc-resource-lane {
-  min-width: 120px !important;
-}
-
-/* Force resource columns to be wider */
-.fc-datagrid-cell {
-  min-width: 120px !important;
-}
-
-/* Team nested resource styling */
-.team-resource-cell {
-  padding: 4px;
-  border-right: 1px solid #e5e7eb;
-}
-
-/* Fix resource header hierarchical nesting */
+/* Fix for resource header hierarchical nesting */
 .fc-datagrid-cell-cushion {
   font-weight: 500;
 }
@@ -91,9 +83,22 @@
   padding: 2px 4px;
 }
 
-/* Ensure proper width for team columns */
+/* Critical fix for team-6 (Today's events) column */
+[data-resource-id="team-6"] .fc-datagrid-cell,
+[data-resource-id="team-6"].fc-datagrid-cell,
+[data-resource-id="team-6"] .fc-datagrid-cell-frame,
+[data-resource-id="team-6"].fc-datagrid-cell-frame,
+[data-resource-id="team-6"] .fc-timegrid-col,
+[data-resource-id="team-6"].fc-timegrid-col {
+  min-width: 150px !important;
+  width: 150px !important;
+  max-width: 150px !important;
+}
+
+/* Ensure timeline slot width */
 .fc-timeline-slot {
   min-width: 150px !important;
+  width: 150px !important;
 }
 
 /* Optimize event content */
@@ -204,14 +209,15 @@
   font-weight: 600;
 }
 
-/* Additional styling for weekly view resource columns */
+/* Critical fix - enforce resource column width in weekly view */
 .weekly-view-calendar .fc-resource-timeline-divider {
   width: 3px !important;
 }
 
 .weekly-view-calendar .fc-timegrid-col {
-  min-width: 120px !important;
-  width: 120px !important;
+  min-width: 150px !important;
+  width: 150px !important;
+  max-width: 150px !important;
 }
 
 /* Make sure day columns in weekly view have adequate space */
@@ -219,9 +225,11 @@
   min-width: 500px !important;
 }
 
-/* Ensure resource column headers have proper space */
+/* Critical fix - ensure ALL resource column headers have consistent width */
 .weekly-view-calendar .fc-col-header-cell {
-  min-width: 120px !important;
+  min-width: 150px !important;
+  width: 150px !important;
+  max-width: 150px !important;
 }
 
 /* Fix for resource container width */
@@ -229,11 +237,12 @@
   min-width: 500px !important;
 }
 
-/* Fix for the resource column sizing */
+/* Critical fix - ensure ALL resource cells have exact same width */
 .weekly-view-calendar .fc-resource-group,
 .weekly-view-calendar .fc-datagrid-cell {
-  min-width: 120px !important;
-  width: 120px !important;
+  min-width: 150px !important;
+  width: 150px !important;
+  max-width: 150px !important;
 }
 
 /* Ensure time labels have enough room */
@@ -241,3 +250,26 @@
   width: 60px !important;
   min-width: 60px !important;
 }
+
+/* Force consistent column widths for team-6 (Today's events) */
+.weekly-view-calendar [data-resource-id="team-6"] td,
+.weekly-view-calendar [data-resource-id="team-6"] th,
+.weekly-view-calendar [data-resource-id="team-6"].fc-datagrid-cell,
+.weekly-view-calendar [data-resource-id="team-6"] .fc-datagrid-cell-frame,
+.weekly-view-calendar [data-resource-id="team-6"] .fc-timegrid-col {
+  min-width: 150px !important;
+  width: 150px !important;
+  max-width: 150px !important;
+}
+
+/* Ensure ALL columns in weekly view are exactly the same width */
+.weekly-view-calendar .fc-datagrid-cell,
+.weekly-view-calendar .fc-datagrid-cell-frame,
+.weekly-view-calendar .fc-timegrid-col,
+.weekly-view-calendar .fc-col-header-cell {
+  min-width: 150px !important;
+  width: 150px !important;
+  max-width: 150px !important;
+}
+
+/* ... keep existing code */

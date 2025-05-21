@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -46,6 +47,25 @@ const AddressWrapStyles = () => (
       }
       .fc-timegrid-event .fc-event-main {
         padding: 2px 4px !important;
+      }
+      /* Force consistent column widths */
+      .fc-resource-area td,
+      .fc-resource-area th,
+      .fc-resource-lane,
+      .fc-datagrid-cell,
+      .fc-timegrid-col {
+        min-width: 150px !important;
+        width: 150px !important;
+        max-width: 150px !important;
+      }
+      /* Special handling for team-6 */
+      [data-resource-id="team-6"] .fc-datagrid-cell,
+      [data-resource-id="team-6"].fc-datagrid-cell,
+      [data-resource-id="team-6"] .fc-timegrid-col,
+      [data-resource-id="team-6"].fc-timegrid-col {
+        min-width: 150px !important;
+        width: 150px !important;
+        max-width: 150px !important;
       }
     `}
   </style>
@@ -167,24 +187,36 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     );
   };
 
-  // Apply column width configuration
+  // Apply consistent column width configuration
   const getResourceColumnConfig = () => {
+    // Use provided values from calendarProps or fallback to defaults
+    const resourceAreaWidth = calendarProps.resourceAreaWidth || '150px';
+    const slotMinWidth = calendarProps.slotMinWidth || '150px';
+    
+    // Ensure columns for resource headers
+    const resourceAreaColumns = calendarProps.resourceAreaColumns || [
+      {
+        field: 'title',
+        headerContent: 'Teams',
+        width: '150px' // Ensure fixed width
+      }
+    ];
+    
     return {
-      resourceAreaWidth: calendarProps.resourceAreaWidth || '150px',
+      resourceAreaWidth,
+      slotMinWidth,
+      resourceAreaColumns,
       resourcesInitiallyExpanded: true,
-      resourceAreaColumns: calendarProps.resourceAreaColumns || [
-        {
-          field: 'title',
-          headerContent: 'Teams'
-        }
-      ],
-      slotMinWidth: calendarProps.slotMinWidth || '100px'
+      stickyResourceAreaHeaders: true,
+      // Force column widths to be consistent
+      resourceLaneWidth: '150px',
+      resourceWidth: '150px'
     };
   };
 
   return (
     <div className="calendar-container">
-      {/* Add custom styles for address wrapping */}
+      {/* Add custom styles for address wrapping and fixed column widths */}
       <AddressWrapStyles />
       
       <FullCalendar
@@ -231,12 +263,10 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           // Add z-index to time slots to ensure they appear behind staff badges
           info.el.style.zIndex = '1';
         }}
-        // Resource column configuration for proper spacing
-        resourceAreaWidth={calendarProps.resourceAreaWidth || '150px'}
-        slotMinWidth={calendarProps.slotMinWidth || '100px'}
+        // Apply consistent resource column configuration
+        {...getResourceColumnConfig()}
         // Apply any additional calendar props
         {...calendarProps}
-        {...getResourceColumnConfig()}
       />
       
       {/* Render the duplicate dialog */}

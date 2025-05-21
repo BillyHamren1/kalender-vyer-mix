@@ -46,15 +46,36 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
     }
   };
   
-  // Helper function to ensure resource columns have proper width
+  // Helper function to ensure consistent resource column configuration
   const getResourceTimeGridOptions = () => {
     return {
-      resourceAreaWidth: '150px',      // Width for resource area
-      resourceLabelText: 'Teams',      // Header text for resource area
-      resourceAreaHeaderContent: 'Teams', // Alternative way to set header text
-      stickyResourceAreaHeaders: true, // Keep resource headers visible during scroll
-      resourceOrder: 'title',          // Order resources by title
-      resourcesInitiallyExpanded: true  // Ensure resources are expanded initially
+      resourceAreaWidth: '150px',             // Fixed width for resource area
+      resourceLabelText: 'Teams',             // Header text for resource area
+      resourceAreaHeaderContent: 'Teams',     // Alternative way to set header text
+      stickyResourceAreaHeaders: true,        // Keep resource headers visible during scroll
+      resourceOrder: 'title',                 // Order resources by title
+      resourcesInitiallyExpanded: true,       // Ensure resources are expanded initially
+      slotMinWidth: '150px'                   // Fixed minimum width for time slots
+    };
+  };
+
+  // Common calendar props to ensure consistency across all day calendars
+  const getCommonCalendarProps = () => {
+    return {
+      height: 'auto',
+      headerToolbar: false,             // Hide the header to save space
+      allDaySlot: false,                // Hide all-day slot to save space
+      initialView: 'resourceTimeGridDay',
+      resourceAreaWidth: '150px',       // Fixed width for all resource areas
+      slotMinWidth: '150px',            // Fixed minimum width for all time slots
+      resourceAreaColumns: [            // Configure resource column display
+        {
+          field: 'title',
+          headerContent: 'Teams',
+          width: '150px'                // Fixed width for resource columns
+        }
+      ],
+      ...getResourceTimeGridOptions()   // Add additional resource grid options
     };
   };
 
@@ -80,19 +101,7 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
                 key={`calendar-${format(date, 'yyyy-MM-dd')}`}
                 calendarProps={{
                   'data-day-index': index.toString(),
-                  height: 'auto',
-                  headerToolbar: false,    // Hide the header to save space
-                  allDaySlot: false,       // Hide all-day slot to save space
-                  initialView: 'resourceTimeGridDay',
-                  resourceAreaWidth: '120px', // Set the width of the resource area
-                  slotMinWidth: '100px',   // Minimum width for time slots
-                  resourceAreaColumns: [   // Configure resource column display
-                    {
-                      field: 'title',
-                      headerContent: 'Teams'
-                    }
-                  ],
-                  ...getResourceTimeGridOptions() // Add additional resource grid options
+                  ...getCommonCalendarProps()  // Use common props for consistency
                 }}
               />
             </div>
