@@ -1,78 +1,108 @@
 
 import React from 'react';
-import { Badge } from "@/components/ui/badge";
-import { CheckCircle, XCircle, Clock, AlertTriangle, HelpCircle } from 'lucide-react';
-
-// Define all possible status types that can come from the external system
-type BookingStatus = 'CONFIRMED' | 'Confirmed' | 'confirmed' | 'CANCELLED' | 'Cancelled' | 'cancelled' | 'OFFER' | 'Offer' | 'offer' | 'PENDING' | 'Pending' | 'pending' | string;
+import { Badge } from '@/components/ui/badge';
+import { 
+  CheckCircle, 
+  Clock, 
+  AlertTriangle, 
+  XCircle, 
+  HelpCircle 
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { markBookingAsViewed } from '@/services/bookingService';
+import CancelledBookingDialog from './CancelledBookingDialog';
 
 interface StatusBadgeProps {
-  status: BookingStatus;
-  className?: string;
-  isNew?: boolean;
-  isUpdated?: boolean;
+  status: string;
+  viewed: boolean;
+  bookingId: string;
+  clientName: string;
+  onStatusUpdate?: () => void;
 }
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ 
   status, 
-  className = '',
-  isNew = false,
-  isUpdated = false
+  viewed, 
+  bookingId,
+  clientName,
+  onStatusUpdate 
 }) => {
-  // Base classes for the badge depending on status
-  let badgeClasses = '';
-  let statusText = '';
-  let icon = null;
-
-  const normalizedStatus = status?.toUpperCase() || '';
-
-  // Handle different status values with case-insensitive comparisons
-  switch (normalizedStatus) {
-    case 'CONFIRMED':
-      badgeClasses = 'bg-[#7BAEBF] hover:bg-[#7BAEBF]'; // Using the teal color from theme.css
-      statusText = 'Confirmed';
-      icon = <CheckCircle className="h-3 w-3" />;
-      break;
-    case 'CANCELLED':
-      badgeClasses = 'bg-red-500 hover:bg-red-500';
-      statusText = 'Cancelled';
-      icon = <XCircle className="h-3 w-3" />;
-      break;
-    case 'OFFER':
-      badgeClasses = 'bg-yellow-500 hover:bg-yellow-500';
-      statusText = 'Offer';
-      icon = <Clock className="h-3 w-3" />;
-      break;
-    case 'PENDING':
-      badgeClasses = 'bg-gray-400 hover:bg-gray-400';
-      statusText = 'Pending';
-      icon = <Clock className="h-3 w-3" />;
-      break;
-    default:
-      // If we get an unknown status, display it with warning styling
-      badgeClasses = 'bg-orange-400 hover:bg-orange-400';
-      statusText = status || 'Unknown';
-      icon = <AlertTriangle className="h-3 w-3" />;
+  let color = 'bg-gray-500';
+  let icon = <HelpCircle className="h-3.5 w-3.5 mr-1" />;
+  let label = status;
+  
+  // Normalize status to lower case for comparison
+  const statusLower = status.toLowerCase();
+  
+  if (statusLower === 'confirmed') {
+    color = 'bg-green-500';
+    icon = <CheckCircle className="h-3.5 w-3.5 mr-1" />;
+  } else if (statusLower === 'pending') {
+    color = 'bg-amber-500';
+    icon = <Clock className="h-3.5 w-3.5 mr-1" />;
+  } else if (statusLower === 'cancelled') {
+    color = 'bg-red-500';
+    icon = <XCircle className="h-3.5 w-3.5 mr-1" />;
+  } else if (statusLower === 'problem') {
+    color = 'bg-orange-500';
+    icon = <AlertTriangle className="h-3.5 w-3.5 mr-1" />;
   }
-
-  // Add indicator for new or updated status
-  const indicator = isNew ? (
-    <Badge className="ml-1 px-1 py-0 text-[0.6rem] bg-blue-500 hover:bg-blue-500">
-      New
-    </Badge>
-  ) : isUpdated ? (
-    <Badge className="ml-1 px-1 py-0 text-[0.6rem] bg-purple-500 hover:bg-purple-500">
-      Updated
-    </Badge>
-  ) : null;
-
+  
+  const handleViewedClick = async () => {
+    try {
+      await markBookingAsViewed(bookingId);
+      toast.success('Booking marked as viewed');
+      
+      // If this is a cancelled booking that was just deleted, we should
+      // refresh the page or navigate away since the booking no longer exists
+      if (statusLower === 'cancelled') {
+        toast.info('Cancelled booking has been deleted');
+        
+        // Trigger the parent component's update handler if provided
+        if (onStatusUpdate) {
+          onStatusUpdate();
+        }
+        
+        // Redirect to the bookings list after a short delay
+        setTimeout(() => {
+          window.location.href = '/bookings';
+        }, 1500);
+      } else if (onStatusUpdate) {
+        onStatusUpdate();
+      }
+    } catch (error) {
+      console.error('Error marking booking as viewed:', error);
+      toast.error('Failed to update booking status');
+    }
+  };
+  
   return (
-    <div className="flex items-center">
-      <Badge className={`flex items-center gap-1 ${badgeClasses} ${className}`}>
-        {icon}
-        {statusText}
+    <div className="flex items-center gap-2">
+      <Badge 
+        className={`${color} text-white capitalize py-1`}
+      >
+        <div className="flex items-center">
+          {icon}
+          {label}
+        </div>
       </Badge>
-      {indicator}
+      
+      {!viewed && (
+        statusLower === 'cancelled' ? (
+          <CancelledBookingDialog 
+            bookingId={bookingId}
+            clientName={clientName}
+            onConfirm={handleViewedClick}
+          />
+        ) : (
+          <Badge 
+            className="bg-blue-500 text-white cursor-pointer"
+            onClick={handleViewedClick}
+          >
+            New
+          </Badge>
+        )
+      )}
     </div>
   );
 };

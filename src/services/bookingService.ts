@@ -369,15 +369,92 @@ export const addBookingAttachment = async (
   }
 };
 
-// Mark a booking as viewed
+// Mark a booking as viewed - now handles deletion of cancelled bookings
 export const markBookingAsViewed = async (id: string): Promise<void> => {
-  const { error } = await supabase
-    .from('bookings')
-    .update({ viewed: true, updated_at: new Date().toISOString() })
-    .eq('id', id);
+  try {
+    // First get the booking to check its status
+    const { data: booking, error: fetchError } = await supabase
+      .from('bookings')
+      .select('status')
+      .eq('id', id)
+      .single();
+    
+    if (fetchError) {
+      console.error('Error fetching booking status:', fetchError);
+      throw fetchError;
+    }
+    
+    // If the booking has CANCELLED status, delete it completely
+    if (booking.status && booking.status.toLowerCase() === 'cancelled') {
+      await deleteBooking(id);
+      console.log(`Deleted cancelled booking ${id} after viewing`);
+      return;
+    }
+    
+    // Otherwise, just mark it as viewed (normal behavior)
+    const { error } = await supabase
+      .from('bookings')
+      .update({ viewed: true, updated_at: new Date().toISOString() })
+      .eq('id', id);
 
-  if (error) {
-    console.error('Error marking booking as viewed:', error);
+    if (error) {
+      console.error('Error marking booking as viewed:', error);
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error in markBookingAsViewed:', error);
+    throw error;
+  }
+};
+
+// Delete a booking completely from the database
+export const deleteBooking = async (id: string): Promise<void> => {
+  try {
+    // Start a transaction to ensure all related data is deleted
+    const { error: bookingProductsError } = await supabase
+      .from('booking_products')
+      .delete()
+      .eq('booking_id', id);
+    
+    if (bookingProductsError) {
+      console.error(`Error deleting products for booking ${id}:`, bookingProductsError);
+      throw bookingProductsError;
+    }
+    
+    // Delete booking attachments
+    const { error: bookingAttachmentsError } = await supabase
+      .from('booking_attachments')
+      .delete()
+      .eq('booking_id', id);
+    
+    if (bookingAttachmentsError) {
+      console.error(`Error deleting attachments for booking ${id}:`, bookingAttachmentsError);
+      throw bookingAttachmentsError;
+    }
+    
+    // Ensure any calendar events are deleted
+    try {
+      await deleteAllBookingEvents(id);
+      console.log(`Successfully deleted calendar events for booking ${id}`);
+    } catch (eventError) {
+      console.error(`Error deleting calendar events for booking ${id}:`, eventError);
+      // Continue with booking deletion even if event deletion fails
+    }
+    
+    // Finally delete the booking itself
+    const { error: bookingError } = await supabase
+      .from('bookings')
+      .delete()
+      .eq('id', id);
+    
+    if (bookingError) {
+      console.error(`Error deleting booking ${id}:`, bookingError);
+      throw bookingError;
+    }
+    
+    console.log(`Successfully deleted booking ${id} and all related data`);
+  } catch (error) {
+    console.error(`Failed to delete booking ${id}:`, error);
     throw error;
   }
 };
