@@ -146,13 +146,16 @@ const StaffEndpoint = () => {
                       <h3 className="font-medium">Delivery Address</h3>
                       <p className="text-gray-600">{booking.deliveryAddress}</p>
                       
-                      {/* Display coordinates at the top level */}
-                      {"coordinates" in booking && booking.coordinates && (
+                      {/* Fix the type checking for coordinates */}
+                      {booking.coordinates && (
                         <div className="flex items-center gap-1.5 mt-1">
                           <Badge variant="outline" className="flex items-center gap-1 bg-blue-50">
                             <MapPin className="h-3 w-3" />
                             <span className="text-xs">
-                              {formatCoordinates(booking.coordinates.latitude, booking.coordinates.longitude)}
+                              {formatCoordinates(
+                                booking.coordinates.latitude, 
+                                booking.coordinates.longitude
+                              )}
                             </span>
                           </Badge>
                         </div>

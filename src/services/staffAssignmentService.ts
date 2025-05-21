@@ -17,6 +17,10 @@ export interface StaffAssignmentResponse {
 export interface StaffBooking extends Booking {
   events: BookingEvent[];
   teamId: string;
+  coordinates?: {
+    latitude: number | null;
+    longitude: number | null;
+  };
 }
 
 // Interface for booking events
