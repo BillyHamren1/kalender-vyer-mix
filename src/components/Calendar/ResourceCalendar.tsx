@@ -21,6 +21,37 @@ import {
 import { getEventHandlers, getCalendarTimeFormatting } from './CalendarEventHandlers';
 import { useCalendarView } from './CalendarViewConfig';
 
+// Custom styles to ensure addresses wrap properly in calendar events
+const AddressWrapStyles = () => (
+  <style>
+    {`
+      .event-delivery-address {
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+        hyphens: auto;
+        max-height: none !important;
+        white-space: normal !important;
+      }
+      .fc-event-title {
+        white-space: normal !important;
+        overflow: visible !important;
+      }
+      .fc-event-time {
+        white-space: nowrap;
+      }
+      .event-content-wrapper {
+        display: flex;
+        flex-direction: column;
+        min-height: 100%;
+        padding: 2px;
+      }
+      .fc-timegrid-event .fc-event-main {
+        padding: 2px 4px !important;
+      }
+    `}
+  </style>
+);
+
 interface ResourceCalendarProps {
   events: CalendarEvent[];
   resources: Resource[];
@@ -137,6 +168,9 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
 
   return (
     <div className="calendar-container">
+      {/* Add custom styles for address wrapping */}
+      <AddressWrapStyles />
+      
       <FullCalendar
         ref={calendarRef}
         plugins={[

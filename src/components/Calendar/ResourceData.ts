@@ -26,6 +26,7 @@ export type CalendarEvent = {
   color?: string;
   bookingId?: string;
   deliveryAddress?: string;
+  customer?: string; // Add customer property to fix build error
 };
 
 // Helper function to get the correct color for the event type

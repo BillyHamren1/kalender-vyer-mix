@@ -28,7 +28,7 @@ export const renderEventContent = (eventInfo: any) => {
       <div className="event-time font-semibold">{eventTime}</div>
       <div className="event-client-name text-sm truncate">{clientName}</div>
       <div className="event-booking-id text-xs opacity-80 truncate">ID: {bookingId}</div>
-      <div className="event-delivery-address text-xs truncate">{deliveryAddress}</div>
+      <div className="event-delivery-address text-xs break-words whitespace-normal" style={{ wordWrap: 'break-word', lineHeight: '1.2' }}>{deliveryAddress}</div>
     </div>
   );
 };

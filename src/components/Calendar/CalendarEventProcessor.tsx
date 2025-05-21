@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
 
@@ -103,7 +104,8 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]) =>
       classNames: [`event-${event.eventType || 'default'}`],
       extendedProps: {
         ...event,
-        dataEventType: event.eventType // Add as data attribute
+        dataEventType: event.eventType, // Add as data attribute
+        deliveryAddress: event.deliveryAddress || 'No address provided' // Ensure deliveryAddress is available
       }
     };
   });
