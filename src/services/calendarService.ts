@@ -18,3 +18,6 @@ export {
 export {
   syncBookingEvents
 } from './bookingCalendarService';
+
+// Export the cleanup function
+export { cleanupDuplicateEvents } from '../utils/calendarCleanup';
