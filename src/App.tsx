@@ -14,6 +14,7 @@ import APITester from "./pages/APITester";
 import NotFound from "./pages/NotFound";
 import StaffEndpoint from "./pages/StaffEndpoint";
 import LogisticsMap from "./pages/LogisticsMap";
+import WeeklyResourceView from "./pages/WeeklyResourceView";
 
 // Create context to share calendar date across components
 export const CalendarContext = createContext<{
@@ -61,6 +62,7 @@ const AppContent = () => {
             <Route path="/api-tester" element={<APITester />} />
             <Route path="/staff/:staffId" element={<StaffEndpoint />} />
             <Route path="/logistics-map" element={<LogisticsMap />} />
+            <Route path="/weekly-view" element={<WeeklyResourceView />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </div>

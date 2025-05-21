@@ -4,9 +4,10 @@ import { Link, useLocation } from "react-router-dom";
 const Navbar = () => {
   const location = useLocation();
   
-  // Add a new link to the logistics map dashboard
+  // Add a new link to the weekly resource view
   const navigationLinks = [
     { href: '/resource-view', label: 'Resource View' },
+    { href: '/weekly-view', label: '7-Day View' },
     { href: '/day-view', label: 'Day View' },
     { href: '/booking-list', label: 'Bookings' },
     { href: '/logistics-map', label: 'Logistics Map' }
