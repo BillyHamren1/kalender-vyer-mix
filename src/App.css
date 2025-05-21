@@ -1,3 +1,4 @@
+
 #root {
   max-width: 1280px;
   margin: 0 auto;
@@ -8,7 +9,7 @@
 /* Disable the transform on mobile devices */
 @media (max-width: 768px) {
   #root {
-    transform: none;
+    transform: none !important; /* Force no transform */
     padding: 0.5rem;
   }
 }
@@ -53,6 +54,7 @@
 .calendar-container {
   height: auto !important;
   min-height: 750px; /* Fixed height for the calendar container */
+  transform: none !important; /* Ensure no transform is applied */
 }
 
 /* Adjust for mobile */
@@ -60,4 +62,9 @@
   .calendar-container {
     min-height: 550px;
   }
+}
+
+/* Disable all transforms that might cause tilting */
+html, body, #root, .calendar-container, .container, .min-h-screen {
+  transform: none !important;
 }

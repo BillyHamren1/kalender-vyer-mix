@@ -28,16 +28,16 @@ const ResourceLayout: React.FC<ResourceLayoutProps> = ({
           </div>
           
           {/* Layout container with staff on left and calendar on right */}
-          <div className="flex flex-col md:flex-row gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-4">
             {/* Left column: Available Staff Display */}
             {showStaffDisplay && (
-              <div className="md:w-[200px] md:flex-shrink-0 order-2 md:order-1">
+              <div className="md:w-full order-2 md:order-1">
                 {staffDisplay}
               </div>
             )}
             
             {/* Right column: Calendar */}
-            <div className="flex-grow order-1 md:order-2">
+            <div className="w-full order-1 md:order-2">
               {/* Calendar is rendered here by the parent component */}
             </div>
           </div>
