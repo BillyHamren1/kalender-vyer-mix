@@ -7,7 +7,7 @@
 }
 
 .weekly-calendar-container {
-  min-width: 1200px;
+  min-width: 3640px; /* Updated to accommodate 7 days with 520px each */
   width: 100%;
   display: flex;
   overflow-x: auto;
@@ -15,7 +15,8 @@
 }
 
 .day-calendar-wrapper {
-  min-width: 400px;
+  min-width: 520px !important; /* Increased by 30% from 400px */
+  width: 520px !important; /* Set explicit width */
   flex: 1;
   border-right: 1px solid #e5e7eb;
 }
@@ -80,6 +81,21 @@
 /* Ensure proper width for team columns */
 .fc-timeline-slot {
   min-width: 150px !important;
+}
+
+/* Force FullCalendar to respect our column widths */
+.fc .fc-resourceTimeGridDay-view .fc-col-header-cell,
+.fc .fc-resourceTimeGridDay-view .fc-timegrid-col,
+.fc .fc-resourceTimeGridDay-view .fc-datagrid-cell {
+  width: 520px !important;
+  min-width: 520px !important;
+}
+
+/* Ensure resource columns have proper width */
+.fc-resourceTimeGridDay-view .fc-datagrid-cell-frame,
+.fc-resourceTimeGridDay-view .fc-scrollgrid-sync-table {
+  width: 520px !important;
+  min-width: 520px !important;
 }
 
 /* Optimize event content */
