@@ -30,22 +30,27 @@ const AddressWrapStyles = () => (
         hyphens: auto;
         max-height: none !important;
         white-space: normal !important;
+        color: #000000e6 !important;
       }
       .fc-event-title {
         white-space: normal !important;
         overflow: visible !important;
+        color: #000000e6 !important;
       }
       .fc-event-time {
         white-space: nowrap;
+        color: #000000e6 !important;
       }
       .event-content-wrapper {
         display: flex;
         flex-direction: column;
         min-height: 100%;
         padding: 2px;
+        color: #000000e6 !important;
       }
       .fc-timegrid-event .fc-event-main {
         padding: 2px 4px !important;
+        color: #000000e6 !important;
       }
       /* Force consistent column widths - REDUCED */
       .fc-resource-area td,
@@ -65,6 +70,16 @@ const AddressWrapStyles = () => (
         min-width: 80px !important;
         width: 80px !important;
         max-width: 80px !important;
+      }
+      /* Ensure all event text is black */
+      .fc-event *, 
+      .fc-timegrid-event *, 
+      .fc-daygrid-event *,
+      .event-client-name,
+      .event-street,
+      .event-city,
+      .event-booking-id {
+        color: #000000e6 !important;
       }
     `}
   </style>
