@@ -14,6 +14,15 @@ export interface ImportResults {
     new_bookings?: string[];
     updated_bookings?: string[];
     status_changed_bookings?: string[];
+    change_details?: {
+      booking_id: string;
+      changes: {
+        fields: string[];
+        old_status?: string;
+        new_status?: string;
+        version: number;
+      };
+    }[];
     errors?: { booking_id: string; error: string }[];
   };
   error?: string;
@@ -26,6 +35,7 @@ export interface ImportFilters {
   startDate?: string;
   endDate?: string;
   clientName?: string;
+  includeChangeHistory?: boolean;
 }
 
 /**
@@ -84,6 +94,22 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
       }
 
       console.log('Import completed successfully with results:', resultData.results);
+      
+      // For each booking with changes, fetch its change history
+      if (filters.includeChangeHistory && resultData.results) {
+        const allChangedBookings = [
+          ...(resultData.results.new_bookings || []),
+          ...(resultData.results.updated_bookings || []),
+          ...(resultData.results.status_changed_bookings || [])
+        ];
+        
+        if (allChangedBookings.length > 0) {
+          const changeDetails = await fetchBookingChanges(allChangedBookings);
+          if (changeDetails.length > 0) {
+            resultData.results.change_details = changeDetails;
+          }
+        }
+      }
       
       // Handle successful import
       return {
@@ -187,6 +213,22 @@ export const quietImportBookings = async (filters: ImportFilters = {}): Promise<
             description: `${statusChangedCount} booking${statusChangedCount > 1 ? 's' : ''} changed status in external system`
           });
         }
+        
+        // For each booking with changes, fetch its change history
+        if (filters.includeChangeHistory) {
+          const allChangedBookings = [
+            ...(resultData.results.new_bookings || []),
+            ...(resultData.results.updated_bookings || []),
+            ...(resultData.results.status_changed_bookings || [])
+          ];
+          
+          if (allChangedBookings.length > 0) {
+            const changeDetails = await fetchBookingChanges(allChangedBookings);
+            if (changeDetails.length > 0) {
+              resultData.results.change_details = changeDetails;
+            }
+          }
+        }
       }
 
       // Handle successful import
@@ -213,6 +255,72 @@ export const quietImportBookings = async (filters: ImportFilters = {}): Promise<
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error during import',
     };
+  }
+};
+
+/**
+ * Fetch recent changes for specific bookings
+ */
+export const fetchBookingChanges = async (bookingIds: string[]) => {
+  if (!bookingIds.length) return [];
+  
+  try {
+    const { data, error } = await supabase
+      .from('booking_changes')
+      .select('*')
+      .in('booking_id', bookingIds)
+      .order('version', { ascending: false })
+      .limit(100);
+    
+    if (error) {
+      console.error('Error fetching booking changes:', error);
+      return [];
+    }
+    
+    // Process the changes into a more usable format
+    const changesByBooking = data.reduce((acc, change) => {
+      if (!acc[change.booking_id]) {
+        acc[change.booking_id] = [];
+      }
+      
+      // Add this change to the booking's changes
+      acc[change.booking_id].push({
+        id: change.id,
+        type: change.change_type,
+        timestamp: change.changed_at,
+        fields: Object.keys(change.changed_fields || {}),
+        previous: change.previous_values,
+        new: change.new_values,
+        version: change.version
+      });
+      
+      return acc;
+    }, {});
+    
+    // Format as an array of booking changes
+    return Object.entries(changesByBooking).map(([booking_id, changes]) => {
+      const latestChange = changes[0];
+      const fields = latestChange?.fields || [];
+      
+      let oldStatus, newStatus;
+      if (latestChange?.type === 'status_change' && latestChange.previous?.status) {
+        oldStatus = latestChange.previous.status;
+        newStatus = latestChange.new?.status;
+      }
+      
+      return {
+        booking_id,
+        changes: {
+          fields,
+          old_status: oldStatus,
+          new_status: newStatus,
+          version: latestChange?.version || 1
+        }
+      };
+    });
+  } catch (error) {
+    console.error('Error processing booking changes:', error);
+    return [];
   }
 };
 

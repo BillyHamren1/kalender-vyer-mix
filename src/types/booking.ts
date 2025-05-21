@@ -13,6 +13,17 @@ export interface BookingAttachment {
   fileType: string;
 }
 
+export interface BookingChange {
+  id: string;
+  changeType: 'new' | 'update' | 'status_change' | 'delete';
+  changedAt: string;
+  changedFields: string[];
+  previousValues?: Record<string, any>;
+  newValues?: Record<string, any>;
+  version: number;
+  changedBy?: string;
+}
+
 export interface Booking {
   id: string;
   client: string;
@@ -33,4 +44,6 @@ export interface Booking {
   attachments?: BookingAttachment[];
   viewed: boolean;
   status: string;
+  version: number;
+  changes?: BookingChange[];
 }
