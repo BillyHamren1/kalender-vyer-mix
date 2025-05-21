@@ -62,6 +62,7 @@ interface ResourceCalendarProps {
   refreshEvents: () => Promise<void | CalendarEvent[]>;
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
   forceRefresh?: boolean;
+  calendarProps?: Record<string, any>; // Add this prop to allow passing additional props to FullCalendar
 }
 
 const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
@@ -73,7 +74,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   onDateSet,
   refreshEvents,
   onStaffDrop,
-  forceRefresh
+  forceRefresh,
+  calendarProps = {} // Default to empty object
 }) => {
   const calendarRef = useRef<any>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(currentDate);
@@ -215,6 +217,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           // Add z-index to time slots to ensure they appear behind staff badges
           info.el.style.zIndex = '1';
         }}
+        // Apply any additional calendar props
+        {...calendarProps}
       />
       
       {/* Render the duplicate dialog */}

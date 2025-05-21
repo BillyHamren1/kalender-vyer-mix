@@ -9,6 +9,28 @@
 .weekly-calendar-container {
   min-width: 1200px;
   width: 100%;
+  display: flex;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+}
+
+.day-calendar-wrapper {
+  min-width: 400px;
+  flex: 1;
+  border-right: 1px solid #e5e7eb;
+}
+
+.day-calendar-wrapper:last-child {
+  border-right: none;
+}
+
+.day-header {
+  font-weight: 600;
+  font-size: 1.1rem;
+  padding: 8px 4px;
+  text-align: center;
+  background-color: #f3f4f6;
+  border-bottom: 2px solid #d1d5db;
 }
 
 /* Make resource timeline work properly */
@@ -142,4 +164,28 @@
 /* Day grouping header enhancements */
 .fc-timeline-lane-frame {
   min-height: 50px;
+}
+
+/* Reduced height for weekly view calendars */
+.weekly-view-calendar .fc-view-harness {
+  min-height: 400px !important;
+  max-height: 600px !important;
+}
+
+/* Make weekly calendars more compact */
+.weekly-view-calendar .fc-timegrid-slot {
+  height: 30px !important;
+}
+
+/* Week navigation styles */
+.week-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.week-date-range {
+  font-size: 1.25rem;
+  font-weight: 600;
 }

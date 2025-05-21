@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -15,7 +16,7 @@ import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import WeeklyResourceCalendar from '@/components/Calendar/WeeklyResourceCalendar';
-import { format } from 'date-fns';
+import { format, addDays, startOfWeek } from 'date-fns';
 
 const WeeklyResourceView = () => {
   // Use our custom hooks to manage state and logic
@@ -46,20 +47,14 @@ const WeeklyResourceView = () => {
   
   // Week navigation - managed independently from calendar's currentDate
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
-    const today = new Date(hookCurrentDate);
     // Set to the start of the current week (Sunday)
-    const day = today.getDay();
-    today.setDate(today.getDate() - day);
-    return today;
+    return startOfWeek(new Date(hookCurrentDate), { weekStartsOn: 0 });
   });
 
   // Only update when hookCurrentDate changes, not on every render
   useEffect(() => {
     // When currentDate changes from outside, reset the week view
-    const newWeekStart = new Date(hookCurrentDate);
-    const day = newWeekStart.getDay();
-    newWeekStart.setDate(newWeekStart.getDate() - day);
-    setCurrentWeekStart(newWeekStart);
+    setCurrentWeekStart(startOfWeek(new Date(hookCurrentDate), { weekStartsOn: 0 }));
   }, [hookCurrentDate]);
 
   // Handle staff drop for assignment
@@ -113,10 +108,7 @@ const WeeklyResourceView = () => {
   }, [currentWeekStart]);
 
   const goToCurrentWeek = useCallback(() => {
-    const today = new Date();
-    const day = today.getDay();
-    today.setDate(today.getDate() - day);
-    setCurrentWeekStart(today);
+    setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 0 }));
   }, []);
 
   // Custom onDateSet function that prevents infinite loops
@@ -129,9 +121,7 @@ const WeeklyResourceView = () => {
 
   // Format the week range for display
   const weekRangeText = useMemo(() => {
-    const endDate = new Date(currentWeekStart);
-    endDate.setDate(endDate.getDate() + 6);
-    
+    const endDate = addDays(currentWeekStart, 6);
     return `${format(currentWeekStart, 'MMM d')} - ${format(endDate, 'MMM d, yyyy')}`;
   }, [currentWeekStart]);
 
@@ -208,7 +198,7 @@ const WeeklyResourceView = () => {
           </div>
         </div>
         
-        {/* Calendar */}
+        {/* Weekly Calendar View */}
         <div className="weekly-view-container overflow-x-auto">
           <WeeklyResourceCalendar
             events={events}
