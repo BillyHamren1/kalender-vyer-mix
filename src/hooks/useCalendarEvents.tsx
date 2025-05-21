@@ -24,10 +24,10 @@ export const useCalendarEvents = () => {
 
   // Memoize the loadEvents function to prevent recreations
   const loadEvents = useCallback(async (force = false) => {
-    // Skip if we've updated in the last 5 seconds and this isn't a forced refresh
+    // Skip if we've updated in the last 30 seconds and this isn't a forced refresh
     if (!force && lastUpdateRef.current) {
       const timeSinceLastUpdate = Date.now() - lastUpdateRef.current.getTime();
-      if (timeSinceLastUpdate < 5000) {
+      if (timeSinceLastUpdate < 30000) { // Increased from 5000ms to 30000ms (30 seconds)
         console.log('Skipping events update, last update was', timeSinceLastUpdate, 'ms ago');
         return;
       }
@@ -39,10 +39,6 @@ export const useCalendarEvents = () => {
       const data = await fetchCalendarEvents();
       if (activeRef.current) {
         console.log('Calendar events loaded successfully:', data);
-        console.log('Resource IDs in events:', data.map(event => event.resourceId));
-        
-        // Log event types to help with debugging
-        console.log('Event types:', data.map(event => event.eventType));
         
         // Deduplicate events based on ID
         const uniqueEvents = removeDuplicateEvents(data);
@@ -102,18 +98,33 @@ export const useCalendarEvents = () => {
     // Initial load
     loadEvents(true);
 
-    // Set up polling every 30 seconds to fetch updates
+    // Set up polling every 2 minutes (increased from 30 seconds) to fetch updates
+    // Only poll when the document is visible to reduce unnecessary requests
     pollIntervalRef.current = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         loadEvents();
       }
-    }, 30000);
+    }, 120000); // Changed from 30000 to 120000 (2 minutes)
+
+    // Add visibility change listener to refresh when tab becomes visible again
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && lastUpdateRef.current) {
+        const timeSinceLastUpdate = Date.now() - lastUpdateRef.current.getTime();
+        // Only refresh if it's been more than 30 seconds since the last update
+        if (timeSinceLastUpdate > 30000) {
+          loadEvents();
+        }
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       activeRef.current = false;
       if (pollIntervalRef.current !== null) {
         clearInterval(pollIntervalRef.current);
       }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [loadEvents]);
 

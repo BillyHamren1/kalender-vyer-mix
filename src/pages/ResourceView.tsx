@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useEventActions } from '@/hooks/useEventActions';
@@ -42,26 +42,14 @@ const ResourceView = () => {
   const isMobile = useIsMobile();
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
   
-  // Ensure events duplication prevention is always active
+  // Ensure events duplication prevention is always active - only run once
   useEffect(() => {
     // This prevents any automatic event duplication by always setting the flag to true
     localStorage.setItem('eventsSetupDone', 'true');
-    
-    // Clean up any potential duplicate events
-    const cleanupDuplicateEvents = async () => {
-      try {
-        // Force a refresh to get the latest events and remove duplicates
-        await refreshEvents();
-      } catch (error) {
-        console.error('Error cleaning up duplicate events:', error);
-      }
-    };
-    
-    cleanupDuplicateEvents();
-  }, [refreshEvents]);
+  }, []);
 
-  // Handle staff drop for assignment
-  const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
+  // Handle staff drop for assignment - memoized to prevent recreation
+  const handleStaffDrop = useCallback(async (staffId: string, resourceId: string | null) => {
     try {
       console.log(`Handling staff drop: staff=${staffId}, resource=${resourceId}`);
       if (resourceId) {
@@ -95,7 +83,7 @@ const ResourceView = () => {
       toast.error('Failed to update staff assignment');
       return Promise.reject(error);
     }
-  };
+  }, [currentDate]);
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -142,6 +130,11 @@ const ResourceView = () => {
           refreshEvents={refreshEvents}
           onStaffDrop={handleStaffDrop}
           forceRefresh={staffAssignmentsUpdated}
+          // Add additional props to control auto-refreshing
+          calendarProps={{
+            rerenderDelay: 500, // Add a delay to prevent rapid re-renders
+            eventDragMinDistance: 10, // Reduce unnecessary event drag triggers
+          }}
         />
       </ResourceLayout>
     </DndProvider>
