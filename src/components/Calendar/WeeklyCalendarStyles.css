@@ -15,7 +15,7 @@
 }
 
 .day-calendar-wrapper {
-  min-width: 576px; /* Increased from 480px to 576px to accommodate all teams */
+  min-width: 400px;
   flex: 1;
   border-right: 1px solid #e5e7eb;
 }
@@ -40,7 +40,7 @@
 }
 
 /* Ensure scrolling works properly */
-.fc .fc-scroller {
+.fc-scroller {
   overflow: visible !important;
 }
 
@@ -188,69 +188,4 @@
 .week-date-range {
   font-size: 1.25rem;
   font-weight: 600;
-}
-
-/* NEW: Target the FullCalendar resource columns to make them 20% wider */
-.weekly-view-calendar .fc-resource-timeline .fc-resource-group,
-.weekly-view-calendar .fc-resource-timeline .fc-datagrid-cell,
-.weekly-view-calendar .fc-resourceTimeGridDay-view .fc-datagrid-cell {
-  min-width: 180px !important; /* Increased from default ~150px to 180px (20% more) */
-  width: 180px !important;
-}
-
-/* Force proper sizing for resource column headers */
-.fc-resourceTimeGridDay-view .fc-col-header-cell {
-  min-width: 180px !important; /* 20% wider than default */
-  width: 180px !important;
-}
-
-/* Apply to timegrid cells as well */
-.fc-resourceTimeGridDay-view .fc-timegrid-col {
-  min-width: 180px !important; /* 20% wider than default */
-  width: 180px !important;
-}
-
-/* Target grid body to ensure consistent width */
-.fc-resourceTimeGridDay-view .fc-datagrid-body,
-.fc-resourceTimeGridDay-view .fc-datagrid-body-inner {
-  min-width: auto !important;
-  width: auto !important;
-}
-
-/* Ensure resource cells expand properly */
-.fc-resourceTimeGridDay-view .fc-datagrid-cell-frame {
-  min-width: 180px !important; /* 20% wider than default */
-  width: 180px !important;
-}
-
-/* Target the resource cell content */
-.fc-resourceTimeGridDay-view .fc-datagrid-cell-cushion {
-  width: 100% !important;
-  min-width: 180px !important; /* 20% wider than default */
-}
-
-/* Make sure the time areas properly adjust */
-.fc-resourceTimeGridDay-view .fc-timegrid-slots,
-.fc-resourceTimeGridDay-view .fc-timegrid-cols {
-  min-width: auto !important;
-  width: auto !important;
-}
-
-/* Ensure the container expands to fit the wider columns */
-.fc-resourceTimeGridDay-view .fc-view-harness,
-.fc-resourceTimeGridDay-view .fc-view-harness-active,
-.fc-resourceTimeGridDay-view .fc-scrollgrid-sync-table {
-  min-width: auto !important;
-  width: auto !important;
-}
-
-/* Fix the table layout to respect our widths */
-.fc-resourceTimeGridDay-view table {
-  table-layout: fixed !important;
-}
-
-/* Properly size the event container columns */
-.fc-resourceTimeGridDay-view .fc-timegrid-col-events {
-  min-width: 180px !important; /* 20% wider than default */
-  width: 180px !important;
 }
