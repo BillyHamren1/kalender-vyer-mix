@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -15,8 +16,6 @@ import ResourceLayout from '@/components/Calendar/ResourceLayout';
 import ResourceToolbar from '@/components/Calendar/ResourceToolbar';
 import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
 import { fetchAllStaffBookings } from '@/services/staffAssignmentService';
-import { Button } from '@/components/ui/button';
-import { InfoIcon } from 'lucide-react';
 
 const ResourceView = () => {
   // Use our custom hooks to manage state and logic
@@ -44,7 +43,6 @@ const ResourceView = () => {
   const { addEventToCalendar, duplicateEvent } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
-  const [isLoadingAllBookings, setIsLoadingAllBookings] = useState(false);
   
   // Using useState with localStorage to track setup completion
   const [setupDone, setSetupDone] = useState(() => {
@@ -115,26 +113,6 @@ const ResourceView = () => {
       return Promise.reject(error);
     }
   };
-  
-  // Function to load all bookings for all staff
-  const loadAllBookings = async () => {
-    try {
-      setIsLoadingAllBookings(true);
-      const allBookings = await fetchAllStaffBookings(currentDate);
-      
-      if (allBookings.length === 0) {
-        toast.info('No bookings found for the selected date');
-      } else {
-        toast.success(`Loaded ${allBookings.length} bookings for all staff`);
-        console.log('All bookings:', allBookings);
-      }
-    } catch (error) {
-      console.error('Error loading all bookings:', error);
-      toast.error('Failed to load all bookings');
-    } finally {
-      setIsLoadingAllBookings(false);
-    }
-  };
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -169,20 +147,6 @@ const ResourceView = () => {
           onAddTask={addEventToCalendar}
           className="w-full"
         />
-        
-        {/* Load all bookings button in its own row */}
-        <div className="mb-4 flex justify-end">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={loadAllBookings}
-            disabled={isLoadingAllBookings}
-            className="flex items-center gap-2"
-          >
-            <InfoIcon className="h-4 w-4" />
-            {isLoadingAllBookings ? 'Loading...' : 'Load all bookings'}
-          </Button>
-        </div>
         
         {/* Calendar */}
         <ResourceCalendar
