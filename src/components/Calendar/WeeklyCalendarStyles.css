@@ -83,19 +83,42 @@
   min-width: 150px !important;
 }
 
-/* Force FullCalendar to respect our column widths */
-.fc .fc-resourceTimeGridDay-view .fc-col-header-cell,
-.fc .fc-resourceTimeGridDay-view .fc-timegrid-col,
-.fc .fc-resourceTimeGridDay-view .fc-datagrid-cell {
-  width: 520px !important;
-  min-width: 520px !important;
+/* Make each resource column take equal width within its container */
+.fc .fc-resourceTimeGridDay-view .fc-datagrid-cell,
+.fc .fc-resourceTimeGridDay-view .fc-timegrid-col {
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
 }
 
-/* Ensure resource columns have proper width */
+/* Scale down resource area */
 .fc-resourceTimeGridDay-view .fc-datagrid-cell-frame,
 .fc-resourceTimeGridDay-view .fc-scrollgrid-sync-table {
-  width: 520px !important;
-  min-width: 520px !important;
+  width: 100% !important;
+}
+
+/* Allow resource columns to shrink */
+.fc .fc-timegrid-cols {
+  width: 100% !important;
+}
+
+/* Set the resource area width */
+.fc .fc-timegrid-axis {
+  width: 15% !important;
+  max-width: 80px !important;
+}
+
+/* Make the day view fit in its container */
+.weekly-view-calendar .fc-view-harness {
+  width: 100% !important;
+}
+
+/* Ensure all columns are visible */
+.fc-timegrid-body,
+.fc-timegrid-body-container,
+.fc-timegrid-slots,
+.fc-timegrid-slots table {
+  width: 100% !important;
 }
 
 /* Optimize event content */
