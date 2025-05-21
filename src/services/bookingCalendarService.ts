@@ -203,8 +203,8 @@ export const resyncBookingToCalendar = async (bookingId: string): Promise<boolea
     let eventsCreated = 0;
     
     // Format the delivery address for the event
-    const deliveryAddress = booking.deliveryAddress 
-      ? `${booking.deliveryAddress}, ${booking.deliveryCity || ''} ${booking.deliveryPostalCode || ''}`
+    const deliveryAddress = booking.deliveryaddress 
+      ? `${booking.deliveryaddress}, ${booking.delivery_city || ''} ${booking.delivery_postal_code || ''}`
       : 'No address provided';
     
     // Rig day dates
