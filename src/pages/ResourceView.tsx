@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -174,6 +173,19 @@ const ResourceView = () => {
           setDialogOpen={setDialogOpen}
         />
 
+        {/* Move Events Button - Moved to top for better visibility */}
+        <div className="flex justify-center my-3">
+          <Button 
+            variant="default" 
+            onClick={forceMoveTodaysEvents}
+            disabled={isMovingEvents}
+            className="text-sm font-bold"
+            size="lg"
+          >
+            {isMovingEvents ? 'Moving...' : 'Move All Yellow Events to Todays Events'}
+          </Button>
+        </div>
+
         {/* Toolbar with Update Button, Add Task Button, and Navigation */}
         <ResourceToolbar
           isLoading={isLoading}
@@ -182,18 +194,6 @@ const ResourceView = () => {
           onRefresh={refreshEvents}
           onAddTask={addEventToCalendar}
         />
-        
-        {/* Emergency move button */}
-        <div className="flex justify-center my-2">
-          <Button 
-            variant="outline" 
-            onClick={forceMoveTodaysEvents}
-            disabled={isMovingEvents}
-            className="text-xs"
-          >
-            {isMovingEvents ? 'Moving...' : 'Move All Yellow Events to Todays Events'}
-          </Button>
-        </div>
         
         {/* Calendar */}
         <ResourceCalendar

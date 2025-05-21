@@ -26,13 +26,13 @@ const ResourceLayout: React.FC<ResourceLayoutProps> = ({
           {/* Children contains header and navigation */}
           {children}
 
-          {/* Two-column layout for staff and calendar - Use grid or flex based on screen size */}
-          <div className={`${isMobile ? 'flex flex-col' : 'grid'}`} 
-               style={{ gridTemplateColumns: isMobile ? '1fr' : '200px 1fr', gap: '1rem' }}>
+          {/* Always use grid layout for side-by-side display regardless of screen size */}
+          <div className="grid" 
+               style={{ gridTemplateColumns: '200px 1fr', gap: '1rem' }}>
             
             {/* Left column: Available Staff Display */}
             {showStaffDisplay && (
-              <div className={`${isMobile ? 'mb-4' : ''}`} style={{ marginTop: '39px' }}>
+              <div style={{ marginTop: '39px' }}>
                 {staffDisplay}
               </div>
             )}
