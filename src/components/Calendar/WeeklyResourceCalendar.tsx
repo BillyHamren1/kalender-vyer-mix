@@ -52,10 +52,9 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
       resourceAreaWidth: '150px',      // Width for resource area
       resourceLabelText: 'Teams',      // Header text for resource area
       resourceAreaHeaderContent: 'Teams', // Alternative way to set header text
-      resourcesInitiallyExpanded: true,
       stickyResourceAreaHeaders: true, // Keep resource headers visible during scroll
       resourceOrder: 'title',          // Order resources by title
-      resourcesInitiallyExpanded: true
+      resourcesInitiallyExpanded: true  // Ensure resources are expanded initially
     };
   };
 
