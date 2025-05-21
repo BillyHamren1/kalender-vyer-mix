@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -93,7 +92,7 @@ const AddTaskButton: React.FC<AddTaskButtonProps> = ({ resources, onTaskAdd, cur
         resourceId: selectedTeam,
         start: createISODateString(startDate, startTime),
         end: createISODateString(endDate, endTime),
-        eventType: 'task', // New event type for tasks
+        eventType: 'rig', // New event type for tasks
         customer: taskDescription // Store description in customer field
       };
       
