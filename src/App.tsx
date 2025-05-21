@@ -12,6 +12,8 @@ import BookingList from "./pages/BookingList";
 import BookingDetail from "./pages/BookingDetail";
 import APITester from "./pages/APITester";
 import NotFound from "./pages/NotFound";
+import StaffEndpoint from "./pages/StaffEndpoint";
+import LogisticsMap from "./pages/LogisticsMap";
 
 // Create context to share calendar date across components
 export const CalendarContext = createContext<{
@@ -57,6 +59,8 @@ const AppContent = () => {
             <Route path="/booking-list" element={<BookingList />} />
             <Route path="/booking/:id" element={<BookingDetail />} />
             <Route path="/api-tester" element={<APITester />} />
+            <Route path="/staff/:staffId" element={<StaffEndpoint />} />
+            <Route path="/logistics-map" element={<LogisticsMap />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
