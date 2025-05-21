@@ -15,6 +15,9 @@ import ResourceHeader from '@/components/Calendar/ResourceHeader';
 import ResourceLayout from '@/components/Calendar/ResourceLayout';
 import ResourceToolbar from '@/components/Calendar/ResourceToolbar';
 import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
+import { fetchAllStaffBookings } from '@/services/staffAssignmentService';
+import { Button } from '@/components/ui/button';
+import { InfoIcon } from 'lucide-react';
 
 const ResourceView = () => {
   // Use our custom hooks to manage state and logic
@@ -42,6 +45,7 @@ const ResourceView = () => {
   const { addEventToCalendar, duplicateEvent } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
+  const [isLoadingAllBookings, setIsLoadingAllBookings] = useState(false);
   
   // Using useState with localStorage to track setup completion
   const [setupDone, setSetupDone] = useState(() => {
@@ -112,6 +116,26 @@ const ResourceView = () => {
       return Promise.reject(error);
     }
   };
+  
+  // Function to load all bookings for all staff
+  const loadAllBookings = async () => {
+    try {
+      setIsLoadingAllBookings(true);
+      const allBookings = await fetchAllStaffBookings(currentDate);
+      
+      if (allBookings.length === 0) {
+        toast.info('No bookings found for the selected date');
+      } else {
+        toast.success(`Loaded ${allBookings.length} bookings for all staff`);
+        console.log('All bookings:', allBookings);
+      }
+    } catch (error) {
+      console.error('Error loading all bookings:', error);
+      toast.error('Failed to load all bookings');
+    } finally {
+      setIsLoadingAllBookings(false);
+    }
+  };
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -138,13 +162,26 @@ const ResourceView = () => {
         />
 
         {/* Toolbar with Update Button, Add Task Button, and Navigation */}
-        <ResourceToolbar
-          isLoading={isLoading}
-          currentDate={currentDate}
-          resources={resources}
-          onRefresh={refreshEvents}
-          onAddTask={addEventToCalendar}
-        />
+        <div className="flex items-center gap-2 mb-4">
+          <ResourceToolbar
+            isLoading={isLoading}
+            currentDate={currentDate}
+            resources={resources}
+            onRefresh={refreshEvents}
+            onAddTask={addEventToCalendar}
+          />
+          
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={loadAllBookings}
+            disabled={isLoadingAllBookings}
+            className="ml-auto flex items-center gap-2"
+          >
+            <InfoIcon className="h-4 w-4" />
+            {isLoadingAllBookings ? 'Loading all bookings...' : 'Load all bookings'}
+          </Button>
+        </div>
         
         {/* Calendar */}
         <ResourceCalendar

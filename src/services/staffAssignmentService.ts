@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { Booking } from "@/types/booking";
 
@@ -114,6 +113,45 @@ export const fetchNextWorkDay = async (staffId: string): Promise<StaffAssignment
     return null;
   } catch (error) {
     console.error('Error finding next work day:', error);
+    throw error;
+  }
+};
+
+// New function to fetch all bookings for all staff members across all teams
+export const fetchAllStaffBookings = async (date: Date): Promise<StaffBooking[]> => {
+  try {
+    const formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+    const apiKey = await getStaffApiKey();
+    
+    const { data, error } = await supabase.functions.invoke('staff-assignments', {
+      body: {
+        date: formattedDate,
+        fetchAllStaff: true // New parameter to indicate we want data for all staff
+      },
+      headers: {
+        'x-api-key': apiKey
+      }
+    });
+    
+    if (error) {
+      console.error('Error fetching all staff bookings:', error);
+      throw error;
+    }
+    
+    // If the response is an array, it's already the list of bookings
+    if (Array.isArray(data)) {
+      return data as StaffBooking[];
+    }
+    
+    // If it's a single staff response, extract the bookings
+    if (data && data.bookings) {
+      return data.bookings as StaffBooking[];
+    }
+    
+    // Otherwise return an empty array
+    return [];
+  } catch (error) {
+    console.error('Error in fetchAllStaffBookings:', error);
     throw error;
   }
 };
