@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -41,14 +42,9 @@ const ResourceView = () => {
   const isMobile = useIsMobile();
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
   
-  // IMPORTANT: Removing the automatic event movement logic that was causing duplicates
-  // We're keeping the setup flag but not running the code that creates duplicates
-  const [setupDone] = useState(() => {
-    return localStorage.getItem('eventsSetupDone') === 'true' || true;
-  });
-  
-  // Setting the flag in localStorage to prevent any future runs
+  // Prevent any automatic event duplication by immediately setting the setup flag
   useEffect(() => {
+    // Make sure this is always set to true to prevent any automatic event movement
     localStorage.setItem('eventsSetupDone', 'true');
   }, []);
 
