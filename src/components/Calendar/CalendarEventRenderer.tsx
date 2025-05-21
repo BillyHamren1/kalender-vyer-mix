@@ -3,11 +3,6 @@ import React from 'react';
 import { CalendarEvent } from './ResourceData';
 import { Copy } from 'lucide-react';
 
-interface RenderEventContentProps {
-  eventInfo: any;
-  handleDuplicateButtonClick: (eventId: string) => void;
-}
-
 export const renderEventContent = (eventInfo: any) => {
   // Get the event details
   const eventTitle = eventInfo.event.title;
@@ -21,14 +16,33 @@ export const renderEventContent = (eventInfo: any) => {
   const clientName = eventTitle.includes(':') 
     ? eventTitle.split(':')[1].trim() 
     : eventTitle;
+
+  // Different rendering based on view type
+  if (eventInfo.view.type === 'resourceTimelineWeek') {
+    // More compact display for timeline view
+    return (
+      <div className="event-content-wrapper">
+        <div className="event-time font-semibold text-xs">{eventTime}</div>
+        <div className="event-client-name text-sm truncate">{clientName}</div>
+        <div className="event-booking-id text-xs opacity-80 truncate">ID: {bookingId}</div>
+        <div className="event-delivery-address text-xs break-words whitespace-normal" 
+             style={{ wordWrap: 'break-word', lineHeight: '1.1', maxHeight: '2.2em', overflow: 'hidden' }}>
+          {deliveryAddress}
+        </div>
+      </div>
+    );
+  }
   
-  // Display the four-row format for all events
+  // Default display for other views
   return (
     <div className="event-content-wrapper">
       <div className="event-time font-semibold">{eventTime}</div>
       <div className="event-client-name text-sm truncate">{clientName}</div>
       <div className="event-booking-id text-xs opacity-80 truncate">ID: {bookingId}</div>
-      <div className="event-delivery-address text-xs break-words whitespace-normal" style={{ wordWrap: 'break-word', lineHeight: '1.2' }}>{deliveryAddress}</div>
+      <div className="event-delivery-address text-xs break-words whitespace-normal" 
+           style={{ wordWrap: 'break-word', lineHeight: '1.2' }}>
+        {deliveryAddress}
+      </div>
     </div>
   );
 };
@@ -38,7 +52,9 @@ export const setupEventActions = (
   handleDuplicateButtonClick: (eventId: string) => void
 ) => {
   // Identify team-6 events for special handling
-  const isTeam6Event = info.event.getResources()[0]?.id === 'team-6';
+  const resourceId = info.event.getResources()[0]?.id || '';
+  const isTeam6Event = resourceId.includes('team-6') || resourceId.includes('_team-6');
+  
   if (isTeam6Event) {
     info.el.setAttribute('data-team6-event', 'true');
     return;
@@ -108,6 +124,11 @@ export const addEventAttributes = (info: any) => {
   if (info.event.extendedProps.eventType) {
     info.el.setAttribute('data-event-type', info.event.extendedProps.eventType);
   }
+  
+  // Add special class for timeline events to ensure they have proper height
+  if (info.view.type === 'resourceTimelineWeek') {
+    info.el.classList.add('timeline-event');
+  }
 };
 
 export const setupResourceHeaderStyles = (info: any) => {
@@ -128,7 +149,7 @@ export const setupResourceHeaderStyles = (info: any) => {
       const cellFrameElement = cellFrame as HTMLElement;
       cellFrameElement.style.overflow = 'visible';
       cellFrameElement.style.position = 'relative';
-      cellFrameElement.style.minHeight = '100px'; // Ensure enough space for staff badges
+      cellFrameElement.style.minHeight = '50px'; // Ensure enough space for staff badges
     }
   }
 };

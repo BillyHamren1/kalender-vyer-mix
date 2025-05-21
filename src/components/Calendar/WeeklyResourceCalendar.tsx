@@ -1,25 +1,23 @@
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import FullCalendar from '@fullcalendar/react';
-import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
+import resourceTimelinePlugin from '@fullcalendar/resource-timeline';
+import timelinePlugin from '@fullcalendar/timeline';
 import interactionPlugin from '@fullcalendar/interaction';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import { CalendarEvent, Resource } from './ResourceData';
 import { useCalendarEventHandlers } from '@/hooks/useCalendarEventHandlers';
 import { processEvents } from './CalendarEventProcessor';
-import { getCalendarViews, getCalendarOptions } from './CalendarConfig';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { useEventActions } from '@/hooks/useEventActions';
 import { ResourceHeaderDropZone } from './ResourceHeaderDropZone';
 import { 
   renderEventContent, 
   setupEventActions, 
-  addEventAttributes,
-  setupResourceHeaderStyles 
+  addEventAttributes 
 } from './CalendarEventRenderer';
 import { getEventHandlers, getCalendarTimeFormatting } from './CalendarEventHandlers';
 import './WeeklyCalendarStyles.css';
+import { format } from 'date-fns';
 
 interface WeeklyResourceCalendarProps {
   events: CalendarEvent[];
@@ -57,63 +55,146 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
   // Get event handlers
   const { handleEventDrop } = getEventHandlers(handleEventChange, handleEventClick);
 
-  // Sort resources in the correct order before passing to FullCalendar
-  const sortedResources = [...resources].sort((a, b) => {
-    // Special case for "Todays events" (team-6) - it should be last
-    if (a.id === 'team-6') return 1;
-    if (b.id === 'team-6') return -1;
+  // Create nested resources with days as parent resources
+  const generateNestedResources = useCallback(() => {
+    // Days of the week starting from the current date
+    const days = [];
+    const startDate = new Date(currentDate);
     
-    // Extract team numbers for comparison
-    const aMatch = a.id.match(/team-(\d+)/);
-    const bMatch = b.id.match(/team-(\d+)/);
+    // Sort resources in the correct order (excluding team-6)
+    const sortedResources = [...resources]
+      .filter(resource => resource.id !== 'team-6') // Filter out team-6
+      .sort((a, b) => {
+        const aMatch = a.id.match(/team-(\d+)/);
+        const bMatch = b.id.match(/team-(\d+)/);
+        
+        if (!aMatch || !bMatch) return 0;
+        
+        const aNum = parseInt(aMatch[1]);
+        const bNum = parseInt(bMatch[1]);
+        
+        return aNum - bNum;
+      });
+      
+    // Add team-6 at the end if it exists
+    const team6 = resources.find(resource => resource.id === 'team-6');
+    if (team6) {
+      sortedResources.push(team6);
+    }
     
-    if (!aMatch || !bMatch) return 0;
+    // Generate 7 days, each with all teams as children
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(startDate);
+      day.setDate(day.getDate() + i);
+      
+      const dayId = `day-${format(day, 'yyyy-MM-dd')}`;
+      const dayResource = {
+        id: dayId,
+        title: format(day, 'EEEE, MMM d'), // e.g., "Monday, May 21"
+        children: sortedResources.map(team => ({
+          id: `${dayId}_${team.id}`,
+          title: team.title,
+          originalId: team.id,
+          eventColor: team.eventColor,
+          parentId: dayId
+        }))
+      };
+      
+      days.push(dayResource);
+    }
     
-    const aNum = parseInt(aMatch[1]);
-    const bNum = parseInt(bMatch[1]);
-    
-    // Sort by team number
-    return aNum - bNum;
-  });
+    return days;
+  }, [currentDate, resources]);
+  
+  // Memoize the nested resources
+  const nestedResources = useMemo(() => generateNestedResources(), [generateNestedResources]);
 
-  // Process events to ensure valid resources and add styling
-  const processedEvents = processEvents(events, resources);
+  // Pre-process events to match our new nested resource structure
+  const processedEvents = useMemo(() => {
+    // First, process events with the normal processor
+    const standardProcessedEvents = processEvents(events, resources);
+    
+    // Then, remap events to our day_team format
+    return standardProcessedEvents.map(event => {
+      const eventDate = new Date(event.start);
+      const dayId = `day-${format(eventDate, 'yyyy-MM-dd')}`;
+      const originalResourceId = event.resourceId;
+      
+      // Skip events outside our 7-day window
+      const startDate = new Date(currentDate);
+      const endDate = new Date(currentDate);
+      endDate.setDate(endDate.getDate() + 6);
+      
+      if (eventDate < startDate || eventDate > endDate) {
+        return null;
+      }
+      
+      return {
+        ...event,
+        resourceId: `${dayId}_${originalResourceId}`,
+        originalResourceId: originalResourceId
+      };
+    }).filter(Boolean); // Filter out null events (outside 7-day window)
+  }, [events, resources, currentDate]);
 
   // Handler for duplicate button click
-  const handleDuplicateButtonClick = (eventId: string) => {
+  const handleDuplicateButtonClick = useCallback((eventId: string) => {
     console.log('Duplicate button clicked for event:', eventId);
-    // Find the event in the events array
     const event = events.find(event => event.id === eventId);
     if (event) {
-      // Store the selected event for the duplicate dialog
       const dialogEvent = {
         id: event.id,
         title: event.title,
         resourceId: event.resourceId
       };
       
-      // Trigger the duplicate dialog via the event handlers
       if (typeof window !== 'undefined') {
         // @ts-ignore
         window._selectedEventForDuplicate = dialogEvent;
         
-        // Create and dispatch a custom event to trigger the dialog
         const customEvent = new CustomEvent('openDuplicateDialog', { detail: dialogEvent });
         document.dispatchEvent(customEvent);
       }
     }
-  };
+  }, [events]);
 
-  // Custom resource header content renderer with memoization
-  const resourceHeaderContent = React.useCallback((info: any) => {
-    return (
-      <ResourceHeaderDropZone 
-        resource={info.resource}
-        currentDate={currentDate}
-        onStaffDrop={onStaffDrop}
-        forceRefresh={forceRefresh}
-      />
-    );
+  // Custom resource label content renderer
+  const resourceLabelContent = useCallback((info: any) => {
+    const resourceInfo = info.resource;
+    
+    // Check if this is a day header (parent) or team (child)
+    const isDay = !resourceInfo.parentId;
+    
+    if (isDay) {
+      // This is a day header
+      return (
+        <div className="day-resource-header">
+          {resourceInfo.title}
+        </div>
+      );
+    } else {
+      // This is a team under a day
+      // Extract the original team ID from the resource
+      const originalTeamId = resourceInfo.extendedProps?.originalId;
+      
+      if (!originalTeamId) {
+        return <div className="team-resource-cell">{resourceInfo.title}</div>;
+      }
+      
+      // For team resources, use the ResourceHeaderDropZone
+      return (
+        <ResourceHeaderDropZone 
+          resource={{
+            id: originalTeamId,
+            title: resourceInfo.title,
+            eventColor: resourceInfo.eventColor
+          }}
+          currentDate={currentDate}
+          onStaffDrop={onStaffDrop}
+          forceRefresh={forceRefresh}
+        />
+      );
+    }
   }, [currentDate, onStaffDrop, forceRefresh]);
 
   // Calculate the duration for the calendar view (from currentDate to currentDate + 6 days)
@@ -124,39 +205,18 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
     <div className="weekly-calendar-container">
       <style>
         {`
-          .fc-scrollgrid-sync-inner {
-            min-width: 150px;
+          /* Additional inline styles for specific FullCalendar elements */
+          .fc-timeline-slot {
+            min-width: 150px !important;
           }
-          .event-delivery-address {
-            overflow-wrap: break-word;
-            word-wrap: break-word;
-            hyphens: auto;
-            max-height: none !important;
-            white-space: normal !important;
+          .fc-timeline-slot-frame {
+            min-height: 40px;
           }
-          .fc-event-title {
-            white-space: normal !important;
+          .fc-datagrid-cell-frame {
             overflow: visible !important;
           }
-          .fc-event-time {
-            white-space: nowrap;
-          }
-          .event-content-wrapper {
-            display: flex;
-            flex-direction: column;
-            min-height: 100%;
-            padding: 2px;
-          }
-          .fc-timegrid-event .fc-event-main {
-            padding: 2px 4px !important;
-          }
-          .weekly-calendar-container .fc-view {
-            width: 200%;
-            min-width: 1200px;
-          }
-          .weekly-calendar-container .fc-view-harness {
-            overflow-x: visible;
-            min-height: 600px;
+          .resource-header-dropzone {
+            min-height: 40px;
           }
         `}
       </style>
@@ -164,22 +224,44 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
       <FullCalendar
         ref={calendarRef}
         plugins={[
-          resourceTimeGridPlugin,
-          timeGridPlugin,
+          resourceTimelinePlugin,
+          timelinePlugin,
           interactionPlugin,
           dayGridPlugin
         ]}
         schedulerLicenseKey="0134084325-fcs-1745193612"
-        initialView="resourceTimeGridWeek"
+        initialView="resourceTimelineWeek"
         headerToolbar={false} // Disable the default header toolbar
-        resources={sortedResources}
+        resources={nestedResources}
         events={processedEvents}
         editable={true}
         droppable={true}
         selectable={true}
         eventDurationEditable={true}
         eventResizableFromStart={true}
-        eventDrop={handleEventDrop}
+        eventDrop={(info) => {
+          // When dropping events, we need to map back to the original resource ID
+          const resourceElem = info.newResource?._resource;
+          const originalResourceId = resourceElem?.extendedProps?.originalId;
+          
+          if (originalResourceId) {
+            // Temporarily modify the event to have the original resource ID for the handler
+            const originalEvent = info.event;
+            const originalResourceIds = originalEvent._def.resourceIds;
+            
+            // Hack: temporarily change the resourceIds array
+            originalEvent._def.resourceIds = [originalResourceId];
+            
+            // Call the handler
+            handleEventDrop(info);
+            
+            // Restore the resourceIds
+            originalEvent._def.resourceIds = originalResourceIds;
+          } else {
+            // Fall back to the regular handler if we can't get the original resource ID
+            handleEventDrop(info);
+          }
+        }}
         eventResize={handleEventChange}
         eventClick={handleEventClick}
         datesSet={onDateSet}
@@ -188,7 +270,9 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
           start: currentDate,
           end: endDate
         }}
-        {...getCalendarOptions()}
+        slotMinTime="05:00:00"
+        slotMaxTime="24:00:00"
+        scrollTime="08:00:00"
         height="auto"
         contentHeight="auto"
         aspectRatio={1.8}
@@ -198,20 +282,15 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
           setupEventActions(info, handleDuplicateButtonClick);
         }}
         {...getCalendarTimeFormatting()}
-        resourceLabelDidMount={setupResourceHeaderStyles}
-        resourceLabelContent={resourceHeaderContent}
-        slotLabelDidMount={(info) => {
-          info.el.style.zIndex = '1';
-        }}
-        views={{
-          resourceTimeGridWeek: {
-            type: 'resourceTimeGrid',
-            duration: { days: 7 },
-            scrollTime: '08:00:00',
-            slotMinTime: '05:00:00',
-            slotMaxTime: '24:00:00'
-          }
-        }}
+        resourceLabelContent={resourceLabelContent}
+        resourcesInitiallyExpanded={true}
+        resourceAreaWidth="200px"
+        resourceAreaHeaderContent="Days & Teams"
+        slotDuration="01:00:00"
+        resourceGroupField="title"
+        stickyHeaderDates={true}
+        resourceOrder="id"
+        eventOrder="start"
       />
       
       {/* Render the duplicate dialog */}

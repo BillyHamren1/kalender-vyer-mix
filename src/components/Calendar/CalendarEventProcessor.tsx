@@ -1,10 +1,7 @@
+
 import React from 'react';
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
-
-interface CalendarEventProcessorProps {
-  events: CalendarEvent[];
-  resources: Resource[];
-}
+import { format } from 'date-fns';
 
 // Function to stack and arrange team-6 events with 2-hour durations and stacked from bottom up
 const processTeam6Events = (events: CalendarEvent[]) => {
@@ -95,25 +92,31 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]) =>
   });
 
   // First process regular events (non-team-6)
-  const regularEvents = eventsWithValidResources.filter(event => event.resourceId !== 'team-6').map(event => {
-    // Log event type for debugging
-    console.log(`Processing regular event ${event.id}, type: ${event.eventType}`);
-    
-    const backgroundColor = getEventColor(event.eventType);
-    
-    return {
-      ...event,
-      backgroundColor: backgroundColor,
-      borderColor: backgroundColor,
-      textColor: '#000000e6', // Black text for all events
-      classNames: [`event-${event.eventType || 'default'}`],
-      extendedProps: {
+  const regularEvents = eventsWithValidResources
+    .filter(event => event.resourceId !== 'team-6')
+    .map(event => {
+      // Log event type for debugging
+      console.log(`Processing regular event ${event.id}, type: ${event.eventType}`);
+      
+      const backgroundColor = getEventColor(event.eventType);
+      
+      // Get delivery address from booking if available
+      const deliveryAddress = event.deliveryAddress || 'No address provided';
+      
+      return {
         ...event,
-        dataEventType: event.eventType, // Add as data attribute
-        deliveryAddress: event.deliveryAddress || 'No address provided' // Ensure deliveryAddress is available
-      }
-    };
-  });
+        backgroundColor: backgroundColor,
+        borderColor: backgroundColor,
+        textColor: '#000000e6', // Black text for all events
+        classNames: [`event-${event.eventType || 'default'}`],
+        extendedProps: {
+          ...event,
+          dataEventType: event.eventType, // Add as data attribute
+          deliveryAddress: deliveryAddress, // Ensure deliveryAddress is available
+          originalResourceId: event.resourceId // Store the original resource ID
+        }
+      };
+    });
   
   // Then process and stack team-6 events
   const team6ProcessedEvents = processTeam6Events(eventsWithValidResources);
@@ -130,7 +133,10 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]) =>
       borderColor: backgroundColor,
       textColor: '#000000e6',
       classNames: [`event-${event.eventType || 'default'}`, 'stacked-event'],
-      extendedProps: event.extendedProps
+      extendedProps: {
+        ...event.extendedProps,
+        originalResourceId: event.resourceId // Store the original resource ID
+      }
     };
   });
   
@@ -141,7 +147,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]) =>
   return processed;
 };
 
-const CalendarEventProcessor: React.FC<CalendarEventProcessorProps> = ({ events, resources }) => {
+const CalendarEventProcessor: React.FC<{ events: CalendarEvent[], resources: Resource[] }> = ({ events, resources }) => {
   // This component doesn't render anything, it's just a utility
   return null;
 };

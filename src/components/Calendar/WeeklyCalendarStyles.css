@@ -11,68 +11,102 @@
   width: 100%;
 }
 
-/* Ensure resource cells are wide enough */
-.weekly-calendar-container .fc-resource-timeline-divider {
+/* Make resource timeline work properly */
+.fc-resource-timeline-divider {
   width: 3px !important;
+  background-color: #e5e7eb;
 }
 
 /* Ensure scrolling works properly */
-.weekly-calendar-container .fc-scroller {
+.fc-scroller {
   overflow: visible !important;
 }
 
-/* Fix for resource header cell width */
-.weekly-calendar-container .fc-resource-timeline-divider + div {
-  min-width: 150px;
-}
-
-/* Make sure the time grid cells are wide enough */
-.weekly-calendar-container .fc-timegrid-slot-lane {
-  min-width: 150px;
-}
-
-/* Force the horizontal scroll on the timeline */
-.weekly-calendar-container .fc-timeline-body {
-  overflow-x: auto !important;
-}
-
-/* Style the day headers */
-.weekly-calendar-container .fc-col-header-cell {
-  background-color: #f9fafb;
-  border-bottom: 1px solid #e5e7eb;
+/* Day header styling */
+.day-resource-header {
+  font-weight: 600;
+  font-size: 1.1rem;
   padding: 8px 4px;
+  background-color: #f3f4f6;
+  border-bottom: 2px solid #d1d5db;
 }
 
-.weekly-calendar-container .fc-col-header-cell-cushion {
+/* Team nested resource styling */
+.team-resource-cell {
+  padding: 4px;
+  border-right: 1px solid #e5e7eb;
+}
+
+/* Fix resource header hierarchical nesting */
+.fc-datagrid-cell-cushion {
+  font-weight: 500;
+}
+
+/* Day header cells */
+.fc-datagrid-group-cushion {
   font-weight: 600;
   color: #374151;
+  text-transform: capitalize;
 }
 
-/* Make event cells clearer */
-.weekly-calendar-container .fc-timegrid-event {
-  min-height: 35px; /* Ensure events are not too small */
+/* Improve event rendering */
+.fc-timeline-event {
+  min-height: 25px;
+  padding: 2px 4px;
 }
 
-/* Ensure the day columns are wide enough */
-.weekly-calendar-container .fc-resource-timeline-divider {
-  width: 3px !important;
+/* Ensure proper width for team columns */
+.fc-timeline-slot {
+  min-width: 150px !important;
 }
 
-/* Ensure resource headers are visible */
-.weekly-calendar-container .fc-datagrid-cell-main {
+/* Optimize event content */
+.event-content-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 2px;
+}
+
+.event-delivery-address {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  hyphens: auto;
+  max-height: none !important;
+  white-space: normal !important;
+  font-size: 11px;
+}
+
+.fc-event-title {
+  white-space: normal !important;
   overflow: visible !important;
-  z-index: 10;
 }
 
-/* Make sure the staff badges in resource headers don't get cut off */
-.weekly-calendar-container .resource-header-dropzone {
+.fc-event-time {
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.event-client-name {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.event-booking-id {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+/* Fix for resource header dropzone */
+.resource-header-dropzone {
   overflow: visible !important;
-  min-height: 60px;
+  min-height: 50px;
   position: relative;
   z-index: 20;
 }
 
-/* Prevent flickering on staff badges */
+/* Improve staff badge visibility */
 .staff-badge {
   transform: translateZ(0);
   will-change: transform;
@@ -94,13 +128,19 @@
   scrollbar-width: thin;
 }
 
-/* Ensure proper stacking context for all elements */
-.fc .fc-view-harness {
-  z-index: 0;
-}
-
 /* Prevent unwanted reflows during rendering */
 .fc-view-harness-active {
   height: auto !important;
   min-height: 600px;
 }
+
+/* Timeline slot lane width */
+.fc-timeline-slot-lane {
+  border-right: 1px solid rgba(231, 231, 231, 0.8);
+}
+
+/* Day grouping header enhancements */
+.fc-timeline-lane-frame {
+  min-height: 50px;
+}
+

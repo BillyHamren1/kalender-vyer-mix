@@ -12,6 +12,7 @@ export const useCalendarEvents = () => {
   const [isMounted, setIsMounted] = useState(false);
   const pollIntervalRef = useRef<number | null>(null);
   const activeRef = useRef(true);
+  const lastUpdateRef = useRef<Date | null>(null);
 
   // Initialize currentDate from context, sessionStorage, or default to today
   const [currentDate, setCurrentDate] = useState<Date>(() => {
@@ -21,7 +22,16 @@ export const useCalendarEvents = () => {
   });
 
   // Memoize the loadEvents function to prevent recreations
-  const loadEvents = useCallback(async () => {
+  const loadEvents = useCallback(async (force = false) => {
+    // Skip if we've updated in the last 5 seconds and this isn't a forced refresh
+    if (!force && lastUpdateRef.current) {
+      const timeSinceLastUpdate = Date.now() - lastUpdateRef.current.getTime();
+      if (timeSinceLastUpdate < 5000) {
+        console.log('Skipping events update, last update was', timeSinceLastUpdate, 'ms ago');
+        return;
+      }
+    }
+    
     try {
       console.log('Fetching calendar events...');
       setIsLoading(true);
@@ -33,7 +43,11 @@ export const useCalendarEvents = () => {
         // Log event types to help with debugging
         console.log('Event types:', data.map(event => event.eventType));
         
+        // Update the events state
         setEvents(data);
+        
+        // Update the last update timestamp
+        lastUpdateRef.current = new Date();
       }
     } catch (error) {
       console.error('Error loading calendar events:', error);
@@ -53,7 +67,7 @@ export const useCalendarEvents = () => {
     activeRef.current = true;
 
     // Initial load
-    loadEvents();
+    loadEvents(true);
 
     // Set up polling every 30 seconds to fetch updates
     pollIntervalRef.current = window.setInterval(() => {
@@ -73,26 +87,31 @@ export const useCalendarEvents = () => {
   // Memoize handleDatesSet to prevent recreation on every render
   const handleDatesSet = useCallback((dateInfo: any) => {
     const newDate = dateInfo.start;
+    
+    // Skip update if the date is the same (comparing dates, not times)
+    if (
+      currentDate.getFullYear() === newDate.getFullYear() &&
+      currentDate.getMonth() === newDate.getMonth() &&
+      currentDate.getDate() === newDate.getDate()
+    ) {
+      return;
+    }
+    
     setCurrentDate(newDate);
     // Update both session storage and context
     sessionStorage.setItem('calendarDate', newDate.toISOString());
     setLastViewedDate(newDate);
     console.log('Calendar date set to:', newDate);
-  }, [setLastViewedDate]);
+  }, [setLastViewedDate, currentDate]);
   
   // Function to force refresh the calendar events - memoized
   const refreshEvents = useCallback(async () => {
     setIsLoading(true);
     try {
       console.log('Manually refreshing calendar events...');
-      const data = await fetchCalendarEvents();
-      console.log('Refreshed calendar events:', data);
-      setEvents(data);
-      
-      // Update mounted state to force a re-render
-      setIsMounted(prev => !prev);
-      
-      return data;
+      await loadEvents(true);
+      toast.success("Calendar events refreshed");
+      return events;
     } catch (error) {
       console.error('Error refreshing calendar events:', error);
       toast.error('Could not refresh calendar events');
@@ -100,7 +119,7 @@ export const useCalendarEvents = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [loadEvents, events]);
 
   return {
     events,

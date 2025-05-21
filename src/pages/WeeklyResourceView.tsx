@@ -13,9 +13,10 @@ import ResourceHeader from '@/components/Calendar/ResourceHeader';
 import ResourceLayout from '@/components/Calendar/ResourceLayout';
 import ResourceToolbar from '@/components/Calendar/ResourceToolbar';
 import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import WeeklyResourceCalendar from '@/components/Calendar/WeeklyResourceCalendar';
+import { format } from 'date-fns';
 
 const WeeklyResourceView = () => {
   // Use our custom hooks to manage state and logic
@@ -62,7 +63,7 @@ const WeeklyResourceView = () => {
     setCurrentWeekStart(newWeekStart);
   }, [hookCurrentDate]);
 
-  // Handle staff drop for assignment - wrapped in useCallback to prevent recreation on every render
+  // Handle staff drop for assignment
   const handleStaffDrop = useCallback(async (staffId: string, resourceId: string | null) => {
     try {
       console.log(`Handling staff drop: staff=${staffId}, resource=${resourceId}`);
@@ -122,11 +123,18 @@ const WeeklyResourceView = () => {
   // Custom onDateSet function that prevents infinite loops
   const handleCalendarDateSet = useCallback((dateInfo: any) => {
     // Only pass the date to the parent hook if it's significantly different
-    // This prevents minor adjustments from causing re-renders
     if (Math.abs(dateInfo.start.getTime() - hookCurrentDate.getTime()) > 3600000) {
       handleDatesSet(dateInfo);
     }
   }, [handleDatesSet, hookCurrentDate]);
+
+  // Format the week range for display
+  const weekRangeText = useMemo(() => {
+    const endDate = new Date(currentWeekStart);
+    endDate.setDate(endDate.getDate() + 6);
+    
+    return `${format(currentWeekStart, 'MMM d')} - ${format(endDate, 'MMM d, yyyy')}`;
+  }, [currentWeekStart]);
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -152,45 +160,53 @@ const WeeklyResourceView = () => {
           setDialogOpen={setDialogOpen}
         />
 
-        {/* Week Navigation */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={goToPreviousWeek}
-              className="flex items-center gap-1"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Previous Week
-            </Button>
+        {/* Week Navigation and Header */}
+        <div className="flex flex-col space-y-2 mb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={goToPreviousWeek}
+                className="flex items-center gap-1"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous Week
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={goToCurrentWeek}
+                className="flex items-center gap-1"
+              >
+                <Calendar className="h-4 w-4" />
+                Current Week
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={goToNextWeek}
+                className="flex items-center gap-1"
+              >
+                Next Week
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
             
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={goToCurrentWeek}
-            >
-              Current Week
-            </Button>
-            
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={goToNextWeek}
-              className="flex items-center gap-1"
-            >
-              Next Week
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+            <ResourceToolbar
+              isLoading={isLoading}
+              currentDate={hookCurrentDate}
+              resources={resources}
+              onRefresh={refreshEvents}
+              onAddTask={addEventToCalendar}
+            />
           </div>
           
-          <ResourceToolbar
-            isLoading={isLoading}
-            currentDate={hookCurrentDate}
-            resources={resources}
-            onRefresh={refreshEvents}
-            onAddTask={addEventToCalendar}
-          />
+          <div className="text-lg font-medium text-center">
+            {weekRangeText}
+          </div>
         </div>
         
         {/* Calendar */}
