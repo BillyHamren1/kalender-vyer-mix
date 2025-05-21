@@ -7,7 +7,7 @@
 }
 
 .weekly-calendar-container {
-  min-width: 1800px; /* Increased from 1200px to give more space overall */
+  min-width: 1400px; /* Adjusted from 1800px to accommodate smaller columns */
   width: 100%;
   display: flex;
   overflow-x: auto;
@@ -15,7 +15,7 @@
 }
 
 .day-calendar-wrapper {
-  min-width: 550px; /* Increased from 400px to give more space for each day */
+  min-width: 550px; /* Keep this width, but with smaller resource columns */
   flex: 1;
   border-right: 1px solid #e5e7eb;
 }
@@ -53,16 +53,16 @@
   border-bottom: 2px solid #d1d5db;
 }
 
-/* Enforce fixed width for ALL resource columns - critical fix */
+/* Enforce fixed width for ALL resource columns - REDUCED WIDTH */
 .fc-resource-area td,
 .fc-resource-area th,
 .fc-resource-lane,
 .fc-datagrid-cell,
 .fc-datagrid-cell-frame,
 .fc-timegrid-col {
-  min-width: 150px !important;
-  width: 150px !important;
-  max-width: 150px !important;
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
 }
 
 /* Fix for resource header hierarchical nesting */
@@ -90,15 +90,15 @@
 [data-resource-id="team-6"].fc-datagrid-cell-frame,
 [data-resource-id="team-6"] .fc-timegrid-col,
 [data-resource-id="team-6"].fc-timegrid-col {
-  min-width: 150px !important;
-  width: 150px !important;
-  max-width: 150px !important;
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
 }
 
 /* Ensure timeline slot width */
 .fc-timeline-slot {
-  min-width: 150px !important;
-  width: 150px !important;
+  min-width: 80px !important;
+  width: 80px !important;
 }
 
 /* Optimize event content */
@@ -139,51 +139,7 @@
   opacity: 0.8;
 }
 
-/* Fix for resource header dropzone */
-.resource-header-dropzone {
-  overflow: visible !important;
-  min-height: 50px;
-  position: relative;
-  z-index: 20;
-}
-
-/* Improve staff badge visibility */
-.staff-badge {
-  transform: translateZ(0);
-  will-change: transform;
-}
-
-/* Fix for scrolling containers */
-.fc-view-harness {
-  overflow: visible !important;
-}
-
-/* Prevent any overflow issues in resource headers */
-.fc-datagrid-cell {
-  overflow: visible !important;
-}
-
-/* Optimize scrolling performance */
-.weekly-view-container {
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-}
-
-/* Prevent unwanted reflows during rendering */
-.fc-view-harness-active {
-  height: auto !important;
-  min-height: 600px;
-}
-
-/* Timeline slot lane width */
-.fc-timeline-slot-lane {
-  border-right: 1px solid rgba(231, 231, 231, 0.8);
-}
-
-/* Day grouping header enhancements */
-.fc-timeline-lane-frame {
-  min-height: 50px;
-}
+/* ... keep existing code */
 
 /* Reduced height for weekly view calendars */
 .weekly-view-calendar .fc-view-harness {
@@ -215,34 +171,34 @@
 }
 
 .weekly-view-calendar .fc-timegrid-col {
-  min-width: 150px !important;
-  width: 150px !important;
-  max-width: 150px !important;
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
 }
 
 /* Make sure day columns in weekly view have adequate space */
 .weekly-view-calendar .fc-timegrid-cols {
-  min-width: 500px !important;
+  min-width: 450px !important;
 }
 
 /* Critical fix - ensure ALL resource column headers have consistent width */
 .weekly-view-calendar .fc-col-header-cell {
-  min-width: 150px !important;
-  width: 150px !important;
-  max-width: 150px !important;
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
 }
 
 /* Fix for resource container width */
 .weekly-view-calendar .fc-resource-timeline-body {
-  min-width: 500px !important;
+  min-width: 450px !important;
 }
 
 /* Critical fix - ensure ALL resource cells have exact same width */
 .weekly-view-calendar .fc-resource-group,
 .weekly-view-calendar .fc-datagrid-cell {
-  min-width: 150px !important;
-  width: 150px !important;
-  max-width: 150px !important;
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
 }
 
 /* Ensure time labels have enough room */
@@ -257,9 +213,9 @@
 .weekly-view-calendar [data-resource-id="team-6"].fc-datagrid-cell,
 .weekly-view-calendar [data-resource-id="team-6"] .fc-datagrid-cell-frame,
 .weekly-view-calendar [data-resource-id="team-6"] .fc-timegrid-col {
-  min-width: 150px !important;
-  width: 150px !important;
-  max-width: 150px !important;
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
 }
 
 /* Ensure ALL columns in weekly view are exactly the same width */
@@ -267,9 +223,9 @@
 .weekly-view-calendar .fc-datagrid-cell-frame,
 .weekly-view-calendar .fc-timegrid-col,
 .weekly-view-calendar .fc-col-header-cell {
-  min-width: 150px !important;
-  width: 150px !important;
-  max-width: 150px !important;
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
 }
 
 /* ... keep existing code */

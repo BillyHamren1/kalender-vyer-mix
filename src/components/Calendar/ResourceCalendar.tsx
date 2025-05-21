@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -48,24 +47,24 @@ const AddressWrapStyles = () => (
       .fc-timegrid-event .fc-event-main {
         padding: 2px 4px !important;
       }
-      /* Force consistent column widths */
+      /* Force consistent column widths - REDUCED */
       .fc-resource-area td,
       .fc-resource-area th,
       .fc-resource-lane,
       .fc-datagrid-cell,
       .fc-timegrid-col {
-        min-width: 150px !important;
-        width: 150px !important;
-        max-width: 150px !important;
+        min-width: 80px !important;
+        width: 80px !important;
+        max-width: 80px !important;
       }
-      /* Special handling for team-6 */
+      /* Special handling for team-6 - REDUCED */
       [data-resource-id="team-6"] .fc-datagrid-cell,
       [data-resource-id="team-6"].fc-datagrid-cell,
       [data-resource-id="team-6"] .fc-timegrid-col,
       [data-resource-id="team-6"].fc-timegrid-col {
-        min-width: 150px !important;
-        width: 150px !important;
-        max-width: 150px !important;
+        min-width: 80px !important;
+        width: 80px !important;
+        max-width: 80px !important;
       }
     `}
   </style>
@@ -190,15 +189,15 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   // Apply consistent column width configuration
   const getResourceColumnConfig = () => {
     // Use provided values from calendarProps or fallback to defaults
-    const resourceAreaWidth = calendarProps.resourceAreaWidth || '150px';
-    const slotMinWidth = calendarProps.slotMinWidth || '150px';
+    const resourceAreaWidth = calendarProps.resourceAreaWidth || '80px';  // Reduced from 150px
+    const slotMinWidth = calendarProps.slotMinWidth || '80px';            // Reduced from 150px
     
     // Ensure columns for resource headers
     const resourceAreaColumns = calendarProps.resourceAreaColumns || [
       {
         field: 'title',
         headerContent: 'Teams',
-        width: '150px' // Ensure fixed width
+        width: '80px' // Reduced from 150px
       }
     ];
     
@@ -209,8 +208,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       resourcesInitiallyExpanded: true,
       stickyResourceAreaHeaders: true,
       // Force column widths to be consistent
-      resourceLaneWidth: '150px',
-      resourceWidth: '150px'
+      resourceLaneWidth: '80px',  // Reduced from 150px
+      resourceWidth: '80px'       // Reduced from 150px
     };
   };
 
