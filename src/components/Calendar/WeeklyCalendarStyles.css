@@ -15,7 +15,7 @@
 }
 
 .day-calendar-wrapper {
-  min-width: 480px; /* Increased from 400px to 480px (20% more) */
+  min-width: 576px; /* Increased from 480px to 576px to accommodate all teams */
   flex: 1;
   border-right: 1px solid #e5e7eb;
 }
