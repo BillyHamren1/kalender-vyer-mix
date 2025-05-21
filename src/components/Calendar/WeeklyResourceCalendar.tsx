@@ -104,8 +104,8 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
     }
   };
 
-  // Custom resource header content renderer
-  const resourceHeaderContent = (info: any) => {
+  // Custom resource header content renderer with memoization
+  const resourceHeaderContent = React.useCallback((info: any) => {
     return (
       <ResourceHeaderDropZone 
         resource={info.resource}
@@ -114,7 +114,7 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
         forceRefresh={forceRefresh}
       />
     );
-  };
+  }, [currentDate, onStaffDrop, forceRefresh]);
 
   // Calculate the duration for the calendar view (from currentDate to currentDate + 6 days)
   const endDate = new Date(currentDate);
@@ -220,4 +220,5 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
   );
 };
 
-export default WeeklyResourceCalendar;
+// Use React.memo to prevent unnecessary re-renders
+export default React.memo(WeeklyResourceCalendar);

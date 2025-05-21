@@ -68,4 +68,39 @@
 .weekly-calendar-container .resource-header-dropzone {
   overflow: visible !important;
   min-height: 60px;
+  position: relative;
+  z-index: 20;
+}
+
+/* Prevent flickering on staff badges */
+.staff-badge {
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* Fix for scrolling containers */
+.fc-view-harness {
+  overflow: visible !important;
+}
+
+/* Prevent any overflow issues in resource headers */
+.fc-datagrid-cell {
+  overflow: visible !important;
+}
+
+/* Optimize scrolling performance */
+.weekly-view-container {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+/* Ensure proper stacking context for all elements */
+.fc .fc-view-harness {
+  z-index: 0;
+}
+
+/* Prevent unwanted reflows during rendering */
+.fc-view-harness-active {
+  height: auto !important;
+  min-height: 600px;
 }

@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { fetchCalendarEvents } from '@/services/eventService';
 import { toast } from 'sonner';
@@ -10,6 +10,8 @@ export const useCalendarEvents = () => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
+  const pollIntervalRef = useRef<number | null>(null);
+  const activeRef = useRef(true);
 
   // Initialize currentDate from context, sessionStorage, or default to today
   const [currentDate, setCurrentDate] = useState<Date>(() => {
@@ -18,67 +20,68 @@ export const useCalendarEvents = () => {
     return stored ? new Date(stored) : new Date();
   });
 
+  // Memoize the loadEvents function to prevent recreations
+  const loadEvents = useCallback(async () => {
+    try {
+      console.log('Fetching calendar events...');
+      setIsLoading(true);
+      const data = await fetchCalendarEvents();
+      if (activeRef.current) {
+        console.log('Calendar events loaded successfully:', data);
+        console.log('Resource IDs in events:', data.map(event => event.resourceId));
+        
+        // Log event types to help with debugging
+        console.log('Event types:', data.map(event => event.eventType));
+        
+        setEvents(data);
+      }
+    } catch (error) {
+      console.error('Error loading calendar events:', error);
+      if (activeRef.current) {
+        toast.error('Could not load calendar events');
+      }
+    } finally {
+      if (activeRef.current) {
+        setIsLoading(false);
+        setIsMounted(true);
+      }
+    }
+  }, []);
+
   // Fetch events initially and set up polling for updates
   useEffect(() => {
-    let active = true;
-    let pollInterval: number | null = null;
-
-    const loadEvents = async () => {
-      try {
-        console.log('Fetching calendar events...');
-        setIsLoading(true);
-        const data = await fetchCalendarEvents();
-        if (active) {
-          console.log('Calendar events loaded successfully:', data);
-          console.log('Resource IDs in events:', data.map(event => event.resourceId));
-          
-          // Log event types to help with debugging
-          console.log('Event types:', data.map(event => event.eventType));
-          
-          setEvents(data);
-        }
-      } catch (error) {
-        console.error('Error loading calendar events:', error);
-        if (active) {
-          toast.error('Could not load calendar events');
-        }
-      } finally {
-        if (active) {
-          setIsLoading(false);
-          setIsMounted(true);
-        }
-      }
-    };
+    activeRef.current = true;
 
     // Initial load
     loadEvents();
 
     // Set up polling every 30 seconds to fetch updates
-    pollInterval = window.setInterval(() => {
+    pollIntervalRef.current = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         loadEvents();
       }
     }, 30000);
 
     return () => {
-      active = false;
-      if (pollInterval !== null) {
-        clearInterval(pollInterval);
+      activeRef.current = false;
+      if (pollIntervalRef.current !== null) {
+        clearInterval(pollIntervalRef.current);
       }
     };
-  }, []);
+  }, [loadEvents]);
 
-  const handleDatesSet = (dateInfo: any) => {
+  // Memoize handleDatesSet to prevent recreation on every render
+  const handleDatesSet = useCallback((dateInfo: any) => {
     const newDate = dateInfo.start;
     setCurrentDate(newDate);
     // Update both session storage and context
     sessionStorage.setItem('calendarDate', newDate.toISOString());
     setLastViewedDate(newDate);
     console.log('Calendar date set to:', newDate);
-  };
+  }, [setLastViewedDate]);
   
-  // Function to force refresh the calendar events
-  const refreshEvents = async () => {
+  // Function to force refresh the calendar events - memoized
+  const refreshEvents = useCallback(async () => {
     setIsLoading(true);
     try {
       console.log('Manually refreshing calendar events...');
@@ -86,11 +89,8 @@ export const useCalendarEvents = () => {
       console.log('Refreshed calendar events:', data);
       setEvents(data);
       
-      // Force a re-render of the application - use setTimeout to ensure state is updated
-      setTimeout(() => {
-        setIsMounted(prev => !prev);
-        setIsMounted(prev => !prev);
-      }, 10);
+      // Update mounted state to force a re-render
+      setIsMounted(prev => !prev);
       
       return data;
     } catch (error) {
@@ -100,7 +100,7 @@ export const useCalendarEvents = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   return {
     events,

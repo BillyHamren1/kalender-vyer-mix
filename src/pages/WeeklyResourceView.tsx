@@ -1,9 +1,8 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useEventActions } from '@/hooks/useEventActions';
-import ResourceCalendar from '@/components/Calendar/ResourceCalendar';
 import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from 'sonner';
@@ -25,7 +24,7 @@ const WeeklyResourceView = () => {
     setEvents,
     isLoading,
     isMounted,
-    currentDate,
+    currentDate: hookCurrentDate,
     handleDatesSet,
     refreshEvents
   } = useCalendarEvents();
@@ -45,31 +44,32 @@ const WeeklyResourceView = () => {
   const isMobile = useIsMobile();
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
   
-  // Week navigation
+  // Week navigation - managed independently from calendar's currentDate
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
-    const today = new Date(currentDate);
+    const today = new Date(hookCurrentDate);
     // Set to the start of the current week (Sunday)
     const day = today.getDay();
     today.setDate(today.getDate() - day);
     return today;
   });
 
+  // Only update when hookCurrentDate changes, not on every render
   useEffect(() => {
     // When currentDate changes from outside, reset the week view
-    const newWeekStart = new Date(currentDate);
+    const newWeekStart = new Date(hookCurrentDate);
     const day = newWeekStart.getDay();
     newWeekStart.setDate(newWeekStart.getDate() - day);
     setCurrentWeekStart(newWeekStart);
-  }, [currentDate]);
+  }, [hookCurrentDate]);
 
-  // Handle staff drop for assignment
-  const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
+  // Handle staff drop for assignment - wrapped in useCallback to prevent recreation on every render
+  const handleStaffDrop = useCallback(async (staffId: string, resourceId: string | null) => {
     try {
       console.log(`Handling staff drop: staff=${staffId}, resource=${resourceId}`);
       if (resourceId) {
         toast.info(`Assigning staff ${staffId} to team ${resourceId}...`);
         try {
-          await assignStaffToTeam(staffId, resourceId, currentDate);
+          await assignStaffToTeam(staffId, resourceId, hookCurrentDate);
           toast.success('Staff assigned to team successfully');
         } catch (error) {
           console.error('Error assigning staff to team:', error);
@@ -79,7 +79,7 @@ const WeeklyResourceView = () => {
       } else {
         toast.info(`Removing staff ${staffId} assignment...`);
         try {
-          await removeStaffAssignment(staffId, currentDate);
+          await removeStaffAssignment(staffId, hookCurrentDate);
           toast.success('Staff assignment removed successfully');
         } catch (error) {
           console.error('Error removing staff assignment:', error);
@@ -97,36 +97,45 @@ const WeeklyResourceView = () => {
       toast.error('Failed to update staff assignment');
       return Promise.reject(error);
     }
-  };
+  }, [hookCurrentDate]);
 
   // Navigation functions
-  const goToPreviousWeek = () => {
+  const goToPreviousWeek = useCallback(() => {
     const prevWeek = new Date(currentWeekStart);
     prevWeek.setDate(prevWeek.getDate() - 7);
     setCurrentWeekStart(prevWeek);
-  };
+  }, [currentWeekStart]);
 
-  const goToNextWeek = () => {
+  const goToNextWeek = useCallback(() => {
     const nextWeek = new Date(currentWeekStart);
     nextWeek.setDate(nextWeek.getDate() + 7);
     setCurrentWeekStart(nextWeek);
-  };
+  }, [currentWeekStart]);
 
-  const goToCurrentWeek = () => {
+  const goToCurrentWeek = useCallback(() => {
     const today = new Date();
     const day = today.getDay();
     today.setDate(today.getDate() - day);
     setCurrentWeekStart(today);
-  };
+  }, []);
+
+  // Custom onDateSet function that prevents infinite loops
+  const handleCalendarDateSet = useCallback((dateInfo: any) => {
+    // Only pass the date to the parent hook if it's significantly different
+    // This prevents minor adjustments from causing re-renders
+    if (Math.abs(dateInfo.start.getTime() - hookCurrentDate.getTime()) > 3600000) {
+      handleDatesSet(dateInfo);
+    }
+  }, [handleDatesSet, hookCurrentDate]);
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <StaffSyncManager currentDate={currentDate} />
+      <StaffSyncManager currentDate={hookCurrentDate} />
       
       <ResourceLayout 
         staffDisplay={
           <AvailableStaffDisplay 
-            currentDate={currentDate} 
+            currentDate={hookCurrentDate} 
             onStaffDrop={handleStaffDrop}
           />
         }
@@ -177,7 +186,7 @@ const WeeklyResourceView = () => {
           
           <ResourceToolbar
             isLoading={isLoading}
-            currentDate={currentDate}
+            currentDate={hookCurrentDate}
             resources={resources}
             onRefresh={refreshEvents}
             onAddTask={addEventToCalendar}
@@ -192,7 +201,7 @@ const WeeklyResourceView = () => {
             isLoading={isLoading}
             isMounted={isMounted}
             currentDate={currentWeekStart}
-            onDateSet={handleDatesSet}
+            onDateSet={handleCalendarDateSet}
             refreshEvents={refreshEvents}
             onStaffDrop={handleStaffDrop}
             forceRefresh={staffAssignmentsUpdated}
