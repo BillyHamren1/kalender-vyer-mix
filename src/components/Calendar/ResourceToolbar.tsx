@@ -28,25 +28,27 @@ const ResourceToolbar: React.FC<ResourceToolbarProps> = ({
   const isMobile = useIsMobile();
 
   return (
-    <div className="space-y-4 mb-4">
-      <div className="flex items-center justify-start gap-3 mb-4">
-        <Button 
-          onClick={onRefresh} 
-          variant="outline" 
-          size="sm"
-          disabled={isLoading}
-          className="flex items-center gap-1"
-        >
-          <RefreshCcw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
-          {isMobile ? '' : 'Update'}
-        </Button>
-        
-        {/* Add Task Button */}
-        <AddTaskButton 
-          resources={resources}
-          onTaskAdd={onAddTask}
-          currentDate={currentDate}
-        />
+    <div className="mb-4">
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex items-center gap-2">
+          <Button 
+            onClick={onRefresh} 
+            variant="outline" 
+            size="sm"
+            disabled={isLoading}
+            className="flex items-center gap-1"
+          >
+            <RefreshCcw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
+            {isMobile ? '' : 'Update'}
+          </Button>
+          
+          {/* Add Task Button */}
+          <AddTaskButton 
+            resources={resources}
+            onTaskAdd={onAddTask}
+            currentDate={currentDate}
+          />
+        </div>
       </div>
       
       {/* Full width day navigation */}

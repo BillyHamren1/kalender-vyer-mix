@@ -50,32 +50,30 @@ const DayNavigation: React.FC<DayNavigationProps> = ({ currentDate }) => {
   const dates = generateDates();
   
   return (
-    <div className="w-full bg-gray-50 rounded-md mb-3">
+    <div className="w-full bg-gray-50 rounded-md">
       <div className="grid grid-cols-7 w-full">
-        {dates.map((date, index) => {
-          const isActive = isCurrentDate(date);
-          
-          return (
-            <div 
-              key={index}
-              onClick={() => goToDate(date)}
-              className={`text-center py-2 cursor-pointer ${
-                isActive ? 'bg-blue-100' : 'hover:bg-gray-100'
-              }`}
-            >
-              <div className={`text-xs font-medium ${isActive ? 'text-blue-600' : ''}`}>
+        {dates.map((date, index) => (
+          <div 
+            key={index}
+            onClick={() => goToDate(date)}
+            className={`text-center py-2 cursor-pointer ${
+              isCurrentDate(date) ? 'bg-blue-100' : 'hover:bg-gray-100'
+            }`}
+          >
+            <div className="flex flex-col items-center">
+              <span className={`text-xs font-medium ${isCurrentDate(date) ? 'text-blue-600' : ''}`}>
                 {formatDayName(date)}
-              </div>
-              <div className={`text-xs ${isActive ? 'text-blue-600' : ''}`}>
+              </span>
+              <span className={`text-xs ${isCurrentDate(date) ? 'text-blue-600' : ''}`}>
                 {formatDayNumber(date)}
-              </div>
-              
-              {isActive && (
-                <div className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-1 mx-auto" />
-              )}
+              </span>
             </div>
-          );
-        })}
+            
+            {isCurrentDate(date) && (
+              <div className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-1 mx-auto" />
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
