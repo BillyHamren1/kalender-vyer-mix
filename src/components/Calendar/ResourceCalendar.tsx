@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -168,6 +167,21 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     );
   };
 
+  // Apply column width configuration
+  const getResourceColumnConfig = () => {
+    return {
+      resourceAreaWidth: calendarProps.resourceAreaWidth || '150px',
+      resourcesInitiallyExpanded: true,
+      resourceAreaColumns: calendarProps.resourceAreaColumns || [
+        {
+          field: 'title',
+          headerContent: 'Teams'
+        }
+      ],
+      slotMinWidth: calendarProps.slotMinWidth || '100px'
+    };
+  };
+
   return (
     <div className="calendar-container">
       {/* Add custom styles for address wrapping */}
@@ -217,8 +231,12 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           // Add z-index to time slots to ensure they appear behind staff badges
           info.el.style.zIndex = '1';
         }}
+        // Resource column configuration for proper spacing
+        resourceAreaWidth={calendarProps.resourceAreaWidth || '150px'}
+        slotMinWidth={calendarProps.slotMinWidth || '100px'}
         // Apply any additional calendar props
         {...calendarProps}
+        {...getResourceColumnConfig()}
       />
       
       {/* Render the duplicate dialog */}

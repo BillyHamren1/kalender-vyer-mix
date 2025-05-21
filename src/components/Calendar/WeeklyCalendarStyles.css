@@ -1,4 +1,3 @@
-
 /* Weekly Calendar Styles */
 .weekly-view-container {
   width: 100%;
@@ -7,7 +6,7 @@
 }
 
 .weekly-calendar-container {
-  min-width: 1200px;
+  min-width: 1800px; /* Increased from 1200px to give more space overall */
   width: 100%;
   display: flex;
   overflow-x: auto;
@@ -15,7 +14,7 @@
 }
 
 .day-calendar-wrapper {
-  min-width: 400px;
+  min-width: 550px; /* Increased from 400px to give more space for each day */
   flex: 1;
   border-right: 1px solid #e5e7eb;
 }
@@ -51,6 +50,21 @@
   padding: 8px 4px;
   background-color: #f3f4f6;
   border-bottom: 2px solid #d1d5db;
+}
+
+/* Ensure resource columns have proper width */
+.fc-resource-area td {
+  min-width: 120px !important; /* Minimum width for resource columns */
+}
+
+/* Ensure resources have proper width in day view */
+.fc-resource-lane {
+  min-width: 120px !important;
+}
+
+/* Force resource columns to be wider */
+.fc-datagrid-cell {
+  min-width: 120px !important;
 }
 
 /* Team nested resource styling */
@@ -188,4 +202,42 @@
 .week-date-range {
   font-size: 1.25rem;
   font-weight: 600;
+}
+
+/* Additional styling for weekly view resource columns */
+.weekly-view-calendar .fc-resource-timeline-divider {
+  width: 3px !important;
+}
+
+.weekly-view-calendar .fc-timegrid-col {
+  min-width: 120px !important;
+  width: 120px !important;
+}
+
+/* Make sure day columns in weekly view have adequate space */
+.weekly-view-calendar .fc-timegrid-cols {
+  min-width: 500px !important;
+}
+
+/* Ensure resource column headers have proper space */
+.weekly-view-calendar .fc-col-header-cell {
+  min-width: 120px !important;
+}
+
+/* Fix for resource container width */
+.weekly-view-calendar .fc-resource-timeline-body {
+  min-width: 500px !important;
+}
+
+/* Fix for the resource column sizing */
+.weekly-view-calendar .fc-resource-group,
+.weekly-view-calendar .fc-datagrid-cell {
+  min-width: 120px !important;
+  width: 120px !important;
+}
+
+/* Ensure time labels have enough room */
+.weekly-view-calendar .fc-timegrid-axis {
+  width: 60px !important;
+  min-width: 60px !important;
 }
