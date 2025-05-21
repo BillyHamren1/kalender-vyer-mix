@@ -182,7 +182,7 @@ export const resyncBookingToCalendar = async (bookingId: string): Promise<boolea
       .from('bookings')
       .select('*')
       .eq('id', bookingId)
-      .single();
+      .maybeSingle();
     
     if (bookingError || !booking) {
       console.error(`Error fetching booking ${bookingId}:`, bookingError);
@@ -203,19 +203,19 @@ export const resyncBookingToCalendar = async (bookingId: string): Promise<boolea
     
     // Rig day dates
     if (booking.rigdaydate) {
-      await syncBookingEvents(bookingId, 'rig', booking.rigdaydate, 'team-1', booking.client);
+      await syncBookingEvents(bookingId, 'rig', booking.rigdaydate, 'auto', booking.client);
       eventsCreated++;
     }
     
     // Event dates
     if (booking.eventdate) {
-      await syncBookingEvents(bookingId, 'event', booking.eventdate, 'team-1', booking.client);
+      await syncBookingEvents(bookingId, 'event', booking.eventdate, 'auto', booking.client);
       eventsCreated++;
     }
     
     // Rig down dates
     if (booking.rigdowndate) {
-      await syncBookingEvents(bookingId, 'rigDown', booking.rigdowndate, 'team-1', booking.client);
+      await syncBookingEvents(bookingId, 'rigDown', booking.rigdowndate, 'auto', booking.client);
       eventsCreated++;
     }
     

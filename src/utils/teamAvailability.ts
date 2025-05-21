@@ -52,3 +52,59 @@ export const findAvailableTeam = (
   // If all teams are busy, return the first team
   return sortedTeams[0].id;
 };
+
+/**
+ * Counts the number of events assigned to each team and returns the team with the fewest events
+ * @param events All current events in the calendar
+ * @param resources All available resources
+ * @returns The ID of the team with the fewest events
+ */
+export const findTeamWithLeastEvents = (
+  events: CalendarEvent[],
+  resources: Resource[]
+): string => {
+  // Filter to only include team resources (not room resources)
+  const teamResources = resources.filter(resource => resource.id.startsWith('team-') && resource.id !== 'team-6');
+  
+  if (teamResources.length === 0) return 'team-1'; // Default if no teams exist
+  
+  // Count events per team
+  const teamCounts: Record<string, number> = {};
+  
+  // Initialize all teams with 0 events
+  teamResources.forEach(team => {
+    teamCounts[team.id] = 0;
+  });
+  
+  // Count events for each team
+  events.forEach(event => {
+    if (event.resourceId.startsWith('team-') && event.resourceId !== 'team-6') {
+      teamCounts[event.resourceId] = (teamCounts[event.resourceId] || 0) + 1;
+    }
+  });
+  
+  // Find team with least events
+  let minEvents = Number.MAX_SAFE_INTEGER;
+  let selectedTeam = 'team-1';
+  
+  // First identify the minimum number of events
+  for (const [teamId, count] of Object.entries(teamCounts)) {
+    if (count < minEvents) {
+      minEvents = count;
+    }
+  }
+  
+  // Then find the team with the lowest number that has this minimum number of events
+  const teamNumbers = teamResources
+    .map(team => ({ id: team.id, num: parseInt(team.id.split('-')[1]) }))
+    .sort((a, b) => a.num - b.num);
+    
+  for (const team of teamNumbers) {
+    if (teamCounts[team.id] === minEvents) {
+      selectedTeam = team.id;
+      break; // Take the first (lowest numbered) team with minimum events
+    }
+  }
+  
+  return selectedTeam;
+};

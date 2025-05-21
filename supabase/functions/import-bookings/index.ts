@@ -410,10 +410,75 @@ serve(async (req) => {
   }
 })
 
+// Find the team with the least events for a specific date and time
+async function findTeamWithLeastEvents(supabase, startDate, endDate) {
+  try {
+    // Get available teams
+    const { data: teamEvents, error: teamError } = await supabase
+      .from('calendar_events')
+      .select('resource_id, id')
+      .gte('start_time', new Date(startDate.getTime() - 24 * 60 * 60 * 1000).toISOString()) // Include events from the day before
+      .lte('end_time', new Date(endDate.getTime() + 24 * 60 * 60 * 1000).toISOString());   // Include events from the day after
+    
+    if (teamError) {
+      console.error('Error fetching team events:', teamError);
+      return 'team-1'; // Default to team-1 if there's an error
+    }
+    
+    // Count events per team
+    const teamCounts = {};
+    
+    // Default teams to consider (1-5)
+    for (let i = 1; i <= 5; i++) {
+      teamCounts[`team-${i}`] = 0;
+    }
+    
+    // Count events for each team
+    if (teamEvents) {
+      teamEvents.forEach(event => {
+        const teamId = event.resource_id.startsWith('team-') 
+          ? event.resource_id 
+          : `team-${event.resource_id}`;
+        
+        if (teamCounts[teamId] !== undefined) {
+          teamCounts[teamId]++;
+        } else if (teamId !== 'team-6') { // Ignore "Today's events" team
+          teamCounts[teamId] = 1;
+        }
+      });
+    }
+    
+    // Find team with least events
+    let minEvents = Number.MAX_SAFE_INTEGER;
+    let selectedTeam = 'team-1';
+    
+    // First identify the minimum number of events
+    for (const [teamId, count] of Object.entries(teamCounts)) {
+      if (count < minEvents) {
+        minEvents = count;
+      }
+    }
+    
+    // Then find the team with the lowest number that has this minimum
+    for (let i = 1; i <= 5; i++) {
+      const teamId = `team-${i}`;
+      if (teamCounts[teamId] === minEvents) {
+        selectedTeam = teamId;
+        break; // Take the first (lowest numbered) team with minimum events
+      }
+    }
+    
+    console.log(`Selected ${selectedTeam} with ${minEvents} events for new event`);
+    return selectedTeam;
+  } catch (error) {
+    console.error('Error finding team with least events:', error);
+    return 'team-1'; // Default to team-1 if there's an error
+  }
+}
+
 // Modified function to create calendar events for multiple dates per booking
 async function createCalendarEvents(supabase, booking) {
   const events = []
-  const teamId = 'team-1' // Default team
   
   // Function to create a single event
   async function createEvent(date, eventType) {
@@ -425,6 +490,9 @@ async function createCalendarEvents(supabase, booking) {
     
     const endDate = new Date(date)
     endDate.setHours(17, 0, 0, 0)
+
+    // Find the team with the least events
+    const teamId = await findTeamWithLeastEvents(supabase, startDate, endDate);
 
     const title = `${booking.id}: ${booking.client}`
     
