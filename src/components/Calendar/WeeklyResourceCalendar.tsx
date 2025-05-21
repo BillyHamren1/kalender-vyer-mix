@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimelinePlugin from '@fullcalendar/resource-timeline';
-import timelinePlugin from '@fullcalendar/timeline';
+import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import { CalendarEvent, Resource } from './ResourceData';
@@ -225,7 +225,7 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
         ref={calendarRef}
         plugins={[
           resourceTimelinePlugin,
-          timelinePlugin,
+          timeGridPlugin,
           interactionPlugin,
           dayGridPlugin
         ]}
