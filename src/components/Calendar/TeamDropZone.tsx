@@ -53,6 +53,10 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
     onSelectStaff(resource.id, resource.title);
   }
 
+  // Create placeholder staff slots to ensure consistent height
+  const emptySlots = 5 - teamStaff.length;
+  const placeholders = Array(emptySlots > 0 ? emptySlots : 0).fill(null);
+
   return (
     <div 
       ref={drop}
@@ -90,18 +94,38 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
       {/* Staff members list section */}
       <div className="p-2 flex-1 flex flex-col bg-white">
         {teamStaff.length > 0 ? (
-          teamStaff.map(staff => (
-            <DraggableStaffItem 
-              key={staff.id} 
-              staff={staff}
-              onRemove={() => onDrop(staff.id, null)}
-              currentDate={currentDate}
-            />
-          ))
+          <>
+            {teamStaff.map(staff => (
+              <DraggableStaffItem 
+                key={staff.id} 
+                staff={staff}
+                onRemove={() => onDrop(staff.id, null)}
+                currentDate={currentDate}
+              />
+            ))}
+            
+            {/* Empty placeholder slots to maintain consistent height */}
+            {placeholders.map((_, index) => (
+              <div 
+                key={`placeholder-${index}`}
+                className="staff-placeholder h-[24px] w-full opacity-0 my-1"
+              />
+            ))}
+          </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center p-3 text-xs text-gray-400 min-h-[60px]">
-            <p>No staff assigned</p>
-          </div>
+          <>
+            <div className="flex items-center justify-center p-1 text-xs text-gray-400">
+              <p>No staff assigned</p>
+            </div>
+            
+            {/* Empty placeholder slots to maintain consistent height */}
+            {placeholders.slice(1).map((_, index) => (
+              <div 
+                key={`placeholder-${index}`}
+                className="staff-placeholder h-[24px] w-full opacity-0 my-1"
+              />
+            ))}
+          </>
         )}
       </div>
     </div>

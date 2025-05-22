@@ -230,16 +230,16 @@
   z-index: 10;
 }
 
-/* Assigned staff badges in resource header - updated styling */
+/* Assigned staff badges in resource header - updated styling for vertical stack */
 .assigned-staff-area {
   overflow-y: visible;
   z-index: 20;
   padding-bottom: 2px;
-  min-height: 28px;
+  min-height: 130px; /* Increased to fit 5 staff stacked */
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column; /* Changed to column for vertical stacking */
   gap: 4px;
-  justify-content: center;
+  align-items: center; /* Center badges horizontally */
 }
 
 .staff-badge {
@@ -250,6 +250,9 @@
   z-index: 15;
   position: relative;
   cursor: move;
+  height: 22px; /* Fixed height for staff badges */
+  display: flex;
+  align-items: center;
 }
 
 /* Ensure resource headers have enough height for staff display */
@@ -266,7 +269,7 @@
 .fc-datagrid-cell-frame {
   display: flex;
   flex-direction: column;
-  min-height: 100px !important;  /* Increased height for staff badges */
+  min-height: 180px !important;  /* Increased height for 5 stacked staff badges */
   padding: 5px !important;
   position: relative;
   overflow: visible !important;

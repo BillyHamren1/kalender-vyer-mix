@@ -85,6 +85,10 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     }
   };
 
+  // Create placeholder staff slots to ensure consistent height
+  const emptySlots = 5 - assignedStaff.length;
+  const placeholders = Array(emptySlots > 0 ? emptySlots : 0).fill(null);
+
   return (
     <div 
       ref={drop} 
@@ -95,8 +99,8 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         {resource.title}
       </div>
       
-      {/* Assigned staff area */}
-      <div className="assigned-staff-area flex flex-wrap gap-1 mb-1 overflow-visible min-h-[24px]">
+      {/* Assigned staff area - fixed height to accommodate 5 staff members */}
+      <div className="assigned-staff-area flex flex-col gap-1 mb-1 overflow-visible min-h-[130px]">
         {assignedStaff.map((staff) => (
           <Badge 
             key={staff.id}
@@ -110,6 +114,14 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
             </Avatar>
             <span className="truncate max-w-[50px] font-medium">{staff.name.split(' ')[0]}</span>
           </Badge>
+        ))}
+        
+        {/* Empty placeholder slots to maintain consistent height */}
+        {placeholders.map((_, index) => (
+          <div 
+            key={`placeholder-${index}`}
+            className="staff-placeholder h-[22px] w-full opacity-0"
+          />
         ))}
       </div>
       
@@ -128,3 +140,4 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     </div>
   );
 };
+
