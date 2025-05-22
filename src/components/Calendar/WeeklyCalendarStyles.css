@@ -43,6 +43,31 @@
   overflow: visible !important;
 }
 
+/* ScrollGrid specific styles */
+.fc-scrollgrid {
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+}
+
+.fc-scrollgrid-section-header,
+.fc-scrollgrid-section-body,
+.fc-scrollgrid-section-footer {
+  height: auto !important;
+}
+
+.fc-scrollgrid-section-liquid {
+  height: auto !important;
+}
+
+.fc-scrollgrid-sync-inner {
+  min-height: 20px;
+}
+
+/* Fix ScrollGrid liquid layout */
+.fc-scrollgrid-liquid {
+  height: auto !important;
+}
+
 /* Day header styling */
 .day-resource-header {
   font-weight: 600;

@@ -35,11 +35,17 @@ export const getCalendarOptions = () => {
       hour12: false,   // Use 24-hour format
       omitZeroMinute: false // Always show minutes even if 00
     },
+    // ScrollGrid configuration
+    scrollGridOptions: {
+      syntheticScrolling: true
+    },
     // Force usage of scrollgrid
     handleWindowResize: true,
     forceEventDuration: true,
     // Important for resource views
-    resourceAreaWidth: '100px'
+    resourceAreaWidth: '100px',
+    // Enable proper scrolling
+    expandRows: true
   };
 };
 

@@ -1,11 +1,11 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
+import premiumCommonPlugin from '@fullcalendar/premium-common'; // Moved to top of imports
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import dayGridPlugin from '@fullcalendar/daygrid';
-import premiumCommonPlugin from '@fullcalendar/premium-common';
 import { CalendarEvent, Resource } from './ResourceData';
 import { useCalendarEventHandlers } from '@/hooks/useCalendarEventHandlers';
 import { processEvents } from './CalendarEventProcessor';
@@ -254,11 +254,11 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   const fullCalendarProps = {
     ref: calendarRef,
     plugins: [
+      premiumCommonPlugin, // Important: Premium common plugin MUST come first
       resourceTimeGridPlugin,
       timeGridPlugin,
       interactionPlugin,
-      dayGridPlugin,
-      premiumCommonPlugin // Add the premium common plugin for ScrollGrid implementation
+      dayGridPlugin
     ],
     schedulerLicenseKey: "0134084325-fcs-1745193612",
     initialView: getInitialView(),

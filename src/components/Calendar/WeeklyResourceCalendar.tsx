@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
@@ -81,7 +80,11 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
       resourceOrder: 'title',                 // Order resources by title
       resourcesInitiallyExpanded: true,       // Ensure resources are expanded initially
       slotMinWidth: 100,                      // FIXED: Changed from '100px' to 100
-      dayMinWidth: 100                        // FIXED: Changed from '100px' to 100
+      dayMinWidth: 100,                       // FIXED: Changed from '100px' to 100
+      // Premium features configuration
+      scrollGridOptions: {
+        syntheticScrolling: true
+      }
     };
   };
 
@@ -104,6 +107,10 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
       // Add the resource column config
       ...getResourceTimeGridOptions(),   // Add additional resource grid options
       'data-day-index': dayIndex.toString(),
+      // Ensure premium common features are enabled
+      expandRows: true,
+      handleWindowResize: true,
+      stickyHeaderDates: true,
     };
   };
 
