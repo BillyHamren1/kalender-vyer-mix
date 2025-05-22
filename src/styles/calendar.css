@@ -217,19 +217,27 @@
   z-index: 5;
 }
 
+/* Updated team title styling with better centering */
 .resource-title-area {
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 6px;
   text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
 }
 
 .resource-drop-zone {
   margin-top: auto;
   z-index: 10;
+  display: flex;
+  justify-content: center;
+  width: 100%;
 }
 
-/* Assigned staff badges in resource header - updated styling */
+/* Assigned staff badges in resource header - updated styling for centering */
 .assigned-staff-area {
   overflow-y: visible;
   z-index: 20;
@@ -239,16 +247,7 @@
   flex-wrap: wrap;
   gap: 4px;
   justify-content: center;
-}
-
-.staff-badge {
-  font-size: 11px;
-  line-height: 1.2;
-  white-space: nowrap;
-  max-width: 100px;
-  z-index: 15;
-  position: relative;
-  cursor: move;
+  width: 100%;
 }
 
 /* Ensure resource headers have enough height for staff display */
@@ -278,12 +277,15 @@
   height: 100%;
 }
 
-/* Ensure header content is visible - critical for staff display */
+/* Ensure header content is visible and centered - critical for staff display */
 .fc-datagrid-cell-main {
   overflow: visible !important;
   height: 100% !important;
   z-index: 10;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 /* Reset some FC container heights to allow for our content */

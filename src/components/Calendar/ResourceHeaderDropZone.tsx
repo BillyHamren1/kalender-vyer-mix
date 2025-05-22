@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useDrop, useDrag } from 'react-dnd';
 import { Resource } from './ResourceData';
@@ -248,13 +247,13 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       ref={drop}
       className="resource-header-wrapper flex flex-col h-full w-full"
     >
-      {/* Team title */}
-      <div className="resource-title-area font-medium text-sm mb-1 sticky top-0 z-10">
+      {/* Team title - centered with updated styling */}
+      <div className="resource-title-area text-sm sticky top-0 z-10">
         {resource.title}
       </div>
       
-      {/* Assigned staff area - styled to match the reference image */}
-      <div className="assigned-staff-area flex flex-wrap gap-1 mb-1 overflow-visible min-h-[24px]">
+      {/* Assigned staff area - centered with flex */}
+      <div className="assigned-staff-area min-h-[24px]">
         {assignedStaff.map((staff) => (
           <DraggableStaffBadge 
             key={staff.id} 
@@ -264,7 +263,7 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         ))}
       </div>
       
-      {/* Replace drop zone with StaffDropdownMenu */}
+      {/* Replace drop zone with StaffDropdownMenu - centered */}
       <div className="resource-dropdown-zone z-10">
         <StaffDropdownMenu
           resourceId={resource.id}
