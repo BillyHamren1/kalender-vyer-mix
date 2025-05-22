@@ -21,7 +21,7 @@
   border-radius: 6px;
   overflow: hidden;
   margin-bottom: 20px;
-  width: 600px; /* Increased from 300px to 600px to fit all resources */
+  width: 650px; /* Increased from 600px to 650px for better spacing */
   flex-shrink: 0; /* Prevent columns from shrinking */
 }
 
@@ -38,9 +38,9 @@
   width: 100%;
 }
 
-/* Style for potential duplicate events */
+/* Style for potential duplicate events - REMOVING RED LEFT BORDER */
 .fc-event[data-has-booking-id="true"] {
-  border-left: 3px solid #ff5722 !important;
+  border-left: none !important; /* Removed the red left border */
 }
 
 /* Always show action buttons */
@@ -79,4 +79,17 @@
   position: relative !important;
   overflow: visible !important;
   height: auto !important;
+}
+
+/* Improved text styles for better readability */
+.fc-event-title, .fc-event-time, .event-delivery-address {
+  color: #000000e6 !important;
+  font-weight: 500 !important;
+}
+
+/* Ensure resource columns have consistent width */
+.fc-resource-area col, 
+.fc-datagrid-cell-cushion {
+  width: 130px !important;
+  min-width: 130px !important;
 }

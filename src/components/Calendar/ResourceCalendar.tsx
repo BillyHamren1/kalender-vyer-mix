@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -54,24 +55,24 @@ const AddressWrapStyles = () => (
         padding: 2px 4px !important;
         color: #000000e6 !important;
       }
-      /* Force consistent column widths - REDUCED */
+      /* Force consistent column widths - INCREASED */
       .fc-resource-area td,
       .fc-resource-area th,
       .fc-resource-lane,
       .fc-datagrid-cell,
       .fc-timegrid-col {
-        min-width: 80px !important;
-        width: 80px !important;
-        max-width: 80px !important;
+        min-width: 130px !important;
+        width: 130px !important;
+        max-width: 130px !important;
       }
-      /* Special handling for team-6 - REDUCED */
+      /* Special handling for team-6 - INCREASED */
       [data-resource-id="team-6"] .fc-datagrid-cell,
       [data-resource-id="team-6"].fc-datagrid-cell,
       [data-resource-id="team-6"] .fc-timegrid-col,
       [data-resource-id="team-6"].fc-timegrid-col {
-        min-width: 80px !important;
-        width: 80px !important;
-        max-width: 80px !important;
+        min-width: 130px !important;
+        width: 130px !important;
+        max-width: 130px !important;
       }
       /* Ensure all event text is black */
       .fc-event *, 
@@ -260,15 +261,15 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   // Apply consistent column width configuration
   const getResourceColumnConfig = () => {
     // Use provided values from calendarProps or fallback to defaults
-    const resourceAreaWidth = calendarProps.resourceAreaWidth || '120px';  // Increased from 80px
-    const slotMinWidth = calendarProps.slotMinWidth || '120px';            // Increased from 80px
+    const resourceAreaWidth = calendarProps.resourceAreaWidth || '130px';  // Increased from 120px to 130px
+    const slotMinWidth = calendarProps.slotMinWidth || '130px';            // Increased from 120px to 130px
     
     // Ensure columns for resource headers
     const resourceAreaColumns = calendarProps.resourceAreaColumns || [
       {
         field: 'title',
         headerContent: 'Teams',
-        width: '120px' // Increased from 80px
+        width: '130px' // Increased from 120px to 130px
       }
     ];
     
@@ -279,8 +280,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       resourcesInitiallyExpanded: true,
       stickyResourceAreaHeaders: true,
       // Force column widths to be consistent
-      resourceLaneWidth: '120px',  // Increased from 80px
-      resourceWidth: '120px'       // Increased from 80px
+      resourceLaneWidth: '130px',  // Increased from 120px to 130px
+      resourceWidth: '130px'       // Increased from 120px to 130px
     };
   };
 

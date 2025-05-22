@@ -49,13 +49,13 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
   // Helper function to ensure consistent resource column configuration
   const getResourceTimeGridOptions = () => {
     return {
-      resourceAreaWidth: '120px',             // Increased from 70px to 120px
+      resourceAreaWidth: '130px',             // Increased from 120px to 130px
       resourceLabelText: 'Teams',             // Header text for resource area
       resourceAreaHeaderContent: 'Teams',     // Alternative way to set header text
       stickyResourceAreaHeaders: true,        // Keep resource headers visible during scroll
       resourceOrder: 'title',                 // Order resources by title
       resourcesInitiallyExpanded: true,       // Ensure resources are expanded initially
-      slotMinWidth: '120px'                   // Increased from 70px to 120px
+      slotMinWidth: '130px'                   // Increased from 120px to 130px
     };
   };
 
@@ -66,14 +66,14 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
       headerToolbar: false,             // Hide the header to save space
       allDaySlot: false,                // Hide all-day slot to save space
       initialView: 'resourceTimeGridDay',
-      resourceAreaWidth: '120px',       // Increased from 70px to 120px
-      slotMinWidth: '120px',            // Increased from 70px to 120px
+      resourceAreaWidth: '130px',       // Increased from 120px to 130px
+      slotMinWidth: '130px',            // Increased from 120px to 130px
       slotDuration: '01:00:00',         // 1-hour slots to reduce vertical space
       resourceAreaColumns: [            // Configure resource column display
         {
           field: 'title',
           headerContent: 'Teams',
-          width: '120px'                // Increased from 70px to 120px
+          width: '130px'                // Increased from 120px to 130px
         }
       ],
       ...getResourceTimeGridOptions()   // Add additional resource grid options
