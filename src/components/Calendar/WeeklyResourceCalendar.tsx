@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
@@ -79,12 +80,8 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
       stickyResourceAreaHeaders: true,        // Keep resource headers visible during scroll
       resourceOrder: 'title',                 // Order resources by title
       resourcesInitiallyExpanded: true,       // Ensure resources are expanded initially
-      slotMinWidth: 100,                      // FIXED: Changed from '100px' to 100
-      dayMinWidth: 100,                       // FIXED: Changed from '100px' to 100
-      // Premium features configuration
-      scrollGridOptions: {
-        syntheticScrolling: true
-      }
+      slotMinWidth: '100px',                  // Increased from 80px to 100px
+      dayMinWidth: '100px'                    // Ensure days have consistent width
     };
   };
 
@@ -96,25 +93,21 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
       allDaySlot: false,                // Hide all-day slot to save space
       initialView: 'resourceTimeGridDay',
       resourceAreaWidth: '100px',       // Increased from 80px to 100px
-      slotMinWidth: 100,                // FIXED: Changed from '100px' to 100
+      slotMinWidth: '100px',            // Increased from 80px to 100px
       resourceAreaColumns: [            // Configure resource column display
         {
           field: 'title',
           headerContent: 'Teams',
-          width: '100px'                // Width can remain as string here
+          width: '100px'                // Increased from 80px to 100px
         }
       ],
       // Add the resource column config
       ...getResourceTimeGridOptions(),   // Add additional resource grid options
       'data-day-index': dayIndex.toString(),
-      // Ensure premium common features are enabled
-      expandRows: true,
-      handleWindowResize: true,
-      stickyHeaderDates: true,
     };
   };
 
-  // Filter events for each day to improve performance
+  // Filter events for each day to improve performance and visibility
   const getEventsForDay = (date: Date) => {
     // Format date to YYYY-MM-DD for comparison
     const dateStr = format(date, 'yyyy-MM-dd');

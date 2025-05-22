@@ -1,3 +1,4 @@
+
 /* Weekly Calendar Styles */
 .weekly-view-container {
   width: 100%;
@@ -41,31 +42,6 @@
 /* Ensure scrolling works properly */
 .fc-scroller {
   overflow: visible !important;
-}
-
-/* ScrollGrid specific styles */
-.fc-scrollgrid {
-  border-collapse: separate !important;
-  border-spacing: 0 !important;
-}
-
-.fc-scrollgrid-section-header,
-.fc-scrollgrid-section-body,
-.fc-scrollgrid-section-footer {
-  height: auto !important;
-}
-
-.fc-scrollgrid-section-liquid {
-  height: auto !important;
-}
-
-.fc-scrollgrid-sync-inner {
-  min-height: 20px;
-}
-
-/* Fix ScrollGrid liquid layout */
-.fc-scrollgrid-liquid {
-  height: auto !important;
 }
 
 /* Day header styling */
@@ -256,7 +232,7 @@
   width: 20px !important;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   border: 1px dashed #d1d5db;
   border-radius: 0.25rem;
   color: #6b7280;
