@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -80,9 +81,10 @@ interface ResourceCalendarProps {
   onDateSet: (dateInfo: any) => void;
   refreshEvents: () => Promise<void | CalendarEvent[]>;
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
+  onSelectStaff?: (teamId: string, teamName: string) => void;
   forceRefresh?: boolean;
   calendarProps?: Record<string, any>; 
-  droppableScope?: string; // Add droppable scope for cross-calendar dragging
+  droppableScope?: string;
 }
 
 const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
@@ -94,9 +96,10 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   onDateSet,
   refreshEvents,
   onStaffDrop,
+  onSelectStaff,
   forceRefresh,
-  calendarProps = {}, // Default to empty object
-  droppableScope = 'weekly-calendar' // Default droppable scope
+  calendarProps = {},
+  droppableScope = 'weekly-calendar'
 }) => {
   const calendarRef = useRef<any>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(currentDate);
@@ -195,6 +198,16 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     );
   };
 
+  // Handle team selection
+  const handleSelectStaff = (resourceId: string) => {
+    if (onSelectStaff) {
+      const resource = resources.find(r => r.id === resourceId);
+      if (resource) {
+        onSelectStaff(resourceId, resource.title);
+      }
+    }
+  };
+
   // Apply consistent column width configuration
   const getResourceColumnConfig = () => {
     // Use provided values from calendarProps or fallback to defaults
@@ -260,7 +273,18 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       setupEventActions(info, handleDuplicateButtonClick);
     },
     resourceLabelDidMount: setupResourceHeaderStyles,
-    resourceLabelContent: resourceHeaderContent,
+    resourceLabelContent: (info: any) => {
+      if (isMobile) return info.resource.title;
+      
+      return (
+        <ResourceHeaderDropZone 
+          resource={info.resource}
+          currentDate={currentDate}
+          onStaffDrop={onStaffDrop}
+          forceRefresh={forceRefresh}
+        />
+      );
+    },
     slotLabelDidMount: (info: any) => {
       info.el.style.zIndex = '1';
     },
@@ -273,7 +297,17 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     // Add time formatting
     ...getCalendarTimeFormatting(),
     // Apply any additional calendar props
-    ...calendarProps
+    ...calendarProps,
+    // Update resource rendering to include select button
+    resourceAreaHeaderContent: (args: any) => {
+      return (
+        <div className="flex items-center justify-between p-1">
+          <span>Teams</span>
+        </div>
+      );
+    },
+    // Enable calendar connection for drag & drop
+    eventSourceId: droppableScope,
   };
 
   return (

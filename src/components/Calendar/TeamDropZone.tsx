@@ -4,7 +4,7 @@ import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
 import { StaffMember, StaffAssignment } from './StaffAssignmentRow';
 import DraggableStaffItem from './DraggableStaffItem';
-import { Users, UserPlus, MoveDown } from 'lucide-react';
+import { Users, UserPlus, ArrowDown } from 'lucide-react';
 
 interface TeamDropZoneProps {
   resource: Resource;
@@ -25,10 +25,20 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
   onSelectStaff,
   currentDate 
 }) => {
-  // Create a drop zone specifically for the area below the header
+  // Create a drop zone specifically for assigned staff only
   const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: 'STAFF',
-    drop: (item: StaffMember) => onDrop(item.id, resource.id),
+    drop: (item: StaffMember & { assignedTeam?: string | null }) => {
+      // Only allow drops if the staff is already assigned somewhere
+      if (item.assignedTeam) {
+        onDrop(item.id, resource.id);
+      }
+      return { resourceId: resource.id };
+    },
+    canDrop: (item: StaffMember & { assignedTeam?: string | null }) => {
+      // Only allow drops if the staff is already assigned somewhere
+      return !!item.assignedTeam;
+    },
     collect: (monitor) => ({
       isOver: !!monitor.isOver(),
       canDrop: !!monitor.canDrop(),
@@ -74,19 +84,20 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
         </div>
       </div>
       
-      {/* Dedicated drop zone area directly under the header */}
+      {/* Dedicated drop zone area - now only accepts already assigned staff */}
       <div 
         ref={drop}
         className={`
           p-2 border-b border-gray-200 
-          ${isOver ? 'bg-blue-50 border-dashed border-blue-400' : 'bg-gray-50 border-dashed border-gray-300'} 
+          ${isOver && canDrop ? 'bg-blue-50 border-dashed border-blue-400' : 'bg-gray-50 border-dashed border-gray-300'} 
+          ${!canDrop && isOver ? 'bg-red-50 border-dashed border-red-400' : ''}
           transition-all duration-200 flex items-center justify-center
         `}
         style={{ minHeight: '40px' }}
       >
         <div className="flex flex-col items-center justify-center text-xs text-gray-500">
-          <MoveDown className="h-4 w-4 mb-1" />
-          <p>Drop staff here</p>
+          <ArrowDown className="h-4 w-4 mb-1" />
+          <p>Drop assigned staff here</p>
         </div>
       </div>
       
