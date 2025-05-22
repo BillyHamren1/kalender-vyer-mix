@@ -83,10 +83,9 @@ const AddressWrapStyles = () => (
       .event-booking-id {
         color: #000000e6 !important;
       }
-      /* Style for potential duplicate events - REMOVING RED LEFT BORDER */
+      /* Style for potential duplicate events */
       .fc-event[data-has-booking-id="true"] {
-        /* Removing the red left border */
-        border-left: none !important;
+        border-left: 3px solid #ff5722 !important;
       }
       /* Hide action buttons by default, show on hover */
       .event-actions {
