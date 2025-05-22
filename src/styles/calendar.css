@@ -280,6 +280,16 @@
   z-index: 10;
 }
 
+/* Updated assign button style to be smaller */
+.assign-button svg {
+  height: 12px !important;
+  width: 12px !important;
+}
+
+.assign-button span {
+  font-size: 10px !important;
+}
+
 /* Ensure resource headers have enough height for staff display */
 .fc-resource-timeline .fc-resource-group,
 .fc-resource-timeline .fc-datagrid-cell,

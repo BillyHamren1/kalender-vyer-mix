@@ -138,8 +138,6 @@
   opacity: 0.8;
 }
 
-/* ... keep existing code */
-
 /* Reduced height for weekly view calendars */
 .weekly-view-calendar .fc-view-harness {
   min-height: 400px !important;
@@ -230,7 +228,7 @@
 /* Make sure the buttons in weekly view also follow the same rules */
 .weekly-view-calendar .assign-button {
   height: 22px !important;
-  font-size: 11px;
+  font-size: 10px !important;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -243,6 +241,15 @@
   z-index: 10;
 }
 
+.weekly-view-calendar .assign-button svg {
+  height: 12px !important;
+  width: 12px !important;
+}
+
+.weekly-view-calendar .assign-button span {
+  font-size: 10px !important;
+}
+
 .weekly-view-calendar .assign-button:hover {
   background-color: #f3f4f6;
 }
@@ -252,5 +259,3 @@
   width: 100%;
   z-index: 10;
 }
-
-/* ... keep existing code */
