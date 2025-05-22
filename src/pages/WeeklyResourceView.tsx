@@ -11,7 +11,6 @@ import ResourceHeader from '@/components/Calendar/ResourceHeader';
 import ResourceLayout from '@/components/Calendar/ResourceLayout';
 import ResourceToolbar from '@/components/Calendar/ResourceToolbar';
 import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
-import StaffCurtain from '@/components/Calendar/StaffCurtain';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
 import WeeklyResourceCalendar from '@/components/Calendar/WeeklyResourceCalendar';
 import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
@@ -56,14 +55,8 @@ const WeeklyResourceView = () => {
 
   // Get staff operations
   const {
-    staffCurtainOpen,
-    setStaffCurtainOpen,
-    selectedTeamId,
-    selectedTeamName,
     staffAssignmentsUpdated,
     handleStaffDrop,
-    handleSelectStaffForTeam,
-    handleShowStaffCurtain
   } = useStaffOperations(hookCurrentDate);
 
   // Only update when hookCurrentDate changes, not on every render
@@ -109,17 +102,6 @@ const WeeklyResourceView = () => {
         onStaffAssigned={handleStaffAssigned}
       />
       
-      {staffCurtainOpen && (
-        <StaffCurtain 
-          currentDate={hookCurrentDate}
-          onSelectStaff={handleSelectStaffForTeam}
-          onClose={() => setStaffCurtainOpen(false)}
-          onAssignStaff={handleStaffDrop}
-          selectedTeamId={selectedTeamId}
-          selectedTeamName={selectedTeamName}
-        />
-      )}
-      
       <ResourceLayout 
         showStaffDisplay={false}
         staffDisplay={<></>}
@@ -149,7 +131,7 @@ const WeeklyResourceView = () => {
               resources={resources}
               onRefresh={refreshEvents}
               onAddTask={addEventToCalendar}
-              onShowStaffCurtain={handleShowStaffCurtain}
+              onShowStaffCurtain={() => {}}
             />
           </div>
         </div>

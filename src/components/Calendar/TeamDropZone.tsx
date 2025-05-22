@@ -4,6 +4,7 @@ import { Resource } from './ResourceData';
 import { StaffMember, StaffAssignment } from './StaffAssignmentRow';
 import DraggableStaffItem from './DraggableStaffItem';
 import { Users, UserPlus } from 'lucide-react';
+import { useDrop } from 'react-dnd';
 
 interface TeamDropZoneProps {
   resource: Resource;
@@ -34,6 +35,18 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
     } : null;
   }).filter(Boolean) as StaffMember[];
 
+  // Set up drop target for staff reassignment
+  const [{ isOver }, drop] = useDrop({
+    accept: 'STAFF',
+    drop: (item: StaffMember) => {
+      console.log('Dropping staff onto team:', item.id, resource.id);
+      onDrop(item.id, resource.id);
+    },
+    collect: (monitor) => ({
+      isOver: !!monitor.isOver(),
+    }),
+  });
+
   // Handler for staff selection
   const handleSelectStaff = () => {
     console.log('TeamDropZone: handleSelectStaff clicked for', resource.id, resource.title);
@@ -41,7 +54,12 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
   }
 
   return (
-    <div className="h-full flex flex-col border border-gray-200 rounded-md overflow-hidden">
+    <div 
+      ref={drop}
+      className={`h-full flex flex-col border border-gray-200 rounded-md overflow-hidden ${
+        isOver ? 'bg-purple-50' : ''
+      }`}
+    >
       {/* Team header - not a drop zone */}
       <div className="bg-gray-100 p-2 border-b border-gray-200">
         <div className="text-sm font-medium mb-2 flex items-center gap-1">

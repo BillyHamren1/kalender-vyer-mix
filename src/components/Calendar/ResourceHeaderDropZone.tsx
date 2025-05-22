@@ -6,6 +6,7 @@ import { UserPlus } from 'lucide-react';
 import { fetchStaffAssignments } from '@/services/staffService';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useDrop } from 'react-dnd';
 
 interface ResourceHeaderDropZoneProps {
   resource: Resource;
@@ -31,6 +32,19 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     if (nameParts.length === 1) return nameParts[0].substring(0, 2).toUpperCase();
     return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
   };
+  
+  // Set up drop target for staff assignment
+  const [{ isOver }, drop] = useDrop({
+    accept: 'STAFF',
+    drop: (item: StaffMember) => {
+      if (onStaffDrop) {
+        onStaffDrop(item.id, resource.id);
+      }
+    },
+    collect: (monitor) => ({
+      isOver: !!monitor.isOver(),
+    }),
+  });
   
   // Fetch assigned staff when component mounts or when resource/date changes
   useEffect(() => {
@@ -72,7 +86,10 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   };
 
   return (
-    <div className="resource-header-wrapper flex flex-col h-full w-full">
+    <div 
+      ref={drop} 
+      className={`resource-header-wrapper flex flex-col h-full w-full ${isOver ? 'bg-purple-50' : ''}`}
+    >
       {/* Team title */}
       <div className="resource-title-area font-medium text-sm mb-1 sticky top-0 z-10">
         {resource.title}

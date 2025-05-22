@@ -4,14 +4,17 @@ import { toast } from 'sonner';
 import { assignStaffToTeam, removeStaffAssignment } from '@/services/staffService';
 
 export const useStaffOperations = (currentDate: Date) => {
-  const [staffCurtainOpen, setStaffCurtainOpen] = useState(false);
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
-  const [selectedTeamName, setSelectedTeamName] = useState<string>('');
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
 
   // Handle staff drop for assignment
   const handleStaffDrop = useCallback(async (staffId: string, resourceId: string | null) => {
     try {
+      // If both staffId and resourceId are empty, just trigger a refresh
+      if (!staffId && !resourceId) {
+        setStaffAssignmentsUpdated(prev => !prev);
+        return Promise.resolve();
+      }
+      
       console.log(`Handling staff drop: staff=${staffId}, resource=${resourceId}`);
       if (resourceId) {
         toast.info(`Assigning staff ${staffId} to team ${resourceId}...`);
@@ -46,28 +49,8 @@ export const useStaffOperations = (currentDate: Date) => {
     }
   }, [currentDate]);
 
-  // Handle opening the staff selection curtain
-  const handleSelectStaffForTeam = useCallback((teamId: string, teamName: string) => {
-    setSelectedTeamId(teamId);
-    setSelectedTeamName(teamName);
-    setStaffCurtainOpen(true);
-  }, []);
-
-  // Show the staff curtain directly (without team selection)
-  const handleShowStaffCurtain = useCallback(() => {
-    setSelectedTeamId(null);
-    setSelectedTeamName('');
-    setStaffCurtainOpen(true);
-  }, []);
-
   return {
-    staffCurtainOpen,
-    setStaffCurtainOpen,
-    selectedTeamId,
-    selectedTeamName,
     staffAssignmentsUpdated,
-    handleStaffDrop,
-    handleSelectStaffForTeam,
-    handleShowStaffCurtain
+    handleStaffDrop
   };
 };
