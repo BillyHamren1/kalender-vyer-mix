@@ -43,20 +43,20 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
           <span>{resource.title}</span>
         </div>
         
-        {/* Compact staff controls */}
+        {/* Compact staff controls - FIXED: Changed text from "Select Staff" to "Assign" */}
         <div className="flex gap-1 mb-1">
           <button 
             className="flex-1 text-xs py-1 px-1 border border-dashed border-gray-300 text-gray-500 hover:bg-gray-100 rounded flex items-center justify-center gap-1"
             onClick={() => onSelectStaff(resource.id, resource.title)}
-            style={{ height: '22px' }}
+            style={{ height: "22px" }}
           >
             <UserPlus className="h-3 w-3" />
-            <span>Select Staff</span>
+            <span>Assign</span>
           </button>
           <button 
             className="flex-1 text-xs py-1 px-1 border border-dashed border-gray-300 text-gray-500 hover:bg-gray-100 rounded"
             onClick={() => onAddStaff(resource.id)}
-            style={{ height: '22px' }}
+            style={{ height: "22px" }}
           >
             + New
           </button>

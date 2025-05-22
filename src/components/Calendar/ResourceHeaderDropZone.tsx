@@ -25,6 +25,13 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   const [assignedStaff, setAssignedStaff] = useState<StaffMember[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
+  // Helper function to get initials for avatar
+  const getInitials = (name: string): string => {
+    const nameParts = name.trim().split(' ');
+    if (nameParts.length === 1) return nameParts[0].substring(0, 2).toUpperCase();
+    return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
+  };
+  
   // Fetch assigned staff when component mounts or when resource/date changes
   useEffect(() => {
     const loadAssignedStaff = async () => {
@@ -54,13 +61,6 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     loadAssignedStaff();
   }, [resource.id, currentDate, forceRefresh]);
 
-  // Helper function to get initials for avatar
-  const getInitials = (name: string): string => {
-    const nameParts = name.trim().split(' ');
-    if (nameParts.length === 1) return nameParts[0].substring(0, 2).toUpperCase();
-    return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
-  };
-  
   // Handle opening the staff selector
   const handleSelectStaff = () => {
     if (onSelectStaff) {
@@ -93,16 +93,16 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         ))}
       </div>
       
-      {/* Staff select button */}
+      {/* Staff select button - FIXED: Smaller and changed text to "Assign" */}
       <button 
         onClick={handleSelectStaff}
-        className="text-xs flex items-center justify-center border border-dashed p-1.5 rounded-md mt-auto
+        className="text-xs flex items-center justify-center border border-dashed p-1 rounded-md mt-auto
                    border-gray-300 text-gray-500 hover:bg-gray-50 transition-colors duration-200 z-10"
-        style={{ minHeight: "24px" }}
+        style={{ minHeight: "22px" }}
       >
         <div className="flex items-center gap-1">
           <UserPlus className="h-3 w-3" />
-          <span className="text-xs font-medium">Select Staff</span>
+          <span className="text-xs font-medium">Assign</span>
         </div>
       </button>
     </div>
