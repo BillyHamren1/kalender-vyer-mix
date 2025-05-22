@@ -64,20 +64,13 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
         isOver ? 'bg-purple-50' : ''
       }`}
     >
-      {/* Team header with icon button in right corner */}
+      {/* Team header with title only - removed icon button from here */}
       <div className="bg-gray-100 p-2 border-b border-gray-200">
-        <div className="text-sm font-medium mb-2 flex items-center justify-between">
+        <div className="text-sm font-medium mb-2 flex items-center">
           <div className="flex items-center gap-1">
             <Users className="h-4 w-4" />
             <span>{resource.title}</span>
           </div>
-          <button 
-            className="assign-button-icon"
-            onClick={handleSelectStaff}
-            title="Assign staff"
-          >
-            <UserPlus className="h-3 w-3" />
-          </button>
         </div>
         
         {/* New staff button only */}
@@ -93,7 +86,7 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
       </div>
       
       {/* Staff members list section */}
-      <div className="p-2 flex-1 flex flex-col bg-white">
+      <div className="p-2 flex-1 flex flex-col bg-white relative">
         {teamStaff.length > 0 ? (
           <>
             {teamStaff.map(staff => (
@@ -128,6 +121,15 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
             ))}
           </>
         )}
+        
+        {/* Assign icon button in the bottom right corner */}
+        <button 
+          className="assign-button-icon absolute bottom-2 right-2"
+          onClick={handleSelectStaff}
+          title="Assign staff"
+        >
+          <UserPlus className="h-3 w-3" />
+        </button>
       </div>
     </div>
   );
