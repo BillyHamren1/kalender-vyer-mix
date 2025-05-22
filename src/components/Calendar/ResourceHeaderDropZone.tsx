@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useDrop, useDrag } from 'react-dnd';
 import { Resource } from './ResourceData';
@@ -17,6 +18,48 @@ interface ResourceHeaderDropZoneProps {
   forceRefresh?: boolean; // Add this prop to force refresh
 }
 
+// Generate a unique color based on staff ID
+const getStaffColor = (staffId: string): { bg: string, border: string, text: string } => {
+  // Create a simple hash from the staff ID
+  let hash = 0;
+  for (let i = 0; i < staffId.length; i++) {
+    hash = staffId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  
+  // List of pleasant pastel background colors
+  const bgColors = [
+    'bg-purple-100', 'bg-blue-100', 'bg-green-100', 
+    'bg-yellow-100', 'bg-pink-100', 'bg-indigo-100', 
+    'bg-red-100', 'bg-orange-100', 'bg-teal-100', 
+    'bg-cyan-100'
+  ];
+  
+  // Matching border colors
+  const borderColors = [
+    'border-purple-300', 'border-blue-300', 'border-green-300', 
+    'border-yellow-300', 'border-pink-300', 'border-indigo-300', 
+    'border-red-300', 'border-orange-300', 'border-teal-300', 
+    'border-cyan-300'
+  ];
+
+  // Text colors that work well on each background
+  const textColors = [
+    'text-purple-800', 'text-blue-800', 'text-green-800', 
+    'text-yellow-800', 'text-pink-800', 'text-indigo-800', 
+    'text-red-800', 'text-orange-800', 'text-teal-800', 
+    'text-cyan-800'
+  ];
+  
+  // Use the hash to select a color
+  const index = Math.abs(hash) % bgColors.length;
+  
+  return {
+    bg: bgColors[index],
+    border: borderColors[index],
+    text: textColors[index]
+  };
+};
+
 // DraggableStaffBadge component for the resource header
 const DraggableStaffBadge: React.FC<{
   staff: StaffMember;
@@ -29,6 +72,9 @@ const DraggableStaffBadge: React.FC<{
       isDragging: !!monitor.isDragging(),
     }),
   }));
+
+  // Get color for this staff member
+  const staffColor = getStaffColor(staff.id);
 
   // Helper function to get initials for avatar
   const getInitials = (name: string): string => {
@@ -45,18 +91,18 @@ const DraggableStaffBadge: React.FC<{
       <Badge 
         key={staff.id}
         variant="outline"
-        className="staff-badge flex items-center bg-purple-100 text-purple-800 text-xs rounded-md px-1.5 py-0.5 z-20 shadow-sm cursor-move"
+        className={`staff-badge flex items-center ${staffColor.bg} bg-white border ${staffColor.border} text-xs rounded-md px-1.5 py-0.5 z-20 shadow-sm cursor-move`}
         title={staff.name}
         onClick={(e) => {
           e.stopPropagation();
         }}
       >
-        <Avatar className="h-4 w-4 mr-1 bg-purple-200">
-          <AvatarFallback className="text-[8px] text-purple-800">
+        <Avatar className={`h-4 w-4 mr-1 ${staffColor.bg}`}>
+          <AvatarFallback className={`text-[8px] ${staffColor.text}`}>
             {getInitials(staff.name)}
           </AvatarFallback>
         </Avatar>
-        <span className="truncate max-w-[50px] font-medium">{staff.name.split(' ')[0]}</span>
+        <span className={`truncate max-w-[50px] font-medium text-gray-800`}>{staff.name.split(' ')[0]}</span>
         <button 
           onClick={(e) => {
             e.stopPropagation();
