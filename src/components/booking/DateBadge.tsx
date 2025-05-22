@@ -14,6 +14,7 @@ import {
   AlertDialogTitle, 
   AlertDialogTrigger 
 } from '@/components/ui/alert-dialog';
+import ConfirmationDialog from '@/components/ConfirmationDialog';
 
 interface DateBadgeProps {
   date: string;
@@ -47,27 +48,16 @@ export const DateBadge = ({
       </Badge>
       
       {canDelete && (
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full">
-              <X className="h-3 w-3" />
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Remove date?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to remove this date? This action will also remove the associated calendar event.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleRemoveDate}>
-                Remove
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <ConfirmationDialog
+          title="Remove date?"
+          description="Are you sure you want to remove this date? This action will also remove the associated calendar event."
+          confirmLabel="Remove"
+          onConfirm={handleRemoveDate}
+        >
+          <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full">
+            <X className="h-3 w-3" />
+          </Button>
+        </ConfirmationDialog>
       )}
     </div>
   );
