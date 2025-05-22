@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Command, CommandInput } from '@/components/ui/command';
-import { quietImportBookings, importBookings } from '@/services/importService';
+import { quietImportBookings } from '@/services/importService';
 import { Booking } from '../types/booking';
 import { 
   fetchBookings, 
@@ -47,24 +47,20 @@ const BookingList = () => {
   const [plannedStatusFilter, setPlannedStatusFilter] = useState<string>("confirmed");
   const [includeTodayBookings, setIncludeTodayBookings] = useState<boolean>(true);
   
-  // Function to load bookings - improved with better error handling
+  // Function to load bookings - now loads ALL bookings, not just confirmed ones
   const loadBookings = async () => {
-    console.log('Starting to load bookings...');
     try {
       setIsLoading(true);
       setImportError(null);
-      const data = await fetchBookings();
-      console.log(`Successfully loaded ${data.length} bookings`);
+      const data = await fetchBookings(); // Use fetchBookings instead of fetchConfirmedBookings
       setBookings(data);
       return data.length > 0;
     } catch (error) {
       console.error('Failed to load bookings:', error);
-      setImportError(`Error loading bookings: ${error instanceof Error ? error.message : 'Unknown error'}`);
       toast.error('Failed to load bookings');
       return false;
     } finally {
       setIsLoading(false);
-      console.log('Finished loading bookings, isLoading set to false');
     }
   };
   
@@ -146,59 +142,18 @@ const BookingList = () => {
     }
   };
 
-  // Function for manual update/import - completely revised with better error handling
-  const handleManualUpdate = async () => {
-    console.log('Manual update button clicked');
-    
-    if (isLoading || isImporting) {
-      console.log('Already loading or importing, ignoring request');
-      return; // Prevent multiple simultaneous requests
-    }
-    
+  // Function for quiet background import
+  const performQuietImport = async () => {
     try {
       setIsImporting(true);
-      toast.info('Checking for new bookings...', { duration: 3000 });
-      console.log('Starting import process');
-      
-      // Add a timeout to ensure the operation completes eventually
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Import operation timed out')), 30000);
-      });
-      
-      // Use Promise.race to implement timeout
-      const result = await Promise.race([
-        importBookings(), // Use the non-quiet version for manual updates
-        timeoutPromise
-      ]) as any;
-      
-      console.log('Import result:', result);
+      const result = await quietImportBookings();
       
       if (result.success && result.results) {
         // Track newly imported, updated, and status changed bookings
-        const newIds = result.results.new_bookings || [];
-        const updatedIds = result.results.updated_bookings || [];
-        const statusChangedIds = result.results.status_changed_bookings || [];
-        const newOrUpdatedIds = [...newIds, ...updatedIds];
+        const newOrUpdatedIds = [...(result.results.new_bookings || []), ...(result.results.updated_bookings || [])];
+        const statusChangedIds = [...(result.results.status_changed_bookings || [])];
         
-        // Update toast message based on what happened
-        if (newIds.length > 0 || updatedIds.length > 0) {
-          const message = [];
-          if (newIds.length > 0) message.push(`${newIds.length} new booking${newIds.length > 1 ? 's' : ''}`);
-          if (updatedIds.length > 0) message.push(`${updatedIds.length} updated booking${updatedIds.length > 1 ? 's' : ''}`);
-          
-          toast.success(`Import completed: ${message.join(' and ')} found`);
-        } else {
-          toast.success('Import completed: No new or updated bookings found');
-        }
-        
-        if (statusChangedIds.length > 0) {
-          toast.warning(`${statusChangedIds.length} booking${statusChangedIds.length > 1 ? 's have' : ' has'} changed status in external system`);
-        }
-        
-        // Update the state with new booking IDs
         if (newOrUpdatedIds.length > 0 || statusChangedIds.length > 0) {
-          console.log('Updating booking IDs in state', { newOrUpdatedIds, statusChangedIds });
-          
           setRecentlyUpdatedBookingIds(prevIds => {
             const combined = [...prevIds, ...newOrUpdatedIds];
             // Remove duplicates
@@ -215,68 +170,11 @@ const BookingList = () => {
           await loadBookings();
         }
       } else {
-        // Handle failed import with better error reporting
-        console.error('Import failed:', result);
-        const errorMessage = result.error || 'Unknown error during import';
-        setImportError(errorMessage);
-        toast.error(`Import failed: ${errorMessage}`);
+        // Just log errors but don't show UI error messages
+        console.error('Quiet import failed:', result);
       }
     } catch (error) {
-      console.error('Error during manual import:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      setImportError(`Import error: ${errorMessage}`);
-      toast.error(`Import failed: ${errorMessage}`);
-    } finally {
-      setIsImporting(false);
-      console.log('Manual import completed, isImporting set to false');
-    }
-  };
-  
-  // Function for quiet background import - improved with better error handling
-  const performQuietImport = async () => {
-    // Don't log start of background import to avoid console spam
-    if (isImporting) {
-      // Already importing, skip this cycle
-      return;
-    }
-    
-    try {
-      setIsImporting(true);
-      const result = await quietImportBookings();
-      
-      if (result.success && result.results) {
-        // Track newly imported, updated, and status changed bookings
-        const newOrUpdatedIds = [...(result.results.new_bookings || []), ...(result.results.updated_bookings || [])];
-        const statusChangedIds = [...(result.results.status_changed_bookings || [])];
-        
-        if (newOrUpdatedIds.length > 0 || statusChangedIds.length > 0) {
-          console.log('Background import found changes', { 
-            newBookings: result.results.new_bookings?.length || 0,
-            updatedBookings: result.results.updated_bookings?.length || 0,
-            statusChangedBookings: result.results.status_changed_bookings?.length || 0
-          });
-          
-          setRecentlyUpdatedBookingIds(prevIds => {
-            const combined = [...prevIds, ...newOrUpdatedIds];
-            // Remove duplicates
-            return [...new Set(combined)];
-          });
-          
-          setStatusChangedBookingIds(prevIds => {
-            const combined = [...prevIds, ...statusChangedIds];
-            // Remove duplicates
-            return [...new Set(combined)];
-          });
-          
-          // Reload bookings to show the newly imported ones
-          await loadBookings();
-        }
-      } else if (result.error) {
-        // Just log errors but don't show UI error messages for background imports
-        console.error('Background import failed:', result);
-      }
-    } catch (error) {
-      console.error('Error during background import:', error);
+      console.error('Error during quiet import:', error);
     } finally {
       setIsImporting(false);
     }
@@ -304,21 +202,13 @@ const BookingList = () => {
   // Auto-import and load bookings on initial component mount
   useEffect(() => {
     const initializeBookings = async () => {
-      console.log('Initializing bookings on component mount');
       setIsLoading(true);
       
-      try {
-        // Try to load existing bookings first
-        const hasExistingBookings = await loadBookings();
-        
-        // Perform a quiet import in the background
-        await performQuietImport();
-      } catch (error) {
-        console.error('Error during initialization:', error);
-        toast.error('Failed to initialize bookings');
-      } finally {
-        setIsLoading(false);
-      }
+      // Try to load existing bookings first
+      const hasExistingBookings = await loadBookings();
+      
+      // Perform a quiet import in the background
+      await performQuietImport();
     };
     
     initializeBookings();
@@ -376,13 +266,13 @@ const BookingList = () => {
               </Button>
             </Link>
             <Button 
-              onClick={handleManualUpdate} 
+              onClick={() => loadBookings()} 
               variant="outline" 
               disabled={isLoading || isImporting}
               className="flex items-center gap-2"
             >
               <RefreshCcw className={`h-4 w-4 ${isLoading || isImporting ? 'animate-spin' : ''}`} />
-              {isImporting ? 'Importing...' : isLoading ? 'Loading...' : 'Update'}
+              {isImporting ? 'Importing...' : 'Update'}
             </Button>
           </div>
         </div>

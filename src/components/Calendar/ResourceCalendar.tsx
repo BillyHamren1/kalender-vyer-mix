@@ -1,23 +1,74 @@
-
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import dayGridPlugin from '@fullcalendar/daygrid';
-import { CalendarEvent, Resource } from '../ResourceData';
+import { CalendarEvent, Resource } from './ResourceData';
 import { useCalendarEventHandlers } from '@/hooks/useCalendarEventHandlers';
-import { processEvents } from '../CalendarEventProcessor';
-import { getCalendarViews, getCalendarOptions } from '../CalendarConfig';
+import { processEvents } from './CalendarEventProcessor';
+import { getCalendarViews, getCalendarOptions } from './CalendarConfig';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useEventActions } from '@/hooks/useEventActions';
-import { getEventHandlers, getCalendarTimeFormatting } from '../CalendarEventHandlers';
-import { useCalendarView } from '../CalendarViewConfig';
-import { DeleteConfirmationDialog } from './DeleteConfirmationDialog';
-import { CalendarStylesheet } from './CalendarStylesheet';
-import { ResourceHeaderRenderer } from './ResourceHeaderRenderer';
-import { EventContentRenderer } from './EventContentRenderer';
-import { SortedResources } from './SortedResources';
+import { ResourceHeaderDropZone } from './ResourceHeaderDropZone';
+import { 
+  renderEventContent, 
+  setupEventActions, 
+  addEventAttributes,
+  setupResourceHeaderStyles 
+} from './CalendarEventRenderer';
+import { getEventHandlers, getCalendarTimeFormatting } from './CalendarEventHandlers';
+import { useCalendarView } from './CalendarViewConfig';
+
+// Custom styles to ensure addresses wrap properly in calendar events
+const AddressWrapStyles = () => (
+  <style>
+    {`
+      .event-delivery-address {
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+        hyphens: auto;
+        max-height: none !important;
+        white-space: normal !important;
+      }
+      .fc-event-title {
+        white-space: normal !important;
+        overflow: visible !important;
+      }
+      .fc-event-time {
+        white-space: nowrap;
+      }
+      .event-content-wrapper {
+        display: flex;
+        flex-direction: column;
+        min-height: 100%;
+        padding: 2px;
+      }
+      .fc-timegrid-event .fc-event-main {
+        padding: 2px 4px !important;
+      }
+      /* Force consistent column widths - REDUCED */
+      .fc-resource-area td,
+      .fc-resource-area th,
+      .fc-resource-lane,
+      .fc-datagrid-cell,
+      .fc-timegrid-col {
+        min-width: 80px !important;
+        width: 80px !important;
+        max-width: 80px !important;
+      }
+      /* Special handling for team-6 - REDUCED */
+      [data-resource-id="team-6"] .fc-datagrid-cell,
+      [data-resource-id="team-6"].fc-datagrid-cell,
+      [data-resource-id="team-6"] .fc-timegrid-col,
+      [data-resource-id="team-6"].fc-timegrid-col {
+        min-width: 80px !important;
+        width: 80px !important;
+        max-width: 80px !important;
+      }
+    `}
+  </style>
+);
 
 interface ResourceCalendarProps {
   events: CalendarEvent[];
@@ -29,10 +80,10 @@ interface ResourceCalendarProps {
   refreshEvents: () => Promise<void | CalendarEvent[]>;
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
   forceRefresh?: boolean;
-  calendarProps?: Record<string, any>;
+  calendarProps?: Record<string, any>; // Add this prop to allow passing additional props to FullCalendar
 }
 
-const ResourceCalendarComponent: React.FC<ResourceCalendarProps> = ({
+const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   events,
   resources,
   isLoading,
@@ -42,19 +93,15 @@ const ResourceCalendarComponent: React.FC<ResourceCalendarProps> = ({
   refreshEvents,
   onStaffDrop,
   forceRefresh,
-  calendarProps = {}
+  calendarProps = {} // Default to empty object
 }) => {
   const calendarRef = useRef<any>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(currentDate);
   const { isMobile, getInitialView, getMobileHeaderToolbar, getAspectRatio } = useCalendarView();
   const [currentView, setCurrentView] = useState<string>("resourceTimeGridDay");
   
-  // State for delete confirmation dialog
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [eventToDelete, setEventToDelete] = useState<{id: string, title?: string, bookingId?: string, eventType?: string} | null>(null);
-  
   // Get the event actions hook
-  const { duplicateEvent, deleteEvent } = useEventActions(events, () => {}, resources);
+  const { duplicateEvent } = useEventActions(events, () => {}, resources);
   
   // Use the calendar event handlers with the duplicate event function
   const { handleEventChange, handleEventClick, DuplicateEventDialog } = useCalendarEventHandlers(
@@ -66,8 +113,24 @@ const ResourceCalendarComponent: React.FC<ResourceCalendarProps> = ({
   // Get event handlers
   const { handleEventDrop } = getEventHandlers(handleEventChange, handleEventClick);
 
-  // Sort resources in the correct order
-  const sortedResources = SortedResources(resources);
+  // Sort resources in the correct order before passing to FullCalendar
+  const sortedResources = [...resources].sort((a, b) => {
+    // Special case for "Todays events" (team-6) - it should be last
+    if (a.id === 'team-6') return 1;
+    if (b.id === 'team-6') return -1;
+    
+    // Extract team numbers for comparison
+    const aMatch = a.id.match(/team-(\d+)/);
+    const bMatch = b.id.match(/team-(\d+)/);
+    
+    if (!aMatch || !bMatch) return 0;
+    
+    const aNum = parseInt(aMatch[1]);
+    const bNum = parseInt(bMatch[1]);
+    
+    // Sort by team number
+    return aNum - bNum;
+  });
 
   // Log events and resources for debugging
   useEffect(() => {
@@ -108,48 +171,52 @@ const ResourceCalendarComponent: React.FC<ResourceCalendarProps> = ({
       }
     }
   };
-  
-  // Handler for delete button click
-  const handleDeleteButtonClick = (eventId: string, bookingId: string, eventType: string) => {
-    console.log('Delete button clicked for event:', eventId);
-    // Find the event in the events array
-    const event = events.find(event => event.id === eventId);
-    if (event) {
-      // Store the event to delete and open the confirmation dialog
-      setEventToDelete({
-        id: eventId,
-        title: event.title,
-        bookingId,
-        eventType
-      });
-      setDeleteDialogOpen(true);
-    }
-  };
-  
-  // Handle confirm delete
-  const handleConfirmDelete = async () => {
-    if (eventToDelete) {
-      try {
-        await deleteEvent(eventToDelete.id);
-        // Refresh events to update the UI
-        await refreshEvents();
-      } catch (error) {
-        console.error('Error deleting event:', error);
-      } finally {
-        // Close the dialog
-        setDeleteDialogOpen(false);
-        setEventToDelete(null);
-      }
-    }
+
+  // Custom resource header content renderer
+  const resourceHeaderContent = (info: any) => {
+    if (isMobile) return info.resource.title;
+    
+    return (
+      <ResourceHeaderDropZone 
+        resource={info.resource}
+        currentDate={currentDate}
+        onStaffDrop={onStaffDrop}
+        forceRefresh={forceRefresh}
+      />
+    );
   };
 
-  // Resource column configuration using custom hook
-  const resourceColumnConfig = useResourceColumnConfig(calendarProps);
+  // Apply consistent column width configuration
+  const getResourceColumnConfig = () => {
+    // Use provided values from calendarProps or fallback to defaults
+    const resourceAreaWidth = calendarProps.resourceAreaWidth || '80px';  // Reduced from 150px
+    const slotMinWidth = calendarProps.slotMinWidth || '80px';            // Reduced from 150px
+    
+    // Ensure columns for resource headers
+    const resourceAreaColumns = calendarProps.resourceAreaColumns || [
+      {
+        field: 'title',
+        headerContent: 'Teams',
+        width: '80px' // Reduced from 150px
+      }
+    ];
+    
+    return {
+      resourceAreaWidth,
+      slotMinWidth,
+      resourceAreaColumns,
+      resourcesInitiallyExpanded: true,
+      stickyResourceAreaHeaders: true,
+      // Force column widths to be consistent
+      resourceLaneWidth: '80px',  // Reduced from 150px
+      resourceWidth: '80px'       // Reduced from 150px
+    };
+  };
 
   return (
     <div className="calendar-container">
       {/* Add custom styles for address wrapping and fixed column widths */}
-      <CalendarStylesheet />
+      <AddressWrapStyles />
       
       <FullCalendar
         ref={calendarRef}
@@ -182,65 +249,29 @@ const ResourceCalendarComponent: React.FC<ResourceCalendarProps> = ({
         {...getCalendarOptions()}
         height="auto"
         aspectRatio={getAspectRatio()}
-        eventContent={(info) => EventContentRenderer(info, handleDuplicateButtonClick, handleDeleteButtonClick)}
+        eventContent={renderEventContent}
         eventDidMount={(info) => {
-          EventContentRenderer.setupEvent(info, handleDuplicateButtonClick, handleDeleteButtonClick);
+          // Add data attributes and setup event-specific elements
+          addEventAttributes(info);
+          setupEventActions(info, handleDuplicateButtonClick);
         }}
         {...getCalendarTimeFormatting()}
-        resourceLabelDidMount={(info) => {
-          ResourceHeaderRenderer.setupStyles(info);
-        }}
-        resourceLabelContent={(info) => ResourceHeaderRenderer.renderContent(info, isMobile, currentDate, onStaffDrop, forceRefresh)}
+        resourceLabelDidMount={setupResourceHeaderStyles}
+        resourceLabelContent={resourceHeaderContent}
         slotLabelDidMount={(info) => {
           // Add z-index to time slots to ensure they appear behind staff badges
-          const slotElement = info.el as HTMLElement;
-          slotElement.style.zIndex = '1';
+          info.el.style.zIndex = '1';
         }}
         // Apply consistent resource column configuration
-        {...resourceColumnConfig}
+        {...getResourceColumnConfig()}
         // Apply any additional calendar props
         {...calendarProps}
       />
       
       {/* Render the duplicate dialog */}
       <DuplicateEventDialog />
-      
-      {/* Delete Confirmation Dialog */}
-      <DeleteConfirmationDialog 
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        eventToDelete={eventToDelete}
-        onConfirmDelete={handleConfirmDelete}
-      />
     </div>
   );
 };
 
-// Extract resource column configuration to a custom hook
-function useResourceColumnConfig(calendarProps: Record<string, any>) {
-  // Use provided values from calendarProps or fallback to defaults
-  const resourceAreaWidth = calendarProps.resourceAreaWidth || '130px'; 
-  const slotMinWidth = calendarProps.slotMinWidth || '130px';
-  
-  // Ensure columns for resource headers
-  const resourceAreaColumns = calendarProps.resourceAreaColumns || [
-    {
-      field: 'title',
-      headerContent: 'Teams',
-      width: '130px'
-    }
-  ];
-  
-  return {
-    resourceAreaWidth,
-    slotMinWidth,
-    resourceAreaColumns,
-    resourcesInitiallyExpanded: true,
-    stickyResourceAreaHeaders: true,
-    // Force column widths to be consistent
-    resourceLaneWidth: '130px',
-    resourceWidth: '130px'
-  };
-}
-
-export default ResourceCalendarComponent;
+export default ResourceCalendar;

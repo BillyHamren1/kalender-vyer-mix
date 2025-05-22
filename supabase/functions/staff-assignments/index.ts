@@ -1,11 +1,10 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 // Define CORS headers to allow cross-origin requests
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-api-key',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, x-api-key, content-type',
 }
 
 // Initialize Supabase client
@@ -31,48 +30,8 @@ const validateApiKey = async (apiKey: string | null) => {
   return true
 }
 
-// Function to get booking changes for a set of booking IDs
-async function getBookingChanges(bookingIds: string[]) {
-  if (!bookingIds.length) {
-    return {}
-  }
-  
-  const { data, error } = await supabase
-    .from('booking_changes')
-    .select('*')
-    .in('booking_id', bookingIds)
-    .order('version', { ascending: false })
-    .limit(bookingIds.length * 2) // Get up to 2 most recent changes per booking
-  
-  if (error) {
-    console.error('Error fetching booking changes:', error)
-    return {}
-  }
-  
-  // Group changes by booking ID
-  const changesByBookingId = {}
-  
-  data.forEach(change => {
-    if (!changesByBookingId[change.booking_id]) {
-      changesByBookingId[change.booking_id] = []
-    }
-    
-    changesByBookingId[change.booking_id].push({
-      id: change.id,
-      type: change.change_type,
-      timestamp: change.changed_at,
-      changed_fields: Object.keys(change.changed_fields || {}),
-      version: change.version,
-      previous_values: change.previous_values,
-      new_values: change.new_values
-    })
-  })
-  
-  return changesByBookingId
-}
-
 // Function to get staff assignment and related bookings
-async function getStaffAssignment(staffId: string, date: string, includeChanges = false) {
+async function getStaffAssignment(staffId: string, date: string) {
   // First, get the team assignment for the staff member on the specified date
   const { data: assignment, error: assignmentError } = await supabase
     .from('staff_assignments')
@@ -127,12 +86,6 @@ async function getStaffAssignment(staffId: string, date: string, includeChanges 
     console.error('Error fetching bookings:', bookingsError)
     throw bookingsError
   }
-  
-  // Fetch change history if requested
-  let changesByBookingId = {}
-  if (includeChanges && bookingIds.length > 0) {
-    changesByBookingId = await getBookingChanges(bookingIds)
-  }
 
   // Process bookings to include events and format according to our response structure
   const processedBookings = bookings.map(booking => {
@@ -145,12 +98,8 @@ async function getStaffAssignment(staffId: string, date: string, includeChanges 
         end: event.end_time,
         title: event.title
       }))
-    
-    // Add change history if available
-    const changes = changesByBookingId[booking.id] || []
-    const latestChange = changes.length > 0 ? changes[0] : null
-    
-    // Return an enhanced booking object with events, coordinates, and change history
+
+    // Return an enhanced booking object with events and coordinates
     return {
       id: booking.id,
       client: booking.client,
@@ -165,18 +114,7 @@ async function getStaffAssignment(staffId: string, date: string, includeChanges 
       coordinates: {
         latitude: booking.delivery_latitude,
         longitude: booking.delivery_longitude
-      },
-      version: booking.version,
-      status: booking.status,
-      changes: changes.length > 0 ? {
-        latest: {
-          type: latestChange.type,
-          timestamp: latestChange.timestamp,
-          fields: latestChange.changed_fields,
-          version: latestChange.version
-        },
-        count: changes.length
-      } : null
+      }
     }
   })
 
@@ -213,7 +151,7 @@ async function getStaffAssignment(staffId: string, date: string, includeChanges 
 }
 
 // Function to get all bookings across all teams for a given date
-async function getAllBookings(date: string, includeChanges = false) {
+async function getAllBookings(date: string) {
   // Get all teams with events on the specified date
   const { data: events, error: eventsError } = await supabase
     .from('calendar_events')
@@ -248,12 +186,6 @@ async function getAllBookings(date: string, includeChanges = false) {
     console.error('Error fetching bookings:', bookingsError)
     throw bookingsError
   }
-  
-  // Fetch change history if requested
-  let changesByBookingId = {}
-  if (includeChanges && bookingIds.length > 0) {
-    changesByBookingId = await getBookingChanges(bookingIds)
-  }
 
   // Create a mapping of team IDs to bookings
   const teamBookings = {}
@@ -282,10 +214,6 @@ async function getAllBookings(date: string, includeChanges = false) {
     const assignedTeamIds = Object.entries(teamBookings)
       .filter(([_, bookingIds]) => (bookingIds as string[]).includes(booking.id))
       .map(([teamId, _]) => teamId)
-    
-    // Add change history if available
-    const changes = changesByBookingId[booking.id] || []
-    const latestChange = changes.length > 0 ? changes[0] : null
 
     // If booking is assigned to multiple teams, create one entry per team
     return assignedTeamIds.map(teamId => ({
@@ -303,18 +231,7 @@ async function getAllBookings(date: string, includeChanges = false) {
       coordinates: {
         latitude: booking.delivery_latitude,
         longitude: booking.delivery_longitude
-      },
-      version: booking.version,
-      status: booking.status,
-      changes: changes.length > 0 ? {
-        latest: {
-          type: latestChange.type,
-          timestamp: latestChange.timestamp,
-          fields: latestChange.changed_fields,
-          version: latestChange.version
-        },
-        count: changes.length
-      } : null
+      }
     }))
   })
 
@@ -346,7 +263,7 @@ serve(async (req) => {
     }
 
     // Parse the request body
-    const { staffId, date, fetchAllStaff, includeChanges } = await req.json()
+    const { staffId, date, fetchAllStaff } = await req.json()
 
     if (!date) {
       return new Response(
@@ -362,7 +279,7 @@ serve(async (req) => {
 
     // Determine if we should fetch all bookings or just for a specific staff member
     if (fetchAllStaff) {
-      responseData = await getAllBookings(date, includeChanges)
+      responseData = await getAllBookings(date)
     } else {
       // Otherwise, ensure staffId is provided
       if (!staffId) {
@@ -375,7 +292,7 @@ serve(async (req) => {
         )
       }
 
-      responseData = await getStaffAssignment(staffId, date, includeChanges)
+      responseData = await getStaffAssignment(staffId, date)
     }
 
     // Return the response

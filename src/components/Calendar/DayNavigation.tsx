@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { format, addDays } from 'date-fns';
+import { format, addDays, subDays } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { CalendarContext } from '@/App';
 import { useContext } from 'react';
@@ -47,31 +47,19 @@ const DayNavigation: React.FC<DayNavigationProps> = ({ currentDate }) => {
     return format(date, 'd/M');
   };
   
-  const dates = generateDates();
-  
   return (
-    <div className="w-full bg-gray-50 rounded-md">
-      <div className="grid grid-cols-7 w-full">
-        {dates.map((date, index) => (
+    <div className="w-full bg-gray-50 rounded-md mb-3 overflow-hidden">
+      <div className="flex justify-between">
+        {generateDates().map((date, index) => (
           <div 
             key={index}
-            onClick={() => goToDate(date)}
-            className={`text-center py-2 cursor-pointer ${
-              isCurrentDate(date) ? 'bg-blue-100' : 'hover:bg-gray-100'
+            className={`flex-1 text-center py-2 cursor-pointer transition-colors ${
+              isCurrentDate(date) ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'
             }`}
+            onClick={() => goToDate(date)}
           >
-            <div className="flex flex-col items-center">
-              <span className={`text-xs font-medium ${isCurrentDate(date) ? 'text-blue-600' : ''}`}>
-                {formatDayName(date)}
-              </span>
-              <span className={`text-xs ${isCurrentDate(date) ? 'text-blue-600' : ''}`}>
-                {formatDayNumber(date)}
-              </span>
-            </div>
-            
-            {isCurrentDate(date) && (
-              <div className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-1 mx-auto" />
-            )}
+            <div className="text-xs font-medium">{formatDayName(date)}</div>
+            <div className="text-xs">{formatDayNumber(date)}</div>
           </div>
         ))}
       </div>

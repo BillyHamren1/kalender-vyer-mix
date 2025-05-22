@@ -105,13 +105,6 @@ serve(async (req) => {
       new_bookings: [] as string[],
       updated_bookings: [] as string[],
       status_changed_bookings: [] as string[],
-      change_details: [] as {
-        booking_id: string,
-        type: string,
-        fields: string[],
-        previous_status?: string,
-        new_status?: string
-      }[],
       errors: [] as { booking_id: string; error: string }[],
     }
 
@@ -141,7 +134,7 @@ serve(async (req) => {
         // Check if booking already exists
         const { data: existingBooking } = await supabaseClient
           .from('bookings')
-          .select('id, updated_at, status, version')
+          .select('id, updated_at, status')
           .eq('id', externalBooking.booking_number)
           .maybeSingle()
 
@@ -211,25 +204,13 @@ serve(async (req) => {
                               
         // Check for status change (especially CONFIRMED to any other status)
         let statusChanged = false
-        let previousStatus = null
-        
         if (existingBooking && existingBooking.status !== externalStatus) {
           if (!quiet) {
             console.log(`Status changed for booking ${externalBooking.booking_number}: ${existingBooking.status} -> ${externalStatus}`)
           }
           
           statusChanged = true
-          previousStatus = existingBooking.status
           results.status_changed_bookings.push(externalBooking.booking_number)
-          
-          // Track the change details
-          results.change_details.push({
-            booking_id: externalBooking.booking_number,
-            type: 'status_change',
-            fields: ['status'],
-            previous_status: existingBooking.status,
-            new_status: externalStatus
-          })
           
           // If status was previously CONFIRMED and now it's not, we need to remove calendar events
           // Make this case-insensitive by converting both to uppercase
@@ -293,30 +274,10 @@ serve(async (req) => {
 
         // Check if external booking has a newer update timestamp when existing booking exists
         let isUpdated = false;
-        let changedFields = [] as string[];
-        
         if (existingBooking) {
           if (externalBooking.updated_at && 
               new Date(externalBooking.updated_at) > new Date(existingBooking.updated_at)) {
             isUpdated = true;
-            
-            // Detect which fields have changed
-            if (existingBooking.client !== bookingData.client) changedFields.push('client');
-            if (existingBooking.rigdaydate !== bookingData.rigdaydate) changedFields.push('rigdaydate');
-            if (existingBooking.eventdate !== bookingData.eventdate) changedFields.push('eventdate');
-            if (existingBooking.rigdowndate !== bookingData.rigdowndate) changedFields.push('rigdowndate');
-            if (existingBooking.deliveryaddress !== bookingData.deliveryaddress) changedFields.push('deliveryaddress');
-            if (existingBooking.delivery_city !== bookingData.delivery_city) changedFields.push('delivery_city');
-            if (existingBooking.delivery_postal_code !== bookingData.delivery_postal_code) changedFields.push('delivery_postal_code');
-            
-            // If there are changed fields besides status, track them for reporting
-            if (changedFields.length > 0) {
-              results.change_details.push({
-                booking_id: externalBooking.booking_number,
-                type: 'update',
-                fields: changedFields
-              });
-            }
           }
           
           // Update existing booking
@@ -337,8 +298,8 @@ serve(async (req) => {
             console.log(`Updated existing booking ${externalBooking.booking_number}`)
           }
           
-          // Track updated bookings - both field updates and status changes
-          if (isUpdated && changedFields.length > 0) {
+          // Track updated bookings
+          if (isUpdated && !statusChanged) {
             results.updated_bookings.push(externalBooking.booking_number);
           }
         } else {
@@ -357,11 +318,6 @@ serve(async (req) => {
           
           // Track new bookings
           results.new_bookings.push(externalBooking.booking_number);
-          results.change_details.push({
-            booking_id: externalBooking.booking_number,
-            type: 'new',
-            fields: ['all']
-          });
         }
 
         // Insert products if available
@@ -417,28 +373,6 @@ serve(async (req) => {
           })
           
           results.calendar_events_created += eventsCreated
-        }
-        
-        // Send webhook notification if a status change or update occurred
-        if ((statusChanged || isUpdated) && !quiet) {
-          try {
-            // Call the webhook notifier function to notify external systems
-            await supabaseClient.functions.invoke(
-              'webhook-notifier',
-              {
-                method: 'POST',
-                body: {
-                  booking_id: externalBooking.booking_number,
-                  change_type: statusChanged ? 'status_change' : 'update',
-                  change_details: statusChanged 
-                    ? { old_status: previousStatus, new_status: externalStatus }
-                    : { changed_fields: changedFields }
-                }
-              }
-            )
-          } catch (error) {
-            console.error('Error calling webhook notifier:', error)
-          }
         }
         
         results.imported++

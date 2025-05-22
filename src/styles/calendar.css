@@ -1,3 +1,4 @@
+
 /* Calendar styling with teal theme */
 .fc .fc-button-primary {
   background-color: #7BAEBF !important;
@@ -82,8 +83,8 @@
 .fc-timegrid-event[data-event-type="rigDown"],
 .fc-event.fc-event-start.fc-event-end.fc-event-future.fc-daygrid-event[style*="rigDown"],
 .fc-event.fc-event-start.fc-event-end.fc-event-future.fc-timegrid-event[style*="rigDown"] {
-  background-color: #FFCDD2 !important;
-  border-color: #EF9A9A !important;
+  background-color: #FEC6A1 !important;
+  border-color: #FEB190 !important;
   color: #000000e6 !important;
 }
 
@@ -217,27 +218,19 @@
   z-index: 5;
 }
 
-/* Updated team title styling with better centering */
 .resource-title-area {
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 6px;
   text-align: center;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
 }
 
 .resource-drop-zone {
   margin-top: auto;
   z-index: 10;
-  display: flex;
-  justify-content: center;
-  width: 100%;
 }
 
-/* Assigned staff badges in resource header - updated styling for centering */
+/* Assigned staff badges in resource header - updated styling */
 .assigned-staff-area {
   overflow-y: visible;
   z-index: 20;
@@ -247,7 +240,16 @@
   flex-wrap: wrap;
   gap: 4px;
   justify-content: center;
-  width: 100%;
+}
+
+.staff-badge {
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  max-width: 100px;
+  z-index: 15;
+  position: relative;
+  cursor: move;
 }
 
 /* Ensure resource headers have enough height for staff display */
@@ -277,15 +279,12 @@
   height: 100%;
 }
 
-/* Ensure header content is visible and centered - critical for staff display */
+/* Ensure header content is visible - critical for staff display */
 .fc-datagrid-cell-main {
   overflow: visible !important;
   height: 100% !important;
   z-index: 10;
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
 }
 
 /* Reset some FC container heights to allow for our content */
@@ -376,138 +375,39 @@
   transform-origin: top center;
 }
 
-/* Event action buttons styling - UPDATED to be always visible */
+/* Event action buttons styling */
 .event-actions {
-  opacity: 1 !important;
-  display: flex !important;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
   pointer-events: all;
-  z-index: 100;
 }
 
-/* Make sure events are movable in team-6 - OVERRIDING previous styles */
-[data-resource-id="team-6"] .fc-event,
-[data-team6-event="true"] {
-  cursor: move !important;
-}
-
-/* Make sure the duplicate button is always visible */
-.duplicate-event-btn {
+.fc-event:hover .event-actions,
+.fc-event:focus .event-actions,
+.fc-event:active .event-actions {
   opacity: 1;
 }
 
-/* Additional styles to ensure events stay movable */
-.fc-event {
-  cursor: move !important;
+.duplicate-event-btn {
+  opacity: 0.8;
+  transition: opacity 0.2s ease-in-out;
 }
 
-/* Ensure action buttons are visible on all devices */
+.duplicate-event-btn:hover {
+  opacity: 1;
+}
+
+/* Make sure the duplicate button is visible on mobile */
 @media (max-width: 768px) {
   .event-actions {
-    opacity: 1 !important;
-    display: flex !important;
+    opacity: 0.8;
     background: rgba(255, 255, 255, 0.9);
   }
 }
 
-/* Ensure all events have proper interaction styling */
-.fc-event:hover,
-.fc-event:focus,
-.fc-event:active {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-/* Ensure team-6 events can be moved like others */
-[data-resource-id="team-6"] .fc-event,
-[data-team6-event="true"] {
-  pointer-events: auto !important;
-}
-
-/* Special styling for events based on their type */
-.event-event {
-  border-left: none !important;
-}
-
-.event-rig {
-  border-left: none !important;
-}
-
-.event-rigDown {
-  border-left: none !important;
-}
-
-/* Additional styling for event times in stacked events */
-.stacked-event .fc-event-time {
-  font-weight: bold !important;
-  font-size: 0.9em !important;
-}
-
-/* Make sure the events are not editable in team-6 */
-[data-resource-id="team-6"] .fc-event {
-  cursor: default !important;
-}
-
-/* Event content styling */
-.fc-event-title {
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: #000000e6 !important;
-}
-
-.fc-event-address,
-.fc-event-id {
-  font-size: 0.75rem;
-  opacity: 0.8;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: #000000e6 !important;
-}
-
-/* Add these additional selectors to ensure all event text is black */
-.fc-event-content,
-.fc-event-main,
-.fc-event-time,
-.fc-event .fc-event-title,
-.fc-event-title-container,
-.event-client-name,
-.event-street,
-.event-city,
-.event-booking-id,
-.stacked-event-content,
-.stacked-event-content .event-client-name,
-.stacked-event-content .event-booking-id,
-.stacked-event-content .event-delivery-address,
-.fc-event .fc-event-main-frame,
-.fc-daygrid-event-dot,
-.event-content-wrapper,
-.event-content-wrapper * {
-  color: #000000e6 !important;
-}
-
-/* Ensure team-6 events have black text */
-[data-resource-id="team-6"] .fc-event *,
-[data-team6-event="true"] * {
-  color: #000000e6 !important;
-}
-
-/* Hide the original event time for team-6 events */
-[data-resource-id="team-6"] .fc-event-time {
-  display: none !important;
-}
-
-/* Make team-6 events have a distinct appearance */
-[data-resource-id="team-6"] .fc-event {
-  border-radius: 6px !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
-  max-height: 50px !important;
-  overflow: hidden !important;
-}
-
-/* Additional styling for stacked events in team-6 */
+/* Add these new styles for stacked events in team-6 */
 .stacked-event {
-  border-left: none !important;
+  border-left: 4px solid #FEF7CD !important;
   margin-bottom: 2px !important;
   border-radius: 4px !important;
   height: auto !important;
@@ -554,8 +454,56 @@
   opacity: 0.7;
 }
 
-/* Style for potential duplicate events - REMOVING RED LEFT BORDER */
-.fc-event[data-has-booking-id="true"] {
-  /* Removing the red left border */
-  border-left: none !important;
+/* Hide the original event time for team-6 events */
+[data-resource-id="team-6"] .fc-event-time {
+  display: none !important;
+}
+
+/* Make team-6 events have a distinct appearance */
+[data-resource-id="team-6"] .fc-event {
+  border-radius: 6px !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+  max-height: 50px !important;
+  overflow: hidden !important;
+}
+
+/* Special styling for events based on their type */
+.event-event {
+  border-left: 4px solid #FEF7CD !important;
+}
+
+.event-rig {
+  border-left: 4px solid #F2FCE2 !important;
+}
+
+.event-rigDown {
+  border-left: 4px solid #FFDEE2 !important;
+}
+
+/* Additional styling for event times in stacked events */
+.stacked-event .fc-event-time {
+  font-weight: bold !important;
+  font-size: 0.9em !important;
+}
+
+/* Make sure the events are not editable in team-6 */
+[data-resource-id="team-6"] .fc-event {
+  cursor: default !important;
+}
+
+/* Event content styling */
+.fc-event-title {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fc-event-address,
+.fc-event-id {
+  font-size: 0.75rem;
+  opacity: 0.8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

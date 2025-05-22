@@ -13,7 +13,6 @@ export const useCalendarEvents = () => {
   const pollIntervalRef = useRef<number | null>(null);
   const activeRef = useRef(true);
   const lastUpdateRef = useRef<Date | null>(null);
-  const eventIdsSet = useRef(new Set<string>());
 
   // Initialize currentDate from context, sessionStorage, or default to today
   const [currentDate, setCurrentDate] = useState<Date>(() => {
@@ -24,10 +23,10 @@ export const useCalendarEvents = () => {
 
   // Memoize the loadEvents function to prevent recreations
   const loadEvents = useCallback(async (force = false) => {
-    // Skip if we've updated in the last 30 seconds and this isn't a forced refresh
+    // Skip if we've updated in the last 5 seconds and this isn't a forced refresh
     if (!force && lastUpdateRef.current) {
       const timeSinceLastUpdate = Date.now() - lastUpdateRef.current.getTime();
-      if (timeSinceLastUpdate < 30000) { // Increased from 5000ms to 30000ms (30 seconds)
+      if (timeSinceLastUpdate < 5000) {
         console.log('Skipping events update, last update was', timeSinceLastUpdate, 'ms ago');
         return;
       }
@@ -39,12 +38,13 @@ export const useCalendarEvents = () => {
       const data = await fetchCalendarEvents();
       if (activeRef.current) {
         console.log('Calendar events loaded successfully:', data);
+        console.log('Resource IDs in events:', data.map(event => event.resourceId));
         
-        // Deduplicate events based on ID
-        const uniqueEvents = removeDuplicateEvents(data);
+        // Log event types to help with debugging
+        console.log('Event types:', data.map(event => event.eventType));
         
         // Update the events state
-        setEvents(uniqueEvents);
+        setEvents(data);
         
         // Update the last update timestamp
         lastUpdateRef.current = new Date();
@@ -62,69 +62,25 @@ export const useCalendarEvents = () => {
     }
   }, []);
 
-  // Function to remove duplicate events
-  const removeDuplicateEvents = (events: CalendarEvent[]): CalendarEvent[] => {
-    const uniqueEventsMap = new Map<string, CalendarEvent>();
-    const seenEventIds = new Set<string>();
-    
-    // First, process non-team-6 events (they have priority)
-    events
-      .filter(event => event.resourceId !== 'team-6')
-      .forEach(event => {
-        uniqueEventsMap.set(event.id, event);
-        seenEventIds.add(event.id);
-      });
-    
-    // Then, only add team-6 events if they don't already exist in another team
-    events
-      .filter(event => event.resourceId === 'team-6')
-      .forEach(event => {
-        if (!seenEventIds.has(event.id)) {
-          uniqueEventsMap.set(event.id, event);
-          seenEventIds.add(event.id);
-        }
-      });
-    
-    return Array.from(uniqueEventsMap.values());
-  };
-
   // Fetch events initially and set up polling for updates
   useEffect(() => {
     activeRef.current = true;
-    
-    // Set the eventsSetupDone flag immediately to prevent duplication
-    localStorage.setItem('eventsSetupDone', 'true');
 
     // Initial load
     loadEvents(true);
 
-    // Set up polling every 2 minutes (increased from 30 seconds) to fetch updates
-    // Only poll when the document is visible to reduce unnecessary requests
+    // Set up polling every 30 seconds to fetch updates
     pollIntervalRef.current = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         loadEvents();
       }
-    }, 120000); // Changed from 30000 to 120000 (2 minutes)
-
-    // Add visibility change listener to refresh when tab becomes visible again
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && lastUpdateRef.current) {
-        const timeSinceLastUpdate = Date.now() - lastUpdateRef.current.getTime();
-        // Only refresh if it's been more than 30 seconds since the last update
-        if (timeSinceLastUpdate > 30000) {
-          loadEvents();
-        }
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    }, 30000);
 
     return () => {
       activeRef.current = false;
       if (pollIntervalRef.current !== null) {
         clearInterval(pollIntervalRef.current);
       }
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [loadEvents]);
 

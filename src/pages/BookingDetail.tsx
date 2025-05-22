@@ -7,7 +7,7 @@ import { useBookingDetail } from '@/hooks/useBookingDetail';
 import { Button } from '@/components/ui/button';
 
 // Import refactored components
-import ClientInformation from '@/components/booking/ClientInformation';
+import { ClientInformation } from '@/components/booking/ClientInformation';
 import { DeliveryAddressForm } from '@/components/booking/DeliveryAddressForm';
 import { LogisticsOptionsForm } from '@/components/booking/LogisticsOptionsForm';
 import { ScheduleCard } from '@/components/booking/ScheduleCard';
@@ -115,8 +115,8 @@ const BookingDetail = () => {
         
         {booking ? (
           <div className="space-y-6">
-            {/* Client Information - Pass the entire booking object instead of just client */}
-            <ClientInformation booking={booking} onBookingUpdated={loadBookingData} />
+            {/* Client Information */}
+            <ClientInformation client={booking.client} />
 
             {/* Delivery Address */}
             <DeliveryAddressForm

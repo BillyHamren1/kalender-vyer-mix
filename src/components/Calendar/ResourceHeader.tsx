@@ -40,7 +40,6 @@ const ResourceHeader: React.FC<ResourceHeaderProps> = ({
           </Button>
         </Link>
       </div>
-      
       <div className={`flex ${isMobile ? 'w-full justify-center' : ''} space-x-3`}>
         <TeamManagementDialog
           teamResources={teamResources}

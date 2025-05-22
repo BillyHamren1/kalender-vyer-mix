@@ -41,7 +41,7 @@ const WeeklyResourceView = () => {
   } = useTeamResources();
   
   // Get the event actions hook
-  const { addEventToCalendar, duplicateEvent, deleteEvent } = useEventActions(events, setEvents, resources);
+  const { addEventToCalendar, duplicateEvent } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
   

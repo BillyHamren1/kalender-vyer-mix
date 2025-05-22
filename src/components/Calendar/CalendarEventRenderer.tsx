@@ -1,11 +1,12 @@
 
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
-import { Copy, Trash2 } from 'lucide-react';
+import { Copy } from 'lucide-react';
 
 export const renderEventContent = (eventInfo: any) => {
   // Get the event details
   const eventTitle = eventInfo.event.title;
+  const eventTime = eventInfo.timeText;
   const bookingId = eventInfo.event.extendedProps?.bookingId || '';
   
   // Get delivery address from event extendedProps or use default message
@@ -15,31 +16,19 @@ export const renderEventContent = (eventInfo: any) => {
   const clientName = eventTitle.includes(':') 
     ? eventTitle.split(':')[1].trim() 
     : eventTitle;
-    
-  // Extract street and city from delivery address
-  let street = '';
-  let city = '';
-  
-  if (deliveryAddress && deliveryAddress !== 'No address provided') {
-    const addressParts = deliveryAddress.split(',');
-    if (addressParts.length > 0) {
-      street = addressParts[0].trim();
-      
-      if (addressParts.length > 1) {
-        city = addressParts[1].trim();
-      }
-    }
-  }
 
   // Different rendering based on view type
   if (eventInfo.view.type === 'resourceTimelineWeek') {
     // More compact display for timeline view
     return (
       <div className="event-content-wrapper">
-        <div className="event-client-name text-sm font-semibold truncate">{clientName}</div>
-        <div className="event-street text-xs truncate">{street}</div>
-        <div className="event-city text-xs truncate">{city}</div>
+        <div className="event-time font-semibold text-xs">{eventTime}</div>
+        <div className="event-client-name text-sm truncate">{clientName}</div>
         <div className="event-booking-id text-xs opacity-80 truncate">ID: {bookingId}</div>
+        <div className="event-delivery-address text-xs break-words whitespace-normal" 
+             style={{ wordWrap: 'break-word', lineHeight: '1.1', maxHeight: '2.2em', overflow: 'hidden' }}>
+          {deliveryAddress}
+        </div>
       </div>
     );
   }
@@ -47,44 +36,45 @@ export const renderEventContent = (eventInfo: any) => {
   // Default display for other views
   return (
     <div className="event-content-wrapper">
-      <div className="event-client-name text-sm font-semibold truncate">{clientName}</div>
-      <div className="event-street text-xs truncate">{street}</div>
-      <div className="event-city text-xs truncate">{city}</div>
+      <div className="event-time font-semibold">{eventTime}</div>
+      <div className="event-client-name text-sm truncate">{clientName}</div>
       <div className="event-booking-id text-xs opacity-80 truncate">ID: {bookingId}</div>
+      <div className="event-delivery-address text-xs break-words whitespace-normal" 
+           style={{ wordWrap: 'break-word', lineHeight: '1.2' }}>
+        {deliveryAddress}
+      </div>
     </div>
   );
 };
 
 export const setupEventActions = (
   info: any, 
-  handleDuplicateButtonClick: (eventId: string) => void,
-  handleDeleteButtonClick: (eventId: string, bookingId: string, eventType: string) => void
+  handleDuplicateButtonClick: (eventId: string) => void
 ) => {
-  // Get event details for action buttons
-  const eventEl = info.el;
-  const eventId = info.event.id;
-  const bookingId = info.event.extendedProps?.bookingId || '';
-  const eventType = info.event.extendedProps?.eventType || '';
+  // Identify team-6 events for special handling
+  const resourceId = info.event.getResources()[0]?.id || '';
+  const isTeam6Event = resourceId.includes('team-6') || resourceId.includes('_team-6');
   
-  // Add isDuplicateEvent attribute to help identify possible duplicates visually
-  // Will be used with CSS to style potential duplicates differently
-  if (bookingId && eventType === 'event') {
-    eventEl.setAttribute('data-has-booking-id', 'true');
-    eventEl.setAttribute('data-booking-id', bookingId);
+  if (isTeam6Event) {
+    info.el.setAttribute('data-team6-event', 'true');
+    return;
   }
   
-  // Create a container for the action buttons
+  // Add duplicate button to non-team-6 events
+  const eventEl = info.el;
+  const eventId = info.event.id;
+  
+  // Create a container for the duplicate button
   const actionContainer = document.createElement('div');
   actionContainer.className = 'event-actions';
   actionContainer.style.position = 'absolute';
   actionContainer.style.top = '2px';
   actionContainer.style.right = '2px';
-  actionContainer.style.display = 'flex'; // Always visible
+  actionContainer.style.display = 'none'; // Hidden by default, shown on hover
   actionContainer.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
   actionContainer.style.borderRadius = '4px';
   actionContainer.style.padding = '2px';
   actionContainer.style.zIndex = '10';
-  actionContainer.style.gap = '2px'; // Add space between buttons
   
   // Create the duplicate button with icon
   const duplicateButton = document.createElement('button');
@@ -98,21 +88,8 @@ export const setupEventActions = (
   duplicateButton.style.alignItems = 'center';
   duplicateButton.style.justifyContent = 'center';
   
-  // Create the delete button with icon
-  const deleteButton = document.createElement('button');
-  deleteButton.className = 'delete-event-btn';
-  deleteButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
-  deleteButton.title = 'Delete this event';
-  deleteButton.style.cursor = 'pointer';
-  deleteButton.style.border = 'none';
-  deleteButton.style.background = 'transparent';
-  deleteButton.style.display = 'flex';
-  deleteButton.style.alignItems = 'center';
-  deleteButton.style.justifyContent = 'center';
-  
-  // Add the buttons to the container
+  // Add duplicate button to the container
   actionContainer.appendChild(duplicateButton);
-  actionContainer.appendChild(deleteButton);
   
   // Add container to the event element
   eventEl.appendChild(actionContainer);
@@ -123,9 +100,22 @@ export const setupEventActions = (
     handleDuplicateButtonClick(eventId);
   });
   
-  deleteButton.addEventListener('click', (e) => {
-    e.stopPropagation(); // Prevent event click handler from being triggered
-    handleDeleteButtonClick(eventId, bookingId, eventType);
+  // Show actions on hover (for desktop)
+  eventEl.addEventListener('mouseenter', () => {
+    actionContainer.style.display = 'block';
+  });
+  
+  eventEl.addEventListener('mouseleave', () => {
+    actionContainer.style.display = 'none';
+  });
+  
+  // For mobile, show on touch start and hide after a delay
+  eventEl.addEventListener('touchstart', () => {
+    actionContainer.style.display = 'block';
+    // Hide after 5 seconds to prevent it from staying visible forever
+    setTimeout(() => {
+      actionContainer.style.display = 'none';
+    }, 5000);
   });
 };
 
@@ -133,14 +123,6 @@ export const setupEventActions = (
 export const addEventAttributes = (info: any) => {
   if (info.event.extendedProps.eventType) {
     info.el.setAttribute('data-event-type', info.event.extendedProps.eventType);
-  }
-  
-  // Check if this event has a booking ID and add it as a data attribute
-  if (info.event.extendedProps.bookingId) {
-    info.el.setAttribute('data-booking-id', info.event.extendedProps.bookingId);
-    
-    // Remove any red left border styling that might be applied
-    info.el.style.borderLeft = 'none';
   }
   
   // Add special class for timeline events to ensure they have proper height

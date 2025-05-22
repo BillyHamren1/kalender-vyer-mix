@@ -14,15 +14,6 @@ export interface ImportResults {
     new_bookings?: string[];
     updated_bookings?: string[];
     status_changed_bookings?: string[];
-    change_details?: {
-      booking_id: string;
-      changes: {
-        fields: string[];
-        old_status?: string;
-        new_status?: string;
-        version: number;
-      };
-    }[];
     errors?: { booking_id: string; error: string }[];
   };
   error?: string;
@@ -35,100 +26,58 @@ export interface ImportFilters {
   startDate?: string;
   endDate?: string;
   clientName?: string;
-  includeChangeHistory?: boolean;
 }
 
 /**
- * Import bookings from external API with improved error handling
+ * Import bookings from external API
  */
 export const importBookings = async (filters: ImportFilters = {}): Promise<ImportResults> => {
   try {
-    console.log('Starting importBookings with filters:', filters);
-    
     toast.info('Connecting to external booking system...', {
       duration: 3000,
     });
     
-    // Create an AbortController for timeout handling
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
-    
-    try {
-      // Call the Supabase Edge Function
-      // Remove the 'signal' property as it doesn't exist in FunctionInvokeOptions
-      const { data: resultData, error: functionError } = await supabase.functions.invoke(
-        'import-bookings',
-        {
-          method: 'POST',
-          body: filters
-        }
-      );
-
-      clearTimeout(timeoutId); // Clear the timeout if the request completes
-      
-      if (functionError) {
-        console.error('Error calling import-bookings function:', functionError);
-        return {
-          success: false,
-          error: `Import function error: ${functionError.message}`,
-        };
+    // Call the Supabase Edge Function
+    const { data: resultData, error: functionError } = await supabase.functions.invoke(
+      'import-bookings',
+      {
+        method: 'POST',
+        body: filters
       }
+    );
 
-      // If we got a response but it contains an error field
-      if (resultData && resultData.error) {
-        console.error('Error returned from import function:', resultData.error);
-        
-        // More detailed error reporting
-        const details = resultData.details || '';
-        const status = resultData.status || 0;
-        
-        // Log the detailed error
-        console.error(`Import error (${status}): ${resultData.error}`, details);
-        
-        return {
-          success: false,
-          error: `Import error: ${resultData.error}`,
-          details: details,
-          status: status
-        };
-      }
-
-      console.log('Import completed successfully with results:', resultData.results);
-      
-      // For each booking with changes, fetch its change history
-      if (filters.includeChangeHistory && resultData.results) {
-        const allChangedBookings = [
-          ...(resultData.results.new_bookings || []),
-          ...(resultData.results.updated_bookings || []),
-          ...(resultData.results.status_changed_bookings || [])
-        ];
-        
-        if (allChangedBookings.length > 0) {
-          const changeDetails = await fetchBookingChanges(allChangedBookings);
-          if (changeDetails.length > 0) {
-            resultData.results.change_details = changeDetails;
-          }
-        }
-      }
-      
-      // Handle successful import
+    if (functionError) {
+      console.error('Error calling import-bookings function:', functionError);
       return {
-        success: true,
-        results: resultData.results,
+        success: false,
+        error: `Import function error: ${functionError.message}`,
       };
-    } catch (error) {
-      clearTimeout(timeoutId); // Ensure the timeout is cleared
-      
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        console.error('Import request timed out');
-        return {
-          success: false,
-          error: 'Import request timed out after 25 seconds',
-        };
-      }
-      
-      throw error; // Re-throw for the outer catch to handle
     }
+
+    // If we got a response but it contains an error field
+    if (resultData && resultData.error) {
+      console.error('Error returned from import function:', resultData.error);
+      
+      // More detailed error reporting
+      const details = resultData.details || '';
+      const status = resultData.status || 0;
+      
+      // Log the detailed error
+      console.error(`Import error (${status}): ${resultData.error}`, details);
+      
+      return {
+        success: false,
+        error: `Import error: ${resultData.error}`,
+        details: details,
+        status: status
+      };
+    }
+
+    // Handle successful import
+    return {
+      success: true,
+      results: resultData.results,
+    };
   } catch (error) {
     console.error('Exception during import:', error);
     return {
@@ -142,185 +91,74 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
  * Import bookings quietly in the background, without showing toasts unless there are new/updated bookings
  */
 export const quietImportBookings = async (filters: ImportFilters = {}): Promise<ImportResults> => {
-  try {
-    console.log('Starting quietImportBookings');
-    
-    // Create an AbortController for timeout handling
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout for background imports
-    
-    try {
-      // Call the Supabase Edge Function with quiet parameter
-      // Remove the 'signal' property as it doesn't exist in FunctionInvokeOptions
-      const { data: resultData, error: functionError } = await supabase.functions.invoke(
-        'import-bookings',
-        {
-          method: 'POST',
-          body: { ...filters, quiet: true }
-        }
-      );
-
-      clearTimeout(timeoutId); // Clear the timeout if the request completes
-      
-      if (functionError) {
-        console.error('Error calling import-bookings function in background:', functionError);
-        return {
-          success: false,
-          error: `Import function error: ${functionError.message}`,
-        };
+  try {    
+    // Call the Supabase Edge Function with quiet parameter
+    const { data: resultData, error: functionError } = await supabase.functions.invoke(
+      'import-bookings',
+      {
+        method: 'POST',
+        body: { ...filters, quiet: true }
       }
+    );
 
-      // If we got a response but it contains an error field
-      if (resultData && resultData.error) {
-        console.error('Error returned from import function in background:', resultData.error);
-        const details = resultData.details || '';
-        const status = resultData.status || 0;
-        console.error(`Import error (${status}): ${resultData.error}`, details);
-        
-        return {
-          success: false,
-          error: `Import error: ${resultData.error}`,
-          details: details,
-          status: status
-        };
-      }
-
-      // Only show toast if there are new or updated bookings
-      if (resultData.results) {
-        const newCount = resultData.results.new_bookings?.length || 0;
-        const updatedCount = resultData.results.updated_bookings?.length || 0;
-        const statusChangedCount = resultData.results.status_changed_bookings?.length || 0;
-        
-        console.log('Background import results:', {
-          newCount,
-          updatedCount,
-          statusChangedCount
-        });
-        
-        if (newCount > 0 || updatedCount > 0) {
-          const message = [];
-          if (newCount > 0) message.push(`${newCount} new booking${newCount > 1 ? 's' : ''}`);
-          if (updatedCount > 0) message.push(`${updatedCount} updated booking${updatedCount > 1 ? 's' : ''}`);
-          
-          toast.success('Bookings synchronized', {
-            description: `${message.join(' and ')} found`
-          });
-        }
-        
-        // Show a different toast for status changes
-        if (statusChangedCount > 0) {
-          toast.warning('Booking status changes detected', {
-            description: `${statusChangedCount} booking${statusChangedCount > 1 ? 's' : ''} changed status in external system`
-          });
-        }
-        
-        // For each booking with changes, fetch its change history
-        if (filters.includeChangeHistory) {
-          const allChangedBookings = [
-            ...(resultData.results.new_bookings || []),
-            ...(resultData.results.updated_bookings || []),
-            ...(resultData.results.status_changed_bookings || [])
-          ];
-          
-          if (allChangedBookings.length > 0) {
-            const changeDetails = await fetchBookingChanges(allChangedBookings);
-            if (changeDetails.length > 0) {
-              resultData.results.change_details = changeDetails;
-            }
-          }
-        }
-      }
-
-      // Handle successful import
+    if (functionError) {
+      console.error('Error calling import-bookings function:', functionError);
       return {
-        success: true,
-        results: resultData.results,
+        success: false,
+        error: `Import function error: ${functionError.message}`,
       };
-    } catch (error) {
-      clearTimeout(timeoutId); // Ensure the timeout is cleared
+    }
+
+    // If we got a response but it contains an error field
+    if (resultData && resultData.error) {
+      console.error('Error returned from import function:', resultData.error);
+      const details = resultData.details || '';
+      const status = resultData.status || 0;
+      console.error(`Import error (${status}): ${resultData.error}`, details);
       
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        console.error('Background import request timed out');
-        return {
-          success: false,
-          error: 'Background import request timed out after 15 seconds',
-        };
+      return {
+        success: false,
+        error: `Import error: ${resultData.error}`,
+        details: details,
+        status: status
+      };
+    }
+
+    // Only show toast if there are new or updated bookings
+    if (resultData.results) {
+      const newCount = resultData.results.new_bookings?.length || 0;
+      const updatedCount = resultData.results.updated_bookings?.length || 0;
+      const statusChangedCount = resultData.results.status_changed_bookings?.length || 0;
+      
+      if (newCount > 0 || updatedCount > 0) {
+        const message = [];
+        if (newCount > 0) message.push(`${newCount} new booking${newCount > 1 ? 's' : ''}`);
+        if (updatedCount > 0) message.push(`${updatedCount} updated booking${updatedCount > 1 ? 's' : ''}`);
+        
+        toast.success('Bookings synchronized', {
+          description: `${message.join(' and ')} found`
+        });
       }
       
-      throw error; // Re-throw for the outer catch to handle
+      // Show a different toast for status changes
+      if (statusChangedCount > 0) {
+        toast.warning('Booking status changes detected', {
+          description: `${statusChangedCount} booking${statusChangedCount > 1 ? 's' : ''} changed status in external system`
+        });
+      }
     }
+
+    // Handle successful import
+    return {
+      success: true,
+      results: resultData.results,
+    };
   } catch (error) {
     console.error('Exception during quiet import:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error during import',
     };
-  }
-};
-
-/**
- * Fetch recent changes for specific bookings
- */
-export const fetchBookingChanges = async (bookingIds: string[]) => {
-  if (!bookingIds.length) return [];
-  
-  try {
-    const { data, error } = await supabase
-      .from('booking_changes')
-      .select('*')
-      .in('booking_id', bookingIds)
-      .order('version', { ascending: false })
-      .limit(100);
-    
-    if (error) {
-      console.error('Error fetching booking changes:', error);
-      return [];
-    }
-    
-    // Process the changes into a more usable format
-    const changesByBooking = data.reduce((acc, change) => {
-      if (!acc[change.booking_id]) {
-        acc[change.booking_id] = [];
-      }
-      
-      // Add this change to the booking's changes
-      acc[change.booking_id].push({
-        id: change.id,
-        type: change.change_type,
-        timestamp: change.changed_at,
-        fields: Object.keys(change.changed_fields || {}),
-        previous: change.previous_values,
-        new: change.new_values,
-        version: change.version
-      });
-      
-      return acc;
-    }, {});
-    
-    // Format as an array of booking changes
-    return Object.entries(changesByBooking).map(([booking_id, changes]) => {
-      const latestChange = changes[0];
-      const fields = latestChange?.fields || [];
-      
-      let oldStatus, newStatus;
-      if (latestChange?.type === 'status_change' && latestChange.previous?.status) {
-        oldStatus = latestChange.previous.status;
-        newStatus = latestChange.new?.status;
-      }
-      
-      return {
-        booking_id,
-        changes: {
-          fields,
-          old_status: oldStatus,
-          new_status: newStatus,
-          version: latestChange?.version || 1
-        }
-      };
-    });
-  } catch (error) {
-    console.error('Error processing booking changes:', error);
-    return [];
   }
 };
 
@@ -346,3 +184,5 @@ export const resyncBookingCalendarEvents = async (bookingId: string): Promise<bo
     return false;
   }
 };
+
+// Removed the automatic re-sync of booking 2505-3
