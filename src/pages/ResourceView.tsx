@@ -14,7 +14,6 @@ import ResourceHeader from '@/components/Calendar/ResourceHeader';
 import ResourceLayout from '@/components/Calendar/ResourceLayout';
 import ResourceToolbar from '@/components/Calendar/ResourceToolbar';
 import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
-import { cleanupDuplicateEvents } from '@/services/calendarService';
 
 const ResourceView = () => {
   // Use our custom hooks to manage state and logic
@@ -42,38 +41,12 @@ const ResourceView = () => {
   const { addEventToCalendar, duplicateEvent, deleteEvent } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
-  const [cleanupInProgress, setCleanupInProgress] = useState(false);
   
-  // Ensure events duplication prevention is always active and clean up duplicates on mount
+  // Ensure events duplication prevention is always active - but don't run cleanup
   useEffect(() => {
     // This prevents any automatic event duplication by always setting the flag to true
     localStorage.setItem('eventsSetupDone', 'true');
-    
-    // Run duplicate cleanup on component mount
-    const runDuplicateCleanup = async () => {
-      try {
-        setCleanupInProgress(true);
-        toast.info('Checking for duplicate events...');
-        
-        const removedCount = await cleanupDuplicateEvents();
-        
-        if (removedCount > 0) {
-          toast.success(`Removed ${removedCount} duplicate events`);
-          // Refresh events to update the view
-          await refreshEvents();
-        } else {
-          toast.info('No duplicate events found');
-        }
-      } catch (error) {
-        console.error('Error cleaning up duplicate events:', error);
-        toast.error('Failed to cleanup duplicate events');
-      } finally {
-        setCleanupInProgress(false);
-      }
-    };
-    
-    runDuplicateCleanup();
-  }, [refreshEvents]);
+  }, []);
 
   // Handle staff drop for assignment - memoized to prevent recreation
   const handleStaffDrop = useCallback(async (staffId: string, resourceId: string | null) => {
@@ -138,7 +111,7 @@ const ResourceView = () => {
 
         {/* Toolbar with Update Button, Add Task Button, and Navigation */}
         <ResourceToolbar
-          isLoading={isLoading || cleanupInProgress}
+          isLoading={isLoading}
           currentDate={currentDate}
           resources={resources}
           onRefresh={refreshEvents}
@@ -150,7 +123,7 @@ const ResourceView = () => {
         <ResourceCalendar
           events={events}
           resources={resources}
-          isLoading={isLoading || cleanupInProgress}
+          isLoading={isLoading}
           isMounted={isMounted}
           currentDate={currentDate}
           onDateSet={handleDatesSet}

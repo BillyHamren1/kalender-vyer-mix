@@ -60,15 +60,6 @@ export const setupEventActions = (
   handleDuplicateButtonClick: (eventId: string) => void,
   handleDeleteButtonClick: (eventId: string, bookingId: string, eventType: string) => void
 ) => {
-  // Identify team-6 events for special handling
-  const resourceId = info.event.getResources()[0]?.id || '';
-  const isTeam6Event = resourceId.includes('team-6') || resourceId.includes('_team-6');
-  
-  if (isTeam6Event) {
-    info.el.setAttribute('data-team6-event', 'true');
-    return;
-  }
-  
   // Get event details for action buttons
   const eventEl = info.el;
   const eventId = info.event.id;
@@ -88,12 +79,11 @@ export const setupEventActions = (
   actionContainer.style.position = 'absolute';
   actionContainer.style.top = '2px';
   actionContainer.style.right = '2px';
-  actionContainer.style.display = 'none'; // Hidden by default, shown on hover
+  actionContainer.style.display = 'flex'; // Always visible
   actionContainer.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
   actionContainer.style.borderRadius = '4px';
   actionContainer.style.padding = '2px';
   actionContainer.style.zIndex = '10';
-  actionContainer.style.display = 'flex'; // Make buttons appear side by side
   actionContainer.style.gap = '2px'; // Add space between buttons
   
   // Create the duplicate button with icon
@@ -136,24 +126,6 @@ export const setupEventActions = (
   deleteButton.addEventListener('click', (e) => {
     e.stopPropagation(); // Prevent event click handler from being triggered
     handleDeleteButtonClick(eventId, bookingId, eventType);
-  });
-  
-  // Show actions on hover (for desktop)
-  eventEl.addEventListener('mouseenter', () => {
-    actionContainer.style.display = 'flex';
-  });
-  
-  eventEl.addEventListener('mouseleave', () => {
-    actionContainer.style.display = 'none';
-  });
-  
-  // For mobile, show on touch start and hide after a delay
-  eventEl.addEventListener('touchstart', () => {
-    actionContainer.style.display = 'flex';
-    // Hide after 5 seconds to prevent it from staying visible forever
-    setTimeout(() => {
-      actionContainer.style.display = 'none';
-    }, 5000);
   });
 };
 

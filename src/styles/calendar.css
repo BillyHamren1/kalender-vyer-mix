@@ -374,96 +374,50 @@
   transform-origin: top center;
 }
 
-/* Event action buttons styling */
+/* Event action buttons styling - UPDATED to be always visible */
 .event-actions {
-  opacity: 0;
-  transition: opacity 0.2s ease-in-out;
+  opacity: 1 !important;
+  display: flex !important;
   pointer-events: all;
+  z-index: 100;
 }
 
-.fc-event:hover .event-actions,
-.fc-event:focus .event-actions,
-.fc-event:active .event-actions {
-  opacity: 1;
+/* Make sure events are movable in team-6 - OVERRIDING previous styles */
+[data-resource-id="team-6"] .fc-event,
+[data-team6-event="true"] {
+  cursor: move !important;
 }
 
+/* Make sure the duplicate button is always visible */
 .duplicate-event-btn {
-  opacity: 0.8;
-  transition: opacity 0.2s ease-in-out;
-}
-
-.duplicate-event-btn:hover {
   opacity: 1;
 }
 
-/* Make sure the duplicate button is visible on mobile */
+/* Additional styles to ensure events stay movable */
+.fc-event {
+  cursor: move !important;
+}
+
+/* Ensure action buttons are visible on all devices */
 @media (max-width: 768px) {
   .event-actions {
-    opacity: 0.8;
+    opacity: 1 !important;
+    display: flex !important;
     background: rgba(255, 255, 255, 0.9);
   }
 }
 
-/* Add these new styles for stacked events in team-6 */
-.stacked-event {
-  border-left: 4px solid #FEF7CD !important;
-  margin-bottom: 2px !important;
-  border-radius: 4px !important;
-  height: auto !important;
-  min-height: 40px !important; /* Increased height for three lines */
-  padding: 4px !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.15) !important; /* Enhanced shadow */
+/* Ensure all events have proper interaction styling */
+.fc-event:hover,
+.fc-event:focus,
+.fc-event:active {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
-.stacked-event-content {
-  display: flex;
-  flex-direction: column;
-  gap: 0px;
-  padding: 2px;
-}
-
-/* Client name styling - bold and slightly larger */
-.stacked-event-content .event-client-name {
-  font-weight: bold;
-  font-size: 0.9em;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Booking ID styling - smaller and lighter */
-.stacked-event-content .event-booking-id {
-  font-size: 0.75rem;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  opacity: 0.8;
-}
-
-/* Delivery address styling - smaller and italicized */
-.stacked-event-content .event-delivery-address {
-  font-size: 0.75rem;
-  font-style: italic;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  opacity: 0.7;
-}
-
-/* Hide the original event time for team-6 events */
-[data-resource-id="team-6"] .fc-event-time {
-  display: none !important;
-}
-
-/* Make team-6 events have a distinct appearance */
-[data-resource-id="team-6"] .fc-event {
-  border-radius: 6px !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
-  max-height: 50px !important;
-  overflow: hidden !important;
+/* Ensure team-6 events can be moved like others */
+[data-resource-id="team-6"] .fc-event,
+[data-team6-event="true"] {
+  pointer-events: auto !important;
 }
 
 /* Special styling for events based on their type */
@@ -534,4 +488,66 @@
 [data-resource-id="team-6"] .fc-event *,
 [data-team6-event="true"] * {
   color: #000000e6 !important;
+}
+
+/* Hide the original event time for team-6 events */
+[data-resource-id="team-6"] .fc-event-time {
+  display: none !important;
+}
+
+/* Make team-6 events have a distinct appearance */
+[data-resource-id="team-6"] .fc-event {
+  border-radius: 6px !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+  max-height: 50px !important;
+  overflow: hidden !important;
+}
+
+/* Additional styling for stacked events in team-6 */
+.stacked-event {
+  border-left: 4px solid #FEF7CD !important;
+  margin-bottom: 2px !important;
+  border-radius: 4px !important;
+  height: auto !important;
+  min-height: 40px !important; /* Increased height for three lines */
+  padding: 4px !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15) !important; /* Enhanced shadow */
+}
+
+.stacked-event-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0px;
+  padding: 2px;
+}
+
+/* Client name styling - bold and slightly larger */
+.stacked-event-content .event-client-name {
+  font-weight: bold;
+  font-size: 0.9em;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Booking ID styling - smaller and lighter */
+.stacked-event-content .event-booking-id {
+  font-size: 0.75rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.8;
+}
+
+/* Delivery address styling - smaller and italicized */
+.stacked-event-content .event-delivery-address {
+  font-size: 0.75rem;
+  font-style: italic;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.7;
 }

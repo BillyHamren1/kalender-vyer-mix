@@ -17,6 +17,8 @@ export const useEventActions = (
   const { duplicateEvent } = useDuplicateEvent(events, setEvents, resources);
   const { deleteEvent, isDeleting } = useDeleteEvent(events, setEvents);
   
+  // No effect for automatic duplicate prevention - removed to stop automatic cleanup
+  
   return {
     addEventToCalendar,
     findAvailableTeam: (startTime: Date, endTime: Date) => 

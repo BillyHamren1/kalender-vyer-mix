@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -325,6 +324,11 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           // Add data attributes and setup event-specific elements
           addEventAttributes(info);
           setupEventActions(info, handleDuplicateButtonClick, handleDeleteButtonClick);
+          
+          // Make sure all events are draggable, including team-6 events
+          // Remove any cursor restrictions
+          info.el.style.cursor = 'move';
+          info.el.style.pointerEvents = 'auto';
         }}
         {...getCalendarTimeFormatting()}
         resourceLabelDidMount={setupResourceHeaderStyles}

@@ -36,12 +36,8 @@
   border-left: 3px solid #ff5722 !important;
 }
 
-/* Hide action buttons by default, show on hover */
+/* Always show action buttons */
 .event-actions {
-  display: none;
-}
-
-.fc-event:hover .event-actions {
   display: flex;
 }
 
