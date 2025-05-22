@@ -80,8 +80,8 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
       stickyResourceAreaHeaders: true,        // Keep resource headers visible during scroll
       resourceOrder: 'title',                 // Order resources by title
       resourcesInitiallyExpanded: true,       // Ensure resources are expanded initially
-      slotMinWidth: '100px',                  // Increased from 80px to 100px
-      dayMinWidth: '100px'                    // Ensure days have consistent width
+      slotMinWidth: 100,                      // FIXED: Changed from '100px' to 100
+      dayMinWidth: 100                        // FIXED: Changed from '100px' to 100
     };
   };
 
@@ -93,12 +93,12 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
       allDaySlot: false,                // Hide all-day slot to save space
       initialView: 'resourceTimeGridDay',
       resourceAreaWidth: '100px',       // Increased from 80px to 100px
-      slotMinWidth: '100px',            // Increased from 80px to 100px
+      slotMinWidth: 100,                // FIXED: Changed from '100px' to 100
       resourceAreaColumns: [            // Configure resource column display
         {
           field: 'title',
           headerContent: 'Teams',
-          width: '100px'                // Increased from 80px to 100px
+          width: '100px'                // Width can remain as string here
         }
       ],
       // Add the resource column config

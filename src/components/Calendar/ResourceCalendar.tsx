@@ -223,7 +223,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   const getResourceColumnConfig = () => {
     // Use provided values from calendarProps or fallback to defaults
     const resourceAreaWidth = calendarProps.resourceAreaWidth || '100px';  // Increased from 80px
-    const slotMinWidth = calendarProps.slotMinWidth || '100px';            // Increased from 80px
+    const slotMinWidth = calendarProps.slotMinWidth || 100;  // FIXED: Changed to number
     
     // Ensure columns for resource headers
     const resourceAreaColumns = calendarProps.resourceAreaColumns || [
@@ -243,8 +243,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       // Force column widths to be consistent
       resourceLaneWidth: '100px',  // Increased from 80px
       resourceWidth: '100px',      // Increased from 80px
-      // Set fixed widths for day columns
-      dayMinWidth: '100px'
+      // Set fixed widths for day columns - FIXED: Changed to number
+      dayMinWidth: 100 // Changed from '100px' to 100
     };
   };
 
