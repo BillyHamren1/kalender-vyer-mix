@@ -138,6 +138,9 @@ export const addEventAttributes = (info: any) => {
   // Check if this event has a booking ID and add it as a data attribute
   if (info.event.extendedProps.bookingId) {
     info.el.setAttribute('data-booking-id', info.event.extendedProps.bookingId);
+    
+    // Remove any red left border styling that might be applied
+    info.el.style.borderLeft = 'none';
   }
   
   // Add special class for timeline events to ensure they have proper height

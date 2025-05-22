@@ -1,12 +1,15 @@
+
 import React, { useEffect, useState } from 'react';
 import { useDrop, useDrag } from 'react-dnd';
 import { Resource } from './ResourceData';
 import { StaffMember } from './StaffTypes';
-import { ArrowDown, User, Users } from 'lucide-react';
+import { User, Users } from 'lucide-react';
 import { fetchStaffAssignments } from '@/services/staffService';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import ConfirmationDialog from '@/components/ConfirmationDialog';
+import StaffDropdownMenu from './StaffDropdownMenu';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ResourceHeaderDropZoneProps {
   resource: Resource;
@@ -14,6 +17,48 @@ interface ResourceHeaderDropZoneProps {
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
   forceRefresh?: boolean; // Add this prop to force refresh
 }
+
+// Generate a unique color based on staff ID
+const getStaffColor = (staffId: string): { bg: string, border: string, text: string } => {
+  // Create a simple hash from the staff ID
+  let hash = 0;
+  for (let i = 0; i < staffId.length; i++) {
+    hash = staffId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  
+  // List of pleasant pastel background colors
+  const bgColors = [
+    'bg-purple-100', 'bg-blue-100', 'bg-green-100', 
+    'bg-yellow-100', 'bg-pink-100', 'bg-indigo-100', 
+    'bg-red-100', 'bg-orange-100', 'bg-teal-100', 
+    'bg-cyan-100'
+  ];
+  
+  // Matching border colors
+  const borderColors = [
+    'border-purple-300', 'border-blue-300', 'border-green-300', 
+    'border-yellow-300', 'border-pink-300', 'border-indigo-300', 
+    'border-red-300', 'border-orange-300', 'border-teal-300', 
+    'border-cyan-300'
+  ];
+
+  // Text colors that work well on each background
+  const textColors = [
+    'text-purple-800', 'text-blue-800', 'text-green-800', 
+    'text-yellow-800', 'text-pink-800', 'text-indigo-800', 
+    'text-red-800', 'text-orange-800', 'text-teal-800', 
+    'text-cyan-800'
+  ];
+  
+  // Use the hash to select a color
+  const index = Math.abs(hash) % bgColors.length;
+  
+  return {
+    bg: bgColors[index],
+    border: borderColors[index],
+    text: textColors[index]
+  };
+};
 
 // DraggableStaffBadge component for the resource header
 const DraggableStaffBadge: React.FC<{
@@ -27,6 +72,9 @@ const DraggableStaffBadge: React.FC<{
       isDragging: !!monitor.isDragging(),
     }),
   }));
+
+  // Get color for this staff member
+  const staffColor = getStaffColor(staff.id);
 
   // Helper function to get initials for avatar
   const getInitials = (name: string): string => {
@@ -43,18 +91,18 @@ const DraggableStaffBadge: React.FC<{
       <Badge 
         key={staff.id}
         variant="outline"
-        className="staff-badge flex items-center bg-purple-100 text-purple-800 text-xs rounded-md px-1.5 py-0.5 z-20 shadow-sm cursor-move"
+        className={`staff-badge flex items-center ${staffColor.bg} bg-white border ${staffColor.border} text-xs rounded-md px-1.5 py-0.5 z-20 shadow-sm cursor-move`}
         title={staff.name}
         onClick={(e) => {
           e.stopPropagation();
         }}
       >
-        <Avatar className="h-4 w-4 mr-1 bg-purple-200">
-          <AvatarFallback className="text-[8px] text-purple-800">
+        <Avatar className={`h-4 w-4 mr-1 ${staffColor.bg}`}>
+          <AvatarFallback className={`text-[8px] ${staffColor.text}`}>
             {getInitials(staff.name)}
           </AvatarFallback>
         </Avatar>
-        <span className="truncate max-w-[50px] font-medium">{staff.name.split(' ')[0]}</span>
+        <span className={`truncate max-w-[50px] font-medium text-gray-800`}>{staff.name.split(' ')[0]}</span>
         <button 
           onClick={(e) => {
             e.stopPropagation();
@@ -81,7 +129,7 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [staffToReassign, setStaffToReassign] = useState<StaffMember | null>(null);
   
-  // Create a drop zone specifically for the calendar resource header
+  // Create a drop zone specifically for the calendar resource header (for dragging between teams)
   const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: 'STAFF',
     drop: (item: StaffMember & { assignedTeam?: string | null }) => {
@@ -102,19 +150,18 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     }),
   }), [resource.id, onStaffDrop]);
   
-  // Fetch assigned staff when component mounts or when resource/date changes
+  // Fetch assigned staff with better error handling and performance
   useEffect(() => {
     const loadAssignedStaff = async () => {
       if (!currentDate) return;
       
       try {
         setIsLoading(true);
-        const formattedDate = currentDate.toISOString().split('T')[0];
         
         // Get staff assigned to this specific team on this date
         const staffAssignments = await fetchStaffAssignments(currentDate, resource.id);
         
-        // Now staffAssignments only contains assignments for this resource
+        // Transform assignments to staff members
         setAssignedStaff(staffAssignments.map(assignment => ({
           id: assignment.staff_id,
           name: assignment.staff_members?.name || 'Unknown',
@@ -130,7 +177,7 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     };
     
     loadAssignedStaff();
-  }, [resource.id, currentDate, forceRefresh]); // Add forceRefresh to the dependency array
+  }, [resource.id, currentDate, forceRefresh]);
   
   // Handle staff removal
   const handleRemoveStaff = async (staffId: string) => {
@@ -148,6 +195,51 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       await onStaffDrop(staffToReassign.id, resource.id);
       setShowConfirmation(false);
       setStaffToReassign(null);
+    }
+  };
+
+  // Handle staff assignment from dropdown with improved performance
+  const handleAssignStaff = async (staffId: string, resourceId: string) => {
+    if (onStaffDrop) {
+      try {
+        await onStaffDrop(staffId, resourceId);
+        
+        // Update local state for immediate feedback
+        const staffInfo = await getStaffInfo(staffId);
+        if (staffInfo) {
+          setAssignedStaff(prev => [...prev, { 
+            ...staffInfo,
+            assignedTeam: resourceId
+          }]);
+        }
+        
+        return Promise.resolve();
+      } catch (error) {
+        console.error('Error in handleAssignStaff:', error);
+        return Promise.reject(error);
+      }
+    }
+    return Promise.resolve();
+  };
+
+  // Helper function to get staff info
+  const getStaffInfo = async (staffId: string): Promise<StaffMember | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('staff_members')
+        .select('id, name, email, phone')
+        .eq('id', staffId)
+        .single();
+        
+      if (error || !data) {
+        console.error('Error fetching staff info:', error);
+        return null;
+      }
+      
+      return data as StaffMember;
+    } catch (error) {
+      console.error('Error in getStaffInfo:', error);
+      return null;
     }
   };
 
@@ -172,22 +264,15 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         ))}
       </div>
       
-      {/* Drop zone area - now shows only the arrow icon when staff are assigned */}
-      <div 
-        className={`
-          resource-drop-zone text-xs flex items-center justify-center 
-          border border-dashed p-1.5 rounded-md mt-auto
-          ${isOver ? 'bg-blue-50 border-blue-400 text-blue-800' : 'border-gray-300 text-gray-500 hover:bg-gray-50'}
-          transition-colors duration-200 z-10
-        `}
-        style={{ minHeight: "24px" }}
-      >
-        <div className="flex items-center gap-1">
-          <ArrowDown className="h-3 w-3" />
-          {assignedStaff.length === 0 && (
-            <span className="text-xs font-medium">Drop staff</span>
-          )}
-        </div>
+      {/* Replace drop zone with StaffDropdownMenu */}
+      <div className="resource-dropdown-zone z-10">
+        <StaffDropdownMenu
+          resourceId={resource.id}
+          resourceTitle={resource.title}
+          currentDate={currentDate}
+          assignedStaff={assignedStaff}
+          onAssignStaff={handleAssignStaff}
+        />
       </div>
 
       {/* Confirmation Dialog for reassigning staff */}
