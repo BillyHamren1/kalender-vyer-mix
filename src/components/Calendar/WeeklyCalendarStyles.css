@@ -21,7 +21,7 @@
   border-radius: 6px;
   overflow: hidden;
   margin-bottom: 20px;
-  width: 300px; /* Fixed width for each day column */
+  width: 600px; /* Increased from 300px to 600px to fit all resources */
   flex-shrink: 0; /* Prevent columns from shrinking */
 }
 

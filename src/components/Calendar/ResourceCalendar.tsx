@@ -260,15 +260,15 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   // Apply consistent column width configuration
   const getResourceColumnConfig = () => {
     // Use provided values from calendarProps or fallback to defaults
-    const resourceAreaWidth = calendarProps.resourceAreaWidth || '80px';  // Reduced from 150px
-    const slotMinWidth = calendarProps.slotMinWidth || '80px';            // Reduced from 150px
+    const resourceAreaWidth = calendarProps.resourceAreaWidth || '120px';  // Increased from 80px
+    const slotMinWidth = calendarProps.slotMinWidth || '120px';            // Increased from 80px
     
     // Ensure columns for resource headers
     const resourceAreaColumns = calendarProps.resourceAreaColumns || [
       {
         field: 'title',
         headerContent: 'Teams',
-        width: '80px' // Reduced from 150px
+        width: '120px' // Increased from 80px
       }
     ];
     
@@ -279,8 +279,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       resourcesInitiallyExpanded: true,
       stickyResourceAreaHeaders: true,
       // Force column widths to be consistent
-      resourceLaneWidth: '80px',  // Reduced from 150px
-      resourceWidth: '80px'       // Reduced from 150px
+      resourceLaneWidth: '120px',  // Increased from 80px
+      resourceWidth: '120px'       // Increased from 80px
     };
   };
 
