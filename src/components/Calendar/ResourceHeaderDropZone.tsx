@@ -125,18 +125,20 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         ))}
       </div>
       
-      {/* Staff select button */}
-      <button 
-        onClick={handleSelectStaff}
-        className="text-xs flex items-center justify-center border border-dashed p-1 rounded-md mt-auto
-                   border-gray-300 text-gray-500 hover:bg-gray-50 transition-colors duration-200 z-10"
-        style={{ minHeight: "22px" }}
-      >
-        <div className="flex items-center gap-1">
-          <UserPlus className="h-3 w-3" />
-          <span className="text-xs font-medium">Assign</span>
-        </div>
-      </button>
+      {/* Staff select button - positioned at bottom */}
+      <div className="assign-button-container mt-auto">
+        <button 
+          onClick={handleSelectStaff}
+          className="assign-button text-xs flex items-center justify-center border border-dashed p-1 rounded-md
+                     border-gray-300 text-gray-500 hover:bg-gray-50 transition-colors duration-200 z-10 w-full"
+          style={{ height: "22px" }}
+        >
+          <div className="flex items-center gap-1">
+            <UserPlus className="h-3 w-3" />
+            <span className="text-xs font-medium">Assign</span>
+          </div>
+        </button>
+      </div>
     </div>
   );
 };

@@ -74,7 +74,7 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
         {/* Compact staff controls */}
         <div className="flex gap-1 mb-1">
           <button 
-            className="flex-1 text-xs py-1 px-1 border border-dashed border-gray-300 text-gray-500 hover:bg-gray-100 rounded flex items-center justify-center gap-1"
+            className="flex-1 text-xs py-1 px-1 border border-dashed border-gray-300 text-gray-500 hover:bg-gray-100 rounded flex items-center justify-center gap-1 assign-button"
             onClick={handleSelectStaff}
             style={{ height: "22px" }}
           >
