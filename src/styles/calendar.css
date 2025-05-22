@@ -422,15 +422,15 @@
 
 /* Special styling for events based on their type */
 .event-event {
-  border-left: 4px solid #FEF7CD !important;
+  border-left: none !important;
 }
 
 .event-rig {
-  border-left: 4px solid #F2FCE2 !important;
+  border-left: none !important;
 }
 
 .event-rigDown {
-  border-left: 4px solid #FFDEE2 !important;
+  border-left: none !important;
 }
 
 /* Additional styling for event times in stacked events */
@@ -505,7 +505,7 @@
 
 /* Additional styling for stacked events in team-6 */
 .stacked-event {
-  border-left: 4px solid #FEF7CD !important;
+  border-left: none !important;
   margin-bottom: 2px !important;
   border-radius: 4px !important;
   height: auto !important;
@@ -550,4 +550,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   opacity: 0.7;
+}
+
+/* Style for potential duplicate events - REMOVING RED LEFT BORDER */
+.fc-event[data-has-booking-id="true"] {
+  /* Removing the red left border */
+  border-left: none !important;
 }
