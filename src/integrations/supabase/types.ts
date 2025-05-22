@@ -51,6 +51,57 @@ export type Database = {
           },
         ]
       }
+      booking_changes: {
+        Row: {
+          booking_id: string
+          change_type: string
+          changed_at: string
+          changed_by: string | null
+          changed_fields: Json
+          id: string
+          new_values: Json | null
+          previous_values: Json | null
+          version: number
+        }
+        Insert: {
+          booking_id: string
+          change_type: string
+          changed_at?: string
+          changed_by?: string | null
+          changed_fields: Json
+          id?: string
+          new_values?: Json | null
+          previous_values?: Json | null
+          version: number
+        }
+        Update: {
+          booking_id?: string
+          change_type?: string
+          changed_at?: string
+          changed_by?: string | null
+          changed_fields?: Json
+          id?: string
+          new_values?: Json | null
+          previous_values?: Json | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_changes_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_changes_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "confirmed_bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       booking_products: {
         Row: {
           booking_id: string
@@ -110,6 +161,7 @@ export type Database = {
           rigdowndate: string | null
           status: string | null
           updated_at: string
+          version: number
           viewed: boolean
         }
         Insert: {
@@ -131,6 +183,7 @@ export type Database = {
           rigdowndate?: string | null
           status?: string | null
           updated_at?: string
+          version?: number
           viewed?: boolean
         }
         Update: {
@@ -152,6 +205,7 @@ export type Database = {
           rigdowndate?: string | null
           status?: string | null
           updated_at?: string
+          version?: number
           viewed?: boolean
         }
         Relationships: []
@@ -266,6 +320,39 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_subscriptions: {
+        Row: {
+          created_at: string
+          events: string[]
+          id: string
+          is_active: boolean
+          last_triggered_at: string | null
+          name: string
+          secret_key: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          events: string[]
+          id?: string
+          is_active?: boolean
+          last_triggered_at?: string | null
+          name: string
+          secret_key: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          events?: string[]
+          id?: string
+          is_active?: boolean
+          last_triggered_at?: string | null
+          name?: string
+          secret_key?: string
+          url?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       confirmed_bookings: {
@@ -276,7 +363,10 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      jsonb_object_keys_array: {
+        Args: { j: Json }
+        Returns: string[]
+      }
     }
     Enums: {
       [_ in never]: never

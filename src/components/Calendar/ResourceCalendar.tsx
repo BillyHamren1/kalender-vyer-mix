@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -11,6 +12,7 @@ import { getCalendarViews, getCalendarOptions } from './CalendarConfig';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useEventActions } from '@/hooks/useEventActions';
 import { ResourceHeaderDropZone } from './ResourceHeaderDropZone';
+import { useEventOperations } from '@/hooks/useEventOperations';
 import { 
   renderEventContent, 
   setupEventActions, 
@@ -81,6 +83,8 @@ interface ResourceCalendarProps {
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
   forceRefresh?: boolean;
   calendarProps?: Record<string, any>; // Add this prop to allow passing additional props to FullCalendar
+  eventSourceId?: string; // Add event source ID for cross-calendar dragging
+  droppableScope?: string; // Add droppable scope for cross-calendar dragging
 }
 
 const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
@@ -93,7 +97,9 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   refreshEvents,
   onStaffDrop,
   forceRefresh,
-  calendarProps = {} // Default to empty object
+  calendarProps = {}, // Default to empty object
+  eventSourceId = 'main-event-source', // Default event source ID
+  droppableScope = 'weekly-calendar' // Default droppable scope
 }) => {
   const calendarRef = useRef<any>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(currentDate);
@@ -104,11 +110,17 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   const { duplicateEvent } = useEventActions(events, () => {}, resources);
   
   // Use the calendar event handlers with the duplicate event function
-  const { handleEventChange, handleEventClick, DuplicateEventDialog } = useCalendarEventHandlers(
+  const { handleEventClick, DuplicateEventDialog } = useCalendarEventHandlers(
     resources, 
     refreshEvents,
     duplicateEvent
   );
+
+  // Use event operations for handling event changes
+  const { handleEventChange, handleEventReceive } = useEventOperations({
+    resources,
+    refreshEvents
+  });
 
   // Get event handlers
   const { handleEventDrop } = getEventHandlers(handleEventChange, handleEventClick);
@@ -240,6 +252,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         eventDrop={handleEventDrop}
         eventResize={handleEventChange}
         eventClick={handleEventClick}
+        eventReceive={handleEventReceive} // Add handler for receiving events from other calendars
         datesSet={(dateInfo) => {
           setSelectedDate(dateInfo.start);
           onDateSet(dateInfo);
@@ -264,6 +277,11 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         }}
         // Apply consistent resource column configuration
         {...getResourceColumnConfig()}
+        // Add properties for cross-calendar dragging
+        eventSourceId={eventSourceId}
+        droppable={true}
+        dropAccept=".fc-event"
+        eventAllow={() => true} // Allow all events to be dragged between calendars
         // Apply any additional calendar props
         {...calendarProps}
       />

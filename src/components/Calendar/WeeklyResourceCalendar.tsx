@@ -60,7 +60,7 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
   };
 
   // Common calendar props to ensure consistency across all day calendars
-  const getCommonCalendarProps = () => {
+  const getCommonCalendarProps = (dayIndex: number) => {
     return {
       height: 'auto',
       headerToolbar: false,             // Hide the header to save space
@@ -75,38 +75,64 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
           width: '80px'                 // Reduced from 150px to 80px
         }
       ],
+      // Add properties for cross-calendar dragging
+      eventSourceId: `day-${dayIndex}-events`,
+      droppableScope: 'weekly-calendar',  // All calendars in the week view share this scope
       ...getResourceTimeGridOptions()   // Add additional resource grid options
     };
+  };
+
+  // Filter events for each day to improve performance and visibility
+  const getEventsForDay = (date: Date) => {
+    // Format date to YYYY-MM-DD for comparison
+    const dateStr = format(date, 'yyyy-MM-dd');
+    
+    return events.filter(event => {
+      // Parse event start and end dates
+      const eventStart = new Date(event.start);
+      const eventEnd = new Date(event.end);
+      
+      // Check if the event falls on this day
+      const eventDateStr = format(eventStart, 'yyyy-MM-dd');
+      return eventDateStr === dateStr;
+    });
   };
 
   return (
     <div className="weekly-view-container">
       <div className="weekly-calendar-container" ref={containerRef}>
-        {weekDays.map((date, index) => (
-          <div key={format(date, 'yyyy-MM-dd')} className="day-calendar-wrapper">
-            <div className="day-header">
-              {format(date, 'EEEE, MMM d')}
+        {weekDays.map((date, index) => {
+          // Get events just for this day to improve performance
+          const dayEvents = getEventsForDay(date);
+          
+          return (
+            <div key={format(date, 'yyyy-MM-dd')} className="day-calendar-wrapper">
+              <div className="day-header">
+                {format(date, 'EEEE, MMM d')}
+              </div>
+              <div className="weekly-view-calendar">
+                <ResourceCalendar
+                  events={events} // Use all events to ensure dragging works correctly
+                  resources={resources}
+                  isLoading={isLoading}
+                  isMounted={isMounted}
+                  currentDate={date}
+                  onDateSet={handleNestedCalendarDateSet}
+                  refreshEvents={refreshEvents}
+                  onStaffDrop={onStaffDrop}
+                  forceRefresh={forceRefresh}
+                  key={`calendar-${format(date, 'yyyy-MM-dd')}`}
+                  eventSourceId={`day-${index}-events`}
+                  droppableScope="weekly-calendar"
+                  calendarProps={{
+                    'data-day-index': index.toString(),
+                    ...getCommonCalendarProps(index)  // Use common props for consistency
+                  }}
+                />
+              </div>
             </div>
-            <div className="weekly-view-calendar">
-              <ResourceCalendar
-                events={events}
-                resources={resources}
-                isLoading={isLoading}
-                isMounted={isMounted}
-                currentDate={date}
-                onDateSet={handleNestedCalendarDateSet}
-                refreshEvents={refreshEvents}
-                onStaffDrop={onStaffDrop}
-                forceRefresh={forceRefresh}
-                key={`calendar-${format(date, 'yyyy-MM-dd')}`}
-                calendarProps={{
-                  'data-day-index': index.toString(),
-                  ...getCommonCalendarProps()  // Use common props for consistency
-                }}
-              />
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
