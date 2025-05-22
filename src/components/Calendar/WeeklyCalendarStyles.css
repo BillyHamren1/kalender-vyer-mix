@@ -4,23 +4,19 @@
 .weekly-view-container {
   width: 100%;
   overflow-x: auto;
-  margin-bottom: 20px;
 }
 
 .weekly-calendar-container {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   padding-bottom: 24px;
-  width: 100%;
 }
 
 .day-calendar-wrapper {
   border: 1px solid #e2e8f0;
   border-radius: 6px;
   overflow: hidden;
-  margin-bottom: 20px;
-  width: 100%;
 }
 
 .day-header {
@@ -33,7 +29,6 @@
 
 .weekly-view-calendar {
   padding: 8px;
-  width: 100%;
 }
 
 /* Style for potential duplicate events */
@@ -60,21 +55,4 @@
   .md\:order-2 {
     order: 2 !important;
   }
-}
-
-/* Fix for FullCalendar display in weekly view */
-.fc .fc-view-harness {
-  height: auto !important;
-  min-height: 400px !important;
-}
-
-.fc-scroller {
-  overflow: visible !important;
-  height: auto !important;
-}
-
-.fc-scroller-liquid-absolute {
-  position: relative !important;
-  overflow: visible !important;
-  height: auto !important;
 }

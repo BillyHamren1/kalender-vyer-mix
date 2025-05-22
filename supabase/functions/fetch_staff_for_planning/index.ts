@@ -7,10 +7,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-api-key',
 };
 
-// Simple in-memory cache
-const cache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -18,21 +14,11 @@ serve(async (req) => {
   }
 
   try {
+    console.log('Fetching staff data from external API');
+    
     // Get selected date from request, or use current date
     const { date } = await req.json().catch(() => ({ date: new Date().toISOString().split('T')[0] }));
     console.log('Fetching staff for date:', date);
-    
-    // Check if we have a valid cached response
-    const cacheKey = `staff-${date}`;
-    const cachedData = cache.get(cacheKey);
-    if (cachedData && (Date.now() - cachedData.timestamp < CACHE_TTL)) {
-      console.log('Returning cached staff data');
-      return new Response(JSON.stringify(cachedData.data), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
-    }
-    
-    console.log('Fetching staff data from external API');
     
     // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
@@ -61,55 +47,47 @@ serve(async (req) => {
     const staffData = await response.json();
     console.log('Received staff data:', staffData);
     
-    // Process staff data in background
-    (async () => {
-      if (staffData && staffData.data && Array.isArray(staffData.data)) {
-        for (const staff of staffData.data) {
-          if (!staff.id || !staff.name) continue;
+    // Store staff data in database
+    if (staffData && staffData.data && Array.isArray(staffData.data)) {
+      for (const staff of staffData.data) {
+        if (!staff.id || !staff.name) continue;
+        
+        // Check if staff exists in database
+        const { data: existingStaff } = await supabase
+          .from('staff_members')
+          .select('id')
+          .eq('id', staff.id)
+          .single();
           
-          // Check if staff exists in database
-          const { data: existingStaff } = await supabase
+        if (!existingStaff) {
+          // Insert new staff
+          await supabase
             .from('staff_members')
-            .select('id')
-            .eq('id', staff.id)
-            .single();
-            
-          if (!existingStaff) {
-            // Insert new staff
-            await supabase
-              .from('staff_members')
-              .insert({
-                id: staff.id,
-                name: staff.name,
-                email: staff.email || null,
-                phone: staff.phone || null
-              });
-          } else {
-            // Update existing staff
-            await supabase
-              .from('staff_members')
-              .update({
-                name: staff.name,
-                email: staff.email || null,
-                phone: staff.phone || null
-              })
-              .eq('id', staff.id);
-          }
+            .insert({
+              id: staff.id,
+              name: staff.name,
+              email: staff.email || null,
+              phone: staff.phone || null
+            });
+        } else {
+          // Update existing staff
+          await supabase
+            .from('staff_members')
+            .update({
+              name: staff.name,
+              email: staff.email || null,
+              phone: staff.phone || null
+            })
+            .eq('id', staff.id);
         }
       }
-    })();
+    }
     
     // Make sure we return a properly formatted response with an array
     const responseData = {
       success: true,
       data: Array.isArray(staffData.data) ? staffData.data : []
     };
-    
-    // Cache the response
-    cache.set(cacheKey, {
-      data: responseData,
-      timestamp: Date.now()
-    });
     
     // Return the staff data
     return new Response(JSON.stringify(responseData), { 
