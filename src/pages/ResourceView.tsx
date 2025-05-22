@@ -125,7 +125,10 @@ const ResourceView = () => {
     <DndProvider backend={HTML5Backend}>
       <StaffSyncManager currentDate={currentDate} />
       
-      <ResourceLayout showStaffDisplay={false}>
+      <ResourceLayout 
+        showStaffDisplay={false}
+        staffDisplay={<div>Staff Display Placeholder</div>} 
+        isMobile={isMobile}>
         {/* ResourceHeader component with team management controls */}
         <ResourceHeader
           teamResources={teamResources}
