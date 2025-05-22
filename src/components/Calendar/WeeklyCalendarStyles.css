@@ -1,3 +1,4 @@
+
 /* Weekly Calendar Styles */
 .weekly-view-container {
   width: 100%;
@@ -225,37 +226,28 @@
   max-width: 80px !important;
 }
 
-/* Make sure the buttons in weekly view also follow the same rules */
-.weekly-view-calendar .assign-button {
-  height: 22px !important;
-  font-size: 10px !important;
+/* Icon-only assign button styling */
+.assign-button-icon {
+  height: 20px !important;
+  width: 20px !important;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
   border: 1px dashed #d1d5db;
   border-radius: 0.25rem;
   color: #6b7280;
   transition: all 0.2s ease;
-  margin-top: auto;
   z-index: 10;
+  background-color: transparent;
+  padding: 3px;
+  margin-left: auto;
 }
 
-.weekly-view-calendar .assign-button svg {
-  height: 12px !important;
-  width: 12px !important;
-}
-
-.weekly-view-calendar .assign-button span {
-  font-size: 10px !important;
-}
-
-.weekly-view-calendar .assign-button:hover {
+.assign-button-icon:hover {
   background-color: #f3f4f6;
 }
 
-.weekly-view-calendar .assign-button-container {
-  margin-top: auto;
-  width: 100%;
-  z-index: 10;
+.weekly-view-calendar .assign-button-icon svg {
+  height: 12px !important;
+  width: 12px !important;
 }

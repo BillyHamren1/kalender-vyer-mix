@@ -104,9 +104,16 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       ref={drop} 
       className={`resource-header-wrapper flex flex-col h-full w-full ${isOver ? 'bg-purple-50' : ''}`}
     >
-      {/* Team title */}
-      <div className="resource-title-area font-medium text-sm mb-1 sticky top-0 z-10">
-        {resource.title}
+      {/* Team title with icon button in right corner */}
+      <div className="resource-title-area font-medium text-sm mb-1 sticky top-0 z-10 flex justify-between items-center">
+        <span>{resource.title}</span>
+        <button 
+          onClick={handleSelectStaff}
+          className="assign-button-icon"
+          title="Assign staff"
+        >
+          <UserPlus className="h-3 w-3" />
+        </button>
       </div>
       
       {/* Assigned staff area - fixed height to accommodate 5 staff members */}
@@ -127,21 +134,6 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
             className="staff-placeholder h-[22px] w-full opacity-0"
           />
         ))}
-      </div>
-      
-      {/* Staff select button - positioned at bottom */}
-      <div className="assign-button-container mt-auto">
-        <button 
-          onClick={handleSelectStaff}
-          className="assign-button text-xs flex items-center justify-center border border-dashed p-1 rounded-md
-                     border-gray-300 text-gray-500 hover:bg-gray-50 transition-colors duration-200 z-10 w-full"
-          style={{ height: "22px" }}
-        >
-          <div className="flex items-center gap-1">
-            <UserPlus className="h-3 w-3" />
-            <span className="text-xs font-medium">Assign</span>
-          </div>
-        </button>
       </div>
     </div>
   );

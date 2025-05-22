@@ -64,25 +64,26 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
         isOver ? 'bg-purple-50' : ''
       }`}
     >
-      {/* Team header - not a drop zone */}
+      {/* Team header with icon button in right corner */}
       <div className="bg-gray-100 p-2 border-b border-gray-200">
-        <div className="text-sm font-medium mb-2 flex items-center gap-1">
-          <Users className="h-4 w-4" />
-          <span>{resource.title}</span>
-        </div>
-        
-        {/* Compact staff controls */}
-        <div className="flex gap-1 mb-1">
+        <div className="text-sm font-medium mb-2 flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <Users className="h-4 w-4" />
+            <span>{resource.title}</span>
+          </div>
           <button 
-            className="flex-1 text-xs py-1 px-1 border border-dashed border-gray-300 text-gray-500 hover:bg-gray-100 rounded flex items-center justify-center gap-1 assign-button"
+            className="assign-button-icon"
             onClick={handleSelectStaff}
-            style={{ height: "22px" }}
+            title="Assign staff"
           >
             <UserPlus className="h-3 w-3" />
-            <span>Assign</span>
           </button>
+        </div>
+        
+        {/* New staff button only */}
+        <div className="flex justify-end mb-1">
           <button 
-            className="flex-1 text-xs py-1 px-1 border border-dashed border-gray-300 text-gray-500 hover:bg-gray-100 rounded"
+            className="text-xs py-1 px-2 border border-dashed border-gray-300 text-gray-500 hover:bg-gray-100 rounded"
             onClick={() => onAddStaff(resource.id)}
             style={{ height: "22px" }}
           >

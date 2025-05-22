@@ -221,7 +221,9 @@
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 6px;
-  text-align: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .resource-drop-zone {
@@ -254,40 +256,30 @@
   align-items: center;
 }
 
-/* Consistent button styling for assign buttons */
-.assign-button {
-  height: 22px !important;
-  font-size: 11px;
+/* Icon-only assign button styling */
+.assign-button-icon {
+  height: 20px !important;
+  width: 20px !important;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
   border: 1px dashed #d1d5db;
   border-radius: 0.25rem;
   color: #6b7280;
   transition: all 0.2s ease;
-  margin-top: auto;
   z-index: 10;
+  background-color: transparent;
+  padding: 3px;
+  margin-left: auto;
 }
 
-.assign-button:hover {
+.assign-button-icon:hover {
   background-color: #f3f4f6;
 }
 
-.assign-button-container {
-  margin-top: auto;
-  width: 100%;
-  z-index: 10;
-}
-
-/* Updated assign button style to be smaller */
-.assign-button svg {
+.assign-button-icon svg {
   height: 12px !important;
   width: 12px !important;
-}
-
-.assign-button span {
-  font-size: 10px !important;
 }
 
 /* Ensure resource headers have enough height for staff display */
