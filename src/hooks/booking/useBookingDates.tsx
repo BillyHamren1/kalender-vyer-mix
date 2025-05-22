@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Booking } from '@/types/booking';
@@ -156,9 +157,10 @@ export const useBookingDates = (
     
     try {
       setIsSaving(true);
+      console.log(`Starting to remove ${dateType} date: ${date}`);
       
-      // Remove from the state
-      let updatedDates: string[];
+      // Remove from the state arrays first
+      let updatedDates: string[] = [];
       switch (dateType) {
         case 'rig':
           updatedDates = rigDates.filter(d => d !== date);
@@ -174,15 +176,19 @@ export const useBookingDates = (
           break;
       }
       
-      // If this was the legacy date in the main booking table, update it
+      console.log(`After filtering, updated dates array has ${updatedDates.length} items`);
+      
+      // Determine the legacy field name based on date type
       const legacyFieldName = dateType === 'rig' ? 'rigDayDate' : 
                             dateType === 'event' ? 'eventDate' : 'rigDownDate';
       
+      // If this was the legacy date in the main booking table, update it
       if (booking[legacyFieldName] === date) {
         // If there are still dates left, use the first one
         // Otherwise set to null
         const newLegacyDate = updatedDates.length > 0 ? updatedDates[0] : null;
         
+        console.log(`Updating legacy field ${legacyFieldName} from ${booking[legacyFieldName]} to ${newLegacyDate}`);
         await updateBookingDates(id, legacyFieldName, newLegacyDate);
         
         // Update local booking state
@@ -193,7 +199,13 @@ export const useBookingDates = (
       }
       
       // Delete the calendar event for this date
-      await deleteBookingEvent(id, dateType, date);
+      try {
+        console.log(`Deleting calendar event for booking ${id}, type ${dateType}, date ${date}`);
+        await deleteBookingEvent(id, dateType, date);
+      } catch (deleteError) {
+        console.error('Error deleting calendar event:', deleteError);
+        // Continue with the process even if calendar event deletion fails
+      }
       
       toast.success(`${dateType === 'rig' ? 'Rig day' : dateType === 'event' ? 'Event day' : 'Rig down day'} removed successfully`);
       

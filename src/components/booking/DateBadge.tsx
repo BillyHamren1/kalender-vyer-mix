@@ -35,6 +35,11 @@ export const DateBadge = ({
     return new Date(dateString).toLocaleDateString();
   };
 
+  const handleRemoveDate = () => {
+    console.log(`Removing date ${date} of type ${eventType} with autoSync=${autoSync}`);
+    onRemoveDate(date, eventType, autoSync);
+  };
+
   return (
     <div className="flex items-center gap-1 mb-1">
       <Badge variant="secondary" className="px-2 py-1">
@@ -57,7 +62,7 @@ export const DateBadge = ({
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => onRemoveDate(date, eventType, autoSync)}>
+              <AlertDialogAction onClick={handleRemoveDate}>
                 Remove
               </AlertDialogAction>
             </AlertDialogFooter>
