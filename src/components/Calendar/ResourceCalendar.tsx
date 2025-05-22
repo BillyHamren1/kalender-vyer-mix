@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -82,8 +81,7 @@ interface ResourceCalendarProps {
   refreshEvents: () => Promise<void | CalendarEvent[]>;
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
   forceRefresh?: boolean;
-  calendarProps?: Record<string, any>; // Add this prop to allow passing additional props to FullCalendar
-  eventSourceId?: string; // Add event source ID for cross-calendar dragging
+  calendarProps?: Record<string, any>; 
   droppableScope?: string; // Add droppable scope for cross-calendar dragging
 }
 
@@ -98,7 +96,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   onStaffDrop,
   forceRefresh,
   calendarProps = {}, // Default to empty object
-  eventSourceId = 'main-event-source', // Default event source ID
   droppableScope = 'weekly-calendar' // Default droppable scope
 }) => {
   const calendarRef = useRef<any>(null);
@@ -123,7 +120,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   });
 
   // Get event handlers
-  const { handleEventDrop } = getEventHandlers(handleEventChange, handleEventClick);
+  const { handleEventDrop } = getEventHandlers(handleEventChange, handleEventClick, handleEventReceive);
 
   // Sort resources in the correct order before passing to FullCalendar
   const sortedResources = [...resources].sort((a, b) => {
@@ -225,66 +222,66 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     };
   };
 
+  // Create an object for all calendar props to prevent duplicates
+  const fullCalendarProps = {
+    ref: calendarRef,
+    plugins: [
+      resourceTimeGridPlugin,
+      timeGridPlugin,
+      interactionPlugin,
+      dayGridPlugin
+    ],
+    schedulerLicenseKey: "0134084325-fcs-1745193612",
+    initialView: getInitialView(),
+    headerToolbar: getMobileHeaderToolbar(),
+    views: getCalendarViews(),
+    resources: isMobile ? [] : sortedResources,
+    events: processedEvents,
+    editable: true,
+    droppable: true,
+    selectable: true,
+    eventDurationEditable: true,
+    eventResizableFromStart: true,
+    eventDrop: handleEventDrop,
+    eventResize: handleEventChange,
+    eventClick: handleEventClick,
+    eventReceive: handleEventReceive,
+    datesSet: (dateInfo: any) => {
+      setSelectedDate(dateInfo.start);
+      onDateSet(dateInfo);
+      setCurrentView(dateInfo.view.type);
+    },
+    initialDate: currentDate,
+    height: "auto",
+    aspectRatio: getAspectRatio(),
+    eventContent: renderEventContent,
+    eventDidMount: (info: any) => {
+      addEventAttributes(info);
+      setupEventActions(info, handleDuplicateButtonClick);
+    },
+    resourceLabelDidMount: setupResourceHeaderStyles,
+    resourceLabelContent: resourceHeaderContent,
+    slotLabelDidMount: (info: any) => {
+      info.el.style.zIndex = '1';
+    },
+    dropAccept: ".fc-event",
+    eventAllow: () => true,
+    // Add the resource column config
+    ...getResourceColumnConfig(),
+    // Add calendar options
+    ...getCalendarOptions(),
+    // Add time formatting
+    ...getCalendarTimeFormatting(),
+    // Apply any additional calendar props
+    ...calendarProps
+  };
+
   return (
     <div className="calendar-container">
       {/* Add custom styles for address wrapping and fixed column widths */}
       <AddressWrapStyles />
       
-      <FullCalendar
-        ref={calendarRef}
-        plugins={[
-          resourceTimeGridPlugin,
-          timeGridPlugin,
-          interactionPlugin,
-          dayGridPlugin
-        ]}
-        schedulerLicenseKey="0134084325-fcs-1745193612"
-        initialView={getInitialView()}
-        headerToolbar={getMobileHeaderToolbar()}
-        views={getCalendarViews()}
-        resources={isMobile ? [] : sortedResources}
-        events={processedEvents}
-        editable={true}
-        droppable={true}
-        selectable={true}
-        eventDurationEditable={true}
-        eventResizableFromStart={true}
-        eventDrop={handleEventDrop}
-        eventResize={handleEventChange}
-        eventClick={handleEventClick}
-        eventReceive={handleEventReceive} // Add handler for receiving events from other calendars
-        datesSet={(dateInfo) => {
-          setSelectedDate(dateInfo.start);
-          onDateSet(dateInfo);
-          setCurrentView(dateInfo.view.type);
-        }}
-        initialDate={currentDate}
-        {...getCalendarOptions()}
-        height="auto"
-        aspectRatio={getAspectRatio()}
-        eventContent={renderEventContent}
-        eventDidMount={(info) => {
-          // Add data attributes and setup event-specific elements
-          addEventAttributes(info);
-          setupEventActions(info, handleDuplicateButtonClick);
-        }}
-        {...getCalendarTimeFormatting()}
-        resourceLabelDidMount={setupResourceHeaderStyles}
-        resourceLabelContent={resourceHeaderContent}
-        slotLabelDidMount={(info) => {
-          // Add z-index to time slots to ensure they appear behind staff badges
-          info.el.style.zIndex = '1';
-        }}
-        // Apply consistent resource column configuration
-        {...getResourceColumnConfig()}
-        // Add properties for cross-calendar dragging
-        eventSourceId={eventSourceId}
-        droppable={true}
-        dropAccept=".fc-event"
-        eventAllow={() => true} // Allow all events to be dragged between calendars
-        // Apply any additional calendar props
-        {...calendarProps}
-      />
+      <FullCalendar {...fullCalendarProps} />
       
       {/* Render the duplicate dialog */}
       <DuplicateEventDialog />

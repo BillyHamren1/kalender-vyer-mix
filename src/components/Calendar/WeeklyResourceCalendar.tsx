@@ -75,10 +75,9 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
           width: '80px'                 // Reduced from 150px to 80px
         }
       ],
-      // Add properties for cross-calendar dragging
-      eventSourceId: `day-${dayIndex}-events`,
-      droppableScope: 'weekly-calendar',  // All calendars in the week view share this scope
-      ...getResourceTimeGridOptions()   // Add additional resource grid options
+      // Add the resource column config
+      ...getResourceTimeGridOptions(),   // Add additional resource grid options
+      'data-day-index': dayIndex.toString(),
     };
   };
 
@@ -122,12 +121,8 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
                   onStaffDrop={onStaffDrop}
                   forceRefresh={forceRefresh}
                   key={`calendar-${format(date, 'yyyy-MM-dd')}`}
-                  eventSourceId={`day-${index}-events`}
                   droppableScope="weekly-calendar"
-                  calendarProps={{
-                    'data-day-index': index.toString(),
-                    ...getCommonCalendarProps(index)  // Use common props for consistency
-                  }}
+                  calendarProps={getCommonCalendarProps(index)}
                 />
               </div>
             </div>
