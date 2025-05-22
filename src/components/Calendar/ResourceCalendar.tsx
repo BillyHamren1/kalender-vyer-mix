@@ -336,31 +336,35 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           // Apply styles to ensure consistent resource header appearance
           setupResourceHeaderStyles(info);
           
-          // Additional fixes for centering and alignment
-          info.el.style.display = 'flex';
-          info.el.style.justifyContent = 'center';
-          info.el.style.width = '100%';
+          // Additional fixes for centering and alignment - FIXED WITH TYPE CASTING
+          const htmlElement = info.el as HTMLElement;
+          htmlElement.style.display = 'flex';
+          htmlElement.style.justifyContent = 'center';
+          htmlElement.style.width = '100%';
           
-          // Ensure cushion takes full width
+          // Ensure cushion takes full width - FIXED WITH TYPE CASTING
           const cushion = info.el.querySelector('.fc-datagrid-cell-cushion');
           if (cushion) {
-            cushion.style.width = '100%';
-            cushion.style.textAlign = 'center';
+            const cushionElement = cushion as HTMLElement;
+            cushionElement.style.width = '100%';
+            cushionElement.style.textAlign = 'center';
           }
           
-          // Ensure all children of the resource cell main div are centered
+          // Ensure all children of the resource cell main div are centered - FIXED WITH TYPE CASTING
           const main = info.el.closest('.fc-datagrid-cell-main');
           if (main) {
-            main.style.display = 'flex';
-            main.style.flexDirection = 'column';
-            main.style.alignItems = 'center';
-            main.style.width = '100%';
+            const mainElement = main as HTMLElement;
+            mainElement.style.display = 'flex';
+            mainElement.style.flexDirection = 'column';
+            mainElement.style.alignItems = 'center';
+            mainElement.style.width = '100%';
           }
         }}
         resourceLabelContent={resourceHeaderContent}
         slotLabelDidMount={(info) => {
-          // Add z-index to time slots to ensure they appear behind staff badges
-          info.el.style.zIndex = '1';
+          // Add z-index to time slots to ensure they appear behind staff badges - FIXED WITH TYPE CASTING
+          const slotElement = info.el as HTMLElement;
+          slotElement.style.zIndex = '1';
         }}
         // Apply consistent resource column configuration
         {...getResourceColumnConfig()}
