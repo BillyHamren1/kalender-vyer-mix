@@ -4,7 +4,8 @@ import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
 import { StaffMember, StaffAssignment } from './StaffAssignmentRow';
 import DraggableStaffItem from './DraggableStaffItem';
-import { Users, UserPlus, MoveDown } from 'lucide-react';
+import { Users } from 'lucide-react';
+import StaffDropdownMenu from './StaffDropdownMenu';
 
 interface TeamDropZoneProps {
   resource: Resource;
@@ -45,6 +46,12 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
     } : null;
   }).filter(Boolean) as StaffMember[];
 
+  // Handle staff assignment from dropdown
+  const handleAssignStaff = async (staffId: string, resourceId: string) => {
+    onDrop(staffId, resourceId);
+    return Promise.resolve();
+  };
+
   return (
     <div className="h-full flex flex-col border border-gray-200 rounded-md overflow-hidden">
       {/* Team header - not a drop zone */}
@@ -54,16 +61,8 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
           <span>{resource.title}</span>
         </div>
         
-        {/* Compact staff controls */}
+        {/* Compact staff controls - now just showing the "New" button */}
         <div className="flex gap-1 mb-1">
-          <button 
-            className="flex-1 text-xs py-1 px-1 border border-dashed border-gray-300 text-gray-500 hover:bg-gray-100 rounded flex items-center justify-center gap-1"
-            onClick={() => onSelectStaff(resource.id, resource.title)}
-            style={{ height: '22px' }}
-          >
-            <UserPlus className="h-3 w-3" />
-            <span>Select</span>
-          </button>
           <button 
             className="flex-1 text-xs py-1 px-1 border border-dashed border-gray-300 text-gray-500 hover:bg-gray-100 rounded"
             onClick={() => onAddStaff(resource.id)}
@@ -74,24 +73,24 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
         </div>
       </div>
       
-      {/* Dedicated drop zone area directly under the header */}
-      <div 
-        ref={drop}
-        className={`
-          p-2 border-b border-gray-200 
-          ${isOver ? 'bg-blue-50 border-dashed border-blue-400' : 'bg-gray-50 border-dashed border-gray-300'} 
-          transition-all duration-200 flex items-center justify-center
-        `}
-        style={{ minHeight: '40px' }}
-      >
-        <div className="flex flex-col items-center justify-center text-xs text-gray-500">
-          <MoveDown className="h-4 w-4 mb-1" />
-          <p>Drop staff here</p>
-        </div>
+      {/* Replace the old drop zone with our new StaffDropdownMenu */}
+      <div className="p-2 border-b border-gray-200 bg-gray-50">
+        <StaffDropdownMenu
+          resourceId={resource.id}
+          resourceTitle={resource.title}
+          currentDate={currentDate}
+          assignedStaff={teamStaff}
+          onAssignStaff={handleAssignStaff}
+        />
       </div>
       
-      {/* Staff members list section - not a drop zone */}
-      <div className="p-2 flex-1 flex flex-col bg-white">
+      {/* Staff members list section - still a drop zone for dragging between teams */}
+      <div 
+        ref={drop}
+        className={`p-2 flex-1 flex flex-col bg-white ${
+          isOver ? 'bg-blue-50' : ''
+        } transition-colors duration-200`}
+      >
         {teamStaff.length > 0 ? (
           teamStaff.map(staff => (
             <DraggableStaffItem 

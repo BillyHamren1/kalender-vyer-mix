@@ -1,12 +1,14 @@
+
 import React, { useEffect, useState } from 'react';
 import { useDrop, useDrag } from 'react-dnd';
 import { Resource } from './ResourceData';
 import { StaffMember } from './StaffTypes';
-import { ArrowDown, User, Users } from 'lucide-react';
+import { User, Users } from 'lucide-react';
 import { fetchStaffAssignments } from '@/services/staffService';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import ConfirmationDialog from '@/components/ConfirmationDialog';
+import StaffDropdownMenu from './StaffDropdownMenu';
 
 interface ResourceHeaderDropZoneProps {
   resource: Resource;
@@ -81,7 +83,7 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [staffToReassign, setStaffToReassign] = useState<StaffMember | null>(null);
   
-  // Create a drop zone specifically for the calendar resource header
+  // Create a drop zone specifically for the calendar resource header (for dragging between teams)
   const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: 'STAFF',
     drop: (item: StaffMember & { assignedTeam?: string | null }) => {
@@ -151,6 +153,13 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     }
   };
 
+  // Handle staff assignment from dropdown
+  const handleAssignStaff = async (staffId: string, resourceId: string) => {
+    if (onStaffDrop) {
+      await onStaffDrop(staffId, resourceId);
+    }
+  };
+
   return (
     <div 
       ref={drop}
@@ -172,22 +181,15 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         ))}
       </div>
       
-      {/* Drop zone area - now shows only the arrow icon when staff are assigned */}
-      <div 
-        className={`
-          resource-drop-zone text-xs flex items-center justify-center 
-          border border-dashed p-1.5 rounded-md mt-auto
-          ${isOver ? 'bg-blue-50 border-blue-400 text-blue-800' : 'border-gray-300 text-gray-500 hover:bg-gray-50'}
-          transition-colors duration-200 z-10
-        `}
-        style={{ minHeight: "24px" }}
-      >
-        <div className="flex items-center gap-1">
-          <ArrowDown className="h-3 w-3" />
-          {assignedStaff.length === 0 && (
-            <span className="text-xs font-medium">Drop staff</span>
-          )}
-        </div>
+      {/* Replace drop zone with StaffDropdownMenu */}
+      <div className="resource-dropdown-zone z-10">
+        <StaffDropdownMenu
+          resourceId={resource.id}
+          resourceTitle={resource.title}
+          currentDate={currentDate}
+          assignedStaff={assignedStaff}
+          onAssignStaff={handleAssignStaff}
+        />
       </div>
 
       {/* Confirmation Dialog for reassigning staff */}
