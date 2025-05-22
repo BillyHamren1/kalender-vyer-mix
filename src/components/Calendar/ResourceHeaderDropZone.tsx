@@ -86,7 +86,7 @@ const DraggableStaffBadge: React.FC<{
   return (
     <div 
       ref={drag}
-      className={`${isDragging ? 'opacity-50' : 'opacity-100'} flex justify-center`}
+      className={`${isDragging ? 'opacity-50' : 'opacity-100'} flex justify-center w-full`}
     >
       <Badge 
         key={staff.id}
@@ -246,15 +246,16 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   return (
     <div 
       ref={drop}
-      className="resource-header-wrapper"
+      className="resource-header-wrapper w-full flex flex-col items-center justify-start"
+      style={{width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center'}}
     >
       {/* Team title - centered with improved styling */}
-      <div className="resource-title-area">
+      <div className="resource-title-area w-full text-center">
         {resource.title}
       </div>
       
       {/* Assigned staff area - centered with fixed height */}
-      <div className="assigned-staff-area">
+      <div className="assigned-staff-area w-full flex flex-wrap justify-center">
         {assignedStaff.map((staff) => (
           <DraggableStaffBadge 
             key={staff.id} 
@@ -265,7 +266,7 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       </div>
       
       {/* StaffDropdownMenu - centered and consistent width */}
-      <div className="resource-dropdown-zone">
+      <div className="resource-dropdown-zone w-full flex justify-center">
         <StaffDropdownMenu
           resourceId={resource.id}
           resourceTitle={resource.title}

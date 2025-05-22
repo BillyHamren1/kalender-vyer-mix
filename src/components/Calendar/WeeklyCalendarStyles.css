@@ -94,37 +94,39 @@
   min-width: 130px !important;
 }
 
-/* Center team titles in resource headers - IMPROVED */
+/* ENHANCED SELECTORS FOR WEEKLY VIEW - MORE SPECIFIC AND USING !important */
+
+/* Center team titles in resource headers - IMPROVED WITH MORE SPECIFIC SELECTORS */
 .resource-title-area {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  text-align: center;
-  font-weight: 600;
-  margin-bottom: 8px;
-  padding: 0 4px;
-  line-height: 1.2;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  width: 100% !important;
+  text-align: center !important;
+  font-weight: 600 !important;
+  margin-bottom: 8px !important;
+  padding: 0 4px !important;
+  line-height: 1.2 !important;
 }
 
-/* Center the "Assign Staff" dropdown in the resource header - IMPROVED */
+/* Center the "Assign Staff" dropdown in the resource header - IMPROVED WITH MORE SPECIFIC SELECTORS */
 .resource-dropdown-zone {
-  display: flex;
-  justify-content: center;
-  width: 100%;
-  margin-top: 4px;
-  padding: 0 4px;
+  display: flex !important;
+  justify-content: center !important;
+  width: 100% !important;
+  margin-top: 4px !important;
+  padding: 0 4px !important;
 }
 
-/* Center staff badges in the resource header - IMPROVED */
+/* Center staff badges in the resource header - IMPROVED WITH MORE SPECIFIC SELECTORS */
 .assigned-staff-area {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 4px;
-  width: 100%;
-  padding: 0 4px;
-  min-height: 28px; /* Increased from 24px to prevent layout shifts */
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  width: 100% !important;
+  padding: 0 4px !important;
+  min-height: 28px !important; /* Increased from 24px to prevent layout shifts */
 }
 
 /* Critical fix: make sure all fc-datagrid-cell-main elements center their content */
@@ -162,4 +164,43 @@
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
+}
+
+/* ADDING NEW WEEKLY VIEW SPECIFIC FIXES */
+.weekly-view-container .fc-datagrid-cell-main,
+.weekly-view-container .fc-datagrid-cell-cushion,
+.weekly-view-container .resource-header-wrapper {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+  width: 100% !important;
+  text-align: center !important;
+}
+
+/* Force center alignment for all resource header elements in weekly view */
+.weekly-view-container .fc-datagrid-cell,
+.weekly-view-container .fc-datagrid-cell-frame,
+.weekly-view-container .fc-datagrid-cell-cushion {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+  width: 100% !important;
+  text-align: center !important;
+}
+
+/* Fix the dropdown width issue by ensuring it never exceeds parent width */
+.weekly-view-container .resource-dropdown-zone button {
+  width: 100% !important;
+  max-width: 120px !important;
+  margin: 0 auto !important;
+  justify-content: center !important;
+}
+
+/* Force center alignment for staff badges */
+.weekly-view-container .assigned-staff-area > div {
+  display: flex !important;
+  justify-content: center !important;
+  width: 100% !important;
 }

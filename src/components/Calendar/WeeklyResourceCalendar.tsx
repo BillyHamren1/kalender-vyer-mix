@@ -55,7 +55,9 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
       stickyResourceAreaHeaders: true,        // Keep resource headers visible during scroll
       resourceOrder: 'title',                 // Order resources by title
       resourcesInitiallyExpanded: true,       // Ensure resources are expanded initially
-      slotMinWidth: '130px'                   // Increased from 120px to 130px
+      slotMinWidth: '130px',                  // Increased from 120px to 130px
+      // Enhanced styling for weekly view
+      resourceLabelClassNames: 'text-center flex justify-center items-center w-full'
     };
   };
 
@@ -73,12 +75,44 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
         {
           field: 'title',
           headerContent: 'Teams',
-          width: '130px'                // Increased from 120px to 130px
+          width: '130px',               // Increased from 120px to 130px
+          className: 'text-center'       // Add center alignment
         }
       ],
       ...getResourceTimeGridOptions(),   // Add additional resource grid options
       // Critical fix: Force all resource headers to use center alignment
-      resourceLabelClassNames: 'text-center flex justify-center items-center w-full'
+      resourceLabelClassNames: 'text-center flex justify-center items-center w-full',
+      // Fix resource header cell centering
+      resourceLabelDidMount: (info: any) => {
+        // Ensure elements are properly cast to HTMLElement for TypeScript
+        const headerEl = info.el as HTMLElement;
+        headerEl.style.display = 'flex';
+        headerEl.style.flexDirection = 'column';
+        headerEl.style.alignItems = 'center';
+        headerEl.style.justifyContent = 'center';
+        headerEl.style.width = '100%';
+        headerEl.style.textAlign = 'center';
+        
+        // Also fix cell cushion
+        const cushion = info.el.querySelector('.fc-datagrid-cell-cushion');
+        if (cushion) {
+          const cushionEl = cushion as HTMLElement;
+          cushionEl.style.width = '100%';
+          cushionEl.style.textAlign = 'center';
+        }
+        
+        // Fix cell main
+        const cellMain = info.el.closest('.fc-datagrid-cell-main');
+        if (cellMain) {
+          const cellMainEl = cellMain as HTMLElement;
+          cellMainEl.style.display = 'flex';
+          cellMainEl.style.flexDirection = 'column';
+          cellMainEl.style.alignItems = 'center';
+          cellMainEl.style.justifyContent = 'center';
+          cellMainEl.style.width = '100%';
+          cellMainEl.style.textAlign = 'center';
+        }
+      }
     };
   };
 
@@ -114,7 +148,7 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
                   ...getCommonCalendarProps(),  // Use common props for consistency
                   // Critical fix: Add these overrides to fix centering
                   dayCellClassNames: 'text-center',
-                  resourceAreaClassNames: 'flex justify-center items-center'
+                  resourceAreaClassNames: 'flex justify-center items-center w-full text-center'
                 }}
               />
             </div>

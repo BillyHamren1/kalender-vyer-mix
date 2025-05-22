@@ -111,14 +111,19 @@ const StaffDropdownMenu: React.FC<StaffDropdownMenuProps> = ({
         <Button 
           variant="outline" 
           size="sm" 
-          className="w-full h-auto py-1.5 px-2 border-dashed text-xs"
+          className="w-full h-auto py-1.5 px-2 border-dashed text-xs flex items-center justify-center mx-auto"
+          style={{maxWidth: '120px', justifyContent: 'center', margin: '0 auto'}}
         >
           <UserPlus className="h-3.5 w-3.5 mr-1" />
           <span>Assign Staff</span>
           <ChevronDown className="h-3.5 w-3.5 ml-auto" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56 max-h-64 overflow-y-auto" align="start">
+      <DropdownMenuContent 
+        className="w-56 max-h-64 overflow-y-auto bg-white" 
+        align="center"
+        style={{backgroundColor: 'white', zIndex: 50}}
+      >
         <DropdownMenuLabel className="flex items-center">
           <Users className="h-4 w-4 mr-2" />
           <span>Available Staff</span>
