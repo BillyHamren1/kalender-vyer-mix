@@ -37,7 +37,9 @@ export const getCalendarOptions = () => {
     },
     // Force usage of scrollgrid
     handleWindowResize: true,
-    forceEventDuration: true
+    forceEventDuration: true,
+    // Important for resource views
+    resourceAreaWidth: '100px'
   };
 };
 

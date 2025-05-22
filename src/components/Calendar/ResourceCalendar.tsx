@@ -5,6 +5,7 @@ import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import dayGridPlugin from '@fullcalendar/daygrid';
+import premiumCommonPlugin from '@fullcalendar/premium-common';
 import { CalendarEvent, Resource } from './ResourceData';
 import { useCalendarEventHandlers } from '@/hooks/useCalendarEventHandlers';
 import { processEvents } from './CalendarEventProcessor';
@@ -256,7 +257,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       resourceTimeGridPlugin,
       timeGridPlugin,
       interactionPlugin,
-      dayGridPlugin
+      dayGridPlugin,
+      premiumCommonPlugin // Add the premium common plugin for ScrollGrid implementation
     ],
     schedulerLicenseKey: "0134084325-fcs-1745193612",
     initialView: getInitialView(),
