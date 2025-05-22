@@ -107,7 +107,7 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
     };
   };
 
-  // Filter events for each day to improve performance and visibility
+  // Filter events for each day to improve performance
   const getEventsForDay = (date: Date) => {
     // Format date to YYYY-MM-DD for comparison
     const dateStr = format(date, 'yyyy-MM-dd');

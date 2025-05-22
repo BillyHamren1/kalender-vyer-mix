@@ -34,7 +34,10 @@ export const getCalendarOptions = () => {
       minute: "2-digit" as "2-digit",
       hour12: false,   // Use 24-hour format
       omitZeroMinute: false // Always show minutes even if 00
-    }
+    },
+    // Force usage of scrollgrid
+    handleWindowResize: true,
+    forceEventDuration: true
   };
 };
 
