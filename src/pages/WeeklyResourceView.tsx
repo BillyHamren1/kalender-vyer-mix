@@ -122,6 +122,13 @@ const WeeklyResourceView = () => {
     setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 0 }));
   }, []);
 
+  // Show the staff curtain directly (without team selection)
+  const handleShowStaffCurtain = useCallback(() => {
+    setSelectedTeamId(null);
+    setSelectedTeamName('');
+    setStaffCurtainOpen(true);
+  }, []);
+
   // Custom onDateSet function that prevents infinite loops
   const handleCalendarDateSet = useCallback((dateInfo: any) => {
     // Only pass the date to the parent hook if it's significantly different
@@ -146,6 +153,8 @@ const WeeklyResourceView = () => {
           onSelectStaff={handleSelectStaffForTeam}
           onClose={() => setStaffCurtainOpen(false)}
           onAssignStaff={handleStaffDrop}
+          selectedTeamId={selectedTeamId}
+          selectedTeamName={selectedTeamName}
         />
       )}
       
@@ -205,6 +214,7 @@ const WeeklyResourceView = () => {
               resources={resources}
               onRefresh={refreshEvents}
               onAddTask={addEventToCalendar}
+              onShowStaffCurtain={handleShowStaffCurtain}
             />
           </div>
           
