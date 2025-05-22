@@ -37,6 +37,7 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   const [{ isOver }, drop] = useDrop({
     accept: 'STAFF',
     drop: (item: StaffMember) => {
+      console.log('Dropping staff onto resource header:', item.id, resource.id);
       if (onStaffDrop) {
         onStaffDrop(item.id, resource.id);
       }
@@ -89,6 +90,13 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   const emptySlots = 5 - assignedStaff.length;
   const placeholders = Array(emptySlots > 0 ? emptySlots : 0).fill(null);
 
+  // Handle staff item removal
+  const handleRemoveStaff = (staffId: string) => {
+    if (onStaffDrop) {
+      onStaffDrop(staffId, null);
+    }
+  };
+
   return (
     <div 
       ref={drop} 
@@ -105,7 +113,19 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
           <Badge 
             key={staff.id}
             variant="outline"
-            className="staff-badge flex items-center bg-purple-100 text-purple-800 text-xs rounded-md px-1.5 py-0.5 z-20 shadow-sm"
+            className="staff-badge flex items-center bg-purple-100 text-purple-800 text-xs rounded-md px-1.5 py-0.5 z-20 shadow-sm cursor-move"
+            draggable="true"
+            onDragStart={(e) => {
+              // Set drag data
+              e.dataTransfer.setData('application/json', JSON.stringify(staff));
+              e.dataTransfer.effectAllowed = 'move';
+              // Add the drag source class
+              e.currentTarget.classList.add('dragging');
+            }}
+            onDragEnd={(e) => {
+              // Remove the drag source class
+              e.currentTarget.classList.remove('dragging');
+            }}
           >
             <Avatar className="h-4 w-4 mr-1 bg-purple-200">
               <AvatarFallback className="text-[8px] text-purple-800">
@@ -113,6 +133,16 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
               </AvatarFallback>
             </Avatar>
             <span className="truncate max-w-[50px] font-medium">{staff.name.split(' ')[0]}</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRemoveStaff(staff.id);
+              }}
+              className="ml-1 text-purple-400 hover:text-red-500 text-xs"
+              aria-label="Remove assignment"
+            >
+              &times;
+            </button>
           </Badge>
         ))}
         
@@ -142,4 +172,3 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     </div>
   );
 };
-

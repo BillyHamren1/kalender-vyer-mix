@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useDrag } from 'react-dnd';
-import { StaffMember } from './StaffAssignmentRow';
+import { StaffMember } from './StaffTypes';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 // Helper function to format staff name
@@ -26,13 +26,17 @@ const DraggableStaffItem: React.FC<DraggableStaffItemProps> = ({
   onRemove, 
   currentDate 
 }) => {
-  const [{ isDragging }, drag] = useDrag(() => ({
+  // Configure drag functionality
+  const [{ isDragging }, drag] = useDrag({
     type: 'STAFF',
-    item: staff,
+    item: () => {
+      console.log('Starting drag for staff:', staff);
+      return staff;
+    },
     collect: (monitor) => ({
       isDragging: !!monitor.isDragging(),
     }),
-  }));
+  });
 
   // Get the initials for avatar
   const getInitials = (name: string): string => {
@@ -61,7 +65,10 @@ const DraggableStaffItem: React.FC<DraggableStaffItemProps> = ({
         <span className="text-xs font-medium truncate">{displayName}</span>
       </div>
       <button 
-        onClick={onRemove}
+        onClick={(e) => {
+          e.stopPropagation(); // Prevent triggering drag when clicking remove
+          onRemove();
+        }}
         className="text-gray-400 hover:text-red-500 text-xs ml-1"
         aria-label="Remove assignment"
       >
