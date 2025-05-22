@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
@@ -46,10 +45,14 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
     } : null;
   }).filter(Boolean) as StaffMember[];
 
-  // Handle staff assignment from dropdown
+  // Handle staff assignment from dropdown with improved performance
   const handleAssignStaff = async (staffId: string, resourceId: string) => {
-    onDrop(staffId, resourceId);
-    return Promise.resolve();
+    try {
+      return await onDrop(staffId, resourceId);
+    } catch (error) {
+      console.error('Error assigning staff:', error);
+      return Promise.reject(error);
+    }
   };
 
   return (

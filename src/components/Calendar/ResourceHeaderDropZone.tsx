@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useDrop, useDrag } from 'react-dnd';
 import { Resource } from './ResourceData';
@@ -104,19 +103,18 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     }),
   }), [resource.id, onStaffDrop]);
   
-  // Fetch assigned staff when component mounts or when resource/date changes
+  // Fetch assigned staff with better error handling and performance
   useEffect(() => {
     const loadAssignedStaff = async () => {
       if (!currentDate) return;
       
       try {
         setIsLoading(true);
-        const formattedDate = currentDate.toISOString().split('T')[0];
         
         // Get staff assigned to this specific team on this date
         const staffAssignments = await fetchStaffAssignments(currentDate, resource.id);
         
-        // Now staffAssignments only contains assignments for this resource
+        // Transform assignments to staff members
         setAssignedStaff(staffAssignments.map(assignment => ({
           id: assignment.staff_id,
           name: assignment.staff_members?.name || 'Unknown',
@@ -132,7 +130,7 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     };
     
     loadAssignedStaff();
-  }, [resource.id, currentDate, forceRefresh]); // Add forceRefresh to the dependency array
+  }, [resource.id, currentDate, forceRefresh]);
   
   // Handle staff removal
   const handleRemoveStaff = async (staffId: string) => {
@@ -153,10 +151,48 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     }
   };
 
-  // Handle staff assignment from dropdown
+  // Handle staff assignment from dropdown with improved performance
   const handleAssignStaff = async (staffId: string, resourceId: string) => {
     if (onStaffDrop) {
-      await onStaffDrop(staffId, resourceId);
+      try {
+        await onStaffDrop(staffId, resourceId);
+        
+        // Update local state for immediate feedback
+        const staffInfo = await getStaffInfo(staffId);
+        if (staffInfo) {
+          setAssignedStaff(prev => [...prev, { 
+            ...staffInfo,
+            assignedTeam: resourceId
+          }]);
+        }
+        
+        return Promise.resolve();
+      } catch (error) {
+        console.error('Error in handleAssignStaff:', error);
+        return Promise.reject(error);
+      }
+    }
+    return Promise.resolve();
+  };
+
+  // Helper function to get staff info
+  const getStaffInfo = async (staffId: string): Promise<StaffMember | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('staff_members')
+        .select('id, name, email, phone')
+        .eq('id', staffId)
+        .single();
+        
+      if (error || !data) {
+        console.error('Error fetching staff info:', error);
+        return null;
+      }
+      
+      return data as StaffMember;
+    } catch (error) {
+      console.error('Error in getStaffInfo:', error);
+      return null;
     }
   };
 
