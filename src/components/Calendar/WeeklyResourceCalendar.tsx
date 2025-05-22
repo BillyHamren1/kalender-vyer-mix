@@ -76,7 +76,9 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
           width: '130px'                // Increased from 120px to 130px
         }
       ],
-      ...getResourceTimeGridOptions()   // Add additional resource grid options
+      ...getResourceTimeGridOptions(),   // Add additional resource grid options
+      // Critical fix: Force all resource headers to use center alignment
+      resourceLabelClassNames: 'text-center flex justify-center items-center w-full'
     };
   };
 
@@ -109,7 +111,10 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
                 key={`calendar-${format(date, 'yyyy-MM-dd')}`}
                 calendarProps={{
                   'data-day-index': index.toString(),
-                  ...getCommonCalendarProps()  // Use common props for consistency
+                  ...getCommonCalendarProps(),  // Use common props for consistency
+                  // Critical fix: Add these overrides to fix centering
+                  dayCellClassNames: 'text-center',
+                  resourceAreaClassNames: 'flex justify-center items-center'
                 }}
               />
             </div>

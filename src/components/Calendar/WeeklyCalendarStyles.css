@@ -94,7 +94,7 @@
   min-width: 130px !important;
 }
 
-/* Center team titles in resource headers */
+/* Center team titles in resource headers - IMPROVED */
 .resource-title-area {
   display: flex;
   justify-content: center;
@@ -103,21 +103,63 @@
   text-align: center;
   font-weight: 600;
   margin-bottom: 8px;
+  padding: 0 4px;
+  line-height: 1.2;
 }
 
-/* Center the "Assign Staff" dropdown in the resource header */
+/* Center the "Assign Staff" dropdown in the resource header - IMPROVED */
 .resource-dropdown-zone {
   display: flex;
   justify-content: center;
   width: 100%;
   margin-top: 4px;
+  padding: 0 4px;
 }
 
-/* Center staff badges in the resource header */
+/* Center staff badges in the resource header - IMPROVED */
 .assigned-staff-area {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: 4px;
   width: 100%;
+  padding: 0 4px;
+  min-height: 28px; /* Increased from 24px to prevent layout shifts */
+}
+
+/* Critical fix: make sure all fc-datagrid-cell-main elements center their content */
+.fc-datagrid-cell-main {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: 100% !important;
+  height: 100% !important;
+  padding: 4px !important;
+}
+
+/* Make sure the resource cell cushion takes full width */
+.fc-datagrid-cell-cushion {
+  width: 100% !important;
+  text-align: center !important;
+}
+
+/* Fix for staff badge styling to ensure they look correct */
+.staff-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  background-color: white !important;
+  border-radius: 4px !important;
+  padding: 2px 4px !important;
+  max-width: 70px !important;
+  overflow: hidden !important;
+}
+
+/* Fix for resource header wrapper to ensure it takes full width of cell */
+.resource-header-wrapper {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
 }

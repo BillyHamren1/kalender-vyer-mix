@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -244,7 +243,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     }
   };
 
-  // Custom resource header content renderer
+  // Custom resource header content renderer with improved centering
   const resourceHeaderContent = (info: any) => {
     if (isMobile) return info.resource.title;
     
@@ -333,7 +332,31 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           info.el.style.pointerEvents = 'auto';
         }}
         {...getCalendarTimeFormatting()}
-        resourceLabelDidMount={setupResourceHeaderStyles}
+        resourceLabelDidMount={(info) => {
+          // Apply styles to ensure consistent resource header appearance
+          setupResourceHeaderStyles(info);
+          
+          // Additional fixes for centering and alignment
+          info.el.style.display = 'flex';
+          info.el.style.justifyContent = 'center';
+          info.el.style.width = '100%';
+          
+          // Ensure cushion takes full width
+          const cushion = info.el.querySelector('.fc-datagrid-cell-cushion');
+          if (cushion) {
+            cushion.style.width = '100%';
+            cushion.style.textAlign = 'center';
+          }
+          
+          // Ensure all children of the resource cell main div are centered
+          const main = info.el.closest('.fc-datagrid-cell-main');
+          if (main) {
+            main.style.display = 'flex';
+            main.style.flexDirection = 'column';
+            main.style.alignItems = 'center';
+            main.style.width = '100%';
+          }
+        }}
         resourceLabelContent={resourceHeaderContent}
         slotLabelDidMount={(info) => {
           // Add z-index to time slots to ensure they appear behind staff badges
