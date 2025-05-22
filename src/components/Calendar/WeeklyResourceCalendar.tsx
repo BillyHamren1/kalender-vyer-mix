@@ -48,6 +48,16 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
     }
   };
   
+  // Handle staff selection and pass to parent
+  const handleSelectStaff = (resourceId: string, resourceTitle: string) => {
+    console.log('WeeklyResourceCalendar: handleSelectStaff called for', resourceId, resourceTitle);
+    if (onSelectStaff) {
+      onSelectStaff(resourceId, resourceTitle);
+    } else {
+      console.error('WeeklyResourceCalendar: onSelectStaff prop is not defined');
+    }
+  };
+
   // Helper function to ensure consistent resource column configuration
   const getResourceTimeGridOptions = () => {
     return {
@@ -121,7 +131,7 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
                   onDateSet={handleNestedCalendarDateSet}
                   refreshEvents={refreshEvents}
                   onStaffDrop={onStaffDrop}
-                  onSelectStaff={onSelectStaff}
+                  onSelectStaff={handleSelectStaff}
                   forceRefresh={forceRefresh}
                   key={`calendar-${format(date, 'yyyy-MM-dd')}`}
                   droppableScope="weekly-calendar"

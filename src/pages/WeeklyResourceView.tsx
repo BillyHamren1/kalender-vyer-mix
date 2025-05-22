@@ -14,6 +14,7 @@ import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
 import StaffCurtain from '@/components/Calendar/StaffCurtain';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
 import WeeklyResourceCalendar from '@/components/Calendar/WeeklyResourceCalendar';
+import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
 import { startOfWeek } from 'date-fns';
 
 const WeeklyResourceView = () => {
@@ -48,6 +49,11 @@ const WeeklyResourceView = () => {
     return startOfWeek(new Date(hookCurrentDate), { weekStartsOn: 0 });
   });
 
+  // Add state for staff selection dialog
+  const [staffSelectionDialogOpen, setStaffSelectionDialogOpen] = useState(false);
+  const [selectedResourceId, setSelectedResourceId] = useState('');
+  const [selectedResourceTitle, setSelectedResourceTitle] = useState('');
+
   // Get staff operations
   const {
     staffCurtainOpen,
@@ -74,9 +80,34 @@ const WeeklyResourceView = () => {
     }
   }, [handleDatesSet, hookCurrentDate]);
 
+  // Handle staff selection for a specific team
+  const handleOpenStaffSelectionDialog = useCallback((resourceId: string, resourceTitle: string) => {
+    console.log('Opening staff selection dialog for:', resourceId, resourceTitle);
+    setSelectedResourceId(resourceId);
+    setSelectedResourceTitle(resourceTitle);
+    setStaffSelectionDialogOpen(true);
+  }, []);
+
+  // Handle successful staff assignment
+  const handleStaffAssigned = useCallback(() => {
+    console.log('Staff assigned successfully, refreshing...');
+    // Toggle the staffAssignmentsUpdated flag to trigger a refresh
+    handleStaffDrop('', '');
+  }, [handleStaffDrop]);
+
   return (
     <DndProvider backend={HTML5Backend}>
       <StaffSyncManager currentDate={hookCurrentDate} />
+      
+      {/* Staff Selection Dialog */}
+      <StaffSelectionDialog
+        resourceId={selectedResourceId}
+        resourceTitle={selectedResourceTitle}
+        currentDate={hookCurrentDate}
+        open={staffSelectionDialogOpen}
+        onOpenChange={setStaffSelectionDialogOpen}
+        onStaffAssigned={handleStaffAssigned}
+      />
       
       {staffCurtainOpen && (
         <StaffCurtain 
@@ -134,7 +165,7 @@ const WeeklyResourceView = () => {
             onDateSet={handleCalendarDateSet}
             refreshEvents={refreshEvents}
             onStaffDrop={handleStaffDrop}
-            onSelectStaff={handleSelectStaffForTeam}
+            onSelectStaff={handleOpenStaffSelectionDialog}
             forceRefresh={staffAssignmentsUpdated}
           />
         </div>

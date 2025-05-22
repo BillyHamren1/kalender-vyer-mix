@@ -34,6 +34,12 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
     } : null;
   }).filter(Boolean) as StaffMember[];
 
+  // Handler for staff selection
+  const handleSelectStaff = () => {
+    console.log('TeamDropZone: handleSelectStaff clicked for', resource.id, resource.title);
+    onSelectStaff(resource.id, resource.title);
+  }
+
   return (
     <div className="h-full flex flex-col border border-gray-200 rounded-md overflow-hidden">
       {/* Team header - not a drop zone */}
@@ -43,11 +49,11 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
           <span>{resource.title}</span>
         </div>
         
-        {/* Compact staff controls - FIXED: Changed text from "Select Staff" to "Assign" */}
+        {/* Compact staff controls */}
         <div className="flex gap-1 mb-1">
           <button 
             className="flex-1 text-xs py-1 px-1 border border-dashed border-gray-300 text-gray-500 hover:bg-gray-100 rounded flex items-center justify-center gap-1"
-            onClick={() => onSelectStaff(resource.id, resource.title)}
+            onClick={handleSelectStaff}
             style={{ height: "22px" }}
           >
             <UserPlus className="h-3 w-3" />

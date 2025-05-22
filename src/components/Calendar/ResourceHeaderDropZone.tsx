@@ -63,8 +63,11 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
 
   // Handle opening the staff selector
   const handleSelectStaff = () => {
+    console.log('ResourceHeaderDropZone: handleSelectStaff clicked for', resource.id, resource.title);
     if (onSelectStaff) {
       onSelectStaff(resource.id, resource.title);
+    } else {
+      console.error('ResourceHeaderDropZone: onSelectStaff prop is not defined');
     }
   };
 
@@ -93,7 +96,7 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         ))}
       </div>
       
-      {/* Staff select button - FIXED: Smaller and changed text to "Assign" */}
+      {/* Staff select button */}
       <button 
         onClick={handleSelectStaff}
         className="text-xs flex items-center justify-center border border-dashed p-1 rounded-md mt-auto
