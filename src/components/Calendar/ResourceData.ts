@@ -22,7 +22,7 @@ export const getEventColor = (eventType?: string): string => {
     case 'event':
       return '#fff9c4'; // Light Yellow
     case 'rigDown':
-      return '#ffcc80'; // Light Orange
+      return '#ffcdd2'; // Light Red (changed from orange to red)
     default:
       return '#cfd8dc'; // Grey
   }
