@@ -1,6 +1,7 @@
+
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
-import { Copy } from 'lucide-react';
+import { Copy, Trash2 } from 'lucide-react';
 
 export const renderEventContent = (eventInfo: any) => {
   // Get the event details
@@ -56,7 +57,8 @@ export const renderEventContent = (eventInfo: any) => {
 
 export const setupEventActions = (
   info: any, 
-  handleDuplicateButtonClick: (eventId: string) => void
+  handleDuplicateButtonClick: (eventId: string) => void,
+  handleDeleteButtonClick: (eventId: string, bookingId: string, eventType: string) => void
 ) => {
   // Identify team-6 events for special handling
   const resourceId = info.event.getResources()[0]?.id || '';
@@ -67,11 +69,20 @@ export const setupEventActions = (
     return;
   }
   
-  // Add duplicate button to non-team-6 events
+  // Get event details for action buttons
   const eventEl = info.el;
   const eventId = info.event.id;
+  const bookingId = info.event.extendedProps?.bookingId || '';
+  const eventType = info.event.extendedProps?.eventType || '';
   
-  // Create a container for the duplicate button
+  // Add isDuplicateEvent attribute to help identify possible duplicates visually
+  // Will be used with CSS to style potential duplicates differently
+  if (bookingId && eventType === 'event') {
+    eventEl.setAttribute('data-has-booking-id', 'true');
+    eventEl.setAttribute('data-booking-id', bookingId);
+  }
+  
+  // Create a container for the action buttons
   const actionContainer = document.createElement('div');
   actionContainer.className = 'event-actions';
   actionContainer.style.position = 'absolute';
@@ -82,6 +93,8 @@ export const setupEventActions = (
   actionContainer.style.borderRadius = '4px';
   actionContainer.style.padding = '2px';
   actionContainer.style.zIndex = '10';
+  actionContainer.style.display = 'flex'; // Make buttons appear side by side
+  actionContainer.style.gap = '2px'; // Add space between buttons
   
   // Create the duplicate button with icon
   const duplicateButton = document.createElement('button');
@@ -95,8 +108,21 @@ export const setupEventActions = (
   duplicateButton.style.alignItems = 'center';
   duplicateButton.style.justifyContent = 'center';
   
-  // Add duplicate button to the container
+  // Create the delete button with icon
+  const deleteButton = document.createElement('button');
+  deleteButton.className = 'delete-event-btn';
+  deleteButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+  deleteButton.title = 'Delete this event';
+  deleteButton.style.cursor = 'pointer';
+  deleteButton.style.border = 'none';
+  deleteButton.style.background = 'transparent';
+  deleteButton.style.display = 'flex';
+  deleteButton.style.alignItems = 'center';
+  deleteButton.style.justifyContent = 'center';
+  
+  // Add the buttons to the container
   actionContainer.appendChild(duplicateButton);
+  actionContainer.appendChild(deleteButton);
   
   // Add container to the event element
   eventEl.appendChild(actionContainer);
@@ -107,9 +133,14 @@ export const setupEventActions = (
     handleDuplicateButtonClick(eventId);
   });
   
+  deleteButton.addEventListener('click', (e) => {
+    e.stopPropagation(); // Prevent event click handler from being triggered
+    handleDeleteButtonClick(eventId, bookingId, eventType);
+  });
+  
   // Show actions on hover (for desktop)
   eventEl.addEventListener('mouseenter', () => {
-    actionContainer.style.display = 'block';
+    actionContainer.style.display = 'flex';
   });
   
   eventEl.addEventListener('mouseleave', () => {
@@ -118,7 +149,7 @@ export const setupEventActions = (
   
   // For mobile, show on touch start and hide after a delay
   eventEl.addEventListener('touchstart', () => {
-    actionContainer.style.display = 'block';
+    actionContainer.style.display = 'flex';
     // Hide after 5 seconds to prevent it from staying visible forever
     setTimeout(() => {
       actionContainer.style.display = 'none';
@@ -130,6 +161,11 @@ export const setupEventActions = (
 export const addEventAttributes = (info: any) => {
   if (info.event.extendedProps.eventType) {
     info.el.setAttribute('data-event-type', info.event.extendedProps.eventType);
+  }
+  
+  // Check if this event has a booking ID and add it as a data attribute
+  if (info.event.extendedProps.bookingId) {
+    info.el.setAttribute('data-booking-id', info.event.extendedProps.bookingId);
   }
   
   // Add special class for timeline events to ensure they have proper height

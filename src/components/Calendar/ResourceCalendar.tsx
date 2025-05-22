@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -19,6 +20,8 @@ import {
 } from './CalendarEventRenderer';
 import { getEventHandlers, getCalendarTimeFormatting } from './CalendarEventHandlers';
 import { useCalendarView } from './CalendarViewConfig';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 
 // Custom styles to ensure addresses wrap properly in calendar events
 const AddressWrapStyles = () => (
@@ -81,6 +84,21 @@ const AddressWrapStyles = () => (
       .event-booking-id {
         color: #000000e6 !important;
       }
+      /* Style for potential duplicate events */
+      .fc-event[data-has-booking-id="true"] {
+        border-left: 3px solid #ff5722 !important;
+      }
+      /* Hide action buttons by default, show on hover */
+      .event-actions {
+        display: none;
+      }
+      .fc-event:hover .event-actions {
+        display: flex;
+      }
+      /* Style for delete button */
+      .delete-event-btn:hover {
+        color: #e11d48;
+      }
     `}
   </style>
 );
@@ -115,8 +133,12 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   const { isMobile, getInitialView, getMobileHeaderToolbar, getAspectRatio } = useCalendarView();
   const [currentView, setCurrentView] = useState<string>("resourceTimeGridDay");
   
+  // State for delete confirmation dialog
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [eventToDelete, setEventToDelete] = useState<{id: string, title?: string, bookingId?: string, eventType?: string} | null>(null);
+  
   // Get the event actions hook
-  const { duplicateEvent } = useEventActions(events, () => {}, resources);
+  const { duplicateEvent, deleteEvent } = useEventActions(events, () => {}, resources);
   
   // Use the calendar event handlers with the duplicate event function
   const { handleEventChange, handleEventClick, DuplicateEventDialog } = useCalendarEventHandlers(
@@ -183,6 +205,40 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         // Create and dispatch a custom event to trigger the dialog
         const customEvent = new CustomEvent('openDuplicateDialog', { detail: dialogEvent });
         document.dispatchEvent(customEvent);
+      }
+    }
+  };
+  
+  // Handler for delete button click
+  const handleDeleteButtonClick = (eventId: string, bookingId: string, eventType: string) => {
+    console.log('Delete button clicked for event:', eventId);
+    // Find the event in the events array
+    const event = events.find(event => event.id === eventId);
+    if (event) {
+      // Store the event to delete and open the confirmation dialog
+      setEventToDelete({
+        id: eventId,
+        title: event.title,
+        bookingId,
+        eventType
+      });
+      setDeleteDialogOpen(true);
+    }
+  };
+  
+  // Handle confirm delete
+  const handleConfirmDelete = async () => {
+    if (eventToDelete) {
+      try {
+        await deleteEvent(eventToDelete.id);
+        // Refresh events to update the UI
+        await refreshEvents();
+      } catch (error) {
+        console.error('Error deleting event:', error);
+      } finally {
+        // Close the dialog
+        setDeleteDialogOpen(false);
+        setEventToDelete(null);
       }
     }
   };
@@ -268,7 +324,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         eventDidMount={(info) => {
           // Add data attributes and setup event-specific elements
           addEventAttributes(info);
-          setupEventActions(info, handleDuplicateButtonClick);
+          setupEventActions(info, handleDuplicateButtonClick, handleDeleteButtonClick);
         }}
         {...getCalendarTimeFormatting()}
         resourceLabelDidMount={setupResourceHeaderStyles}
@@ -285,6 +341,37 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       
       {/* Render the duplicate dialog */}
       <DuplicateEventDialog />
+      
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Event Deletion</DialogTitle>
+            <DialogDescription>
+              {eventToDelete?.bookingId ? (
+                <>
+                  Are you sure you want to delete this {eventToDelete.eventType} event for booking {eventToDelete.bookingId}?
+                  {eventToDelete.eventType === 'event' && (
+                    <p className="text-destructive mt-2 font-medium">
+                      This will remove the event from the calendar but will not affect the booking itself.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>Are you sure you want to delete this event?</>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmDelete}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -4,6 +4,7 @@ import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { Resource } from '@/components/Calendar/ResourceData';
 import { useAddEvent } from '@/hooks/useAddEvent';
 import { useDuplicateEvent } from '@/hooks/useDuplicateEvent';
+import { useDeleteEvent } from '@/hooks/useDeleteEvent';
 import { findAvailableTeam } from '@/utils/teamAvailability';
 
 export const useEventActions = (
@@ -14,11 +15,14 @@ export const useEventActions = (
   // Use our modular hooks
   const { addEventToCalendar } = useAddEvent(events, setEvents, resources);
   const { duplicateEvent } = useDuplicateEvent(events, setEvents, resources);
+  const { deleteEvent, isDeleting } = useDeleteEvent(events, setEvents);
   
   return {
     addEventToCalendar,
     findAvailableTeam: (startTime: Date, endTime: Date) => 
       findAvailableTeam(startTime, endTime, events, resources),
-    duplicateEvent
+    duplicateEvent,
+    deleteEvent,
+    isDeleting
   };
 };

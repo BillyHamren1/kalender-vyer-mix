@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -13,7 +14,7 @@ import ResourceHeader from '@/components/Calendar/ResourceHeader';
 import ResourceLayout from '@/components/Calendar/ResourceLayout';
 import ResourceToolbar from '@/components/Calendar/ResourceToolbar';
 import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
-import { cleanupDuplicateEvents } from '@/utils/calendarCleanup';
+import { cleanupDuplicateEvents } from '@/services/calendarService';
 
 const ResourceView = () => {
   // Use our custom hooks to manage state and logic
@@ -38,7 +39,7 @@ const ResourceView = () => {
   } = useTeamResources();
   
   // Get the event actions hook
-  const { addEventToCalendar, duplicateEvent } = useEventActions(events, setEvents, resources);
+  const { addEventToCalendar, duplicateEvent, deleteEvent } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
   const [cleanupInProgress, setCleanupInProgress] = useState(false);

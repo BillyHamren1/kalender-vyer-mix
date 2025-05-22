@@ -1,95 +1,51 @@
 
+/* WeeklyCalendarStyles.css */
+
 .weekly-view-container {
   width: 100%;
   overflow-x: auto;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .weekly-calendar-container {
   display: flex;
-  flex-direction: row;
-  min-width: 550px;
-  gap: 1px;
-  background-color: #f0f0f0;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 24px;
 }
 
 .day-calendar-wrapper {
-  flex: 1;
-  min-width: 550px;
-  border-right: 1px solid #e0e0e0;
-}
-
-.day-calendar-wrapper:last-child {
-  border-right: none;
-}
-
-.day-header {
-  padding: 8px 12px;
-  background-color: #f3f4f6;
-  border-bottom: 1px solid #e0e0e0;
-  font-weight: 500;
-  text-align: center;
-  color: #374151;
-}
-
-.weekly-view-calendar {
-  height: 700px;
-  overflow-y: auto;
-}
-
-/* Styles for stacked events */
-.stacked-event {
-  position: relative;
-  z-index: 1;
-  margin-top: 2px !important;
-  margin-bottom: 2px !important;
-}
-
-/* When events overlap, make sure they're visible */
-.fc-timegrid-event {
-  overflow: visible !important;
-}
-
-/* Style for modified display events */
-[data-team6-event="true"] {
-  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
   overflow: hidden;
 }
 
-/* Ensure the event content is visible */
-.fc .fc-timegrid-event .fc-event-main {
-  padding: 2px !important;
+.day-header {
+  background-color: #f8fafc;
+  padding: 8px 12px;
+  font-weight: 500;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: center;
 }
 
-/* Ensure events don't get cut off when stacked */
-.fc-timegrid-event-harness {
-  z-index: auto !important;
+.weekly-view-calendar {
+  padding: 8px;
 }
 
-/* Styling for event actions on hover */
+/* Style for potential duplicate events */
+.fc-event[data-has-booking-id="true"] {
+  border-left: 3px solid #ff5722 !important;
+}
+
+/* Hide action buttons by default, show on hover */
 .event-actions {
-  transition: opacity 0.2s ease;
+  display: none;
 }
 
-/* Make events more visible when stacked */
-.fc-timegrid-event {
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+.fc-event:hover .event-actions {
+  display: flex;
 }
 
-/* Custom styles for new event format */
-.event-client-name {
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-.event-street, .event-city {
-  line-height: 1.1;
-}
-
-.event-booking-id {
-  margin-top: 2px;
-  font-size: 0.75rem;
-  opacity: 0.7;
+/* Style for delete button */
+.delete-event-btn:hover {
+  color: #e11d48;
 }
