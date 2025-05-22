@@ -55,29 +55,19 @@ const DraggableStaffItem: React.FC<DraggableStaffItemProps> = ({
   return (
     <div
       ref={drag}
-      className={`p-1 bg-white border border-gray-200 rounded-md mb-1 cursor-move flex justify-between items-center ${
+      className={`p-1 bg-white border border-gray-200 rounded-md mb-1 cursor-move flex items-center w-full ${
         isDragging ? 'opacity-50' : 'opacity-100'
       }`}
-      style={{ width: '95px', height: '24px' }}
+      style={{ height: "24px", maxWidth: "100%" }}
     >
-      <div className="flex items-center gap-1">
-        <Avatar className="h-4 w-4 bg-purple-100">
+      <div className="flex items-center gap-1 w-full">
+        <Avatar className="h-4 w-4 bg-purple-100 flex-shrink-0">
           <AvatarFallback className="text-[10px] text-purple-700">
             {getInitials(staff.name)}
           </AvatarFallback>
         </Avatar>
         <span className="text-xs font-medium truncate">{displayName}</span>
       </div>
-      <button 
-        onClick={(e) => {
-          e.stopPropagation(); // Prevent triggering drag when clicking remove
-          onRemove();
-        }}
-        className="text-gray-400 hover:text-red-500 text-xs ml-1"
-        aria-label="Remove assignment"
-      >
-        &times;
-      </button>
     </div>
   );
 };
