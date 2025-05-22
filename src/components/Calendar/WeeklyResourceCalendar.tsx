@@ -74,13 +74,14 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
   // Helper function to ensure consistent resource column configuration
   const getResourceTimeGridOptions = () => {
     return {
-      resourceAreaWidth: '80px',              // Reduced from 150px to 80px
+      resourceAreaWidth: '100px',             // Increased from 80px to 100px
       resourceLabelText: 'Teams',             // Header text for resource area
       resourceAreaHeaderContent: 'Teams',     // Alternative way to set header text
       stickyResourceAreaHeaders: true,        // Keep resource headers visible during scroll
       resourceOrder: 'title',                 // Order resources by title
       resourcesInitiallyExpanded: true,       // Ensure resources are expanded initially
-      slotMinWidth: '80px'                    // Reduced from 150px to 80px
+      slotMinWidth: '100px',                  // Increased from 80px to 100px
+      dayMinWidth: '100px'                    // Ensure days have consistent width
     };
   };
 
@@ -91,13 +92,13 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
       headerToolbar: false,             // Hide the header to save space
       allDaySlot: false,                // Hide all-day slot to save space
       initialView: 'resourceTimeGridDay',
-      resourceAreaWidth: '80px',        // Reduced from 150px to 80px
-      slotMinWidth: '80px',             // Reduced from 150px to 80px
+      resourceAreaWidth: '100px',       // Increased from 80px to 100px
+      slotMinWidth: '100px',            // Increased from 80px to 100px
       resourceAreaColumns: [            // Configure resource column display
         {
           field: 'title',
           headerContent: 'Teams',
-          width: '80px'                 // Reduced from 150px to 80px
+          width: '100px'                // Increased from 80px to 100px
         }
       ],
       // Add the resource column config
@@ -121,6 +122,17 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
       return eventDateStr === dateStr;
     });
   };
+
+  // Effect to handle responsive adjustments
+  useEffect(() => {
+    const handleResize = () => {
+      // Add any specific resize handling if needed
+      console.log('Window resized, adjusting calendar layout');
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   return (
     <div className="weekly-view-container">

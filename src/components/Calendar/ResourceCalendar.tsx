@@ -53,19 +53,30 @@ const AddressWrapStyles = () => (
       .fc-resource-area th,
       .fc-resource-lane,
       .fc-datagrid-cell,
+      .fc-datagrid-cell-frame,
       .fc-timegrid-col {
-        min-width: 80px !important;
-        width: 80px !important;
-        max-width: 80px !important;
+        min-width: 100px !important;
+        width: 100px !important;
+        max-width: 100px !important;
       }
       /* Special handling for team-6 - REDUCED */
       [data-resource-id="team-6"] .fc-datagrid-cell,
       [data-resource-id="team-6"].fc-datagrid-cell,
+      [data-resource-id="team-6"] .fc-datagrid-cell-frame,
       [data-resource-id="team-6"] .fc-timegrid-col,
       [data-resource-id="team-6"].fc-timegrid-col {
-        min-width: 80px !important;
-        width: 80px !important;
-        max-width: 80px !important;
+        min-width: 100px !important;
+        width: 100px !important;
+        max-width: 100px !important;
+      }
+      /* Make time column consistent */
+      .fc-timegrid-axis {
+        width: 65px !important;
+        min-width: 65px !important;
+      }
+      /* Ensure horizontal scrolling works smoothly */
+      .fc-scroller-liquid-absolute {
+        overflow-x: auto !important;
       }
     `}
   </style>
@@ -211,15 +222,15 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   // Apply consistent column width configuration
   const getResourceColumnConfig = () => {
     // Use provided values from calendarProps or fallback to defaults
-    const resourceAreaWidth = calendarProps.resourceAreaWidth || '80px';  // Reduced from 150px
-    const slotMinWidth = calendarProps.slotMinWidth || '80px';            // Reduced from 150px
+    const resourceAreaWidth = calendarProps.resourceAreaWidth || '100px';  // Increased from 80px
+    const slotMinWidth = calendarProps.slotMinWidth || '100px';            // Increased from 80px
     
     // Ensure columns for resource headers
     const resourceAreaColumns = calendarProps.resourceAreaColumns || [
       {
         field: 'title',
         headerContent: 'Teams',
-        width: '80px' // Reduced from 150px
+        width: '100px' // Increased from 80px
       }
     ];
     
@@ -230,8 +241,10 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       resourcesInitiallyExpanded: true,
       stickyResourceAreaHeaders: true,
       // Force column widths to be consistent
-      resourceLaneWidth: '80px',  // Reduced from 150px
-      resourceWidth: '80px'       // Reduced from 150px
+      resourceLaneWidth: '100px',  // Increased from 80px
+      resourceWidth: '100px',      // Increased from 80px
+      // Set fixed widths for day columns
+      dayMinWidth: '100px'
     };
   };
 
@@ -291,7 +304,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     },
     dropAccept: ".fc-event",
     eventAllow: () => true,
-    // Add the resource column config
+    // Add the resource column config with consistent widths
     ...getResourceColumnConfig(),
     // Add calendar options
     ...getCalendarOptions(),

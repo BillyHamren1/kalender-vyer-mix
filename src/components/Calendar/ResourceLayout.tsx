@@ -38,7 +38,7 @@ const ResourceLayout: React.FC<ResourceLayoutProps> = ({
             )}
             
             {/* Right column: Calendar */}
-            <div className="flex-grow">
+            <div className="flex-grow overflow-x-auto">
               {/* Calendar will be rendered here */}
             </div>
           </div>
