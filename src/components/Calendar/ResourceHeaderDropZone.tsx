@@ -7,6 +7,7 @@ import { fetchStaffAssignments } from '@/services/staffService';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useDrop } from 'react-dnd';
+import DraggableStaffItem from './DraggableStaffItem';
 
 interface ResourceHeaderDropZoneProps {
   resource: Resource;
@@ -57,6 +58,7 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         
         // Get staff assigned to this specific team on this date
         const staffAssignments = await fetchStaffAssignments(currentDate, resource.id);
+        console.log(`Loaded ${staffAssignments.length} staff assignments for resource ${resource.id} on ${currentDate.toISOString().split('T')[0]}`);
         
         // Now staffAssignments only contains assignments for this resource
         setAssignedStaff(staffAssignments.map(assignment => ({
@@ -110,40 +112,12 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       {/* Assigned staff area - fixed height to accommodate 5 staff members */}
       <div className="assigned-staff-area flex flex-col gap-1 mb-1 overflow-visible min-h-[130px]">
         {assignedStaff.map((staff) => (
-          <Badge 
+          <DraggableStaffItem
             key={staff.id}
-            variant="outline"
-            className="staff-badge flex items-center bg-purple-100 text-purple-800 text-xs rounded-md px-1.5 py-0.5 z-20 shadow-sm cursor-move"
-            draggable="true"
-            onDragStart={(e) => {
-              // Set drag data
-              e.dataTransfer.setData('application/json', JSON.stringify(staff));
-              e.dataTransfer.effectAllowed = 'move';
-              // Add the drag source class
-              e.currentTarget.classList.add('dragging');
-            }}
-            onDragEnd={(e) => {
-              // Remove the drag source class
-              e.currentTarget.classList.remove('dragging');
-            }}
-          >
-            <Avatar className="h-4 w-4 mr-1 bg-purple-200">
-              <AvatarFallback className="text-[8px] text-purple-800">
-                {getInitials(staff.name)}
-              </AvatarFallback>
-            </Avatar>
-            <span className="truncate max-w-[50px] font-medium">{staff.name.split(' ')[0]}</span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleRemoveStaff(staff.id);
-              }}
-              className="ml-1 text-purple-400 hover:text-red-500 text-xs"
-              aria-label="Remove assignment"
-            >
-              &times;
-            </button>
-          </Badge>
+            staff={staff}
+            onRemove={() => handleRemoveStaff(staff.id)}
+            currentDate={currentDate}
+          />
         ))}
         
         {/* Empty placeholder slots to maintain consistent height */}

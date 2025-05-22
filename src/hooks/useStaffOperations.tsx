@@ -8,12 +8,13 @@ export const useStaffOperations = (currentDate: Date) => {
 
   // Handle staff drop for assignment
   const handleStaffDrop = useCallback(async (staffId: string, resourceId: string | null) => {
-    console.log(`useStaffOperations.handleStaffDrop called with staffId=${staffId}, resourceId=${resourceId}`);
+    console.log(`useStaffOperations.handleStaffDrop called with staffId=${staffId}, resourceId=${resourceId || 'unassigned'}`);
     
     try {
       // If both staffId and resourceId are empty, just trigger a refresh
       if (!staffId) {
-        console.log('No staffId provided, skipping operation');
+        console.log('No staffId provided, triggering refresh');
+        setStaffAssignmentsUpdated(prev => !prev);
         return Promise.resolve();
       }
       

@@ -26,7 +26,7 @@ const DraggableStaffItem: React.FC<DraggableStaffItemProps> = ({
   onRemove, 
   currentDate 
 }) => {
-  // Configure drag functionality
+  // Configure drag functionality with enhanced logging
   const [{ isDragging }, drag] = useDrag({
     type: 'STAFF',
     item: () => {
@@ -36,6 +36,10 @@ const DraggableStaffItem: React.FC<DraggableStaffItemProps> = ({
     collect: (monitor) => ({
       isDragging: !!monitor.isDragging(),
     }),
+    end: (item, monitor) => {
+      const didDrop = monitor.didDrop();
+      console.log('Drag ended, was item dropped?', didDrop);
+    }
   });
 
   // Get the initials for avatar

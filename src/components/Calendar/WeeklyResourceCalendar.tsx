@@ -39,6 +39,19 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
     return date;
   });
 
+  // Log staff drop operations for debugging
+  const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
+    console.log(`WeeklyResourceCalendar.handleStaffDrop: staffId=${staffId}, resourceId=${resourceId || 'null'}`);
+    if (onStaffDrop) {
+      try {
+        await onStaffDrop(staffId, resourceId);
+        console.log('Staff drop operation successful');
+      } catch (error) {
+        console.error('Error in handleStaffDrop:', error);
+      }
+    }
+  };
+
   // Handle calendar date set for nested calendars
   const handleNestedCalendarDateSet = (dateInfo: any) => {
     // Only pass the date to the parent if it's from the first calendar
@@ -130,7 +143,7 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
                   currentDate={date}
                   onDateSet={handleNestedCalendarDateSet}
                   refreshEvents={refreshEvents}
-                  onStaffDrop={onStaffDrop}
+                  onStaffDrop={handleStaffDrop}
                   onSelectStaff={handleSelectStaff}
                   forceRefresh={forceRefresh}
                   key={`calendar-${format(date, 'yyyy-MM-dd')}`}

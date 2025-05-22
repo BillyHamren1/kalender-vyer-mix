@@ -14,6 +14,7 @@ import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
 import WeeklyResourceCalendar from '@/components/Calendar/WeeklyResourceCalendar';
 import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
+import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
 import { startOfWeek } from 'date-fns';
 
 const WeeklyResourceView = () => {
@@ -47,6 +48,9 @@ const WeeklyResourceView = () => {
     // Set to the start of the current week (Sunday)
     return startOfWeek(new Date(hookCurrentDate), { weekStartsOn: 0 });
   });
+
+  // State for showing staff display panel
+  const [showStaffDisplay, setShowStaffDisplay] = useState(false);
 
   // Add state for staff selection dialog
   const [staffSelectionDialogOpen, setStaffSelectionDialogOpen] = useState(false);
@@ -88,6 +92,11 @@ const WeeklyResourceView = () => {
     handleStaffDrop('', '');
   }, [handleStaffDrop]);
 
+  // Toggle staff display panel
+  const handleToggleStaffDisplay = useCallback(() => {
+    setShowStaffDisplay(prev => !prev);
+  }, []);
+
   return (
     <DndProvider backend={HTML5Backend}>
       <StaffSyncManager currentDate={hookCurrentDate} />
@@ -103,8 +112,13 @@ const WeeklyResourceView = () => {
       />
       
       <ResourceLayout 
-        showStaffDisplay={false}
-        staffDisplay={<></>}
+        showStaffDisplay={showStaffDisplay}
+        staffDisplay={showStaffDisplay ? (
+          <AvailableStaffDisplay 
+            currentDate={hookCurrentDate} 
+            onStaffDrop={handleStaffDrop}
+          />
+        ) : <></>}
         isMobile={isMobile}
       >
         {/* ResourceHeader component with team management controls */}
@@ -131,7 +145,7 @@ const WeeklyResourceView = () => {
               resources={resources}
               onRefresh={refreshEvents}
               onAddTask={addEventToCalendar}
-              onShowStaffCurtain={() => {}}
+              onShowStaffCurtain={handleToggleStaffDisplay}
             />
           </div>
         </div>
