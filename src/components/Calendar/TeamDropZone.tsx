@@ -84,20 +84,21 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
         </div>
       </div>
       
-      {/* Dedicated drop zone area - now only accepts already assigned staff */}
+      {/* Simple drop zone area for assigned staff */}
       <div 
         ref={drop}
         className={`
-          p-2 border-b border-gray-200 
-          ${isOver && canDrop ? 'bg-blue-50 border-dashed border-blue-400' : 'bg-gray-50 border-dashed border-gray-300'} 
-          ${!canDrop && isOver ? 'bg-red-50 border-dashed border-red-400' : ''}
-          transition-all duration-200 flex items-center justify-center
+          p-2 flex items-center justify-center
+          border border-dashed 
+          ${isOver && canDrop ? 'bg-blue-50 border-blue-400' : 'bg-gray-50 border-gray-300'} 
+          ${!canDrop && isOver ? 'bg-red-50 border-red-400' : ''}
+          transition-all duration-200
         `}
         style={{ minHeight: '40px' }}
       >
-        <div className="flex flex-col items-center justify-center text-xs text-gray-500">
+        <div className="text-xs text-gray-500 flex flex-col items-center">
           <ArrowDown className="h-4 w-4 mb-1" />
-          <p>Drop assigned staff here</p>
+          <span>Drop assigned staff</span>
         </div>
       </div>
       
