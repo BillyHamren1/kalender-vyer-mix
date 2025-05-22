@@ -49,13 +49,13 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
   // Helper function to ensure consistent resource column configuration
   const getResourceTimeGridOptions = () => {
     return {
-      resourceAreaWidth: '80px',              // Reduced from 150px to 80px
+      resourceAreaWidth: '70px',              // Reduced from 80px to 70px to save space
       resourceLabelText: 'Teams',             // Header text for resource area
       resourceAreaHeaderContent: 'Teams',     // Alternative way to set header text
       stickyResourceAreaHeaders: true,        // Keep resource headers visible during scroll
       resourceOrder: 'title',                 // Order resources by title
       resourcesInitiallyExpanded: true,       // Ensure resources are expanded initially
-      slotMinWidth: '80px'                    // Reduced from 150px to 80px
+      slotMinWidth: '70px'                    // Reduced from 80px to 70px to save space
     };
   };
 
@@ -66,18 +66,26 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
       headerToolbar: false,             // Hide the header to save space
       allDaySlot: false,                // Hide all-day slot to save space
       initialView: 'resourceTimeGridDay',
-      resourceAreaWidth: '80px',        // Reduced from 150px to 80px
-      slotMinWidth: '80px',             // Reduced from 150px to 80px
+      resourceAreaWidth: '70px',        // Reduced from 80px to 70px to save space
+      slotMinWidth: '70px',             // Reduced from 80px to 70px to save space
+      slotDuration: '01:00:00',         // 1-hour slots to reduce vertical space
       resourceAreaColumns: [            // Configure resource column display
         {
           field: 'title',
           headerContent: 'Teams',
-          width: '80px'                 // Reduced from 150px to 80px
+          width: '70px'                 // Reduced from 80px to 70px to save space
         }
       ],
       ...getResourceTimeGridOptions()   // Add additional resource grid options
     };
   };
+
+  // Scroll to start of container when component mounts or updates
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollLeft = 0;
+    }
+  }, [currentDate]);
 
   return (
     <div className="weekly-view-container">

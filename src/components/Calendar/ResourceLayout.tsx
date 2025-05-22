@@ -36,8 +36,8 @@ const ResourceLayout: React.FC<ResourceLayoutProps> = ({
               </div>
             )}
             
-            {/* Right column: Calendar */}
-            <div className="w-full order-1 md:order-2 !important" style={{ order: isMobile ? 1 : 2 }}>
+            {/* Right column: Calendar - Modified to accommodate horizontal scrolling */}
+            <div className="w-full order-1 md:order-2 !important overflow-x-auto" style={{ order: isMobile ? 1 : 2 }}>
               {/* Calendar is rendered here by the parent component */}
             </div>
           </div>

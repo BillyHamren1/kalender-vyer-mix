@@ -9,10 +9,11 @@
 
 .weekly-calendar-container {
   display: flex;
-  flex-direction: column;
-  gap: 20px;
+  flex-direction: row; /* Changed from column to row */
+  gap: 10px;
   padding-bottom: 24px;
-  width: 100%;
+  min-width: fit-content; /* Ensure it can expand to fit all days */
+  width: max-content; /* Allow container to expand based on content */
 }
 
 .day-calendar-wrapper {
@@ -20,7 +21,8 @@
   border-radius: 6px;
   overflow: hidden;
   margin-bottom: 20px;
-  width: 100%;
+  width: 300px; /* Fixed width for each day column */
+  flex-shrink: 0; /* Prevent columns from shrinking */
 }
 
 .day-header {
@@ -65,7 +67,7 @@
 /* Fix for FullCalendar display in weekly view */
 .fc .fc-view-harness {
   height: auto !important;
-  min-height: 400px !important;
+  min-height: 300px !important; /* Reduced from 400px to make it more compact */
 }
 
 .fc-scroller {
