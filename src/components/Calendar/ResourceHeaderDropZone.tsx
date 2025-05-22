@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import ConfirmationDialog from '@/components/ConfirmationDialog';
 import StaffDropdownMenu from './StaffDropdownMenu';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ResourceHeaderDropZoneProps {
   resource: Resource;
