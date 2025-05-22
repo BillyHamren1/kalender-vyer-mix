@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -193,18 +192,19 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         resource={info.resource}
         currentDate={currentDate}
         onStaffDrop={onStaffDrop}
+        onSelectStaff={onSelectStaff}
         forceRefresh={forceRefresh}
       />
     );
   };
 
   // Handle team selection
-  const handleSelectStaff = (resourceId: string) => {
+  const handleSelectStaff = (resourceId: string, resourceTitle: string) => {
+    console.log('ResourceCalendar.handleSelectStaff called with:', resourceId, resourceTitle);
     if (onSelectStaff) {
-      const resource = resources.find(r => r.id === resourceId);
-      if (resource) {
-        onSelectStaff(resourceId, resource.title);
-      }
+      onSelectStaff(resourceId, resourceTitle);
+    } else {
+      console.error('ResourceCalendar: onSelectStaff prop is not defined');
     }
   };
 
@@ -281,6 +281,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           resource={info.resource}
           currentDate={currentDate}
           onStaffDrop={onStaffDrop}
+          onSelectStaff={handleSelectStaff}
           forceRefresh={forceRefresh}
         />
       );

@@ -8,34 +8,25 @@ export const useStaffOperations = (currentDate: Date) => {
 
   // Handle staff drop for assignment
   const handleStaffDrop = useCallback(async (staffId: string, resourceId: string | null) => {
+    console.log(`useStaffOperations.handleStaffDrop called with staffId=${staffId}, resourceId=${resourceId}`);
+    
     try {
       // If both staffId and resourceId are empty, just trigger a refresh
-      if (!staffId && !resourceId) {
-        setStaffAssignmentsUpdated(prev => !prev);
+      if (!staffId) {
+        console.log('No staffId provided, skipping operation');
         return Promise.resolve();
       }
       
-      console.log(`Handling staff drop: staff=${staffId}, resource=${resourceId}`);
       if (resourceId) {
-        toast.info(`Assigning staff ${staffId} to team ${resourceId}...`);
-        try {
-          await assignStaffToTeam(staffId, resourceId, currentDate);
-          toast.success('Staff assigned to team successfully');
-        } catch (error) {
-          console.error('Error assigning staff to team:', error);
-          toast.error('Failed to assign staff to team. Please try again.');
-          return Promise.reject(error);
-        }
+        console.log(`Assigning staff ${staffId} to team ${resourceId}`);
+        toast.info(`Assigning staff to team...`);
+        await assignStaffToTeam(staffId, resourceId, currentDate);
+        toast.success('Staff assigned to team successfully');
       } else {
-        toast.info(`Removing staff ${staffId} assignment...`);
-        try {
-          await removeStaffAssignment(staffId, currentDate);
-          toast.success('Staff assignment removed successfully');
-        } catch (error) {
-          console.error('Error removing staff assignment:', error);
-          toast.error('Failed to remove staff assignment. Please try again.');
-          return Promise.reject(error);
-        }
+        console.log(`Removing staff ${staffId} assignment`);
+        toast.info(`Removing staff assignment...`);
+        await removeStaffAssignment(staffId, currentDate);
+        toast.success('Staff assignment removed successfully');
       }
       
       // Trigger a refresh of the staff assignments
