@@ -1,18 +1,17 @@
 
 import React, { useEffect, useState } from 'react';
-import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
 import { StaffMember } from './StaffTypes';
-import { ArrowDown } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 import { fetchStaffAssignments } from '@/services/staffService';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import ConfirmationDialog from '@/components/ConfirmationDialog';
 
 interface ResourceHeaderDropZoneProps {
   resource: Resource;
   currentDate?: Date;
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
+  onSelectStaff?: (resourceId: string, resourceTitle: string) => void;
   forceRefresh?: boolean;
 }
 
@@ -20,38 +19,11 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   resource,
   currentDate = new Date(),
   onStaffDrop,
+  onSelectStaff,
   forceRefresh
 }) => {
   const [assignedStaff, setAssignedStaff] = useState<StaffMember[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const [staffToReassign, setStaffToReassign] = useState<StaffMember | null>(null);
-  
-  // Create a drop zone specifically for the calendar resource header
-  // Now only accept staff that are already assigned to a team
-  const [{ isOver, canDrop }, drop] = useDrop(() => ({
-    accept: 'STAFF',
-    drop: (item: StaffMember & { assignedTeam?: string | null }) => {
-      if (onStaffDrop) {
-        // Check if staff is already assigned elsewhere
-        if (item.assignedTeam && item.assignedTeam !== resource.id) {
-          setStaffToReassign(item);
-          setShowConfirmation(true);
-        } else if (item.assignedTeam) {
-          onStaffDrop(item.id, resource.id);
-        }
-      }
-      return { resourceId: resource.id };
-    },
-    canDrop: (item: StaffMember & { assignedTeam?: string | null }) => {
-      // Only allow drops if the staff is already assigned to a team
-      return !!item.assignedTeam;
-    },
-    collect: (monitor) => ({
-      isOver: !!monitor.isOver(),
-      canDrop: !!monitor.canDrop(),
-    }),
-  }), [resource.id, onStaffDrop]);
   
   // Fetch assigned staff when component mounts or when resource/date changes
   useEffect(() => {
@@ -81,15 +53,6 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     
     loadAssignedStaff();
   }, [resource.id, currentDate, forceRefresh]);
-  
-  // Handle confirmation of staff reassignment
-  const handleConfirmReassign = async () => {
-    if (staffToReassign && onStaffDrop) {
-      await onStaffDrop(staffToReassign.id, resource.id);
-      setShowConfirmation(false);
-      setStaffToReassign(null);
-    }
-  };
 
   // Helper function to get initials for avatar
   const getInitials = (name: string): string => {
@@ -97,12 +60,16 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     if (nameParts.length === 1) return nameParts[0].substring(0, 2).toUpperCase();
     return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
   };
+  
+  // Handle opening the staff selector
+  const handleSelectStaff = () => {
+    if (onSelectStaff) {
+      onSelectStaff(resource.id, resource.title);
+    }
+  };
 
   return (
-    <div 
-      ref={drop}
-      className="resource-header-wrapper flex flex-col h-full w-full"
-    >
+    <div className="resource-header-wrapper flex flex-col h-full w-full">
       {/* Team title */}
       <div className="resource-title-area font-medium text-sm mb-1 sticky top-0 z-10">
         {resource.title}
@@ -126,35 +93,18 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         ))}
       </div>
       
-      {/* Simple drop zone */}
-      <div 
-        className={`
-          resource-drop-zone text-xs flex items-center justify-center 
-          border border-dashed p-1.5 rounded-md mt-auto
-          ${isOver && canDrop ? 'bg-blue-50 border-blue-400 text-blue-800' : 'border-gray-300 text-gray-500 hover:bg-gray-50'}
-          ${isOver && !canDrop ? 'bg-red-50 border-red-400 text-red-800' : ''}
-          transition-colors duration-200 z-10
-        `}
+      {/* Staff select button */}
+      <button 
+        onClick={handleSelectStaff}
+        className="text-xs flex items-center justify-center border border-dashed p-1.5 rounded-md mt-auto
+                   border-gray-300 text-gray-500 hover:bg-gray-50 transition-colors duration-200 z-10"
         style={{ minHeight: "24px" }}
       >
         <div className="flex items-center gap-1">
-          <ArrowDown className="h-3 w-3" />
-          <span className="text-xs font-medium">Drop assigned staff</span>
+          <UserPlus className="h-3 w-3" />
+          <span className="text-xs font-medium">Select Staff</span>
         </div>
-      </div>
-
-      {/* Confirmation Dialog for reassigning staff */}
-      {staffToReassign && (
-        <ConfirmationDialog
-          title="Staff Already Assigned"
-          description={`${staffToReassign.name} is already assigned to a team for this day. Are you sure you want to reassign to ${resource.title}?`}
-          confirmLabel="Yes, Reassign"
-          cancelLabel="Cancel"
-          onConfirm={handleConfirmReassign}
-        >
-          <span style={{ display: 'none' }}></span>
-        </ConfirmationDialog>
-      )}
+      </button>
     </div>
   );
 };

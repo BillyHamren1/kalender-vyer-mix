@@ -1,10 +1,9 @@
 
 import React from 'react';
-import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
 import { StaffMember, StaffAssignment } from './StaffAssignmentRow';
 import DraggableStaffItem from './DraggableStaffItem';
-import { Users, UserPlus, ArrowDown } from 'lucide-react';
+import { Users, UserPlus } from 'lucide-react';
 
 interface TeamDropZoneProps {
   resource: Resource;
@@ -25,26 +24,6 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
   onSelectStaff,
   currentDate 
 }) => {
-  // Create a drop zone specifically for assigned staff only
-  const [{ isOver, canDrop }, drop] = useDrop(() => ({
-    accept: 'STAFF',
-    drop: (item: StaffMember & { assignedTeam?: string | null }) => {
-      // Only allow drops if the staff is already assigned somewhere
-      if (item.assignedTeam) {
-        onDrop(item.id, resource.id);
-      }
-      return { resourceId: resource.id };
-    },
-    canDrop: (item: StaffMember & { assignedTeam?: string | null }) => {
-      // Only allow drops if the staff is already assigned somewhere
-      return !!item.assignedTeam;
-    },
-    collect: (monitor) => ({
-      isOver: !!monitor.isOver(),
-      canDrop: !!monitor.canDrop(),
-    }),
-  }));
-
   // Find staff members assigned to this team
   const teamAssignments = assignments.filter(assignment => assignment.team_id === resource.id);
   const teamStaff = teamAssignments.map(assignment => {
@@ -72,7 +51,7 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
             style={{ height: '22px' }}
           >
             <UserPlus className="h-3 w-3" />
-            <span>Select</span>
+            <span>Select Staff</span>
           </button>
           <button 
             className="flex-1 text-xs py-1 px-1 border border-dashed border-gray-300 text-gray-500 hover:bg-gray-100 rounded"
@@ -84,25 +63,7 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
         </div>
       </div>
       
-      {/* Simple drop zone area for assigned staff */}
-      <div 
-        ref={drop}
-        className={`
-          p-2 flex items-center justify-center
-          border border-dashed 
-          ${isOver && canDrop ? 'bg-blue-50 border-blue-400' : 'bg-gray-50 border-gray-300'} 
-          ${!canDrop && isOver ? 'bg-red-50 border-red-400' : ''}
-          transition-all duration-200
-        `}
-        style={{ minHeight: '40px' }}
-      >
-        <div className="text-xs text-gray-500 flex flex-col items-center">
-          <ArrowDown className="h-4 w-4 mb-1" />
-          <span>Drop assigned staff</span>
-        </div>
-      </div>
-      
-      {/* Staff members list section - not a drop zone */}
+      {/* Staff members list section */}
       <div className="p-2 flex-1 flex flex-col bg-white">
         {teamStaff.length > 0 ? (
           teamStaff.map(staff => (

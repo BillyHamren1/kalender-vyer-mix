@@ -14,6 +14,7 @@ interface WeeklyResourceCalendarProps {
   onDateSet: (dateInfo: any) => void;
   refreshEvents: () => Promise<void | CalendarEvent[]>;
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
+  onSelectStaff?: (resourceId: string, resourceTitle: string) => void;
   forceRefresh?: boolean;
 }
 
@@ -26,6 +27,7 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
   onDateSet,
   refreshEvents,
   onStaffDrop,
+  onSelectStaff,
   forceRefresh
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -119,6 +121,7 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
                   onDateSet={handleNestedCalendarDateSet}
                   refreshEvents={refreshEvents}
                   onStaffDrop={onStaffDrop}
+                  onSelectStaff={onSelectStaff}
                   forceRefresh={forceRefresh}
                   key={`calendar-${format(date, 'yyyy-MM-dd')}`}
                   droppableScope="weekly-calendar"
