@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
@@ -168,20 +167,20 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     }
   };
 
-  // Get calendar props - consistent for all columns
+  // Get calendar props - consistent for all columns with proper resource width
   const getCalendarProps = (dayIndex: number) => {
     return {
       height: 'auto',
       headerToolbar: false,
       allDaySlot: false,
       initialView: 'resourceTimeGridDay',
-      resourceAreaWidth: 32, // Scaled from 80px to 32px (40%)
-      slotMinWidth: 32, // Scaled from 80px to 32px (40%)
+      resourceAreaWidth: 60, // Increased from 32px to 60px to show all teams properly
+      slotMinWidth: 60, // Increased from 32px to 60px
       resourceAreaColumns: [
         {
           field: 'title',
           headerContent: 'Teams',
-          width: 32 // Scaled from 80px to 32px (40%)
+          width: 60 // Increased from 32px to 60px
         }
       ],
       'data-day-index': dayIndex.toString(),
