@@ -257,7 +257,35 @@
   align-items: center;
 }
 
-/* Icon-only assign button styling */
+/* Corner positioned assign button - absolutely positioned in top-right */
+.corner-assign-button {
+  height: 20px !important;
+  width: 20px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #d1d5db;
+  border-radius: 0.25rem;
+  color: #6b7280;
+  transition: all 0.2s ease;
+  background-color: transparent;
+  position: absolute !important;
+  top: 2px !important;
+  right: 2px !important;
+  z-index: 30 !important;
+}
+
+.corner-assign-button:hover {
+  background-color: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.corner-assign-button svg {
+  height: 12px !important;
+  width: 12px !important;
+}
+
+/* Legacy icon-only assign button styling - kept for backward compatibility */
 .assign-button-icon {
   height: 20px !important;
   width: 20px !important;
