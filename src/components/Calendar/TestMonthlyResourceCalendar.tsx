@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
@@ -90,7 +91,7 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
       );
       
       if (todayIndex >= 0) {
-        const dayWidth = 801; // 800px width + 1px gap (updated for new width)
+        const dayWidth = 552; // 550px width + 2px gap
         const viewportWidth = window.innerWidth;
         const scrollPos = Math.max(0, (todayIndex * dayWidth) - (viewportWidth / 2) + (dayWidth / 2));
         
@@ -167,20 +168,20 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     }
   };
 
-  // Get calendar props - keep resource width at 117px
+  // Get calendar props - consistent for all columns
   const getCalendarProps = (dayIndex: number) => {
     return {
       height: 'auto',
       headerToolbar: false,
       allDaySlot: false,
       initialView: 'resourceTimeGridDay',
-      resourceAreaWidth: 117, // Keep at 117px
-      slotMinWidth: 117, // Keep at 117px
+      resourceAreaWidth: 80,
+      slotMinWidth: 80,
       resourceAreaColumns: [
         {
           field: 'title',
           headerContent: 'Teams',
-          width: 117 // Keep at 117px
+          width: 80
         }
       ],
       'data-day-index': dayIndex.toString(),

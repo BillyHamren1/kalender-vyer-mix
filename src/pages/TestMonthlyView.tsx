@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -101,58 +102,54 @@ const TestMonthlyView = () => {
         ) : <></>}
         isMobile={isMobile}
       >
-        <div className="zoom-container">
-          <div className="page-zoom-out">
-            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h2 className="text-lg font-semibold text-blue-800 mb-2">Test: Dynamic Column Sizing (Zoomed Out 30%)</h2>
-              <p className="text-blue-700 text-sm">
-                This is a test page for experimenting with dynamic column sizing. 
-                The entire page has been zoomed out by 30% to show more content.
-              </p>
-            </div>
+        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <h2 className="text-lg font-semibold text-blue-800 mb-2">Test: Dynamic Column Sizing</h2>
+          <p className="text-blue-700 text-sm">
+            This is a test page for experimenting with dynamic column sizing. 
+            The center column should appear wider and more prominent as you scroll.
+          </p>
+        </div>
 
-            <ResourceHeader
-              teamResources={teamResources}
-              teamCount={teamCount}
-              onAddTeam={addTeam}
-              onRemoveTeam={removeTeam}
-              dialogOpen={dialogOpen}
-              setDialogOpen={setDialogOpen}
+        <ResourceHeader
+          teamResources={teamResources}
+          teamCount={teamCount}
+          onAddTeam={addTeam}
+          onRemoveTeam={removeTeam}
+          dialogOpen={dialogOpen}
+          setDialogOpen={setDialogOpen}
+        />
+
+        <div className="flex flex-col space-y-2 mb-4">
+          <div className="flex items-center justify-between">
+            <MonthNavigation 
+              currentMonthStart={currentMonthStart}
+              setCurrentMonthStart={setCurrentMonthStart}
             />
-
-            <div className="flex flex-col space-y-2 mb-4">
-              <div className="flex items-center justify-between">
-                <MonthNavigation 
-                  currentMonthStart={currentMonthStart}
-                  setCurrentMonthStart={setCurrentMonthStart}
-                />
-                
-                <ResourceToolbar
-                  isLoading={isLoading}
-                  currentDate={hookCurrentDate}
-                  resources={resources}
-                  onRefresh={refreshEvents}
-                  onAddTask={addEventToCalendar}
-                  onShowStaffCurtain={handleToggleStaffDisplay}
-                />
-              </div>
-            </div>
             
-            <div className="test-monthly-view-container overflow-x-auto">
-              <TestMonthlyResourceCalendar
-                events={events}
-                resources={resources}
-                isLoading={isLoading}
-                isMounted={isMounted}
-                currentDate={hookCurrentDate}
-                onDateSet={handleCalendarDateSet}
-                refreshEvents={refreshEvents}
-                onStaffDrop={handleStaffDrop}
-                onSelectStaff={handleOpenStaffSelectionDialog}
-                forceRefresh={staffAssignmentsUpdated}
-              />
-            </div>
+            <ResourceToolbar
+              isLoading={isLoading}
+              currentDate={hookCurrentDate}
+              resources={resources}
+              onRefresh={refreshEvents}
+              onAddTask={addEventToCalendar}
+              onShowStaffCurtain={handleToggleStaffDisplay}
+            />
           </div>
+        </div>
+        
+        <div className="test-monthly-view-container overflow-x-auto">
+          <TestMonthlyResourceCalendar
+            events={events}
+            resources={resources}
+            isLoading={isLoading}
+            isMounted={isMounted}
+            currentDate={hookCurrentDate}
+            onDateSet={handleCalendarDateSet}
+            refreshEvents={refreshEvents}
+            onStaffDrop={handleStaffDrop}
+            onSelectStaff={handleOpenStaffSelectionDialog}
+            forceRefresh={staffAssignmentsUpdated}
+          />
         </div>
       </ResourceLayout>
     </DndProvider>
