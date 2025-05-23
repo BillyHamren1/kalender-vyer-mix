@@ -167,20 +167,20 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     }
   };
 
-  // Get calendar props - consistent for all columns with proper resource width
+  // Get calendar props - increased resource width by 50% (60px to 90px)
   const getCalendarProps = (dayIndex: number) => {
     return {
       height: 'auto',
       headerToolbar: false,
       allDaySlot: false,
       initialView: 'resourceTimeGridDay',
-      resourceAreaWidth: 60, // Keep at 60px to show all teams properly
-      slotMinWidth: 60, // Keep at 60px
+      resourceAreaWidth: 90, // Increased from 60px to 90px (50% increase)
+      slotMinWidth: 90, // Increased from 60px to 90px (50% increase)
       resourceAreaColumns: [
         {
           field: 'title',
           headerContent: 'Teams',
-          width: 60 // Keep at 60px
+          width: 90 // Increased from 60px to 90px (50% increase)
         }
       ],
       'data-day-index': dayIndex.toString(),
