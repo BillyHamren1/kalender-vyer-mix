@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { findAvailableTeam } from "./teamService";
 
@@ -138,8 +137,6 @@ export const fetchBookingDatesByType = async (bookingId: string, eventType: 'rig
 
 // Delete a specific calendar event for a booking
 export const deleteBookingEvent = async (bookingId: string, eventType: 'rig' | 'event' | 'rigDown', date: string): Promise<void> => {
-  console.log(`deleteBookingEvent called with: bookingId=${bookingId}, eventType=${eventType}, date=${date}`);
-  
   // Convert date to start and end times (9 AM to 5 PM)
   const startDate = new Date(date);
   startDate.setHours(9, 0, 0, 0);
@@ -147,43 +144,20 @@ export const deleteBookingEvent = async (bookingId: string, eventType: 'rig' | '
   const endDate = new Date(date);
   endDate.setHours(17, 0, 0, 0);
 
-  console.log(`Looking for events with start_time=${startDate.toISOString()} and end_time=${endDate.toISOString()}`);
-
-  // First, check if the event exists
-  const { data: existingEvents, error: fetchError } = await supabase
+  const { error } = await supabase
     .from('calendar_events')
-    .select('id')
+    .delete()
     .eq('booking_id', bookingId)
     .eq('event_type', eventType)
     .eq('start_time', startDate.toISOString())
     .eq('end_time', endDate.toISOString());
     
-  if (fetchError) {
-    console.error(`Error checking for existing events:`, fetchError);
-    throw fetchError;
+  if (error) {
+    console.error(`Error deleting ${eventType} event for booking ${bookingId} on ${date}:`, error);
+    throw error;
   }
   
-  console.log(`Found ${existingEvents?.length || 0} matching events`);
-  
-  if (existingEvents && existingEvents.length > 0) {
-    // Delete the matching events
-    const { error } = await supabase
-      .from('calendar_events')
-      .delete()
-      .eq('booking_id', bookingId)
-      .eq('event_type', eventType)
-      .eq('start_time', startDate.toISOString())
-      .eq('end_time', endDate.toISOString());
-      
-    if (error) {
-      console.error(`Error deleting event:`, error);
-      throw error;
-    }
-    
-    console.log(`Successfully deleted calendar event for booking ${bookingId} on ${date}`);
-  } else {
-    console.log(`No matching calendar events found to delete for booking ${bookingId} on ${date}`);
-  }
+  console.log(`Deleted ${eventType} event for booking ${bookingId} on ${date}`);
 };
 
 // Delete all calendar events for a booking

@@ -104,13 +104,20 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       ref={drop} 
       className={`resource-header-wrapper flex flex-col h-full w-full ${isOver ? 'bg-purple-50' : ''}`}
     >
-      {/* Team title only - removed icon button from here */}
+      {/* Team title with icon button in right corner */}
       <div className="resource-title-area font-medium text-sm mb-1 sticky top-0 z-10 flex justify-between items-center">
         <span>{resource.title}</span>
+        <button 
+          onClick={handleSelectStaff}
+          className="assign-button-icon"
+          title="Assign staff"
+        >
+          <UserPlus className="h-3 w-3" />
+        </button>
       </div>
       
       {/* Assigned staff area - fixed height to accommodate 5 staff members */}
-      <div className="assigned-staff-area flex flex-col gap-1 mb-1 overflow-visible min-h-[130px] relative">
+      <div className="assigned-staff-area flex flex-col gap-1 mb-1 overflow-visible min-h-[130px]">
         {assignedStaff.map((staff) => (
           <DraggableStaffItem
             key={staff.id}
@@ -127,15 +134,6 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
             className="staff-placeholder h-[22px] w-full opacity-0"
           />
         ))}
-        
-        {/* Assign icon button in the bottom right corner */}
-        <button 
-          onClick={handleSelectStaff}
-          className="assign-button-icon absolute bottom-0 right-0"
-          title="Assign staff"
-        >
-          <UserPlus className="h-3 w-3" />
-        </button>
       </div>
     </div>
   );

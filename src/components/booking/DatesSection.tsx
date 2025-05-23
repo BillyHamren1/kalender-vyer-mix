@@ -21,9 +21,6 @@ export const DatesSection = ({
   onAddDate,
   onRemoveDate
 }: DatesSectionProps) => {
-  // Deduplicate dates to avoid React key warnings
-  const uniqueDates = [...new Set(dates)];
-  
   return (
     <div>
       <div className="flex items-center justify-between">
@@ -35,11 +32,11 @@ export const DatesSection = ({
         />
       </div>
       
-      {uniqueDates.length > 0 ? (
+      {dates.length > 0 ? (
         <div className="flex flex-wrap gap-1 mt-2">
-          {uniqueDates.map(date => (
+          {dates.map(date => (
             <DateBadge 
-              key={`${eventType}-${date}`} 
+              key={date} 
               date={date} 
               eventType={eventType}
               onRemoveDate={onRemoveDate}

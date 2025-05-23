@@ -15,7 +15,7 @@
 }
 
 .day-calendar-wrapper {
-  min-width: 550px; /* Keep this width, but with consistent resource columns */
+  min-width: 550px; /* Keep this width, but with smaller resource columns */
   flex: 1;
   border-right: 1px solid #e5e7eb;
 }
@@ -53,16 +53,16 @@
   border-bottom: 2px solid #d1d5db;
 }
 
-/* Enforce fixed width for ALL resource columns - INCREASED WIDTH */
+/* Enforce fixed width for ALL resource columns - REDUCED WIDTH */
 .fc-resource-area td,
 .fc-resource-area th,
 .fc-resource-lane,
 .fc-datagrid-cell,
 .fc-datagrid-cell-frame,
 .fc-timegrid-col {
-  min-width: 100px !important;
-  width: 100px !important;
-  max-width: 100px !important;
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
 }
 
 /* Fix for resource header hierarchical nesting */
@@ -90,15 +90,15 @@
 [data-resource-id="team-6"].fc-datagrid-cell-frame,
 [data-resource-id="team-6"] .fc-timegrid-col,
 [data-resource-id="team-6"].fc-timegrid-col {
-  min-width: 100px !important;
-  width: 100px !important;
-  max-width: 100px !important;
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
 }
 
 /* Ensure timeline slot width */
 .fc-timeline-slot {
-  min-width: 100px !important;
-  width: 100px !important;
+  min-width: 80px !important;
+  width: 80px !important;
 }
 
 /* Optimize event content */
@@ -169,9 +169,9 @@
 }
 
 .weekly-view-calendar .fc-timegrid-col {
-  min-width: 100px !important;
-  width: 100px !important;
-  max-width: 100px !important;
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
 }
 
 /* Make sure day columns in weekly view have adequate space */
@@ -181,9 +181,9 @@
 
 /* Critical fix - ensure ALL resource column headers have consistent width */
 .weekly-view-calendar .fc-col-header-cell {
-  min-width: 100px !important;
-  width: 100px !important;
-  max-width: 100px !important;
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
 }
 
 /* Fix for resource container width */
@@ -194,15 +194,15 @@
 /* Critical fix - ensure ALL resource cells have exact same width */
 .weekly-view-calendar .fc-resource-group,
 .weekly-view-calendar .fc-datagrid-cell {
-  min-width: 100px !important;
-  width: 100px !important;
-  max-width: 100px !important;
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
 }
 
 /* Ensure time labels have enough room */
 .weekly-view-calendar .fc-timegrid-axis {
-  width: 65px !important;
-  min-width: 65px !important;
+  width: 60px !important;
+  min-width: 60px !important;
 }
 
 /* Force consistent column widths for team-6 (Today's events) */
@@ -211,9 +211,9 @@
 .weekly-view-calendar [data-resource-id="team-6"].fc-datagrid-cell,
 .weekly-view-calendar [data-resource-id="team-6"] .fc-datagrid-cell-frame,
 .weekly-view-calendar [data-resource-id="team-6"] .fc-timegrid-col {
-  min-width: 100px !important;
-  width: 100px !important;
-  max-width: 100px !important;
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
 }
 
 /* Ensure ALL columns in weekly view are exactly the same width */
@@ -221,9 +221,9 @@
 .weekly-view-calendar .fc-datagrid-cell-frame,
 .weekly-view-calendar .fc-timegrid-col,
 .weekly-view-calendar .fc-col-header-cell {
-  min-width: 100px !important;
-  width: 100px !important;
-  max-width: 100px !important;
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
 }
 
 /* Icon-only assign button styling */
@@ -250,33 +250,4 @@
 .weekly-view-calendar .assign-button-icon svg {
   height: 12px !important;
   width: 12px !important;
-}
-
-/* Responsive media queries to ensure calendar components adapt to screen size */
-@media (max-width: 1440px) {
-  .weekly-calendar-container {
-    min-width: 1200px;
-  }
-  
-  .day-calendar-wrapper {
-    min-width: 500px;
-  }
-}
-
-@media (max-width: 1200px) {
-  .weekly-calendar-container {
-    min-width: 1000px;
-  }
-  
-  .day-calendar-wrapper {
-    min-width: 450px;
-  }
-}
-
-/* Force horizontal scrolling on smaller screens */
-@media (max-width: 768px) {
-  .weekly-view-container {
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
-  }
 }

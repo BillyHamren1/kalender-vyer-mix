@@ -2,6 +2,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { RefreshCcw, Users } from 'lucide-react';
+import DayNavigation from '@/components/Calendar/DayNavigation';
 import AddTaskButton from '@/components/Calendar/AddTaskButton';
 import { Resource, CalendarEvent } from './ResourceData';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -60,6 +61,10 @@ const ResourceToolbar: React.FC<ResourceToolbarProps> = ({
         onTaskAdd={onAddTask}
         currentDate={currentDate}
       />
+      
+      <div className="flex-grow">
+        <DayNavigation currentDate={currentDate} />
+      </div>
     </div>
   );
 };

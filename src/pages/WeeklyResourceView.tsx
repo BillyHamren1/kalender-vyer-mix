@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -130,14 +131,14 @@ const WeeklyResourceView = () => {
           setDialogOpen={setDialogOpen}
         />
 
-        {/* Week Navigation and Resource Toolbar */}
-        <div className="flex flex-col space-y-4 mb-4">
-          <WeekNavigation 
-            currentWeekStart={currentWeekStart}
-            setCurrentWeekStart={setCurrentWeekStart}
-          />
-          
-          <div className="flex justify-end">
+        {/* Week Navigation and Header */}
+        <div className="flex flex-col space-y-2 mb-4">
+          <div className="flex items-center justify-between">
+            <WeekNavigation 
+              currentWeekStart={currentWeekStart}
+              setCurrentWeekStart={setCurrentWeekStart}
+            />
+            
             <ResourceToolbar
               isLoading={isLoading}
               currentDate={hookCurrentDate}
