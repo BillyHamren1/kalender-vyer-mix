@@ -34,10 +34,10 @@ const TeamManagementDialog: React.FC<TeamManagementDialogProps> = ({
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
       <DialogTrigger asChild>
         <Button 
-          className="bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white"
+          className="bg-[#7BAEBF] hover:bg-[#6E9DAC] text-white"
         >
           <Edit className="mr-1" size={18} />
-          Edit team
+          Edit
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
