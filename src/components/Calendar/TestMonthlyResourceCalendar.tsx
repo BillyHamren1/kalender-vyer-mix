@@ -32,8 +32,6 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isScrolling, setIsScrolling] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
-  const lastScrollPosition = useRef(0);
   const scrollTimeoutRef = useRef<number | null>(null);
   
   // Generate days for current month with exactly ±1 week padding
@@ -66,9 +64,9 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     return result;
   }, [currentDate]);
 
-  // Calculate initial scroll position to center on today
-  const initialScrollPosition = useMemo(() => {
-    if (allDays.length === 0) return 0;
+  // Apply initial scroll position to center on today
+  useEffect(() => {
+    if (!containerRef.current || allDays.length === 0) return;
     
     const today = new Date();
     const todayFormatted = format(today, 'yyyy-MM-dd');
@@ -79,29 +77,23 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     
     if (todayIndex >= 0) {
       const dayWidth = 552; // 550px width + 2px gap
-      const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
+      const viewportWidth = window.innerWidth;
       const scrollPos = Math.max(0, (todayIndex * dayWidth) - (viewportWidth / 2) + (dayWidth / 2));
-      console.log(`Setting initial scroll to position ${scrollPos} for today at index ${todayIndex}`);
-      return scrollPos;
+      
+      // Set scroll position with a small delay to ensure DOM is ready
+      setTimeout(() => {
+        if (containerRef.current) {
+          containerRef.current.scrollLeft = scrollPos;
+          console.log(`Applied scroll position ${scrollPos} for today at index ${todayIndex}`);
+        }
+      }, 100);
     }
-    
-    return 0;
   }, [allDays]);
 
   // Handle scroll end detection
   const handleScrollEnd = useCallback(() => {
     setIsScrolling(false);
   }, []);
-
-  // Apply initial scroll position immediately
-  useEffect(() => {
-    if (!containerRef.current || isInitialized) return;
-    
-    // Set scroll position immediately without animation
-    containerRef.current.scrollLeft = initialScrollPosition;
-    setIsInitialized(true);
-    console.log('Applied initial scroll position:', initialScrollPosition);
-  }, [initialScrollPosition, isInitialized]);
 
   // Handle scroll events
   const handleScroll = useCallback(() => {
@@ -110,7 +102,6 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     const container = containerRef.current;
     const scrollLeft = container.scrollLeft;
     
-    lastScrollPosition.current = scrollLeft;
     setIsScrolling(true);
     
     if (scrollTimeoutRef.current) {
@@ -191,8 +182,8 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     return format(date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
   };
 
-  // Show loading state until initialized
-  if (!isInitialized) {
+  // Show loading only if data is actually loading
+  if (isLoading && !isMounted) {
     return (
       <div className="dynamic-monthly-view-container">
         <div className="flex items-center justify-center h-96">
