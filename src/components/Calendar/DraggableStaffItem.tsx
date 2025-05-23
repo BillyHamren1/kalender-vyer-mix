@@ -5,15 +5,11 @@ import { StaffMember } from './StaffTypes';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import ConfirmationDialog from '@/components/ConfirmationDialog';
 
-// Helper function to format staff name
-const formatStaffName = (fullName: string): string => {
-  const nameParts = fullName.trim().split(' ');
-  if (nameParts.length === 1) return nameParts[0];
-  
-  const firstName = nameParts[0];
-  const lastNameInitial = nameParts[nameParts.length - 1][0];
-  
-  return `${firstName} ${lastNameInitial}`;
+// Helper function to get initials for avatar
+const getInitials = (name: string): string => {
+  const nameParts = name.trim().split(' ');
+  if (nameParts.length === 1) return nameParts[0].substring(0, 2).toUpperCase();
+  return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
 };
 
 interface DraggableStaffItemProps {
@@ -71,16 +67,6 @@ const DraggableStaffItem: React.FC<DraggableStaffItemProps> = ({
     setDialogOpen(false);
   };
 
-  // Get the initials for avatar
-  const getInitials = (name: string): string => {
-    const nameParts = name.trim().split(' ');
-    if (nameParts.length === 1) return nameParts[0].substring(0, 2).toUpperCase();
-    return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
-  };
-
-  // Format the name for display
-  const displayName = formatStaffName(staff.name);
-
   return (
     <>
       <div
@@ -106,7 +92,9 @@ const DraggableStaffItem: React.FC<DraggableStaffItemProps> = ({
               {getInitials(staff.name)}
             </AvatarFallback>
           </Avatar>
-          <span className="text-xs font-medium truncate">{displayName}</span>
+          <span className="text-xs font-medium whitespace-normal break-words overflow-visible">
+            {staff.name}
+          </span>
         </div>
       </div>
       
