@@ -143,7 +143,7 @@ const TestMonthlyView = () => {
             resources={resources}
             isLoading={isLoading}
             isMounted={isMounted}
-            currentDate={currentMonthStart}
+            currentDate={hookCurrentDate} {/* Pass actual current date instead of month start */}
             onDateSet={handleCalendarDateSet}
             refreshEvents={refreshEvents}
             onStaffDrop={handleStaffDrop}

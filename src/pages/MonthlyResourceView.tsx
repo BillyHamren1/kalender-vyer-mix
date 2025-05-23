@@ -75,7 +75,6 @@ const MonthlyResourceView = () => {
 
   // Handle staff selection for a specific team
   const handleOpenStaffSelectionDialog = useCallback((resourceId: string, resourceTitle: string) => {
-    console.log('Opening staff selection dialog for:', resourceId, resourceTitle);
     setSelectedResourceId(resourceId);
     setSelectedResourceTitle(resourceTitle);
     setStaffSelectionDialogOpen(true);
@@ -83,7 +82,6 @@ const MonthlyResourceView = () => {
 
   // Handle successful staff assignment
   const handleStaffAssigned = useCallback(() => {
-    console.log('Staff assigned successfully, refreshing...');
     handleStaffDrop('', '');
   }, [handleStaffDrop]);
 
@@ -148,7 +146,7 @@ const MonthlyResourceView = () => {
             resources={resources}
             isLoading={isLoading}
             isMounted={isMounted}
-            currentDate={currentMonthStart}
+            currentDate={hookCurrentDate} {/* Pass the actual current date instead of month start */}
             onDateSet={handleCalendarDateSet}
             refreshEvents={refreshEvents}
             onStaffDrop={handleStaffDrop}

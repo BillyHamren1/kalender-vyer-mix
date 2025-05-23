@@ -34,11 +34,11 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
   const [isScrolling, setIsScrolling] = useState(false);
   const lastScrollPosition = useRef(0);
   const scrollTimeoutRef = useRef<number | null>(null);
+  const initialScrollApplied = useRef(false);
   
   // Generate days for 3 months: previous, current, and next month
   // Each month includes -1 week and +1 week padding
   const allDays = useMemo(() => {
-    console.log(`Generating days for 3 months around current date: ${format(currentDate, 'yyyy-MM-dd')}`);
     const result: Date[] = [];
     
     // Get the current month start
@@ -63,7 +63,6 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
       }
     }
     
-    console.log(`Generated ${result.length} days from ${format(result[0], 'yyyy-MM-dd')} to ${format(result[result.length - 1], 'yyyy-MM-dd')}`);
     return result;
   }, [currentDate]);
 
@@ -72,6 +71,31 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     setIsScrolling(false);
   }, []);
 
+  // Calculate the initial scroll position without animation
+  const calculateInitialScrollPosition = useCallback(() => {
+    if (!containerRef.current || initialScrollApplied.current || allDays.length === 0) return;
+    
+    // Get today's date for comparison
+    const today = new Date();
+    const todayFormatted = format(today, 'yyyy-MM-dd');
+    
+    // Find the index of today in the allDays array
+    const todayIndex = allDays.findIndex(date => 
+      format(date, 'yyyy-MM-dd') === todayFormatted
+    );
+    
+    // If today is found in our list of days, scroll to it
+    if (todayIndex >= 0) {
+      const dayWidth = 552; // 550px width + 2px gap
+      const containerWidth = containerRef.current.clientWidth;
+      const scrollPosition = (todayIndex * dayWidth) - (containerWidth / 2) + (dayWidth / 2);
+      
+      // Set scroll position immediately without animation
+      containerRef.current.scrollLeft = Math.max(0, scrollPosition);
+      initialScrollApplied.current = true;
+    }
+  }, [allDays]);
+
   // Simplified scroll handler
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return;
@@ -79,8 +103,7 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     const container = containerRef.current;
     const scrollLeft = container.scrollLeft;
     
-    // Determine scroll direction for debugging
-    const direction = scrollLeft > lastScrollPosition.current ? 'right' : 'left';
+    // Update last scroll position for direction detection
     lastScrollPosition.current = scrollLeft;
     
     // Set scrolling state
@@ -100,43 +123,30 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     const container = containerRef.current;
     if (!container) return;
     
-    const scrollListener = () => {
-      handleScroll();
-    };
-
-    container.addEventListener('scroll', scrollListener, { passive: true });
+    // Add scroll event listener
+    container.addEventListener('scroll', handleScroll, { passive: true });
     
     return () => {
-      container.removeEventListener('scroll', scrollListener);
+      // Clean up the scroll listener
+      container.removeEventListener('scroll', handleScroll);
       if (scrollTimeoutRef.current) {
         window.clearTimeout(scrollTimeoutRef.current);
       }
     };
   }, [handleScroll]);
 
-  // Initial setup to find today and center it
+  // Apply initial scroll position once the container is ready
   useEffect(() => {
-    if (containerRef.current && allDays.length > 0) {
-      const today = new Date();
-      const todayIndex = allDays.findIndex(date => 
-        format(date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')
-      );
+    if (containerRef.current && !initialScrollApplied.current) {
+      // Reset the flag when currentDate changes
+      initialScrollApplied.current = false;
       
-      if (todayIndex >= 0) {
-        // Calculate scroll position to center today
-        const scrollPosition = todayIndex * 552; // 550px width + 2px gap
-        const containerWidth = containerRef.current.clientWidth;
-        const centeredPosition = scrollPosition - (containerWidth / 2) + (550 / 2);
-        
-        // Use requestAnimationFrame to ensure the DOM is ready
-        requestAnimationFrame(() => {
-          if (containerRef.current) {
-            containerRef.current.scrollLeft = Math.max(0, centeredPosition);
-          }
-        });
-      }
+      // Use requestAnimationFrame to ensure the DOM is ready
+      requestAnimationFrame(() => {
+        calculateInitialScrollPosition();
+      });
     }
-  }, [allDays]);
+  }, [calculateInitialScrollPosition, allDays]);
 
   // Handle staff drop
   const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
