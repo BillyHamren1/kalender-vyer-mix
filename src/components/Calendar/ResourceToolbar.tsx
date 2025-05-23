@@ -1,6 +1,5 @@
 
 import React from 'react';
-import AddTaskButton from '@/components/Calendar/AddTaskButton';
 import { Resource, CalendarEvent } from './ResourceData';
 
 interface ResourceToolbarProps {
@@ -25,12 +24,7 @@ const ResourceToolbar: React.FC<ResourceToolbarProps> = ({
 }) => {
   return (
     <div className="flex items-center gap-2">
-      {/* Add Task Button */}
-      <AddTaskButton 
-        resources={resources}
-        onTaskAdd={onAddTask}
-        currentDate={currentDate}
-      />
+      {/* Toolbar is now empty - Add Task Button has been removed */}
     </div>
   );
 };
