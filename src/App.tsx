@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -15,6 +14,7 @@ import NotFound from "./pages/NotFound";
 import StaffEndpoint from "./pages/StaffEndpoint";
 import LogisticsMap from "./pages/LogisticsMap";
 import WeeklyResourceView from "./pages/WeeklyResourceView";
+import MonthlyResourceView from "./pages/MonthlyResourceView";
 
 // Create context to share calendar date across components
 export const CalendarContext = createContext<{
@@ -63,6 +63,7 @@ const AppContent = () => {
             <Route path="/staff/:staffId" element={<StaffEndpoint />} />
             <Route path="/logistics-map" element={<LogisticsMap />} />
             <Route path="/weekly-view" element={<WeeklyResourceView />} />
+            <Route path="/monthly-view" element={<MonthlyResourceView />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
