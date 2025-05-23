@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
@@ -45,13 +46,13 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     
     // Generate for 3 months: previous, current, next
     for (let monthOffset = -1; monthOffset <= 1; monthOffset++) {
-      const monthStart = addMonths(currentMonthStart, monthOffset);
+      const monthStart = startOfMonth(addMonths(currentMonthStart, monthOffset));
       const monthEnd = endOfMonth(monthStart);
       
-      // Start from 1 week before the month
+      // Start from 1 week before the month (start of the week containing the first day of month)
       const startDate = subWeeks(startOfWeek(monthStart, { weekStartsOn: 1 }), 1);
       
-      // End 1 week after the month
+      // End 1 week after the month (end of the week containing the last day of month)
       const endDate = addWeeks(startOfWeek(monthEnd, { weekStartsOn: 1 }), 1);
       
       // Add all days from start to end
