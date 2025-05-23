@@ -109,10 +109,10 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         <span>{resource.title}</span>
         <button 
           onClick={handleSelectStaff}
-          className="assign-button-icon"
+          className="assign-button-icon p-1 rounded-full hover:bg-slate-100 transition-colors"
           title="Assign staff"
         >
-          <UserPlus className="h-3 w-3" />
+          <UserPlus className="h-4 w-4" color="black" />
         </button>
       </div>
       
@@ -139,3 +139,4 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     </div>
   );
 };
+
