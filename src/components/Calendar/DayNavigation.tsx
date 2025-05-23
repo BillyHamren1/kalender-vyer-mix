@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { format, addDays, subDays } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
@@ -49,7 +50,24 @@ const DayNavigation: React.FC<DayNavigationProps> = ({
   };
   return <div className="w-full bg-gray-50 rounded-md mb-3 overflow-hidden">
       <div className="flex justify-between">
-        {generateDates().map((date, index) => {})}
+        {generateDates().map((date, index) => (
+          <button
+            key={index}
+            onClick={() => goToDate(date)}
+            className={`flex-1 py-2 px-1 text-center transition-colors ${
+              isCurrentDate(date)
+                ? 'bg-blue-500 text-white'
+                : 'hover:bg-gray-200'
+            }`}
+          >
+            <div className="text-xs font-semibold">
+              {formatDayName(date)}
+            </div>
+            <div className="text-sm">
+              {formatDayNumber(date)}
+            </div>
+          </button>
+        ))}
       </div>
     </div>;
 };
