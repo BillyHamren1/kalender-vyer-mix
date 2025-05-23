@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
-import { format, startOfWeek, addWeeks, subWeeks, addDays } from 'date-fns';
+import { format, startOfWeek, addWeeks, subWeeks, addDays, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
 import './DynamicColumnStyles.css';
 
 interface TestMonthlyResourceCalendarProps {
@@ -32,27 +32,34 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isScrolling, setIsScrolling] = useState(false);
-  const [currentWeekOffset, setCurrentWeekOffset] = useState(0);
-  const [weeksLoaded, setWeeksLoaded] = useState(5); // Fixed to 5 weeks
   const lastScrollPosition = useRef(0);
   const scrollTimeoutRef = useRef<number | null>(null);
   
-  // Generate days for 5 weeks around current date - much more efficient
+  // Generate days for 3 months: previous, current, and next month
+  // Each month includes -1 week and +1 week padding
   const allDays = useMemo(() => {
-    console.log(`Generating days for 5 weeks around current date`);
+    console.log(`Generating days for 3 months around current date: ${format(currentDate, 'yyyy-MM-dd')}`);
     const result: Date[] = [];
     
-    // Start from 1 week before current week
-    const startWeek = addWeeks(startOfWeek(currentDate, { weekStartsOn: 1 }), -1);
+    // Get the current month start
+    const currentMonthStart = startOfMonth(currentDate);
     
-    // Generate 5 weeks (35 days)
-    for (let weekIndex = 0; weekIndex < 5; weekIndex++) {
-      const weekStart = addWeeks(startWeek, weekIndex);
+    // Generate for 3 months: previous, current, next
+    for (let monthOffset = -1; monthOffset <= 1; monthOffset++) {
+      const monthStart = addMonths(currentMonthStart, monthOffset);
+      const monthEnd = endOfMonth(monthStart);
       
-      // Add 7 days for each week
-      for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
-        const date = addDays(weekStart, dayIndex);
-        result.push(date);
+      // Start from 1 week before the month
+      const startDate = subWeeks(startOfWeek(monthStart, { weekStartsOn: 1 }), 1);
+      
+      // End 1 week after the month
+      const endDate = addWeeks(startOfWeek(monthEnd, { weekStartsOn: 1 }), 1);
+      
+      // Add all days from start to end
+      let currentDay = startDate;
+      while (currentDay <= endDate) {
+        result.push(new Date(currentDay));
+        currentDay = addDays(currentDay, 1);
       }
     }
     
@@ -65,7 +72,7 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     setIsScrolling(false);
   }, []);
 
-  // Simplified scroll handler - no infinite scroll, just smooth scrolling
+  // Simplified scroll handler
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return;
     
