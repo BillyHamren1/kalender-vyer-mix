@@ -27,23 +27,31 @@ const MonthNavigation: React.FC<MonthNavigationProps> = ({
   const monthText = format(currentMonthStart, 'MMMM yyyy');
 
   return (
-    <div className="flex items-center justify-center mb-8 w-full mt-6">
+    <div className="flex items-center justify-center mb-8 w-full mt-16">
       <div className="flex items-center">
-        <ChevronLeft 
+        <button
           onClick={goToPreviousMonth}
-          className="h-34 w-34 cursor-pointer text-[#7BAEBF] hover:text-[#6E9DAC] transition-colors duration-300"
-          strokeWidth={3}
-        />
+          className="bg-[#7BAEBF] hover:bg-[#6E9DAC] transition-colors duration-300 rounded-lg p-3 mr-8"
+        >
+          <ChevronLeft 
+            className="h-8 w-8 text-white"
+            strokeWidth={3}
+          />
+        </button>
         
         <div className="text-4xl font-bold text-slate-800 px-8 py-4 min-w-[360px] text-center tracking-wider">
           {monthText}
         </div>
         
-        <ChevronRight 
+        <button
           onClick={goToNextMonth}
-          className="h-34 w-34 cursor-pointer text-[#7BAEBF] hover:text-[#6E9DAC] transition-colors duration-300"
-          strokeWidth={3}
-        />
+          className="bg-[#7BAEBF] hover:bg-[#6E9DAC] transition-colors duration-300 rounded-lg p-3 ml-8"
+        >
+          <ChevronRight 
+            className="h-8 w-8 text-white"
+            strokeWidth={3}
+          />
+        </button>
       </div>
     </div>
   );
