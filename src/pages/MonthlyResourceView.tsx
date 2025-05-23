@@ -12,7 +12,7 @@ import ResourceLayout from '@/components/Calendar/ResourceLayout';
 import ResourceToolbar from '@/components/Calendar/ResourceToolbar';
 import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
 import MonthNavigation from '@/components/Calendar/MonthNavigation';
-import MonthlyResourceCalendar from '@/components/Calendar/MonthlyResourceCalendar';
+import TestMonthlyResourceCalendar from '@/components/Calendar/TestMonthlyResourceCalendar';
 import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
 import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
 import { startOfMonth } from 'date-fns';
@@ -143,7 +143,7 @@ const MonthlyResourceView = () => {
         </div>
         
         <div className="weekly-view-container overflow-x-auto">
-          <MonthlyResourceCalendar
+          <TestMonthlyResourceCalendar
             events={events}
             resources={resources}
             isLoading={isLoading}
