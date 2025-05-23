@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -131,16 +130,8 @@ const MonthlyResourceView = () => {
           />
         </div>
 
-        {/* MonthNavigation in its own container with extremely large top margin */}
-        <div style={{ marginTop: '800px' }} className="mb-8">
-          <MonthNavigation 
-            currentMonthStart={currentMonthStart}
-            setCurrentMonthStart={setCurrentMonthStart}
-          />
-        </div>
-        
-        {/* Team Management positioned right above the calendar */}
-        <div className="flex justify-end mb-2">
+        {/* Team Management positioned above the month navigation */}
+        <div className="flex justify-end mb-4">
           <TeamManagementDialog
             teamResources={teamResources}
             teamCount={teamCount}
@@ -148,6 +139,14 @@ const MonthlyResourceView = () => {
             onRemoveTeam={removeTeam}
             dialogOpen={dialogOpen}
             setDialogOpen={setDialogOpen}
+          />
+        </div>
+        
+        {/* MonthNavigation positioned right above the calendar */}
+        <div className="mb-6">
+          <MonthNavigation 
+            currentMonthStart={currentMonthStart}
+            setCurrentMonthStart={setCurrentMonthStart}
           />
         </div>
         
