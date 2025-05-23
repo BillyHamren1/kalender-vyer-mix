@@ -31,9 +31,8 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
   forceRefresh
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [centerColumnIndex, setCenterColumnIndex] = useState<number>(0);
-  const [monthsToShow, setMonthsToShow] = useState(6); // Start with 6 months initially for better preloading
-  const [currentMonthOffset, setCurrentMonthOffset] = useState(-3); // Start with previous 3 months
+  const [monthsToShow, setMonthsToShow] = useState(6);
+  const [currentMonthOffset, setCurrentMonthOffset] = useState(-3);
   const [isScrolling, setIsScrolling] = useState(false);
   const lastScrollPosition = useRef(0);
   const scrollDirectionRef = useRef<'left' | 'right' | null>(null);
@@ -62,43 +61,10 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     return result;
   }, [currentDate, monthsToShow, currentMonthOffset]);
 
-  // Calculate which column is in the center of the viewport - with improved performance
-  const calculateCenterColumn = useCallback(() => {
-    if (!containerRef.current) return;
-    
-    const container = containerRef.current;
-    const scrollLeft = container.scrollLeft;
-    const containerWidth = container.clientWidth;
-    const centerPosition = scrollLeft + containerWidth / 2;
-    
-    // Calculate accumulated width considering dynamic column sizes
-    let accumulatedWidth = 0;
-    let newCenterIndex = 0;
-    
-    for (let i = 0; i < allDays.length; i++) {
-      const isCurrentCenter = i === centerColumnIndex;
-      const columnWidth = isCurrentCenter ? 750 : 550;
-      const gap = 2;
-      
-      if (centerPosition >= accumulatedWidth && centerPosition < accumulatedWidth + columnWidth) {
-        newCenterIndex = i;
-        break;
-      }
-      
-      accumulatedWidth += columnWidth + gap;
-    }
-    
-    if (newCenterIndex !== centerColumnIndex) {
-      setCenterColumnIndex(newCenterIndex);
-    }
-  }, [allDays.length, centerColumnIndex]);
-
   // Handle scroll end detection
   const handleScrollEnd = useCallback(() => {
-    if (!isScrolling) return;
-    calculateCenterColumn();
     setIsScrolling(false);
-  }, [calculateCenterColumn, isScrolling]);
+  }, []);
 
   // Improved scroll handler with requestAnimationFrame for better performance
   const handleScroll = useCallback(() => {
@@ -128,7 +94,6 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     // Load previous months if scrolled near the beginning
     if (scrollLeft < threshold && direction === 'left') {
       console.log('Near start of content - Loading previous months');
-      // Add multiple months at once (3) for better buffering
       setCurrentMonthOffset(prev => {
         console.log(`Updating month offset from ${prev} to ${prev - 3}`);
         return prev - 3;
@@ -141,7 +106,7 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
       // After DOM update, maintain relative scroll position
       requestAnimationFrame(() => {
         if (containerRef.current) {
-          // Calculate new position to maintain the same view
+          // Calculate new position to maintain the same view with consistent column width
           const additionalWidth = 3 * 30 * 550; // Approximate width of 3 months
           containerRef.current.scrollLeft = currentPos + additionalWidth;
         }
@@ -151,7 +116,6 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     // Load next months if scrolled near the end
     if (scrollLeft + clientWidth > scrollWidth - threshold && direction === 'right') {
       console.log('Near end of content - Loading next months');
-      // Add multiple months at once for better buffering
       setMonthsToShow(prev => prev + 3);
     }
     
@@ -165,11 +129,6 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     
     // Set a new timeout to detect when scrolling stops
     scrollTimeoutRef.current = window.setTimeout(handleScrollEnd, 150);
-    
-    // Mark as not scrolling after a delay to prevent too many updates
-    if (requestIdRef.current) {
-      cancelAnimationFrame(requestIdRef.current);
-    }
   }, [handleScrollEnd]);
 
   // Set up improved scroll listener with requestAnimationFrame
@@ -207,12 +166,10 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
       );
       
       if (todayIndex >= 0) {
-        setCenterColumnIndex(todayIndex);
-        
-        // Calculate scroll position
+        // Calculate scroll position with consistent column width
         let scrollPosition = 0;
         for (let i = 0; i < todayIndex; i++) {
-          scrollPosition += 550 + 2;
+          scrollPosition += 550 + 2; // Consistent width for all columns
         }
         
         const containerWidth = containerRef.current.clientWidth;
@@ -226,7 +183,7 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
         });
       }
     }
-  }, [allDays]); // Only run when allDays changes, which should be once initially
+  }, [allDays]);
 
   // Handle staff drop
   const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
@@ -253,45 +210,36 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     }
   };
 
-  // Get calendar props based on column index
+  // Get calendar props - now consistent for all columns
   const getCalendarProps = (dayIndex: number) => {
-    const isCenterColumn = dayIndex === centerColumnIndex;
-    
     return {
       height: 'auto',
       headerToolbar: false,
       allDaySlot: false,
       initialView: 'resourceTimeGridDay',
-      resourceAreaWidth: isCenterColumn ? 120 : 80,
-      slotMinWidth: isCenterColumn ? 120 : 80,
+      resourceAreaWidth: 80, // Consistent for all columns
+      slotMinWidth: 80, // Consistent for all columns
       resourceAreaColumns: [
         {
           field: 'title',
           headerContent: 'Teams',
-          width: isCenterColumn ? 120 : 80
+          width: 80 // Consistent for all columns
         }
       ],
       'data-day-index': dayIndex.toString(),
     };
   };
 
-  // Group days by month for rendering month separators
-  const getMonthGroup = (date: Date) => {
-    return format(date, 'yyyy-MM');
-  };
-
   // Debugging output for scroll state
   useEffect(() => {
-    console.log(`Current months showing: ${monthsToShow}, offset: ${currentMonthOffset}, center: ${centerColumnIndex}, days: ${allDays.length}`);
-  }, [monthsToShow, currentMonthOffset, centerColumnIndex, allDays.length]);
+    console.log(`Current months showing: ${monthsToShow}, offset: ${currentMonthOffset}, days: ${allDays.length}`);
+  }, [monthsToShow, currentMonthOffset, allDays.length]);
 
   return (
     <div className="dynamic-monthly-view-container">
       <div className="dynamic-calendar-container" ref={containerRef}>
         {allDays.map((date, index) => {
-          const isCenterColumn = index === centerColumnIndex;
           const isFirstDayOfMonth = date.getDate() === 1;
-          const monthGroup = getMonthGroup(date);
           
           return (
             <React.Fragment key={format(date, 'yyyy-MM-dd')}>
@@ -304,10 +252,8 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
                   <div className="month-separator-line"></div>
                 </div>
               )}
-              <div 
-                className={`dynamic-day-wrapper ${isCenterColumn ? 'center-column' : 'normal-column'}`}
-              >
-                <div className={`day-header ${isCenterColumn ? 'center-header' : ''}`}>
+              <div className="dynamic-day-wrapper">
+                <div className="day-header">
                   {format(date, 'EEE d')}
                 </div>
                 <div className="dynamic-calendar">

@@ -51,29 +51,26 @@
   text-align: center;
 }
 
-/* Day wrapper with dynamic sizing */
+/* Day wrapper with consistent sizing */
 .dynamic-day-wrapper {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   height: 100%;
   border-right: 1px solid #e5e7eb;
-  transition: all 0.3s ease-in-out;
   position: relative;
-}
-
-/* Normal column styling */
-.normal-column {
+  /* All columns have the same width now */
   width: 550px;
   background-color: #ffffff;
 }
 
-/* Center column styling - wider but without frames and highlights */
+/* Remove center column and normal column distinctions */
+.normal-column {
+  /* No additional styles needed - using base wrapper styles */
+}
+
 .center-column {
-  width: 750px;
-  background-color: #ffffff;
-  z-index: 1;
-  margin: 0 4px;
+  /* No additional styles needed - using base wrapper styles */
 }
 
 /* Day headers */
@@ -85,46 +82,29 @@
   font-size: 14px;
   color: #374151;
   text-align: center;
-  transition: all 0.3s ease-in-out;
   min-height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* Center column header styling - removed special styling */
+/* Remove center header special styling */
 .center-header {
-  background-color: #f9fafb;
-  border-bottom: 1px solid #e5e7eb;
-  color: #374151;
-  font-weight: 600;
-  font-size: 14px;
+  /* Same as regular header */
 }
 
 /* Calendar container within each day */
 .dynamic-calendar {
   flex: 1;
   overflow: hidden;
-  transition: all 0.3s ease-in-out;
 }
 
-/* Resource area adjustments for center columns */
-.center-column .fc-resource-area td,
-.center-column .fc-resource-area th,
-.center-column .fc-resource-lane,
-.center-column .fc-datagrid-cell,
-.center-column .fc-timegrid-col {
-  min-width: 120px !important;
-  width: 120px !important;
-  max-width: 120px !important;
-}
-
-/* Normal column resource areas */
-.normal-column .fc-resource-area td,
-.normal-column .fc-resource-area th,
-.normal-column .fc-resource-lane,
-.normal-column .fc-datagrid-cell,
-.normal-column .fc-timegrid-col {
+/* Consistent resource area for all columns */
+.dynamic-day-wrapper .fc-resource-area td,
+.dynamic-day-wrapper .fc-resource-area th,
+.dynamic-day-wrapper .fc-resource-lane,
+.dynamic-day-wrapper .fc-datagrid-cell,
+.dynamic-day-wrapper .fc-timegrid-col {
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
@@ -151,26 +131,14 @@
   background: #94a3b8;
 }
 
-/* Modified event styling in center column - keeping only font size change */
+/* Remove all center column special event styling */
 .center-column .fc-event {
-  font-weight: 500;
+  /* No special styling */
 }
 
 .center-column .fc-event-title {
-  font-size: 13px;
+  /* No special styling */
 }
-
-/* Smooth transitions for all dynamic elements */
-.dynamic-day-wrapper,
-.day-header,
-.dynamic-calendar,
-.fc-resource-area td,
-.fc-resource-area th,
-.fc-timegrid-col {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Removed focus indicator for better accessibility */
 
 /* Performance optimizations to reduce repaints */
 .dynamic-calendar-container {
@@ -196,15 +164,8 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .normal-column {
-    width: 300px;
-  }
-  
-  .center-column {
-    width: 400px;
-  }
-  
   .dynamic-day-wrapper {
+    width: 300px;
     margin: 0 1px;
   }
   
