@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -119,22 +120,24 @@ const TestMonthlyView = () => {
           setDialogOpen={setDialogOpen}
         />
 
-        <div className="flex flex-col space-y-2 mb-4">
-          <div className="flex items-center justify-between">
-            <MonthNavigation 
-              currentMonthStart={currentMonthStart}
-              setCurrentMonthStart={setCurrentMonthStart}
-            />
-            
-            <ResourceToolbar
-              isLoading={isLoading}
-              currentDate={hookCurrentDate}
-              resources={resources}
-              onRefresh={refreshEvents}
-              onAddTask={addEventToCalendar}
-              onShowStaffCurtain={handleToggleStaffDisplay}
-            />
-          </div>
+        {/* ResourceToolbar by itself */}
+        <div className="flex justify-end mb-4">
+          <ResourceToolbar
+            isLoading={isLoading}
+            currentDate={hookCurrentDate}
+            resources={resources}
+            onRefresh={refreshEvents}
+            onAddTask={addEventToCalendar}
+            onShowStaffCurtain={handleToggleStaffDisplay}
+          />
+        </div>
+
+        {/* MonthNavigation in its own container with large top margin */}
+        <div className="mt-80 mb-8">
+          <MonthNavigation 
+            currentMonthStart={currentMonthStart}
+            setCurrentMonthStart={setCurrentMonthStart}
+          />
         </div>
         
         {/* Team Management positioned right above the calendar */}

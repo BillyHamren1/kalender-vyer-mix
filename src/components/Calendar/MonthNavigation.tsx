@@ -1,4 +1,3 @@
-
 import React, { useCallback } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, addMonths } from 'date-fns';
@@ -27,7 +26,7 @@ const MonthNavigation: React.FC<MonthNavigationProps> = ({
   const monthText = format(currentMonthStart, 'MMMM yyyy');
 
   return (
-    <div className="flex items-center justify-center mb-8 w-full mt-64">
+    <div className="flex items-center justify-center mb-8 w-full">
       <div className="flex items-center">
         <button
           onClick={goToPreviousMonth}
