@@ -27,7 +27,7 @@ const MonthNavigation: React.FC<MonthNavigationProps> = ({
   const monthText = format(currentMonthStart, 'MMMM yyyy');
 
   return (
-    <div className="flex items-center justify-center mb-8 w-full mt-16">
+    <div className="flex items-center justify-center mb-8 w-full mt-32">
       <div className="flex items-center">
         <button
           onClick={goToPreviousMonth}
