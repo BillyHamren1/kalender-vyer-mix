@@ -82,12 +82,9 @@ const AddressWrapStyles = () => (
         width: 117px !important;
         max-width: 117px !important;
       }
-      /* DOUBLE THE TIME COLUMN WIDTH - Time axis styling */
-      .fc-timegrid-axis,
-      .fc-timegrid-slot-label,
-      .fc-timegrid-axis-cushion,
-      .fc-timegrid-slot-label-cushion,
-      .fc-scrollgrid-shrink .fc-timegrid-axis {
+      /* SPECIFIC TIME COLUMN STYLING - Only target the time axis area */
+      .fc-timegrid .fc-scrollgrid-shrink .fc-timegrid-axis,
+      .fc-timegrid .fc-timegrid-slot-label {
         min-width: 100px !important;
         width: 100px !important;
         max-width: 100px !important;
@@ -96,18 +93,21 @@ const AddressWrapStyles = () => (
         font-weight: 500 !important;
         padding: 4px 8px !important;
       }
-      /* Ensure time column header matches content width */
-      .fc-timegrid-axis-frame,
-      .fc-timegrid-slot-label-frame {
+      /* Time column frame and cushion - specific to time axis only */
+      .fc-timegrid .fc-scrollgrid-shrink .fc-timegrid-axis-frame,
+      .fc-timegrid .fc-timegrid-slot-label-frame {
         min-width: 100px !important;
         width: 100px !important;
         max-width: 100px !important;
       }
-      /* Make time labels more readable */
-      .fc-timegrid-slot-label-cushion {
+      /* Time label styling - specific to time column */
+      .fc-timegrid .fc-timegrid-slot-label-cushion {
         color: #374151 !important;
         background: #f9fafb !important;
         border-right: 1px solid #e5e7eb !important;
+        min-width: 100px !important;
+        width: 100px !important;
+        max-width: 100px !important;
       }
     `}
   </style>
