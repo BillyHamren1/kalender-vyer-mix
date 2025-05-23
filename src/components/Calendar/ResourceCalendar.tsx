@@ -82,6 +82,21 @@ const AddressWrapStyles = () => (
         width: 80px !important;
         max-width: 80px !important;
       }
+      /* HIDE ALL DATE HEADERS - completely remove date displays */
+      .fc-col-header-cell .fc-col-header-cell-cushion,
+      .fc-col-header-cell .fc-col-header-cell-cushion *,
+      .fc-daygrid-week-number,
+      .fc-week-number {
+        display: none !important;
+        visibility: hidden !important;
+      }
+      /* Hide column header content entirely */
+      .fc-col-header .fc-col-header-cell {
+        height: 0px !important;
+        min-height: 0px !important;
+        padding: 0px !important;
+        border: none !important;
+      }
     `}
   </style>
 );
@@ -288,6 +303,10 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     },
     dropAccept: ".fc-event",
     eventAllow: () => true,
+    // HIDE COLUMN HEADERS TO REMOVE DATE DISPLAYS
+    dayHeaderFormat: false,
+    columnHeaderFormat: false,
+    columnHeaderText: () => '',
     // Add the FIXED resource column config with consistent 80px width (as numbers)
     ...getResourceColumnConfig(),
     // Add calendar options

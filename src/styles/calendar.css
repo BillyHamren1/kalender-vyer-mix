@@ -257,7 +257,7 @@
   align-items: center;
 }
 
-/* Corner positioned assign button - absolutely positioned in top-right */
+/* Corner positioned assign button - absolutely positioned at the very edge */
 .corner-assign-button {
   height: 20px !important;
   width: 20px !important;
@@ -271,8 +271,9 @@
   background-color: transparent;
   position: absolute !important;
   top: 2px !important;
-  right: 2px !important;
-  z-index: 30 !important;
+  right: 0px !important;  /* Move to absolute right edge */
+  z-index: 50 !important; /* Higher z-index to ensure visibility */
+  cursor: pointer;
 }
 
 .corner-assign-button:hover {
@@ -383,6 +384,24 @@
   width: 80px !important;
   max-width: 80px !important;
   box-sizing: border-box !important;
+}
+
+/* HIDE UNWANTED DATE DISPLAYS - Remove all date/week number displays */
+.fc-col-header-cell .fc-col-header-cell-cushion,
+.fc-daygrid-week-number,
+.fc-week-number,
+.fc-timegrid-col-frame .fc-col-header-cell-cushion {
+  display: none !important;
+}
+
+/* Hide the column header content that shows dates */
+.fc-col-header .fc-col-header-cell .fc-col-header-cell-cushion {
+  display: none !important;
+}
+
+/* Hide any date text in column headers */
+.fc-col-header-cell-cushion * {
+  display: none !important;
 }
 
 /* Reset some FC container heights to allow for our content */
