@@ -112,7 +112,7 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
           className="assign-button-icon"
           title="Assign staff"
         >
-          <UserPlus className="h-3 w-3" />
+          <UserPlus className="h-3 w-3" strokeWidth={2.5} />
         </button>
       </div>
       
