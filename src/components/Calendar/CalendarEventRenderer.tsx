@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
 import { Copy } from 'lucide-react';
@@ -26,7 +25,11 @@ export const renderEventContent = (eventInfo: any) => {
     // More compact display for timeline view
     return (
       <div className="event-content-wrapper">
-        <div className="event-client-name text-sm truncate">{clientName}</div>
+        <div className="event-booking-id text-xs opacity-80 truncate">#{bookingId}</div>
+        <div className="event-client-name text-sm break-words whitespace-normal" 
+             style={{ lineHeight: '1.2', maxHeight: '2.4em', overflow: 'hidden' }}>
+          {clientName}
+        </div>
         {city && (
           <div className="event-city text-xs opacity-80 truncate">{city}</div>
         )}
@@ -37,7 +40,11 @@ export const renderEventContent = (eventInfo: any) => {
   // Default display for other views
   return (
     <div className="event-content-wrapper">
-      <div className="event-client-name text-sm truncate">{clientName}</div>
+      <div className="event-booking-id text-xs opacity-80 truncate">#{bookingId}</div>
+      <div className="event-client-name text-sm break-words whitespace-normal" 
+           style={{ lineHeight: '1.2', maxHeight: '2.4em', overflow: 'hidden' }}>
+        {clientName}
+      </div>
       {city && (
         <div className="event-city text-xs opacity-80 truncate">{city}</div>
       )}
