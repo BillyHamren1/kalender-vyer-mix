@@ -1,3 +1,4 @@
+
 .dynamic-monthly-view-container {
   width: 100%;
   height: 100%;
@@ -15,8 +16,8 @@
 }
 
 .dynamic-day-wrapper {
-  flex: 0 0 520px;  /* Increased by 30% from 400px to 520px */
-  width: 520px;     /* Increased by 30% from 400px to 520px */
+  flex: 0 0 800px;  /* Increased from 520px to 800px to fit 6 columns */
+  width: 800px;     /* Increased from 520px to 800px to fit 6 columns */
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -161,8 +162,8 @@
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .dynamic-day-wrapper {
-    flex: 0 0 312px;  /* Increased by 30% from 240px to 312px */
-    width: 312px;     /* Increased by 30% from 240px to 312px */
+    flex: 0 0 480px;  /* Increased from 312px to 480px for mobile */
+    width: 480px;     /* Increased from 312px to 480px for mobile */
   }
   
   .day-header-monthly {
