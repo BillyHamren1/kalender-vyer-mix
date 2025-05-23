@@ -32,69 +32,65 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isScrolling, setIsScrolling] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const lastScrollPosition = useRef(0);
   const scrollTimeoutRef = useRef<number | null>(null);
-  const initialScrollApplied = useRef(false);
   
-  // Generate days for 3 months: previous, current, and next month
-  // Each month includes -1 week and +1 week padding
+  // Generate days for current month only with minimal padding to improve performance
   const allDays = useMemo(() => {
     const result: Date[] = [];
     
     // Get the current month start
     const currentMonthStart = startOfMonth(currentDate);
+    const currentMonthEnd = endOfMonth(currentMonthStart);
     
-    // Generate for 3 months: previous, current, next
-    for (let monthOffset = -1; monthOffset <= 1; monthOffset++) {
-      const monthStart = startOfMonth(addMonths(currentMonthStart, monthOffset));
-      const monthEnd = endOfMonth(monthStart);
-      
-      // Start from 1 week before the month (start of the week containing the first day of month)
-      const startDate = subWeeks(startOfWeek(monthStart, { weekStartsOn: 1 }), 1);
-      
-      // End 1 week after the month (end of the week containing the last day of month)
-      const endDate = addWeeks(startOfWeek(monthEnd, { weekStartsOn: 1 }), 1);
-      
-      // Add all days from start to end
-      let currentDay = startDate;
-      while (currentDay <= endDate) {
-        result.push(new Date(currentDay));
-        currentDay = addDays(currentDay, 1);
-      }
+    // Add 1 week before and after for context, but not 3 full months
+    const startDate = subWeeks(startOfWeek(currentMonthStart, { weekStartsOn: 1 }), 1);
+    const endDate = addWeeks(startOfWeek(currentMonthEnd, { weekStartsOn: 1 }), 1);
+    
+    // Add all days from start to end
+    let currentDay = startDate;
+    while (currentDay <= endDate) {
+      result.push(new Date(currentDay));
+      currentDay = addDays(currentDay, 1);
     }
     
     return result;
   }, [currentDate]);
+
+  // Calculate initial scroll position immediately when component mounts
+  const initialScrollPosition = useMemo(() => {
+    if (allDays.length === 0) return 0;
+    
+    const today = new Date();
+    const todayFormatted = format(today, 'yyyy-MM-dd');
+    
+    const todayIndex = allDays.findIndex(date => 
+      format(date, 'yyyy-MM-dd') === todayFormatted
+    );
+    
+    if (todayIndex >= 0) {
+      const dayWidth = 552; // 550px width + 2px gap
+      const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
+      return Math.max(0, (todayIndex * dayWidth) - (viewportWidth / 2) + (dayWidth / 2));
+    }
+    
+    return 0;
+  }, [allDays]);
 
   // Handle scroll end detection
   const handleScrollEnd = useCallback(() => {
     setIsScrolling(false);
   }, []);
 
-  // Calculate the initial scroll position without animation
-  const calculateInitialScrollPosition = useCallback(() => {
-    if (!containerRef.current || initialScrollApplied.current || allDays.length === 0) return;
+  // Apply initial scroll position immediately without animation
+  useEffect(() => {
+    if (!containerRef.current || isInitialized) return;
     
-    // Get today's date for comparison
-    const today = new Date();
-    const todayFormatted = format(today, 'yyyy-MM-dd');
-    
-    // Find the index of today in the allDays array
-    const todayIndex = allDays.findIndex(date => 
-      format(date, 'yyyy-MM-dd') === todayFormatted
-    );
-    
-    // If today is found in our list of days, scroll to it
-    if (todayIndex >= 0) {
-      const dayWidth = 552; // 550px width + 2px gap
-      const containerWidth = containerRef.current.clientWidth;
-      const scrollPosition = (todayIndex * dayWidth) - (containerWidth / 2) + (dayWidth / 2);
-      
-      // Set scroll position immediately without animation
-      containerRef.current.scrollLeft = Math.max(0, scrollPosition);
-      initialScrollApplied.current = true;
-    }
-  }, [allDays]);
+    // Set scroll position immediately
+    containerRef.current.scrollLeft = initialScrollPosition;
+    setIsInitialized(true);
+  }, [initialScrollPosition, isInitialized]);
 
   // Simplified scroll handler
   const handleScroll = useCallback(() => {
@@ -103,18 +99,13 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     const container = containerRef.current;
     const scrollLeft = container.scrollLeft;
     
-    // Update last scroll position for direction detection
     lastScrollPosition.current = scrollLeft;
-    
-    // Set scrolling state
     setIsScrolling(true);
     
-    // Clear any existing timeouts
     if (scrollTimeoutRef.current) {
       window.clearTimeout(scrollTimeoutRef.current);
     }
     
-    // Set a timeout to detect when scrolling stops
     scrollTimeoutRef.current = window.setTimeout(handleScrollEnd, 150);
   }, [handleScrollEnd]);
 
@@ -123,30 +114,15 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     const container = containerRef.current;
     if (!container) return;
     
-    // Add scroll event listener
     container.addEventListener('scroll', handleScroll, { passive: true });
     
     return () => {
-      // Clean up the scroll listener
       container.removeEventListener('scroll', handleScroll);
       if (scrollTimeoutRef.current) {
         window.clearTimeout(scrollTimeoutRef.current);
       }
     };
   }, [handleScroll]);
-
-  // Apply initial scroll position once the container is ready
-  useEffect(() => {
-    if (containerRef.current && !initialScrollApplied.current) {
-      // Reset the flag when currentDate changes
-      initialScrollApplied.current = false;
-      
-      // Use requestAnimationFrame to ensure the DOM is ready
-      requestAnimationFrame(() => {
-        calculateInitialScrollPosition();
-      });
-    }
-  }, [calculateInitialScrollPosition, allDays]);
 
   // Handle staff drop
   const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
@@ -204,9 +180,24 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     return format(date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
   };
 
+  // Show loading state until initialized to prevent flickering
+  if (!isInitialized) {
+    return (
+      <div className="dynamic-monthly-view-container">
+        <div className="flex items-center justify-center h-96">
+          <div className="text-gray-500">Loading calendar...</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="dynamic-monthly-view-container">
-      <div className="dynamic-calendar-container" ref={containerRef}>
+      <div 
+        className="dynamic-calendar-container" 
+        ref={containerRef}
+        style={{ scrollLeft: initialScrollPosition }}
+      >
         {allDays.map((date, index) => {
           const showMonthSeparator = isFirstDayOfMonth(date, index);
           const isTodayDate = isToday(date);
@@ -223,7 +214,6 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
                 </div>
               )}
               <div className="dynamic-day-wrapper">
-                {/* Add day header above each calendar */}
                 <div className={`day-header-monthly ${isTodayDate ? 'today' : ''}`}>
                   <div className="day-name">{format(date, 'EEE')}</div>
                   <div className="day-number">{format(date, 'd')}</div>
