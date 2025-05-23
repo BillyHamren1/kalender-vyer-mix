@@ -103,9 +103,9 @@ const BookingDetail = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen h-screen bg-gray-50 flex flex-col">
       {/* Header */}
-      <div className="border-b bg-white px-6 py-4">
+      <div className="border-b bg-white px-6 py-4 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="sm" onClick={handleBack}>
@@ -126,16 +126,18 @@ const BookingDetail = () => {
 
       {/* Content */}
       {booking ? (
-        <div className="p-6">
-          <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="products">Products & Pricing</TabsTrigger>
-              <TabsTrigger value="internal">Internal Information</TabsTrigger>
-            </TabsList>
+        <div className="flex-1 overflow-hidden">
+          <Tabs defaultValue="overview" className="w-full h-full flex flex-col">
+            <div className="px-6 pt-6 flex-shrink-0">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="products">Products & Pricing</TabsTrigger>
+                <TabsTrigger value="internal">Internal Information</TabsTrigger>
+              </TabsList>
+            </div>
             
-            <TabsContent value="overview" className="mt-6">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <TabsContent value="overview" className="flex-1 overflow-auto px-6 pb-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
                 {/* Left Column */}
                 <div className="space-y-6">
                   <ClientInformation client={booking.client} />
@@ -276,32 +278,36 @@ const BookingDetail = () => {
               </div>
             </TabsContent>
 
-            <TabsContent value="products" className="mt-6">
-              {booking.products && booking.products.length > 0 ? (
-                <ProductsList products={booking.products} />
-              ) : (
-                <div className="bg-white border border-gray-200 rounded-lg p-6">
-                  <p className="text-gray-500">No products assigned to this booking.</p>
-                </div>
-              )}
+            <TabsContent value="products" className="flex-1 overflow-auto px-6 pb-6">
+              <div className="mt-6">
+                {booking.products && booking.products.length > 0 ? (
+                  <ProductsList products={booking.products} />
+                ) : (
+                  <div className="bg-white border border-gray-200 rounded-lg p-6">
+                    <p className="text-gray-500">No products assigned to this booking.</p>
+                  </div>
+                )}
 
-              {booking.attachments && booking.attachments.length > 0 && (
-                <div className="mt-6">
-                  <AttachmentsList attachments={booking.attachments} />
-                </div>
-              )}
+                {booking.attachments && booking.attachments.length > 0 && (
+                  <div className="mt-6">
+                    <AttachmentsList attachments={booking.attachments} />
+                  </div>
+                )}
+              </div>
             </TabsContent>
 
-            <TabsContent value="internal" className="mt-6">
-              <InternalNotes notes={booking.internalNotes || ''} />
+            <TabsContent value="internal" className="flex-1 overflow-auto px-6 pb-6">
+              <div className="mt-6">
+                <InternalNotes notes={booking.internalNotes || ''} />
 
-              {lastViewedDate && (
-                <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-600">
-                    You came from calendar view on: {lastViewedDate.toLocaleDateString()}
-                  </p>
-                </div>
-              )}
+                {lastViewedDate && (
+                  <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                    <p className="text-sm text-blue-600">
+                      You came from calendar view on: {lastViewedDate.toLocaleDateString()}
+                    </p>
+                  </div>
+                )}
+              </div>
             </TabsContent>
           </Tabs>
         </div>
