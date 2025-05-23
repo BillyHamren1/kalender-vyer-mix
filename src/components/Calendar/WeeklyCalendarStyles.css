@@ -139,6 +139,8 @@
   opacity: 0.8;
 }
 
+/* ... keep existing code */
+
 /* Reduced height for weekly view calendars */
 .weekly-view-calendar .fc-view-harness {
   min-height: 400px !important;
@@ -226,28 +228,4 @@
   max-width: 80px !important;
 }
 
-/* Icon-only assign button styling */
-.assign-button-icon {
-  height: 20px !important;
-  width: 20px !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px dashed #d1d5db;
-  border-radius: 0.25rem;
-  color: #6b7280;
-  transition: all 0.2s ease;
-  z-index: 10;
-  background-color: transparent;
-  padding: 3px;
-  margin-left: auto;
-}
-
-.assign-button-icon:hover {
-  background-color: #f3f4f6;
-}
-
-.weekly-view-calendar .assign-button-icon svg {
-  height: 12px !important;
-  width: 12px !important;
-}
+/* ... keep existing code */

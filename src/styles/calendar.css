@@ -1,3 +1,4 @@
+
 /* Calendar styling with teal theme */
 .fc .fc-button-primary {
   background-color: #7BAEBF !important;
@@ -221,9 +222,7 @@
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 6px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  text-align: center;
 }
 
 .resource-drop-zone {
@@ -231,16 +230,16 @@
   z-index: 10;
 }
 
-/* Assigned staff badges in resource header - updated styling for vertical stack */
+/* Assigned staff badges in resource header - updated styling */
 .assigned-staff-area {
   overflow-y: visible;
   z-index: 20;
   padding-bottom: 2px;
-  min-height: 130px; /* Increased to fit 5 staff stacked */
+  min-height: 28px;
   display: flex;
-  flex-direction: column; /* Changed to column for vertical stacking */
+  flex-wrap: wrap;
   gap: 4px;
-  align-items: center; /* Center badges horizontally */
+  justify-content: center;
 }
 
 .staff-badge {
@@ -251,35 +250,6 @@
   z-index: 15;
   position: relative;
   cursor: move;
-  height: 22px; /* Fixed height for staff badges */
-  display: flex;
-  align-items: center;
-}
-
-/* Icon-only assign button styling */
-.assign-button-icon {
-  height: 20px !important;
-  width: 20px !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px dashed #d1d5db;
-  border-radius: 0.25rem;
-  color: #6b7280;
-  transition: all 0.2s ease;
-  z-index: 10;
-  background-color: transparent;
-  padding: 3px;
-  margin-left: auto;
-}
-
-.assign-button-icon:hover {
-  background-color: #f3f4f6;
-}
-
-.assign-button-icon svg {
-  height: 12px !important;
-  width: 12px !important;
 }
 
 /* Ensure resource headers have enough height for staff display */
@@ -296,7 +266,7 @@
 .fc-datagrid-cell-frame {
   display: flex;
   flex-direction: column;
-  min-height: 180px !important;  /* Increased height for 5 stacked staff badges */
+  min-height: 100px !important;  /* Increased height for staff badges */
   padding: 5px !important;
   position: relative;
   overflow: visible !important;

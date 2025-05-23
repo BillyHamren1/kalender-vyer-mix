@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { RefreshCcw, Users } from 'lucide-react';
+import { RefreshCcw } from 'lucide-react';
 import DayNavigation from '@/components/Calendar/DayNavigation';
 import AddTaskButton from '@/components/Calendar/AddTaskButton';
 import { Resource, CalendarEvent } from './ResourceData';
@@ -13,7 +13,6 @@ interface ResourceToolbarProps {
   resources: Resource[];
   onRefresh: () => Promise<void | CalendarEvent[]>;
   onAddTask: (event: Omit<CalendarEvent, 'id'>) => Promise<string>;
-  onShowStaffCurtain?: () => void;
 }
 
 /**
@@ -24,8 +23,7 @@ const ResourceToolbar: React.FC<ResourceToolbarProps> = ({
   currentDate,
   resources,
   onRefresh,
-  onAddTask,
-  onShowStaffCurtain
+  onAddTask
 }) => {
   const isMobile = useIsMobile();
 
@@ -41,19 +39,6 @@ const ResourceToolbar: React.FC<ResourceToolbarProps> = ({
         <RefreshCcw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
         {isMobile ? '' : 'Update'}
       </Button>
-      
-      {/* Show Staff Button */}
-      {onShowStaffCurtain && (
-        <Button
-          onClick={onShowStaffCurtain}
-          variant="outline"
-          size="sm"
-          className="flex items-center gap-1 mr-3"
-        >
-          <Users className="h-4 w-4" />
-          {isMobile ? '' : 'Available Staff'}
-        </Button>
-      )}
       
       {/* Add Task Button */}
       <AddTaskButton 

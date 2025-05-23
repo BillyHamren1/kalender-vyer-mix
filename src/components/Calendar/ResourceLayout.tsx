@@ -28,7 +28,7 @@ const ResourceLayout: React.FC<ResourceLayoutProps> = ({
 
           {/* Always use grid layout for side-by-side display regardless of screen size */}
           <div className="grid" 
-               style={{ gridTemplateColumns: showStaffDisplay ? '200px 1fr' : '1fr', gap: '1rem' }}>
+               style={{ gridTemplateColumns: '200px 1fr', gap: '1rem' }}>
             
             {/* Left column: Available Staff Display */}
             {showStaffDisplay && (

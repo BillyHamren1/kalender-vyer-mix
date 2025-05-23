@@ -14,7 +14,7 @@ interface WeeklyResourceCalendarProps {
   onDateSet: (dateInfo: any) => void;
   refreshEvents: () => Promise<void | CalendarEvent[]>;
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
-  onSelectStaff?: (resourceId: string, resourceTitle: string) => void;
+  onSelectStaff?: (teamId: string, teamName: string) => void;
   forceRefresh?: boolean;
 }
 
@@ -39,19 +39,6 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
     return date;
   });
 
-  // Log staff drop operations for debugging
-  const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
-    console.log(`WeeklyResourceCalendar.handleStaffDrop: staffId=${staffId}, resourceId=${resourceId || 'null'}`);
-    if (onStaffDrop) {
-      try {
-        await onStaffDrop(staffId, resourceId);
-        console.log('Staff drop operation successful');
-      } catch (error) {
-        console.error('Error in handleStaffDrop:', error);
-      }
-    }
-  };
-
   // Handle calendar date set for nested calendars
   const handleNestedCalendarDateSet = (dateInfo: any) => {
     // Only pass the date to the parent if it's from the first calendar
@@ -61,16 +48,6 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
     }
   };
   
-  // Handle staff selection and pass to parent
-  const handleSelectStaff = (resourceId: string, resourceTitle: string) => {
-    console.log('WeeklyResourceCalendar: handleSelectStaff called for', resourceId, resourceTitle);
-    if (onSelectStaff) {
-      onSelectStaff(resourceId, resourceTitle);
-    } else {
-      console.error('WeeklyResourceCalendar: onSelectStaff prop is not defined');
-    }
-  };
-
   // Helper function to ensure consistent resource column configuration
   const getResourceTimeGridOptions = () => {
     return {
@@ -143,8 +120,8 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
                   currentDate={date}
                   onDateSet={handleNestedCalendarDateSet}
                   refreshEvents={refreshEvents}
-                  onStaffDrop={handleStaffDrop}
-                  onSelectStaff={handleSelectStaff}
+                  onStaffDrop={onStaffDrop}
+                  onSelectStaff={onSelectStaff}
                   forceRefresh={forceRefresh}
                   key={`calendar-${format(date, 'yyyy-MM-dd')}`}
                   droppableScope="weekly-calendar"

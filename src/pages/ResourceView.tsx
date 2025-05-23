@@ -4,10 +4,12 @@ import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useEventActions } from '@/hooks/useEventActions';
 import ResourceCalendar from '@/components/Calendar/ResourceCalendar';
+import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from 'sonner';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
+import { assignStaffToTeam, removeStaffAssignment } from '@/services/staffService';
 import { moveEventsToTeam } from '@/services/teamService';
 import ResourceHeader from '@/components/Calendar/ResourceHeader';
 import ResourceLayout from '@/components/Calendar/ResourceLayout';
@@ -16,8 +18,6 @@ import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
 import { fetchAllStaffBookings } from '@/services/staffAssignmentService';
 import { Button } from '@/components/ui/button';
 import { InfoIcon } from 'lucide-react';
-import { useStaffOperations } from '@/hooks/useStaffOperations';
-import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
 
 const ResourceView = () => {
   // Use our custom hooks to manage state and logic
@@ -44,20 +44,13 @@ const ResourceView = () => {
   // Get the event actions hook
   const { addEventToCalendar, duplicateEvent } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
+  const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
   const [isLoadingAllBookings, setIsLoadingAllBookings] = useState(false);
   
   // Using useState with localStorage to track setup completion
   const [setupDone, setSetupDone] = useState(() => {
     return localStorage.getItem('eventsSetupDone') === 'true';
   });
-  
-  // Staff selection dialog state
-  const [staffDialogOpen, setStaffDialogOpen] = useState(false);
-  const [selectedTeamId, setSelectedTeamId] = useState('');
-  const [selectedTeamTitle, setSelectedTeamTitle] = useState('');
-  
-  // Use staff operations hook
-  const { staffAssignmentsUpdated, handleStaffDrop } = useStaffOperations(currentDate);
   
   // Setup completed flag to prevent multiple setups
   useEffect(() => {
@@ -87,12 +80,41 @@ const ResourceView = () => {
     }
   }, [resources, setupDone, teamResources]);
 
-  // Function to open the staff selection dialog
-  const handleOpenStaffSelectionDialog = (teamId: string, teamTitle: string) => {
-    console.log('ResourceView: Opening staff selection dialog for team:', teamId, teamTitle);
-    setSelectedTeamId(teamId);
-    setSelectedTeamTitle(teamTitle);
-    setStaffDialogOpen(true);
+  // Handle staff drop for assignment
+  const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
+    try {
+      console.log(`Handling staff drop: staff=${staffId}, resource=${resourceId}`);
+      if (resourceId) {
+        toast.info(`Assigning staff ${staffId} to team ${resourceId}...`);
+        try {
+          await assignStaffToTeam(staffId, resourceId, currentDate);
+          toast.success('Staff assigned to team successfully');
+        } catch (error) {
+          console.error('Error assigning staff to team:', error);
+          toast.error('Failed to assign staff to team. Please try again.');
+          return Promise.reject(error);
+        }
+      } else {
+        toast.info(`Removing staff ${staffId} assignment...`);
+        try {
+          await removeStaffAssignment(staffId, currentDate);
+          toast.success('Staff assignment removed successfully');
+        } catch (error) {
+          console.error('Error removing staff assignment:', error);
+          toast.error('Failed to remove staff assignment. Please try again.');
+          return Promise.reject(error);
+        }
+      }
+      
+      // Trigger a refresh of the staff assignments
+      setStaffAssignmentsUpdated(prev => !prev);
+      
+      return Promise.resolve();
+    } catch (error) {
+      console.error('Error handling staff drop:', error);
+      toast.error('Failed to update staff assignment');
+      return Promise.reject(error);
+    }
   };
   
   // Function to load all bookings for all staff
@@ -115,20 +137,20 @@ const ResourceView = () => {
     }
   };
 
-  // Handle staff assignment updated callback
-  const handleStaffAssigned = () => {
-    console.log('Staff assigned, refreshing...');
-    // Force refresh of staff assignments
-  };
-
   return (
     <DndProvider backend={HTML5Backend}>
       <StaffSyncManager currentDate={currentDate} />
       
       <ResourceLayout 
-        showStaffDisplay={false}
-        staffDisplay={<div>Staff Display Placeholder</div>} 
-        isMobile={isMobile}>
+        staffDisplay={
+          <AvailableStaffDisplay 
+            currentDate={currentDate} 
+            onStaffDrop={handleStaffDrop}
+          />
+        }
+        showStaffDisplay={true}
+        isMobile={isMobile}
+      >
         {/* ResourceHeader component with team management controls */}
         <ResourceHeader
           teamResources={teamResources}
@@ -172,17 +194,6 @@ const ResourceView = () => {
           refreshEvents={refreshEvents}
           onStaffDrop={handleStaffDrop}
           forceRefresh={staffAssignmentsUpdated}
-          onSelectStaff={handleOpenStaffSelectionDialog}
-        />
-        
-        {/* Staff Selection Dialog */}
-        <StaffSelectionDialog
-          resourceId={selectedTeamId}
-          resourceTitle={selectedTeamTitle}
-          currentDate={currentDate}
-          open={staffDialogOpen}
-          onOpenChange={setStaffDialogOpen}
-          onStaffAssigned={handleStaffAssigned}
         />
       </ResourceLayout>
     </DndProvider>

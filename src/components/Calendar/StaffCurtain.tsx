@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,20 +15,18 @@ interface StaffCurtainProps {
   onSelectStaff: (teamId: string, teamName: string) => void;
   onClose: () => void;
   onAssignStaff: (staffId: string, teamId: string) => Promise<void>;
-  selectedTeamId: string | null;
-  selectedTeamName: string;
 }
 
 const StaffCurtain: React.FC<StaffCurtainProps> = ({ 
   currentDate, 
   onSelectStaff, 
   onClose,
-  onAssignStaff,
-  selectedTeamId,
-  selectedTeamName
+  onAssignStaff
 }) => {
   const [availableStaff, setAvailableStaff] = useState<StaffMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [selectedTeamName, setSelectedTeamName] = useState<string>('');
   
   // Helper function to get initials for avatar
   const getInitials = (name: string): string => {
@@ -154,6 +153,8 @@ const StaffCurtain: React.FC<StaffCurtainProps> = ({
   };
 
   const openTeamSelection = (teamId: string, teamName: string) => {
+    setSelectedTeamId(teamId);
+    setSelectedTeamName(teamName);
     onSelectStaff(teamId, teamName);
   };
 
@@ -177,7 +178,8 @@ const StaffCurtain: React.FC<StaffCurtainProps> = ({
               variant="ghost" 
               size="sm" 
               onClick={() => {
-                onSelectStaff('', '');
+                setSelectedTeamId(null);
+                setSelectedTeamName('');
               }}
               className="h-5 w-5 p-0"
             >
