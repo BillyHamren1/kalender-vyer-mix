@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -77,6 +78,17 @@ const AddressWrapStyles = () => (
       /* Ensure horizontal scrolling works smoothly */
       .fc-scroller-liquid-absolute {
         overflow-x: auto !important;
+      }
+      /* Fix for column width alignment */
+      .fc-col-header-cell {
+        min-width: 100px !important;
+        width: 100px !important;
+        max-width: 100px !important;
+      }
+      .fc-timegrid-col-frame {
+        min-width: 100px !important;
+        width: 100px !important;
+        max-width: 100px !important;
       }
     `}
   </style>
@@ -222,15 +234,15 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   // Apply consistent column width configuration
   const getResourceColumnConfig = () => {
     // Use provided values from calendarProps or fallback to defaults
-    const resourceAreaWidth = calendarProps.resourceAreaWidth || '100px';  // Increased from 80px
-    const slotMinWidth = calendarProps.slotMinWidth || '100px';            // Increased from 80px
+    const resourceAreaWidth = calendarProps.resourceAreaWidth || '100px';
+    const slotMinWidth = calendarProps.slotMinWidth || '100px';
     
     // Ensure columns for resource headers
     const resourceAreaColumns = calendarProps.resourceAreaColumns || [
       {
         field: 'title',
         headerContent: 'Teams',
-        width: '100px' // Increased from 80px
+        width: '100px'
       }
     ];
     
@@ -241,10 +253,10 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       resourcesInitiallyExpanded: true,
       stickyResourceAreaHeaders: true,
       // Force column widths to be consistent
-      resourceLaneWidth: '100px',  // Increased from 80px
-      resourceWidth: '100px',      // Increased from 80px
-      // Set fixed widths for day columns
-      dayMinWidth: '100px'
+      resourceLaneWidth: '100px',
+      resourceWidth: '100px',
+      // Set fixed widths for day columns - FIXED: changed from string to number
+      dayMinWidth: 100
     };
   };
 

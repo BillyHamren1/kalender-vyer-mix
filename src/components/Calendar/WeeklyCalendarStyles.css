@@ -53,13 +53,17 @@
   border-bottom: 2px solid #d1d5db;
 }
 
-/* Enforce fixed width for ALL resource columns - INCREASED WIDTH */
+/* CRITICAL - Enforce fixed width for ALL resource columns */
 .fc-resource-area td,
 .fc-resource-area th,
 .fc-resource-lane,
 .fc-datagrid-cell,
 .fc-datagrid-cell-frame,
-.fc-timegrid-col {
+.fc-timegrid-col,
+.fc-col-header-cell,
+.fc-timegrid-col-frame,
+.fc-timegrid-cols td,
+.fc-timegrid-cols th {
   min-width: 100px !important;
   width: 100px !important;
   max-width: 100px !important;
@@ -168,7 +172,14 @@
   width: 3px !important;
 }
 
-.weekly-view-calendar .fc-timegrid-col {
+/* Fixed width for all columns - CRITICAL */
+.weekly-view-calendar .fc-timegrid-col,
+.weekly-view-calendar .fc-col-header-cell,
+.weekly-view-calendar .fc-resource-group,
+.weekly-view-calendar .fc-datagrid-cell,
+.weekly-view-calendar .fc-timegrid-cols td,
+.weekly-view-calendar .fc-timegrid-cols th,
+.weekly-view-calendar .fc-timegrid-col-frame {
   min-width: 100px !important;
   width: 100px !important;
   max-width: 100px !important;
@@ -179,24 +190,9 @@
   min-width: 450px !important;
 }
 
-/* Critical fix - ensure ALL resource column headers have consistent width */
-.weekly-view-calendar .fc-col-header-cell {
-  min-width: 100px !important;
-  width: 100px !important;
-  max-width: 100px !important;
-}
-
 /* Fix for resource container width */
 .weekly-view-calendar .fc-resource-timeline-body {
   min-width: 450px !important;
-}
-
-/* Critical fix - ensure ALL resource cells have exact same width */
-.weekly-view-calendar .fc-resource-group,
-.weekly-view-calendar .fc-datagrid-cell {
-  min-width: 100px !important;
-  width: 100px !important;
-  max-width: 100px !important;
 }
 
 /* Ensure time labels have enough room */
@@ -211,16 +207,6 @@
 .weekly-view-calendar [data-resource-id="team-6"].fc-datagrid-cell,
 .weekly-view-calendar [data-resource-id="team-6"] .fc-datagrid-cell-frame,
 .weekly-view-calendar [data-resource-id="team-6"] .fc-timegrid-col {
-  min-width: 100px !important;
-  width: 100px !important;
-  max-width: 100px !important;
-}
-
-/* Ensure ALL columns in weekly view are exactly the same width */
-.weekly-view-calendar .fc-datagrid-cell,
-.weekly-view-calendar .fc-datagrid-cell-frame,
-.weekly-view-calendar .fc-timegrid-col,
-.weekly-view-calendar .fc-col-header-cell {
   min-width: 100px !important;
   width: 100px !important;
   max-width: 100px !important;
@@ -250,6 +236,30 @@
 .weekly-view-calendar .assign-button-icon svg {
   height: 12px !important;
   width: 12px !important;
+}
+
+/* CRITICAL: Fix for internal column layout */
+.fc-col-header-cell-cushion,
+.fc-timegrid-col-events,
+.fc-timegrid-now-indicator-container {
+  min-width: 100px !important;
+  width: 100px !important;
+}
+
+/* Force consistent cell sizing */
+.fc-timegrid-body,
+.fc-timegrid-body-sections table,
+.fc-timegrid-body-sections td,
+.fc-scrollgrid-section-body td,
+.fc-scrollgrid-section-body th {
+  box-sizing: border-box !important;
+}
+
+/* Make day grid columns aligned */
+.fc-daygrid-day {
+  width: 100px !important;
+  min-width: 100px !important;
+  max-width: 100px !important;
 }
 
 /* Responsive media queries to ensure calendar components adapt to screen size */
