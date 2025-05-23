@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
-import { format, getDaysInMonth, startOfMonth, addMonths, subMonths } from 'date-fns';
+import { format, startOfWeek, addWeeks, subWeeks, addDays } from 'date-fns';
 import './DynamicColumnStyles.css';
 
 interface TestMonthlyResourceCalendarProps {
@@ -31,93 +31,50 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
   forceRefresh
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [monthsToShow, setMonthsToShow] = useState(6);
-  const [currentMonthOffset, setCurrentMonthOffset] = useState(-3);
   const [isScrolling, setIsScrolling] = useState(false);
+  const [currentWeekOffset, setCurrentWeekOffset] = useState(0);
+  const [weeksLoaded, setWeeksLoaded] = useState(5); // Fixed to 5 weeks
   const lastScrollPosition = useRef(0);
-  const scrollDirectionRef = useRef<'left' | 'right' | null>(null);
-  const requestIdRef = useRef<number | null>(null);
   const scrollTimeoutRef = useRef<number | null>(null);
   
-  // Generate days for multiple months - memoize this heavy calculation
+  // Generate days for 5 weeks around current date - much more efficient
   const allDays = useMemo(() => {
-    console.log(`Generating days for ${monthsToShow} months with offset ${currentMonthOffset}`);
+    console.log(`Generating days for 5 weeks around current date`);
     const result: Date[] = [];
     
-    for (let i = 0; i < monthsToShow; i++) {
-      const monthDate = addMonths(currentDate, currentMonthOffset + i);
-      const monthStart = startOfMonth(monthDate);
-      const daysInMonth = getDaysInMonth(monthDate);
+    // Start from 1 week before current week
+    const startWeek = addWeeks(startOfWeek(currentDate, { weekStartsOn: 1 }), -1);
+    
+    // Generate 5 weeks (35 days)
+    for (let weekIndex = 0; weekIndex < 5; weekIndex++) {
+      const weekStart = addWeeks(startWeek, weekIndex);
       
-      const monthDays = Array.from({ length: daysInMonth }, (_, dayIndex) => {
-        const date = new Date(monthStart);
-        date.setDate(dayIndex + 1);
-        return date;
-      });
-      
-      result.push(...monthDays);
+      // Add 7 days for each week
+      for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+        const date = addDays(weekStart, dayIndex);
+        result.push(date);
+      }
     }
     
+    console.log(`Generated ${result.length} days from ${format(result[0], 'yyyy-MM-dd')} to ${format(result[result.length - 1], 'yyyy-MM-dd')}`);
     return result;
-  }, [currentDate, monthsToShow, currentMonthOffset]);
+  }, [currentDate]);
 
   // Handle scroll end detection
   const handleScrollEnd = useCallback(() => {
     setIsScrolling(false);
   }, []);
 
-  // Improved scroll handler with requestAnimationFrame for better performance
+  // Simplified scroll handler - no infinite scroll, just smooth scrolling
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return;
     
     const container = containerRef.current;
     const scrollLeft = container.scrollLeft;
-    const scrollWidth = container.scrollWidth;
-    const clientWidth = container.clientWidth;
     
-    // Determine scroll direction
+    // Determine scroll direction for debugging
     const direction = scrollLeft > lastScrollPosition.current ? 'right' : 'left';
-    scrollDirectionRef.current = direction;
     lastScrollPosition.current = scrollLeft;
-    
-    // Use a smaller threshold (500px) for faster detection
-    const threshold = 500;
-    
-    // Calculate scroll percentage for debugging
-    const scrollPercentage = (scrollLeft / (scrollWidth - clientWidth)) * 100;
-    
-    // Debug scroll metrics
-    if (scrollPercentage > 92 || scrollPercentage < 8) {
-      console.log(`Scroll position: ${scrollPercentage.toFixed(1)}%, direction: ${direction}`);
-    }
-    
-    // Load previous months if scrolled near the beginning
-    if (scrollLeft < threshold && direction === 'left') {
-      console.log('Near start of content - Loading previous months');
-      setCurrentMonthOffset(prev => {
-        console.log(`Updating month offset from ${prev} to ${prev - 3}`);
-        return prev - 3;
-      });
-      setMonthsToShow(prev => prev + 3);
-      
-      // Save current position to restore after DOM update
-      const currentPos = scrollLeft;
-      
-      // After DOM update, maintain relative scroll position
-      requestAnimationFrame(() => {
-        if (containerRef.current) {
-          // Calculate new position to maintain the same view with consistent column width
-          const additionalWidth = 3 * 30 * 550; // Approximate width of 3 months
-          containerRef.current.scrollLeft = currentPos + additionalWidth;
-        }
-      });
-    }
-    
-    // Load next months if scrolled near the end
-    if (scrollLeft + clientWidth > scrollWidth - threshold && direction === 'right') {
-      console.log('Near end of content - Loading next months');
-      setMonthsToShow(prev => prev + 3);
-    }
     
     // Set scrolling state
     setIsScrolling(true);
@@ -127,37 +84,30 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
       window.clearTimeout(scrollTimeoutRef.current);
     }
     
-    // Set a new timeout to detect when scrolling stops
+    // Set a timeout to detect when scrolling stops
     scrollTimeoutRef.current = window.setTimeout(handleScrollEnd, 150);
   }, [handleScrollEnd]);
 
-  // Set up improved scroll listener with requestAnimationFrame
+  // Set up scroll listener
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     
     const scrollListener = () => {
-      if (requestIdRef.current) {
-        cancelAnimationFrame(requestIdRef.current);
-      }
-      
-      requestIdRef.current = requestAnimationFrame(handleScroll);
+      handleScroll();
     };
 
     container.addEventListener('scroll', scrollListener, { passive: true });
     
     return () => {
       container.removeEventListener('scroll', scrollListener);
-      if (requestIdRef.current) {
-        cancelAnimationFrame(requestIdRef.current);
-      }
       if (scrollTimeoutRef.current) {
         window.clearTimeout(scrollTimeoutRef.current);
       }
     };
   }, [handleScroll]);
 
-  // Initial setup to find today and center it - only run once
+  // Initial setup to find today and center it
   useEffect(() => {
     if (containerRef.current && allDays.length > 0) {
       const today = new Date();
@@ -166,19 +116,15 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
       );
       
       if (todayIndex >= 0) {
-        // Calculate scroll position with consistent column width
-        let scrollPosition = 0;
-        for (let i = 0; i < todayIndex; i++) {
-          scrollPosition += 550 + 2; // Consistent width for all columns
-        }
-        
+        // Calculate scroll position to center today
+        const scrollPosition = todayIndex * 552; // 550px width + 2px gap
         const containerWidth = containerRef.current.clientWidth;
-        scrollPosition = scrollPosition - (containerWidth / 2) + (550 / 2);
+        const centeredPosition = scrollPosition - (containerWidth / 2) + (550 / 2);
         
         // Use requestAnimationFrame to ensure the DOM is ready
         requestAnimationFrame(() => {
           if (containerRef.current) {
-            containerRef.current.scrollLeft = Math.max(0, scrollPosition);
+            containerRef.current.scrollLeft = Math.max(0, centeredPosition);
           }
         });
       }
@@ -210,40 +156,40 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     }
   };
 
-  // Get calendar props - now consistent for all columns
+  // Get calendar props - consistent for all columns
   const getCalendarProps = (dayIndex: number) => {
     return {
       height: 'auto',
       headerToolbar: false,
       allDaySlot: false,
       initialView: 'resourceTimeGridDay',
-      resourceAreaWidth: 80, // Consistent for all columns
-      slotMinWidth: 80, // Consistent for all columns
+      resourceAreaWidth: 80,
+      slotMinWidth: 80,
       resourceAreaColumns: [
         {
           field: 'title',
           headerContent: 'Teams',
-          width: 80 // Consistent for all columns
+          width: 80
         }
       ],
       'data-day-index': dayIndex.toString(),
     };
   };
 
-  // Debugging output for scroll state
-  useEffect(() => {
-    console.log(`Current months showing: ${monthsToShow}, offset: ${currentMonthOffset}, days: ${allDays.length}`);
-  }, [monthsToShow, currentMonthOffset, allDays.length]);
+  // Check if it's the first day of month for month separator
+  const isFirstDayOfMonth = (date: Date, index: number) => {
+    return date.getDate() === 1 && index > 0;
+  };
 
   return (
     <div className="dynamic-monthly-view-container">
       <div className="dynamic-calendar-container" ref={containerRef}>
         {allDays.map((date, index) => {
-          const isFirstDayOfMonth = date.getDate() === 1;
+          const showMonthSeparator = isFirstDayOfMonth(date, index);
           
           return (
             <React.Fragment key={format(date, 'yyyy-MM-dd')}>
-              {isFirstDayOfMonth && index > 0 && (
+              {showMonthSeparator && (
                 <div className="month-separator">
                   <div className="month-separator-line"></div>
                   <div className="month-separator-label">

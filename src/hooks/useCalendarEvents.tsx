@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { fetchCalendarEvents } from '@/services/eventService';
@@ -23,10 +22,10 @@ export const useCalendarEvents = () => {
 
   // Memoize the loadEvents function to prevent recreations
   const loadEvents = useCallback(async (force = false) => {
-    // Skip if we've updated in the last 5 seconds and this isn't a forced refresh
+    // Skip if we've updated in the last 3 seconds (reduced from 5) and this isn't a forced refresh
     if (!force && lastUpdateRef.current) {
       const timeSinceLastUpdate = Date.now() - lastUpdateRef.current.getTime();
-      if (timeSinceLastUpdate < 5000) {
+      if (timeSinceLastUpdate < 3000) {
         console.log('Skipping events update, last update was', timeSinceLastUpdate, 'ms ago');
         return;
       }
@@ -37,16 +36,8 @@ export const useCalendarEvents = () => {
       setIsLoading(true);
       const data = await fetchCalendarEvents();
       if (activeRef.current) {
-        console.log('Calendar events loaded successfully:', data);
-        console.log('Resource IDs in events:', data.map(event => event.resourceId));
-        
-        // Log event types to help with debugging
-        console.log('Event types:', data.map(event => event.eventType));
-        
-        // Update the events state
+        console.log('Calendar events loaded successfully:', data.length, 'events');
         setEvents(data);
-        
-        // Update the last update timestamp
         lastUpdateRef.current = new Date();
       }
     } catch (error) {
@@ -69,12 +60,12 @@ export const useCalendarEvents = () => {
     // Initial load
     loadEvents(true);
 
-    // Set up polling every 30 seconds to fetch updates
+    // Set up polling every 45 seconds (increased from 30) to reduce load
     pollIntervalRef.current = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         loadEvents();
       }
-    }, 30000);
+    }, 45000);
 
     return () => {
       activeRef.current = false;
@@ -84,24 +75,23 @@ export const useCalendarEvents = () => {
     };
   }, [loadEvents]);
 
-  // Memoize handleDatesSet to prevent recreation on every render
+  // Optimized handleDatesSet to only trigger when date changes significantly (more than 1 day)
   const handleDatesSet = useCallback((dateInfo: any) => {
     const newDate = dateInfo.start;
     
-    // Skip update if the date is the same (comparing dates, not times)
-    if (
-      currentDate.getFullYear() === newDate.getFullYear() &&
-      currentDate.getMonth() === newDate.getMonth() &&
-      currentDate.getDate() === newDate.getDate()
-    ) {
+    // Only update if the date difference is more than 1 day
+    const daysDifference = Math.abs(
+      (newDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    
+    if (daysDifference < 1) {
       return;
     }
     
+    console.log('Calendar date change detected, difference:', daysDifference, 'days');
     setCurrentDate(newDate);
-    // Update both session storage and context
     sessionStorage.setItem('calendarDate', newDate.toISOString());
     setLastViewedDate(newDate);
-    console.log('Calendar date set to:', newDate);
   }, [setLastViewedDate, currentDate]);
   
   // Function to force refresh the calendar events - memoized
