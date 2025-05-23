@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -201,8 +200,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
 
   // Custom resource header content renderer
   const resourceHeaderContent = (info: any) => {
-    if (isMobile) return info.resource.title;
-    
+    // Always use ResourceHeaderDropZone regardless of device type
     return (
       <ResourceHeaderDropZone 
         resource={info.resource}
@@ -284,19 +282,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       setupEventActions(info, handleDuplicateButtonClick);
     },
     resourceLabelDidMount: setupResourceHeaderStyles,
-    resourceLabelContent: (info: any) => {
-      if (isMobile) return info.resource.title;
-      
-      return (
-        <ResourceHeaderDropZone 
-          resource={info.resource}
-          currentDate={currentDate}
-          onStaffDrop={onStaffDrop}
-          onSelectStaff={handleSelectStaff}
-          forceRefresh={forceRefresh}
-        />
-      );
-    },
+    resourceLabelContent: resourceHeaderContent,
     slotLabelDidMount: (info: any) => {
       info.el.style.zIndex = '1';
     },
