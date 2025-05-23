@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
@@ -65,14 +66,15 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     return result;
   }, [currentDate]);
 
-  // Handle day header click to navigate to day view
+  // Handle day header click to navigate to resource view
   const handleDayHeaderClick = useCallback((date: Date) => {
     console.log('Day header clicked:', format(date, 'yyyy-MM-dd'));
     
-    // Navigate to day view with selected date
-    const formattedDate = format(date, 'yyyy-MM-dd');
-    sessionStorage.setItem('dayCalendarDate', date.toISOString());
-    navigate('/day-view');
+    // Store the selected date in sessionStorage
+    sessionStorage.setItem('calendarDate', date.toISOString());
+    
+    // Navigate to the existing resource view page
+    navigate('/resource-view');
   }, [navigate]);
 
   // Center calendar on today's date after render is complete
