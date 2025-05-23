@@ -146,7 +146,7 @@ const MonthlyResourceView = () => {
             resources={resources}
             isLoading={isLoading}
             isMounted={isMounted}
-            currentDate={hookCurrentDate} {/* Pass the actual current date instead of month start */}
+            currentDate={hookCurrentDate}
             onDateSet={handleCalendarDateSet}
             refreshEvents={refreshEvents}
             onStaffDrop={handleStaffDrop}
