@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -129,25 +130,26 @@ const MonthlyResourceView = () => {
             onShowStaffCurtain={handleToggleStaffDisplay}
           />
         </div>
-
-        {/* Team Management positioned above the month navigation */}
-        <div className="flex justify-end mb-4">
-          <TeamManagementDialog
-            teamResources={teamResources}
-            teamCount={teamCount}
-            onAddTeam={addTeam}
-            onRemoveTeam={removeTeam}
-            dialogOpen={dialogOpen}
-            setDialogOpen={setDialogOpen}
-          />
-        </div>
         
-        {/* MonthNavigation positioned right above the calendar */}
-        <div className="mb-6">
-          <MonthNavigation 
-            currentMonthStart={currentMonthStart}
-            setCurrentMonthStart={setCurrentMonthStart}
-          />
+        {/* MonthNavigation with Edit button aligned */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex-1"></div>
+          <div className="flex-1 flex justify-center">
+            <MonthNavigation 
+              currentMonthStart={currentMonthStart}
+              setCurrentMonthStart={setCurrentMonthStart}
+            />
+          </div>
+          <div className="flex-1 flex justify-end">
+            <TeamManagementDialog
+              teamResources={teamResources}
+              teamCount={teamCount}
+              onAddTeam={addTeam}
+              onRemoveTeam={removeTeam}
+              dialogOpen={dialogOpen}
+              setDialogOpen={setDialogOpen}
+            />
+          </div>
         </div>
         
         <div className="weekly-view-container overflow-x-auto">
