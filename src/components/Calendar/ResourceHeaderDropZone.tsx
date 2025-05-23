@@ -102,20 +102,18 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   return (
     <div 
       ref={drop} 
-      className={`resource-header-wrapper flex flex-col h-full w-full relative ${isOver ? 'bg-purple-50' : ''}`}
+      className={`resource-header-wrapper flex flex-col h-full w-full ${isOver ? 'bg-purple-50' : ''}`}
     >
-      {/* Absolutely positioned UserPlus icon in top-right corner */}
-      <button 
-        onClick={handleSelectStaff}
-        className="corner-assign-button absolute top-1 right-1 p-1 rounded-full hover:bg-slate-100 transition-colors z-20"
-        title="Assign staff"
-      >
-        <UserPlus className="h-4 w-4" color="black" />
-      </button>
-
-      {/* Team title area - with padding to avoid overlap with corner button */}
-      <div className="resource-title-area font-medium text-sm mb-1 sticky top-0 z-10 pr-7">
+      {/* Team title with icon button in right corner */}
+      <div className="resource-title-area font-medium text-sm mb-1 sticky top-0 z-10 flex justify-between items-center">
         <span>{resource.title}</span>
+        <button 
+          onClick={handleSelectStaff}
+          className="assign-button-icon"
+          title="Assign staff"
+        >
+          <UserPlus className="h-3 w-3" />
+        </button>
       </div>
       
       {/* Assigned staff area - fixed height to accommodate 5 staff members */}

@@ -63,20 +63,25 @@ const AddressWrapStyles = () => (
         max-width: 80px !important;
         box-sizing: border-box !important;
       }
-      /* HIDE ALL DATE HEADERS - completely remove date displays */
-      .fc-col-header-cell .fc-col-header-cell-cushion,
-      .fc-col-header-cell .fc-col-header-cell-cushion *,
-      .fc-daygrid-week-number,
-      .fc-week-number {
-        display: none !important;
-        visibility: hidden !important;
+      /* Ensure header area matches content area exactly */
+      .fc-datagrid-header .fc-datagrid-cell,
+      .fc-datagrid-header .fc-datagrid-cell-frame,
+      .fc-datagrid-body .fc-datagrid-cell,
+      .fc-datagrid-body .fc-datagrid-cell-frame {
+        min-width: 80px !important;
+        width: 80px !important;
+        max-width: 80px !important;
       }
-      /* Hide column header content entirely */
-      .fc-col-header .fc-col-header-cell {
-        height: 0px !important;
-        min-height: 0px !important;
-        padding: 0px !important;
-        border: none !important;
+      /* Special handling for team-6 to ensure consistency */
+      [data-resource-id="team-6"] .fc-datagrid-cell,
+      [data-resource-id="team-6"].fc-datagrid-cell,
+      [data-resource-id="team-6"] .fc-datagrid-cell-frame,
+      [data-resource-id="team-6"].fc-datagrid-cell-frame,
+      [data-resource-id="team-6"] .fc-timegrid-col,
+      [data-resource-id="team-6"].fc-timegrid-col {
+        min-width: 80px !important;
+        width: 80px !important;
+        max-width: 80px !important;
       }
     `}
   </style>
@@ -196,7 +201,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
 
   // Custom resource header content renderer
   const resourceHeaderContent = (info: any) => {
-    // Always use ResourceHeaderDropZone regardless of device type
+    if (isMobile) return info.resource.title;
+    
     return (
       <ResourceHeaderDropZone 
         resource={info.resource}
@@ -278,43 +284,35 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       setupEventActions(info, handleDuplicateButtonClick);
     },
     resourceLabelDidMount: setupResourceHeaderStyles,
-    resourceLabelContent: resourceHeaderContent,
+    resourceLabelContent: (info: any) => {
+      if (isMobile) return info.resource.title;
+      
+      return (
+        <ResourceHeaderDropZone 
+          resource={info.resource}
+          currentDate={currentDate}
+          onStaffDrop={onStaffDrop}
+          onSelectStaff={handleSelectStaff}
+          forceRefresh={forceRefresh}
+        />
+      );
+    },
     slotLabelDidMount: (info: any) => {
       info.el.style.zIndex = '1';
     },
     dropAccept: ".fc-event",
     eventAllow: () => true,
-    
-    // HIDE COLUMN HEADERS TO REMOVE DATE DISPLAYS - using proper literal types
-    dayHeaderFormat: {
-      weekday: 'short' as const,
-      month: 'numeric' as const,
-      day: 'numeric' as const,
-      omitCommas: true
-    },
-    columnHeaderFormat: {
-      weekday: 'short' as const,
-      omitCommas: true
-    },
-    // Use an empty string function to hide column header text
-    columnHeaderText: () => '',
-    
     // Add the FIXED resource column config with consistent 80px width (as numbers)
     ...getResourceColumnConfig(),
-    
     // Add calendar options
     ...getCalendarOptions(),
-    
     // Add time formatting
     ...getCalendarTimeFormatting(),
-    
     // Apply any additional calendar props (but prioritize our width settings)
     ...calendarProps,
-    
     // OVERRIDE any conflicting width settings from calendarProps with NUMBERS
     resourceAreaWidth: 80,
     slotMinWidth: 80,
-    
     // Update resource rendering to include select button
     resourceAreaHeaderContent: (args: any) => {
       return (
@@ -323,7 +321,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         </div>
       );
     },
-    
     // Enable calendar connection for drag & drop
     eventSourceId: droppableScope,
   };

@@ -257,36 +257,7 @@
   align-items: center;
 }
 
-/* Corner positioned assign button - absolutely positioned at the very edge */
-.corner-assign-button {
-  height: 20px !important;
-  width: 20px !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px dashed #d1d5db;
-  border-radius: 0.25rem;
-  color: #6b7280;
-  transition: all 0.2s ease;
-  background-color: transparent;
-  position: absolute !important;
-  top: 2px !important;
-  right: 0px !important;  /* Move to absolute right edge */
-  z-index: 50 !important; /* Higher z-index to ensure visibility */
-  cursor: pointer;
-}
-
-.corner-assign-button:hover {
-  background-color: #f3f4f6;
-  border-color: #9ca3af;
-}
-
-.corner-assign-button svg {
-  height: 12px !important;
-  width: 12px !important;
-}
-
-/* Legacy icon-only assign button styling - kept for backward compatibility */
+/* Icon-only assign button styling */
 .assign-button-icon {
   height: 20px !important;
   width: 20px !important;
@@ -384,24 +355,6 @@
   width: 80px !important;
   max-width: 80px !important;
   box-sizing: border-box !important;
-}
-
-/* HIDE UNWANTED DATE DISPLAYS - Remove all date/week number displays */
-.fc-col-header-cell .fc-col-header-cell-cushion,
-.fc-daygrid-week-number,
-.fc-week-number,
-.fc-timegrid-col-frame .fc-col-header-cell-cushion {
-  display: none !important;
-}
-
-/* Hide the column header content that shows dates */
-.fc-col-header .fc-col-header-cell .fc-col-header-cell-cushion {
-  display: none !important;
-}
-
-/* Hide any date text in column headers */
-.fc-col-header-cell-cushion * {
-  display: none !important;
 }
 
 /* Reset some FC container heights to allow for our content */
