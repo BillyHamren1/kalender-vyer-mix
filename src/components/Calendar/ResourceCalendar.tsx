@@ -62,26 +62,6 @@ const AddressWrapStyles = () => (
         max-width: 80px !important;
         box-sizing: border-box !important;
       }
-      /* Ensure header area matches content area exactly */
-      .fc-datagrid-header .fc-datagrid-cell,
-      .fc-datagrid-header .fc-datagrid-cell-frame,
-      .fc-datagrid-body .fc-datagrid-cell,
-      .fc-datagrid-body .fc-datagrid-cell-frame {
-        min-width: 80px !important;
-        width: 80px !important;
-        max-width: 80px !important;
-      }
-      /* Special handling for team-6 to ensure consistency */
-      [data-resource-id="team-6"] .fc-datagrid-cell,
-      [data-resource-id="team-6"].fc-datagrid-cell,
-      [data-resource-id="team-6"] .fc-datagrid-cell-frame,
-      [data-resource-id="team-6"].fc-datagrid-cell-frame,
-      [data-resource-id="team-6"] .fc-timegrid-col,
-      [data-resource-id="team-6"].fc-timegrid-col {
-        min-width: 80px !important;
-        width: 80px !important;
-        max-width: 80px !important;
-      }
       /* HIDE ALL DATE HEADERS - completely remove date displays */
       .fc-col-header-cell .fc-col-header-cell-cushion,
       .fc-col-header-cell .fc-col-header-cell-cushion *,
@@ -303,21 +283,37 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     },
     dropAccept: ".fc-event",
     eventAllow: () => true,
-    // HIDE COLUMN HEADERS TO REMOVE DATE DISPLAYS
-    dayHeaderFormat: false,
-    columnHeaderFormat: false,
+    
+    // HIDE COLUMN HEADERS TO REMOVE DATE DISPLAYS - using valid formatter types
+    dayHeaderFormat: { 
+      weekday: 'short',
+      month: 'numeric',
+      day: 'numeric',
+      omitCommas: true 
+    },
+    columnHeaderFormat: { 
+      weekday: 'short', 
+      omitCommas: true 
+    },
+    // Use an empty string function instead of boolean false
     columnHeaderText: () => '',
+    
     // Add the FIXED resource column config with consistent 80px width (as numbers)
     ...getResourceColumnConfig(),
+    
     // Add calendar options
     ...getCalendarOptions(),
+    
     // Add time formatting
     ...getCalendarTimeFormatting(),
+    
     // Apply any additional calendar props (but prioritize our width settings)
     ...calendarProps,
+    
     // OVERRIDE any conflicting width settings from calendarProps with NUMBERS
     resourceAreaWidth: 80,
     slotMinWidth: 80,
+    
     // Update resource rendering to include select button
     resourceAreaHeaderContent: (args: any) => {
       return (
@@ -326,6 +322,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         </div>
       );
     },
+    
     // Enable calendar connection for drag & drop
     eventSourceId: droppableScope,
   };
