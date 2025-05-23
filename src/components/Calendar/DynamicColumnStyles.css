@@ -11,36 +11,46 @@
   height: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  scroll-behavior: smooth;
+  scroll-behavior: auto; /* Changed from smooth to prevent unwanted corrections */
   gap: 2px;
 }
 
-/* Day wrapper with dynamic sizing */
+/* Day wrapper with consistent sizing for layout calculations */
 .dynamic-day-wrapper {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   height: 100%;
   border-right: 1px solid #e5e7eb;
-  transition: all 0.3s ease-in-out;
   position: relative;
+  /* Use consistent width for layout, styling changes via transform */
+  width: 550px;
 }
 
 /* Normal column styling */
 .normal-column {
-  width: 550px;
   background-color: #ffffff;
+  transform: scale(1);
+  transform-origin: left center;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+              background-color 0.3s ease,
+              border 0.3s ease,
+              box-shadow 0.3s ease;
 }
 
-/* Center column styling - wider and more prominent */
+/* Center column styling - use transform instead of width change */
 .center-column {
-  width: 750px;
   background-color: #fefcfc;
   border: 2px solid #3b82f6;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
   z-index: 10;
-  margin: 0 4px;
+  transform: scale(1.36); /* 750/550 = 1.36 to achieve the same visual effect */
+  transform-origin: left center;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+              background-color 0.3s ease,
+              border 0.3s ease,
+              box-shadow 0.3s ease;
 }
 
 /* Day headers */
@@ -52,11 +62,11 @@
   font-size: 14px;
   color: #374151;
   text-align: center;
-  transition: all 0.3s ease-in-out;
   min-height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.3s ease-in-out;
 }
 
 /* Center column header styling */
@@ -73,7 +83,6 @@
 .dynamic-calendar {
   flex: 1;
   overflow: hidden;
-  transition: all 0.3s ease-in-out;
 }
 
 /* Resource area adjustments for center columns */
@@ -127,16 +136,6 @@
   font-size: 13px;
 }
 
-/* Smooth transitions for all dynamic elements */
-.dynamic-day-wrapper,
-.day-header,
-.dynamic-calendar,
-.fc-resource-area td,
-.fc-resource-area th,
-.fc-timegrid-col {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
 /* Focus indicator for better accessibility */
 .center-column::before {
   content: '';
@@ -153,15 +152,11 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .normal-column {
+  .dynamic-day-wrapper {
     width: 300px;
   }
   
   .center-column {
-    width: 400px;
-  }
-  
-  .dynamic-day-wrapper {
-    margin: 0 1px;
+    transform: scale(1.33); /* 400/300 for mobile */
   }
 }

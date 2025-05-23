@@ -32,6 +32,7 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [centerColumnIndex, setCenterColumnIndex] = useState<number>(0);
+  const [isScrolling, setIsScrolling] = useState(false);
   
   const monthStart = startOfMonth(currentDate);
   const daysInMonth = getDaysInMonth(currentDate);
@@ -44,58 +45,69 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
 
   // Calculate which column is in the center of the viewport
   const calculateCenterColumn = useCallback(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || isScrolling) return;
     
     const container = containerRef.current;
     const scrollLeft = container.scrollLeft;
     const containerWidth = container.clientWidth;
     const centerPosition = scrollLeft + containerWidth / 2;
     
-    // Calculate accumulated width considering dynamic column sizes
+    // Use consistent column width for calculations (no circular dependency)
+    const COLUMN_WIDTH = 550;
+    const GAP = 2;
     let accumulatedWidth = 0;
     let newCenterIndex = 0;
     
     for (let i = 0; i < monthDays.length; i++) {
-      const isCurrentCenter = i === centerColumnIndex;
-      const columnWidth = isCurrentCenter ? 750 : 550;
-      const gap = 2; // Account for gap between columns
-      
       // Check if the center position falls within this column
-      if (centerPosition >= accumulatedWidth && centerPosition < accumulatedWidth + columnWidth) {
+      if (centerPosition >= accumulatedWidth && centerPosition < accumulatedWidth + COLUMN_WIDTH) {
         newCenterIndex = i;
         break;
       }
       
-      accumulatedWidth += columnWidth + gap;
+      accumulatedWidth += COLUMN_WIDTH + GAP;
     }
     
-    // Update center index if it changed
+    // Only update if it actually changed
     if (newCenterIndex !== centerColumnIndex) {
       console.log(`Center column changed from ${centerColumnIndex} to ${newCenterIndex}`);
+      console.log(`Scroll position: ${scrollLeft}, Center position: ${centerPosition}`);
       setCenterColumnIndex(newCenterIndex);
     }
-  }, [monthDays.length, centerColumnIndex]);
+  }, [monthDays.length, centerColumnIndex, isScrolling]);
 
-  // Set up scroll listener with throttling for better performance
+  // Set up scroll listener with better throttling
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    let timeoutId: number;
+    let scrollTimeout: number;
+    let rafId: number;
     
     const handleScroll = () => {
-      // Throttle the calculation to avoid too many updates
-      clearTimeout(timeoutId);
-      timeoutId = window.setTimeout(() => {
+      setIsScrolling(true);
+      
+      // Clear existing timeouts
+      clearTimeout(scrollTimeout);
+      cancelAnimationFrame(rafId);
+      
+      // Use requestAnimationFrame for smooth updates
+      rafId = requestAnimationFrame(() => {
         calculateCenterColumn();
-      }, 100);
+      });
+      
+      // Mark scrolling as finished after a delay
+      scrollTimeout = window.setTimeout(() => {
+        setIsScrolling(false);
+      }, 150);
     };
 
     container.addEventListener('scroll', handleScroll, { passive: true });
     
     return () => {
       container.removeEventListener('scroll', handleScroll);
-      clearTimeout(timeoutId);
+      clearTimeout(scrollTimeout);
+      cancelAnimationFrame(rafId);
     };
   }, [calculateCenterColumn]);
 
@@ -110,15 +122,18 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
       if (todayIndex >= 0) {
         setCenterColumnIndex(todayIndex);
         
-        // Calculate scroll position considering all columns are normal width initially
+        // Calculate scroll position using consistent column width
+        const COLUMN_WIDTH = 550;
+        const GAP = 2;
         let scrollPosition = 0;
+        
         for (let i = 0; i < todayIndex; i++) {
-          scrollPosition += 550 + 2; // Normal column width + gap
+          scrollPosition += COLUMN_WIDTH + GAP;
         }
         
         // Center the today column in the viewport
         const containerWidth = containerRef.current.clientWidth;
-        scrollPosition = scrollPosition - (containerWidth / 2) + (550 / 2);
+        scrollPosition = scrollPosition - (containerWidth / 2) + (COLUMN_WIDTH / 2);
         
         containerRef.current.scrollLeft = Math.max(0, scrollPosition);
         
