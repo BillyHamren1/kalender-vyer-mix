@@ -1,3 +1,4 @@
+
 /* Calendar styling with teal theme */
 .fc .fc-button-primary {
   background-color: #7BAEBF !important;
@@ -282,7 +283,7 @@
   width: 12px !important;
 }
 
-/* Ensure resource headers have enough height for staff display */
+/* CRITICAL FIX: Ensure resource headers have enough height for staff display AND consistent width */
 .fc-resource-timeline .fc-resource-group,
 .fc-resource-timeline .fc-datagrid-cell,
 .fc-resource-timeline .fc-datagrid-cell-cushion,
@@ -291,6 +292,11 @@
 .fc-datagrid-cell-frame,
 .fc-datagrid-cell-cushion {
   height: 100% !important;
+  /* CRITICAL: Force exact width alignment between header and content */
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
+  box-sizing: border-box !important;
 }
 
 .fc-datagrid-cell-frame {
@@ -300,6 +306,10 @@
   padding: 5px !important;
   position: relative;
   overflow: visible !important;
+  /* CRITICAL: Match header width exactly */
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
 }
 
 .fc-datagrid-cell-cushion {
@@ -307,14 +317,44 @@
   overflow: visible !important;
   position: relative;
   height: 100%;
+  /* CRITICAL: Match header width exactly */
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
 }
 
-/* Ensure header content is visible - critical for staff display */
+/* CRITICAL: Ensure header content is visible and SAME WIDTH as content */
 .fc-datagrid-cell-main {
   overflow: visible !important;
   height: 100% !important;
   z-index: 10;
   position: relative;
+  /* CRITICAL: Match header width exactly */
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
+}
+
+/* CRITICAL FIX: Ensure ALL datagrid header cells match content cells exactly */
+.fc-datagrid-header .fc-datagrid-cell,
+.fc-datagrid-header .fc-datagrid-cell-frame,
+.fc-datagrid-header .fc-datagrid-cell-cushion,
+.fc-datagrid-body .fc-datagrid-cell,
+.fc-datagrid-body .fc-datagrid-cell-frame,
+.fc-datagrid-body .fc-datagrid-cell-cushion {
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
+  box-sizing: border-box !important;
+}
+
+/* CRITICAL: Ensure column headers have exact same width as content */
+.fc-col-header-cell,
+.fc-col-header-cell-cushion {
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
+  box-sizing: border-box !important;
 }
 
 /* Reset some FC container heights to allow for our content */
@@ -393,6 +433,10 @@
   display: flex;
   align-items: center;
   min-height: 48px;
+  /* CRITICAL: Match content width exactly */
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
 }
 
 /* Group header styling */
