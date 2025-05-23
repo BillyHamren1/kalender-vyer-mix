@@ -82,6 +82,33 @@ const AddressWrapStyles = () => (
         width: 117px !important;
         max-width: 117px !important;
       }
+      /* DOUBLE THE TIME COLUMN WIDTH - Time axis styling */
+      .fc-timegrid-axis,
+      .fc-timegrid-slot-label,
+      .fc-timegrid-axis-cushion,
+      .fc-timegrid-slot-label-cushion,
+      .fc-scrollgrid-shrink .fc-timegrid-axis {
+        min-width: 100px !important;
+        width: 100px !important;
+        max-width: 100px !important;
+        text-align: center !important;
+        font-size: 12px !important;
+        font-weight: 500 !important;
+        padding: 4px 8px !important;
+      }
+      /* Ensure time column header matches content width */
+      .fc-timegrid-axis-frame,
+      .fc-timegrid-slot-label-frame {
+        min-width: 100px !important;
+        width: 100px !important;
+        max-width: 100px !important;
+      }
+      /* Make time labels more readable */
+      .fc-timegrid-slot-label-cushion {
+        color: #374151 !important;
+        background: #f9fafb !important;
+        border-right: 1px solid #e5e7eb !important;
+      }
     `}
   </style>
 );
