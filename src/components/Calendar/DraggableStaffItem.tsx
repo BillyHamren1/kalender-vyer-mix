@@ -12,6 +12,11 @@ const getInitials = (name: string): string => {
   return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
 };
 
+// Helper function to get first name only
+const getFirstName = (fullName: string): string => {
+  return fullName.trim().split(' ')[0];
+};
+
 interface DraggableStaffItemProps {
   staff: StaffMember;
   onRemove: () => void;
@@ -92,8 +97,8 @@ const DraggableStaffItem: React.FC<DraggableStaffItemProps> = ({
               {getInitials(staff.name)}
             </AvatarFallback>
           </Avatar>
-          <span className="text-xs font-medium whitespace-normal break-words overflow-visible">
-            {staff.name}
+          <span className="text-xs font-medium whitespace-nowrap overflow-hidden text-ellipsis">
+            {getFirstName(staff.name)}
           </span>
         </div>
       </div>
