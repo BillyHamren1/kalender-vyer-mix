@@ -1,8 +1,7 @@
 
-/* Dynamic Column Sizing Styles */
 .dynamic-monthly-view-container {
   width: 100%;
-  height: calc(100vh - 200px);
+  height: 100%;
   overflow: hidden;
 }
 
@@ -13,130 +12,139 @@
   overflow-y: hidden;
   scroll-behavior: smooth;
   gap: 2px;
-  /* Optimize scrolling performance */
-  -webkit-overflow-scrolling: touch;
-  will-change: scroll-position;
-  scrollbar-width: thin;
+  padding: 0 20px;
 }
 
-/* Month separator styling */
-.month-separator {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-width: 120px;
-  background: linear-gradient(to bottom, #f8fafc, #e2e8f0);
-  border-left: 2px solid #cbd5e1;
-  border-right: 2px solid #cbd5e1;
-  position: relative;
-  z-index: 5;
-}
-
-.month-separator-line {
-  width: 2px;
-  height: 40%;
-  background: linear-gradient(to bottom, transparent, #64748b, transparent);
-}
-
-.month-separator-label {
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  font-weight: 700;
-  font-size: 14px;
-  color: #475569;
-  padding: 20px 0;
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  text-align: center;
-}
-
-/* Day wrapper with consistent sizing */
 .dynamic-day-wrapper {
-  flex-shrink: 0;
+  flex: 0 0 550px;
+  width: 550px;
   display: flex;
   flex-direction: column;
   height: 100%;
-  border-right: 1px solid #e5e7eb;
-  position: relative;
-  /* All columns have the same width now */
-  width: 550px;
-  background-color: #ffffff;
 }
 
-/* Calendar container within each day */
 .dynamic-calendar {
   flex: 1;
-  overflow: hidden;
+  min-height: 0;
 }
 
-/* Consistent resource area for all columns */
-.dynamic-day-wrapper .fc-resource-area td,
-.dynamic-day-wrapper .fc-resource-area th,
-.dynamic-day-wrapper .fc-resource-lane,
-.dynamic-day-wrapper .fc-datagrid-cell,
-.dynamic-day-wrapper .fc-timegrid-col {
-  min-width: 80px !important;
-  width: 80px !important;
-  max-width: 80px !important;
+/* New day header styles */
+.day-header-monthly {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-bottom: 2px solid #cbd5e1;
+  text-align: center;
+  padding: 8px 4px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 2px;
+  border-radius: 6px 6px 0 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
-/* Enhanced scrollbar styling for better visibility */
-.dynamic-calendar-container::-webkit-scrollbar {
-  height: 8px;
-  background: #f1f5f9;
+.day-header-monthly.today {
+  background: #dbeafe;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+  font-weight: 700;
 }
 
-.dynamic-calendar-container::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 4px;
-}
-
-.dynamic-calendar-container::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
-  border: 2px solid #f1f5f9;
-}
-
-.dynamic-calendar-container::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-/* Performance optimizations to reduce repaints */
-.dynamic-calendar-container {
-  contain: content;
-}
-
-.dynamic-day-wrapper {
-  contain: layout style;
-}
-
-/* Debugging helper styles */
-.scroll-debug-info {
-  position: fixed;
-  bottom: 10px;
-  right: 10px;
-  background: rgba(0,0,0,0.7);
-  color: white;
-  padding: 5px 10px;
-  border-radius: 4px;
+.day-header-monthly .day-name {
   font-size: 12px;
-  z-index: 1000;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.day-header-monthly .day-number {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.day-header-monthly.today .day-number {
+  background: #3b82f6;
+  color: white;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+/* Month separator styles */
+.month-separator {
+  display: flex;
+  align-items: center;
+  padding: 20px 0;
+  margin: 0 20px;
+  flex: 0 0 auto;
+}
+
+.month-separator-line {
+  flex: 1;
+  height: 2px;
+  background: linear-gradient(to right, transparent, #cbd5e1, transparent);
+}
+
+.month-separator-label {
+  margin: 0 20px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  background: white;
+  padding: 8px 16px;
+  border: 2px solid #cbd5e1;
+  border-radius: 20px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Calendar content styling */
+.dynamic-calendar .fc {
+  height: 100%;
+}
+
+.dynamic-calendar .fc-view-harness {
+  height: 100%;
+}
+
+/* Hide the built-in FullCalendar header toolbar since we have our own */
+.dynamic-calendar .fc-header-toolbar {
+  display: none !important;
+}
+
+/* Ensure calendar content fills the available space */
+.dynamic-calendar .fc-timegrid {
+  height: 100%;
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .dynamic-day-wrapper {
+    flex: 0 0 300px;
     width: 300px;
-    margin: 0 1px;
   }
   
-  .month-separator {
-    min-width: 80px;
+  .day-header-monthly {
+    padding: 6px 4px;
   }
   
-  .month-separator-label {
-    font-size: 12px;
-    letter-spacing: 1px;
+  .day-header-monthly .day-name {
+    font-size: 10px;
+  }
+  
+  .day-header-monthly .day-number {
+    font-size: 16px;
+  }
+  
+  .day-header-monthly.today .day-number {
+    width: 24px;
+    height: 24px;
   }
 }

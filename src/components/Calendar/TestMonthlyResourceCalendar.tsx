@@ -188,11 +188,18 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     return date.getDate() === 1 && index > 0;
   };
 
+  // Check if it's today to highlight it
+  const isToday = (date: Date) => {
+    const today = new Date();
+    return format(date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
+  };
+
   return (
     <div className="dynamic-monthly-view-container">
       <div className="dynamic-calendar-container" ref={containerRef}>
         {allDays.map((date, index) => {
           const showMonthSeparator = isFirstDayOfMonth(date, index);
+          const isTodayDate = isToday(date);
           
           return (
             <React.Fragment key={format(date, 'yyyy-MM-dd')}>
@@ -206,6 +213,11 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
                 </div>
               )}
               <div className="dynamic-day-wrapper">
+                {/* Add day header above each calendar */}
+                <div className={`day-header-monthly ${isTodayDate ? 'today' : ''}`}>
+                  <div className="day-name">{format(date, 'EEE')}</div>
+                  <div className="day-number">{format(date, 'd')}</div>
+                </div>
                 <div className="dynamic-calendar">
                   <ResourceCalendar
                     events={events}
