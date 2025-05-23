@@ -102,6 +102,7 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
                 staff={staff}
                 onRemove={() => onDrop(staff.id, null)}
                 currentDate={currentDate}
+                teamName={resource.title}
               />
             ))}
             

@@ -1,8 +1,9 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useDrag } from 'react-dnd';
 import { StaffMember } from './StaffTypes';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import ConfirmationDialog from '@/components/ConfirmationDialog';
 
 // Helper function to format staff name
 const formatStaffName = (fullName: string): string => {
@@ -19,13 +20,18 @@ interface DraggableStaffItemProps {
   staff: StaffMember;
   onRemove: () => void;
   currentDate: Date;
+  teamName?: string;
 }
 
 const DraggableStaffItem: React.FC<DraggableStaffItemProps> = ({ 
   staff, 
   onRemove, 
-  currentDate 
+  currentDate,
+  teamName = "this team"
 }) => {
+  // State for confirmation dialog
+  const [dialogOpen, setDialogOpen] = useState(false);
+  
   // Configure drag functionality with enhanced logging
   const [{ isDragging }, drag] = useDrag({
     type: 'STAFF',
@@ -42,6 +48,19 @@ const DraggableStaffItem: React.FC<DraggableStaffItemProps> = ({
     }
   });
 
+  // Handle double click on staff item
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDialogOpen(true);
+  };
+  
+  // Handle confirmation of removal
+  const handleConfirmRemove = () => {
+    onRemove();
+    setDialogOpen(false);
+  };
+
   // Get the initials for avatar
   const getInitials = (name: string): string => {
     const nameParts = name.trim().split(' ');
@@ -53,22 +72,35 @@ const DraggableStaffItem: React.FC<DraggableStaffItemProps> = ({
   const displayName = formatStaffName(staff.name);
 
   return (
-    <div
-      ref={drag}
-      className={`p-1 bg-white border border-gray-200 rounded-md mb-1 cursor-move flex items-center w-full ${
-        isDragging ? 'opacity-50' : 'opacity-100'
-      }`}
-      style={{ height: "24px", maxWidth: "100%" }}
-    >
-      <div className="flex items-center gap-1 w-full">
-        <Avatar className="h-4 w-4 bg-purple-100 flex-shrink-0">
-          <AvatarFallback className="text-[10px] text-purple-700">
-            {getInitials(staff.name)}
-          </AvatarFallback>
-        </Avatar>
-        <span className="text-xs font-medium truncate">{displayName}</span>
+    <>
+      <div
+        ref={drag}
+        className={`p-1 bg-white border border-gray-200 rounded-md mb-1 cursor-move flex items-center w-full ${
+          isDragging ? 'opacity-50' : 'opacity-100'
+        }`}
+        style={{ height: "24px", maxWidth: "100%" }}
+        onDoubleClick={handleDoubleClick}
+      >
+        <div className="flex items-center gap-1 w-full">
+          <Avatar className="h-4 w-4 bg-purple-100 flex-shrink-0">
+            <AvatarFallback className="text-[10px] text-purple-700">
+              {getInitials(staff.name)}
+            </AvatarFallback>
+          </Avatar>
+          <span className="text-xs font-medium truncate">{displayName}</span>
+        </div>
       </div>
-    </div>
+      
+      <ConfirmationDialog
+        title="Unassign Staff?"
+        description={`Are you sure you want to unassign ${staff.name} from ${teamName}?`}
+        confirmLabel="Unassign"
+        cancelLabel="Cancel"
+        onConfirm={handleConfirmRemove}
+      >
+        <span style={{ display: 'none' }}></span>
+      </ConfirmationDialog>
+    </>
   );
 };
 

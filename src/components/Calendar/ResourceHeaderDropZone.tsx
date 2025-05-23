@@ -124,6 +124,7 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
             staff={staff}
             onRemove={() => handleRemoveStaff(staff.id)}
             currentDate={currentDate}
+            teamName={resource.title}
           />
         ))}
         
