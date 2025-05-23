@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
 import { Copy } from 'lucide-react';
@@ -16,17 +17,19 @@ export const renderEventContent = (eventInfo: any) => {
     ? eventTitle.split(':')[1].trim() 
     : eventTitle;
 
+  // Extract city from delivery address (assume format: "Street, City, PostalCode")
+  const addressParts = deliveryAddress.split(',');
+  const city = addressParts.length > 1 ? addressParts[1].trim() : '';
+
   // Different rendering based on view type
   if (eventInfo.view.type === 'resourceTimelineWeek') {
     // More compact display for timeline view
     return (
       <div className="event-content-wrapper">
         <div className="event-client-name text-sm truncate">{clientName}</div>
-        <div className="event-booking-id text-xs opacity-80 truncate">ID: {bookingId}</div>
-        <div className="event-delivery-address text-xs break-words whitespace-normal" 
-             style={{ wordWrap: 'break-word', lineHeight: '1.1', maxHeight: '2.2em', overflow: 'hidden' }}>
-          {deliveryAddress}
-        </div>
+        {city && (
+          <div className="event-city text-xs opacity-80 truncate">{city}</div>
+        )}
       </div>
     );
   }
@@ -35,11 +38,9 @@ export const renderEventContent = (eventInfo: any) => {
   return (
     <div className="event-content-wrapper">
       <div className="event-client-name text-sm truncate">{clientName}</div>
-      <div className="event-booking-id text-xs opacity-80 truncate">ID: {bookingId}</div>
-      <div className="event-delivery-address text-xs break-words whitespace-normal" 
-           style={{ wordWrap: 'break-word', lineHeight: '1.2' }}>
-        {deliveryAddress}
-      </div>
+      {city && (
+        <div className="event-city text-xs opacity-80 truncate">{city}</div>
+      )}
     </div>
   );
 };
