@@ -98,7 +98,7 @@ const DraggableStaffItem: React.FC<DraggableStaffItemProps> = ({
           WebkitUserSelect: 'none'
         }}
         onDoubleClick={handleDoubleClick}
-        draggable={false} // Let react-dnd handle dragging
+        draggable="true" // Set to true to allow native drag behavior
       >
         <div className="flex items-center gap-1 w-full pointer-events-none">
           <Avatar className="h-4 w-4 bg-purple-100 flex-shrink-0">

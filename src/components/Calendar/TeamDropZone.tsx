@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Resource } from './ResourceData';
 import { StaffMember, StaffAssignment } from './StaffAssignmentRow';
 import DraggableStaffItem from './DraggableStaffItem';
@@ -10,7 +10,7 @@ interface TeamDropZoneProps {
   resource: Resource;
   staffMembers: StaffMember[];
   assignments: StaffAssignment[];
-  onDrop: (staffId: string, resourceId: string | null) => void;
+  onDrop: (staffId: string, resourceId: string | null) => Promise<void>;
   onAddStaff: (resourceId: string) => void;
   onSelectStaff: (resourceId: string, resourceTitle: string) => void;
   currentDate: Date;
@@ -25,6 +25,10 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
   onSelectStaff,
   currentDate 
 }) => {
+  // Local state to track staff assignments optimistically
+  const [optimisticAssignments, setOptimisticAssignments] = useState<StaffMember[]>([]);
+  const [isProcessingDrop, setIsProcessingDrop] = useState(false);
+
   // Find staff members assigned to this team
   const teamAssignments = assignments.filter(assignment => assignment.team_id === resource.id);
   const teamStaff = teamAssignments.map(assignment => {
@@ -35,12 +39,17 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
     } : null;
   }).filter(Boolean) as StaffMember[];
 
-  // Set up drop target for staff reassignment with better validation
+  // Combine server assignments with local optimistic assignments
+  const displayedStaff = [...teamStaff, ...optimisticAssignments].filter((staff, index, self) => 
+    // Remove duplicates based on ID
+    index === self.findIndex(s => s.id === staff.id)
+  );
+
+  // Set up drop target for staff reassignment with immediate visual feedback
   const [{ isOver, canDrop }, drop] = useDrop({
     accept: 'STAFF',
     drop: (item: StaffMember, monitor) => {
       console.log('Staff dropped onto team:', item.name, 'to team:', resource.title);
-      console.log('Drop item details:', item);
       
       // Prevent dropping staff onto the same team they're already assigned to
       const isAlreadyAssigned = teamStaff.some(staff => staff.id === item.id);
@@ -48,13 +57,26 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
         console.log('Staff is already assigned to this team, skipping drop');
         return;
       }
+
+      // Add staff to local state first for immediate visual feedback
+      setOptimisticAssignments(prev => [...prev, {...item, assignedTeam: resource.id}]);
+      setIsProcessingDrop(true);
       
-      onDrop(item.id, resource.id);
+      // Then handle the actual backend update
+      onDrop(item.id, resource.id)
+        .catch(error => {
+          console.error('Error assigning staff:', error);
+          // Rollback optimistic update on error
+          setOptimisticAssignments(prev => prev.filter(staff => staff.id !== item.id));
+        })
+        .finally(() => {
+          setIsProcessingDrop(false);
+        });
     },
     canDrop: (item: StaffMember) => {
       // Check if staff is already assigned to this team
       const isAlreadyAssigned = teamStaff.some(staff => staff.id === item.id);
-      return !isAlreadyAssigned;
+      return !isAlreadyAssigned && !isProcessingDrop;
     },
     collect: (monitor) => ({
       isOver: !!monitor.isOver(),
@@ -68,14 +90,22 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
     onSelectStaff(resource.id, resource.title);
   }
 
-  // Handle staff removal from team
+  // Handle staff removal from team with optimistic feedback
   const handleStaffRemoval = (staffId: string) => {
     console.log('Removing staff from team:', staffId, 'from team:', resource.title);
+    
+    // Remove staff from optimistic assignments first
+    setOptimisticAssignments(prev => prev.filter(staff => staff.id !== staffId));
+    
+    // If staff is in server assignments, we need to reflect removal optimistically
+    const staffToRemove = teamStaff.find(staff => staff.id === staffId);
+    
+    // Then handle the actual backend update
     onDrop(staffId, null);
   };
 
   // Create placeholder staff slots to ensure consistent height
-  const emptySlots = 5 - teamStaff.length;
+  const emptySlots = 5 - displayedStaff.length;
   const placeholders = Array(emptySlots > 0 ? emptySlots : 0).fill(null);
 
   // Determine drop zone styling
@@ -119,9 +149,9 @@ const TeamDropZone: React.FC<TeamDropZoneProps> = ({
       
       {/* Staff members list section */}
       <div className="p-2 flex-1 flex flex-col bg-white">
-        {teamStaff.length > 0 ? (
+        {displayedStaff.length > 0 ? (
           <>
-            {teamStaff.map(staff => (
+            {displayedStaff.map(staff => (
               <DraggableStaffItem 
                 key={staff.id} 
                 staff={staff}
