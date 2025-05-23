@@ -64,30 +64,34 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     return result;
   }, [currentDate]);
 
-  // Apply initial scroll position to center on today
+  // Center calendar on today's date after render is complete
   useEffect(() => {
-    if (!containerRef.current || allDays.length === 0) return;
-    
-    const today = new Date();
-    const todayFormatted = format(today, 'yyyy-MM-dd');
-    
-    const todayIndex = allDays.findIndex(date => 
-      format(date, 'yyyy-MM-dd') === todayFormatted
-    );
-    
-    if (todayIndex >= 0) {
-      const dayWidth = 552; // 550px width + 2px gap
-      const viewportWidth = window.innerWidth;
-      const scrollPos = Math.max(0, (todayIndex * dayWidth) - (viewportWidth / 2) + (dayWidth / 2));
+    // Use a slightly longer timeout to ensure the DOM is fully rendered
+    const timer = setTimeout(() => {
+      if (!containerRef.current || allDays.length === 0) return;
       
-      // Set scroll position with a small delay to ensure DOM is ready
-      setTimeout(() => {
+      const today = new Date();
+      const todayFormatted = format(today, 'yyyy-MM-dd');
+      
+      const todayIndex = allDays.findIndex(date => 
+        format(date, 'yyyy-MM-dd') === todayFormatted
+      );
+      
+      if (todayIndex >= 0) {
+        const dayWidth = 552; // 550px width + 2px gap
+        const viewportWidth = window.innerWidth;
+        const scrollPos = Math.max(0, (todayIndex * dayWidth) - (viewportWidth / 2) + (dayWidth / 2));
+        
         if (containerRef.current) {
           containerRef.current.scrollLeft = scrollPos;
           console.log(`Applied scroll position ${scrollPos} for today at index ${todayIndex}`);
         }
-      }, 100);
-    }
+      } else {
+        console.log('Today not found in the displayed days');
+      }
+    }, 300);
+    
+    return () => clearTimeout(timer);
   }, [allDays]);
 
   // Handle scroll end detection
@@ -182,17 +186,7 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     return format(date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
   };
 
-  // Show loading only if data is actually loading
-  if (isLoading && !isMounted) {
-    return (
-      <div className="dynamic-monthly-view-container">
-        <div className="flex items-center justify-center h-96">
-          <div className="text-gray-500">Loading calendar...</div>
-        </div>
-      </div>
-    );
-  }
-
+  // Always render the calendar - no initial loading state
   return (
     <div className="dynamic-monthly-view-container">
       <div 
