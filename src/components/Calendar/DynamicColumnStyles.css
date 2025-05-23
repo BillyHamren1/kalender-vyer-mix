@@ -28,6 +28,23 @@
   min-height: 0;
 }
 
+/* Page-level zoom class for the entire monthly view */
+.page-zoom-out {
+  transform: scale(0.7);
+  transform-origin: top left;
+  width: 142.85%; /* 100% ÷ 0.7 to account for scaling */
+  height: 142.85%; /* 100% ÷ 0.7 to account for scaling */
+  position: relative;
+}
+
+/* Container adjustments for zoom */
+.zoom-container {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  position: relative;
+}
+
 /* Updated day header styles with light teal background */
 .day-header-monthly {
   background: #f0f9f9;

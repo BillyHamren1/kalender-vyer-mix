@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -113,46 +112,50 @@ const MonthlyResourceView = () => {
         ) : <></>}
         isMobile={isMobile}
       >
-        <ResourceHeader
-          teamResources={teamResources}
-          teamCount={teamCount}
-          onAddTeam={addTeam}
-          onRemoveTeam={removeTeam}
-          dialogOpen={dialogOpen}
-          setDialogOpen={setDialogOpen}
-        />
+        <div className="zoom-container">
+          <div className="page-zoom-out">
+            <ResourceHeader
+              teamResources={teamResources}
+              teamCount={teamCount}
+              onAddTeam={addTeam}
+              onRemoveTeam={removeTeam}
+              dialogOpen={dialogOpen}
+              setDialogOpen={setDialogOpen}
+            />
 
-        <div className="flex flex-col space-y-2 mb-4">
-          <div className="flex items-center justify-between">
-            <MonthNavigation 
-              currentMonthStart={currentMonthStart}
-              setCurrentMonthStart={setCurrentMonthStart}
-            />
+            <div className="flex flex-col space-y-2 mb-4">
+              <div className="flex items-center justify-between">
+                <MonthNavigation 
+                  currentMonthStart={currentMonthStart}
+                  setCurrentMonthStart={setCurrentMonthStart}
+                />
+                
+                <ResourceToolbar
+                  isLoading={isLoading}
+                  currentDate={hookCurrentDate}
+                  resources={resources}
+                  onRefresh={refreshEvents}
+                  onAddTask={addEventToCalendar}
+                  onShowStaffCurtain={handleToggleStaffDisplay}
+                />
+              </div>
+            </div>
             
-            <ResourceToolbar
-              isLoading={isLoading}
-              currentDate={hookCurrentDate}
-              resources={resources}
-              onRefresh={refreshEvents}
-              onAddTask={addEventToCalendar}
-              onShowStaffCurtain={handleToggleStaffDisplay}
-            />
+            <div className="weekly-view-container overflow-x-auto">
+              <TestMonthlyResourceCalendar
+                events={events}
+                resources={resources}
+                isLoading={isLoading}
+                isMounted={isMounted}
+                currentDate={hookCurrentDate}
+                onDateSet={handleCalendarDateSet}
+                refreshEvents={refreshEvents}
+                onStaffDrop={handleStaffDrop}
+                onSelectStaff={handleOpenStaffSelectionDialog}
+                forceRefresh={staffAssignmentsUpdated}
+              />
+            </div>
           </div>
-        </div>
-        
-        <div className="weekly-view-container overflow-x-auto">
-          <TestMonthlyResourceCalendar
-            events={events}
-            resources={resources}
-            isLoading={isLoading}
-            isMounted={isMounted}
-            currentDate={hookCurrentDate}
-            onDateSet={handleCalendarDateSet}
-            refreshEvents={refreshEvents}
-            onStaffDrop={handleStaffDrop}
-            onSelectStaff={handleOpenStaffSelectionDialog}
-            forceRefresh={staffAssignmentsUpdated}
-          />
         </div>
       </ResourceLayout>
     </DndProvider>
