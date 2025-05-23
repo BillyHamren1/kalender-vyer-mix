@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -12,6 +11,7 @@ import { getCalendarViews, getCalendarOptions } from './CalendarConfig';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useEventActions } from '@/hooks/useEventActions';
 import { ResourceHeaderDropZone } from './ResourceHeaderDropZone';
+import { useEventOperations } from '@/hooks/useEventOperations';
 import { 
   renderEventContent, 
   setupEventActions, 
@@ -48,6 +48,25 @@ const AddressWrapStyles = () => (
       .fc-timegrid-event .fc-event-main {
         padding: 2px 4px !important;
       }
+      /* Force consistent column widths - REDUCED */
+      .fc-resource-area td,
+      .fc-resource-area th,
+      .fc-resource-lane,
+      .fc-datagrid-cell,
+      .fc-timegrid-col {
+        min-width: 80px !important;
+        width: 80px !important;
+        max-width: 80px !important;
+      }
+      /* Special handling for team-6 - REDUCED */
+      [data-resource-id="team-6"] .fc-datagrid-cell,
+      [data-resource-id="team-6"].fc-datagrid-cell,
+      [data-resource-id="team-6"] .fc-timegrid-col,
+      [data-resource-id="team-6"].fc-timegrid-col {
+        min-width: 80px !important;
+        width: 80px !important;
+        max-width: 80px !important;
+      }
     `}
   </style>
 );
@@ -61,8 +80,10 @@ interface ResourceCalendarProps {
   onDateSet: (dateInfo: any) => void;
   refreshEvents: () => Promise<void | CalendarEvent[]>;
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
+  onSelectStaff?: (teamId: string, teamName: string) => void;
   forceRefresh?: boolean;
-  calendarProps?: Record<string, any>; // Add this prop to allow passing additional props to FullCalendar
+  calendarProps?: Record<string, any>; 
+  droppableScope?: string;
 }
 
 const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
@@ -74,8 +95,10 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   onDateSet,
   refreshEvents,
   onStaffDrop,
+  onSelectStaff,
   forceRefresh,
-  calendarProps = {} // Default to empty object
+  calendarProps = {},
+  droppableScope = 'weekly-calendar'
 }) => {
   const calendarRef = useRef<any>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(currentDate);
@@ -86,14 +109,20 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   const { duplicateEvent } = useEventActions(events, () => {}, resources);
   
   // Use the calendar event handlers with the duplicate event function
-  const { handleEventChange, handleEventClick, DuplicateEventDialog } = useCalendarEventHandlers(
+  const { handleEventClick, DuplicateEventDialog } = useCalendarEventHandlers(
     resources, 
     refreshEvents,
     duplicateEvent
   );
 
+  // Use event operations for handling event changes
+  const { handleEventChange, handleEventReceive } = useEventOperations({
+    resources,
+    refreshEvents
+  });
+
   // Get event handlers
-  const { handleEventDrop } = getEventHandlers(handleEventChange, handleEventClick);
+  const { handleEventDrop } = getEventHandlers(handleEventChange, handleEventClick, handleEventReceive);
 
   // Sort resources in the correct order before passing to FullCalendar
   const sortedResources = [...resources].sort((a, b) => {
@@ -163,63 +192,131 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         resource={info.resource}
         currentDate={currentDate}
         onStaffDrop={onStaffDrop}
+        onSelectStaff={onSelectStaff}
         forceRefresh={forceRefresh}
       />
     );
   };
 
+  // Handle team selection
+  const handleSelectStaff = (resourceId: string, resourceTitle: string) => {
+    console.log('ResourceCalendar.handleSelectStaff called with:', resourceId, resourceTitle);
+    if (onSelectStaff) {
+      onSelectStaff(resourceId, resourceTitle);
+    } else {
+      console.error('ResourceCalendar: onSelectStaff prop is not defined');
+    }
+  };
+
+  // Apply consistent column width configuration
+  const getResourceColumnConfig = () => {
+    // Use provided values from calendarProps or fallback to defaults
+    const resourceAreaWidth = calendarProps.resourceAreaWidth || '80px';  // Reduced from 150px
+    const slotMinWidth = calendarProps.slotMinWidth || '80px';            // Reduced from 150px
+    
+    // Ensure columns for resource headers
+    const resourceAreaColumns = calendarProps.resourceAreaColumns || [
+      {
+        field: 'title',
+        headerContent: 'Teams',
+        width: '80px' // Reduced from 150px
+      }
+    ];
+    
+    return {
+      resourceAreaWidth,
+      slotMinWidth,
+      resourceAreaColumns,
+      resourcesInitiallyExpanded: true,
+      stickyResourceAreaHeaders: true,
+      // Force column widths to be consistent
+      resourceLaneWidth: '80px',  // Reduced from 150px
+      resourceWidth: '80px'       // Reduced from 150px
+    };
+  };
+
+  // Create an object for all calendar props to prevent duplicates
+  const fullCalendarProps = {
+    ref: calendarRef,
+    plugins: [
+      resourceTimeGridPlugin,
+      timeGridPlugin,
+      interactionPlugin,
+      dayGridPlugin
+    ],
+    schedulerLicenseKey: "0134084325-fcs-1745193612",
+    initialView: getInitialView(),
+    headerToolbar: getMobileHeaderToolbar(),
+    views: getCalendarViews(),
+    resources: isMobile ? [] : sortedResources,
+    events: processedEvents,
+    editable: true,
+    droppable: true,
+    selectable: true,
+    eventDurationEditable: true,
+    eventResizableFromStart: true,
+    eventDrop: handleEventDrop,
+    eventResize: handleEventChange,
+    eventClick: handleEventClick,
+    eventReceive: handleEventReceive,
+    datesSet: (dateInfo: any) => {
+      setSelectedDate(dateInfo.start);
+      onDateSet(dateInfo);
+      setCurrentView(dateInfo.view.type);
+    },
+    initialDate: currentDate,
+    height: "auto",
+    aspectRatio: getAspectRatio(),
+    eventContent: renderEventContent,
+    eventDidMount: (info: any) => {
+      addEventAttributes(info);
+      setupEventActions(info, handleDuplicateButtonClick);
+    },
+    resourceLabelDidMount: setupResourceHeaderStyles,
+    resourceLabelContent: (info: any) => {
+      if (isMobile) return info.resource.title;
+      
+      return (
+        <ResourceHeaderDropZone 
+          resource={info.resource}
+          currentDate={currentDate}
+          onStaffDrop={onStaffDrop}
+          onSelectStaff={handleSelectStaff}
+          forceRefresh={forceRefresh}
+        />
+      );
+    },
+    slotLabelDidMount: (info: any) => {
+      info.el.style.zIndex = '1';
+    },
+    dropAccept: ".fc-event",
+    eventAllow: () => true,
+    // Add the resource column config
+    ...getResourceColumnConfig(),
+    // Add calendar options
+    ...getCalendarOptions(),
+    // Add time formatting
+    ...getCalendarTimeFormatting(),
+    // Apply any additional calendar props
+    ...calendarProps,
+    // Update resource rendering to include select button
+    resourceAreaHeaderContent: (args: any) => {
+      return (
+        <div className="flex items-center justify-between p-1">
+          <span>Teams</span>
+        </div>
+      );
+    },
+    // Enable calendar connection for drag & drop
+    eventSourceId: droppableScope,
+  };
+
   return (
     <div className="calendar-container">
-      {/* Add custom styles for address wrapping */}
+      {/* Add custom styles for address wrapping and fixed column widths */}
       <AddressWrapStyles />
       
-      <FullCalendar
-        ref={calendarRef}
-        plugins={[
-          resourceTimeGridPlugin,
-          timeGridPlugin,
-          interactionPlugin,
-          dayGridPlugin
-        ]}
-        schedulerLicenseKey="0134084325-fcs-1745193612"
-        initialView={getInitialView()}
-        headerToolbar={getMobileHeaderToolbar()}
-        views={getCalendarViews()}
-        resources={isMobile ? [] : sortedResources}
-        events={processedEvents}
-        editable={true}
-        droppable={true}
-        selectable={true}
-        eventDurationEditable={true}
-        eventResizableFromStart={true}
-        eventDrop={handleEventDrop}
-        eventResize={handleEventChange}
-        eventClick={handleEventClick}
-        datesSet={(dateInfo) => {
-          setSelectedDate(dateInfo.start);
-          onDateSet(dateInfo);
-          setCurrentView(dateInfo.view.type);
-        }}
-        initialDate={currentDate}
-        {...getCalendarOptions()}
-        height="auto"
-        aspectRatio={getAspectRatio()}
-        eventContent={renderEventContent}
-        eventDidMount={(info) => {
-          // Add data attributes and setup event-specific elements
-          addEventAttributes(info);
-          setupEventActions(info, handleDuplicateButtonClick);
-        }}
-        {...getCalendarTimeFormatting()}
-        resourceLabelDidMount={setupResourceHeaderStyles}
-        resourceLabelContent={resourceHeaderContent}
-        slotLabelDidMount={(info) => {
-          // Add z-index to time slots to ensure they appear behind staff badges
-          info.el.style.zIndex = '1';
-        }}
-        // Apply any additional calendar props
-        {...calendarProps}
-      />
+      <FullCalendar {...fullCalendarProps} />
       
       {/* Render the duplicate dialog */}
       <DuplicateEventDialog />
