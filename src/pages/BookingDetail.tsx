@@ -6,7 +6,6 @@ import { CalendarContext } from '@/App';
 import { useBookingDetail } from '@/hooks/useBookingDetail';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 
 // Import refactored components
@@ -14,8 +13,6 @@ import { ClientInformation } from '@/components/booking/ClientInformation';
 import { DeliveryAddressForm } from '@/components/booking/DeliveryAddressForm';
 import { LogisticsOptionsForm } from '@/components/booking/LogisticsOptionsForm';
 import { ScheduleCard } from '@/components/booking/ScheduleCard';
-import { ProductsList } from '@/components/booking/ProductsList';
-import { AttachmentsList } from '@/components/booking/AttachmentsList';
 import { InternalNotes } from '@/components/booking/InternalNotes';
 
 const BookingDetail = () => {
@@ -103,9 +100,9 @@ const BookingDetail = () => {
   }
 
   return (
-    <div className="min-h-screen h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="border-b bg-white px-6 py-4 flex-shrink-0">
+      <div className="border-b bg-white px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="sm" onClick={handleBack}>
@@ -126,190 +123,156 @@ const BookingDetail = () => {
 
       {/* Content */}
       {booking ? (
-        <div className="flex-1 overflow-hidden">
-          <Tabs defaultValue="overview" className="w-full h-full flex flex-col">
-            <div className="px-6 pt-6 flex-shrink-0">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="products">Products & Pricing</TabsTrigger>
-                <TabsTrigger value="internal">Internal Information</TabsTrigger>
-              </TabsList>
+        <div className="p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column */}
+            <div className="space-y-6">
+              <ClientInformation client={booking.client} />
+              
+              <div className="bg-white border border-gray-200 rounded-lg p-6">
+                <h3 className="text-sm font-medium text-gray-900 mb-4">Event Information</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-gray-500">Event Type</label>
+                    <p className="text-sm">Corporate Event</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Event Dates</label>
+                    <div className="flex items-center gap-4 mt-2">
+                      <div className="text-center">
+                        <div className="text-xs text-gray-500">Rig Up</div>
+                        {rigDates.length > 0 && (
+                          <div className="text-sm font-medium">{new Date(rigDates[0]).toLocaleDateString()}</div>
+                        )}
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xs text-gray-500">Event</div>
+                        {eventDates.length > 0 && (
+                          <div className="text-sm font-medium">{new Date(eventDates[0]).toLocaleDateString()}</div>
+                        )}
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xs text-gray-500">Rig Down</div>
+                        {rigDownDates.length > 0 && (
+                          <div className="text-sm font-medium">{new Date(rigDownDates[0]).toLocaleDateString()}</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            
-            <TabsContent value="overview" className="flex-1 overflow-auto px-6 pb-6">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-                {/* Left Column */}
-                <div className="space-y-6">
-                  <ClientInformation client={booking.client} />
-                  
-                  <div className="bg-white border border-gray-200 rounded-lg p-6">
-                    <h3 className="text-sm font-medium text-gray-900 mb-4">Event Information</h3>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-xs text-gray-500">Event Type</label>
-                        <p className="text-sm">Corporate Event</p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500">Event Dates</label>
-                        <div className="flex items-center gap-4 mt-2">
-                          <div className="text-center">
-                            <div className="text-xs text-gray-500">Rig Up</div>
-                            {rigDates.length > 0 && (
-                              <div className="text-sm font-medium">{new Date(rigDates[0]).toLocaleDateString()}</div>
-                            )}
-                          </div>
-                          <div className="text-center">
-                            <div className="text-xs text-gray-500">Event</div>
-                            {eventDates.length > 0 && (
-                              <div className="text-sm font-medium">{new Date(eventDates[0]).toLocaleDateString()}</div>
-                            )}
-                          </div>
-                          <div className="text-center">
-                            <div className="text-xs text-gray-500">Rig Down</div>
-                            {rigDownDates.length > 0 && (
-                              <div className="text-sm font-medium">{new Date(rigDownDates[0]).toLocaleDateString()}</div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+
+            {/* Middle Column */}
+            <div className="space-y-6">
+              <div className="bg-white border border-gray-200 rounded-lg p-6">
+                <h3 className="text-sm font-medium text-gray-900 mb-4">Billing Information</h3>
+                <Button variant="outline" size="sm" className="mb-4">
+                  Copy from client
+                </Button>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-gray-500">Billing Name</label>
+                    <input 
+                      type="text" 
+                      placeholder="Billing name"
+                      className="w-full mt-1 p-2 border border-gray-300 rounded text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Billing Address</label>
+                    <input 
+                      type="text" 
+                      placeholder="Street address"
+                      className="w-full mt-1 p-2 border border-gray-300 rounded text-sm"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-500">Billing Postal Code</label>
+                      <input 
+                        type="text" 
+                        placeholder="Postal code"
+                        className="w-full mt-1 p-2 border border-gray-300 rounded text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500">Billing City</label>
+                      <input 
+                        type="text" 
+                        placeholder="City"
+                        className="w-full mt-1 p-2 border border-gray-300 rounded text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-500">Billing Email</label>
+                      <input 
+                        type="email" 
+                        placeholder="Email address"
+                        className="w-full mt-1 p-2 border border-gray-300 rounded text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500">Billing Phone</label>
+                      <input 
+                        type="tel" 
+                        placeholder="Phone number"
+                        className="w-full mt-1 p-2 border border-gray-300 rounded text-sm"
+                      />
                     </div>
                   </div>
                 </div>
-
-                {/* Middle Column */}
-                <div className="space-y-6">
-                  <div className="bg-white border border-gray-200 rounded-lg p-6">
-                    <h3 className="text-sm font-medium text-gray-900 mb-4">Billing Information</h3>
-                    <Button variant="outline" size="sm" className="mb-4">
-                      Copy from client
-                    </Button>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-xs text-gray-500">Billing Name</label>
-                        <input 
-                          type="text" 
-                          placeholder="Billing name"
-                          className="w-full mt-1 p-2 border border-gray-300 rounded text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500">Billing Address</label>
-                        <input 
-                          type="text" 
-                          placeholder="Street address"
-                          className="w-full mt-1 p-2 border border-gray-300 rounded text-sm"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-xs text-gray-500">Billing Postal Code</label>
-                          <input 
-                            type="text" 
-                            placeholder="Postal code"
-                            className="w-full mt-1 p-2 border border-gray-300 rounded text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500">Billing City</label>
-                          <input 
-                            type="text" 
-                            placeholder="City"
-                            className="w-full mt-1 p-2 border border-gray-300 rounded text-sm"
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-xs text-gray-500">Billing Email</label>
-                          <input 
-                            type="email" 
-                            placeholder="Email address"
-                            className="w-full mt-1 p-2 border border-gray-300 rounded text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500">Billing Phone</label>
-                          <input 
-                            type="tel" 
-                            placeholder="Phone number"
-                            className="w-full mt-1 p-2 border border-gray-300 rounded text-sm"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Column */}
-                <div className="space-y-6">
-                  <DeliveryAddressForm
-                    initialAddress={booking.deliveryAddress || ''}
-                    initialCity={booking.deliveryCity || ''}
-                    initialPostalCode={booking.deliveryPostalCode || ''}
-                    deliveryLatitude={booking.deliveryLatitude}
-                    deliveryLongitude={booking.deliveryLongitude}
-                    isSaving={isSaving}
-                    onSave={handleDeliveryDetailsChange}
-                  />
-                </div>
               </div>
+            </div>
 
-              {/* Full width sections */}
-              <div className="mt-6 space-y-6">
-                <LogisticsOptionsForm
-                  initialCarryMoreThan10m={booking.carryMoreThan10m || false}
-                  initialGroundNailsAllowed={booking.groundNailsAllowed || false}
-                  initialExactTimeNeeded={booking.exactTimeNeeded || false}
-                  initialExactTimeInfo={booking.exactTimeInfo || ''}
-                  isSaving={isSaving}
-                  onSave={handleLogisticsChange}
-                />
+            {/* Right Column */}
+            <div className="space-y-6">
+              <DeliveryAddressForm
+                initialAddress={booking.deliveryAddress || ''}
+                initialCity={booking.deliveryCity || ''}
+                initialPostalCode={booking.deliveryPostalCode || ''}
+                deliveryLatitude={booking.deliveryLatitude}
+                deliveryLongitude={booking.deliveryLongitude}
+                isSaving={isSaving}
+                onSave={handleDeliveryDetailsChange}
+              />
+            </div>
+          </div>
 
-                <ScheduleCard
-                  bookingId={id || ''}
-                  rigDates={rigDates}
-                  eventDates={eventDates}
-                  rigDownDates={rigDownDates}
-                  autoSync={autoSync}
-                  onAutoSyncChange={setAutoSync}
-                  onAddDate={addDate}
-                  onRemoveDate={removeDate}
-                />
+          {/* Full width sections */}
+          <div className="mt-6 space-y-6">
+            <LogisticsOptionsForm
+              initialCarryMoreThan10m={booking.carryMoreThan10m || false}
+              initialGroundNailsAllowed={booking.groundNailsAllowed || false}
+              initialExactTimeNeeded={booking.exactTimeNeeded || false}
+              initialExactTimeInfo={booking.exactTimeInfo || ''}
+              isSaving={isSaving}
+              onSave={handleLogisticsChange}
+            />
+
+            <ScheduleCard
+              bookingId={id || ''}
+              rigDates={rigDates}
+              eventDates={eventDates}
+              rigDownDates={rigDownDates}
+              autoSync={autoSync}
+              onAutoSyncChange={setAutoSync}
+              onAddDate={addDate}
+              onRemoveDate={removeDate}
+            />
+
+            <InternalNotes notes={booking.internalNotes || ''} />
+
+            {lastViewedDate && (
+              <div className="p-4 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-600">
+                  You came from calendar view on: {lastViewedDate.toLocaleDateString()}
+                </p>
               </div>
-            </TabsContent>
-
-            <TabsContent value="products" className="flex-1 overflow-auto px-6 pb-6">
-              <div className="mt-6">
-                {booking.products && booking.products.length > 0 ? (
-                  <ProductsList products={booking.products} />
-                ) : (
-                  <div className="bg-white border border-gray-200 rounded-lg p-6">
-                    <p className="text-gray-500">No products assigned to this booking.</p>
-                  </div>
-                )}
-
-                {booking.attachments && booking.attachments.length > 0 && (
-                  <div className="mt-6">
-                    <AttachmentsList attachments={booking.attachments} />
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="internal" className="flex-1 overflow-auto px-6 pb-6">
-              <div className="mt-6">
-                <InternalNotes notes={booking.internalNotes || ''} />
-
-                {lastViewedDate && (
-                  <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                    <p className="text-sm text-blue-600">
-                      You came from calendar view on: {lastViewedDate.toLocaleDateString()}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-          </Tabs>
+            )}
+          </div>
         </div>
       ) : (
         <div className="p-6">
