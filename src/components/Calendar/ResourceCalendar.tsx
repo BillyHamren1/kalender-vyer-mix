@@ -21,7 +21,7 @@ import {
 import { getEventHandlers, getCalendarTimeFormatting } from './CalendarEventHandlers';
 import { useCalendarView } from './CalendarViewConfig';
 
-// Custom styles to ensure addresses wrap properly and CONSISTENT COLUMN WIDTHS - increased by 50%
+// Custom styles to ensure addresses wrap properly and CONSISTENT COLUMN WIDTHS - increased by 30% more
 const AddressWrapStyles = () => (
   <style>
     {`
@@ -48,7 +48,7 @@ const AddressWrapStyles = () => (
       .fc-timegrid-event .fc-event-main {
         padding: 2px 4px !important;
       }
-      /* CRITICAL: Force ALL resource columns to be exactly 90px for monthly view - increased by 50% */
+      /* CRITICAL: Force ALL resource columns to be exactly 117px for monthly view - increased by 30% from 90px */
       .fc-resource-area td,
       .fc-resource-area th,
       .fc-resource-lane,
@@ -57,9 +57,9 @@ const AddressWrapStyles = () => (
       .fc-datagrid-cell-cushion,
       .fc-timegrid-col,
       .fc-col-header-cell {
-        min-width: 90px !important;
-        width: 90px !important;
-        max-width: 90px !important;
+        min-width: 117px !important;
+        width: 117px !important;
+        max-width: 117px !important;
         box-sizing: border-box !important;
       }
       /* Ensure header area matches content area exactly */
@@ -67,9 +67,9 @@ const AddressWrapStyles = () => (
       .fc-datagrid-header .fc-datagrid-cell-frame,
       .fc-datagrid-body .fc-datagrid-cell,
       .fc-datagrid-body .fc-datagrid-cell-frame {
-        min-width: 90px !important;
-        width: 90px !important;
-        max-width: 90px !important;
+        min-width: 117px !important;
+        width: 117px !important;
+        max-width: 117px !important;
       }
       /* Special handling for team-6 to ensure consistency */
       [data-resource-id="team-6"] .fc-datagrid-cell,
@@ -78,9 +78,9 @@ const AddressWrapStyles = () => (
       [data-resource-id="team-6"].fc-datagrid-cell-frame,
       [data-resource-id="team-6"] .fc-timegrid-col,
       [data-resource-id="team-6"].fc-timegrid-col {
-        min-width: 90px !important;
-        width: 90px !important;
-        max-width: 90px !important;
+        min-width: 117px !important;
+        width: 117px !important;
+        max-width: 117px !important;
       }
     `}
   </style>
@@ -223,10 +223,10 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     }
   };
 
-  // FIXED: Consistent resource column configuration - increased by 50% (90px)
+  // FIXED: Consistent resource column configuration - increased by 30% more (117px)
   const getResourceColumnConfig = () => {
     // Use numeric values for FullCalendar (pixels without 'px')
-    const standardWidth = 90; // Increased from 60 to 90 (50% increase)
+    const standardWidth = 117; // Increased by 30% from 90px to 117px
     
     return {
       resourceAreaWidth: standardWidth,
@@ -301,7 +301,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     },
     dropAccept: ".fc-event",
     eventAllow: () => true,
-    // Add the FIXED resource column config with consistent 90px width (increased by 50%)
+    // Add the FIXED resource column config with consistent 117px width (increased by 30%)
     ...getResourceColumnConfig(),
     // Add calendar options
     ...getCalendarOptions(),
@@ -310,8 +310,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     // Apply any additional calendar props (but prioritize our width settings)
     ...calendarProps,
     // OVERRIDE any conflicting width settings from calendarProps with NUMBERS
-    resourceAreaWidth: 90, // Increased from 60 to 90 (50% increase)
-    slotMinWidth: 90, // Increased from 60 to 90 (50% increase)
+    resourceAreaWidth: 117, // Increased by 30% from 90px to 117px
+    slotMinWidth: 117, // Increased by 30% from 90px to 117px
     // Update resource rendering to include select button
     resourceAreaHeaderContent: (args: any) => {
       return (

@@ -90,7 +90,7 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
       );
       
       if (todayIndex >= 0) {
-        const dayWidth = 401; // 400px width + 1px gap (reduced by 30% from 573px)
+        const dayWidth = 521; // 520px width + 1px gap (increased by 30% from 401px)
         const viewportWidth = window.innerWidth;
         const scrollPos = Math.max(0, (todayIndex * dayWidth) - (viewportWidth / 2) + (dayWidth / 2));
         
@@ -167,20 +167,20 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     }
   };
 
-  // Get calendar props - increased resource width by 50% (60px to 90px)
+  // Get calendar props - increase resource width by 30% more (from 90px to 117px)
   const getCalendarProps = (dayIndex: number) => {
     return {
       height: 'auto',
       headerToolbar: false,
       allDaySlot: false,
       initialView: 'resourceTimeGridDay',
-      resourceAreaWidth: 90, // Increased from 60px to 90px (50% increase)
-      slotMinWidth: 90, // Increased from 60px to 90px (50% increase)
+      resourceAreaWidth: 117, // Increased by 30% from 90px to 117px
+      slotMinWidth: 117, // Increased by 30% from 90px to 117px
       resourceAreaColumns: [
         {
           field: 'title',
           headerContent: 'Teams',
-          width: 90 // Increased from 60px to 90px (50% increase)
+          width: 117 // Increased by 30% from 90px to 117px
         }
       ],
       'data-day-index': dayIndex.toString(),
