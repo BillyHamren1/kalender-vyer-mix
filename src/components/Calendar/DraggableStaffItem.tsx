@@ -32,19 +32,27 @@ const DraggableStaffItem: React.FC<DraggableStaffItemProps> = ({
   // State for confirmation dialog
   const [dialogOpen, setDialogOpen] = useState(false);
   
-  // Configure drag functionality with enhanced logging
-  const [{ isDragging }, drag] = useDrag({
+  // Configure drag functionality with proper drag image and cursor
+  const [{ isDragging }, drag, dragPreview] = useDrag({
     type: 'STAFF',
     item: () => {
       console.log('Starting drag for staff:', staff);
-      return staff;
+      return { 
+        id: staff.id, 
+        name: staff.name,
+        ...staff 
+      };
     },
     collect: (monitor) => ({
       isDragging: !!monitor.isDragging(),
     }),
+    canDrag: true,
     end: (item, monitor) => {
       const didDrop = monitor.didDrop();
-      console.log('Drag ended, was item dropped?', didDrop);
+      console.log('Drag ended for staff:', staff.name, 'didDrop:', didDrop);
+      if (!didDrop) {
+        console.log('Drag cancelled - item was not dropped on a valid target');
+      }
     }
   });
 
@@ -52,11 +60,13 @@ const DraggableStaffItem: React.FC<DraggableStaffItemProps> = ({
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    console.log('Double click detected for staff:', staff.name);
     setDialogOpen(true);
   };
   
   // Handle confirmation of removal
   const handleConfirmRemove = () => {
+    console.log('Confirming removal of staff:', staff.name);
     onRemove();
     setDialogOpen(false);
   };
@@ -74,14 +84,23 @@ const DraggableStaffItem: React.FC<DraggableStaffItemProps> = ({
   return (
     <>
       <div
-        ref={drag}
-        className={`p-1 bg-white border border-gray-200 rounded-md mb-1 cursor-move flex items-center w-full ${
-          isDragging ? 'opacity-50' : 'opacity-100'
+        ref={(node) => {
+          drag(node);
+          dragPreview(node);
+        }}
+        className={`p-1 bg-white border border-gray-200 rounded-md mb-1 cursor-move flex items-center w-full transition-opacity duration-200 hover:shadow-sm active:cursor-grabbing ${
+          isDragging ? 'opacity-50 transform rotate-2' : 'opacity-100'
         }`}
-        style={{ height: "24px", maxWidth: "100%" }}
+        style={{ 
+          height: "24px", 
+          maxWidth: "100%",
+          userSelect: 'none',
+          WebkitUserSelect: 'none'
+        }}
         onDoubleClick={handleDoubleClick}
+        draggable={false} // Let react-dnd handle dragging
       >
-        <div className="flex items-center gap-1 w-full">
+        <div className="flex items-center gap-1 w-full pointer-events-none">
           <Avatar className="h-4 w-4 bg-purple-100 flex-shrink-0">
             <AvatarFallback className="text-[10px] text-purple-700">
               {getInitials(staff.name)}
@@ -97,6 +116,8 @@ const DraggableStaffItem: React.FC<DraggableStaffItemProps> = ({
         confirmLabel="Unassign"
         cancelLabel="Cancel"
         onConfirm={handleConfirmRemove}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
       >
         <span style={{ display: 'none' }}></span>
       </ConfirmationDialog>

@@ -10,8 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
+} from '@/components/ui/alert-dialog';
 
 interface ConfirmationDialogProps {
   title: string;
@@ -20,18 +19,22 @@ interface ConfirmationDialogProps {
   cancelLabel?: string;
   onConfirm: () => void;
   children: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
   title,
   description,
-  confirmLabel = "Confirm",
-  cancelLabel = "Cancel",
+  confirmLabel = 'Confirm',
+  cancelLabel = 'Cancel',
   onConfirm,
-  children
+  children,
+  open,
+  onOpenChange
 }) => {
   return (
-    <AlertDialog>
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogTrigger asChild>
         {children}
       </AlertDialogTrigger>
@@ -43,7 +46,9 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogCancel onClick={() => onOpenChange?.(false)}>
+            {cancelLabel}
+          </AlertDialogCancel>
           <AlertDialogAction onClick={onConfirm}>
             {confirmLabel}
           </AlertDialogAction>
