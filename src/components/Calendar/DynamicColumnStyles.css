@@ -16,8 +16,8 @@
 }
 
 .dynamic-day-wrapper {
-  flex: 0 0 220px;
-  width: 220px;
+  flex: 0 0 440px;
+  width: 440px;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -28,21 +28,21 @@
   min-height: 0;
 }
 
-/* Updated day header styles with light teal background - scaled to 40% */
+/* Updated day header styles with light teal background */
 .day-header-monthly {
   background: #f0f9f9;
   border: 1px solid #5fb3cc;
   border-bottom: 2px solid #5fb3cc;
   text-align: center;
-  padding: 3px 2px;
+  padding: 6px 4px;
   font-weight: 600;
   color: #374151;
   margin-bottom: 1px;
-  border-radius: 3px 3px 0 0;
+  border-radius: 6px 6px 0 0;
   position: sticky;
   top: 0;
   z-index: 10;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   transition: background-color 0.2s, transform 0.1s;
 }
 
@@ -50,7 +50,7 @@
 .day-header-monthly:hover {
   background: #e1f1f3;
   transform: translateY(-1px);
-  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
 }
 
 /* Active state for when clicking */
@@ -68,15 +68,15 @@
 }
 
 .day-header-monthly .day-name {
-  font-size: 10px;
+  font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
-  margin-bottom: 1px;
+  letter-spacing: 0.6px;
+  margin-bottom: 2px;
   color: #374151;
 }
 
 .day-header-monthly .day-number {
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 700;
   color: #374151;
 }
@@ -85,42 +85,42 @@
   background: #5fb3cc;
   color: white;
   border-radius: 50%;
-  width: 20px;
-  height: 20px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto;
-  font-size: 12px;
+  font-size: 16px;
 }
 
-/* Month separator styles with teal colors - scaled to 40% */
+/* Month separator styles with teal colors */
 .month-separator {
   display: flex;
   align-items: center;
-  padding: 8px 0;
-  margin: 0 8px;
+  padding: 16px 0;
+  margin: 0 16px;
   flex: 0 0 auto;
 }
 
 .month-separator-line {
   flex: 1;
-  height: 1px;
+  height: 2px;
   background: linear-gradient(to right, transparent, #5fb3cc, transparent);
 }
 
 .month-separator-label {
-  margin: 0 8px;
-  font-size: 12px;
+  margin: 0 16px;
+  font-size: 16px;
   font-weight: 700;
   color: #374151;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 1px;
   background: white;
-  padding: 4px 8px;
-  border: 1px solid #5fb3cc;
-  border-radius: 8px;
-  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
+  padding: 8px 16px;
+  border: 2px solid #5fb3cc;
+  border-radius: 16px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 /* Calendar content styling */
@@ -142,28 +142,28 @@
   height: 100%;
 }
 
-/* Responsive adjustments - scaled to 40% */
+/* Responsive adjustments */
 @media (max-width: 768px) {
   .dynamic-day-wrapper {
-    flex: 0 0 120px;
-    width: 120px;
+    flex: 0 0 240px;
+    width: 240px;
   }
   
   .day-header-monthly {
-    padding: 2px 1px;
+    padding: 4px 2px;
   }
   
   .day-header-monthly .day-name {
-    font-size: 8px;
+    font-size: 10px;
   }
   
   .day-header-monthly .day-number {
-    font-size: 12px;
+    font-size: 16px;
   }
   
   .day-header-monthly.today .day-number {
-    width: 16px;
-    height: 16px;
-    font-size: 10px;
+    width: 22px;
+    height: 22px;
+    font-size: 14px;
   }
 }
