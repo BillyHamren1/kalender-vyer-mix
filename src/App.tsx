@@ -16,6 +16,7 @@ import LogisticsMap from "./pages/LogisticsMap";
 import WeeklyResourceView from "./pages/WeeklyResourceView";
 import MonthlyResourceView from "./pages/MonthlyResourceView";
 import TestMonthlyView from "./pages/TestMonthlyView";
+import MonthlyBookingSchedulePage from "./pages/MonthlyBookingSchedule";
 
 // Create context to share calendar date across components
 export const CalendarContext = createContext<{
@@ -66,6 +67,7 @@ const AppContent = () => {
             <Route path="/weekly-view" element={<WeeklyResourceView />} />
             <Route path="/monthly-view" element={<MonthlyResourceView />} />
             <Route path="/test-monthly-view" element={<TestMonthlyView />} />
+            <Route path="/monthly-booking-schedule" element={<MonthlyBookingSchedulePage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
