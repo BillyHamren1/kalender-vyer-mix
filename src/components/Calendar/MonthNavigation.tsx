@@ -1,7 +1,6 @@
 
 import React, { useCallback } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { format, addMonths } from 'date-fns';
 
 interface MonthNavigationProps {
@@ -30,27 +29,21 @@ const MonthNavigation: React.FC<MonthNavigationProps> = ({
   return (
     <div className="flex items-center justify-center mb-8 w-full mt-6">
       <div className="flex items-center">
-        <Button 
-          variant="ghost"
-          size="sm"
+        <ChevronLeft 
           onClick={goToPreviousMonth}
-          className="flex items-center justify-center w-40 h-40 rounded-full hover:bg-gray-100 transition-all duration-300 text-slate-600 hover:text-slate-900"
-        >
-          <ChevronLeft className="h-64 w-64" strokeWidth={3} />
-        </Button>
+          className="h-32 w-32 cursor-pointer text-slate-600 hover:text-slate-900 transition-colors duration-300"
+          strokeWidth={3}
+        />
         
         <div className="text-4xl font-bold text-slate-800 px-16 py-4 min-w-[360px] text-center tracking-wider">
           {monthText}
         </div>
         
-        <Button 
-          variant="ghost"
-          size="sm"
+        <ChevronRight 
           onClick={goToNextMonth}
-          className="flex items-center justify-center w-40 h-40 rounded-full hover:bg-gray-100 transition-all duration-300 text-slate-600 hover:text-slate-900"
-        >
-          <ChevronRight className="h-64 w-64" strokeWidth={3} />
-        </Button>
+          className="h-32 w-32 cursor-pointer text-slate-600 hover:text-slate-900 transition-colors duration-300"
+          strokeWidth={3}
+        />
       </div>
     </div>
   );
