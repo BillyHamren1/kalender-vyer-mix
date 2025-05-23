@@ -1,7 +1,7 @@
 
 import React, { useCallback } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { format, addDays, getWeek } from 'date-fns';
+import { format, addDays } from 'date-fns';
 
 interface WeekNavigationProps {
   currentWeekStart: Date;
@@ -31,15 +31,9 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
     return `${format(currentWeekStart, 'MMM d')} - ${format(endDate, 'MMM d, yyyy')}`;
   })();
 
-  // Generate week days for headers
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    return addDays(currentWeekStart, i);
-  });
-
   return (
-    <div className="flex flex-col items-center mb-8 w-full">
-      {/* Main navigation with week range */}
-      <div className="flex items-center justify-center mb-6">
+    <div className="flex items-center justify-center mb-8 w-full">
+      <div className="flex items-center">
         <button
           onClick={goToPreviousWeek}
           className="bg-[#7BAEBF] hover:bg-[#6E9DAC] transition-colors duration-300 rounded-lg p-3 mr-8"
@@ -63,33 +57,6 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
             strokeWidth={3}
           />
         </button>
-      </div>
-
-      {/* Day headers with week numbers (similar to monthly view) */}
-      <div className="flex justify-center w-full max-w-7xl">
-        <div className="flex gap-2">
-          {weekDays.map((date, index) => {
-            const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
-            const weekNumber = getWeek(date);
-            
-            return (
-              <div 
-                key={index}
-                className={`day-header-weekly ${isToday ? 'today' : ''}`}
-              >
-                <div className="day-name">
-                  {format(date, 'EEE').toUpperCase()}
-                </div>
-                <div className="day-number">
-                  {format(date, 'd')}
-                </div>
-                <div className="week-number">
-                  Week {weekNumber}
-                </div>
-              </div>
-            );
-          })}
-        </div>
       </div>
     </div>
   );

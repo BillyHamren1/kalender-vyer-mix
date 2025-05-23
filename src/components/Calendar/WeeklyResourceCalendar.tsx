@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
-import { format, addDays } from 'date-fns';
+import { format, addDays, getWeek } from 'date-fns';
 import './WeeklyCalendarStyles.css';
 
 interface WeeklyResourceCalendarProps {
@@ -124,10 +124,23 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
         {weekDays.map((date, index) => {
           // Get events just for this day to improve performance
           const dayEvents = getEventsForDay(date);
+          const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+          const weekNumber = getWeek(date);
           
           return (
             <div key={format(date, 'yyyy-MM-dd')} className="day-calendar-wrapper">
-              {/* Remove the old day header since we now have it in WeekNavigation */}
+              {/* Day header exactly like monthly view but with week numbers */}
+              <div className={`day-header ${isToday ? 'today' : ''}`}>
+                <div className="day-name">
+                  {format(date, 'EEE').toUpperCase()}
+                </div>
+                <div className="day-number">
+                  {format(date, 'd')}
+                </div>
+                <div className="week-number">
+                  Week {weekNumber}
+                </div>
+              </div>
               <div className="weekly-view-calendar">
                 <ResourceCalendar
                   events={events} // Use all events to ensure dragging works correctly
