@@ -47,7 +47,8 @@
 
 .day-header-monthly.today {
   background: #e8f4f6;
-  border-color: #5fb3cc;
+  border: 3px solid #5fb3cc;
+  border-bottom: 4px solid #5fb3cc;
   color: #2c5f6b;
   font-weight: 700;
 }
