@@ -43,6 +43,20 @@
   top: 0;
   z-index: 10;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+/* Add hover effect to indicate clickable */
+.day-header-monthly:hover {
+  background: #e1f1f3;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 5px rgba(0, 0, 0, 0.08);
+}
+
+/* Active state for when clicking */
+.day-header-monthly:active {
+  transform: translateY(0);
+  background: #d8eaee;
 }
 
 .day-header-monthly.today {

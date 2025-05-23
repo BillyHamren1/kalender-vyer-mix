@@ -1,9 +1,9 @@
-
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
 import { format, startOfWeek, addWeeks, subWeeks, addDays, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
 import './DynamicColumnStyles.css';
+import { useNavigate } from 'react-router-dom';
 
 interface TestMonthlyResourceCalendarProps {
   events: CalendarEvent[];
@@ -33,6 +33,7 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
   const containerRef = useRef<HTMLDivElement>(null);
   const [isScrolling, setIsScrolling] = useState(false);
   const scrollTimeoutRef = useRef<number | null>(null);
+  const navigate = useNavigate();
   
   // Generate days for current month with exactly ±1 week padding
   const allDays = useMemo(() => {
@@ -63,6 +64,16 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     
     return result;
   }, [currentDate]);
+
+  // Handle day header click to navigate to day view
+  const handleDayHeaderClick = useCallback((date: Date) => {
+    console.log('Day header clicked:', format(date, 'yyyy-MM-dd'));
+    
+    // Navigate to day view with selected date
+    const formattedDate = format(date, 'yyyy-MM-dd');
+    sessionStorage.setItem('dayCalendarDate', date.toISOString());
+    navigate('/day-view');
+  }, [navigate]);
 
   // Center calendar on today's date after render is complete
   useEffect(() => {
@@ -209,7 +220,11 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
                 </div>
               )}
               <div className="dynamic-day-wrapper">
-                <div className={`day-header-monthly ${isTodayDate ? 'today' : ''}`}>
+                <div 
+                  className={`day-header-monthly ${isTodayDate ? 'today' : ''}`}
+                  onClick={() => handleDayHeaderClick(date)}
+                  style={{ cursor: 'pointer' }}
+                >
                   <div className="day-name">{format(date, 'EEE')}</div>
                   <div className="day-number">{format(date, 'd')}</div>
                 </div>
