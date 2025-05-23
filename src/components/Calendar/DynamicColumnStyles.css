@@ -64,35 +64,6 @@
   background-color: #ffffff;
 }
 
-/* Remove center column and normal column distinctions */
-.normal-column {
-  /* No additional styles needed - using base wrapper styles */
-}
-
-.center-column {
-  /* No additional styles needed - using base wrapper styles */
-}
-
-/* Day headers */
-.day-header {
-  background-color: #f9fafb;
-  border-bottom: 1px solid #e5e7eb;
-  padding: 12px 16px;
-  font-weight: 600;
-  font-size: 14px;
-  color: #374151;
-  text-align: center;
-  min-height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Remove center header special styling */
-.center-header {
-  /* Same as regular header */
-}
-
 /* Calendar container within each day */
 .dynamic-calendar {
   flex: 1;
@@ -129,15 +100,6 @@
 
 .dynamic-calendar-container::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
-}
-
-/* Remove all center column special event styling */
-.center-column .fc-event {
-  /* No special styling */
-}
-
-.center-column .fc-event-title {
-  /* No special styling */
 }
 
 /* Performance optimizations to reduce repaints */

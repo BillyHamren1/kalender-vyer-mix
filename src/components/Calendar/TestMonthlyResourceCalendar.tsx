@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
@@ -206,9 +205,6 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
                 </div>
               )}
               <div className="dynamic-day-wrapper">
-                <div className="day-header">
-                  {format(date, 'EEE d')}
-                </div>
                 <div className="dynamic-calendar">
                   <ResourceCalendar
                     events={events}

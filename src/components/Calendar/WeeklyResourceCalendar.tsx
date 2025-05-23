@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
@@ -52,7 +51,6 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
     }
   };
 
-  // Handle calendar date set for nested calendars
   const handleNestedCalendarDateSet = (dateInfo: any) => {
     // Only pass the date to the parent if it's from the first calendar
     // This prevents multiple triggers from all 7 calendars
@@ -61,7 +59,6 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
     }
   };
   
-  // Handle staff selection and pass to parent
   const handleSelectStaff = (resourceId: string, resourceTitle: string) => {
     console.log('WeeklyResourceCalendar: handleSelectStaff called for', resourceId, resourceTitle);
     if (onSelectStaff) {
@@ -106,7 +103,6 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
     };
   };
 
-  // Filter events for each day to improve performance and visibility
   const getEventsForDay = (date: Date) => {
     // Format date to YYYY-MM-DD for comparison
     const dateStr = format(date, 'yyyy-MM-dd');
@@ -131,9 +127,6 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
           
           return (
             <div key={format(date, 'yyyy-MM-dd')} className="day-calendar-wrapper">
-              <div className="day-header">
-                {format(date, 'EEEE, MMM d')}
-              </div>
               <div className="weekly-view-calendar">
                 <ResourceCalendar
                   events={events} // Use all events to ensure dragging works correctly
