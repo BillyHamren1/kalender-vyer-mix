@@ -23,9 +23,9 @@ export const getCalendarViews = () => {
 export const getCalendarOptions = () => {
   return {
     height: "auto",
-    slotMinTime: "05:00:00",
+    slotMinTime: "05:00:00", // Changed from 00:00:00 to 05:00:00
     slotMaxTime: "24:00:00",
-    scrollTime: "05:00:00",
+    scrollTime: "05:00:00", // Changed from 00:00:00 to 05:00:00
     slotDuration: "01:00:00", // One hour per slot
     slotLabelInterval: "01:00", // Keep at 1 hour
     allDaySlot: false,
@@ -34,10 +34,7 @@ export const getCalendarOptions = () => {
       minute: "2-digit" as "2-digit",
       hour12: false,   // Use 24-hour format
       omitZeroMinute: false // Always show minutes even if 00
-    },
-    // Add fixed column width settings
-    dayMinWidth: 100,
-    resourceAreaWidth: '100px',
+    }
   };
 };
 
