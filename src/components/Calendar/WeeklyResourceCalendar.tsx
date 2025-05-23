@@ -127,6 +127,7 @@ const WeeklyResourceCalendar: React.FC<WeeklyResourceCalendarProps> = ({
           
           return (
             <div key={format(date, 'yyyy-MM-dd')} className="day-calendar-wrapper">
+              {/* Remove the old day header since we now have it in WeekNavigation */}
               <div className="weekly-view-calendar">
                 <ResourceCalendar
                   events={events} // Use all events to ensure dragging works correctly
