@@ -1,3 +1,4 @@
+
 /* Calendar styling with teal theme */
 .fc .fc-button-primary {
   background-color: #7BAEBF !important;
@@ -258,7 +259,28 @@
 
 /* Icon-only assign button styling */
 .assign-button-icon {
-  display: none; /* Hide any old buttons that might remain */
+  height: 20px !important;
+  width: 20px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #d1d5db;
+  border-radius: 0.25rem;
+  color: #6b7280;
+  transition: all 0.2s ease;
+  z-index: 10;
+  background-color: transparent;
+  padding: 3px;
+  margin-left: auto;
+}
+
+.assign-button-icon:hover {
+  background-color: #f3f4f6;
+}
+
+.assign-button-icon svg {
+  height: 12px !important;
+  width: 12px !important;
 }
 
 /* CRITICAL FIX: Ensure resource headers have enough height for staff display AND consistent width */
@@ -558,19 +580,4 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* Team Staff Portal Button Styling */
-.team-staff-portal-button {
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  cursor: pointer;
-}
-
-.team-staff-portal-button:hover {
-  background-color: #f3f4f6;
-  transform: scale(1.1);
-}
-
-.team-staff-portal-button svg {
-  color: #6b7280;
 }
