@@ -2,7 +2,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { RefreshCcw, Users } from 'lucide-react';
-import DayNavigation from '@/components/Calendar/DayNavigation';
 import AddTaskButton from '@/components/Calendar/AddTaskButton';
 import { Resource, CalendarEvent } from './ResourceData';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -30,13 +29,13 @@ const ResourceToolbar: React.FC<ResourceToolbarProps> = ({
   const isMobile = useIsMobile();
 
   return (
-    <div className="flex items-center mb-4">
+    <div className="flex items-center gap-2">
       <Button 
         onClick={onRefresh} 
         variant="outline" 
         size="sm"
         disabled={isLoading}
-        className="flex items-center gap-1 mr-3"
+        className="flex items-center gap-1"
       >
         <RefreshCcw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
         {isMobile ? '' : 'Update'}
@@ -48,7 +47,7 @@ const ResourceToolbar: React.FC<ResourceToolbarProps> = ({
           onClick={onShowStaffCurtain}
           variant="outline"
           size="sm"
-          className="flex items-center gap-1 mr-3"
+          className="flex items-center gap-1"
         >
           <Users className="h-4 w-4" color="black" />
           {isMobile ? '' : 'Available Staff'}
@@ -61,10 +60,6 @@ const ResourceToolbar: React.FC<ResourceToolbarProps> = ({
         onTaskAdd={onAddTask}
         currentDate={currentDate}
       />
-      
-      <div className="flex-grow">
-        <DayNavigation currentDate={currentDate} />
-      </div>
     </div>
   );
 };

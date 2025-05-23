@@ -139,8 +139,8 @@ const ResourceView = () => {
           setDialogOpen={setDialogOpen}
         />
 
-        {/* Toolbar with Update Button, Add Task Button, and Navigation */}
-        <div className="flex items-center gap-2 mb-4">
+        {/* Toolbar with Update Button, Add Task Button */}
+        <div className="flex items-center justify-between gap-2 mb-4">
           <ResourceToolbar
             isLoading={isLoading}
             currentDate={currentDate}
@@ -154,7 +154,7 @@ const ResourceView = () => {
             size="sm"
             onClick={loadAllBookings}
             disabled={isLoadingAllBookings}
-            className="ml-auto flex items-center gap-2"
+            className="flex items-center gap-2"
           >
             <InfoIcon className="h-4 w-4" />
             {isLoadingAllBookings ? 'Loading all bookings...' : 'Load all bookings'}
