@@ -16,8 +16,8 @@
 }
 
 .dynamic-day-wrapper {
-  flex: 0 0 550px;
-  width: 550px;
+  flex: 0 0 660px;
+  width: 660px;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -144,8 +144,8 @@
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .dynamic-day-wrapper {
-    flex: 0 0 300px;
-    width: 300px;
+    flex: 0 0 360px;
+    width: 360px;
   }
   
   .day-header-monthly {
