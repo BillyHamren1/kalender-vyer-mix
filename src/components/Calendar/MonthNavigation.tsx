@@ -29,17 +29,17 @@ const MonthNavigation: React.FC<MonthNavigationProps> = ({
 
   return (
     <div className="flex items-center justify-center mb-8 w-full">
-      <div className="flex items-center bg-white rounded-2xl shadow-lg border border-gray-100 px-2 py-2">
+      <div className="flex items-center bg-white rounded-3xl shadow-xl border border-gray-100 px-6 py-4">
         <Button 
           variant="ghost"
           size="sm"
           onClick={goToPreviousMonth}
-          className="flex items-center justify-center w-10 h-10 rounded-xl hover:bg-gray-50 hover:scale-105 transition-all duration-200 text-gray-600 hover:text-gray-900"
+          className="flex items-center justify-center w-14 h-14 rounded-2xl hover:bg-gray-50 hover:scale-105 transition-all duration-200 text-gray-600 hover:text-gray-900"
         >
-          <ChevronLeft className="h-5 w-5" />
+          <ChevronLeft className="h-7 w-7" />
         </Button>
         
-        <div className="text-2xl font-semibold text-gray-900 px-8 py-2 min-w-[200px] text-center tracking-tight">
+        <div className="text-3xl font-semibold text-gray-900 px-12 py-3 min-w-[300px] text-center tracking-tight">
           {monthText}
         </div>
         
@@ -47,9 +47,9 @@ const MonthNavigation: React.FC<MonthNavigationProps> = ({
           variant="ghost"
           size="sm"
           onClick={goToNextMonth}
-          className="flex items-center justify-center w-10 h-10 rounded-xl hover:bg-gray-50 hover:scale-105 transition-all duration-200 text-gray-600 hover:text-gray-900"
+          className="flex items-center justify-center w-14 h-14 rounded-2xl hover:bg-gray-50 hover:scale-105 transition-all duration-200 text-gray-600 hover:text-gray-900"
         >
-          <ChevronRight className="h-5 w-5" />
+          <ChevronRight className="h-7 w-7" />
         </Button>
       </div>
     </div>
