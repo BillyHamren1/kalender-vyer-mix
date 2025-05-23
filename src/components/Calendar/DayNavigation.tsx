@@ -4,9 +4,11 @@ import { format, addDays, subDays } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { CalendarContext } from '@/App';
 import { useContext } from 'react';
+
 interface DayNavigationProps {
   currentDate: Date;
 }
+
 const DayNavigation: React.FC<DayNavigationProps> = ({
   currentDate
 }) => {
@@ -48,27 +50,42 @@ const DayNavigation: React.FC<DayNavigationProps> = ({
   const formatDayNumber = (date: Date) => {
     return format(date, 'd/M');
   };
-  return <div className="w-full bg-gray-50 rounded-md mb-3 overflow-hidden">
-      <div className="flex justify-between">
-        {generateDates().map((date, index) => (
-          <button
-            key={index}
-            onClick={() => goToDate(date)}
-            className={`flex-1 py-2 px-1 text-center transition-colors ${
-              isCurrentDate(date)
-                ? 'bg-blue-500 text-white'
-                : 'hover:bg-gray-200'
-            }`}
-          >
-            <div className="text-xs font-semibold">
-              {formatDayName(date)}
-            </div>
-            <div className="text-sm">
-              {formatDayNumber(date)}
-            </div>
-          </button>
-        ))}
+
+  return (
+    <div className="w-full mb-6 flex justify-center">
+      <div className="bg-gradient-to-r from-white via-slate-50 to-white rounded-full shadow-2xl border-0 px-6 py-4 backdrop-blur-sm relative overflow-hidden">
+        {/* Futuristic glow effect */}
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-blue-500/5 rounded-full"></div>
+        <div className="absolute inset-[1px] bg-white/90 rounded-full backdrop-blur-sm"></div>
+        
+        {/* Content */}
+        <div className="relative flex gap-2">
+          {generateDates().map((date, index) => (
+            <button
+              key={index}
+              onClick={() => goToDate(date)}
+              className={`flex flex-col items-center justify-center px-4 py-3 rounded-2xl transition-all duration-300 backdrop-blur-sm border border-slate-200/50 ${
+                isCurrentDate(date)
+                  ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg scale-105 border-blue-400/50'
+                  : 'hover:bg-gradient-to-r hover:from-blue-500/10 hover:to-purple-500/10 hover:scale-105 text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <div className={`text-xs font-semibold uppercase tracking-wider ${
+                isCurrentDate(date) ? 'text-white/90' : 'text-slate-500'
+              }`}>
+                {formatDayName(date)}
+              </div>
+              <div className={`text-lg font-bold ${
+                isCurrentDate(date) ? 'text-white' : 'text-slate-800'
+              }`}>
+                {formatDayNumber(date)}
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
-    </div>;
+    </div>
+  );
 };
+
 export default DayNavigation;
