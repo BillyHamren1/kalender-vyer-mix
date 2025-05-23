@@ -90,7 +90,7 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
       );
       
       if (todayIndex >= 0) {
-        const dayWidth = 441; // 440px width + 1px gap (doubled from 220px)
+        const dayWidth = 573; // 572px width + 1px gap (increased by 30% from 441px)
         const viewportWidth = window.innerWidth;
         const scrollPos = Math.max(0, (todayIndex * dayWidth) - (viewportWidth / 2) + (dayWidth / 2));
         
