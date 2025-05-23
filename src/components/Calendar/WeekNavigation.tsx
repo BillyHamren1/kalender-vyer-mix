@@ -1,7 +1,6 @@
 
 import React, { useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 
 interface WeekNavigationProps {
@@ -26,13 +25,6 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
     setCurrentWeekStart(nextWeek);
   }, [currentWeekStart, setCurrentWeekStart]);
 
-  const goToCurrentWeek = useCallback(() => {
-    const today = new Date();
-    const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - today.getDay()); // Start of week (Sunday)
-    setCurrentWeekStart(startOfWeek);
-  }, [setCurrentWeekStart]);
-
   // Format the week range for display
   const weekRangeText = (() => {
     const endDate = addDays(currentWeekStart, 6);
@@ -40,43 +32,31 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
   })();
 
   return (
-    <div className="flex flex-col space-y-2 mb-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={goToPreviousWeek}
-            className="flex items-center gap-1"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Previous Week
-          </Button>
-          
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={goToCurrentWeek}
-            className="flex items-center gap-1"
-          >
-            <Calendar className="h-4 w-4" />
-            Current Week
-          </Button>
-          
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={goToNextWeek}
-            className="flex items-center gap-1"
-          >
-            Next Week
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+    <div className="flex items-center justify-center mb-8 w-full">
+      <div className="flex items-center">
+        <button
+          onClick={goToPreviousWeek}
+          className="bg-[#7BAEBF] hover:bg-[#6E9DAC] transition-colors duration-300 rounded-lg p-3 mr-8"
+        >
+          <ChevronLeft 
+            className="h-8 w-8 text-white"
+            strokeWidth={3}
+          />
+        </button>
+        
+        <div className="text-4xl font-bold text-slate-800 px-8 py-4 min-w-[360px] text-center tracking-wider">
+          {weekRangeText}
         </div>
-      </div>
-      
-      <div className="text-lg font-medium text-center">
-        {weekRangeText}
+        
+        <button
+          onClick={goToNextWeek}
+          className="bg-[#7BAEBF] hover:bg-[#6E9DAC] transition-colors duration-300 rounded-lg p-3 ml-8"
+        >
+          <ChevronRight 
+            className="h-8 w-8 text-white"
+            strokeWidth={3}
+          />
+        </button>
       </div>
     </div>
   );
