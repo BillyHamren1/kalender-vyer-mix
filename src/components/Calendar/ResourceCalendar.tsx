@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -284,18 +285,18 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     dropAccept: ".fc-event",
     eventAllow: () => true,
     
-    // HIDE COLUMN HEADERS TO REMOVE DATE DISPLAYS - using valid formatter types
-    dayHeaderFormat: { 
-      weekday: 'short',
-      month: 'numeric',
-      day: 'numeric',
-      omitCommas: true 
+    // HIDE COLUMN HEADERS TO REMOVE DATE DISPLAYS - using proper literal types
+    dayHeaderFormat: {
+      weekday: 'short' as const,
+      month: 'numeric' as const,
+      day: 'numeric' as const,
+      omitCommas: true
     },
-    columnHeaderFormat: { 
-      weekday: 'short', 
-      omitCommas: true 
+    columnHeaderFormat: {
+      weekday: 'short' as const,
+      omitCommas: true
     },
-    // Use an empty string function instead of boolean false
+    // Use an empty string function to hide column header text
     columnHeaderText: () => '',
     
     // Add the FIXED resource column config with consistent 80px width (as numbers)
