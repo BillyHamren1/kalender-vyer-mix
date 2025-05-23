@@ -36,29 +36,37 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
   const lastScrollPosition = useRef(0);
   const scrollTimeoutRef = useRef<number | null>(null);
   
-  // Generate days for current month only with minimal padding to improve performance
+  // Generate days for current month with exactly ±1 week padding
   const allDays = useMemo(() => {
     const result: Date[] = [];
     
-    // Get the current month start
+    // Get the current month boundaries
     const currentMonthStart = startOfMonth(currentDate);
     const currentMonthEnd = endOfMonth(currentMonthStart);
     
-    // Add 1 week before and after for context, but not 3 full months
-    const startDate = subWeeks(startOfWeek(currentMonthStart, { weekStartsOn: 1 }), 1);
-    const endDate = addWeeks(startOfWeek(currentMonthEnd, { weekStartsOn: 1 }), 1);
+    // Get the Monday of the week containing the first day of the month
+    const firstWeekStart = startOfWeek(currentMonthStart, { weekStartsOn: 1 });
     
-    // Add all days from start to end
+    // Get the Sunday of the week containing the last day of the month
+    const lastWeekEnd = addDays(startOfWeek(currentMonthEnd, { weekStartsOn: 1 }), 6);
+    
+    // Add exactly 1 week before and 1 week after for padding
+    const startDate = subWeeks(firstWeekStart, 1);
+    const endDate = addWeeks(lastWeekEnd, 1);
+    
+    // Generate all days from start to end
     let currentDay = startDate;
     while (currentDay <= endDate) {
       result.push(new Date(currentDay));
       currentDay = addDays(currentDay, 1);
     }
     
+    console.log(`Generated ${result.length} days for month view: ${format(startDate, 'yyyy-MM-dd')} to ${format(endDate, 'yyyy-MM-dd')}`);
+    
     return result;
   }, [currentDate]);
 
-  // Calculate initial scroll position immediately when component mounts
+  // Calculate initial scroll position to center on today
   const initialScrollPosition = useMemo(() => {
     if (allDays.length === 0) return 0;
     
@@ -72,7 +80,9 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     if (todayIndex >= 0) {
       const dayWidth = 552; // 550px width + 2px gap
       const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
-      return Math.max(0, (todayIndex * dayWidth) - (viewportWidth / 2) + (dayWidth / 2));
+      const scrollPos = Math.max(0, (todayIndex * dayWidth) - (viewportWidth / 2) + (dayWidth / 2));
+      console.log(`Setting initial scroll to position ${scrollPos} for today at index ${todayIndex}`);
+      return scrollPos;
     }
     
     return 0;
@@ -83,16 +93,17 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     setIsScrolling(false);
   }, []);
 
-  // Apply initial scroll position immediately without animation
+  // Apply initial scroll position immediately
   useEffect(() => {
     if (!containerRef.current || isInitialized) return;
     
-    // Set scroll position immediately
+    // Set scroll position immediately without animation
     containerRef.current.scrollLeft = initialScrollPosition;
     setIsInitialized(true);
+    console.log('Applied initial scroll position:', initialScrollPosition);
   }, [initialScrollPosition, isInitialized]);
 
-  // Simplified scroll handler
+  // Handle scroll events
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return;
     
@@ -180,7 +191,7 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     return format(date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
   };
 
-  // Show loading state until initialized to prevent flickering
+  // Show loading state until initialized
   if (!isInitialized) {
     return (
       <div className="dynamic-monthly-view-container">
@@ -196,7 +207,6 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
       <div 
         className="dynamic-calendar-container" 
         ref={containerRef}
-        style={{ scrollLeft: initialScrollPosition }}
       >
         {allDays.map((date, index) => {
           const showMonthSeparator = isFirstDayOfMonth(date, index);
