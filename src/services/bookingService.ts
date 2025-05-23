@@ -35,39 +35,56 @@ export const fetchBookings = async (): Promise<Booking[]> => {
   }));
 };
 
-// Fetch confirmed bookings only - now using case-insensitive comparison
+// Fetch confirmed bookings only - using case-insensitive comparison
 export const fetchConfirmedBookings = async (): Promise<Booking[]> => {
-  // Using ilike for case-insensitive comparison
+  // Using the confirmed_bookings view which now has case-insensitive comparison
   const { data, error } = await supabase
-    .from('bookings')
-    .select('*')
-    .ilike('status', 'confirmed')
-    .order('created_at', { ascending: false });
+    .from('confirmed_bookings')
+    .select('id')
+    .order('id', { ascending: false });
 
   if (error) {
-    console.error('Error fetching confirmed bookings:', error);
+    console.error('Error fetching confirmed bookings view:', error);
     throw error;
   }
-
-  return data.map(booking => ({
-    id: booking.id,
-    client: booking.client,
-    rigDayDate: booking.rigdaydate,
-    eventDate: booking.eventdate,
-    rigDownDate: booking.rigdowndate,
-    deliveryAddress: booking.deliveryaddress || undefined,
-    deliveryCity: booking.delivery_city || undefined,
-    deliveryPostalCode: booking.delivery_postal_code || undefined,
-    deliveryLatitude: booking.delivery_latitude || undefined,
-    deliveryLongitude: booking.delivery_longitude || undefined,
-    carryMoreThan10m: booking.carry_more_than_10m || false,
-    groundNailsAllowed: booking.ground_nails_allowed || false,
-    exactTimeNeeded: booking.exact_time_needed || false,
-    exactTimeInfo: booking.exact_time_info || undefined,
-    internalNotes: booking.internalnotes || undefined,
-    viewed: booking.viewed,
-    status: booking.status || 'CONFIRMED',
-  }));
+  
+  // If we got IDs from the view, fetch the full booking details
+  if (data && data.length > 0) {
+    const bookingIds = data.map(item => item.id);
+    
+    const { data: bookings, error: bookingsError } = await supabase
+      .from('bookings')
+      .select('*')
+      .in('id', bookingIds)
+      .order('created_at', { ascending: false });
+      
+    if (bookingsError) {
+      console.error('Error fetching confirmed booking details:', bookingsError);
+      throw bookingsError;
+    }
+    
+    return bookings.map(booking => ({
+      id: booking.id,
+      client: booking.client,
+      rigDayDate: booking.rigdaydate,
+      eventDate: booking.eventdate,
+      rigDownDate: booking.rigdowndate,
+      deliveryAddress: booking.deliveryaddress || undefined,
+      deliveryCity: booking.delivery_city || undefined,
+      deliveryPostalCode: booking.delivery_postal_code || undefined,
+      deliveryLatitude: booking.delivery_latitude || undefined,
+      deliveryLongitude: booking.delivery_longitude || undefined,
+      carryMoreThan10m: booking.carry_more_than_10m || false,
+      groundNailsAllowed: booking.ground_nails_allowed || false,
+      exactTimeNeeded: booking.exact_time_needed || false,
+      exactTimeInfo: booking.exact_time_info || undefined,
+      internalNotes: booking.internalnotes || undefined,
+      viewed: booking.viewed,
+      status: booking.status || 'CONFIRMED',
+    }));
+  }
+  
+  return [];
 };
 
 // Fetch upcoming bookings sorted by event date - now using case-insensitive comparison
@@ -382,7 +399,7 @@ export const markBookingAsViewed = async (id: string): Promise<void> => {
   }
 };
 
-// Update booking status - now using case-insensitive comparison for status check
+// Update booking status - now consistently using case-insensitive comparison
 export const updateBookingStatus = async (id: string, newStatus: string): Promise<void> => {
   // First get the current status of the booking
   const { data: booking, error: fetchError } = await supabase

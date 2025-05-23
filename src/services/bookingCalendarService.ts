@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { findAvailableTeam } from "./teamService";
 
@@ -201,7 +200,7 @@ export const deleteAllBookingEvents = async (bookingId: string): Promise<void> =
   console.log(`Deleted all calendar events for booking ${bookingId}`);
 };
 
-// New function to manually resync a booking's calendar events - updated for case-insensitive comparison
+// Updated function to use case-insensitive comparison
 export const resyncBookingToCalendar = async (bookingId: string): Promise<boolean> => {
   try {
     // First, get the booking details
@@ -217,7 +216,7 @@ export const resyncBookingToCalendar = async (bookingId: string): Promise<boolea
     }
     
     // Only create calendar events if the status is confirmed (case insensitive)
-    if (booking.status.toUpperCase() !== 'CONFIRMED') {
+    if (booking.status.toLowerCase() !== 'confirmed') {
       console.log(`Booking ${bookingId} is not confirmed (status: ${booking.status}), skipping calendar sync`);
       return false;
     }

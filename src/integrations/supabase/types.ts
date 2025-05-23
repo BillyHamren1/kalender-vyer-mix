@@ -359,6 +359,12 @@ export type Database = {
         Row: {
           id: string | null
         }
+        Insert: {
+          id?: string | null
+        }
+        Update: {
+          id?: string | null
+        }
         Relationships: []
       }
     }
