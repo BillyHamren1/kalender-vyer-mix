@@ -1,4 +1,3 @@
-
 /* Weekly Calendar Styles */
 .weekly-view-container {
   width: 100%;
@@ -24,13 +23,35 @@
   border-right: none;
 }
 
+/* Updated day header styles to match monthly view with black border */
 .day-header {
-  font-weight: 600;
-  font-size: 1.1rem;
-  padding: 8px 4px;
+  background: #f0f9f9;
+  border: 1px solid #000000;
+  border-bottom: 2px solid #000000;
   text-align: center;
-  background-color: #f3f4f6;
-  border-bottom: 2px solid #d1d5db;
+  padding: 8px 4px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 2px;
+  border-radius: 6px 6px 0 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+/* Add hover effect to indicate clickable */
+.day-header:hover {
+  background: #e1f1f3;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 5px rgba(0, 0, 0, 0.08);
+}
+
+/* Active state for when clicking */
+.day-header:active {
+  transform: translateY(0);
+  background: #d8eaee;
 }
 
 /* Make resource timeline work properly */
@@ -44,7 +65,7 @@
   overflow: visible !important;
 }
 
-/* Day header styling */
+/* Day resource header styling */
 .day-resource-header {
   font-weight: 600;
   font-size: 1.1rem;
