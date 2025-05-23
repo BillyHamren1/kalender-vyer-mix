@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
 import { Copy } from 'lucide-react';
@@ -22,7 +21,6 @@ export const renderEventContent = (eventInfo: any) => {
     // More compact display for timeline view
     return (
       <div className="event-content-wrapper">
-        <div className="event-time font-semibold text-xs">{eventTime}</div>
         <div className="event-client-name text-sm truncate">{clientName}</div>
         <div className="event-booking-id text-xs opacity-80 truncate">ID: {bookingId}</div>
         <div className="event-delivery-address text-xs break-words whitespace-normal" 
@@ -36,7 +34,6 @@ export const renderEventContent = (eventInfo: any) => {
   // Default display for other views
   return (
     <div className="event-content-wrapper">
-      <div className="event-time font-semibold">{eventTime}</div>
       <div className="event-client-name text-sm truncate">{clientName}</div>
       <div className="event-booking-id text-xs opacity-80 truncate">ID: {bookingId}</div>
       <div className="event-delivery-address text-xs break-words whitespace-normal" 
