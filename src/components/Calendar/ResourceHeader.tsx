@@ -1,4 +1,3 @@
-
 import React from 'react';
 import TeamManagementDialog from './TeamManagementDialog';
 import { Resource } from '../Calendar/ResourceData';
@@ -24,15 +23,8 @@ const ResourceHeader: React.FC<ResourceHeaderProps> = ({
   const isMobile = useIsMobile();
 
   return (
-    <div className={`flex justify-end items-center mb-2`}>
-      <TeamManagementDialog
-        teamResources={teamResources}
-        teamCount={teamCount}
-        onAddTeam={onAddTeam}
-        onRemoveTeam={onRemoveTeam}
-        dialogOpen={dialogOpen}
-        setDialogOpen={setDialogOpen}
-      />
+    <div className="mb-2">
+      {/* Header is now empty - team management moved below */}
     </div>
   );
 };

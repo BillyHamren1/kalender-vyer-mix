@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -15,6 +14,7 @@ import MonthNavigation from '@/components/Calendar/MonthNavigation';
 import TestMonthlyResourceCalendar from '@/components/Calendar/TestMonthlyResourceCalendar';
 import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
 import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
+import TeamManagementDialog from '@/components/Calendar/TeamManagementDialog';
 import { startOfMonth } from 'date-fns';
 
 const TestMonthlyView = () => {
@@ -135,6 +135,18 @@ const TestMonthlyView = () => {
               onShowStaffCurtain={handleToggleStaffDisplay}
             />
           </div>
+        </div>
+        
+        {/* Team Management positioned right above the calendar */}
+        <div className="flex justify-end mb-2">
+          <TeamManagementDialog
+            teamResources={teamResources}
+            teamCount={teamCount}
+            onAddTeam={addTeam}
+            onRemoveTeam={removeTeam}
+            dialogOpen={dialogOpen}
+            setDialogOpen={setDialogOpen}
+          />
         </div>
         
         <div className="test-monthly-view-container overflow-x-auto">

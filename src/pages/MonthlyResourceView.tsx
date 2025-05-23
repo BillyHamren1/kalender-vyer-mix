@@ -15,6 +15,7 @@ import MonthNavigation from '@/components/Calendar/MonthNavigation';
 import TestMonthlyResourceCalendar from '@/components/Calendar/TestMonthlyResourceCalendar';
 import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
 import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
+import TeamManagementDialog from '@/components/Calendar/TeamManagementDialog';
 import { startOfMonth } from 'date-fns';
 
 const MonthlyResourceView = () => {
@@ -66,26 +67,22 @@ const MonthlyResourceView = () => {
     setCurrentMonthStart(startOfMonth(new Date(hookCurrentDate)));
   }, [hookCurrentDate]);
 
-  // Custom onDateSet function that prevents infinite loops
   const handleCalendarDateSet = useCallback((dateInfo: any) => {
     if (Math.abs(dateInfo.start.getTime() - hookCurrentDate.getTime()) > 3600000) {
       handleDatesSet(dateInfo);
     }
   }, [handleDatesSet, hookCurrentDate]);
 
-  // Handle staff selection for a specific team
   const handleOpenStaffSelectionDialog = useCallback((resourceId: string, resourceTitle: string) => {
     setSelectedResourceId(resourceId);
     setSelectedResourceTitle(resourceTitle);
     setStaffSelectionDialogOpen(true);
   }, []);
 
-  // Handle successful staff assignment
   const handleStaffAssigned = useCallback(() => {
     handleStaffDrop('', '');
   }, [handleStaffDrop]);
 
-  // Toggle staff display panel
   const handleToggleStaffDisplay = useCallback(() => {
     setShowStaffDisplay(prev => !prev);
   }, []);
@@ -138,6 +135,18 @@ const MonthlyResourceView = () => {
               onShowStaffCurtain={handleToggleStaffDisplay}
             />
           </div>
+        </div>
+        
+        {/* Team Management positioned right above the calendar */}
+        <div className="flex justify-end mb-2">
+          <TeamManagementDialog
+            teamResources={teamResources}
+            teamCount={teamCount}
+            onAddTeam={addTeam}
+            onRemoveTeam={removeTeam}
+            dialogOpen={dialogOpen}
+            setDialogOpen={setDialogOpen}
+          />
         </div>
         
         <div className="weekly-view-container overflow-x-auto">
