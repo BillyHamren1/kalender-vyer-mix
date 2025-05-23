@@ -28,15 +28,15 @@ const MonthNavigation: React.FC<MonthNavigationProps> = ({
   const monthText = format(currentMonthStart, 'MMMM yyyy');
 
   return (
-    <div className="flex items-center justify-center mb-8 w-full">
+    <div className="flex items-center justify-center mb-8 w-full mt-6">
       <div className="flex items-center">
         <Button 
           variant="ghost"
           size="sm"
           onClick={goToPreviousMonth}
-          className="flex items-center justify-center w-16 h-16 rounded-full hover:bg-gray-100 transition-all duration-300 text-slate-600 hover:text-slate-900"
+          className="flex items-center justify-center w-20 h-20 rounded-full hover:bg-gray-100 transition-all duration-300 text-slate-600 hover:text-slate-900"
         >
-          <ChevronLeft className="h-10 w-10" strokeWidth={2.5} />
+          <ChevronLeft className="h-16 w-16" strokeWidth={2.5} />
         </Button>
         
         <div className="text-4xl font-bold text-slate-800 px-16 py-4 min-w-[360px] text-center tracking-wider">
@@ -47,9 +47,9 @@ const MonthNavigation: React.FC<MonthNavigationProps> = ({
           variant="ghost"
           size="sm"
           onClick={goToNextMonth}
-          className="flex items-center justify-center w-16 h-16 rounded-full hover:bg-gray-100 transition-all duration-300 text-slate-600 hover:text-slate-900"
+          className="flex items-center justify-center w-20 h-20 rounded-full hover:bg-gray-100 transition-all duration-300 text-slate-600 hover:text-slate-900"
         >
-          <ChevronRight className="h-10 w-10" strokeWidth={2.5} />
+          <ChevronRight className="h-16 w-16" strokeWidth={2.5} />
         </Button>
       </div>
     </div>
