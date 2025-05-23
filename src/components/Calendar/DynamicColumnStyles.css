@@ -30,9 +30,9 @@
 
 /* Updated day header styles with light teal background */
 .day-header-monthly {
-  background: #e0f2f1;
-  border: 1px solid #7BAEBF;
-  border-bottom: 2px solid #7BAEBF;
+  background: #f0f9f9;
+  border: 1px solid #5fb3cc;
+  border-bottom: 2px solid #5fb3cc;
   text-align: center;
   padding: 8px 4px;
   font-weight: 600;
@@ -46,9 +46,9 @@
 }
 
 .day-header-monthly.today {
-  background: #b2dfdb;
-  border-color: #7BAEBF;
-  color: #1a4d4a;
+  background: #e8f4f6;
+  border-color: #5fb3cc;
+  color: #2c5f6b;
   font-weight: 700;
 }
 
@@ -67,7 +67,7 @@
 }
 
 .day-header-monthly.today .day-number {
-  background: #7BAEBF;
+  background: #5fb3cc;
   color: white;
   border-radius: 50%;
   width: 28px;
@@ -90,7 +90,7 @@
 .month-separator-line {
   flex: 1;
   height: 2px;
-  background: linear-gradient(to right, transparent, #7BAEBF, transparent);
+  background: linear-gradient(to right, transparent, #5fb3cc, transparent);
 }
 
 .month-separator-label {
@@ -102,7 +102,7 @@
   letter-spacing: 1px;
   background: white;
   padding: 8px 16px;
-  border: 2px solid #7BAEBF;
+  border: 2px solid #5fb3cc;
   border-radius: 20px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
