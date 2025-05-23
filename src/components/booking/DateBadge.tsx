@@ -1,19 +1,7 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { X } from 'lucide-react';
-import { 
-  AlertDialog, 
-  AlertDialogAction, 
-  AlertDialogCancel, 
-  AlertDialogContent, 
-  AlertDialogDescription, 
-  AlertDialogFooter, 
-  AlertDialogHeader, 
-  AlertDialogTitle, 
-  AlertDialogTrigger 
-} from '@/components/ui/alert-dialog';
+import ConfirmationDialog from '@/components/ConfirmationDialog';
 
 interface DateBadgeProps {
   date: string;
@@ -21,6 +9,7 @@ interface DateBadgeProps {
   canDelete?: boolean;
   onRemoveDate: (date: string, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
   autoSync: boolean;
+  isOnlyDate?: boolean;
 }
 
 export const DateBadge = ({ 
@@ -28,42 +17,63 @@ export const DateBadge = ({
   eventType,
   canDelete = true,
   onRemoveDate,
-  autoSync
+  autoSync,
+  isOnlyDate = false
 }: DateBadgeProps) => {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  
   const formatDate = (dateString: string) => {
     if (!dateString) return 'Not scheduled';
     return new Date(dateString).toLocaleDateString();
   };
 
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Don't open dialog if this is the only date of its type or can't be deleted
+    if (isOnlyDate || !canDelete) return;
+    
+    setDialogOpen(true);
+  };
+  
+  const handleConfirmRemove = () => {
+    onRemoveDate(date, eventType, autoSync);
+    setDialogOpen(false);
+  };
+  
+  // Map event type to readable name for dialog
+  const getEventTypeName = () => {
+    switch (eventType) {
+      case 'rig': return 'rig day';
+      case 'event': return 'event date';
+      case 'rigDown': return 'rig down day';
+      default: return 'date';
+    }
+  };
+
   return (
-    <div className="flex items-center gap-1 mb-1">
-      <Badge variant="secondary" className="px-2 py-1">
+    <>
+      <Badge 
+        variant="secondary" 
+        className={`px-2 py-1 cursor-pointer ${isOnlyDate ? 'cursor-default' : 'hover:bg-secondary/80'}`}
+        onDoubleClick={handleDoubleClick}
+        title={isOnlyDate ? "Cannot remove the only " + getEventTypeName() : "Double-click to remove"}
+      >
         {formatDate(date)}
       </Badge>
       
-      {canDelete && (
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full">
-              <X className="h-3 w-3" />
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Remove date?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to remove this date? This action will also remove the associated calendar event.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => onRemoveDate(date, eventType, autoSync)}>
-                Remove
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
-    </div>
+      <ConfirmationDialog
+        title={`Remove ${getEventTypeName()}?`}
+        description={`Are you sure you want to remove ${formatDate(date)}? This action will also remove the associated calendar event.`}
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        onConfirm={handleConfirmRemove}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+      >
+        <span style={{ display: 'none' }}></span>
+      </ConfirmationDialog>
+    </>
   );
 };

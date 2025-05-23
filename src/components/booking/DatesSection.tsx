@@ -21,6 +21,9 @@ export const DatesSection = ({
   onAddDate,
   onRemoveDate
 }: DatesSectionProps) => {
+  // Check if there's only one date of this type
+  const isOnlyOneDate = dates.length === 1;
+  
   return (
     <div>
       <div className="flex items-center justify-between">
@@ -41,6 +44,7 @@ export const DatesSection = ({
               eventType={eventType}
               onRemoveDate={onRemoveDate}
               autoSync={autoSync}
+              isOnlyDate={isOnlyOneDate}
             />
           ))}
         </div>
@@ -52,4 +56,4 @@ export const DatesSection = ({
       )}
     </div>
   );
-};
+}
