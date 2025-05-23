@@ -132,8 +132,8 @@ const TestMonthlyView = () => {
           />
         </div>
 
-        {/* MonthNavigation in its own container with large top margin */}
-        <div className="mt-80 mb-8">
+        {/* MonthNavigation in its own container with very large top margin */}
+        <div className="mt-96 mb-8">
           <MonthNavigation 
             currentMonthStart={currentMonthStart}
             setCurrentMonthStart={setCurrentMonthStart}
