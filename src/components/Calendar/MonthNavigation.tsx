@@ -34,9 +34,9 @@ const MonthNavigation: React.FC<MonthNavigationProps> = ({
   const monthText = format(currentMonthStart, 'MMMM yyyy');
 
   return (
-    <div className="flex flex-col space-y-4 mb-4">
+    <div className="flex flex-col items-center space-y-4 mb-4 w-full">
       {/* Centered navigation with arrows on sides */}
-      <div className="flex items-center justify-center gap-6">
+      <div className="flex items-center justify-center gap-8 w-full max-w-md">
         <Button 
           variant="outline" 
           size="sm"
@@ -46,7 +46,7 @@ const MonthNavigation: React.FC<MonthNavigationProps> = ({
           <ChevronLeft className="h-4 w-4" />
         </Button>
         
-        <div className="text-2xl font-bold text-center min-w-[200px]">
+        <div className="text-2xl font-bold text-center flex-1">
           {monthText}
         </div>
         
@@ -60,7 +60,7 @@ const MonthNavigation: React.FC<MonthNavigationProps> = ({
         </Button>
       </div>
       
-      {/* Today/Current Month button centered below */}
+      {/* Current Month button centered below */}
       <div className="flex justify-center">
         <Button 
           variant="outline" 
