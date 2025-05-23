@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -137,7 +136,7 @@ const TestMonthlyView = () => {
           </div>
         </div>
         
-        <div className="test-monthly-view-container overflow-x-auto">
+        <div className="test-monthly-view-container">
           <TestMonthlyResourceCalendar
             events={events}
             resources={resources}

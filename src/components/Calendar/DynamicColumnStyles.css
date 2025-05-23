@@ -11,8 +11,9 @@
   height: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  scroll-behavior: auto; /* Changed from smooth to prevent unwanted corrections */
-  gap: 2px;
+  scroll-behavior: smooth;
+  gap: 4px;
+  padding: 0 20px; /* Add padding to prevent edge clipping */
 }
 
 /* Day wrapper with consistent sizing for layout calculations */
@@ -24,49 +25,52 @@
   border-right: 1px solid #e5e7eb;
   position: relative;
   /* Use consistent width for layout, styling changes via transform */
-  width: 550px;
+  width: 200px;
+  min-width: 200px;
 }
 
 /* Normal column styling */
 .normal-column {
   background-color: #ffffff;
   transform: scale(1);
-  transform-origin: left center;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
-              background-color 0.3s ease,
-              border 0.3s ease,
-              box-shadow 0.3s ease;
+  transform-origin: center center;
+  transition: transform 0.2s ease-out, 
+              background-color 0.2s ease,
+              border 0.2s ease,
+              box-shadow 0.2s ease;
+  border: 1px solid transparent;
+  border-radius: 4px;
 }
 
-/* Center column styling - use transform instead of width change */
+/* Center column styling - subtle scaling and highlighting */
 .center-column {
   background-color: #fefcfc;
   border: 2px solid #3b82f6;
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
   z-index: 10;
-  transform: scale(1.36); /* 750/550 = 1.36 to achieve the same visual effect */
-  transform-origin: left center;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
-              background-color 0.3s ease,
-              border 0.3s ease,
-              box-shadow 0.3s ease;
+  transform: scale(1.1); /* Much more subtle scaling */
+  transform-origin: center center;
+  transition: transform 0.2s ease-out, 
+              background-color 0.2s ease,
+              border 0.2s ease,
+              box-shadow 0.2s ease;
 }
 
 /* Day headers */
 .day-header {
   background-color: #f9fafb;
   border-bottom: 1px solid #e5e7eb;
-  padding: 12px 16px;
+  padding: 8px 12px;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 12px;
   color: #374151;
   text-align: center;
-  min-height: 48px;
+  min-height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease-in-out;
+  transition: all 0.2s ease;
 }
 
 /* Center column header styling */
@@ -75,7 +79,7 @@
   border-bottom: 1px solid #3b82f6;
   color: #1e40af;
   font-weight: 700;
-  font-size: 15px;
+  font-size: 13px;
   box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
 }
 
@@ -85,26 +89,26 @@
   overflow: hidden;
 }
 
-/* Resource area adjustments for center columns */
+/* Resource area adjustments - consistent sizing */
+.dynamic-day-wrapper .fc-resource-area td,
+.dynamic-day-wrapper .fc-resource-area th,
+.dynamic-day-wrapper .fc-resource-lane,
+.dynamic-day-wrapper .fc-datagrid-cell,
+.dynamic-day-wrapper .fc-timegrid-col {
+  min-width: 60px !important;
+  width: 60px !important;
+  max-width: 60px !important;
+}
+
+/* Center column gets slightly larger resource areas */
 .center-column .fc-resource-area td,
 .center-column .fc-resource-area th,
 .center-column .fc-resource-lane,
 .center-column .fc-datagrid-cell,
 .center-column .fc-timegrid-col {
-  min-width: 120px !important;
-  width: 120px !important;
-  max-width: 120px !important;
-}
-
-/* Normal column resource areas */
-.normal-column .fc-resource-area td,
-.normal-column .fc-resource-area th,
-.normal-column .fc-resource-lane,
-.normal-column .fc-datagrid-cell,
-.normal-column .fc-timegrid-col {
-  min-width: 80px !important;
-  width: 80px !important;
-  max-width: 80px !important;
+  min-width: 70px !important;
+  width: 70px !important;
+  max-width: 70px !important;
 }
 
 /* Scrollbar styling */
@@ -133,7 +137,7 @@
 }
 
 .center-column .fc-event-title {
-  font-size: 13px;
+  font-size: 12px;
 }
 
 /* Focus indicator for better accessibility */
@@ -147,16 +151,17 @@
   background: linear-gradient(135deg, #3b82f6, #1d4ed8);
   border-radius: 10px;
   z-index: -1;
-  opacity: 0.1;
+  opacity: 0.05;
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .dynamic-day-wrapper {
-    width: 300px;
+    width: 160px;
+    min-width: 160px;
   }
   
   .center-column {
-    transform: scale(1.33); /* 400/300 for mobile */
+    transform: scale(1.05); /* Even more subtle on mobile */
   }
 }
