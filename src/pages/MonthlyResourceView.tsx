@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -130,8 +131,8 @@ const MonthlyResourceView = () => {
           />
         </div>
 
-        {/* MonthNavigation in its own container with very large top margin */}
-        <div className="mt-96 mb-8">
+        {/* MonthNavigation in its own container with extremely large top margin */}
+        <div style={{ marginTop: '800px' }} className="mb-8">
           <MonthNavigation 
             currentMonthStart={currentMonthStart}
             setCurrentMonthStart={setCurrentMonthStart}
