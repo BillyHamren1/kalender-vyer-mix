@@ -74,7 +74,7 @@ export const useEventDuplicateDialog = ({
     }
 
     await duplicateEvent(selectedEvent.id, targetTeam);
-    setShowDuplicateDialog(false);
+    handleCloseDialog();
     
     // Refresh the events to show the duplicated event
     if (refreshEvents) {
@@ -82,9 +82,16 @@ export const useEventDuplicateDialog = ({
     }
   };
 
+  // Fixed: Create a proper close function that resets all state
+  const handleCloseDialog = () => {
+    setShowDuplicateDialog(false);
+    setSelectedEvent(null);
+    setTargetTeam("");
+  };
+
   // Duplicate dialog component
   const DuplicateEventDialog = () => (
-    <Dialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
+    <Dialog open={showDuplicateDialog} onOpenChange={handleCloseDialog}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Duplicate Event</DialogTitle>
@@ -122,7 +129,7 @@ export const useEventDuplicateDialog = ({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setShowDuplicateDialog(false)}>
+          <Button variant="outline" onClick={handleCloseDialog}>
             Cancel
           </Button>
           <Button onClick={handleDuplicateEvent}>
