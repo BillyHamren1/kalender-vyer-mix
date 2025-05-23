@@ -1,3 +1,4 @@
+
 import React, { useCallback } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, addMonths } from 'date-fns';
@@ -30,7 +31,7 @@ const MonthNavigation: React.FC<MonthNavigationProps> = ({
       <div className="flex items-center">
         <ChevronLeft 
           onClick={goToPreviousMonth}
-          className="h-48 w-48 cursor-pointer text-[#7BAEBF] hover:text-[#6E9DAC] transition-colors duration-300"
+          className="h-34 w-34 cursor-pointer text-[#7BAEBF] hover:text-[#6E9DAC] transition-colors duration-300"
           strokeWidth={3}
         />
         
@@ -40,7 +41,7 @@ const MonthNavigation: React.FC<MonthNavigationProps> = ({
         
         <ChevronRight 
           onClick={goToNextMonth}
-          className="h-48 w-48 cursor-pointer text-[#7BAEBF] hover:text-[#6E9DAC] transition-colors duration-300"
+          className="h-34 w-34 cursor-pointer text-[#7BAEBF] hover:text-[#6E9DAC] transition-colors duration-300"
           strokeWidth={3}
         />
       </div>
