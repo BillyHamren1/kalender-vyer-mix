@@ -38,6 +38,7 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
   const lastScrollPosition = useRef(0);
   const scrollDirectionRef = useRef<'left' | 'right' | null>(null);
   const requestIdRef = useRef<number | null>(null);
+  const scrollTimeoutRef = useRef<number | null>(null);
   
   // Generate days for multiple months - memoize this heavy calculation
   const allDays = useMemo(() => {
@@ -92,6 +93,13 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     }
   }, [allDays.length, centerColumnIndex]);
 
+  // Handle scroll end detection
+  const handleScrollEnd = useCallback(() => {
+    if (!isScrolling) return;
+    calculateCenterColumn();
+    setIsScrolling(false);
+  }, [calculateCenterColumn, isScrolling]);
+
   // Improved scroll handler with requestAnimationFrame for better performance
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return;
@@ -131,7 +139,6 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
       const currentPos = scrollLeft;
       
       // After DOM update, maintain relative scroll position
-      // This setTimeout is necessary to wait for the DOM to update
       requestAnimationFrame(() => {
         if (containerRef.current) {
           // Calculate new position to maintain the same view
@@ -148,19 +155,22 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
       setMonthsToShow(prev => prev + 3);
     }
     
-    // Update center column calculation
-    calculateCenterColumn();
+    // Set scrolling state
+    setIsScrolling(true);
+    
+    // Clear any existing timeouts
+    if (scrollTimeoutRef.current) {
+      window.clearTimeout(scrollTimeoutRef.current);
+    }
+    
+    // Set a new timeout to detect when scrolling stops
+    scrollTimeoutRef.current = window.setTimeout(handleScrollEnd, 150);
     
     // Mark as not scrolling after a delay to prevent too many updates
     if (requestIdRef.current) {
       cancelAnimationFrame(requestIdRef.current);
     }
-    
-    requestIdRef.current = requestAnimationFrame(() => {
-      setIsScrolling(false);
-      requestIdRef.current = null;
-    });
-  }, [calculateCenterColumn]);
+  }, [handleScrollEnd]);
 
   // Set up improved scroll listener with requestAnimationFrame
   useEffect(() => {
@@ -168,8 +178,6 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     if (!container) return;
     
     const scrollListener = () => {
-      setIsScrolling(true);
-      
       if (requestIdRef.current) {
         cancelAnimationFrame(requestIdRef.current);
       }
@@ -183,6 +191,9 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
       container.removeEventListener('scroll', scrollListener);
       if (requestIdRef.current) {
         cancelAnimationFrame(requestIdRef.current);
+      }
+      if (scrollTimeoutRef.current) {
+        window.clearTimeout(scrollTimeoutRef.current);
       }
     };
   }, [handleScroll]);
@@ -217,6 +228,7 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     }
   }, [allDays]); // Only run when allDays changes, which should be once initially
 
+  // Handle staff drop
   const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
     if (onStaffDrop) {
       try {
@@ -227,18 +239,21 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
     }
   };
 
+  // Handle nested calendar date set
   const handleNestedCalendarDateSet = (dateInfo: any) => {
     if (dateInfo.view.calendar.el.getAttribute('data-day-index') === '0') {
       onDateSet(dateInfo);
     }
   };
   
+  // Handle staff selection
   const handleSelectStaff = (resourceId: string, resourceTitle: string) => {
     if (onSelectStaff) {
       onSelectStaff(resourceId, resourceTitle);
     }
   };
 
+  // Get calendar props based on column index
   const getCalendarProps = (dayIndex: number) => {
     const isCenterColumn = dayIndex === centerColumnIndex;
     
@@ -269,29 +284,6 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
   useEffect(() => {
     console.log(`Current months showing: ${monthsToShow}, offset: ${currentMonthOffset}, center: ${centerColumnIndex}, days: ${allDays.length}`);
   }, [monthsToShow, currentMonthOffset, centerColumnIndex, allDays.length]);
-  
-  // Add scroll debugging helper
-  useEffect(() => {
-    const logScrollMetrics = () => {
-      if (containerRef.current) {
-        const { scrollLeft, scrollWidth, clientWidth } = containerRef.current;
-        console.log(`Scroll metrics - left: ${scrollLeft}, width: ${scrollWidth}, client: ${clientWidth}, percentage: ${((scrollLeft / (scrollWidth - clientWidth)) * 100).toFixed(1)}%`);
-      }
-    };
-    
-    // Log initial metrics
-    requestAnimationFrame(logScrollMetrics);
-    
-    // Also add a key press handler for debugging
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'd' && e.ctrlKey) {
-        logScrollMetrics();
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   return (
     <div className="dynamic-monthly-view-container">

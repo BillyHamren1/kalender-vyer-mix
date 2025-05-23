@@ -68,14 +68,11 @@
   background-color: #ffffff;
 }
 
-/* Center column styling - wider and more prominent */
+/* Center column styling - wider but without frames and highlights */
 .center-column {
   width: 750px;
-  background-color: #fefcfc;
-  border: 2px solid #3b82f6;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
-  z-index: 10;
+  background-color: #ffffff;
+  z-index: 1;
   margin: 0 4px;
 }
 
@@ -95,14 +92,13 @@
   justify-content: center;
 }
 
-/* Center column header styling */
+/* Center column header styling - removed special styling */
 .center-header {
-  background-color: #dbeafe;
-  border-bottom: 1px solid #3b82f6;
-  color: #1e40af;
-  font-weight: 700;
-  font-size: 15px;
-  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
+  background-color: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  color: #374151;
+  font-weight: 600;
+  font-size: 14px;
 }
 
 /* Calendar container within each day */
@@ -155,9 +151,8 @@
   background: #94a3b8;
 }
 
-/* Enhanced event styling in center column */
+/* Modified event styling in center column - keeping only font size change */
 .center-column .fc-event {
-  border-width: 2px;
   font-weight: 500;
 }
 
@@ -175,19 +170,7 @@
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Focus indicator for better accessibility */
-.center-column::before {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-  border-radius: 10px;
-  z-index: -1;
-  opacity: 0.1;
-}
+/* Removed focus indicator for better accessibility */
 
 /* Performance optimizations to reduce repaints */
 .dynamic-calendar-container {
