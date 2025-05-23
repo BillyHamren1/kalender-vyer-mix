@@ -224,10 +224,10 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     }
   };
 
-  // FIXED: Consistent resource column configuration - all values set to 80px
+  // FIXED: Consistent resource column configuration - using NUMBERS for FullCalendar
   const getResourceColumnConfig = () => {
-    // Use 80px consistently across all width settings
-    const standardWidth = '80px';
+    // Use numeric values for FullCalendar (pixels without 'px')
+    const standardWidth = 80;
     
     return {
       resourceAreaWidth: standardWidth,
@@ -302,7 +302,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     },
     dropAccept: ".fc-event",
     eventAllow: () => true,
-    // Add the FIXED resource column config with consistent 80px width
+    // Add the FIXED resource column config with consistent 80px width (as numbers)
     ...getResourceColumnConfig(),
     // Add calendar options
     ...getCalendarOptions(),
@@ -310,9 +310,9 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     ...getCalendarTimeFormatting(),
     // Apply any additional calendar props (but prioritize our width settings)
     ...calendarProps,
-    // OVERRIDE any conflicting width settings from calendarProps
-    resourceAreaWidth: '80px',
-    slotMinWidth: '80px',
+    // OVERRIDE any conflicting width settings from calendarProps with NUMBERS
+    resourceAreaWidth: 80,
+    slotMinWidth: 80,
     // Update resource rendering to include select button
     resourceAreaHeaderContent: (args: any) => {
       return (
