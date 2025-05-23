@@ -50,7 +50,7 @@ const ResourceToolbar: React.FC<ResourceToolbarProps> = ({
           size="sm"
           className="flex items-center gap-1 mr-3"
         >
-          <Users className="h-4 w-4" />
+          <Users className="h-4 w-4" color="black" />
           {isMobile ? '' : 'Available Staff'}
         </Button>
       )}
