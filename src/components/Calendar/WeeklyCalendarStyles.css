@@ -1,3 +1,4 @@
+
 /* Weekly Calendar Styles */
 .weekly-view-container {
   width: 100%;
@@ -23,21 +24,21 @@
   border-right: none;
 }
 
-/* Updated day header styles to match monthly view with black border */
+/* Updated day header styles - softer borders and more calendar-like */
 .day-header {
   background: #f0f9f9;
-  border: 1px solid #000000;
-  border-bottom: 2px solid #000000;
+  border: 1px solid #d1d5db;
+  border-bottom: 1px solid #d1d5db;
   text-align: center;
-  padding: 8px 4px;
+  padding: 12px 8px;
   font-weight: 600;
   color: #374151;
   margin-bottom: 2px;
-  border-radius: 6px 6px 0 0;
+  border-radius: 8px 8px 0 0;
   position: sticky;
   top: 0;
   z-index: 10;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   transition: background-color 0.2s, transform 0.1s;
 }
 
@@ -45,7 +46,7 @@
 .day-header:hover {
   background: #e1f1f3;
   transform: translateY(-1px);
-  box-shadow: 0 3px 5px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
 }
 
 /* Active state for when clicking */
@@ -56,7 +57,7 @@
 
 /* Make resource timeline work properly */
 .fc-resource-timeline-divider {
-  width: 3px !important;
+  width: 1px !important;
   background-color: #e5e7eb;
 }
 
@@ -65,13 +66,14 @@
   overflow: visible !important;
 }
 
-/* Day resource header styling */
+/* Day resource header styling - more calendar-like */
 .day-resource-header {
-  font-weight: 600;
-  font-size: 1.1rem;
-  padding: 8px 4px;
-  background-color: #f3f4f6;
-  border-bottom: 2px solid #d1d5db;
+  font-weight: 500;
+  font-size: 1rem;
+  padding: 12px 8px;
+  background-color: #fafafa;
+  border-bottom: 1px solid #e5e7eb;
+  border-radius: 6px 6px 0 0;
 }
 
 /* Enforce fixed width for ALL resource columns - REDUCED WIDTH */
@@ -84,24 +86,41 @@
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
+  border-right: 1px solid #f0f0f0 !important;
+  border-left: none !important;
 }
 
-/* Fix for resource header hierarchical nesting */
+/* Fix for resource header hierarchical nesting - softer styling */
 .fc-datagrid-cell-cushion {
   font-weight: 500;
+  padding: 8px 6px;
+  background-color: #fafafa;
+  border-radius: 4px;
+  margin: 2px;
+  transition: background-color 0.2s ease;
 }
 
-/* Day header cells */
+.fc-datagrid-cell-cushion:hover {
+  background-color: #f3f4f6;
+}
+
+/* Day header cells - softer styling */
 .fc-datagrid-group-cushion {
   font-weight: 600;
   color: #374151;
   text-transform: capitalize;
+  padding: 10px 8px;
+  background-color: #f8fafc;
+  border-radius: 6px;
+  margin: 2px;
 }
 
 /* Improve event rendering */
 .fc-timeline-event {
   min-height: 25px;
   padding: 2px 4px;
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 /* Critical fix for team-6 (Today's events) column */
@@ -114,12 +133,14 @@
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
+  border-right: 1px solid #f0f0f0 !important;
 }
 
-/* Ensure timeline slot width */
+/* Ensure timeline slot width with softer borders */
 .fc-timeline-slot {
   min-width: 80px !important;
   width: 80px !important;
+  border-right: 1px solid #f8f9fa !important;
 }
 
 /* Optimize event content */
@@ -127,7 +148,7 @@
   display: flex;
   flex-direction: column;
   min-height: 100%;
-  padding: 2px;
+  padding: 4px;
 }
 
 .event-delivery-address {
@@ -166,9 +187,15 @@
   max-height: 600px !important;
 }
 
-/* Make weekly calendars more compact */
+/* Make weekly calendars more compact but with softer styling */
 .weekly-view-calendar .fc-timegrid-slot {
-  height: 30px !important;
+  height: 35px !important;
+  border-bottom: 1px solid #f8f9fa !important;
+}
+
+/* Soften time grid borders */
+.weekly-view-calendar .fc-timegrid-axis {
+  border-right: 1px solid #f0f0f0 !important;
 }
 
 /* Week navigation styles */
@@ -186,13 +213,15 @@
 
 /* Critical fix - enforce resource column width in weekly view */
 .weekly-view-calendar .fc-resource-timeline-divider {
-  width: 3px !important;
+  width: 1px !important;
+  background-color: #f0f0f0;
 }
 
 .weekly-view-calendar .fc-timegrid-col {
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
+  border-right: 1px solid #f8f9fa !important;
 }
 
 /* Make sure day columns in weekly view have adequate space */
@@ -200,11 +229,14 @@
   min-width: 450px !important;
 }
 
-/* Critical fix - ensure ALL resource column headers have consistent width */
+/* Critical fix - ensure ALL resource column headers have consistent width and soft borders */
 .weekly-view-calendar .fc-col-header-cell {
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
+  border-right: 1px solid #f0f0f0 !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  background-color: #fafafa !important;
 }
 
 /* Fix for resource container width */
@@ -212,18 +244,22 @@
   min-width: 450px !important;
 }
 
-/* Critical fix - ensure ALL resource cells have exact same width */
+/* Critical fix - ensure ALL resource cells have exact same width with soft borders */
 .weekly-view-calendar .fc-resource-group,
 .weekly-view-calendar .fc-datagrid-cell {
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
+  border-right: 1px solid #f0f0f0 !important;
+  border-bottom: 1px solid #f8f9fa !important;
 }
 
-/* Ensure time labels have enough room */
+/* Ensure time labels have enough room with soft styling */
 .weekly-view-calendar .fc-timegrid-axis {
   width: 60px !important;
   min-width: 60px !important;
+  background-color: #fafafa;
+  border-right: 1px solid #f0f0f0 !important;
 }
 
 /* Force consistent column widths for team-6 (Today's events) */
@@ -235,9 +271,10 @@
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
+  border-right: 1px solid #f0f0f0 !important;
 }
 
-/* Ensure ALL columns in weekly view are exactly the same width */
+/* Ensure ALL columns in weekly view are exactly the same width with soft borders */
 .weekly-view-calendar .fc-datagrid-cell,
 .weekly-view-calendar .fc-datagrid-cell-frame,
 .weekly-view-calendar .fc-timegrid-col,
@@ -245,9 +282,23 @@
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
+  border-right: 1px solid #f0f0f0 !important;
 }
 
-/* Icon-only assign button styling */
+/* Soften the main grid borders */
+.weekly-view-calendar .fc-scrollgrid-section table,
+.weekly-view-calendar .fc-datagrid-body,
+.weekly-view-calendar .fc-datagrid-header {
+  border: 1px solid #f0f0f0 !important;
+}
+
+/* Remove harsh grid lines and add soft ones */
+.weekly-view-calendar .fc-scrollgrid-section-liquid > td {
+  border-top: 1px solid #f8f9fa !important;
+  border-bottom: 1px solid #f8f9fa !important;
+}
+
+/* Icon-only assign button styling - keep existing */
 .assign-button-icon {
   height: 20px !important;
   width: 20px !important;
