@@ -34,43 +34,43 @@ const MonthNavigation: React.FC<MonthNavigationProps> = ({
   const monthText = format(currentMonthStart, 'MMMM yyyy');
 
   return (
-    <div className="flex flex-col space-y-2 mb-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={goToPreviousMonth}
-            className="flex items-center gap-1"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Previous Month
-          </Button>
-          
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={goToCurrentMonth}
-            className="flex items-center gap-1"
-          >
-            <Calendar className="h-4 w-4" />
-            Current Month
-          </Button>
-          
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={goToNextMonth}
-            className="flex items-center gap-1"
-          >
-            Next Month
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+    <div className="flex flex-col space-y-4 mb-4">
+      {/* Centered navigation with arrows on sides */}
+      <div className="flex items-center justify-center gap-6">
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={goToPreviousMonth}
+          className="flex items-center gap-1"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        
+        <div className="text-2xl font-bold text-center min-w-[200px]">
+          {monthText}
         </div>
+        
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={goToNextMonth}
+          className="flex items-center gap-1"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
       </div>
       
-      <div className="text-lg font-medium text-center">
-        {monthText}
+      {/* Today/Current Month button centered below */}
+      <div className="flex justify-center">
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={goToCurrentMonth}
+          className="flex items-center gap-1"
+        >
+          <Calendar className="h-4 w-4" />
+          Current Month
+        </Button>
       </div>
     </div>
   );
