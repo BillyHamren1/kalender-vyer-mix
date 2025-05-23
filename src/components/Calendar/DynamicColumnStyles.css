@@ -28,15 +28,15 @@
   min-height: 0;
 }
 
-/* Updated day header styles with teal background */
+/* New day header styles */
 .day-header-monthly {
-  background: #f0fdfa;
-  border: 1px solid #5eead4;
-  border-bottom: 2px solid #2dd4bf;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-bottom: 2px solid #cbd5e1;
   text-align: center;
   padding: 8px 4px;
   font-weight: 600;
-  color: #134e4a;
+  color: #374151;
   margin-bottom: 2px;
   border-radius: 6px 6px 0 0;
   position: sticky;
@@ -46,9 +46,9 @@
 }
 
 .day-header-monthly.today {
-  background: #ccfbf1;
-  border-color: #14b8a6;
-  color: #0f766e;
+  background: #dbeafe;
+  border-color: #3b82f6;
+  color: #1d4ed8;
   font-weight: 700;
 }
 
@@ -65,7 +65,7 @@
 }
 
 .day-header-monthly.today .day-number {
-  background: #14b8a6;
+  background: #3b82f6;
   color: white;
   border-radius: 50%;
   width: 28px;
@@ -76,7 +76,7 @@
   margin: 0 auto;
 }
 
-/* Updated month separator styles with teal theme */
+/* Month separator styles */
 .month-separator {
   display: flex;
   align-items: center;
@@ -88,19 +88,19 @@
 .month-separator-line {
   flex: 1;
   height: 2px;
-  background: linear-gradient(to right, transparent, #2dd4bf, transparent);
+  background: linear-gradient(to right, transparent, #cbd5e1, transparent);
 }
 
 .month-separator-label {
   margin: 0 20px;
   font-size: 18px;
   font-weight: 700;
-  color: #134e4a;
+  color: #374151;
   text-transform: uppercase;
   letter-spacing: 1px;
   background: white;
   padding: 8px 16px;
-  border: 2px solid #2dd4bf;
+  border: 2px solid #cbd5e1;
   border-radius: 20px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
