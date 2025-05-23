@@ -22,7 +22,7 @@ const DraggableStaffBadge: React.FC<{
 }> = ({ staff, onRemove }) => {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'STAFF',
-    item: { ...staff, assignedTeam: staff.assignedTeam },
+    item: staff,
     collect: (monitor) => ({
       isDragging: !!monitor.isDragging(),
     }),
@@ -82,7 +82,6 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   const [staffToReassign, setStaffToReassign] = useState<StaffMember | null>(null);
   
   // Create a drop zone specifically for the calendar resource header
-  // Now only accept staff that are already assigned to a team
   const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: 'STAFF',
     drop: (item: StaffMember & { assignedTeam?: string | null }) => {
@@ -91,15 +90,11 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         if (item.assignedTeam && item.assignedTeam !== resource.id) {
           setStaffToReassign(item);
           setShowConfirmation(true);
-        } else if (item.assignedTeam) {
+        } else {
           onStaffDrop(item.id, resource.id);
         }
       }
       return { resourceId: resource.id };
-    },
-    canDrop: (item: StaffMember & { assignedTeam?: string | null }) => {
-      // Only allow drops if the staff is already assigned to a team
-      return !!item.assignedTeam;
     },
     collect: (monitor) => ({
       isOver: !!monitor.isOver(),
@@ -177,20 +172,21 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         ))}
       </div>
       
-      {/* Drop zone area - now shows a different style when non-assigned staff are hovered */}
+      {/* Drop zone area - now shows only the arrow icon when staff are assigned */}
       <div 
         className={`
           resource-drop-zone text-xs flex items-center justify-center 
           border border-dashed p-1.5 rounded-md mt-auto
-          ${isOver && canDrop ? 'bg-blue-50 border-blue-400 text-blue-800' : 'border-gray-300 text-gray-500 hover:bg-gray-50'}
-          ${isOver && !canDrop ? 'bg-red-50 border-red-400 text-red-800' : ''}
+          ${isOver ? 'bg-blue-50 border-blue-400 text-blue-800' : 'border-gray-300 text-gray-500 hover:bg-gray-50'}
           transition-colors duration-200 z-10
         `}
         style={{ minHeight: "24px" }}
       >
         <div className="flex items-center gap-1">
           <ArrowDown className="h-3 w-3" />
-          <span className="text-xs font-medium">Drop assigned staff</span>
+          {assignedStaff.length === 0 && (
+            <span className="text-xs font-medium">Drop staff</span>
+          )}
         </div>
       </div>
 

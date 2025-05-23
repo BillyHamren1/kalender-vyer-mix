@@ -3,7 +3,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useEventActions } from '@/hooks/useEventActions';
-import StaffCurtain from '@/components/Calendar/StaffCurtain';
+import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from 'sonner';
 import { DndProvider } from 'react-dnd';
@@ -13,7 +13,7 @@ import ResourceHeader from '@/components/Calendar/ResourceHeader';
 import ResourceLayout from '@/components/Calendar/ResourceLayout';
 import ResourceToolbar from '@/components/Calendar/ResourceToolbar';
 import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
-import { ChevronLeft, ChevronRight, Calendar, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import WeeklyResourceCalendar from '@/components/Calendar/WeeklyResourceCalendar';
 import { format, addDays, startOfWeek } from 'date-fns';
@@ -44,11 +44,6 @@ const WeeklyResourceView = () => {
   const { addEventToCalendar, duplicateEvent } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
-  
-  // New state for staff curtain
-  const [showStaffCurtain, setShowStaffCurtain] = useState(false);
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
-  const [selectedTeamName, setSelectedTeamName] = useState<string>('');
   
   // Week navigation - managed independently from calendar's currentDate
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
@@ -99,13 +94,6 @@ const WeeklyResourceView = () => {
     }
   }, [hookCurrentDate]);
 
-  // Handle team selection for staff assignment
-  const handleTeamSelect = useCallback((teamId: string, teamName: string) => {
-    setSelectedTeamId(teamId);
-    setSelectedTeamName(teamName);
-    setShowStaffCurtain(true);
-  }, []);
-
   // Navigation functions
   const goToPreviousWeek = useCallback(() => {
     const prevWeek = new Date(currentWeekStart);
@@ -141,29 +129,12 @@ const WeeklyResourceView = () => {
     <DndProvider backend={HTML5Backend}>
       <StaffSyncManager currentDate={hookCurrentDate} />
       
-      {/* Staff Curtain (new) */}
-      {showStaffCurtain && (
-        <StaffCurtain
-          currentDate={hookCurrentDate}
-          onSelectStaff={handleTeamSelect}
-          onClose={() => setShowStaffCurtain(false)}
-          onAssignStaff={handleStaffDrop}
-        />
-      )}
-      
       <ResourceLayout 
         staffDisplay={
-          <div className="p-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              className="w-full flex items-center justify-center gap-2"
-              onClick={() => setShowStaffCurtain(true)}
-            >
-              <Users className="h-4 w-4" />
-              <span>Show Available Staff</span>
-            </Button>
-          </div>
+          <AvailableStaffDisplay 
+            currentDate={hookCurrentDate} 
+            onStaffDrop={handleStaffDrop}
+          />
         }
         showStaffDisplay={true}
         isMobile={isMobile}
@@ -239,7 +210,6 @@ const WeeklyResourceView = () => {
             refreshEvents={refreshEvents}
             onStaffDrop={handleStaffDrop}
             forceRefresh={staffAssignmentsUpdated}
-            onSelectStaff={handleTeamSelect}
           />
         </div>
       </ResourceLayout>
