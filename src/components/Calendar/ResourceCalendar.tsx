@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -214,7 +213,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     );
   };
 
-  // Handle team selection
+  // Handle team selection - make sure this properly handles the event
   const handleSelectStaff = (resourceId: string, resourceTitle: string) => {
     console.log('ResourceCalendar.handleSelectStaff called with:', resourceId, resourceTitle);
     if (onSelectStaff) {

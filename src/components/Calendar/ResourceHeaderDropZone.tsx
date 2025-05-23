@@ -1,13 +1,13 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Resource } from './ResourceData';
 import { StaffMember } from './StaffTypes';
-import { UserPlus } from 'lucide-react';
 import { fetchStaffAssignments } from '@/services/staffService';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useDrop } from 'react-dnd';
 import DraggableStaffItem from './DraggableStaffItem';
+import TeamStaffPortal from './TeamStaffPortal';
 
 interface ResourceHeaderDropZoneProps {
   resource: Resource;
@@ -26,6 +26,7 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
 }) => {
   const [assignedStaff, setAssignedStaff] = useState<StaffMember[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   
   // Helper function to get initials for avatar
   const getInitials = (name: string): string => {
@@ -100,42 +101,52 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   };
 
   return (
-    <div 
-      ref={drop} 
-      className={`resource-header-wrapper flex flex-col h-full w-full ${isOver ? 'bg-purple-50' : ''}`}
-    >
-      {/* Team title with icon button in right corner */}
-      <div className="resource-title-area font-medium text-sm mb-1 sticky top-0 z-10 flex justify-between items-center">
-        <span>{resource.title}</span>
-        <button 
-          onClick={handleSelectStaff}
-          className="assign-button-icon"
-          title="Assign staff"
-        >
-          <UserPlus className="h-3 w-3" />
-        </button>
+    <>
+      <div 
+        ref={(node) => {
+          // Combine React DnD's drop ref with our own ref
+          drop(node);
+          if (node) {
+            // @ts-ignore - containerRef is definitely a RefObject<HTMLDivElement>
+            containerRef.current = node;
+          }
+        }}
+        className={`resource-header-wrapper flex flex-col h-full w-full ${isOver ? 'bg-purple-50' : ''}`}
+      >
+        {/* Team title area - no longer includes the button */}
+        <div className="resource-title-area font-medium text-sm mb-1 sticky top-0 z-10 flex justify-between items-center">
+          <span>{resource.title}</span>
+        </div>
+        
+        {/* Assigned staff area - fixed height to accommodate 5 staff members */}
+        <div className="assigned-staff-area flex flex-col gap-1 mb-1 overflow-visible min-h-[130px]">
+          {assignedStaff.map((staff) => (
+            <DraggableStaffItem
+              key={staff.id}
+              staff={staff}
+              onRemove={() => handleRemoveStaff(staff.id)}
+              currentDate={currentDate}
+              teamName={resource.title}
+            />
+          ))}
+          
+          {/* Empty placeholder slots to maintain consistent height */}
+          {placeholders.map((_, index) => (
+            <div 
+              key={`placeholder-${index}`}
+              className="staff-placeholder h-[22px] w-full opacity-0"
+            />
+          ))}
+        </div>
       </div>
       
-      {/* Assigned staff area - fixed height to accommodate 5 staff members */}
-      <div className="assigned-staff-area flex flex-col gap-1 mb-1 overflow-visible min-h-[130px]">
-        {assignedStaff.map((staff) => (
-          <DraggableStaffItem
-            key={staff.id}
-            staff={staff}
-            onRemove={() => handleRemoveStaff(staff.id)}
-            currentDate={currentDate}
-            teamName={resource.title}
-          />
-        ))}
-        
-        {/* Empty placeholder slots to maintain consistent height */}
-        {placeholders.map((_, index) => (
-          <div 
-            key={`placeholder-${index}`}
-            className="staff-placeholder h-[22px] w-full opacity-0"
-          />
-        ))}
-      </div>
-    </div>
+      {/* Portal-based staff selection button */}
+      <TeamStaffPortal 
+        resourceElement={containerRef.current}
+        resourceId={resource.id}
+        resourceTitle={resource.title}
+        onSelectStaff={onSelectStaff || (() => {})}
+      />
+    </>
   );
 };
