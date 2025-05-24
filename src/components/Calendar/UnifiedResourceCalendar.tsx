@@ -1,8 +1,10 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
 import { format, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
+import { useContext } from 'react';
+import { CalendarContext } from '@/App';
 import './WeeklyCalendarStyles.css';
 
 interface UnifiedResourceCalendarProps {
@@ -34,6 +36,8 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const todayRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const { setLastViewedDate } = useContext(CalendarContext);
 
   // Generate days based on view mode
   const getDaysToRender = () => {
@@ -60,6 +64,16 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 
   const days = getDaysToRender();
 
+  // Handle day header click to navigate to daily view
+  const handleDayHeaderClick = (date: Date) => {
+    // Store the selected date in context and session storage
+    setLastViewedDate(date);
+    sessionStorage.setItem('dayCalendarDate', date.toISOString());
+    
+    // Navigate to the day view
+    navigate('/day-view');
+  };
+
   // Log staff drop operations for debugging
   const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
     console.log(`UnifiedResourceCalendar.handleStaffDrop: staffId=${staffId}, resourceId=${resourceId || 'null'}`);
@@ -70,22 +84,6 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
       } catch (error) {
         console.error('Error in handleStaffDrop:', error);
       }
-    }
-  };
-
-  const handleNestedCalendarDateSet = (dateInfo: any) => {
-    // Only pass the date to the parent if it's from the first calendar
-    if (dateInfo.view.calendar.el.getAttribute('data-day-index') === '0') {
-      onDateSet(dateInfo);
-    }
-  };
-  
-  const handleSelectStaff = (resourceId: string, resourceTitle: string) => {
-    console.log('UnifiedResourceCalendar: handleSelectStaff called for', resourceId, resourceTitle);
-    if (onSelectStaff) {
-      onSelectStaff(resourceId, resourceTitle);
-    } else {
-      console.error('UnifiedResourceCalendar: onSelectStaff prop is not defined');
     }
   };
 
@@ -178,8 +176,12 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
               className={viewMode === 'weekly' ? 'day-calendar-wrapper' : 'monthly-day-wrapper'}
               ref={isToday ? todayRef : null}
             >
-              {/* Simple day header matching monthly view exactly */}
-              <div className={`day-header ${isToday ? 'today' : ''} ${!isCurrentMonth ? 'other-month' : ''}`}>
+              {/* Clickable day header */}
+              <div 
+                className={`day-header ${isToday ? 'today' : ''} ${!isCurrentMonth ? 'other-month' : ''} cursor-pointer hover:bg-blue-50 transition-colors`}
+                onClick={() => handleDayHeaderClick(date)}
+                title="Click to view daily schedule"
+              >
                 {format(date, 'EEE d')}
               </div>
               <div className={viewMode === 'weekly' ? 'weekly-view-calendar' : 'monthly-view-calendar'}>

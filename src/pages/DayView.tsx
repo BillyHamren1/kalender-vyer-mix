@@ -1,12 +1,14 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useContext } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import DayCalendar from '@/components/Calendar/DayCalendar';
 import '../styles/calendar.css';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { ArrowDown, RefreshCcw } from 'lucide-react';
+import { ArrowDown, RefreshCcw, ArrowLeft } from 'lucide-react';
 import { importBookings } from '@/services/importService';
+import { useNavigate } from 'react-router-dom';
+import { CalendarContext } from '@/App';
 
 const DayView = () => {
   const {
@@ -19,6 +21,8 @@ const DayView = () => {
   } = useCalendarEvents();
 
   const [isImporting, setIsImporting] = React.useState(false);
+  const navigate = useNavigate();
+  const { lastPath } = useContext(CalendarContext);
 
   useEffect(() => {
     // Log events when they change
@@ -30,6 +34,13 @@ const DayView = () => {
       });
     }
   }, [events]);
+
+  // Handle back button click
+  const handleBackClick = () => {
+    // Navigate back to the last viewed path, or default to weekly view
+    const backPath = lastPath || '/weekly-view';
+    navigate(backPath);
+  };
 
   // Handle importing bookings
   const handleImportBookings = async () => {
@@ -65,12 +76,23 @@ const DayView = () => {
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">Calendar Day View</h1>
-            <p className="text-gray-600">Showing all booked events for the selected day</p>
-            <p className="text-sm text-blue-600 mt-2">
-              Currently viewing: {currentDate.toLocaleDateString()}
-            </p>
+          <div className="flex items-center gap-4">
+            <Button 
+              onClick={handleBackClick}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Tillbaka
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">Calendar Day View</h1>
+              <p className="text-gray-600">Showing all booked events for the selected day</p>
+              <p className="text-sm text-blue-600 mt-2">
+                Currently viewing: {currentDate.toLocaleDateString()}
+              </p>
+            </div>
           </div>
           <div className="flex space-x-3">
             <Button 
