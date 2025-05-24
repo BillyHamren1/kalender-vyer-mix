@@ -29,7 +29,13 @@ export const getSyncState = async (syncType: string): Promise<SyncState | null> 
     throw error;
   }
   
-  return data;
+  if (!data) return null;
+  
+  // Transform the metadata from Json to Record<string, any>
+  return {
+    ...data,
+    metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : (data.metadata as Record<string, any>) || {}
+  };
 };
 
 /**
@@ -59,7 +65,11 @@ export const updateSyncState = async (
     throw error;
   }
   
-  return data;
+  // Transform the metadata from Json to Record<string, any>
+  return {
+    ...data,
+    metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : (data.metadata as Record<string, any>) || {}
+  };
 };
 
 /**
@@ -86,7 +96,11 @@ export const initializeSyncState = async (
     throw error;
   }
   
-  return data;
+  // Transform the metadata from Json to Record<string, any>
+  return {
+    ...data,
+    metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : (data.metadata as Record<string, any>) || {}
+  };
 };
 
 /**

@@ -155,3 +155,68 @@ export const fetchAllStaffBookings = async (date: Date): Promise<StaffBooking[]>
     throw error;
   }
 };
+
+// NEW: Fetch all staff assignments without date restriction
+export const fetchAllStaffAssignments = async (): Promise<{
+  staffId: string;
+  staffName: string;
+  assignments: {
+    date: string;
+    teamId: string;
+    teamName: string;
+  }[];
+}[]> => {
+  try {
+    const apiKey = await getStaffApiKey();
+    
+    const { data, error } = await supabase.functions.invoke('staff-assignments', {
+      body: {
+        fetchAllAssignments: true // New parameter to get all assignments
+      },
+      headers: {
+        'x-api-key': apiKey
+      }
+    });
+    
+    if (error) {
+      console.error('Error fetching all staff assignments:', error);
+      throw error;
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error('Error in fetchAllStaffAssignments:', error);
+    throw error;
+  }
+};
+
+// NEW: Fetch assignments for a date range
+export const fetchStaffAssignmentsForDateRange = async (
+  startDate: Date, 
+  endDate: Date
+): Promise<StaffAssignmentResponse[]> => {
+  try {
+    const apiKey = await getStaffApiKey();
+    
+    const { data, error } = await supabase.functions.invoke('staff-assignments', {
+      body: {
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
+        fetchDateRange: true
+      },
+      headers: {
+        'x-api-key': apiKey
+      }
+    });
+    
+    if (error) {
+      console.error('Error fetching staff assignments for date range:', error);
+      throw error;
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error('Error in fetchStaffAssignmentsForDateRange:', error);
+    throw error;
+  }
+};

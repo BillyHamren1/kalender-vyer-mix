@@ -356,6 +356,103 @@ async function getAllBookings(date: string) {
   return processedBookings
 }
 
+// NEW: Function to get all staff assignments without date restriction
+async function getAllStaffAssignments() {
+  try {
+    // Get all staff assignments with their staff member details
+    const { data: assignments, error: assignmentsError } = await supabase
+      .from('staff_assignments')
+      .select(`
+        staff_id,
+        team_id,
+        assignment_date,
+        staff_members (
+          name
+        )
+      `)
+      .order('assignment_date', { ascending: false })
+
+    if (assignmentsError) {
+      console.error('Error fetching all staff assignments:', assignmentsError)
+      throw assignmentsError
+    }
+
+    // Group assignments by staff member
+    const staffAssignments = {}
+    
+    for (const assignment of assignments || []) {
+      const staffId = assignment.staff_id
+      const staffName = assignment.staff_members?.name || `Staff-${staffId}`
+      const teamName = await getTeamName(assignment.team_id)
+      
+      if (!staffAssignments[staffId]) {
+        staffAssignments[staffId] = {
+          staffId,
+          staffName,
+          assignments: []
+        }
+      }
+      
+      staffAssignments[staffId].assignments.push({
+        date: assignment.assignment_date,
+        teamId: assignment.team_id,
+        teamName
+      })
+    }
+    
+    return Object.values(staffAssignments)
+  } catch (error) {
+    console.error('Error in getAllStaffAssignments:', error)
+    throw error
+  }
+}
+
+// NEW: Function to get staff assignments for a date range
+async function getStaffAssignmentsForDateRange(startDate: string, endDate: string) {
+  try {
+    // Get all unique staff members who have assignments in the date range
+    const { data: assignments, error: assignmentsError } = await supabase
+      .from('staff_assignments')
+      .select('staff_id')
+      .gte('assignment_date', startDate)
+      .lte('assignment_date', endDate)
+
+    if (assignmentsError) {
+      console.error('Error fetching staff assignments for date range:', assignmentsError)
+      throw assignmentsError
+    }
+
+    const uniqueStaffIds = [...new Set(assignments?.map(a => a.staff_id) || [])]
+    const results = []
+
+    // For each staff member, get their detailed assignments for each date in the range
+    for (const staffId of uniqueStaffIds) {
+      const currentDate = new Date(startDate)
+      const endDateObj = new Date(endDate)
+      
+      while (currentDate <= endDateObj) {
+        try {
+          const dateStr = currentDate.toISOString().split('T')[0]
+          const staffAssignment = await getStaffAssignment(staffId, dateStr)
+          
+          if (staffAssignment.teamId) {
+            results.push(staffAssignment)
+          }
+        } catch (error) {
+          console.warn(`No assignment found for staff ${staffId} on ${currentDate.toISOString().split('T')[0]}`)
+        }
+        
+        currentDate.setDate(currentDate.getDate() + 1)
+      }
+    }
+
+    return results
+  } catch (error) {
+    console.error('Error in getStaffAssignmentsForDateRange:', error)
+    throw error
+  }
+}
+
 // Main handler for the endpoint
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -401,36 +498,31 @@ serve(async (req) => {
     }
 
     // Handle main staff assignments endpoint
-    const { staffId, date, fetchAllStaff } = await req.json()
+    const { staffId, date, fetchAllStaff, fetchAllAssignments, fetchDateRange, startDate, endDate } = await req.json()
 
-    if (!date) {
+    let responseData
+
+    // Handle different fetch modes
+    if (fetchAllAssignments) {
+      // Fetch all staff assignments without date restriction
+      responseData = await getAllStaffAssignments()
+    } else if (fetchDateRange && startDate && endDate) {
+      // Fetch assignments for a date range
+      responseData = await getStaffAssignmentsForDateRange(startDate, endDate)
+    } else if (fetchAllStaff && date) {
+      // Fetch all bookings for a specific date
+      responseData = await getAllBookings(date)
+    } else if (staffId && date) {
+      // Fetch specific staff assignment for a date
+      responseData = await getStaffAssignment(staffId, date)
+    } else {
       return new Response(
-        JSON.stringify({ error: 'Missing required parameter: date' }),
+        JSON.stringify({ error: 'Invalid parameters. Provide either: staffId+date, fetchAllStaff+date, fetchAllAssignments, or fetchDateRange+startDate+endDate' }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       )
-    }
-
-    let responseData
-
-    // Determine if we should fetch all bookings or just for a specific staff member
-    if (fetchAllStaff) {
-      responseData = await getAllBookings(date)
-    } else {
-      // Otherwise, ensure staffId is provided
-      if (!staffId) {
-        return new Response(
-          JSON.stringify({ error: 'Missing required parameter: staffId' }),
-          { 
-            status: 400, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
-        )
-      }
-
-      responseData = await getStaffAssignment(staffId, date)
     }
 
     // Return the response

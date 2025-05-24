@@ -44,6 +44,7 @@ export interface ImportFilters {
 export const importBookings = async (filters: ImportFilters = {}): Promise<ImportResults> => {
   const syncType = 'booking_import';
   const startTime = Date.now();
+  let syncMode: SyncMode; // Declare syncMode at function scope
   
   try {
     toast.info('Initializing booking synchronization...', {
@@ -51,7 +52,6 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
     });
     
     // Get or determine sync mode
-    let syncMode: SyncMode;
     if (filters.syncMode) {
       syncMode = filters.syncMode;
       console.log(`Using manually specified sync mode: ${syncMode}`);
