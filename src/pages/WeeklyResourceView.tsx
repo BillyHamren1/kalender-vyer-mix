@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -43,9 +44,9 @@ const WeeklyResourceView = () => {
   const isMobile = useIsMobile();
   
   // Week navigation - managed independently from calendar's currentDate
+  // Set to the start of the current week (Monday)
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
-    // Set to the start of the current week (Sunday)
-    return startOfWeek(new Date(hookCurrentDate), { weekStartsOn: 0 });
+    return startOfWeek(new Date(hookCurrentDate), { weekStartsOn: 1 });
   });
 
   // State for showing staff display panel
@@ -64,8 +65,8 @@ const WeeklyResourceView = () => {
 
   // Only update when hookCurrentDate changes, not on every render
   useEffect(() => {
-    // When currentDate changes from outside, reset the week view
-    setCurrentWeekStart(startOfWeek(new Date(hookCurrentDate), { weekStartsOn: 0 }));
+    // When currentDate changes from outside, reset the week view to start on Monday
+    setCurrentWeekStart(startOfWeek(new Date(hookCurrentDate), { weekStartsOn: 1 }));
   }, [hookCurrentDate]);
 
   // Custom onDateSet function that prevents infinite loops

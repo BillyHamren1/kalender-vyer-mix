@@ -25,9 +25,9 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
     setCurrentWeekStart(nextWeek);
   }, [currentWeekStart, setCurrentWeekStart]);
 
-  // Format the week range for display
+  // Format the week range for display (Monday to Sunday)
   const weekRangeText = (() => {
-    const endDate = addDays(currentWeekStart, 6);
+    const endDate = addDays(currentWeekStart, 6); // 6 days after Monday = Sunday
     return `${format(currentWeekStart, 'MMM d')} - ${format(endDate, 'MMM d, yyyy')}`;
   })();
 
