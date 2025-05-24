@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -24,6 +25,21 @@ const JobsList: React.FC = () => {
     queryKey: ['jobsList', filters],
     queryFn: () => fetchJobsList(filters),
   });
+
+  // Add debugging for the jobs list data
+  React.useEffect(() => {
+    if (jobsList.length > 0) {
+      console.log('Jobs list received:', jobsList.length, 'jobs');
+      console.log('Sample job data:', jobsList[0]);
+      
+      // Check how many jobs have staff assignments
+      const jobsWithRigStaff = jobsList.filter(job => job.rigStaff && job.rigStaff.length > 0);
+      const jobsWithEventStaff = jobsList.filter(job => job.eventStaff && job.eventStaff.length > 0);
+      const jobsWithRigDownStaff = jobsList.filter(job => job.rigDownStaff && job.rigDownStaff.length > 0);
+      
+      console.log(`Jobs with staff: Rig: ${jobsWithRigStaff.length}, Event: ${jobsWithEventStaff.length}, RigDown: ${jobsWithRigDownStaff.length}`);
+    }
+  }, [jobsList]);
 
   const { data: availableTeams = [] } = useQuery({
     queryKey: ['teamsForFilter'],

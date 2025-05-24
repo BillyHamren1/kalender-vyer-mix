@@ -38,8 +38,11 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
   }
 
   if (!bookings || bookings.length === 0) {
+    console.log('No bookings found');
     return [];
   }
+
+  console.log(`Found ${bookings.length} bookings`);
 
   // Fetch all calendar events for these bookings
   const bookingIds = bookings.map(booking => booking.id);
@@ -53,12 +56,17 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
     throw eventsError;
   }
 
+  console.log(`Found ${calendarEvents?.length || 0} calendar events`);
+
   // Fetch all staff assignments for the teams involved
   const teamIds = [...new Set(calendarEvents?.map(event => event.resource_id) || [])];
   const eventDates = [...new Set(calendarEvents?.map(event => {
     const date = new Date(event.start_time);
     return date.toISOString().split('T')[0];
   }) || [])];
+
+  console.log('Team IDs:', teamIds);
+  console.log('Event dates:', eventDates);
 
   let staffAssignments: any[] = [];
   if (teamIds.length > 0 && eventDates.length > 0) {
@@ -72,11 +80,14 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
       console.error('Error fetching staff assignments:', assignmentsError);
     } else {
       staffAssignments = assignments || [];
+      console.log(`Found ${staffAssignments.length} staff assignments:`, staffAssignments);
     }
   }
 
   // Fetch staff member details
   const staffIds = [...new Set(staffAssignments.map(assignment => assignment.staff_id))];
+  console.log('Staff IDs to fetch:', staffIds);
+  
   let staffMembers: any[] = [];
   if (staffIds.length > 0) {
     const { data: staff, error: staffError } = await supabase
@@ -88,12 +99,15 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
       console.error('Error fetching staff members:', staffError);
     } else {
       staffMembers = staff || [];
+      console.log(`Found ${staffMembers.length} staff members:`, staffMembers);
     }
   }
 
   // Process and combine the data
   const jobsList: JobsListItem[] = bookings.map(booking => {
     const bookingEvents = calendarEvents?.filter(event => event.booking_id === booking.id) || [];
+    
+    console.log(`Processing booking ${booking.id} with ${bookingEvents.length} events`);
     
     // Group events by type
     const rigEvents = bookingEvents.filter(event => event.event_type === 'rig');
@@ -106,10 +120,16 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
         assignment.team_id === teamId && assignment.assignment_date === date
       );
       
-      return dateAssignments.map(assignment => {
+      console.log(`Getting staff for team ${teamId} on ${date}: found ${dateAssignments.length} assignments`);
+      
+      const staffNames = dateAssignments.map(assignment => {
         const staff = staffMembers.find(member => member.id === assignment.staff_id);
-        return staff ? staff.name : 'Unknown Staff';
+        const name = staff ? staff.name : 'Unknown Staff';
+        console.log(`Staff assignment ${assignment.staff_id} -> ${name}`);
+        return name;
       });
+      
+      return staffNames;
     };
 
     // Helper function to format event data
@@ -120,11 +140,14 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
       const eventDate = new Date(event.start_time);
       const eventDateStr = eventDate.toISOString().split('T')[0];
       
+      const staffList = getStaffForTeamAndDate(event.resource_id, eventDateStr);
+      console.log(`Event ${event.id} staff list:`, staffList);
+      
       return {
         date: format(eventDate, 'MMM d, yyyy'),
         time: `${format(eventDate, 'HH:mm')} - ${format(new Date(event.end_time), 'HH:mm')}`,
         team: event.resource_id,
-        staff: getStaffForTeamAndDate(event.resource_id, eventDateStr)
+        staff: staffList
       };
     };
 
@@ -132,7 +155,7 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
     const eventData = formatEventData(eventEvents);
     const rigDownData = formatEventData(rigDownEvents);
 
-    return {
+    const jobItem = {
       bookingId: booking.id,
       client: booking.client,
       status: booking.status || 'PENDING',
@@ -152,6 +175,14 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
       deliveryCity: booking.delivery_city,
       viewed: booking.viewed
     };
+    
+    console.log(`Processed job ${booking.id}:`, {
+      rigStaff: jobItem.rigStaff,
+      eventStaff: jobItem.eventStaff,
+      rigDownStaff: jobItem.rigDownStaff
+    });
+    
+    return jobItem;
   });
 
   // Apply team filter if specified
@@ -163,6 +194,7 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
     );
   }
 
+  console.log(`Returning ${jobsList.length} jobs`);
   return jobsList;
 };
 
