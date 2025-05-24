@@ -39,7 +39,7 @@ serve(async (req) => {
 
     // Parse request body for filter parameters
     const requestData = await req.json().catch(() => ({}))
-    const { startDate, endDate, clientName, quiet = false } = requestData
+    const { startDate, endDate, clientName, quiet = false, syncMode = 'full' } = requestData
 
     // Build the URL for the external bookings API
     const externalApiUrl = new URL("https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings")
@@ -50,7 +50,7 @@ serve(async (req) => {
     if (clientName) externalApiUrl.searchParams.append('client', clientName)
 
     if (!quiet) {
-      console.log(`Fetching bookings from external API: ${externalApiUrl.toString()}`)
+      console.log(`Starting ${syncMode} sync from external API: ${externalApiUrl.toString()}`)
     }
 
     // Fetch bookings from the external API using x-api-key header
@@ -92,7 +92,7 @@ serve(async (req) => {
     
     const bookings = externalData.data
     if (!quiet) {
-      console.log(`Received ${bookings.length} bookings from external API`)
+      console.log(`Received ${bookings.length} bookings from external API for ${syncMode} sync`)
     }
 
     // Keep track of imports
@@ -105,6 +105,16 @@ serve(async (req) => {
       updated_bookings: [] as string[],
       status_changed_bookings: [] as string[],
       errors: [] as { booking_id: string; error: string }[],
+      sync_mode: syncMode,
+    }
+
+    // For incremental sync, get the timestamp of last sync to optimize processing
+    let lastSyncTime: Date | null = null;
+    if (syncMode === 'incremental' && startDate) {
+      lastSyncTime = new Date(startDate);
+      if (!quiet) {
+        console.log(`Incremental sync: processing bookings updated since ${lastSyncTime.toISOString()}`);
+      }
     }
 
     // Process each booking
@@ -112,8 +122,6 @@ serve(async (req) => {
       try {
         if (!quiet) {
           console.log(`Processing booking ${externalBooking.booking_number}: ${externalBooking.clients?.name || 'Unknown client'}`)
-          // Log raw booking structure for debugging
-          console.log(`Raw booking data for ${externalBooking.booking_number}:`, JSON.stringify(externalBooking, null, 2))
         }
         
         // Check if the booking has the required fields
@@ -121,8 +129,18 @@ serve(async (req) => {
           throw new Error('Booking is missing required fields (booking_number or client name)')
         }
 
+        // For incremental sync, skip bookings that haven't been updated since last sync
+        if (syncMode === 'incremental' && lastSyncTime && externalBooking.updated_at) {
+          const bookingUpdateTime = new Date(externalBooking.updated_at);
+          if (bookingUpdateTime <= lastSyncTime) {
+            if (!quiet) {
+              console.log(`Skipping booking ${externalBooking.booking_number} - not updated since last sync`);
+            }
+            continue;
+          }
+        }
+
         // Extract dates from arrays, using the first item for backward compatibility
-        // But we'll store all dates when creating calendar events
         const rigdaydate = externalBooking.rig_up_dates && externalBooking.rig_up_dates.length > 0 
           ? externalBooking.rig_up_dates[0] : null
         const eventdate = externalBooking.event_dates && externalBooking.event_dates.length > 0 
@@ -157,31 +175,16 @@ serve(async (req) => {
           }
         } else if (externalBooking.location_lat !== undefined && externalBooking.location_lat !== null) {
           deliveryLatitude = parseFloat(String(externalBooking.location_lat));
-          if (!quiet) {
-            console.log(`Found location_lat: ${deliveryLatitude}`);
-          }
         } else if (externalBooking.location?.lat !== undefined && externalBooking.location?.lat !== null) {
           deliveryLatitude = parseFloat(String(externalBooking.location.lat));
-          if (!quiet) {
-            console.log(`Found location.lat: ${deliveryLatitude}`);
-          }
         }
 
         if (deliveryLatitude === null && externalBooking.delivery_longitude !== undefined && externalBooking.delivery_longitude !== null) {
           deliveryLongitude = parseFloat(String(externalBooking.delivery_longitude));
-          if (!quiet) {
-            console.log(`Found delivery_longitude directly: ${deliveryLongitude}`);
-          }
         } else if (deliveryLatitude === null && externalBooking.location_lng !== undefined && externalBooking.location_lng !== null) {
           deliveryLongitude = parseFloat(String(externalBooking.location_lng));
-          if (!quiet) {
-            console.log(`Found location_lng: ${deliveryLongitude}`);
-          }
         } else if (deliveryLatitude === null && externalBooking.location?.lng !== undefined && externalBooking.location?.lng !== null) {
           deliveryLongitude = parseFloat(String(externalBooking.location.lng));
-          if (!quiet) {
-            console.log(`Found location.lng: ${deliveryLongitude}`);
-          }
         }
         
         // Validate coordinates are numbers and within valid ranges
@@ -195,8 +198,9 @@ serve(async (req) => {
           deliveryLongitude = null;
         }
         
-        // Log geodata debug information
-        console.log(`Geodata for booking ${externalBooking.booking_number}: latitude=${deliveryLatitude}, longitude=${deliveryLongitude}`);
+        if (!quiet) {
+          console.log(`Geodata for booking ${externalBooking.booking_number}: latitude=${deliveryLatitude}, longitude=${deliveryLongitude}`);
+        }
                                 
         // Get the status from external booking, defaulting to 'PENDING' if not provided
         const externalStatus = externalBooking.status || 'PENDING'
@@ -257,18 +261,6 @@ serve(async (req) => {
           updated_at: externalBooking.updated_at || new Date().toISOString(),
           status: externalStatus, // Use the status from external booking
           viewed: existingBooking ? (statusChanged ? false : true) : false // Mark as unviewed for new bookings or status changes
-        }
-
-        if (!quiet) {
-          console.log(`Booking data to be saved:`, JSON.stringify({
-            id: bookingData.id,
-            client: bookingData.client,
-            delivery_latitude: bookingData.delivery_latitude,
-            delivery_longitude: bookingData.delivery_longitude,
-            deliveryaddress: bookingData.deliveryaddress,
-            delivery_city: bookingData.delivery_city,
-            delivery_postal_code: bookingData.delivery_postal_code
-          }));
         }
 
         // Check if external booking has a newer update timestamp when existing booking exists
@@ -386,6 +378,10 @@ serve(async (req) => {
           error: error.message
         })
       }
+    }
+
+    if (!quiet) {
+      console.log(`${syncMode.charAt(0).toUpperCase() + syncMode.slice(1)} sync completed: ${results.imported}/${results.total} bookings processed`)
     }
 
     return new Response(

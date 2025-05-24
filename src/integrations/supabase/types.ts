@@ -320,6 +320,39 @@ export type Database = {
         }
         Relationships: []
       }
+      sync_state: {
+        Row: {
+          created_at: string
+          id: string
+          last_sync_mode: string | null
+          last_sync_status: string | null
+          last_sync_timestamp: string | null
+          metadata: Json | null
+          sync_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_sync_mode?: string | null
+          last_sync_status?: string | null
+          last_sync_timestamp?: string | null
+          metadata?: Json | null
+          sync_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_sync_mode?: string | null
+          last_sync_status?: string | null
+          last_sync_timestamp?: string | null
+          metadata?: Json | null
+          sync_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       webhook_subscriptions: {
         Row: {
           created_at: string
