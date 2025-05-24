@@ -2,8 +2,6 @@
 import React, { useEffect, useState } from 'react';
 import { Resource } from './ResourceData';
 import { StaffMember } from './StaffTypes';
-import { UserPlus } from 'lucide-react';
-import { fetchStaffAssignments } from '@/services/staffService';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useDrop } from 'react-dnd';
@@ -50,6 +48,7 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         setIsLoading(true);
         
         // Get staff assigned to this specific team on this date
+        const { fetchStaffAssignments } = await import('@/services/staffService');
         const staffAssignments = await fetchStaffAssignments(currentDate, resource.id);
         console.log(`Loaded ${staffAssignments.length} staff assignments for resource ${resource.id} on ${currentDate.toISOString().split('T')[0]}`);
         
@@ -71,9 +70,9 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     loadAssignedStaff();
   }, [resource.id, currentDate, forceRefresh]);
 
-  // Handle opening the staff selector
-  const handleSelectStaff = () => {
-    console.log('ResourceHeaderDropZone: handleSelectStaff clicked for', resource.id, resource.title);
+  // Handle clicking on the team title to select staff
+  const handleTeamTitleClick = () => {
+    console.log('ResourceHeaderDropZone: Team title clicked for', resource.id, resource.title);
     if (onSelectStaff) {
       onSelectStaff(resource.id, resource.title);
     } else {
@@ -97,17 +96,14 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       ref={drop} 
       className={`resource-header-wrapper flex flex-col h-full w-full ${isOver ? 'bg-purple-50' : ''}`}
     >
-      {/* Team title with icon button in right corner */}
-      <div className="resource-title-area font-medium text-sm mb-1 sticky top-0 z-10 flex justify-between items-center">
-        <span>{resource.title}</span>
-        <button 
-          onClick={handleSelectStaff}
-          className="assign-button-icon"
-          title="Assign staff"
-        >
-          <UserPlus className="h-3 w-3" strokeWidth={2.5} />
-        </button>
-      </div>
+      {/* Team title - now fully clickable */}
+      <button 
+        onClick={handleTeamTitleClick}
+        className="resource-title-area font-medium text-sm mb-1 sticky top-0 z-10 w-full text-left hover:bg-gray-50 active:bg-gray-100 transition-colors duration-200 cursor-pointer px-1 py-1 rounded"
+        title="Click to assign staff"
+      >
+        {resource.title}
+      </button>
       
       {/* Assigned staff area - fixed height to accommodate 5 staff members */}
       <div className="assigned-staff-area flex flex-col gap-1 mb-1 overflow-visible min-h-[130px]">
