@@ -1,3 +1,4 @@
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
@@ -279,11 +280,20 @@ serve(async (req) => {
             isUpdated = true;
           }
           
-          // Update existing booking
-          const { error: updateError } = await supabaseClient
-            .from('bookings')
-            .update(bookingData)
-            .eq('id', externalBooking.booking_number)
+          // Update existing booking - disable triggers temporarily to avoid foreign key issues
+          const { error: updateError } = await supabaseClient.rpc('update_booking_without_trigger', {
+            booking_id: externalBooking.booking_number,
+            booking_data: bookingData
+          }).then(async (result) => {
+            if (result.error) {
+              // Fallback to direct update if RPC doesn't exist
+              return await supabaseClient
+                .from('bookings')
+                .update(bookingData)
+                .eq('id', externalBooking.booking_number)
+            }
+            return result;
+          })
 
           if (updateError) {
             throw new Error(`Failed to update booking: ${updateError.message}`)
@@ -302,10 +312,18 @@ serve(async (req) => {
             results.updated_bookings.push(externalBooking.booking_number);
           }
         } else {
-          // Insert new booking
-          const { error: insertError } = await supabaseClient
-            .from('bookings')
-            .insert(bookingData)
+          // For new bookings, use a transaction to ensure proper ordering
+          const { error: insertError } = await supabaseClient.rpc('insert_booking_safely', {
+            booking_data: bookingData
+          }).then(async (result) => {
+            if (result.error) {
+              // Fallback to direct insert if RPC doesn't exist
+              return await supabaseClient
+                .from('bookings')
+                .insert(bookingData)
+            }
+            return result;
+          })
 
           if (insertError) {
             throw new Error(`Failed to insert booking: ${insertError.message}`)
