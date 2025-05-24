@@ -81,7 +81,7 @@ const JobsList: React.FC = () => {
   const handleFilterChange = (key: keyof JobsListFilters, value: string) => {
     setFilters(prev => ({
       ...prev,
-      [key]: value || undefined
+      [key]: value === 'all' ? undefined : (value || undefined)
     }));
   };
 
@@ -174,12 +174,12 @@ const JobsList: React.FC = () => {
                 
                 <div>
                   <label className="block text-sm font-medium mb-1">Status</label>
-                  <Select value={filters.status || ''} onValueChange={(value) => handleFilterChange('status', value)}>
+                  <Select value={filters.status || 'all'} onValueChange={(value) => handleFilterChange('status', value)}>
                     <SelectTrigger>
                       <SelectValue placeholder="All statuses" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All statuses</SelectItem>
+                      <SelectItem value="all">All statuses</SelectItem>
                       <SelectItem value="confirmed">Confirmed</SelectItem>
                       <SelectItem value="pending">Pending</SelectItem>
                       <SelectItem value="cancelled">Cancelled</SelectItem>
@@ -189,12 +189,12 @@ const JobsList: React.FC = () => {
                 
                 <div>
                   <label className="block text-sm font-medium mb-1">Team</label>
-                  <Select value={filters.team || ''} onValueChange={(value) => handleFilterChange('team', value)}>
+                  <Select value={filters.team || 'all'} onValueChange={(value) => handleFilterChange('team', value)}>
                     <SelectTrigger>
                       <SelectValue placeholder="All teams" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All teams</SelectItem>
+                      <SelectItem value="all">All teams</SelectItem>
                       {availableTeams.map(team => (
                         <SelectItem key={team} value={team}>{team}</SelectItem>
                       ))}
