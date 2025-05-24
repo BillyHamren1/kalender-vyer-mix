@@ -36,35 +36,36 @@ const LogisticsMap = () => {
       <div className="container mx-auto p-4">
         <h1 className="text-2xl font-bold mb-4">Logistics Map Dashboard</h1>
         
-        <div className="flex flex-col md:flex-row gap-4">
-          {/* Filter Card */}
-          <Card className="w-full md:w-1/4">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Filter className="h-5 w-5" />
-                <span>Filters</span>
-              </CardTitle>
+        {/* Main Content - Full Width */}
+        <div className="w-full">
+          <Card className="flex-grow">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Booking Locations</CardTitle>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={toggleSidebar}>
+                  {showSidebar ? 'Hide List' : 'Show List'}
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent>
-              <FilterControls 
-                onDateChange={setFilterDate} 
-                filterDate={filterDate}
-              />
-            </CardContent>
-          </Card>
-          
-          {/* Main Content */}
-          <div className="w-full md:w-3/4 flex flex-col">
-            <Card className="flex-grow">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Booking Locations</CardTitle>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={toggleSidebar}>
-                    {showSidebar ? 'Hide List' : 'Show List'}
-                  </Button>
+            <CardContent className="p-0 relative">
+              {/* Filter Controls at the top of the map */}
+              <div className="p-4 border-b bg-gray-50">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-5 w-5" />
+                    <span className="font-medium">Filters:</span>
+                  </div>
+                  <div className="flex-1 max-w-xs">
+                    <FilterControls 
+                      onDateChange={setFilterDate} 
+                      filterDate={filterDate}
+                    />
+                  </div>
                 </div>
-              </CardHeader>
-              <CardContent className="p-0 relative h-[70vh]">
+              </div>
+
+              {/* Map Area */}
+              <div className="h-[70vh]">
                 {isLoading ? (
                   <div className="flex items-center justify-center h-full">
                     <Loader className="h-8 w-8 animate-spin text-gray-400" />
@@ -88,9 +89,9 @@ const LogisticsMap = () => {
                     </div>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </>

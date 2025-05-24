@@ -16,14 +16,14 @@ const FilterControls: React.FC<FilterControlsProps> = ({
   onDateChange
 }) => {
   return (
-    <div className="space-y-4">
-      <div>
-        <label className="text-sm font-medium mb-1 block">Event Date</label>
+    <div className="flex items-center gap-2">
+      <div className="flex-1">
         <Popover>
           <PopoverTrigger asChild>
             <Button
               variant="outline"
               className="w-full justify-start text-left font-normal"
+              size="sm"
             >
               <CalendarIcon className="mr-2 h-4 w-4" />
               {filterDate ? format(filterDate, 'PPP') : <span>Pick a date</span>}
@@ -45,9 +45,8 @@ const FilterControls: React.FC<FilterControlsProps> = ({
           variant="outline" 
           size="sm" 
           onClick={() => onDateChange(null)}
-          className="w-full"
         >
-          Clear Date Filter
+          Clear
         </Button>
       )}
     </div>
