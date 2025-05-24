@@ -13,9 +13,7 @@ import ResourceHeader from '@/components/Calendar/ResourceHeader';
 import ResourceLayout from '@/components/Calendar/ResourceLayout';
 import ResourceToolbar from '@/components/Calendar/ResourceToolbar';
 import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
-import { fetchAllStaffBookings } from '@/services/staffAssignmentService';
-import { Button } from '@/components/ui/button';
-import { InfoIcon } from 'lucide-react';
+import DateNavigationHeader from '@/components/Calendar/DateNavigationHeader';
 import { useStaffOperations } from '@/hooks/useStaffOperations';
 import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
 
@@ -44,7 +42,6 @@ const ResourceView = () => {
   // Get the event actions hook
   const { addEventToCalendar, duplicateEvent } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
-  const [isLoadingAllBookings, setIsLoadingAllBookings] = useState(false);
   
   // Using useState with localStorage to track setup completion
   const [setupDone, setSetupDone] = useState(() => {
@@ -94,31 +91,16 @@ const ResourceView = () => {
     setSelectedTeamTitle(teamTitle);
     setStaffDialogOpen(true);
   };
-  
-  // Function to load all bookings for all staff
-  const loadAllBookings = async () => {
-    try {
-      setIsLoadingAllBookings(true);
-      const allBookings = await fetchAllStaffBookings(currentDate);
-      
-      if (allBookings.length === 0) {
-        toast.info('No bookings found for the selected date');
-      } else {
-        toast.success(`Loaded ${allBookings.length} bookings for all staff`);
-        console.log('All bookings:', allBookings);
-      }
-    } catch (error) {
-      console.error('Error loading all bookings:', error);
-      toast.error('Failed to load all bookings');
-    } finally {
-      setIsLoadingAllBookings(false);
-    }
-  };
 
   // Handle staff assignment updated callback
   const handleStaffAssigned = () => {
     console.log('Staff assigned, refreshing...');
     // Force refresh of staff assignments
+  };
+
+  // Handle date change from navigation header
+  const handleDateChange = (newDate: Date) => {
+    handleDatesSet({ start: newDate });
   };
 
   return (
@@ -129,6 +111,12 @@ const ResourceView = () => {
         showStaffDisplay={false}
         staffDisplay={<div>Staff Display Placeholder</div>} 
         isMobile={isMobile}>
+        {/* Date Navigation Header */}
+        <DateNavigationHeader
+          currentDate={currentDate}
+          onDateChange={handleDateChange}
+        />
+        
         {/* ResourceHeader component with team management controls */}
         <ResourceHeader
           teamResources={teamResources}
@@ -139,7 +127,7 @@ const ResourceView = () => {
           setDialogOpen={setDialogOpen}
         />
 
-        {/* Toolbar with Update Button, Add Task Button */}
+        {/* Toolbar with Update Button */}
         <div className="flex items-center justify-between gap-2 mb-4">
           <ResourceToolbar
             isLoading={isLoading}
@@ -148,17 +136,6 @@ const ResourceView = () => {
             onRefresh={refreshEvents}
             onAddTask={addEventToCalendar}
           />
-          
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={loadAllBookings}
-            disabled={isLoadingAllBookings}
-            className="flex items-center gap-2"
-          >
-            <InfoIcon className="h-4 w-4" />
-            {isLoadingAllBookings ? 'Loading all bookings...' : 'Load all bookings'}
-          </Button>
         </div>
         
         {/* Calendar */}
