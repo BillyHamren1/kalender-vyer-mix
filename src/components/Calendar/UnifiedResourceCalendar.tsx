@@ -64,14 +64,14 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 
   const days = getDaysToRender();
 
-  // Handle day header click to navigate to daily view
+  // Handle day header click to navigate to resource view
   const handleDayHeaderClick = (date: Date) => {
     // Store the selected date in context and session storage
     setLastViewedDate(date);
-    sessionStorage.setItem('dayCalendarDate', date.toISOString());
+    sessionStorage.setItem('calendarDate', date.toISOString());
     
-    // Navigate to the day view
-    navigate('/day-view');
+    // Navigate to the resource view
+    navigate('/resource-view');
   };
 
   // Log staff drop operations for debugging
@@ -196,7 +196,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
               <div 
                 className={`day-header ${isToday ? 'today' : ''} ${!isCurrentMonth ? 'other-month' : ''} cursor-pointer hover:bg-blue-50 transition-colors`}
                 onClick={() => handleDayHeaderClick(date)}
-                title="Click to view daily schedule"
+                title="Click to view resource schedule"
               >
                 {format(date, 'EEE d')}
               </div>
