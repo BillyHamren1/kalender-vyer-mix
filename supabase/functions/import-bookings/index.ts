@@ -121,12 +121,12 @@ serve(async (req) => {
     for (const externalBooking of bookings) {
       try {
         if (!quiet) {
-          console.log(`Processing booking ${externalBooking.booking_number}: ${externalBooking.clients?.name || 'Unknown client'}`)
+          console.log(`Processing booking ${externalBooking.number}: ${externalBooking.clients?.name || 'Unknown client'}`)
         }
         
-        // Check if the booking has the required fields
-        if (!externalBooking.booking_number || !externalBooking.clients?.name) {
-          throw new Error('Booking is missing required fields (booking_number or client name)')
+        // Check if the booking has the required fields - using correct field names
+        if (!externalBooking.number || !externalBooking.clients?.name) {
+          throw new Error('Booking is missing required fields (number or client name)')
         }
 
         // For incremental sync, skip bookings that haven't been updated since last sync
@@ -134,7 +134,7 @@ serve(async (req) => {
           const bookingUpdateTime = new Date(externalBooking.updated_at);
           if (bookingUpdateTime <= lastSyncTime) {
             if (!quiet) {
-              console.log(`Skipping booking ${externalBooking.booking_number} - not updated since last sync`);
+              console.log(`Skipping booking ${externalBooking.number} - not updated since last sync`);
             }
             continue;
           }
@@ -148,11 +148,11 @@ serve(async (req) => {
         const rigdowndate = externalBooking.rig_down_dates && externalBooking.rig_down_dates.length > 0 
           ? externalBooking.rig_down_dates[0] : null
 
-        // Check if booking already exists
+        // Check if booking already exists - using 'number' field as the ID
         const { data: existingBooking } = await supabaseClient
           .from('bookings')
           .select('id, updated_at, status')
-          .eq('id', externalBooking.booking_number)
+          .eq('id', externalBooking.number)
           .maybeSingle()
 
         // Extract location data for geocoding - improved handling for different formats
@@ -189,17 +189,17 @@ serve(async (req) => {
         
         // Validate coordinates are numbers and within valid ranges
         if (deliveryLatitude !== null && (isNaN(deliveryLatitude) || deliveryLatitude < -90 || deliveryLatitude > 90)) {
-          console.warn(`Invalid latitude value for booking ${externalBooking.booking_number}: ${deliveryLatitude}`);
+          console.warn(`Invalid latitude value for booking ${externalBooking.number}: ${deliveryLatitude}`);
           deliveryLatitude = null;
         }
         
         if (deliveryLongitude !== null && (isNaN(deliveryLongitude) || deliveryLongitude < -180 || deliveryLongitude > 180)) {
-          console.warn(`Invalid longitude value for booking ${externalBooking.booking_number}: ${deliveryLongitude}`);
+          console.warn(`Invalid longitude value for booking ${externalBooking.number}: ${deliveryLongitude}`);
           deliveryLongitude = null;
         }
         
         if (!quiet) {
-          console.log(`Geodata for booking ${externalBooking.booking_number}: latitude=${deliveryLatitude}, longitude=${deliveryLongitude}`);
+          console.log(`Geodata for booking ${externalBooking.number}: latitude=${deliveryLatitude}, longitude=${deliveryLongitude}`);
         }
                                 
         // Get the status from external booking, defaulting to 'PENDING' if not provided
@@ -209,23 +209,23 @@ serve(async (req) => {
         let statusChanged = false
         if (existingBooking && existingBooking.status !== externalStatus) {
           if (!quiet) {
-            console.log(`Status changed for booking ${externalBooking.booking_number}: ${existingBooking.status} -> ${externalStatus}`)
+            console.log(`Status changed for booking ${externalBooking.number}: ${existingBooking.status} -> ${externalStatus}`)
           }
           
           statusChanged = true
-          results.status_changed_bookings.push(externalBooking.booking_number)
+          results.status_changed_bookings.push(externalBooking.number)
           
           // If status was previously CONFIRMED and now it's not, we need to remove calendar events
           // Make this case-insensitive by converting both to uppercase
           if (existingBooking.status.toUpperCase() === 'CONFIRMED' && externalStatus.toUpperCase() !== 'CONFIRMED') {
             if (!quiet) {
-              console.log(`Removing calendar events for booking ${externalBooking.booking_number} as status changed from CONFIRMED to ${externalStatus}`)
+              console.log(`Removing calendar events for booking ${externalBooking.number} as status changed from CONFIRMED to ${externalStatus}`)
             }
             
             try {
-              await deleteAllBookingEvents(supabaseClient, externalBooking.booking_number)
+              await deleteAllBookingEvents(supabaseClient, externalBooking.number)
             } catch (error) {
-              console.error(`Error removing calendar events for booking ${externalBooking.booking_number}:`, error)
+              console.error(`Error removing calendar events for booking ${externalBooking.number}:`, error)
             }
           }
         }
@@ -238,9 +238,9 @@ serve(async (req) => {
         const deliveryPostalCode = externalBooking.delivery_postal_code || externalBooking.postal_code || 
                                  (externalBooking.location?.postal_code ? externalBooking.location.postal_code : null);
         
-        // Prepare booking data - map external fields to our schema
+        // Prepare booking data - map external fields to our schema using correct field names
         const bookingData = {
-          id: externalBooking.booking_number, // Use booking_number as our ID
+          id: externalBooking.number, // Use 'number' as our ID
           client: externalBooking.clients?.name, // Use client name from clients object
           rigdaydate: rigdaydate, // Use first rig_up_date for backward compatibility
           eventdate: eventdate, // Use first event_date for backward compatibility
@@ -275,23 +275,23 @@ serve(async (req) => {
           const { error: updateError } = await supabaseClient
             .from('bookings')
             .update(bookingData)
-            .eq('id', externalBooking.booking_number)
+            .eq('id', externalBooking.number)
 
           if (updateError) {
             throw new Error(`Failed to update booking: ${updateError.message}`)
           }
           
           // Delete existing products & attachments for clean slate
-          await supabaseClient.from('booking_products').delete().eq('booking_id', externalBooking.booking_number)
-          await supabaseClient.from('booking_attachments').delete().eq('booking_id', externalBooking.booking_number)
+          await supabaseClient.from('booking_products').delete().eq('booking_id', externalBooking.number)
+          await supabaseClient.from('booking_attachments').delete().eq('booking_id', externalBooking.number)
           
           if (!quiet) {
-            console.log(`Updated existing booking ${externalBooking.booking_number}`)
+            console.log(`Updated existing booking ${externalBooking.number}`)
           }
           
           // Track updated bookings
           if (isUpdated && !statusChanged) {
-            results.updated_bookings.push(externalBooking.booking_number);
+            results.updated_bookings.push(externalBooking.number);
           }
         } else {
           // Insert new booking - now using direct insert since RLS is disabled
@@ -304,17 +304,17 @@ serve(async (req) => {
           }
           
           if (!quiet) {
-            console.log(`Inserted new booking ${externalBooking.booking_number}`)
+            console.log(`Inserted new booking ${externalBooking.number}`)
           }
           
           // Track new bookings
-          results.new_bookings.push(externalBooking.booking_number);
+          results.new_bookings.push(externalBooking.number);
         }
 
         // Insert products if available
         if (externalBooking.products && externalBooking.products.length > 0) {
           const products = externalBooking.products.map(product => ({
-            booking_id: externalBooking.booking_number,
+            booking_id: externalBooking.number,
             name: product.product_name || product.name,
             quantity: product.quantity,
             notes: product.notes || null
@@ -325,16 +325,16 @@ serve(async (req) => {
             .insert(products)
 
           if (productsError) {
-            console.error(`Error inserting products for booking ${externalBooking.booking_number}:`, productsError)
+            console.error(`Error inserting products for booking ${externalBooking.number}:`, productsError)
           } else if (!quiet) {
-            console.log(`Inserted ${products.length} products for booking ${externalBooking.booking_number}`)
+            console.log(`Inserted ${products.length} products for booking ${externalBooking.number}`)
           }
         }
 
         // Insert attachments if available (files_metadata)
         if (externalBooking.files_metadata && externalBooking.files_metadata.length > 0) {
           const attachments = externalBooking.files_metadata.map(attachment => ({
-            booking_id: externalBooking.booking_number,
+            booking_id: externalBooking.number,
             url: attachment.url,
             file_name: attachment.file_name || attachment.fileName || 'Unknown file',
             file_type: attachment.file_type || attachment.fileType || 'application/octet-stream',
@@ -346,9 +346,9 @@ serve(async (req) => {
             .insert(attachments)
 
           if (attachmentsError) {
-            console.error(`Error inserting attachments for booking ${externalBooking.booking_number}:`, attachmentsError)
+            console.error(`Error inserting attachments for booking ${externalBooking.number}:`, attachmentsError)
           } else if (!quiet) {
-            console.log(`Inserted ${attachments.length} attachments for booking ${externalBooking.booking_number}`)
+            console.log(`Inserted ${attachments.length} attachments for booking ${externalBooking.number}`)
           }
         }
 
@@ -356,7 +356,7 @@ serve(async (req) => {
         // Make this case-insensitive by converting to uppercase before comparison
         if (externalStatus.toUpperCase() === 'CONFIRMED') {
           const eventsCreated = await createCalendarEvents(supabaseClient, {
-            id: externalBooking.booking_number,
+            id: externalBooking.number,
             client: externalBooking.clients?.name,
             rig_up_dates: externalBooking.rig_up_dates || [],
             event_dates: externalBooking.event_dates || [],
@@ -368,13 +368,13 @@ serve(async (req) => {
         
         results.imported++
         if (!quiet) {
-          console.log(`Successfully imported booking ${externalBooking.booking_number}`)
+          console.log(`Successfully imported booking ${externalBooking.number}`)
         }
       } catch (error) {
-        console.error(`Error importing booking ${externalBooking.booking_number || 'unknown'}:`, error)
+        console.error(`Error importing booking ${externalBooking.number || 'unknown'}:`, error)
         results.failed++
         results.errors.push({
-          booking_id: externalBooking.booking_number || 'unknown',
+          booking_id: externalBooking.number || 'unknown',
           error: error.message
         })
       }
