@@ -3,6 +3,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { JobsListItem, JobsListFilters } from "@/types/jobsList";
 import { format } from "date-fns";
 
+// Team mapping function to convert single letters to team-X format
+const mapTeamId = (teamId: string): string => {
+  const teamMapping: { [key: string]: string } = {
+    'a': 'team-1',
+    'b': 'team-2', 
+    'c': 'team-3',
+    'd': 'team-4',
+    'e': 'team-5',
+    'f': 'team-6'
+  };
+  
+  return teamMapping[teamId] || teamId;
+};
+
 // Fetch all jobs with their calendar events and staff assignments
 export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsListItem[]> => {
   console.log('Fetching jobs list with filters:', filters);
@@ -58,22 +72,26 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
 
   console.log(`Found ${calendarEvents?.length || 0} calendar events`);
 
-  // Fetch all staff assignments for the teams involved
-  const teamIds = [...new Set(calendarEvents?.map(event => event.resource_id) || [])];
+  // Get all team IDs and map them to the standard format
+  const originalTeamIds = [...new Set(calendarEvents?.map(event => event.resource_id) || [])];
+  const mappedTeamIds = [...new Set(originalTeamIds.map(mapTeamId))];
+  
   const eventDates = [...new Set(calendarEvents?.map(event => {
     const date = new Date(event.start_time);
     return date.toISOString().split('T')[0];
   }) || [])];
 
-  console.log('Team IDs:', teamIds);
+  console.log('Original Team IDs:', originalTeamIds);
+  console.log('Mapped Team IDs:', mappedTeamIds);
   console.log('Event dates:', eventDates);
 
+  // Fetch staff assignments using mapped team IDs
   let staffAssignments: any[] = [];
-  if (teamIds.length > 0 && eventDates.length > 0) {
+  if (mappedTeamIds.length > 0 && eventDates.length > 0) {
     const { data: assignments, error: assignmentsError } = await supabase
       .from('staff_assignments')
       .select('*')
-      .in('team_id', teamIds)
+      .in('team_id', mappedTeamIds)
       .in('assignment_date', eventDates);
 
     if (assignmentsError) {
@@ -114,13 +132,17 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
     const eventEvents = bookingEvents.filter(event => event.event_type === 'event');
     const rigDownEvents = bookingEvents.filter(event => event.event_type === 'rigDown');
 
-    // Helper function to get staff for a team on a specific date
+    // Updated helper function to get staff for a team on a specific date with mapping
     const getStaffForTeamAndDate = (teamId: string, date: string): string[] => {
+      const mappedTeamId = mapTeamId(teamId);
+      
+      console.log(`Looking for staff for team ${teamId} (mapped to ${mappedTeamId}) on ${date}`);
+      
       const dateAssignments = staffAssignments.filter(assignment => 
-        assignment.team_id === teamId && assignment.assignment_date === date
+        assignment.team_id === mappedTeamId && assignment.assignment_date === date
       );
       
-      console.log(`Getting staff for team ${teamId} on ${date}: found ${dateAssignments.length} assignments`);
+      console.log(`Getting staff for team ${teamId} -> ${mappedTeamId} on ${date}: found ${dateAssignments.length} assignments`);
       
       const staffNames = dateAssignments.map(assignment => {
         const staff = staffMembers.find(member => member.id === assignment.staff_id);
@@ -185,13 +207,17 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
     return jobItem;
   });
 
-  // Apply team filter if specified
+  // Apply team filter if specified (handle both original and mapped team IDs)
   if (filters?.team) {
-    return jobsList.filter(job => 
-      job.rigTeam === filters.team || 
-      job.eventTeam === filters.team || 
-      job.rigDownTeam === filters.team
-    );
+    return jobsList.filter(job => {
+      const mappedFilterTeam = mapTeamId(filters.team);
+      return job.rigTeam === filters.team || 
+             job.eventTeam === filters.team || 
+             job.rigDownTeam === filters.team ||
+             mapTeamId(job.rigTeam || '') === mappedFilterTeam ||
+             mapTeamId(job.eventTeam || '') === mappedFilterTeam ||
+             mapTeamId(job.rigDownTeam || '') === mappedFilterTeam;
+    });
   }
 
   console.log(`Returning ${jobsList.length} jobs`);
