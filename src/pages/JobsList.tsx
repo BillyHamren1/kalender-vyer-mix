@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -103,9 +102,30 @@ const JobsList: React.FC = () => {
   };
 
   const formatStaffList = (staff: string[] = []) => {
-    if (staff.length === 0) return '-';
-    if (staff.length <= 2) return staff.join(', ');
-    return `${staff.slice(0, 2).join(', ')} +${staff.length - 2}`;
+    if (staff.length === 0) return <span className="text-gray-400 text-xs">No staff assigned</span>;
+    if (staff.length <= 2) {
+      return (
+        <div className="flex flex-wrap gap-1">
+          {staff.map((member, index) => (
+            <Badge key={index} variant="secondary" className="text-xs">
+              {member}
+            </Badge>
+          ))}
+        </div>
+      );
+    }
+    return (
+      <div className="flex flex-wrap gap-1">
+        {staff.slice(0, 2).map((member, index) => (
+          <Badge key={index} variant="secondary" className="text-xs">
+            {member}
+          </Badge>
+        ))}
+        <Badge variant="outline" className="text-xs">
+          +{staff.length - 2} more
+        </Badge>
+      </div>
+    );
   };
 
   if (error) {
@@ -279,10 +299,15 @@ const JobsList: React.FC = () => {
                     <TableCell className="font-medium">{job.client}</TableCell>
                     <TableCell>
                       {job.rigDate ? (
-                        <div className="space-y-1">
-                          <div className="text-sm font-medium">{job.rigDate}</div>
-                          <div className="text-xs text-gray-500">{job.rigTime}</div>
-                          <div className="text-xs text-blue-600">{formatStaffList(job.rigStaff)}</div>
+                        <div className="space-y-2">
+                          <div>
+                            <div className="text-sm font-medium">{job.rigDate}</div>
+                            <div className="text-xs text-gray-500">{job.rigTime}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-600 mb-1">Assigned Staff:</div>
+                            {formatStaffList(job.rigStaff)}
+                          </div>
                         </div>
                       ) : (
                         <span className="text-gray-400">-</span>
@@ -290,10 +315,15 @@ const JobsList: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       {job.eventDate ? (
-                        <div className="space-y-1">
-                          <div className="text-sm font-medium">{job.eventDate}</div>
-                          <div className="text-xs text-gray-500">{job.eventTime}</div>
-                          <div className="text-xs text-blue-600">{formatStaffList(job.eventStaff)}</div>
+                        <div className="space-y-2">
+                          <div>
+                            <div className="text-sm font-medium">{job.eventDate}</div>
+                            <div className="text-xs text-gray-500">{job.eventTime}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-600 mb-1">Assigned Staff:</div>
+                            {formatStaffList(job.eventStaff)}
+                          </div>
                         </div>
                       ) : (
                         <span className="text-gray-400">-</span>
@@ -301,10 +331,15 @@ const JobsList: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       {job.rigDownDate ? (
-                        <div className="space-y-1">
-                          <div className="text-sm font-medium">{job.rigDownDate}</div>
-                          <div className="text-xs text-gray-500">{job.rigDownTime}</div>
-                          <div className="text-xs text-blue-600">{formatStaffList(job.rigDownStaff)}</div>
+                        <div className="space-y-2">
+                          <div>
+                            <div className="text-sm font-medium">{job.rigDownDate}</div>
+                            <div className="text-xs text-gray-500">{job.rigDownTime}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-600 mb-1">Assigned Staff:</div>
+                            {formatStaffList(job.rigDownStaff)}
+                          </div>
                         </div>
                       ) : (
                         <span className="text-gray-400">-</span>
