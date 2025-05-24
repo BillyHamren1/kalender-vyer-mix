@@ -1,36 +1,54 @@
 
-/* Weekly Calendar Styles */
-.weekly-view-container {
+/* Unified Calendar Styles for both Weekly and Monthly Views */
+.weekly-view-container,
+.monthly-grid-container {
   width: 100%;
   overflow-x: auto;
   position: relative;
 }
 
 .weekly-calendar-container {
-  min-width: 1400px; /* Adjusted from 1800px to accommodate smaller columns */
+  min-width: 1400px;
   width: 100%;
   display: flex;
   overflow-x: auto;
   scroll-behavior: smooth;
 }
 
-.day-calendar-wrapper {
-  min-width: 550px; /* Keep this width, but with smaller resource columns */
+.monthly-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  width: 100%;
+  max-width: 100%;
+}
+
+.day-calendar-wrapper,
+.monthly-day-wrapper {
+  min-width: 550px;
   flex: 1;
   border-right: 1px solid #e5e7eb;
+}
+
+.monthly-day-wrapper {
+  min-width: unset;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 200px;
 }
 
 .day-calendar-wrapper:last-child {
   border-right: none;
 }
 
-/* Day header styles - matching monthly view exactly but with week numbers */
+/* Unified simple day header styling - matching monthly view exactly */
 .day-header {
   background: #f0f9f9;
   border: 1px solid #d1d5db;
   border-bottom: 1px solid #d1d5db;
   text-align: center;
-  padding: 12px 8px;
+  padding: 8px;
   font-weight: 600;
   color: #374151;
   margin-bottom: 2px;
@@ -40,6 +58,7 @@
   z-index: 10;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   transition: background-color 0.2s, transform 0.1s;
+  font-size: 14px;
 }
 
 /* Add hover effect to indicate clickable */
@@ -64,49 +83,11 @@
   font-weight: 700;
 }
 
-/* Day name styling */
-.day-header .day-name {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 4px;
-  color: #374151;
-}
-
-/* Day number styling */
-.day-header .day-number {
-  font-size: 24px;
-  font-weight: 700;
-  color: #374151;
-  margin-bottom: 4px;
-}
-
-/* Today's day number special styling */
-.day-header.today .day-number {
-  background: #5fb3cc;
-  color: white;
-  border-radius: 50%;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 4px auto;
-}
-
-/* Week number styling */
-.day-header .week-number {
-  font-size: 10px;
-  color: #6b7280;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-/* Today's week number styling */
-.day-header.today .week-number {
-  color: #2c5f6b;
-  font-weight: 600;
+/* Other month styling for monthly view */
+.day-header.other-month {
+  background: #f8f9fa;
+  color: #9ca3af;
+  opacity: 0.6;
 }
 
 /* ... keep existing code (all resource and calendar styling) */
@@ -238,55 +219,49 @@
 }
 
 /* Reduced height for weekly view calendars */
-.weekly-view-calendar .fc-view-harness {
+.weekly-view-calendar .fc-view-harness,
+.monthly-view-calendar .fc-view-harness {
   min-height: 400px !important;
   max-height: 600px !important;
 }
 
 /* Make weekly calendars more compact but with softer styling */
-.weekly-view-calendar .fc-timegrid-slot {
+.weekly-view-calendar .fc-timegrid-slot,
+.monthly-view-calendar .fc-timegrid-slot {
   height: 35px !important;
   border-bottom: 1px solid #f8f9fa !important;
 }
 
 /* Soften time grid borders */
-.weekly-view-calendar .fc-timegrid-axis {
+.weekly-view-calendar .fc-timegrid-axis,
+.monthly-view-calendar .fc-timegrid-axis {
   border-right: 1px solid #f0f0f0 !important;
 }
 
-/* Week navigation styles */
-.week-navigation {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-}
-
-.week-date-range {
-  font-size: 1.25rem;
-  font-weight: 600;
-}
-
-/* Critical fix - enforce resource column width in weekly view */
-.weekly-view-calendar .fc-resource-timeline-divider {
+/* Critical fix - enforce resource column width in both views */
+.weekly-view-calendar .fc-resource-timeline-divider,
+.monthly-view-calendar .fc-resource-timeline-divider {
   width: 1px !important;
   background-color: #f0f0f0;
 }
 
-.weekly-view-calendar .fc-timegrid-col {
+.weekly-view-calendar .fc-timegrid-col,
+.monthly-view-calendar .fc-timegrid-col {
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
   border-right: 1px solid #f8f9fa !important;
 }
 
-/* Make sure day columns in weekly view have adequate space */
-.weekly-view-calendar .fc-timegrid-cols {
+/* Make sure day columns have adequate space */
+.weekly-view-calendar .fc-timegrid-cols,
+.monthly-view-calendar .fc-timegrid-cols {
   min-width: 450px !important;
 }
 
 /* Critical fix - ensure ALL resource column headers have consistent width and soft borders */
-.weekly-view-calendar .fc-col-header-cell {
+.weekly-view-calendar .fc-col-header-cell,
+.monthly-view-calendar .fc-col-header-cell {
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
@@ -296,13 +271,16 @@
 }
 
 /* Fix for resource container width */
-.weekly-view-calendar .fc-resource-timeline-body {
+.weekly-view-calendar .fc-resource-timeline-body,
+.monthly-view-calendar .fc-resource-timeline-body {
   min-width: 450px !important;
 }
 
 /* Critical fix - ensure ALL resource cells have exact same width with soft borders */
 .weekly-view-calendar .fc-resource-group,
-.weekly-view-calendar .fc-datagrid-cell {
+.weekly-view-calendar .fc-datagrid-cell,
+.monthly-view-calendar .fc-resource-group,
+.monthly-view-calendar .fc-datagrid-cell {
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
@@ -311,7 +289,8 @@
 }
 
 /* Ensure time labels have enough room with soft styling */
-.weekly-view-calendar .fc-timegrid-axis {
+.weekly-view-calendar .fc-timegrid-axis,
+.monthly-view-calendar .fc-timegrid-axis {
   width: 60px !important;
   min-width: 60px !important;
   background-color: #fafafa;
@@ -323,18 +302,27 @@
 .weekly-view-calendar [data-resource-id="team-6"] th,
 .weekly-view-calendar [data-resource-id="team-6"].fc-datagrid-cell,
 .weekly-view-calendar [data-resource-id="team-6"] .fc-datagrid-cell-frame,
-.weekly-view-calendar [data-resource-id="team-6"] .fc-timegrid-col {
+.weekly-view-calendar [data-resource-id="team-6"] .fc-timegrid-col,
+.monthly-view-calendar [data-resource-id="team-6"] td,
+.monthly-view-calendar [data-resource-id="team-6"] th,
+.monthly-view-calendar [data-resource-id="team-6"].fc-datagrid-cell,
+.monthly-view-calendar [data-resource-id="team-6"] .fc-datagrid-cell-frame,
+.monthly-view-calendar [data-resource-id="team-6"] .fc-timegrid-col {
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
   border-right: 1px solid #f0f0f0 !important;
 }
 
-/* Ensure ALL columns in weekly view are exactly the same width with soft borders */
+/* Ensure ALL columns are exactly the same width with soft borders */
 .weekly-view-calendar .fc-datagrid-cell,
 .weekly-view-calendar .fc-datagrid-cell-frame,
 .weekly-view-calendar .fc-timegrid-col,
-.weekly-view-calendar .fc-col-header-cell {
+.weekly-view-calendar .fc-col-header-cell,
+.monthly-view-calendar .fc-datagrid-cell,
+.monthly-view-calendar .fc-datagrid-cell-frame,
+.monthly-view-calendar .fc-timegrid-col,
+.monthly-view-calendar .fc-col-header-cell {
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
@@ -344,12 +332,16 @@
 /* Soften the main grid borders */
 .weekly-view-calendar .fc-scrollgrid-section table,
 .weekly-view-calendar .fc-datagrid-body,
-.weekly-view-calendar .fc-datagrid-header {
+.weekly-view-calendar .fc-datagrid-header,
+.monthly-view-calendar .fc-scrollgrid-section table,
+.monthly-view-calendar .fc-datagrid-body,
+.monthly-view-calendar .fc-datagrid-header {
   border: 1px solid #f0f0f0 !important;
 }
 
 /* Remove harsh grid lines and add soft ones */
-.weekly-view-calendar .fc-scrollgrid-section-liquid > td {
+.weekly-view-calendar .fc-scrollgrid-section-liquid > td,
+.monthly-view-calendar .fc-scrollgrid-section-liquid > td {
   border-top: 1px solid #f8f9fa !important;
   border-bottom: 1px solid #f8f9fa !important;
 }
@@ -375,7 +367,8 @@
   background-color: #f3f4f6;
 }
 
-.weekly-view-calendar .assign-button-icon svg {
+.weekly-view-calendar .assign-button-icon svg,
+.monthly-view-calendar .assign-button-icon svg {
   height: 12px !important;
   width: 12px !important;
 }

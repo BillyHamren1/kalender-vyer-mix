@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -12,7 +11,7 @@ import ResourceLayout from '@/components/Calendar/ResourceLayout';
 import ResourceToolbar from '@/components/Calendar/ResourceToolbar';
 import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
 import MonthNavigation from '@/components/Calendar/MonthNavigation';
-import TestMonthlyResourceCalendar from '@/components/Calendar/TestMonthlyResourceCalendar';
+import UnifiedResourceCalendar from '@/components/Calendar/UnifiedResourceCalendar';
 import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
 import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
 import TeamManagementDialog from '@/components/Calendar/TeamManagementDialog';
@@ -153,7 +152,7 @@ const MonthlyResourceView = () => {
         </div>
         
         <div className="weekly-view-container overflow-x-auto">
-          <TestMonthlyResourceCalendar
+          <UnifiedResourceCalendar
             events={events}
             resources={resources}
             isLoading={isLoading}
@@ -164,6 +163,7 @@ const MonthlyResourceView = () => {
             onStaffDrop={handleStaffDrop}
             onSelectStaff={handleOpenStaffSelectionDialog}
             forceRefresh={staffAssignmentsUpdated}
+            viewMode="monthly"
           />
         </div>
       </ResourceLayout>

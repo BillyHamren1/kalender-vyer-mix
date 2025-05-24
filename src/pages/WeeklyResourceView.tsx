@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -12,7 +11,7 @@ import ResourceLayout from '@/components/Calendar/ResourceLayout';
 import ResourceToolbar from '@/components/Calendar/ResourceToolbar';
 import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
-import WeeklyResourceCalendar from '@/components/Calendar/WeeklyResourceCalendar';
+import UnifiedResourceCalendar from '@/components/Calendar/UnifiedResourceCalendar';
 import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
 import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
 import { startOfWeek } from 'date-fns';
@@ -150,9 +149,9 @@ const WeeklyResourceView = () => {
           </div>
         </div>
         
-        {/* Weekly Calendar View */}
+        {/* Unified Calendar View */}
         <div className="weekly-view-container overflow-x-auto">
-          <WeeklyResourceCalendar
+          <UnifiedResourceCalendar
             events={events}
             resources={resources}
             isLoading={isLoading}
@@ -163,6 +162,7 @@ const WeeklyResourceView = () => {
             onStaffDrop={handleStaffDrop}
             onSelectStaff={handleOpenStaffSelectionDialog}
             forceRefresh={staffAssignmentsUpdated}
+            viewMode="weekly"
           />
         </div>
       </ResourceLayout>
