@@ -87,6 +87,22 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     }
   };
 
+  // Handle nested calendar date changes
+  const handleNestedCalendarDateSet = (dateInfo: any) => {
+    // Pass through to parent onDateSet handler
+    onDateSet(dateInfo);
+  };
+
+  // Handle team selection
+  const handleSelectStaff = (resourceId: string, resourceTitle: string) => {
+    console.log('UnifiedResourceCalendar.handleSelectStaff called with:', resourceId, resourceTitle);
+    if (onSelectStaff) {
+      onSelectStaff(resourceId, resourceTitle);
+    } else {
+      console.error('UnifiedResourceCalendar: onSelectStaff prop is not defined');
+    }
+  };
+
   // Helper function to ensure consistent resource column configuration
   const getResourceTimeGridOptions = () => {
     return {
