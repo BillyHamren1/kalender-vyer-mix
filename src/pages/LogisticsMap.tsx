@@ -55,7 +55,7 @@ const LogisticsMap = () => {
                     <Filter className="h-5 w-5" />
                     <span className="font-medium">Filters:</span>
                   </div>
-                  <div className="flex-1 max-w-xs">
+                  <div className="flex-1 max-w-56">
                     <FilterControls 
                       onDateChange={setFilterDate} 
                       filterDate={filterDate}
