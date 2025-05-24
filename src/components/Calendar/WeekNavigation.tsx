@@ -36,10 +36,10 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
       <div className="flex items-center">
         <button
           onClick={goToPreviousWeek}
-          className="bg-[#7BAEBF] hover:bg-[#6E9DAC] transition-colors duration-300 rounded-lg p-3 mr-8"
+          className="bg-[#7BAEBF] hover:bg-[#6E9DAC] transition-colors duration-300 rounded-lg p-2.5 mr-7"
         >
           <ChevronLeft 
-            className="h-8 w-8 text-white"
+            className="h-7 w-7 text-white"
             strokeWidth={3}
           />
         </button>
@@ -50,10 +50,10 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
         
         <button
           onClick={goToNextWeek}
-          className="bg-[#7BAEBF] hover:bg-[#6E9DAC] transition-colors duration-300 rounded-lg p-3 ml-8"
+          className="bg-[#7BAEBF] hover:bg-[#6E9DAC] transition-colors duration-300 rounded-lg p-2.5 ml-7"
         >
           <ChevronRight 
-            className="h-8 w-8 text-white"
+            className="h-7 w-7 text-white"
             strokeWidth={3}
           />
         </button>
