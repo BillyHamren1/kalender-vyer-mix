@@ -30,6 +30,124 @@ const validateApiKey = async (apiKey: string | null) => {
   return true
 }
 
+// Helper function to get staff name by ID
+async function getStaffName(staffId: string): Promise<string> {
+  const { data: staff, error } = await supabase
+    .from('staff_members')
+    .select('name')
+    .eq('id', staffId)
+    .maybeSingle()
+
+  if (error || !staff) {
+    console.warn(`Could not find staff member with ID ${staffId}`)
+    return `Staff-${staffId}`
+  }
+
+  return staff.name
+}
+
+// Helper function to get team name by ID
+async function getTeamName(teamId: string): Promise<string> {
+  // Since we don't have a teams table, we'll use the team ID as the name
+  // This can be enhanced later if team names are stored elsewhere
+  return `Team-${teamId}`
+}
+
+// Helper function to get booking IDs for a team on a specific date
+async function getTeamBookings(teamId: string, date: string): Promise<string[]> {
+  const { data: events, error } = await supabase
+    .from('calendar_events')
+    .select('booking_id')
+    .eq('resource_id', teamId)
+    .gte('start_time', `${date}T00:00:00`)
+    .lt('start_time', `${date}T23:59:59`)
+    .not('booking_id', 'is', null)
+
+  if (error) {
+    console.warn(`Could not fetch bookings for team ${teamId}:`, error)
+    return []
+  }
+
+  return [...new Set(events.map(event => event.booking_id).filter(Boolean))]
+}
+
+// Function to log assignment changes
+async function logAssignmentChange(changeData: {
+  staffId: string
+  oldTeamId?: string | null
+  newTeamId?: string | null
+  date: string
+  changeType: 'assign' | 'remove' | 'move'
+}) {
+  const { staffId, oldTeamId, newTeamId, date, changeType } = changeData
+
+  try {
+    // Get staff name
+    const staffName = await getStaffName(staffId)
+    
+    // Get team names
+    const oldTeamName = oldTeamId ? await getTeamName(oldTeamId) : null
+    const newTeamName = newTeamId ? await getTeamName(newTeamId) : null
+    
+    // Get booking information for relevant teams
+    const oldTeamBookings = oldTeamId ? await getTeamBookings(oldTeamId, date) : []
+    const newTeamBookings = newTeamId ? await getTeamBookings(newTeamId, date) : []
+    
+    let logMessage = ''
+    let detailedInfo = {
+      staffId,
+      staffName,
+      oldTeamId,
+      newTeamId,
+      oldTeamName,
+      newTeamName,
+      date,
+      changeType,
+      oldTeamBookings,
+      newTeamBookings,
+      timestamp: new Date().toISOString()
+    }
+
+    switch (changeType) {
+      case 'assign':
+        logMessage = `${staffName} assigned to ${newTeamName} for ${date}`
+        if (newTeamBookings.length > 0) {
+          logMessage += ` (bookings: ${newTeamBookings.join(', ')})`
+        }
+        break
+      case 'remove':
+        logMessage = `${staffName} removed from ${oldTeamName} for ${date}`
+        if (oldTeamBookings.length > 0) {
+          logMessage += ` (was on bookings: ${oldTeamBookings.join(', ')})`
+        }
+        break
+      case 'move':
+        logMessage = `${staffName} moved from ${oldTeamName} to ${newTeamName} for ${date}`
+        const allBookings = [...new Set([...oldTeamBookings, ...newTeamBookings])]
+        if (allBookings.length > 0) {
+          logMessage += ` (bookings: ${allBookings.join(', ')})`
+        }
+        break
+    }
+
+    console.log(`STAFF ASSIGNMENT CHANGE: ${logMessage}`)
+    console.log('Detailed change info:', JSON.stringify(detailedInfo, null, 2))
+
+    return {
+      success: true,
+      message: logMessage,
+      details: detailedInfo
+    }
+  } catch (error) {
+    console.error('Error logging assignment change:', error)
+    return {
+      success: false,
+      error: error.message,
+      details: changeData
+    }
+  }
+}
+
 // Function to get staff assignment and related bookings
 async function getStaffAssignment(staffId: string, date: string) {
   // First, get the team assignment for the staff member on the specified date
@@ -246,6 +364,9 @@ serve(async (req) => {
   }
 
   try {
+    const url = new URL(req.url)
+    const pathname = url.pathname
+
     // Get the API key from the headers
     const apiKey = req.headers.get('x-api-key')
     
@@ -262,7 +383,24 @@ serve(async (req) => {
       )
     }
 
-    // Parse the request body
+    // Handle assignment change logging endpoint
+    if (pathname.includes('/assignment-change') && req.method === 'POST') {
+      const changeData = await req.json()
+      
+      const result = await logAssignmentChange(changeData)
+      
+      return new Response(
+        JSON.stringify(result),
+        { 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json'
+          } 
+        }
+      )
+    }
+
+    // Handle main staff assignments endpoint
     const { staffId, date, fetchAllStaff } = await req.json()
 
     if (!date) {

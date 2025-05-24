@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 // Fetch all staff members
@@ -127,6 +126,41 @@ export const deleteStaffMember = async (id: string) => {
   return true;
 };
 
+// Helper function to log assignment changes to the edge function
+const logAssignmentChange = async (changeData: {
+  staffId: string
+  oldTeamId?: string | null
+  newTeamId?: string | null
+  date: string
+  changeType: 'assign' | 'remove' | 'move'
+}) => {
+  try {
+    const { data: apiKeyData, error: apiKeyError } = await supabase.functions.invoke('get-api-key', {
+      body: { key_type: 'staff' }
+    });
+    
+    if (apiKeyError) {
+      console.warn('Could not get API key for logging:', apiKeyError);
+      return;
+    }
+
+    const { data, error } = await supabase.functions.invoke('staff-assignments', {
+      body: changeData,
+      headers: {
+        'x-api-key': apiKeyData.apiKey
+      }
+    });
+
+    if (error) {
+      console.warn('Failed to log assignment change:', error);
+    } else {
+      console.log('Assignment change logged:', data.message);
+    }
+  } catch (error) {
+    console.warn('Error logging assignment change:', error);
+  }
+};
+
 // Fetch staff assignments for a specific date and optionally for a specific team
 export const fetchStaffAssignments = async (date: Date, teamId?: string) => {
   try {
@@ -179,7 +213,7 @@ export const assignStaffToTeam = async (staffId: string, teamId: string, date: D
     // Check if an assignment already exists for this staff member on this date
     const { data: existingAssignment, error: checkError } = await supabase
       .from('staff_assignments')
-      .select('id')
+      .select('id, team_id')
       .eq('staff_id', staffId)
       .eq('assignment_date', formattedDate)
       .maybeSingle();
@@ -189,8 +223,15 @@ export const assignStaffToTeam = async (staffId: string, teamId: string, date: D
       throw checkError;
     }
     
+    let result;
+    let changeType: 'assign' | 'move' = 'assign';
+    let oldTeamId: string | null = null;
+
     if (existingAssignment) {
       console.log(`Updating existing assignment ${existingAssignment.id}`);
+      oldTeamId = existingAssignment.team_id;
+      changeType = 'move';
+      
       // Update existing assignment
       const { data, error } = await supabase
         .from('staff_assignments')
@@ -207,8 +248,8 @@ export const assignStaffToTeam = async (staffId: string, teamId: string, date: D
         throw error;
       }
       
+      result = data;
       console.log('Assignment updated successfully');
-      return data;
     } else {
       console.log('Creating new assignment');
       // Create new assignment
@@ -227,9 +268,20 @@ export const assignStaffToTeam = async (staffId: string, teamId: string, date: D
         throw error;
       }
       
+      result = data;
       console.log('New assignment created successfully');
-      return data;
     }
+
+    // Log the assignment change
+    await logAssignmentChange({
+      staffId,
+      oldTeamId,
+      newTeamId: teamId,
+      date: formattedDate,
+      changeType
+    });
+
+    return result;
   } catch (error) {
     console.error('Error in assignStaffToTeam:', error);
     throw error;
@@ -242,6 +294,19 @@ export const removeStaffAssignment = async (staffId: string, date: Date) => {
     console.log(`Removing assignment for staff ${staffId} on ${date.toISOString().split('T')[0]}`);
     const formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD format
     
+    // Get the current assignment to log the removal
+    const { data: currentAssignment, error: fetchError } = await supabase
+      .from('staff_assignments')
+      .select('team_id')
+      .eq('staff_id', staffId)
+      .eq('assignment_date', formattedDate)
+      .maybeSingle();
+    
+    if (fetchError) {
+      console.error('Error fetching current assignment:', fetchError);
+      throw fetchError;
+    }
+
     const { error } = await supabase
       .from('staff_assignments')
       .delete()
@@ -254,6 +319,18 @@ export const removeStaffAssignment = async (staffId: string, date: Date) => {
     }
     
     console.log('Assignment removed successfully');
+
+    // Log the assignment removal
+    if (currentAssignment) {
+      await logAssignmentChange({
+        staffId,
+        oldTeamId: currentAssignment.team_id,
+        newTeamId: null,
+        date: formattedDate,
+        changeType: 'remove'
+      });
+    }
+    
     return true;
   } catch (error) {
     console.error('Error in removeStaffAssignment:', error);
