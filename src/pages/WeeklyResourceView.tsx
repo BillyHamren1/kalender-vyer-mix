@@ -15,7 +15,10 @@ import WeekNavigation from '@/components/Calendar/WeekNavigation';
 import UnifiedResourceCalendar from '@/components/Calendar/UnifiedResourceCalendar';
 import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
 import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
-import { startOfWeek } from 'date-fns';
+import TeamEditDialog from '@/components/Calendar/TeamEditDialog';
+import { startOfWeek, subDays, format } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const WeeklyResourceView = () => {
   // Use our custom hooks to manage state and logic
@@ -97,6 +100,72 @@ const WeeklyResourceView = () => {
     setShowStaffDisplay(prev => !prev);
   }, []);
 
+  // Copy staff assignments from previous week
+  const handleCopyFromPreviousWeek = useCallback(async () => {
+    try {
+      const previousWeekStart = subDays(currentWeekStart, 7);
+      const previousWeekEnd = subDays(currentWeekStart, 1);
+      const currentWeekEnd = new Date(currentWeekStart);
+      currentWeekEnd.setDate(currentWeekStart.getDate() + 6);
+
+      console.log(`Copying assignments from ${format(previousWeekStart, 'yyyy-MM-dd')} to ${format(previousWeekEnd, 'yyyy-MM-dd')}`);
+      console.log(`To week ${format(currentWeekStart, 'yyyy-MM-dd')} to ${format(currentWeekEnd, 'yyyy-MM-dd')}`);
+
+      // Get all staff assignments from the previous week
+      const { data: previousAssignments, error: fetchError } = await supabase
+        .from('staff_assignments')
+        .select('*')
+        .gte('assignment_date', format(previousWeekStart, 'yyyy-MM-dd'))
+        .lte('assignment_date', format(previousWeekEnd, 'yyyy-MM-dd'));
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      if (!previousAssignments || previousAssignments.length === 0) {
+        toast.info('No assignments found', {
+          description: 'No staff assignments found in the previous week to copy'
+        });
+        return;
+      }
+
+      // Create new assignments for the current week
+      const newAssignments = previousAssignments.map(assignment => {
+        const previousDate = new Date(assignment.assignment_date);
+        const dayOfWeek = previousDate.getDay();
+        const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Convert Sunday (0) to 6, others to dayOfWeek - 1
+        
+        const newDate = new Date(currentWeekStart);
+        newDate.setDate(currentWeekStart.getDate() + mondayOffset);
+
+        return {
+          staff_id: assignment.staff_id,
+          team_id: assignment.team_id,
+          assignment_date: format(newDate, 'yyyy-MM-dd')
+        };
+      });
+
+      // Insert the new assignments
+      const { error: insertError } = await supabase
+        .from('staff_assignments')
+        .upsert(newAssignments, {
+          onConflict: 'staff_id,assignment_date',
+          ignoreDuplicates: false
+        });
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      // Trigger a refresh of the calendar
+      handleStaffDrop('', '');
+      
+    } catch (error) {
+      console.error('Error copying assignments from previous week:', error);
+      throw error;
+    }
+  }, [currentWeekStart, handleStaffDrop]);
+
   return (
     <DndProvider backend={HTML5Backend}>
       <StaffSyncManager currentDate={hookCurrentDate} />
@@ -139,14 +208,25 @@ const WeeklyResourceView = () => {
               setCurrentWeekStart={setCurrentWeekStart}
             />
             
-            <ResourceToolbar
-              isLoading={isLoading}
-              currentDate={hookCurrentDate}
-              resources={resources}
-              onRefresh={refreshEvents}
-              onAddTask={addEventToCalendar}
-              onShowStaffCurtain={handleToggleStaffDisplay}
-            />
+            <div className="flex items-center gap-2">
+              <TeamEditDialog
+                teamResources={teamResources}
+                teamCount={teamCount}
+                onAddTeam={addTeam}
+                onRemoveTeam={removeTeam}
+                currentWeekStart={currentWeekStart}
+                onCopyFromPreviousWeek={handleCopyFromPreviousWeek}
+              />
+              
+              <ResourceToolbar
+                isLoading={isLoading}
+                currentDate={hookCurrentDate}
+                resources={resources}
+                onRefresh={refreshEvents}
+                onAddTask={addEventToCalendar}
+                onShowStaffCurtain={handleToggleStaffDisplay}
+              />
+            </div>
           </div>
         </div>
         
