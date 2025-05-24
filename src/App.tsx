@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import ResourceView from "./pages/ResourceView";
 import DayView from "./pages/DayView";
 import BookingList from "./pages/BookingList";
+import JobsList from "./pages/JobsList";
 import BookingDetail from "./pages/BookingDetail";
 import APITester from "./pages/APITester";
 import NotFound from "./pages/NotFound";
@@ -60,6 +61,7 @@ const AppContent = () => {
             <Route path="/resource-view" element={<ResourceView />} />
             <Route path="/day-view" element={<DayView />} />
             <Route path="/booking-list" element={<BookingList />} />
+            <Route path="/jobs-list" element={<JobsList />} />
             <Route path="/booking/:id" element={<BookingDetail />} />
             <Route path="/api-tester" element={<APITester />} />
             <Route path="/staff/:staffId" element={<StaffEndpoint />} />

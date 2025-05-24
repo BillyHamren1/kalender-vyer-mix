@@ -11,6 +11,7 @@ const Navbar = () => {
     { href: '/test-monthly-view', label: 'Test Monthly View' },
     { href: '/day-view', label: 'Day View' },
     { href: '/booking-list', label: 'Bookings' },
+    { href: '/jobs-list', label: 'Jobs List' },
     { href: '/monthly-schedule', label: 'Monthly Schedule' },
     { href: '/logistics-map', label: 'Logistics Map' }
   ];
