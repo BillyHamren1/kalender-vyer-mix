@@ -1,3 +1,4 @@
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
@@ -236,10 +237,30 @@ serve(async (req) => {
         const deliveryPostalCode = externalBooking.delivery_postal_code || externalBooking.postal_code || 
                                  (externalBooking.location?.postal_code ? externalBooking.location.postal_code : null);
         
+        // Extract client name properly - handle both string and object formats
+        let clientName = '';
+        if (typeof externalBooking.client === 'string') {
+          // If it's already a string, use it directly
+          clientName = externalBooking.client;
+        } else if (typeof externalBooking.client === 'object' && externalBooking.client !== null) {
+          // If it's an object, extract the name field
+          clientName = externalBooking.client.name || externalBooking.client.client_name || '';
+          if (!quiet) {
+            console.log(`Extracted client name from object: ${clientName}`);
+          }
+        } else {
+          // Fallback - convert to string
+          clientName = String(externalBooking.client || '');
+        }
+        
+        if (!clientName) {
+          throw new Error(`Unable to extract client name from booking ${externalBooking.id}`);
+        }
+        
         // Prepare booking data - map external fields to our schema using correct field names
         const bookingData = {
           id: externalBooking.id, // Use 'id' as our ID
-          client: externalBooking.client, // Use client field directly
+          client: clientName, // Store only the client name string
           rigdaydate: rigdaydate, // Use first rig_up_date for backward compatibility
           eventdate: eventdate, // Use first event_date for backward compatibility
           rigdowndate: rigdowndate, // Use first rig_down_date for backward compatibility
@@ -355,7 +376,7 @@ serve(async (req) => {
         if (externalStatus.toUpperCase() === 'CONFIRMED') {
           const eventsCreated = await createCalendarEvents(supabaseClient, {
             id: externalBooking.id,
-            client: externalBooking.client,
+            client: clientName, // Use the extracted client name
             rig_up_dates: externalBooking.rig_up_dates || [],
             event_dates: externalBooking.event_dates || [],
             rig_down_dates: externalBooking.rig_down_dates || []
