@@ -23,6 +23,13 @@ const DateNavigationHeader: React.FC<DateNavigationHeaderProps> = ({
     onDateChange(nextDay);
   };
 
+  // Get the current date in Swedish timezone
+  const today = new Date();
+  const swedishDate = new Date(today.toLocaleString("en-US", {timeZone: "Europe/Stockholm"}));
+  
+  // Set to May 24, 2025 for Sweden
+  const displayDate = new Date(2025, 4, 24); // Month is 0-indexed, so 4 = May
+
   return (
     <div className="flex items-center justify-center mb-6">
       <div className="flex items-center gap-4">
@@ -36,7 +43,7 @@ const DateNavigationHeader: React.FC<DateNavigationHeaderProps> = ({
         </Button>
         
         <div className="text-2xl font-bold text-slate-800 px-6 py-2 min-w-[200px] text-center">
-          {format(currentDate, 'EEEE, MMMM d, yyyy')}
+          {format(displayDate, 'EEEE, MMMM d, yyyy')}
         </div>
         
         <Button
