@@ -6,6 +6,7 @@ export interface MonthlyBookingSchedule {
   id: string;
   client: string;
   bookingId: string;
+  bookingNumber?: string;
   assignedStaff: StaffAssignment[];
   rigDate?: string;
   rigTime?: string;
@@ -122,6 +123,7 @@ export const fetchMonthlyBookingSchedule = async (currentDate: Date): Promise<Mo
       scheduleData.push({
         id: `${booking.id}-${date}`,
         bookingId: booking.id,
+        bookingNumber: booking.booking_number,
         client: booking.client,
         assignedStaff: dayStaff.map(assignment => ({
           staffId: assignment.staff_id,
