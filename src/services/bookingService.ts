@@ -18,3 +18,8 @@ export {
 export {
   extractClientName
 } from './booking/bookingUtils';
+
+export {
+  createBooking,
+  duplicateBooking
+} from './booking/bookingCreationService';
