@@ -128,17 +128,24 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
     setSelectedStatus(currentStatus.toUpperCase() as BookingStatus);
   };
 
+  // Get the current status styling
+  const currentStatusColors = getStatusColor(selectedStatus);
+  const currentOption = statusOptions.find(opt => opt.value === selectedStatus);
+
   return (
     <>
       <div className="flex items-center gap-3">
-        {/* Status Selector */}
+        {/* Status Selector with colored background */}
         <Select
           value={selectedStatus}
           onValueChange={handleStatusSelect}
           disabled={disabled || isUpdating}
         >
-          <SelectTrigger className="w-32">
-            <SelectValue placeholder="Change status" />
+          <SelectTrigger className={`w-32 ${currentStatusColors}`}>
+            <div className="flex items-center gap-2">
+              {currentOption?.icon}
+              <SelectValue placeholder="Change status" />
+            </div>
           </SelectTrigger>
           <SelectContent>
             {statusOptions.map((option) => (
