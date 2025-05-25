@@ -1,6 +1,5 @@
 
 import React, { useState } from 'react';
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -43,16 +42,6 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
       icon: <XCircle className="h-3 w-3" /> 
     }
   ];
-
-  const getCurrentStatusIcon = () => {
-    const status = currentStatus.toUpperCase();
-    switch (status) {
-      case 'CONFIRMED': return <CheckCircle className="h-3 w-3" />;
-      case 'CANCELLED': return <XCircle className="h-3 w-3" />;
-      case 'OFFER': return <Clock className="h-3 w-3" />;
-      default: return <AlertTriangle className="h-3 w-3" />;
-    }
-  };
 
   const needsConfirmation = (newStatus: BookingStatus): boolean => {
     const current = currentStatus.toUpperCase();
@@ -142,12 +131,6 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
   return (
     <>
       <div className="flex items-center gap-3">
-        {/* Current Status Badge */}
-        <Badge className={`flex items-center gap-1 ${getStatusColor(currentStatus.toUpperCase() as BookingStatus)}`}>
-          {getCurrentStatusIcon()}
-          {currentStatus}
-        </Badge>
-
         {/* Status Selector */}
         <Select
           value={selectedStatus}
