@@ -16,6 +16,11 @@ export {
 } from './booking/bookingMutationService';
 
 export {
+  updateBookingStatusWithCalendarSync,
+  type BookingStatus
+} from './booking/bookingStatusService';
+
+export {
   extractClientName
 } from './booking/bookingUtils';
 

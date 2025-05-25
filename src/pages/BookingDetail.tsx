@@ -6,7 +6,6 @@ import { CalendarContext } from '@/App';
 import { useBookingDetail } from '@/hooks/useBookingDetail';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 
 // Import refactored components
 import { ClientInformation } from '@/components/booking/ClientInformation';
@@ -14,6 +13,7 @@ import { DeliveryAddressForm } from '@/components/booking/DeliveryAddressForm';
 import { LogisticsOptionsForm } from '@/components/booking/LogisticsOptionsForm';
 import { ScheduleCard } from '@/components/booking/ScheduleCard';
 import { InternalNotes } from '@/components/booking/InternalNotes';
+import StatusChangeForm from '@/components/booking/StatusChangeForm';
 
 const BookingDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -51,6 +51,18 @@ const BookingDetail = () => {
       navigate(lastPath);
     } else {
       navigate('/resource-view');
+    }
+  };
+
+  const handleStatusChange = (newStatus: string) => {
+    if (booking) {
+      setBooking({
+        ...booking,
+        status: newStatus
+      });
+      
+      // Reload booking data to ensure we have the latest information
+      loadBookingData();
     }
   };
 
@@ -116,7 +128,14 @@ const BookingDetail = () => {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Badge variant="secondary">Confirmed</Badge>
+            {booking && (
+              <StatusChangeForm
+                currentStatus={booking.status}
+                bookingId={id || ''}
+                onStatusChange={handleStatusChange}
+                disabled={isSaving}
+              />
+            )}
           </div>
         </div>
       </div>
