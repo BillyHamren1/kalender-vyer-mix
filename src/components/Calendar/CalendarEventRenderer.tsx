@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
 import { Copy } from 'lucide-react';
@@ -6,7 +7,11 @@ export const renderEventContent = (eventInfo: any) => {
   // Get the event details
   const eventTitle = eventInfo.event.title;
   const eventTime = eventInfo.timeText;
-  const bookingId = eventInfo.event.extendedProps?.bookingId || '';
+  
+  // Use bookingNumber if available, otherwise fall back to bookingId
+  const displayId = eventInfo.event.extendedProps?.bookingNumber || 
+                   eventInfo.event.extendedProps?.bookingId || 
+                   '';
   
   // Get delivery address from event extendedProps or use default message
   const deliveryAddress = eventInfo.event.extendedProps?.deliveryAddress || 'No address provided';
@@ -25,7 +30,7 @@ export const renderEventContent = (eventInfo: any) => {
     // More compact display for timeline view
     return (
       <div className="event-content-wrapper">
-        <div className="event-booking-id text-xs opacity-80 truncate">#{bookingId}</div>
+        <div className="event-booking-id text-xs opacity-80 truncate">#{displayId}</div>
         <div className="event-client-name text-sm break-words whitespace-normal" 
              style={{ lineHeight: '1.2', maxHeight: '2.4em', overflow: 'hidden' }}>
           {clientName}
@@ -40,7 +45,7 @@ export const renderEventContent = (eventInfo: any) => {
   // Default display for other views
   return (
     <div className="event-content-wrapper">
-      <div className="event-booking-id text-xs opacity-80 truncate">#{bookingId}</div>
+      <div className="event-booking-id text-xs opacity-80 truncate">#{displayId}</div>
       <div className="event-client-name text-sm break-words whitespace-normal" 
            style={{ lineHeight: '1.2', maxHeight: '2.4em', overflow: 'hidden' }}>
         {clientName}

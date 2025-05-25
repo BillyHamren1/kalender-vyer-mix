@@ -64,6 +64,7 @@ const processTeam6Events = (events: CalendarEvent[]) => {
         isModifiedDisplay: true, // Flag to indicate this event's display time was modified
         clientName: event.title, // Store client name separately
         bookingId: event.bookingId || 'No ID', // Store booking ID
+        bookingNumber: event.bookingNumber || event.bookingId || 'No ID', // Store booking number
         deliveryAddress: deliveryAddress // Store delivery address from event or use a default
       }
     };
@@ -113,6 +114,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]) =>
           ...event,
           dataEventType: event.eventType, // Add as data attribute
           deliveryAddress: deliveryAddress, // Ensure deliveryAddress is available
+          bookingNumber: event.bookingNumber || event.bookingId || 'No ID', // Ensure bookingNumber is available
           originalResourceId: event.resourceId // Store the original resource ID
         }
       };

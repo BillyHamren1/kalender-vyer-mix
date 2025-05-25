@@ -1,74 +1,33 @@
+import { EventInput } from '@fullcalendar/react';
 
-// Define the types for resources and calendar events
-
-export type Resource = {
+export interface Resource {
   id: string;
   title: string;
-  groupId?: string;
-  children?: Resource[];
-  staffAssignments?: StaffAssignment[];
-  eventColor?: string; // Add eventColor property to Resource type
-};
+  eventColor: string;
+}
 
-export type StaffAssignment = {
+export interface CalendarEvent extends EventInput {
   id: string;
-  name: string;
-  teamId: string;
-};
-
-export type CalendarEvent = {
-  id: string;
-  resourceId: string;
   title: string;
   start: string;
   end: string;
-  eventType: 'rig' | 'event' | 'rigDown' | 'task'; // Add 'task' as a valid event type
-  color?: string;
+  resourceId: string;
   bookingId?: string;
+  bookingNumber?: string; // Add bookingNumber field
+  eventType?: 'rig' | 'event' | 'rigDown';
   deliveryAddress?: string;
-  customer?: string; // Add customer property to fix build error
-};
+  viewed?: boolean;
+}
 
-// Helper function to get the correct color for the event type
-export const getEventColor = (eventType: 'rig' | 'event' | 'rigDown' | 'task'): string => {
+export const getEventColor = (eventType: string | undefined): string => {
   switch (eventType) {
     case 'rig':
-      return '#2563eb'; // Blue
+      return '#3b82f6'; // blue-500
     case 'event':
-      return '#eab308'; // Yellow
+      return '#f59e0b'; // yellow-500
     case 'rigDown':
-      return '#22c55e'; // Green
-    case 'task':
-      return '#9333ea'; // Purple for tasks
+      return '#10b981'; // green-500
     default:
-      return '#6b7280'; // Gray
+      return '#6b7280'; // gray-500
   }
-};
-
-// Generate a unique ID for new events
-export const generateEventId = (): string => {
-  return crypto.randomUUID();
-};
-
-// Save resources to localStorage
-export const saveResourcesToStorage = (resources: Resource[]): void => {
-  localStorage.setItem('calendarResources', JSON.stringify(resources));
-};
-
-// Load resources from localStorage
-export const loadResourcesFromStorage = (): Resource[] => {
-  const storedResources = localStorage.getItem('calendarResources');
-  if (storedResources) {
-    return JSON.parse(storedResources);
-  }
-  
-  // Default resources if none are stored
-  return [
-    { id: 'team-1', title: 'Team 1', eventColor: '#3788d8' },
-    { id: 'team-2', title: 'Team 2', eventColor: '#1e90ff' },
-    { id: 'team-3', title: 'Team 3', eventColor: '#4169e1' },
-    { id: 'team-4', title: 'Team 4', eventColor: '#0073cf' },
-    { id: 'team-5', title: 'Team 5', eventColor: '#4682b4' },
-    { id: 'team-6', title: 'Todays events', eventColor: '#FEF7CD' },
-  ];
 };
