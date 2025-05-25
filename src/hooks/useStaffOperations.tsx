@@ -21,9 +21,6 @@ export const useStaffOperations = (currentDate: Date) => {
     // Track staff being processed
     setProcessingStaffIds(prev => [...prev, staffId]);
     
-    // Trigger optimistic UI update immediately
-    setStaffAssignmentsUpdated(prev => !prev);
-    
     try {
       if (resourceId) {
         console.log(`Assigning staff ${staffId} to team ${resourceId}`);
@@ -41,7 +38,8 @@ export const useStaffOperations = (currentDate: Date) => {
         toast.success('Staff removed successfully', { id: toastId });
       }
       
-      // Trigger a refresh of the staff assignments after backend update
+      // Trigger a refresh of the staff assignments after backend update (ONLY refresh, no optimistic update)
+      console.log('Staff operation successful, triggering UI refresh...');
       setStaffAssignmentsUpdated(prev => !prev);
       
       return Promise.resolve();

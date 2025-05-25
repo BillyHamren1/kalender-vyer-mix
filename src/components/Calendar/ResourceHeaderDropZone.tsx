@@ -41,6 +41,8 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   
   // Fetch assigned staff when component mounts or when resource/date changes
   useEffect(() => {
+    console.log(`ResourceHeaderDropZone: useEffect triggered for resource ${resource.id}, forceRefresh=${forceRefresh}, date=${currentDate.toISOString().split('T')[0]}`);
+    
     const loadAssignedStaff = async () => {
       if (!currentDate) return;
       
@@ -50,7 +52,7 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         // Get staff assigned to this specific team on this date
         const { fetchStaffAssignments } = await import('@/services/staffService');
         const staffAssignments = await fetchStaffAssignments(currentDate, resource.id);
-        console.log(`Loaded ${staffAssignments.length} staff assignments for resource ${resource.id} on ${currentDate.toISOString().split('T')[0]}`);
+        console.log(`ResourceHeaderDropZone: Loaded ${staffAssignments.length} staff assignments for resource ${resource.id} on ${currentDate.toISOString().split('T')[0]}`);
         
         // Now staffAssignments only contains assignments for this resource
         setAssignedStaff(staffAssignments.map(assignment => ({
@@ -61,7 +63,7 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
           assignedTeam: resource.id
         })));
       } catch (error) {
-        console.error('Error loading assigned staff:', error);
+        console.error('ResourceHeaderDropZone: Error loading assigned staff:', error);
       } finally {
         setIsLoading(false);
       }
@@ -107,15 +109,19 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       
       {/* Assigned staff area - fixed height to accommodate 5 staff members */}
       <div className="assigned-staff-area flex flex-col gap-1 mb-1 overflow-visible min-h-[130px]">
-        {assignedStaff.map((staff) => (
-          <DraggableStaffItem
-            key={staff.id}
-            staff={staff}
-            onRemove={() => handleRemoveStaff(staff.id)}
-            currentDate={currentDate}
-            teamName={resource.title}
-          />
-        ))}
+        {isLoading ? (
+          <div className="text-xs text-gray-500">Loading staff...</div>
+        ) : (
+          assignedStaff.map((staff) => (
+            <DraggableStaffItem
+              key={staff.id}
+              staff={staff}
+              onRemove={() => handleRemoveStaff(staff.id)}
+              currentDate={currentDate}
+              teamName={resource.title}
+            />
+          ))
+        )}
         
         {/* Empty placeholder slots to maintain consistent height */}
         {placeholders.map((_, index) => (
