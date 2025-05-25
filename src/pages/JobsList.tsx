@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Search, Filter, ArrowUpDown } from 'lucide-react';
 import Navbar from '@/components/Navigation/Navbar';
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import StatusChangeForm from '@/components/booking/StatusChangeForm';
 import { fetchJobsList, getTeamsForFilter } from '@/services/jobsListService';
 import { JobsListFilters, JobsListItem } from '@/types/jobsList';
 
@@ -20,6 +21,7 @@ const JobsList: React.FC = () => {
   const [sortField, setSortField] = useState<SortField>('eventDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [showFilters, setShowFilters] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data: jobsList = [], isLoading, error } = useQuery({
     queryKey: ['jobsList', filters],
@@ -104,17 +106,9 @@ const JobsList: React.FC = () => {
     setFilters({});
   };
 
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status.toUpperCase()) {
-      case 'CONFIRMED':
-        return 'default';
-      case 'PENDING':
-        return 'secondary';
-      case 'CANCELLED':
-        return 'destructive';
-      default:
-        return 'outline';
-    }
+  const handleStatusChange = (bookingId: string, newStatus: string) => {
+    // Invalidate and refetch the jobs list to get updated data
+    queryClient.invalidateQueries({ queryKey: ['jobsList'] });
   };
 
   const formatStaffList = (staff: string[] = []) => {
@@ -217,7 +211,7 @@ const JobsList: React.FC = () => {
                     <SelectContent>
                       <SelectItem value="all">All statuses</SelectItem>
                       <SelectItem value="confirmed">Confirmed</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="offer">Offer</SelectItem>
                       <SelectItem value="cancelled">Cancelled</SelectItem>
                     </SelectContent>
                   </Select>
@@ -302,7 +296,7 @@ const JobsList: React.FC = () => {
                 {sortedJobs.map((job) => (
                   <TableRow 
                     key={job.bookingId}
-                    className={`cursor-pointer hover:bg-gray-50 ${!job.viewed ? 'bg-blue-50' : ''}`}
+                    className={`hover:bg-gray-50 ${!job.viewed ? 'bg-blue-50' : ''}`}
                   >
                     <TableCell>
                       <Link 
@@ -362,9 +356,11 @@ const JobsList: React.FC = () => {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={getStatusBadgeVariant(job.status)}>
-                        {job.status}
-                      </Badge>
+                      <StatusChangeForm
+                        currentStatus={job.status}
+                        bookingId={job.bookingId}
+                        onStatusChange={(newStatus) => handleStatusChange(job.bookingId, newStatus)}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
