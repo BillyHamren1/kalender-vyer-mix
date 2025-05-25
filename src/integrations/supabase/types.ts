@@ -143,6 +143,7 @@ export type Database = {
       }
       bookings: {
         Row: {
+          booking_number: string | null
           carry_more_than_10m: boolean | null
           client: string
           created_at: string
@@ -165,6 +166,7 @@ export type Database = {
           viewed: boolean
         }
         Insert: {
+          booking_number?: string | null
           carry_more_than_10m?: boolean | null
           client: string
           created_at?: string
@@ -187,6 +189,7 @@ export type Database = {
           viewed?: boolean
         }
         Update: {
+          booking_number?: string | null
           carry_more_than_10m?: boolean | null
           client?: string
           created_at?: string

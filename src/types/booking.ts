@@ -15,6 +15,7 @@ export interface BookingAttachment {
 
 export interface Booking {
   id: string;
+  bookingNumber?: string; // Add the booking number field
   client: string;
   rigDayDate: string;
   eventDate: string;

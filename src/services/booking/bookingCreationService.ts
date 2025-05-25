@@ -2,40 +2,45 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Booking } from "@/types/booking";
 
-// Function to get the next available booking ID
-const getNextBookingId = async (): Promise<string> => {
+// Function to get the next available booking ID and booking number
+const getNextBookingId = async (): Promise<{ id: string; bookingNumber: string }> => {
   // Get the current year
   const currentYear = new Date().getFullYear();
   
   // Determine prefix based on year
   const prefix = currentYear === 2025 ? '2025' : '2505';
   
-  // Find the highest existing number for this prefix
+  // Find the highest existing number for this prefix in booking_number field
   const { data, error } = await supabase
     .from('bookings')
-    .select('id')
-    .like('id', `${prefix}-%`)
-    .not('id', 'like', '%-%-%-%-%') // Exclude UUIDs
-    .order('id', { ascending: false })
+    .select('booking_number')
+    .like('booking_number', `${prefix}-%`)
+    .order('booking_number', { ascending: false })
     .limit(1);
 
   if (error) {
-    console.error('Error fetching last booking ID:', error);
+    console.error('Error fetching last booking number:', error);
     throw error;
   }
 
-  // Extract the number from the last booking ID
+  // Extract the number from the last booking number
   let nextNumber = 1;
   if (data && data.length > 0) {
-    const lastId = data[0].id;
-    const numberPart = lastId.split('-')[1];
+    const lastBookingNumber = data[0].booking_number;
+    const numberPart = lastBookingNumber.split('-')[1];
     nextNumber = parseInt(numberPart, 10) + 1;
   }
 
-  return `${prefix}-${nextNumber}`;
+  const bookingNumber = `${prefix}-${nextNumber}`;
+  
+  // For the ID, we'll use the same format as booking number for consistency
+  return {
+    id: bookingNumber,
+    bookingNumber: bookingNumber
+  };
 };
 
-// Function to create a new booking with proper sequential ID
+// Function to create a new booking with proper sequential ID and booking number
 export const createBooking = async (bookingData: {
   client: string;
   rigDayDate?: string;
@@ -53,15 +58,16 @@ export const createBooking = async (bookingData: {
   internalNotes?: string;
   status?: string;
 }): Promise<Booking> => {
-  // Generate the next sequential booking ID
-  const bookingId = await getNextBookingId();
+  // Generate the next sequential booking ID and number
+  const { id: bookingId, bookingNumber } = await getNextBookingId();
   
-  console.log(`Creating new booking with ID: ${bookingId}`);
+  console.log(`Creating new booking with ID: ${bookingId}, Number: ${bookingNumber}`);
 
   const { data, error } = await supabase
     .from('bookings')
     .insert({
       id: bookingId,
+      booking_number: bookingNumber,
       client: bookingData.client,
       rigdaydate: bookingData.rigDayDate || null,
       eventdate: bookingData.eventDate || null,
@@ -104,6 +110,7 @@ export const createBooking = async (bookingData: {
   // Transform the data to match our Booking type
   return {
     id: data.id,
+    bookingNumber: data.booking_number,
     client: data.client,
     rigDayDate: data.rigdaydate,
     eventDate: data.eventdate,
@@ -135,7 +142,7 @@ export const createBooking = async (bookingData: {
   };
 };
 
-// Function to duplicate an existing booking with a new sequential ID
+// Function to duplicate an existing booking with a new sequential ID and booking number
 export const duplicateBooking = async (originalBookingId: string): Promise<Booking> => {
   // First, fetch the original booking
   const { data: originalBooking, error: fetchError } = await supabase
@@ -194,6 +201,6 @@ export const duplicateBooking = async (originalBookingId: string): Promise<Booki
     }
   }
 
-  console.log(`Successfully duplicated booking ${originalBookingId} as ${newBooking.id}`);
+  console.log(`Successfully duplicated booking ${originalBookingId} as ${newBooking.bookingNumber} (${newBooking.id})`);
   return newBooking;
 };

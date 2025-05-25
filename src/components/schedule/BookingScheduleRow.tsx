@@ -29,6 +29,9 @@ const BookingScheduleRow: React.FC<BookingScheduleRowProps> = ({ booking }) => {
     return booking.rigDate || booking.eventDate || booking.rigDownDate || '';
   };
 
+  // Display booking number if available, otherwise fall back to booking ID
+  const displayBookingId = booking.bookingNumber || booking.bookingId;
+
   return (
     <TableRow className="hover:bg-gray-50">
       <TableCell className="font-medium">
@@ -39,7 +42,7 @@ const BookingScheduleRow: React.FC<BookingScheduleRowProps> = ({ booking }) => {
           to={`/booking/${booking.bookingId}`}
           className="text-blue-600 hover:text-blue-800 hover:underline"
         >
-          {booking.bookingId}
+          {displayBookingId}
         </Link>
       </TableCell>
       <TableCell className="font-medium">{booking.client}</TableCell>
