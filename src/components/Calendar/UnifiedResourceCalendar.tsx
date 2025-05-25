@@ -39,6 +39,8 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   const navigate = useNavigate();
   const { setLastViewedDate } = useContext(CalendarContext);
 
+  console.log(`UnifiedResourceCalendar: forceRefresh prop is ${forceRefresh}`);
+
   // Generate days based on view mode
   const getDaysToRender = () => {
     if (viewMode === 'weekly') {
@@ -185,6 +187,8 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
           const dayEvents = getEventsForDay(date);
           const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
           const isCurrentMonth = viewMode === 'monthly' ? isSameMonth(date, currentDate) : true;
+          
+          console.log(`UnifiedResourceCalendar: Rendering calendar for ${format(date, 'yyyy-MM-dd')} with forceRefresh=${forceRefresh}`);
           
           return (
             <div 

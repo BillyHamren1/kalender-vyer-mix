@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -121,6 +120,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   const { isMobile, getInitialView, getMobileHeaderToolbar, getAspectRatio } = useCalendarView();
   const [currentView, setCurrentView] = useState<string>("resourceTimeGridDay");
   
+  console.log(`ResourceCalendar: forceRefresh prop is ${forceRefresh} for date ${currentDate.toISOString().split('T')[0]}`);
+  
   // Get the event actions hook
   const { duplicateEvent } = useEventActions(events, () => {}, resources);
   
@@ -202,6 +203,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   // Custom resource header content renderer
   const resourceHeaderContent = (info: any) => {
     if (isMobile) return info.resource.title;
+    
+    console.log(`ResourceCalendar: Rendering ResourceHeaderDropZone for ${info.resource.id} with forceRefresh=${forceRefresh}`);
     
     return (
       <ResourceHeaderDropZone 
@@ -286,6 +289,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     resourceLabelDidMount: setupResourceHeaderStyles,
     resourceLabelContent: (info: any) => {
       if (isMobile) return info.resource.title;
+      
+      console.log(`ResourceCalendar: FullCalendar resourceLabelContent for ${info.resource.id} with forceRefresh=${forceRefresh}`);
       
       return (
         <ResourceHeaderDropZone 
