@@ -1,7 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { resyncBookingToCalendar } from "./bookingCalendarService";
+import { resyncBookingToCalendar, deleteAllBookingEvents } from "./bookingCalendarService";
 import { 
   getSyncState, 
   updateSyncState, 
@@ -37,6 +37,54 @@ export interface ImportFilters {
   clientName?: string;
   syncMode?: SyncMode; // Allow manual override of sync mode
 }
+
+/**
+ * Handle status changes during import with calendar sync
+ */
+const handleImportStatusChange = async (bookingId: string, newStatus: string, previousStatus?: string): Promise<void> => {
+  try {
+    const normalizedNewStatus = newStatus.toUpperCase();
+    const normalizedPreviousStatus = previousStatus?.toUpperCase();
+    
+    // Only handle calendar sync if status actually changed
+    if (normalizedNewStatus === normalizedPreviousStatus) {
+      return;
+    }
+    
+    console.log(`Handling status change for booking ${bookingId}: ${normalizedPreviousStatus} -> ${normalizedNewStatus}`);
+    
+    switch (normalizedNewStatus) {
+      case 'CONFIRMED':
+        // When status becomes confirmed, sync to calendar
+        console.log(`Syncing booking ${bookingId} to calendar (status: CONFIRMED)`);
+        const syncResult = await resyncBookingToCalendar(bookingId);
+        if (!syncResult) {
+          console.warn(`Could not sync booking ${bookingId} to calendar - may be missing dates`);
+        }
+        break;
+
+      case 'CANCELLED':
+        // When status becomes cancelled, remove from calendar
+        console.log(`Removing booking ${bookingId} from calendar (status: CANCELLED)`);
+        await deleteAllBookingEvents(bookingId);
+        break;
+
+      case 'OFFER':
+        // When status becomes offer, remove from calendar if previously confirmed
+        if (normalizedPreviousStatus === 'CONFIRMED') {
+          console.log(`Removing booking ${bookingId} from calendar (status changed from CONFIRMED to ${normalizedNewStatus})`);
+          await deleteAllBookingEvents(bookingId);
+        }
+        break;
+
+      default:
+        console.warn(`Unknown status during import: ${normalizedNewStatus}`);
+    }
+  } catch (error) {
+    console.error(`Error handling status change for booking ${bookingId}:`, error);
+    // Don't throw here - import should continue even if calendar sync fails
+  }
+};
 
 /**
  * Enhanced import bookings with intelligent sync modes and state tracking
@@ -99,12 +147,12 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
       duration: 2000,
     });
     
-    // Call the Supabase Edge Function
+    // Call the Supabase Edge Function with enhanced status handling
     const { data: resultData, error: functionError } = await supabase.functions.invoke(
       'import-bookings',
       {
         method: 'POST',
-        body: { ...enhancedFilters, syncMode }
+        body: { ...enhancedFilters, syncMode, handleStatusChanges: true }
       }
     );
 
@@ -164,6 +212,32 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
       sync_mode: syncMode,
       sync_duration_ms: syncDurationMs
     };
+    
+    // Handle status changes that occurred during import by calling our calendar sync
+    if (results.status_changed_bookings && results.status_changed_bookings.length > 0) {
+      console.log(`Processing ${results.status_changed_bookings.length} status changes for calendar sync`);
+      
+      // For each status changed booking, we need to handle calendar sync
+      // Note: The import function should have already handled the calendar events,
+      // but we'll add this as a safety net for any edge cases
+      for (const bookingId of results.status_changed_bookings) {
+        try {
+          // Fetch the current booking to get its status
+          const { data: booking } = await supabase
+            .from('bookings')
+            .select('status')
+            .eq('id', bookingId)
+            .single();
+          
+          if (booking) {
+            // Handle calendar sync based on current status
+            await handleImportStatusChange(bookingId, booking.status);
+          }
+        } catch (error) {
+          console.error(`Error handling status change for booking ${bookingId}:`, error);
+        }
+      }
+    }
     
     // Update sync state to success
     await updateSyncState(syncType, {

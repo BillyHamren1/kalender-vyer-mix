@@ -41,11 +41,6 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
       value: 'CANCELLED', 
       label: 'Cancelled', 
       icon: <XCircle className="h-3 w-3" /> 
-    },
-    { 
-      value: 'PENDING', 
-      label: 'Pending', 
-      icon: <Clock className="h-3 w-3" /> 
     }
   ];
 
@@ -55,7 +50,6 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
       case 'CONFIRMED': return <CheckCircle className="h-3 w-3" />;
       case 'CANCELLED': return <XCircle className="h-3 w-3" />;
       case 'OFFER': return <Clock className="h-3 w-3" />;
-      case 'PENDING': return <Clock className="h-3 w-3" />;
       default: return <AlertTriangle className="h-3 w-3" />;
     }
   };

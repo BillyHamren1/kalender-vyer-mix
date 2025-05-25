@@ -2,7 +2,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { resyncBookingToCalendar, deleteAllBookingEvents } from "@/services/bookingCalendarService";
 
-export type BookingStatus = 'OFFER' | 'CONFIRMED' | 'CANCELLED' | 'PENDING';
+export type BookingStatus = 'OFFER' | 'CONFIRMED' | 'CANCELLED';
 
 export const updateBookingStatusWithCalendarSync = async (
   id: string, 
@@ -49,8 +49,7 @@ const handleCalendarSync = async (
         break;
 
       case 'OFFER':
-      case 'PENDING':
-        // When status becomes offer or pending, remove from calendar if previously confirmed
+        // When status becomes offer, remove from calendar if previously confirmed
         if (previousStatus?.toUpperCase() === 'CONFIRMED') {
           console.log(`Removing booking ${bookingId} from calendar (status changed from CONFIRMED to ${newStatus})`);
           await deleteAllBookingEvents(bookingId);
@@ -74,8 +73,6 @@ export const getStatusColor = (status: BookingStatus): string => {
       return 'bg-red-500 hover:bg-red-500';
     case 'OFFER':
       return 'bg-yellow-500 hover:bg-yellow-500';
-    case 'PENDING':
-      return 'bg-gray-400 hover:bg-gray-400';
     default:
       return 'bg-orange-400 hover:bg-orange-400';
   }
@@ -88,8 +85,6 @@ export const getStatusIcon = (status: BookingStatus): string => {
     case 'CANCELLED':
       return 'XCircle';
     case 'OFFER':
-      return 'Clock';
-    case 'PENDING':
       return 'Clock';
     default:
       return 'AlertTriangle';

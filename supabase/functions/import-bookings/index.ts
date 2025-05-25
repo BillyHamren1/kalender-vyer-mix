@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
@@ -40,7 +39,7 @@ serve(async (req) => {
 
     // Parse request body for filter parameters
     const requestData = await req.json().catch(() => ({}))
-    const { startDate, endDate, clientName, quiet = false, syncMode = 'full' } = requestData
+    const { startDate, endDate, clientName, quiet = false, syncMode = 'full', handleStatusChanges = false } = requestData
 
     // Build the URL for the external bookings API
     const externalApiUrl = new URL("https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings")
@@ -201,32 +200,23 @@ serve(async (req) => {
           console.log(`Geodata for booking ${externalBooking.id}: latitude=${deliveryLatitude}, longitude=${deliveryLongitude}`);
         }
                                 
-        // Get the status from external booking, defaulting to 'PENDING' if not provided
-        const externalStatus = externalBooking.status || 'PENDING'
+        // Get the status from external booking, defaulting to 'OFFER' if not provided
+        const externalStatus = externalBooking.status || 'OFFER'
                               
-        // Check for status change (especially CONFIRMED to any other status)
+        // Check for status change and handle calendar sync accordingly
         let statusChanged = false
+        let previousStatus = null
         if (existingBooking && existingBooking.status !== externalStatus) {
           if (!quiet) {
             console.log(`Status changed for booking ${externalBooking.id}: ${existingBooking.status} -> ${externalStatus}`)
           }
           
           statusChanged = true
+          previousStatus = existingBooking.status
           results.status_changed_bookings.push(externalBooking.id)
           
-          // If status was previously CONFIRMED and now it's not, we need to remove calendar events
-          // Make this case-insensitive by converting both to uppercase
-          if (existingBooking.status.toUpperCase() === 'CONFIRMED' && externalStatus.toUpperCase() !== 'CONFIRMED') {
-            if (!quiet) {
-              console.log(`Removing calendar events for booking ${externalBooking.id} as status changed from CONFIRMED to ${externalStatus}`)
-            }
-            
-            try {
-              await deleteAllBookingEvents(supabaseClient, externalBooking.id)
-            } catch (error) {
-              console.error(`Error removing calendar events for booking ${externalBooking.id}:`, error)
-            }
-          }
+          // Handle calendar sync based on status change
+          await handleStatusChangeCalendarSync(supabaseClient, externalBooking.id, externalStatus, previousStatus, !quiet)
         }
         
         // Extract address components
@@ -423,6 +413,54 @@ serve(async (req) => {
     )
   }
 })
+
+// Handle status changes during import with calendar sync
+async function handleStatusChangeCalendarSync(supabase, bookingId, newStatus, previousStatus, verbose = true) {
+  try {
+    const normalizedNewStatus = newStatus.toUpperCase();
+    const normalizedPreviousStatus = previousStatus?.toUpperCase();
+    
+    if (verbose) {
+      console.log(`Handling status change for booking ${bookingId}: ${normalizedPreviousStatus} -> ${normalizedNewStatus}`);
+    }
+    
+    switch (normalizedNewStatus) {
+      case 'CONFIRMED':
+        // When status becomes confirmed, create calendar events
+        if (verbose) {
+          console.log(`Creating calendar events for booking ${bookingId} (status: CONFIRMED)`);
+        }
+        // The calendar events will be created in the main flow
+        break;
+
+      case 'CANCELLED':
+        // When status becomes cancelled, remove from calendar
+        if (verbose) {
+          console.log(`Removing booking ${bookingId} from calendar (status: CANCELLED)`);
+        }
+        await deleteAllBookingEvents(supabase, bookingId);
+        break;
+
+      case 'OFFER':
+        // When status becomes offer, remove from calendar if previously confirmed
+        if (normalizedPreviousStatus === 'CONFIRMED') {
+          if (verbose) {
+            console.log(`Removing booking ${bookingId} from calendar (status changed from CONFIRMED to ${normalizedNewStatus})`);
+          }
+          await deleteAllBookingEvents(supabase, bookingId);
+        }
+        break;
+
+      default:
+        if (verbose) {
+          console.warn(`Unknown status during import: ${normalizedNewStatus}`);
+        }
+    }
+  } catch (error) {
+    console.error(`Error handling status change for booking ${bookingId}:`, error);
+    // Don't throw here - import should continue even if calendar sync fails
+  }
+}
 
 // Find the team with the least events for a specific date and time
 async function findTeamWithLeastEvents(supabase, startDate, endDate) {

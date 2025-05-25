@@ -5,7 +5,7 @@ import { CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
 import { getStatusColor } from '@/services/booking/bookingStatusService';
 
 // Define all possible status types that can come from the external system
-type BookingStatus = 'CONFIRMED' | 'Confirmed' | 'confirmed' | 'CANCELLED' | 'Cancelled' | 'cancelled' | 'OFFER' | 'Offer' | 'offer' | 'PENDING' | 'Pending' | 'pending' | string;
+type BookingStatus = 'CONFIRMED' | 'Confirmed' | 'confirmed' | 'CANCELLED' | 'Cancelled' | 'cancelled' | 'OFFER' | 'Offer' | 'offer' | string;
 
 interface StatusBadgeProps {
   status: BookingStatus;
@@ -42,10 +42,6 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({
       break;
     case 'OFFER':
       statusText = 'Offer';
-      icon = <Clock className="h-3 w-3" />;
-      break;
-    case 'PENDING':
-      statusText = 'Pending';
       icon = <Clock className="h-3 w-3" />;
       break;
     default:
