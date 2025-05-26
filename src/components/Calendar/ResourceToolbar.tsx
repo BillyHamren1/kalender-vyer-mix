@@ -1,19 +1,20 @@
 
 import React from 'react';
-import { Resource, CalendarEvent } from './ResourceData';
+import { Button } from '@/components/ui/button';
+import { RefreshCw, Plus, Users } from 'lucide-react';
+import AddTaskButton from './AddTaskButton';
+import ClearCalendarButton from './ClearCalendarButton';
+import { Resource } from './ResourceData';
 
 interface ResourceToolbarProps {
   isLoading: boolean;
   currentDate: Date;
   resources: Resource[];
-  onRefresh: () => Promise<void | CalendarEvent[]>;
-  onAddTask: (event: Omit<CalendarEvent, 'id'>) => Promise<string>;
+  onRefresh: () => Promise<void>;
+  onAddTask: (taskData: any) => void;
   onShowStaffCurtain?: () => void;
 }
 
-/**
- * Component for the toolbar with add task controls
- */
 const ResourceToolbar: React.FC<ResourceToolbarProps> = ({
   isLoading,
   currentDate,
@@ -24,7 +25,36 @@ const ResourceToolbar: React.FC<ResourceToolbarProps> = ({
 }) => {
   return (
     <div className="flex items-center gap-2">
-      {/* Toolbar is now empty - Add Task Button has been removed */}
+      <Button
+        onClick={onRefresh}
+        disabled={isLoading}
+        variant="outline"
+        size="sm"
+        className="gap-2"
+      >
+        <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+        {isLoading ? 'Updating...' : 'Update'}
+      </Button>
+      
+      <ClearCalendarButton onRefresh={onRefresh} />
+      
+      <AddTaskButton
+        currentDate={currentDate}
+        resources={resources}
+        onAddTask={onAddTask}
+      />
+      
+      {onShowStaffCurtain && (
+        <Button
+          onClick={onShowStaffCurtain}
+          variant="outline"
+          size="sm"
+          className="gap-2"
+        >
+          <Users className="h-4 w-4" />
+          Staff
+        </Button>
+      )}
     </div>
   );
 };
