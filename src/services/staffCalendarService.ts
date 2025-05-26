@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { fetchStaffAssignmentsForDateRange, StaffAssignmentResponse } from "./staffAssignmentService";
 import { fetchStaffMembers, StaffMember } from "./staffService";
@@ -12,17 +11,12 @@ export interface StaffCalendarEvent {
   resourceId: string; // staff member ID
   teamId?: string;
   teamName?: string;
+  staffName?: string; // Added staff name for display
   bookingId?: string;
   eventType: 'assignment' | 'booking_event';
   backgroundColor?: string;
   borderColor?: string;
-}
-
-export interface StaffResource {
-  id: string;
-  title: string;
-  name: string;
-  email?: string;
+  client?: string; // Added client name for filtering
 }
 
 // Get all available staff members as calendar resources
@@ -60,6 +54,10 @@ export const getStaffCalendarEvents = async (
     // Get staff assignments for the date range
     const assignments = await fetchStaffAssignmentsForDateRange(startDate, endDate);
     
+    // Get all staff members to get their names
+    const allStaff = await fetchStaffMembers();
+    const staffMap = new Map(allStaff.map(staff => [staff.id, staff.name]));
+    
     // Filter assignments for selected staff
     const filteredAssignments = assignments.filter(assignment => 
       staffIds.includes(assignment.staffId)
@@ -69,15 +67,18 @@ export const getStaffCalendarEvents = async (
 
     // Convert assignments to calendar events
     for (const assignment of filteredAssignments) {
-      // Create assignment event (shows team assignment for the day)
+      const staffName = staffMap.get(assignment.staffId) || `Staff ${assignment.staffId}`;
+      
+      // Create assignment event (shows staff member assigned to team for the day)
       events.push({
         id: `assignment-${assignment.staffId}-${assignment.date}`,
-        title: `Team ${assignment.teamId}`,
+        title: `${staffName} (Team ${assignment.teamId})`,
         start: `${assignment.date}T08:00:00`,
         end: `${assignment.date}T17:00:00`,
         resourceId: assignment.staffId,
         teamId: assignment.teamId,
         teamName: assignment.teamName,
+        staffName: staffName,
         eventType: 'assignment',
         backgroundColor: '#e3f2fd',
         borderColor: '#1976d2'
@@ -90,12 +91,14 @@ export const getStaffCalendarEvents = async (
             for (const bookingEvent of booking.events) {
               events.push({
                 id: `booking-${bookingEvent.id}`,
-                title: `${bookingEvent.title} (${booking.client})`,
+                title: `${staffName} - ${bookingEvent.title}`,
                 start: bookingEvent.start,
                 end: bookingEvent.end,
                 resourceId: assignment.staffId,
                 teamId: assignment.teamId,
                 bookingId: booking.id,
+                staffName: staffName,
+                client: booking.client,
                 eventType: 'booking_event',
                 backgroundColor: getEventColor(bookingEvent.type),
                 borderColor: getEventBorderColor(bookingEvent.type)

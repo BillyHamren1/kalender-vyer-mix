@@ -32,8 +32,22 @@ const CleanCalendarGrid: React.FC<CleanCalendarGridProps> = ({
     const dateStr = format(date, 'yyyy-MM-dd');
     return events.filter(event => {
       const eventDate = format(new Date(event.start), 'yyyy-MM-dd');
-      const clientMatch = selectedClients.length === 0 || 
-        event.title.toLowerCase().includes(selectedClients.join('|').toLowerCase());
+      
+      // Client filtering logic
+      let clientMatch = true;
+      if (selectedClients.length > 0) {
+        // Check if event has client info (for booking events)
+        if (event.client) {
+          clientMatch = selectedClients.some(selectedClient => 
+            event.client?.toLowerCase().includes(selectedClient.toLowerCase())
+          );
+        } else {
+          // For assignment events without specific client, show if any client is selected
+          // This ensures staff assignments are visible when filtering by client
+          clientMatch = true;
+        }
+      }
+      
       return eventDate === dateStr && clientMatch;
     });
   };
@@ -58,6 +72,19 @@ const CleanCalendarGrid: React.FC<CleanCalendarGridProps> = ({
           const isCurrentMonth = isSameMonth(date, currentDate);
           const isTodayDate = isToday(date);
           
+          // Group events by staff to avoid showing duplicate staff names
+          const staffEvents = dayEvents.reduce((acc, event) => {
+            if (!acc[event.resourceId]) {
+              acc[event.resourceId] = {
+                staffName: event.staffName || 'Unknown Staff',
+                teamId: event.teamId,
+                events: []
+              };
+            }
+            acc[event.resourceId].events.push(event);
+            return acc;
+          }, {} as Record<string, { staffName: string; teamId?: string; events: StaffCalendarEvent[] }>);
+          
           return (
             <div
               key={date.toISOString()}
@@ -75,21 +102,20 @@ const CleanCalendarGrid: React.FC<CleanCalendarGridProps> = ({
                 {format(date, 'd')}
               </div>
               
-              {/* Event indicators */}
+              {/* Staff indicators */}
               <div className="space-y-1">
-                {dayEvents.slice(0, 3).map((event, index) => (
+                {Object.entries(staffEvents).slice(0, 3).map(([staffId, staffInfo]) => (
                   <div
-                    key={event.id}
-                    className="text-xs px-2 py-1 rounded text-white truncate"
-                    style={{ backgroundColor: event.backgroundColor || '#3b82f6' }}
-                    title={event.title}
+                    key={staffId}
+                    className="text-xs px-2 py-1 rounded text-white truncate bg-blue-500"
+                    title={`${staffInfo.staffName}${staffInfo.teamId ? ` (Team ${staffInfo.teamId})` : ''} - ${staffInfo.events.length} events`}
                   >
-                    {event.title}
+                    {staffInfo.staffName}
                   </div>
                 ))}
-                {dayEvents.length > 3 && (
+                {Object.keys(staffEvents).length > 3 && (
                   <div className="text-xs text-gray-500 px-2">
-                    +{dayEvents.length - 3} more
+                    +{Object.keys(staffEvents).length - 3} more staff
                   </div>
                 )}
               </div>
