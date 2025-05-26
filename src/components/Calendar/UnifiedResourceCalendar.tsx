@@ -6,7 +6,6 @@ import { format, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, each
 import { useNavigate } from 'react-router-dom';
 import { useContext } from 'react';
 import { CalendarContext } from '@/App';
-import { useReliableStaffOperations } from '@/hooks/useReliableStaffOperations';
 import './WeeklyCalendarStyles.css';
 
 interface UnifiedResourceCalendarProps {
@@ -19,7 +18,7 @@ interface UnifiedResourceCalendarProps {
   refreshEvents: () => Promise<void | CalendarEvent[]>;
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
   onSelectStaff?: (resourceId: string, resourceTitle: string, targetDate?: Date) => void;
-  forceRefresh?: number | boolean; // Accept both types for compatibility
+  forceRefresh?: number | boolean;
   viewMode: 'weekly' | 'monthly';
 }
 
@@ -66,13 +65,10 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 
   const days = getDaysToRender();
 
-  // Use reliable staff operations for weekly view only
-  const { getStaffForTeam, refreshTrigger } = useReliableStaffOperations(currentDate);
-
   // Convert forceRefresh to number for consistent handling
   const numericForceRefresh = typeof forceRefresh === 'boolean' ? (forceRefresh ? 1 : 0) : (forceRefresh || 0);
 
-  console.log(`UnifiedResourceCalendar: ${viewMode} view with ${events.length} events, forceRefresh: ${numericForceRefresh}, refreshTrigger: ${refreshTrigger}`);
+  console.log(`UnifiedResourceCalendar: ${viewMode} view with ${events.length} events, forceRefresh: ${numericForceRefresh}`);
 
   // Handle day header click to navigate to resource view
   const handleDayHeaderClick = (date: Date) => {
@@ -84,12 +80,13 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     navigate('/resource-view');
   };
 
-  // Handle staff drop - pass through to parent with date
+  // Handle staff drop - CRITICAL: Always pass the exact day date
   const handleStaffDrop = async (staffId: string, resourceId: string | null, dayDate: Date) => {
     console.log(`UnifiedResourceCalendar.handleStaffDrop: staffId=${staffId}, resourceId=${resourceId || 'null'}, date=${format(dayDate, 'yyyy-MM-dd')}`);
     
     if (onStaffDrop) {
       try {
+        // IMPORTANT: Always pass the specific day date, never fallback to currentDate
         await onStaffDrop(staffId, resourceId, dayDate);
         console.log('UnifiedResourceCalendar: Staff drop operation successful for date:', format(dayDate, 'yyyy-MM-dd'));
       } catch (error) {
@@ -104,10 +101,11 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     onDateSet(dateInfo);
   };
 
-  // Enhanced team selection handler
+  // Enhanced team selection handler - CRITICAL: Always pass the exact day date
   const handleSelectStaff = (resourceId: string, resourceTitle: string, dayDate: Date) => {
     console.log('UnifiedResourceCalendar.handleSelectStaff called with:', resourceId, resourceTitle, 'for date:', format(dayDate, 'yyyy-MM-dd'));
     if (onSelectStaff) {
+      // IMPORTANT: Always pass the specific day date, never fallback to currentDate
       onSelectStaff(resourceId, resourceTitle, dayDate);
     } else {
       console.error('UnifiedResourceCalendar: onSelectStaff prop is not defined');
@@ -202,20 +200,10 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
           const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
           const isCurrentMonth = viewMode === 'monthly' ? isSameMonth(date, currentDate) : true;
           
-          // Get staff data for weekly view using reliable staff operations
-          const assignedStaff = viewMode === 'weekly' 
-            ? resources.map(resource => ({
-                resourceId: resource.id,
-                staff: getStaffForTeam(resource.id),
-                minHeight: Math.max(80, 80 + (getStaffForTeam(resource.id).length * 28) + 8)
-              }))
-            : [];
+          // Convert forceRefresh to boolean for ResourceCalendar
+          const resourceCalendarForceRefresh = numericForceRefresh > 0;
           
-          // Calculate combined refresh value and convert to boolean for ResourceCalendar
-          const combinedRefreshValue = numericForceRefresh + refreshTrigger;
-          const resourceCalendarForceRefresh = combinedRefreshValue > 0;
-          
-          console.log(`UnifiedResourceCalendar: Rendering calendar for ${format(date, 'yyyy-MM-dd')} with ${dayEvents.length} events, refresh triggers: ${numericForceRefresh}-${refreshTrigger}`);
+          console.log(`UnifiedResourceCalendar: Rendering calendar for ${format(date, 'yyyy-MM-dd')} with ${dayEvents.length} events`);
           
           return (
             <div 
@@ -243,10 +231,10 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
                   onStaffDrop={(staffId: string, resourceId: string | null) => handleStaffDrop(staffId, resourceId, date)}
                   onSelectStaff={(resourceId: string, resourceTitle: string) => handleSelectStaff(resourceId, resourceTitle, date)}
                   forceRefresh={resourceCalendarForceRefresh}
-                  key={`calendar-${format(date, 'yyyy-MM-dd')}-${numericForceRefresh}-${refreshTrigger}`}
+                  key={`calendar-${format(date, 'yyyy-MM-dd')}-${numericForceRefresh}`}
                   droppableScope={`${viewMode}-calendar`}
                   calendarProps={getCommonCalendarProps(index)}
-                  localStaffData={viewMode === 'weekly' ? assignedStaff : undefined}
+                  targetDate={date}
                 />
               </div>
             </div>

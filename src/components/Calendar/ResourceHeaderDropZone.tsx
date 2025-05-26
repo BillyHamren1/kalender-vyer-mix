@@ -5,10 +5,12 @@ import { Resource } from './ResourceData';
 import { Button } from '@/components/ui/button';
 import { Users } from 'lucide-react';
 import DraggableStaffItem from './DraggableStaffItem';
+import { format } from 'date-fns';
 
 interface ResourceHeaderDropZoneProps {
   resource: Resource;
   currentDate: Date;
+  targetDate?: Date; // NEW: specific target date for this drop zone
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
   onSelectStaff?: (resourceId: string, resourceTitle: string) => void;
   assignedStaff?: Array<{id: string, name: string}>;
@@ -18,12 +20,16 @@ interface ResourceHeaderDropZoneProps {
 const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   resource,
   currentDate,
+  targetDate, // NEW: Use this for operations
   onStaffDrop,
   onSelectStaff,
   assignedStaff = [],
   minHeight = 80
 }) => {
-  console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff, minHeight: ${minHeight}`);
+  // Use targetDate if provided, otherwise fall back to currentDate
+  const effectiveDate = targetDate || currentDate;
+  
+  console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff, target date: ${format(effectiveDate, 'yyyy-MM-dd')}, minHeight: ${minHeight}`);
 
   const [{ isOver, canDrop }, drop] = useDrop({
     accept: 'STAFF',
@@ -33,25 +39,26 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         staffName: item.name,
         fromTeam: item.assignedTeam,
         toTeam: resource.id,
-        resourceTitle: resource.title
+        resourceTitle: resource.title,
+        targetDate: format(effectiveDate, 'yyyy-MM-dd')
       });
       
       if (onStaffDrop) {
         try {
           // Call the drop handler - this should trigger immediate optimistic updates
           await onStaffDrop(item.id, resource.id);
-          console.log('ResourceHeaderDropZone: Staff drop completed successfully');
+          console.log('ResourceHeaderDropZone: Staff drop completed successfully for date:', format(effectiveDate, 'yyyy-MM-dd'));
         } catch (error) {
           console.error('ResourceHeaderDropZone: Error handling staff drop:', error);
         }
       }
     },
     canDrop: (item: { id: string; assignedTeam?: string | null }) => {
-      // Check if staff is already assigned to this team
+      // Check if staff is already assigned to this team for this specific date
       const isAlreadyAssigned = assignedStaff.some(staff => staff.id === item.id);
       const canDropHere = !isAlreadyAssigned;
       
-      console.log(`ResourceHeaderDropZone: Can drop check for ${item.id}:`, {
+      console.log(`ResourceHeaderDropZone: Can drop check for ${item.id} on ${format(effectiveDate, 'yyyy-MM-dd')}:`, {
         isAlreadyAssigned,
         canDropHere,
         targetTeam: resource.id
@@ -66,7 +73,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   });
 
   const handleSelectStaff = () => {
-    console.log(`ResourceHeaderDropZone: Select staff clicked for ${resource.id}`);
+    console.log(`ResourceHeaderDropZone: Select staff clicked for ${resource.id} on ${format(effectiveDate, 'yyyy-MM-dd')}`);
     if (onSelectStaff) {
       onSelectStaff(resource.id, resource.title);
     } else {
@@ -74,14 +81,14 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     }
   };
 
-  // Handle staff removal with immediate UI feedback
+  // Handle staff removal with immediate UI feedback for the specific date
   const handleStaffRemove = async (staffId: string) => {
-    console.log(`ResourceHeaderDropZone: Removing staff ${staffId} from team ${resource.id}`);
+    console.log(`ResourceHeaderDropZone: Removing staff ${staffId} from team ${resource.id} for date ${format(effectiveDate, 'yyyy-MM-dd')}`);
     if (onStaffDrop) {
       try {
-        // This should trigger immediate optimistic updates
+        // This should trigger immediate optimistic updates for the specific date
         await onStaffDrop(staffId, null); // null resourceId means removal
-        console.log('ResourceHeaderDropZone: Staff removal completed successfully');
+        console.log('ResourceHeaderDropZone: Staff removal completed successfully for date:', format(effectiveDate, 'yyyy-MM-dd'));
       } catch (error) {
         console.error('ResourceHeaderDropZone: Error removing staff:', error);
       }
@@ -129,7 +136,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
           size="sm"
           onClick={handleSelectStaff}
           className="h-6 w-full text-xs p-1 mb-1"
-          title="Select staff for this team"
+          title={`Select staff for this team on ${format(effectiveDate, 'MMM d')}`}
         >
           <Users className="h-3 w-3" />
         </Button>
@@ -144,7 +151,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
                 key={staff.id}
                 staff={staff}
                 onRemove={() => handleStaffRemove(staff.id)}
-                currentDate={currentDate}
+                currentDate={effectiveDate}
                 teamName={resource.title}
               />
             ))}
@@ -160,7 +167,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
               ? 'bg-green-200 text-green-800 shadow-lg' 
               : 'bg-red-200 text-red-800 shadow-lg'
           }`}>
-            {canDrop ? 'Drop here' : 'Already assigned'}
+            {canDrop ? `Drop for ${format(effectiveDate, 'MMM d')}` : 'Already assigned'}
           </div>
         </div>
       )}

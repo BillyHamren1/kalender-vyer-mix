@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -107,6 +106,7 @@ interface ResourceCalendarProps {
   calendarProps?: Record<string, any>; 
   droppableScope?: string;
   localStaffData?: LocalStaffData[];
+  targetDate?: Date; // NEW: specific target date for this calendar
 }
 
 const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
@@ -122,14 +122,18 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   forceRefresh,
   calendarProps = {},
   droppableScope = 'weekly-calendar',
-  localStaffData
+  localStaffData,
+  targetDate // NEW: Use this specific date for operations
 }) => {
   const calendarRef = useRef<any>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(currentDate);
   const { isMobile, getInitialView, getMobileHeaderToolbar, getAspectRatio } = useCalendarView();
   const [currentView, setCurrentView] = useState<string>("resourceTimeGridDay");
   
-  console.log(`ResourceCalendar: Rendering for date ${currentDate.toISOString().split('T')[0]} with local staff data: ${!!localStaffData}`);
+  // Use targetDate if provided, otherwise fall back to currentDate
+  const effectiveDate = targetDate || currentDate;
+  
+  console.log(`ResourceCalendar: Rendering for date ${format(effectiveDate, 'yyyy-MM-dd')} with target date: ${targetDate ? format(targetDate, 'yyyy-MM-dd') : 'none'}`);
   
   // Get the event actions hook
   const { duplicateEvent } = useEventActions(events, () => {}, resources);
@@ -209,11 +213,11 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     }
   };
 
-  // Custom resource header content renderer with local staff data
+  // Custom resource header content renderer with target date
   const resourceHeaderContent = (info: any) => {
     if (isMobile) return info.resource.title;
     
-    console.log(`ResourceCalendar: Rendering ResourceHeaderDropZone for ${info.resource.id} with local staff data: ${!!localStaffData}`);
+    console.log(`ResourceCalendar: Rendering ResourceHeaderDropZone for ${info.resource.id} with target date: ${format(effectiveDate, 'yyyy-MM-dd')}`);
     
     // Get staff data and height from local staff data if available
     const localData = localStaffData?.find(data => data.resourceId === info.resource.id);
@@ -223,7 +227,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     return (
       <ResourceHeaderDropZone 
         resource={info.resource}
-        currentDate={currentDate}
+        currentDate={effectiveDate}
+        targetDate={effectiveDate}
         onStaffDrop={onStaffDrop}
         onSelectStaff={onSelectStaff}
         assignedStaff={assignedStaff}
@@ -232,9 +237,9 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     );
   };
 
-  // Handle team selection
+  // Handle team selection with target date
   const handleSelectStaff = (resourceId: string, resourceTitle: string) => {
-    console.log('ResourceCalendar.handleSelectStaff called with:', resourceId, resourceTitle);
+    console.log('ResourceCalendar.handleSelectStaff called with:', resourceId, resourceTitle, 'for target date:', format(effectiveDate, 'yyyy-MM-dd'));
     if (onSelectStaff) {
       onSelectStaff(resourceId, resourceTitle);
     } else {

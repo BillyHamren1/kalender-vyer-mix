@@ -4,7 +4,7 @@ import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useEventActions } from '@/hooks/useEventActions';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useReliableStaffOperations } from '@/hooks/useReliableStaffOperations';
+import { useDateAwareStaffOperations } from '@/hooks/useDateAwareStaffOperations';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import ResourceHeader from '@/components/Calendar/ResourceHeader';
@@ -62,14 +62,8 @@ const WeeklyResourceView = () => {
   const [selectedResourceTitle, setSelectedResourceTitle] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date>(hookCurrentDate);
 
-  // Use reliable staff operations for the current week start date
-  const {
-    handleStaffDrop,
-    getStaffForTeam,
-    forceRefresh,
-    isLoading: staffLoading,
-    refreshTrigger
-  } = useReliableStaffOperations(currentWeekStart);
+  // Use date-aware staff operations
+  const { handleStaffDrop, processingStaffIds } = useDateAwareStaffOperations();
 
   // Only update when hookCurrentDate changes, not on every render
   useEffect(() => {
@@ -94,13 +88,13 @@ const WeeklyResourceView = () => {
     setStaffSelectionDialogOpen(true);
   }, [hookCurrentDate]);
 
-  // Handle successful staff assignment with the reliable system
+  // Handle successful staff assignment with the date-aware system
   const handleStaffAssigned = useCallback(async (staffId: string, staffName: string) => {
     console.log(`WeeklyResourceView: Staff ${staffName} (${staffId}) assigned successfully to team ${selectedResourceId} for date:`, selectedDate);
     
     try {
-      // Use the reliable staff drop handler with the specific date
-      await handleStaffDrop(staffId, selectedResourceId);
+      // Use the date-aware staff drop handler with the specific date
+      await handleStaffDrop(staffId, selectedResourceId, selectedDate);
       console.log('WeeklyResourceView: Staff assignment completed successfully');
     } catch (error) {
       console.error('WeeklyResourceView: Error in staff assignment:', error);
@@ -112,32 +106,28 @@ const WeeklyResourceView = () => {
     setShowStaffDisplay(prev => !prev);
   }, []);
 
-  // Staff drop handler with enhanced logging and date awareness - this now properly handles dates
+  // Staff drop handler with date awareness - properly handles target dates
   const handleWeeklyStaffDrop = useCallback(async (staffId: string, resourceId: string | null, targetDate?: Date) => {
-    const effectiveDate = targetDate || currentWeekStart;
+    if (!targetDate) {
+      console.error('WeeklyResourceView: No target date provided for staff drop');
+      return;
+    }
+
     console.log('WeeklyResourceView.handleWeeklyStaffDrop:', {
       staffId,
       resourceId,
-      targetDate: format(effectiveDate, 'yyyy-MM-dd'),
-      currentWeekStart: format(currentWeekStart, 'yyyy-MM-dd')
+      targetDate: format(targetDate, 'yyyy-MM-dd')
     });
     
     try {
-      // Create a new reliable staff operations instance for the target date
-      if (targetDate && format(targetDate, 'yyyy-MM-dd') !== format(currentWeekStart, 'yyyy-MM-dd')) {
-        // If it's a different date, we need to use a different date context
-        // For now, we'll use the existing handler but this should be improved
-        console.log('Using target date for staff assignment:', format(targetDate, 'yyyy-MM-dd'));
-      }
-      
-      // Use the reliable staff drop handler
-      await handleStaffDrop(staffId, resourceId);
-      console.log('WeeklyResourceView: Staff drop completed successfully');
+      // Use the date-aware staff drop handler with the exact target date
+      await handleStaffDrop(staffId, resourceId, targetDate);
+      console.log('WeeklyResourceView: Staff drop completed successfully for date:', format(targetDate, 'yyyy-MM-dd'));
     } catch (error) {
       console.error('WeeklyResourceView: Error in staff drop:', error);
       toast.error('Failed to update staff assignment');
     }
-  }, [handleStaffDrop, currentWeekStart]);
+  }, [handleStaffDrop]);
 
   // Copy staff assignments from previous week
   const handleCopyFromPreviousWeek = useCallback(async () => {
@@ -198,19 +188,20 @@ const WeeklyResourceView = () => {
 
       toast.success('Staff assignments copied successfully');
       
-      // Trigger refresh using the reliable system
-      forceRefresh();
+      // Trigger refresh
+      window.dispatchEvent(new CustomEvent("staff-assignment-updated", { 
+        detail: { date: format(currentWeekStart, 'yyyy-MM-dd') } 
+      }));
       
     } catch (error) {
       console.error('Error copying assignments from previous week:', error);
       toast.error('Failed to copy staff assignments from previous week');
     }
-  }, [currentWeekStart, forceRefresh]);
+  }, [currentWeekStart]);
 
   // Wrapper function to ensure Promise<void> return type
   const handleRefresh = async (): Promise<void> => {
     await refreshEvents();
-    forceRefresh();
   };
 
   return (
@@ -267,7 +258,7 @@ const WeeklyResourceView = () => {
                 />
                 
                 <ResourceToolbar
-                  isLoading={isLoading || staffLoading}
+                  isLoading={isLoading || processingStaffIds.length > 0}
                   currentDate={hookCurrentDate}
                   resources={resources}
                   onRefresh={handleRefresh}
@@ -278,7 +269,7 @@ const WeeklyResourceView = () => {
             </div>
           </div>
           
-          {/* Unified Calendar View with reliable staff data */}
+          {/* Unified Calendar View with date-aware staff handling */}
           <div className="weekly-view-container overflow-x-auto">
             <UnifiedResourceCalendar
               events={events}
@@ -290,7 +281,7 @@ const WeeklyResourceView = () => {
               refreshEvents={refreshEvents}
               onStaffDrop={handleWeeklyStaffDrop}
               onSelectStaff={handleOpenStaffSelectionDialog}
-              forceRefresh={refreshTrigger}
+              forceRefresh={false}
               viewMode="weekly"
             />
           </div>
