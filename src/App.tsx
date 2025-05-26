@@ -1,6 +1,7 @@
+
 import React, { useState, createContext } from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from 'react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import Navbar from './components/Navigation/Navbar';
 import Index from './pages/Index';
@@ -12,7 +13,7 @@ import DayView from './pages/DayView';
 import BookingList from './pages/BookingList';
 import BookingDetail from './pages/BookingDetail';
 import JobsList from './pages/JobsList';
-import MonthlyBookingSchedule from './pages/MonthlySchedule';
+import MonthlyBookingSchedule from './pages/MonthlyBookingSchedule';
 import LogisticsMap from './pages/LogisticsMap';
 import APITester from './pages/APITester';
 import StaffEndpoint from './pages/StaffEndpoint';
@@ -24,11 +25,15 @@ const queryClient = new QueryClient();
 interface CalendarContextProps {
   lastViewedDate: Date;
   setLastViewedDate: (date: Date) => void;
+  lastPath?: string;
+  setLastPath?: (path: string) => void;
 }
 
 export const CalendarContext = createContext<CalendarContextProps>({
   lastViewedDate: new Date(),
-  setLastViewedDate: () => {}
+  setLastViewedDate: () => {},
+  lastPath: undefined,
+  setLastPath: () => {}
 });
 
 function App() {
@@ -37,8 +42,10 @@ function App() {
     return saved ? new Date(saved) : new Date();
   });
 
+  const [lastPath, setLastPath] = useState<string>();
+
   return (
-    <CalendarContext.Provider value={{ lastViewedDate, setLastViewedDate }}>
+    <CalendarContext.Provider value={{ lastViewedDate, setLastViewedDate, lastPath, setLastPath }}>
       <QueryClientProvider client={queryClient}>
         <div className="min-h-screen bg-gray-50">
           <Router>

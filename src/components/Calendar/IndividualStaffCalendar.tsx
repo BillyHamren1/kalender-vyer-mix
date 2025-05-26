@@ -78,7 +78,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
   }));
 
   return (
-    <div className="staff-calendar-container">
+    <div className="staff-calendar-container relative">
       {isLoading && (
         <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10">
           <div className="text-center">
@@ -99,7 +99,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
           events={formattedEvents}
           resourceAreaWidth="150px"
           resourceAreaHeaderContent="Staff Members"
-          resourceLabelText="Staff"
+          resourceLabelContent="Staff"
           slotMinTime="06:00:00"
           slotMaxTime="20:00:00"
           allDaySlot={false}
@@ -139,7 +139,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
         />
       </div>
       
-      <style jsx>{`
+      <style>{`
         .staff-calendar-container {
           position: relative;
         }
