@@ -1,6 +1,6 @@
-
 import React, { useEffect, useState } from 'react';
-import { useCalendarEvents } from '@/hooks/useCalendarEvents';
+import { useIncrementalCalendarEvents } from '@/hooks/useIncrementalCalendarEvents';
+import { useCleanupDuplicates } from '@/hooks/useCleanupDuplicates';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useEventActions } from '@/hooks/useEventActions';
 import ResourceCalendar from '@/components/Calendar/ResourceCalendar';
@@ -18,7 +18,7 @@ import { useStaffOperations } from '@/hooks/useStaffOperations';
 import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
 
 const ResourceView = () => {
-  // Use our custom hooks to manage state and logic
+  // Use the new incremental calendar events hook instead of the old one
   const {
     events,
     setEvents,
@@ -27,7 +27,10 @@ const ResourceView = () => {
     currentDate,
     handleDatesSet,
     refreshEvents
-  } = useCalendarEvents();
+  } = useIncrementalCalendarEvents();
+  
+  // Run duplicate cleanup on mount
+  useCleanupDuplicates();
   
   const {
     resources,

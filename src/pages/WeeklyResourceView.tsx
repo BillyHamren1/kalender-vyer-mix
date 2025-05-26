@@ -1,5 +1,6 @@
-
 import React, { useEffect, useState, useCallback } from 'react';
+import { useIncrementalCalendarEvents } from '@/hooks/useIncrementalCalendarEvents';
+import { useCleanupDuplicates } from '@/hooks/useCleanupDuplicates';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useEventActions } from '@/hooks/useEventActions';
@@ -21,7 +22,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 const WeeklyResourceView = () => {
-  // Use our custom hooks to manage state and logic
+  // Use the new incremental calendar events hook instead of the old one
   const {
     events,
     setEvents,
@@ -30,8 +31,12 @@ const WeeklyResourceView = () => {
     currentDate: hookCurrentDate,
     handleDatesSet,
     refreshEvents
-  } = useCalendarEvents();
+  } = useIncrementalCalendarEvents();
   
+  // Run duplicate cleanup on mount
+  useCleanupDuplicates();
+  
+  // Use our custom hooks to manage state and logic
   const {
     resources,
     teamResources,
