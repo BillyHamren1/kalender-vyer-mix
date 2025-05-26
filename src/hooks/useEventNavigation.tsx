@@ -13,11 +13,13 @@ export const useEventNavigation = () => {
     console.log('Event object:', info.event);
     console.log('Extended props:', info.event.extendedProps);
     
-    // Try multiple ways to get the booking ID
+    // Try multiple ways to get the booking ID with more comprehensive extraction
     const bookingId = info.event.extendedProps?.bookingId || 
                      info.event.extendedProps?.booking_id ||
                      info.event._def?.extendedProps?.bookingId ||
-                     info.event._def?.extendedProps?.booking_id;
+                     info.event._def?.extendedProps?.booking_id ||
+                     info.event.bookingId ||
+                     info.event.booking_id;
     
     console.log('Extracted booking ID:', bookingId);
     
@@ -61,6 +63,7 @@ export const useEventNavigation = () => {
     } else {
       console.warn('No booking ID found for this event');
       console.log('Available event properties:', Object.keys(info.event.extendedProps || {}));
+      console.log('Event def properties:', Object.keys(info.event._def?.extendedProps || {}));
       
       toast.warning("Cannot open booking details", {
         description: "This event is not linked to a booking"

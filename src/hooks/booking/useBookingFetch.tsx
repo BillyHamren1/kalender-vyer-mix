@@ -18,6 +18,8 @@ export const useBookingFetch = (id: string | undefined) => {
   // Load all dates for a booking
   const loadAllBookingDates = async (bookingId: string) => {
     try {
+      console.log(`Loading booking dates for booking ID: ${bookingId}`);
+      
       const [fetchedRigDates, fetchedEventDates, fetchedRigDownDates] = await Promise.all([
         fetchBookingDatesByType(bookingId, 'rig'),
         fetchBookingDatesByType(bookingId, 'event'),
@@ -39,11 +41,20 @@ export const useBookingFetch = (id: string | undefined) => {
   };
 
   const loadBookingData = async () => {
-    if (!id) return;
+    if (!id) {
+      console.error('No booking ID provided to useBookingFetch');
+      setError('No booking ID provided');
+      setIsLoading(false);
+      return null;
+    }
     
     try {
+      console.log(`Loading booking data for ID: ${id}`);
       setIsLoading(true);
+      setError(null);
+      
       const bookingData = await fetchBookingById(id);
+      console.log('Loaded booking data:', bookingData);
       setBooking(bookingData);
       
       // Fetch all dates for this booking from calendar events
@@ -52,7 +63,8 @@ export const useBookingFetch = (id: string | undefined) => {
       return bookingData;
     } catch (err) {
       console.error('Error fetching booking:', err);
-      setError('Failed to load booking details');
+      const errorMessage = 'Failed to load booking details';
+      setError(errorMessage);
       toast.error('Could not load booking details');
       return null;
     } finally {

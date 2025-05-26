@@ -16,11 +16,16 @@ import { InternalNotes } from '@/components/booking/InternalNotes';
 import StatusChangeForm from '@/components/booking/StatusChangeForm';
 
 const BookingDetail = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id, bookingId } = useParams<{ id?: string; bookingId?: string }>();
   const navigate = useNavigate();
   const { lastViewedDate, lastPath } = useContext(CalendarContext);
   // Set autoSync to true by default
   const [autoSync, setAutoSync] = useState(true);
+  
+  // Use either id or bookingId parameter
+  const actualBookingId = id || bookingId;
+  
+  console.log('BookingDetail component mounted with params:', { id, bookingId, actualBookingId });
   
   // Use our custom hook for booking details
   const {
@@ -40,11 +45,17 @@ const BookingDetail = () => {
     setBooking,
     addDate,
     removeDate
-  } = useBookingDetail(id);
+  } = useBookingDetail(actualBookingId);
   
   useEffect(() => {
-    loadBookingData();
-  }, [id]);
+    console.log('BookingDetail useEffect triggered with actualBookingId:', actualBookingId);
+    if (actualBookingId) {
+      loadBookingData();
+    } else {
+      console.error('No booking ID found in URL parameters');
+      toast.error('No booking ID provided in URL');
+    }
+  }, [actualBookingId]);
   
   const handleBack = () => {
     if (lastPath) {
@@ -65,6 +76,28 @@ const BookingDetail = () => {
       loadBookingData();
     }
   };
+
+  // Show error if no booking ID
+  if (!actualBookingId) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="border-b bg-white px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="sm" onClick={handleBack}>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <h1 className="text-xl font-semibold text-red-500">No Booking ID</h1>
+            </div>
+          </div>
+        </div>
+        <div className="p-6">
+          <p className="text-gray-700">No booking ID was provided in the URL.</p>
+          <p className="mt-2 text-sm text-gray-500">Expected URL format: /booking/[booking-id]</p>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -105,7 +138,14 @@ const BookingDetail = () => {
         </div>
         <div className="p-6">
           <p className="text-gray-700">{error}</p>
-          <p className="mt-4">Booking ID: {id}</p>
+          <p className="mt-4">Booking ID: {actualBookingId}</p>
+          <Button 
+            onClick={() => loadBookingData()} 
+            className="mt-4"
+            variant="outline"
+          >
+            Try Again
+          </Button>
         </div>
       </div>
     );
@@ -121,7 +161,7 @@ const BookingDetail = () => {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
-              <h1 className="text-xl font-semibold">Booking Details: #{id}</h1>
+              <h1 className="text-xl font-semibold">Booking Details: #{actualBookingId}</h1>
               {booking && (
                 <p className="text-sm text-gray-600">{booking.client}</p>
               )}
@@ -131,7 +171,7 @@ const BookingDetail = () => {
             {booking && (
               <StatusChangeForm
                 currentStatus={booking.status}
-                bookingId={id || ''}
+                bookingId={actualBookingId || ''}
                 onStatusChange={handleStatusChange}
                 disabled={isSaving}
               />
@@ -272,7 +312,7 @@ const BookingDetail = () => {
             />
 
             <ScheduleCard
-              bookingId={id || ''}
+              bookingId={actualBookingId || ''}
               rigDates={rigDates}
               eventDates={eventDates}
               rigDownDates={rigDownDates}
@@ -296,6 +336,13 @@ const BookingDetail = () => {
       ) : (
         <div className="p-6">
           <p className="text-gray-700">No booking data available.</p>
+          <Button 
+            onClick={() => loadBookingData()} 
+            className="mt-4"
+            variant="outline"
+          >
+            Reload Booking Data
+          </Button>
         </div>
       )}
     </div>
