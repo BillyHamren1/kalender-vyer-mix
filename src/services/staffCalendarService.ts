@@ -24,6 +24,15 @@ export interface StaffCalendarEvent {
   backgroundColor?: string;
   borderColor?: string;
   client?: string;
+  extendedProps?: {
+    bookingId?: string;
+    booking_id?: string;
+    deliveryAddress?: string;
+    bookingNumber?: string;
+    eventType?: string;
+    staffName?: string;
+    client?: string;
+  };
 }
 
 export interface BookingStaffAssignment {
@@ -146,7 +155,7 @@ export const getStaffCalendarEvents = async (
 
       if (calendarEvents && calendarEvents.length > 0) {
         for (const calendarEvent of calendarEvents) {
-          console.log(`Adding booking event: ${calendarEvent.title} for staff ${staffName}`);
+          console.log(`Adding booking event: ${calendarEvent.title} for staff ${staffName} with booking ID: ${bookingAssignment.booking_id}`);
           
           events.push({
             id: `staff-${bookingAssignment.staff_id}-booking-${calendarEvent.id}`,
@@ -155,12 +164,21 @@ export const getStaffCalendarEvents = async (
             end: calendarEvent.end_time,
             resourceId: bookingAssignment.staff_id,
             teamId: bookingAssignment.team_id,
-            bookingId: bookingAssignment.booking_id,
+            bookingId: bookingAssignment.booking_id, // Ensure booking ID is set
             staffName: staffName,
             client: extractClientFromTitle(calendarEvent.title),
             eventType: 'booking_event',
             backgroundColor: getEventColor(calendarEvent.event_type || 'event'),
-            borderColor: getEventBorderColor(calendarEvent.event_type || 'event')
+            borderColor: getEventBorderColor(calendarEvent.event_type || 'event'),
+            extendedProps: {
+              bookingId: bookingAssignment.booking_id, // Also set in extendedProps
+              booking_id: bookingAssignment.booking_id,
+              deliveryAddress: calendarEvent.delivery_address,
+              bookingNumber: calendarEvent.booking_number,
+              eventType: 'booking_event',
+              staffName: staffName,
+              client: extractClientFromTitle(calendarEvent.title)
+            }
           });
         }
       }
@@ -190,14 +208,19 @@ export const getStaffCalendarEvents = async (
           staffName: staffName,
           eventType: 'assignment',
           backgroundColor: '#e3f2fd',
-          borderColor: '#1976d2'
+          borderColor: '#1976d2',
+          extendedProps: {
+            eventType: 'assignment',
+            staffName: staffName,
+            teamName: assignment.teamName
+          }
         });
       }
     }
 
     console.log(`Generated ${events.length} calendar events for staff view:`);
     events.forEach(event => {
-      console.log(`- Event: ${event.title}, Date: ${event.start}, Type: ${event.eventType}, Client: ${event.client || 'N/A'}`);
+      console.log(`- Event: ${event.title}, Date: ${event.start}, Type: ${event.eventType}, Booking ID: ${event.bookingId || 'N/A'}, Client: ${event.client || 'N/A'}`);
     });
     
     return events;
