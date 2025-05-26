@@ -28,16 +28,26 @@ export const syncConfirmedBookingsToCalendar = async (): Promise<number> => {
     let eventsCreated = 0;
 
     for (const booking of confirmedBookings) {
-      // Check if events already exist for this booking
-      const { data: existingEvents } = await supabase
+      // CRITICAL: Check if ANY events already exist for this booking - if so, skip entirely
+      const { data: existingEvents, error: checkError } = await supabase
         .from('calendar_events')
-        .select('id, event_type')
+        .select('id, event_type, booking_id')
         .eq('booking_id', booking.id);
 
-      const existingEventTypes = existingEvents?.map(e => e.event_type) || [];
+      if (checkError) {
+        console.error('Error checking existing events for booking:', booking.id, checkError);
+        continue;
+      }
 
-      // Create rig day event if it doesn't exist and date is provided - DEFAULT 4 HOURS
-      if (booking.rigdaydate && !existingEventTypes.includes('rig')) {
+      if (existingEvents && existingEvents.length > 0) {
+        console.log(`Booking ${booking.id} already has ${existingEvents.length} calendar events - SKIPPING to prevent duplicates`);
+        continue; // Skip this booking entirely - it's already been planned
+      }
+
+      console.log(`Booking ${booking.id} has no existing events - proceeding with sync`);
+
+      // Create rig day event if date is provided - DEFAULT 4 HOURS
+      if (booking.rigdaydate) {
         const rigEvent: Omit<CalendarEvent, 'id'> = {
           title: `Rig Day - ${booking.client}`,
           start: `${booking.rigdaydate}T08:00:00`,
@@ -54,12 +64,12 @@ export const syncConfirmedBookingsToCalendar = async (): Promise<number> => {
         console.log(`Created rig event for booking ${booking.id}`);
       }
 
-      // Create event day event if it doesn't exist and date is provided - DEFAULT 2.5 HOURS (will be forced to team-6)
-      if (booking.eventdate && !existingEventTypes.includes('event')) {
+      // Create event day event if date is provided - DEFAULT 3 HOURS (will be forced to team-6)
+      if (booking.eventdate) {
         const eventEvent: Omit<CalendarEvent, 'id'> = {
           title: `Event - ${booking.client}`,
           start: `${booking.eventdate}T08:00:00`,
-          end: `${booking.eventdate}T10:30:00`, // 2.5 hours for EVENT type
+          end: `${booking.eventdate}T11:00:00`, // 3 hours for EVENT type
           resourceId: 'team-6', // Will be forced to team-6 anyway, but set it here
           eventType: 'event',
           bookingId: booking.id,
@@ -72,8 +82,8 @@ export const syncConfirmedBookingsToCalendar = async (): Promise<number> => {
         console.log(`Created event for booking ${booking.id}`);
       }
 
-      // Create rig down event if it doesn't exist and date is provided - DEFAULT 4 HOURS
-      if (booking.rigdowndate && !existingEventTypes.includes('rigDown')) {
+      // Create rig down event if date is provided - DEFAULT 4 HOURS
+      if (booking.rigdowndate) {
         const rigDownEvent: Omit<CalendarEvent, 'id'> = {
           title: `Rig Down - ${booking.client}`,
           start: `${booking.rigdowndate}T08:00:00`,
@@ -122,18 +132,28 @@ export const syncSingleBookingToCalendar = async (bookingId: string): Promise<vo
       return;
     }
 
-    // Check if events already exist for this booking
-    const { data: existingEvents } = await supabase
+    // CRITICAL: Check if ANY events already exist for this booking - if so, don't create new ones
+    const { data: existingEvents, error: checkError } = await supabase
       .from('calendar_events')
-      .select('id, event_type')
+      .select('id, event_type, booking_id')
       .eq('booking_id', bookingId);
 
-    const existingEventTypes = existingEvents?.map(e => e.event_type) || [];
+    if (checkError) {
+      console.error('Error checking existing events:', checkError);
+      throw checkError;
+    }
 
-    // Create events for each date that doesn't already have an event
+    if (existingEvents && existingEvents.length > 0) {
+      console.log(`Booking ${bookingId} already has ${existingEvents.length} calendar events - CANNOT plan again`);
+      return; // Exit - this booking is already planned
+    }
+
+    console.log(`Booking ${bookingId} has no existing events - proceeding with planning`);
+
+    // Create events for each date
     const eventsToCreate = [];
 
-    if (booking.rigdaydate && !existingEventTypes.includes('rig')) {
+    if (booking.rigdaydate) {
       eventsToCreate.push({
         title: `Rig Day - ${booking.client}`,
         start: `${booking.rigdaydate}T08:00:00`,
@@ -146,11 +166,11 @@ export const syncSingleBookingToCalendar = async (bookingId: string): Promise<vo
       });
     }
 
-    if (booking.eventdate && !existingEventTypes.includes('event')) {
+    if (booking.eventdate) {
       eventsToCreate.push({
         title: `Event - ${booking.client}`,
         start: `${booking.eventdate}T08:00:00`,
-        end: `${booking.eventdate}T10:30:00`, // 2.5 hours for EVENT type
+        end: `${booking.eventdate}T11:00:00`, // 3 hours for EVENT type
         resourceId: 'team-6', // Will be forced to team-6 anyway
         eventType: 'event' as const,
         bookingId: booking.id,
@@ -159,7 +179,7 @@ export const syncSingleBookingToCalendar = async (bookingId: string): Promise<vo
       });
     }
 
-    if (booking.rigdowndate && !existingEventTypes.includes('rigDown')) {
+    if (booking.rigdowndate) {
       eventsToCreate.push({
         title: `Rig Down - ${booking.client}`,
         start: `${booking.rigdowndate}T08:00:00`,
