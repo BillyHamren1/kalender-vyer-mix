@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -63,9 +62,10 @@ const WeeklyResourceView = () => {
 
   const teamIds = resources.map(r => r.id);
 
-  // Use local staff state for this week
+  // Use local staff state for this week - now includes forceRefresh
   const {
-    syncAfterAssignment
+    syncAfterAssignment,
+    forceRefresh: forceLocalStateRefresh
   } = useLocalStaffState(weekDays, teamIds);
 
   // State for showing staff display panel
@@ -106,23 +106,32 @@ const WeeklyResourceView = () => {
     setStaffSelectionDialogOpen(true);
   }, [hookCurrentDate]);
 
-  // Handle successful staff assignment with proper sync - FIXED to receive staff info
+  // Handle successful staff assignment with proper sync - ENHANCED with better error handling and timing
   const handleStaffAssigned = useCallback(async (staffId: string, staffName: string) => {
     console.log(`WeeklyResourceView: Staff ${staffName} (${staffId}) assigned successfully to team ${selectedResourceId} for date:`, selectedDate);
     
-    // Sync local state with the new assignment using the actual staff ID and name
     try {
+      // Sync local state with the new assignment using the actual staff ID and name
+      console.log('WeeklyResourceView: Starting sync after assignment...');
       await syncAfterAssignment(staffId, selectedResourceId, selectedDate);
-      console.log('Local state synced successfully');
+      console.log('WeeklyResourceView: Local state synced successfully');
+      
+      // Force refresh of local state to ensure UI updates
+      forceLocalStateRefresh();
+      console.log('WeeklyResourceView: Forced local state refresh');
       
       // Also trigger the global refresh to ensure consistency
       handleStaffDrop('', '');
+      console.log('WeeklyResourceView: Triggered global refresh');
+      
     } catch (error) {
-      console.error('Error syncing after staff assignment:', error);
+      console.error('WeeklyResourceView: Error syncing after staff assignment:', error);
       // Fallback to just triggering global refresh
       handleStaffDrop('', '');
+      // Also force local refresh as fallback
+      forceLocalStateRefresh();
     }
-  }, [syncAfterAssignment, selectedResourceId, selectedDate, handleStaffDrop]);
+  }, [syncAfterAssignment, selectedResourceId, selectedDate, handleStaffDrop, forceLocalStateRefresh]);
 
   // Toggle staff display panel
   const handleToggleStaffDisplay = useCallback(() => {

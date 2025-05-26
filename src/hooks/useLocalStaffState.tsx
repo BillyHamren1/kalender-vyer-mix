@@ -26,6 +26,7 @@ export interface TeamHeightData {
 export const useLocalStaffState = (weekDays: Date[], teamIds: string[]) => {
   const [localStaffAssignments, setLocalStaffAssignments] = useState<LocalStaffAssignment[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [forceRefreshCounter, setForceRefreshCounter] = useState(0);
 
   // Initialize staff assignments from database on mount
   useEffect(() => {
@@ -78,8 +79,9 @@ export const useLocalStaffState = (weekDays: Date[], teamIds: string[]) => {
     initializeAssignments();
   }, [weekDays, isInitialized]);
 
-  // Calculate team heights from local state
+  // Calculate team heights from local state - now includes forceRefreshCounter in dependencies
   const teamHeights = useMemo((): TeamHeightData => {
+    console.log('Recalculating teamHeights with', localStaffAssignments.length, 'assignments, force refresh:', forceRefreshCounter);
     const heights: TeamHeightData = {};
 
     // Initialize all teams
@@ -128,8 +130,9 @@ export const useLocalStaffState = (weekDays: Date[], teamIds: string[]) => {
       teamData.minHeight = 80 + (maxCount * 28) + 8;
     });
 
+    console.log('Final teamHeights calculation:', heights);
     return heights;
-  }, [localStaffAssignments, weekDays, teamIds]);
+  }, [localStaffAssignments, weekDays, teamIds, forceRefreshCounter]);
 
   // Add staff assignment with proper staff name
   const addStaffAssignment = useCallback(async (staffId: string, staffName: string, teamId: string, date: Date) => {
@@ -157,13 +160,19 @@ export const useLocalStaffState = (weekDays: Date[], teamIds: string[]) => {
       );
       
       // Add new assignment
-      return [...filtered, {
+      const newAssignments = [...filtered, {
         staffId,
         staffName: actualStaffName,
         teamId,
         date: dateStr
       }];
+      
+      console.log('Updated local staff assignments:', newAssignments);
+      return newAssignments;
     });
+    
+    // Force a refresh to ensure UI updates immediately
+    setForceRefreshCounter(prev => prev + 1);
   }, []);
 
   // Remove staff assignment
@@ -172,11 +181,16 @@ export const useLocalStaffState = (weekDays: Date[], teamIds: string[]) => {
     
     console.log(`Removing staff assignment: ${staffId} on ${dateStr}`);
     
-    setLocalStaffAssignments(prev => 
-      prev.filter(assignment => 
+    setLocalStaffAssignments(prev => {
+      const filtered = prev.filter(assignment => 
         !(assignment.staffId === staffId && assignment.date === dateStr)
-      )
-    );
+      );
+      console.log('Updated local staff assignments after removal:', filtered);
+      return filtered;
+    });
+    
+    // Force a refresh to ensure UI updates immediately
+    setForceRefreshCounter(prev => prev + 1);
   }, []);
 
   // Sync with successful assignment from dialog
@@ -193,6 +207,8 @@ export const useLocalStaffState = (weekDays: Date[], teamIds: string[]) => {
       
       // Add to local state with correct staff name
       await addStaffAssignment(staffId, staffName, teamId, date);
+      
+      console.log('Sync after assignment completed successfully');
     } catch (error) {
       console.error('Error syncing after assignment:', error);
       // Fallback to adding with basic name
@@ -200,7 +216,7 @@ export const useLocalStaffState = (weekDays: Date[], teamIds: string[]) => {
     }
   }, [addStaffAssignment]);
 
-  // Get staff for a specific team and date
+  // Get staff for a specific team and date - now recalculates from current state
   const getStaffForTeamAndDate = useCallback((teamId: string, date: Date): Array<{id: string, name: string}> => {
     const dateStr = format(date, 'yyyy-MM-dd');
     const staff = teamHeights[teamId]?.staffByDay[dateStr] || [];
@@ -210,8 +226,16 @@ export const useLocalStaffState = (weekDays: Date[], teamIds: string[]) => {
 
   // Get minimum height for a team
   const getTeamMinHeight = useCallback((teamId: string): number => {
-    return teamHeights[teamId]?.minHeight || 80;
+    const height = teamHeights[teamId]?.minHeight || 80;
+    console.log(`Getting min height for team ${teamId}: ${height}px`);
+    return height;
   }, [teamHeights]);
+
+  // Force refresh function to trigger UI updates
+  const forceRefresh = useCallback(() => {
+    console.log('Force refreshing local staff state');
+    setForceRefreshCounter(prev => prev + 1);
+  }, []);
 
   return {
     teamHeights,
@@ -221,6 +245,8 @@ export const useLocalStaffState = (weekDays: Date[], teamIds: string[]) => {
     removeStaffAssignment,
     syncAfterAssignment,
     getStaffForTeamAndDate,
-    getTeamMinHeight
+    getTeamMinHeight,
+    forceRefresh,
+    forceRefreshCounter
   };
 };

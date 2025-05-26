@@ -21,7 +21,7 @@ interface StaffSelectionDialogProps {
   currentDate: Date;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onStaffAssigned: (staffId: string, staffName: string) => void; // Pass both ID and name
+  onStaffAssigned: (staffId: string, staffName: string) => Promise<void>; // Changed to return Promise
 }
 
 const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
@@ -37,6 +37,7 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [assignments, setAssignments] = useState<any[]>([]);
+  const [assigning, setAssigning] = useState<string | null>(null);
   
   // Load all staff and current assignments
   useEffect(() => {
@@ -112,20 +113,31 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
     }
   }, [allStaff, assignments, searchQuery, resourceId]);
   
-  // Handle staff assignment
+  // Handle staff assignment with proper async handling
   const handleAssignStaff = async (staffId: string, staffName: string) => {
+    if (assigning) return; // Prevent double-clicks
+    
     try {
+      setAssigning(staffId);
       console.log(`StaffSelectionDialog: Assigning staff ${staffName} (${staffId}) to team ${resourceId}`);
       
+      // First, make the API call to assign staff
       await assignStaffToTeam(staffId, resourceId, currentDate);
-      toast.success(`${staffName} assigned to ${resourceTitle} successfully`);
       
-      // Pass both staff ID and name to the callback
-      onStaffAssigned(staffId, staffName);
+      console.log('StaffSelectionDialog: API assignment successful, calling callback');
+      
+      // Then call the callback and wait for it to complete
+      await onStaffAssigned(staffId, staffName);
+      
+      console.log('StaffSelectionDialog: Callback completed successfully');
+      
+      toast.success(`${staffName} assigned to ${resourceTitle} successfully`);
       onOpenChange(false);
     } catch (error) {
       console.error('Error assigning staff:', error);
       toast.error('Failed to assign staff member');
+    } finally {
+      setAssigning(null);
     }
   };
   
@@ -181,6 +193,7 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
               {filteredStaff.map(staff => {
                 const alreadyAssigned = isAssignedElsewhere(staff.id);
                 const assignedTeam = alreadyAssigned ? getAssignedTeamName(staff.id) : null;
+                const isCurrentlyAssigning = assigning === staff.id;
                 
                 return (
                   <li 
@@ -206,10 +219,14 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
                       variant="ghost"
                       size="sm"
                       onClick={() => handleAssignStaff(staff.id, staff.name)}
-                      disabled={alreadyAssigned}
+                      disabled={alreadyAssigned || isCurrentlyAssigning}
                       title={alreadyAssigned ? `Already assigned to ${assignedTeam}` : `Assign to ${resourceTitle}`}
                     >
-                      <UserPlus className="h-4 w-4" />
+                      {isCurrentlyAssigning ? (
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600"></div>
+                      ) : (
+                        <UserPlus className="h-4 w-4" />
+                      )}
                     </Button>
                   </li>
                 );
