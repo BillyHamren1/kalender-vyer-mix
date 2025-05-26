@@ -4,6 +4,7 @@ import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
 import { Button } from '@/components/ui/button';
 import { Users } from 'lucide-react';
+import DraggableStaffItem from './DraggableStaffItem';
 
 interface ResourceHeaderDropZoneProps {
   resource: Resource;
@@ -25,7 +26,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff, minHeight: ${minHeight}`);
 
   const [{ isOver }, drop] = useDrop({
-    accept: 'staff',
+    accept: 'STAFF', // Changed from 'staff' to 'STAFF' to match DraggableStaffItem
     drop: async (item: { id: string }) => {
       console.log(`ResourceHeaderDropZone: Staff ${item.id} dropped on team ${resource.id}`);
       if (onStaffDrop) {
@@ -47,6 +48,18 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       onSelectStaff(resource.id, resource.title);
     } else {
       console.error('ResourceHeaderDropZone: onSelectStaff is not defined');
+    }
+  };
+
+  // Handle staff removal
+  const handleStaffRemove = async (staffId: string) => {
+    console.log(`ResourceHeaderDropZone: Removing staff ${staffId} from team ${resource.id}`);
+    if (onStaffDrop) {
+      try {
+        await onStaffDrop(staffId, null); // null resourceId means removal
+      } catch (error) {
+        console.error('Error removing staff:', error);
+      }
     }
   };
 
@@ -86,18 +99,18 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         </Button>
       </div>
       
-      {/* Staff Section - shows assigned staff names below the button */}
+      {/* Staff Section - shows assigned staff using DraggableStaffItem */}
       <div className="staff-section flex-1 min-h-0">
         {assignedStaff.length > 0 ? (
           <div className="space-y-1">
             {assignedStaff.map((staff) => (
-              <div
+              <DraggableStaffItem
                 key={staff.id}
-                className="bg-blue-100 text-blue-800 text-xs px-1 py-0.5 rounded truncate transition-all duration-200"
-                title={staff.name}
-              >
-                {staff.name}
-              </div>
+                staff={staff}
+                onRemove={() => handleStaffRemove(staff.id)}
+                currentDate={currentDate}
+                teamName={resource.title}
+              />
             ))}
           </div>
         ) : null}

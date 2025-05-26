@@ -35,7 +35,7 @@ const DraggableStaffItem: React.FC<DraggableStaffItemProps> = ({
   
   // Configure drag functionality with proper drag image and cursor
   const [{ isDragging }, drag, dragPreview] = useDrag({
-    type: 'STAFF',
+    type: 'STAFF', // Consistent drag type
     item: () => {
       console.log('Starting drag for staff:', staff);
       return { 
