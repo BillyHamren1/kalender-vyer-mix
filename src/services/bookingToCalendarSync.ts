@@ -54,13 +54,13 @@ export const syncConfirmedBookingsToCalendar = async (): Promise<number> => {
         console.log(`Created rig event for booking ${booking.id}`);
       }
 
-      // Create event day event if it doesn't exist and date is provided - DEFAULT 4 HOURS
+      // Create event day event if it doesn't exist and date is provided - DEFAULT 2.5 HOURS (will be forced to team-6)
       if (booking.eventdate && !existingEventTypes.includes('event')) {
         const eventEvent: Omit<CalendarEvent, 'id'> = {
           title: `Event - ${booking.client}`,
           start: `${booking.eventdate}T08:00:00`,
-          end: `${booking.eventdate}T12:00:00`,
-          resourceId: 'team-6', // Default to "Todays events" team
+          end: `${booking.eventdate}T10:30:00`, // 2.5 hours for EVENT type
+          resourceId: 'team-6', // Will be forced to team-6 anyway, but set it here
           eventType: 'event',
           bookingId: booking.id,
           bookingNumber: booking.booking_number || booking.id,
@@ -100,7 +100,7 @@ export const syncConfirmedBookingsToCalendar = async (): Promise<number> => {
   }
 };
 
-// Sync a single booking to calendar events (when a booking is confirmed) - DEFAULT 4 HOURS
+// Sync a single booking to calendar events (when a booking is confirmed)
 export const syncSingleBookingToCalendar = async (bookingId: string): Promise<void> => {
   console.log(`Syncing single booking ${bookingId} to calendar...`);
   
@@ -130,14 +130,14 @@ export const syncSingleBookingToCalendar = async (bookingId: string): Promise<vo
 
     const existingEventTypes = existingEvents?.map(e => e.event_type) || [];
 
-    // Create events for each date that doesn't already have an event - DEFAULT 4 HOURS
+    // Create events for each date that doesn't already have an event
     const eventsToCreate = [];
 
     if (booking.rigdaydate && !existingEventTypes.includes('rig')) {
       eventsToCreate.push({
         title: `Rig Day - ${booking.client}`,
         start: `${booking.rigdaydate}T08:00:00`,
-        end: `${booking.rigdaydate}T12:00:00`,
+        end: `${booking.rigdaydate}T12:00:00`, // 4 hours for rig
         resourceId: 'team-1',
         eventType: 'rig' as const,
         bookingId: booking.id,
@@ -150,8 +150,8 @@ export const syncSingleBookingToCalendar = async (bookingId: string): Promise<vo
       eventsToCreate.push({
         title: `Event - ${booking.client}`,
         start: `${booking.eventdate}T08:00:00`,
-        end: `${booking.eventdate}T12:00:00`,
-        resourceId: 'team-6',
+        end: `${booking.eventdate}T10:30:00`, // 2.5 hours for EVENT type
+        resourceId: 'team-6', // Will be forced to team-6 anyway
         eventType: 'event' as const,
         bookingId: booking.id,
         bookingNumber: booking.booking_number || booking.id,
@@ -163,7 +163,7 @@ export const syncSingleBookingToCalendar = async (bookingId: string): Promise<vo
       eventsToCreate.push({
         title: `Rig Down - ${booking.client}`,
         start: `${booking.rigdowndate}T08:00:00`,
-        end: `${booking.rigdowndate}T12:00:00`,
+        end: `${booking.rigdowndate}T12:00:00`, // 4 hours for rig down
         resourceId: 'team-1',
         eventType: 'rigDown' as const,
         bookingId: booking.id,

@@ -481,15 +481,15 @@
   }
 }
 
-/* Add these new styles for stacked events in team-6 */
+/* Enhanced styles for team-6 stacked events with 2.5hr slots */
 .stacked-event {
   border-left: 4px solid #FEF7CD !important;
   margin-bottom: 2px !important;
   border-radius: 4px !important;
   height: auto !important;
-  min-height: 40px !important; /* Increased height for three lines */
+  min-height: 40px !important;
   padding: 4px !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.15) !important; /* Enhanced shadow */
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15) !important;
 }
 
 .stacked-event-content {
@@ -546,9 +546,12 @@
   overflow: hidden !important;
 }
 
-/* Special styling for events based on their type */
-.event-event {
+/* Special styling for events based on their type - all in team-6 with 2.5hr slots */
+[data-resource-id="team-6"] .event-event {
   border-left: 4px solid #FEF7CD !important;
+  background-color: #FEF7CD !important;
+  border-color: #F3E8A3 !important;
+  color: #000000 !important;
 }
 
 .event-rig {
@@ -600,4 +603,22 @@
 .event-booking-id,
 .event-city {
   color: #000000 !important;
+}
+
+/* Force all EVENT type events in team-6 to stack with proper spacing */
+[data-resource-id="team-6"] .fc-timegrid-event {
+  position: relative !important;
+  margin-bottom: 3px !important;
+  height: auto !important;
+  min-height: 45px !important;
+}
+
+/* Ensure team-6 events don't overlap and stack properly */
+[data-resource-id="team-6"] .fc-timegrid-col {
+  position: relative;
+}
+
+[data-resource-id="team-6"] .fc-timegrid-event-harness {
+  position: relative !important;
+  z-index: auto !important;
 }
