@@ -8,6 +8,7 @@ const Navbar = () => {
     { href: '/resource-view', label: 'Resource View' },
     { href: '/weekly-view', label: '7-Day View' },
     { href: '/monthly-view', label: 'Month View' },
+    { href: '/staff-calendar', label: 'Staff Calendar' },
     { href: '/test-monthly-view', label: 'Test Monthly View' },
     { href: '/day-view', label: 'Day View' },
     { href: '/booking-list', label: 'Bookings' },
