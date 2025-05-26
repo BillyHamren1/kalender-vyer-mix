@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { fetchStaffAssignmentsForDateRange, StaffAssignmentResponse } from "./staffAssignmentService";
 import { fetchStaffMembers, StaffMember } from "./staffService";
@@ -137,7 +136,7 @@ export const getStaffCalendarEvents = async (
 
     console.log(`Found ${filteredBookingAssignments.length} booking-staff assignments`);
 
-    // Process booking assignments first (these are the actual work assignments)
+    // Process booking assignments (these are the actual work assignments)
     for (const bookingAssignment of filteredBookingAssignments) {
       const staffName = staffMap.get(bookingAssignment.staff_id) || `Staff ${bookingAssignment.staff_id}`;
       
@@ -166,14 +165,14 @@ export const getStaffCalendarEvents = async (
             end: calendarEvent.end_time,
             resourceId: bookingAssignment.staff_id,
             teamId: bookingAssignment.team_id,
-            bookingId: bookingAssignment.booking_id, // Ensure booking ID is set
+            bookingId: bookingAssignment.booking_id,
             staffName: staffName,
             client: extractClientFromTitle(calendarEvent.title),
             eventType: 'booking_event',
             backgroundColor: getEventColor(calendarEvent.event_type || 'event'),
             borderColor: getEventBorderColor(calendarEvent.event_type || 'event'),
             extendedProps: {
-              bookingId: bookingAssignment.booking_id, // Also set in extendedProps
+              bookingId: bookingAssignment.booking_id,
               booking_id: bookingAssignment.booking_id,
               deliveryAddress: calendarEvent.delivery_address,
               bookingNumber: calendarEvent.booking_number,
@@ -186,41 +185,7 @@ export const getStaffCalendarEvents = async (
       }
     }
 
-    // Now add team assignment events for days where staff has no booking assignments
-    for (const assignment of filteredAssignments) {
-      const staffName = staffMap.get(assignment.staffId) || `Staff ${assignment.staffId}`;
-      
-      // Check if staff has any booking assignments for this date
-      const hasBookingAssignments = filteredBookingAssignments.some(ba =>
-        ba.staff_id === assignment.staffId && ba.assignment_date === assignment.date
-      );
-
-      // Only show team assignment if no specific booking assignments exist
-      if (!hasBookingAssignments) {
-        console.log(`Adding team assignment event for ${staffName} on ${assignment.date} (no booking assignments)`);
-        
-        events.push({
-          id: `assignment-${assignment.staffId}-${assignment.date}`,
-          title: `${staffName} (Team ${assignment.teamId})`,
-          start: `${assignment.date}T08:00:00`,
-          end: `${assignment.date}T17:00:00`,
-          resourceId: assignment.staffId,
-          teamId: assignment.teamId,
-          teamName: assignment.teamName,
-          staffName: staffName,
-          eventType: 'assignment',
-          backgroundColor: '#e3f2fd',
-          borderColor: '#1976d2',
-          extendedProps: {
-            eventType: 'assignment',
-            staffName: staffName,
-            teamName: assignment.teamName
-          }
-        });
-      }
-    }
-
-    console.log(`Generated ${events.length} calendar events for staff view:`);
+    console.log(`Generated ${events.length} calendar events for staff view (booking assignments only):`);
     events.forEach(event => {
       console.log(`- Event: ${event.title}, Date: ${event.start}, Type: ${event.eventType}, Booking ID: ${event.bookingId || 'N/A'}, Client: ${event.client || 'N/A'}`);
     });
