@@ -69,10 +69,9 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 
   // Use local staff state for weekly view only
   const {
-    addStaffAssignment,
-    removeStaffAssignment,
     getStaffForTeamAndDate,
-    getTeamMinHeight
+    getTeamMinHeight,
+    isInitialized
   } = useLocalStaffState(viewMode === 'weekly' ? days : [], teamIds);
 
   console.log(`UnifiedResourceCalendar: ${viewMode} view with ${events.length} events`);
@@ -87,19 +86,9 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     navigate('/resource-view');
   };
 
-  // Enhanced staff drop handler with optimistic updates
+  // Handle staff drop - no optimistic updates, just API call
   const handleStaffDrop = async (staffId: string, resourceId: string | null, dayDate: Date) => {
     console.log(`UnifiedResourceCalendar.handleStaffDrop: staffId=${staffId}, resourceId=${resourceId || 'null'}, date=${format(dayDate, 'yyyy-MM-dd')}`);
-    
-    // Apply optimistic update immediately for weekly view
-    if (viewMode === 'weekly') {
-      if (resourceId) {
-        // We need staff name - for now use staffId as fallback
-        addStaffAssignment(staffId, `Staff ${staffId}`, resourceId, dayDate);
-      } else {
-        removeStaffAssignment(staffId, dayDate);
-      }
-    }
     
     if (onStaffDrop) {
       try {
@@ -107,15 +96,6 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
         console.log('Staff drop operation successful for date:', format(dayDate, 'yyyy-MM-dd'));
       } catch (error) {
         console.error('Error in handleStaffDrop:', error);
-        // Revert optimistic update on error for weekly view
-        if (viewMode === 'weekly') {
-          if (resourceId) {
-            removeStaffAssignment(staffId, dayDate);
-          } else {
-            // Would need to restore previous assignment - for now just log
-            console.log('Would need to restore previous staff assignment');
-          }
-        }
       }
     }
   };
@@ -214,6 +194,17 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
       return 'monthly-calendar-grid';
     }
   };
+
+  // Don't render until local state is initialized for weekly view
+  if (viewMode === 'weekly' && !isInitialized) {
+    return (
+      <div className={getContainerClass()}>
+        <div className="flex items-center justify-center h-32">
+          <div className="text-gray-500">Loading staff assignments...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={getContainerClass()}>

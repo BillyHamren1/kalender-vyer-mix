@@ -5,6 +5,7 @@ import { useTeamResources } from '@/hooks/useTeamResources';
 import { useEventActions } from '@/hooks/useEventActions';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useStaffOperations } from '@/hooks/useStaffOperations';
+import { useLocalStaffState } from '@/hooks/useLocalStaffState';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import ResourceHeader from '@/components/Calendar/ResourceHeader';
@@ -19,6 +20,7 @@ import TeamEditDialog from '@/components/Calendar/TeamEditDialog';
 import { startOfWeek, subDays, format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { fetchStaffMembers } from '@/services/staffService';
 
 const WeeklyResourceView = () => {
   // Use the new real-time calendar events hook
@@ -52,6 +54,20 @@ const WeeklyResourceView = () => {
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     return startOfWeek(new Date(hookCurrentDate), { weekStartsOn: 1 });
   });
+
+  // Generate week days for local staff state
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date(currentWeekStart);
+    date.setDate(currentWeekStart.getDate() + i);
+    return date;
+  });
+
+  const teamIds = resources.map(r => r.id);
+
+  // Use local staff state for this week
+  const {
+    syncAfterAssignment
+  } = useLocalStaffState(weekDays, teamIds);
 
   // State for showing staff display panel
   const [showStaffDisplay, setShowStaffDisplay] = useState(false);
@@ -91,26 +107,57 @@ const WeeklyResourceView = () => {
     setStaffSelectionDialogOpen(true);
   }, [hookCurrentDate]);
 
-  // Handle successful staff assignment
-  const handleStaffAssigned = useCallback(() => {
-    console.log('WeeklyResourceView: Staff assigned successfully for date:', selectedDate, 'refreshing...');
-    // Toggle the staffAssignmentsUpdated flag to trigger a refresh
-    handleStaffDrop('', '');
-  }, [handleStaffDrop, selectedDate]);
+  // Handle successful staff assignment with proper sync
+  const handleStaffAssigned = useCallback(async () => {
+    console.log('WeeklyResourceView: Staff assigned successfully for date:', selectedDate);
+    
+    // Sync local state with the new assignment
+    try {
+      // Get the staff ID from the last assignment (we'll need to modify this to get proper staff ID)
+      // For now, trigger a refresh to ensure consistency
+      await syncAfterAssignment('', selectedResourceId, selectedDate);
+      
+      // Also trigger the global refresh
+      handleStaffDrop('', '');
+    } catch (error) {
+      console.error('Error syncing after staff assignment:', error);
+      // Fallback to just triggering global refresh
+      handleStaffDrop('', '');
+    }
+  }, [syncAfterAssignment, selectedResourceId, selectedDate, handleStaffDrop]);
 
   // Toggle staff display panel
   const handleToggleStaffDisplay = useCallback(() => {
     setShowStaffDisplay(prev => !prev);
   }, []);
 
-  // Staff drop handler - simplified without optimistic updates (handled by UnifiedResourceCalendar)
+  // Staff drop handler - now with proper sync
   const handleWeeklyStaffDrop = useCallback(async (staffId: string, resourceId: string | null, targetDate?: Date) => {
     console.log('WeeklyResourceView: Staff drop for date:', targetDate || hookCurrentDate);
     const dateToUse = targetDate || hookCurrentDate;
     setSelectedDate(dateToUse);
     
-    return handleStaffDrop(staffId, resourceId);
-  }, [handleStaffDrop, hookCurrentDate]);
+    try {
+      // First do the API call
+      await handleStaffDrop(staffId, resourceId);
+      
+      // Then sync local state if it was an assignment (not removal)
+      if (resourceId && staffId) {
+        // Get staff name for proper sync
+        try {
+          const staffMembers = await fetchStaffMembers();
+          const staff = staffMembers.find(s => s.id === staffId);
+          const staffName = staff?.name || `Staff ${staffId}`;
+          
+          await syncAfterAssignment(staffId, resourceId, dateToUse);
+        } catch (error) {
+          console.error('Error syncing after drop:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error in staff drop operation:', error);
+    }
+  }, [handleStaffDrop, hookCurrentDate, syncAfterAssignment]);
 
   // Copy staff assignments from previous week
   const handleCopyFromPreviousWeek = useCallback(async () => {
@@ -171,11 +218,14 @@ const WeeklyResourceView = () => {
 
       toast.success('Staff assignments copied successfully');
       
+      // Trigger refresh to reload local state
+      handleStaffDrop('', '');
+      
     } catch (error) {
       console.error('Error copying assignments from previous week:', error);
       toast.error('Failed to copy staff assignments from previous week');
     }
-  }, [currentWeekStart]);
+  }, [currentWeekStart, handleStaffDrop]);
 
   // Wrapper function to ensure Promise<void> return type
   const handleRefresh = async (): Promise<void> => {

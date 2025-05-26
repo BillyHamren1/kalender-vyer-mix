@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { fetchStaffMembers, fetchStaffAssignments, assignStaffToTeam } from '@/services/staffService';
 import { StaffMember } from './StaffAssignmentRow';
@@ -20,7 +21,7 @@ interface StaffSelectionDialogProps {
   currentDate: Date;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onStaffAssigned: () => void; // Callback to refresh assignments after a new assignment
+  onStaffAssigned: (staffId: string, staffName: string) => void; // Updated to pass staff info
 }
 
 const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
@@ -112,11 +113,11 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
   }, [allStaff, assignments, searchQuery, resourceId]);
   
   // Handle staff assignment
-  const handleAssignStaff = async (staffId: string) => {
+  const handleAssignStaff = async (staffId: string, staffName: string) => {
     try {
       await assignStaffToTeam(staffId, resourceId, currentDate);
       toast.success('Staff assigned to team successfully');
-      onStaffAssigned();
+      onStaffAssigned(staffId, staffName); // Pass both ID and name
       onOpenChange(false);
     } catch (error) {
       console.error('Error assigning staff:', error);
@@ -200,7 +201,7 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleAssignStaff(staff.id)}
+                      onClick={() => handleAssignStaff(staff.id, staff.name)}
                       disabled={alreadyAssigned}
                       title={alreadyAssigned ? `Already assigned to ${assignedTeam}` : `Assign to ${resourceTitle}`}
                     >

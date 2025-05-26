@@ -1,6 +1,7 @@
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { format } from 'date-fns';
+import { fetchStaffAssignments, fetchStaffMembers } from '@/services/staffService';
 
 export interface LocalStaffAssignment {
   staffId: string;
@@ -24,6 +25,52 @@ export interface TeamHeightData {
 
 export const useLocalStaffState = (weekDays: Date[], teamIds: string[]) => {
   const [localStaffAssignments, setLocalStaffAssignments] = useState<LocalStaffAssignment[]>([]);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Initialize staff assignments from database on mount
+  useEffect(() => {
+    const initializeAssignments = async () => {
+      if (weekDays.length === 0 || isInitialized) return;
+      
+      try {
+        console.log('Initializing staff assignments for week:', weekDays.map(d => format(d, 'yyyy-MM-dd')));
+        
+        // Fetch staff members to get names
+        const staffMembers = await fetchStaffMembers();
+        const staffMap = new Map(staffMembers.map(s => [s.id, s.name]));
+        
+        // Fetch assignments for each day of the week
+        const allAssignments: LocalStaffAssignment[] = [];
+        
+        for (const day of weekDays) {
+          const assignments = await fetchStaffAssignments(day);
+          
+          assignments.forEach(assignment => {
+            const staffName = assignment.staff_members?.name || 
+                            assignment.staff_name || 
+                            staffMap.get(assignment.staff_id) || 
+                            `Staff ${assignment.staff_id}`;
+            
+            allAssignments.push({
+              staffId: assignment.staff_id,
+              staffName,
+              teamId: assignment.team_id,
+              date: format(day, 'yyyy-MM-dd')
+            });
+          });
+        }
+        
+        console.log('Initialized with assignments:', allAssignments);
+        setLocalStaffAssignments(allAssignments);
+        setIsInitialized(true);
+      } catch (error) {
+        console.error('Error initializing staff assignments:', error);
+        setIsInitialized(true); // Set to true even on error to prevent retries
+      }
+    };
+
+    initializeAssignments();
+  }, [weekDays, isInitialized]);
 
   // Calculate team heights from local state
   const teamHeights = useMemo((): TeamHeightData => {
@@ -74,9 +121,11 @@ export const useLocalStaffState = (weekDays: Date[], teamIds: string[]) => {
     return heights;
   }, [localStaffAssignments, weekDays, teamIds]);
 
-  // Add staff assignment optimistically
+  // Add staff assignment with proper staff name
   const addStaffAssignment = useCallback((staffId: string, staffName: string, teamId: string, date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
+    
+    console.log(`Adding staff assignment: ${staffName} (${staffId}) to team ${teamId} on ${dateStr}`);
     
     setLocalStaffAssignments(prev => {
       // Remove any existing assignment for this staff on this date
@@ -94,9 +143,11 @@ export const useLocalStaffState = (weekDays: Date[], teamIds: string[]) => {
     });
   }, []);
 
-  // Remove staff assignment optimistically
+  // Remove staff assignment
   const removeStaffAssignment = useCallback((staffId: string, date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
+    
+    console.log(`Removing staff assignment: ${staffId} on ${dateStr}`);
     
     setLocalStaffAssignments(prev => 
       prev.filter(assignment => 
@@ -105,10 +156,28 @@ export const useLocalStaffState = (weekDays: Date[], teamIds: string[]) => {
     );
   }, []);
 
-  // Initialize staff assignments from external data
-  const initializeStaffAssignments = useCallback((assignments: LocalStaffAssignment[]) => {
-    setLocalStaffAssignments(assignments);
-  }, []);
+  // Sync with successful assignment from dialog
+  const syncAfterAssignment = useCallback(async (staffId: string, teamId: string, date: Date) => {
+    try {
+      console.log(`Syncing after assignment: ${staffId} to team ${teamId} on ${format(date, 'yyyy-MM-dd')}`);
+      
+      // Fetch fresh assignments for this date to get the correct staff name
+      const assignments = await fetchStaffAssignments(date, teamId);
+      const newAssignment = assignments.find(a => a.staff_id === staffId);
+      
+      if (newAssignment) {
+        const staffName = newAssignment.staff_members?.name || 
+                        newAssignment.staff_name || 
+                        `Staff ${staffId}`;
+        
+        addStaffAssignment(staffId, staffName, teamId, date);
+      }
+    } catch (error) {
+      console.error('Error syncing after assignment:', error);
+      // Fallback to adding with basic name
+      addStaffAssignment(staffId, `Staff ${staffId}`, teamId, date);
+    }
+  }, [addStaffAssignment]);
 
   // Get staff for a specific team and date
   const getStaffForTeamAndDate = useCallback((teamId: string, date: Date): Array<{id: string, name: string}> => {
@@ -124,9 +193,10 @@ export const useLocalStaffState = (weekDays: Date[], teamIds: string[]) => {
   return {
     teamHeights,
     localStaffAssignments,
+    isInitialized,
     addStaffAssignment,
     removeStaffAssignment,
-    initializeStaffAssignments,
+    syncAfterAssignment,
     getStaffForTeamAndDate,
     getTeamMinHeight
   };
