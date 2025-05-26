@@ -86,6 +86,11 @@ const MonthlyResourceView = () => {
     setShowStaffDisplay(prev => !prev);
   }, []);
 
+  // Wrapper function to ensure Promise<void> return type
+  const handleRefresh = async (): Promise<void> => {
+    await refreshEvents();
+  };
+
   return (
     <DndProvider backend={HTML5Backend}>
       <StaffSyncManager currentDate={hookCurrentDate} />
@@ -124,7 +129,7 @@ const MonthlyResourceView = () => {
             isLoading={isLoading}
             currentDate={hookCurrentDate}
             resources={resources}
-            onRefresh={refreshEvents}
+            onRefresh={handleRefresh}
             onAddTask={addEventToCalendar}
             onShowStaffCurtain={handleToggleStaffDisplay}
           />

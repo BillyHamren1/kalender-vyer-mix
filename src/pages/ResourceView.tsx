@@ -103,6 +103,11 @@ const ResourceView = () => {
     handleDatesSet({ start: newDate });
   };
 
+  // Wrapper function to ensure Promise<void> return type
+  const handleRefresh = async (): Promise<void> => {
+    await refreshEvents();
+  };
+
   return (
     <DndProvider backend={HTML5Backend}>
       <StaffSyncManager currentDate={currentDate} />
@@ -133,7 +138,7 @@ const ResourceView = () => {
             isLoading={isLoading}
             currentDate={currentDate}
             resources={resources}
-            onRefresh={refreshEvents}
+            onRefresh={handleRefresh}
             onAddTask={addEventToCalendar}
           />
         </div>

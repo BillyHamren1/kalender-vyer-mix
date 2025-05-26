@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,11 +23,11 @@ import { CalendarEvent, Resource } from './ResourceData';
 
 interface AddTaskButtonProps {
   resources: Resource[];
-  onTaskAdd: (event: Omit<CalendarEvent, 'id'>) => Promise<string>;
+  onAddTask: (taskData: any) => void;
   currentDate: Date;
 }
 
-const AddTaskButton: React.FC<AddTaskButtonProps> = ({ resources, onTaskAdd, currentDate }) => {
+const AddTaskButton: React.FC<AddTaskButtonProps> = ({ resources, onAddTask, currentDate }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -97,7 +98,7 @@ const AddTaskButton: React.FC<AddTaskButtonProps> = ({ resources, onTaskAdd, cur
       };
       
       // Add the task to the calendar
-      const taskId = await onTaskAdd(newTask);
+      await onAddTask(newTask);
       
       toast.success('Task added successfully', {
         description: `Task "${taskTitle}" has been added to the calendar`

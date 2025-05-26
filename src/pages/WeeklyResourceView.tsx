@@ -166,6 +166,11 @@ const WeeklyResourceView = () => {
     }
   }, [currentWeekStart, handleStaffDrop]);
 
+  // Wrapper function to ensure Promise<void> return type
+  const handleRefresh = async (): Promise<void> => {
+    await refreshEvents();
+  };
+
   return (
     <DndProvider backend={HTML5Backend}>
       <StaffSyncManager currentDate={hookCurrentDate} />
@@ -222,7 +227,7 @@ const WeeklyResourceView = () => {
                 isLoading={isLoading}
                 currentDate={hookCurrentDate}
                 resources={resources}
-                onRefresh={refreshEvents}
+                onRefresh={handleRefresh}
                 onAddTask={addEventToCalendar}
                 onShowStaffCurtain={handleToggleStaffDisplay}
               />
