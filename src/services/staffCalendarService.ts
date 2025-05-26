@@ -58,6 +58,10 @@ export interface BookingMoveResult {
   success: boolean;
 }
 
+// Cache for staff members to avoid repeated API calls
+let staffMembersCache: { data: StaffMember[]; timestamp: number } | null = null;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 // Get all available staff members as calendar resources
 export const getStaffResources = async (): Promise<StaffResource[]> => {
   try {
@@ -99,6 +103,20 @@ export const getBookingStaffAssignments = async (
   }
 };
 
+// Optimized function to get staff members with caching
+const getCachedStaffMembers = async (): Promise<StaffMember[]> => {
+  const now = Date.now();
+  
+  if (staffMembersCache && (now - staffMembersCache.timestamp) < CACHE_DURATION) {
+    return staffMembersCache.data;
+  }
+  
+  const staffMembers = await fetchStaffMembers();
+  staffMembersCache = { data: staffMembers, timestamp: now };
+  
+  return staffMembers;
+};
+
 // Get calendar events for selected staff members within a date range using the new booking-staff assignment system
 export const getStaffCalendarEvents = async (
   staffIds: string[], 
@@ -114,19 +132,9 @@ export const getStaffCalendarEvents = async (
 
     const events: StaffCalendarEvent[] = [];
 
-    // Get staff assignments for the date range
-    const assignments = await fetchStaffAssignmentsForDateRange(startDate, endDate);
-    
-    // Get all staff members to get their names
-    const allStaff = await fetchStaffMembers();
+    // Use cached staff members to improve performance
+    const allStaff = await getCachedStaffMembers();
     const staffMap = new Map(allStaff.map(staff => [staff.id, staff.name]));
-    
-    // Filter assignments for selected staff
-    const filteredAssignments = assignments.filter(assignment => 
-      staffIds.includes(assignment.staffId)
-    );
-
-    console.log(`Found ${filteredAssignments.length} assignments for selected staff`);
 
     // Get booking-staff assignments for the date range and selected staff
     const bookingStaffAssignments = await getBookingStaffAssignments(startDate, endDate);
@@ -135,6 +143,12 @@ export const getStaffCalendarEvents = async (
     );
 
     console.log(`Found ${filteredBookingAssignments.length} booking-staff assignments`);
+
+    // Early return if no assignments
+    if (filteredBookingAssignments.length === 0) {
+      console.log('No booking assignments found for selected staff');
+      return events;
+    }
 
     // Process booking assignments (these are the actual work assignments)
     for (const bookingAssignment of filteredBookingAssignments) {

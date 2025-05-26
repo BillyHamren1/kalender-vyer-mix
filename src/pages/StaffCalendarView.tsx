@@ -30,7 +30,7 @@ const StaffCalendarView: React.FC = () => {
 
   const { start: startDate, end: endDate } = getDateRange();
 
-  // Fetch calendar events for selected staff only - start disabled
+  // Fetch calendar events for selected staff only - but don't block UI
   const { 
     data: calendarEvents = [], 
     isLoading: isLoadingEvents, 
@@ -40,6 +40,8 @@ const StaffCalendarView: React.FC = () => {
     queryKey: ['staffCalendarEvents', selectedStaffIds, startDate, endDate],
     queryFn: () => getStaffCalendarEvents(selectedStaffIds, startDate, endDate),
     enabled: selectedStaffIds.length > 0, // Only fetch when staff is selected
+    staleTime: 30000, // Cache for 30 seconds
+    refetchOnWindowFocus: false, // Don't refetch on window focus
   });
 
   const handleDateChange = (newDate: Date) => {
@@ -120,7 +122,7 @@ const StaffCalendarView: React.FC = () => {
         onViewModeChange={setViewMode}
       />
 
-      {/* Main Content */}
+      {/* Main Content - Always show, don't wait for loading */}
       <div className="p-6">
         {selectedStaffIds.length === 0 ? (
           <Card>
@@ -132,30 +134,32 @@ const StaffCalendarView: React.FC = () => {
           </Card>
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            {/* Calendar - Takes up 2/3 of the space */}
+            {/* Calendar - Takes up 2/3 of the space - Show immediately */}
             <div className="xl:col-span-2">
               <Card>
-                <CardContent className="p-0">
-                  {isLoadingEvents ? (
-                    <div className="flex items-center justify-center h-96">
-                      <div className="text-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                        <p className="text-sm text-gray-600">Loading calendar...</p>
+                <CardContent className="p-0 relative">
+                  {/* Show loading indicator as overlay, not blocking the calendar */}
+                  {isLoadingEvents && (
+                    <div className="absolute top-4 right-4 z-10">
+                      <div className="flex items-center space-x-2 bg-white px-3 py-2 rounded-lg shadow-sm border">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                        <span className="text-sm text-gray-600">Loading events...</span>
                       </div>
                     </div>
-                  ) : (
-                    <CleanCalendarGrid
-                      currentDate={currentDate}
-                      events={calendarEvents}
-                      selectedClients={selectedClients}
-                      onDateClick={handleDateClick}
-                    />
                   )}
+                  
+                  {/* Always show the calendar, even while loading */}
+                  <CleanCalendarGrid
+                    currentDate={currentDate}
+                    events={calendarEvents}
+                    selectedClients={selectedClients}
+                    onDateClick={handleDateClick}
+                  />
                 </CardContent>
               </Card>
             </div>
 
-            {/* Job Summary - Takes up 1/3 of the space */}
+            {/* Job Summary - Takes up 1/3 of the space - Also show immediately */}
             <div className="xl:col-span-1">
               <JobSummaryList
                 events={calendarEvents}
