@@ -1,180 +1,110 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
-// Fetch all staff members
-export const fetchStaffMembers = async () => {
-  const { data, error } = await supabase
-    .from('staff_members')
-    .select('*')
-    .order('name');
-    
-  if (error) {
-    console.error('Error fetching staff members:', error);
-    throw error;
-  }
-  
-  return data || [];
-};
+export interface StaffMember {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  assignedTeam?: string;
+}
 
-// Add a new staff member
-export const addStaffMember = async (name: string, email?: string, phone?: string) => {
-  // Generate a unique ID for the staff member
-  const id = `staff-${Date.now()}`;
+export interface StaffAssignment {
+  id: string;
+  staff_id: string;
+  team_id: string;
+  assignment_date: string;
+  staff_members?: {
+    id: string;
+    name: string;
+    email?: string;
+    phone?: string;
+  };
+  // Alternative field names for backward compatibility
+  staff_name?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+}
 
-  const { data, error } = await supabase
-    .from('staff_members')
-    .insert({
-      id,
-      name,
-      email,
-      phone
-    })
-    .select()
-    .single();
-    
-  if (error) {
-    console.error('Error adding staff member:', error);
-    throw error;
-  }
-  
-  return data;
-};
-
-// Add or update a staff member with a specific ID (for syncing with external API)
-export const syncStaffMember = async (id: string, name: string, email?: string, phone?: string) => {
+// Sync staff member from external API to local database
+export const syncStaffMember = async (staffData: any): Promise<void> => {
   try {
-    // First check if the staff member already exists
-    const { data: existingStaff } = await supabase
+    console.log('Syncing staff member:', staffData);
+    
+    const { data, error } = await supabase
       .from('staff_members')
-      .select('id')
-      .eq('id', id)
-      .maybeSingle();
+      .upsert({
+        id: staffData.id,
+        name: staffData.name,
+        email: staffData.email,
+        phone: staffData.phone
+      }, {
+        onConflict: 'id'
+      });
+
+    if (error) {
+      console.error('Error updating staff member:', error);
       
-    if (existingStaff) {
-      // Update existing staff member
-      const { data, error } = await supabase
-        .from('staff_members')
-        .update({
-          name,
-          email,
-          phone
-        })
-        .eq('id', id)
-        .select()
-        .single();
+      // If it's a unique constraint error on email, try to handle it gracefully
+      if (error.code === '23505' && error.message.includes('email')) {
+        console.log('Email already exists, attempting to update existing record...');
         
-      if (error) {
-        console.error('Error updating staff member:', error);
+        // Try to update the existing record by email
+        const { error: updateError } = await supabase
+          .from('staff_members')
+          .update({
+            name: staffData.name,
+            phone: staffData.phone
+          })
+          .eq('email', staffData.email);
+        
+        if (updateError) {
+          console.error('Error in syncStaffMember:', updateError);
+          throw updateError;
+        }
+      } else {
         throw error;
       }
-      
-      return data;
-    } else {
-      // Insert new staff member with specific ID
-      const { data, error } = await supabase
-        .from('staff_members')
-        .insert({
-          id,
-          name,
-          email,
-          phone
-        })
-        .select()
-        .single();
-        
-      if (error) {
-        console.error('Error adding staff member with ID:', error);
-        throw error;
-      }
-      
-      return data;
     }
+
+    console.log('Staff member synced successfully:', data);
   } catch (error) {
     console.error('Error in syncStaffMember:', error);
     throw error;
   }
 };
 
-// Update a staff member
-export const updateStaffMember = async (id: string, updates: { name?: string, email?: string, phone?: string }) => {
-  const { data, error } = await supabase
-    .from('staff_members')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
-    
-  if (error) {
-    console.error('Error updating staff member:', error);
-    throw error;
-  }
-  
-  return data;
-};
-
-// Delete a staff member
-export const deleteStaffMember = async (id: string) => {
-  const { error } = await supabase
-    .from('staff_members')
-    .delete()
-    .eq('id', id);
-    
-  if (error) {
-    console.error('Error deleting staff member:', error);
-    throw error;
-  }
-  
-  return true;
-};
-
-// Helper function to log assignment changes to the edge function
-const logAssignmentChange = async (changeData: {
-  staffId: string
-  oldTeamId?: string | null
-  newTeamId?: string | null
-  date: string
-  changeType: 'assign' | 'remove' | 'move'
-}) => {
+// Fetch all staff members
+export const fetchStaffMembers = async (): Promise<StaffMember[]> => {
   try {
-    const { data: apiKeyData, error: apiKeyError } = await supabase.functions.invoke('get-api-key', {
-      body: { key_type: 'staff' }
-    });
-    
-    if (apiKeyError) {
-      console.warn('Could not get API key for logging:', apiKeyError);
-      return;
-    }
-
-    const { data, error } = await supabase.functions.invoke('staff-assignments', {
-      body: changeData,
-      headers: {
-        'x-api-key': apiKeyData.apiKey
-      }
-    });
+    const { data, error } = await supabase
+      .from('staff_members')
+      .select('*')
+      .order('name');
 
     if (error) {
-      console.warn('Failed to log assignment change:', error);
-    } else {
-      console.log('Assignment change logged:', data.message);
+      console.error('Error fetching staff members:', error);
+      throw error;
     }
+
+    return data || [];
   } catch (error) {
-    console.warn('Error logging assignment change:', error);
+    console.error('Error in fetchStaffMembers:', error);
+    throw error;
   }
 };
 
-// Fetch staff assignments for a specific date and optionally for a specific team
-export const fetchStaffAssignments = async (date: Date, teamId?: string) => {
+// Fetch staff assignments for a specific date and optionally a specific team
+export const fetchStaffAssignments = async (date: Date, teamId?: string): Promise<StaffAssignment[]> => {
   try {
-    const formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD format
-    
-    console.log(`Fetching staff assignments for date: ${formattedDate}, team: ${teamId || 'all teams'}`);
-    
+    const dateStr = date.toISOString().split('T')[0];
+    console.log(`Fetching staff assignments for date: ${dateStr}, team: ${teamId || 'all teams'}`);
+
     let query = supabase
       .from('staff_assignments')
       .select(`
-        id,
-        team_id,
-        staff_id,
-        assignment_date,
+        *,
         staff_members (
           id,
           name,
@@ -182,21 +112,21 @@ export const fetchStaffAssignments = async (date: Date, teamId?: string) => {
           phone
         )
       `)
-      .eq('assignment_date', formattedDate);
-    
-    // If teamId is provided, filter by team_id as well
+      .eq('assignment_date', dateStr);
+
+    // If teamId is provided, filter by team
     if (teamId) {
       query = query.eq('team_id', teamId);
     }
-      
-    const { data, error } = await query;
-      
+
+    const { data, error } = await query.order('created_at', { ascending: true });
+
     if (error) {
       console.error('Error fetching staff assignments:', error);
       throw error;
     }
-    
-    console.log(`Retrieved ${data?.length || 0} staff assignments`);
+
+    console.log(`Retrieved ${data?.length || 0} staff assignments`, data);
     return data || [];
   } catch (error) {
     console.error('Error in fetchStaffAssignments:', error);
@@ -204,161 +134,93 @@ export const fetchStaffAssignments = async (date: Date, teamId?: string) => {
   }
 };
 
-// Assign a staff member to a team for a specific date
-export const assignStaffToTeam = async (staffId: string, teamId: string, date: Date) => {
+// Assign staff to a team for a specific date
+export const assignStaffToTeam = async (staffId: string, teamId: string, date: Date): Promise<void> => {
   try {
-    console.log(`Assigning staff ${staffId} to team ${teamId} on ${date.toISOString().split('T')[0]}`);
-    const formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD format
-    
-    // Check if an assignment already exists for this staff member on this date
-    const { data: existingAssignment, error: checkError } = await supabase
+    const dateStr = date.toISOString().split('T')[0];
+    console.log(`Assigning staff ${staffId} to team ${teamId} for date ${dateStr}`);
+
+    const { data, error } = await supabase
       .from('staff_assignments')
-      .select('id, team_id')
-      .eq('staff_id', staffId)
-      .eq('assignment_date', formattedDate)
-      .maybeSingle();
-    
-    if (checkError) {
-      console.error('Error checking existing assignment:', checkError);
-      throw checkError;
-    }
-    
-    let result;
-    let changeType: 'assign' | 'move' = 'assign';
-    let oldTeamId: string | null = null;
+      .upsert({
+        staff_id: staffId,
+        team_id: teamId,
+        assignment_date: dateStr
+      }, {
+        onConflict: 'staff_id,assignment_date'
+      });
 
-    if (existingAssignment) {
-      console.log(`Updating existing assignment ${existingAssignment.id}`);
-      oldTeamId = existingAssignment.team_id;
-      changeType = 'move';
-      
-      // Update existing assignment
-      const { data, error } = await supabase
-        .from('staff_assignments')
-        .update({
-          team_id: teamId,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', existingAssignment.id)
-        .select()
-        .single();
-        
-      if (error) {
-        console.error('Error updating staff assignment:', error);
-        throw error;
-      }
-      
-      result = data;
-      console.log('Assignment updated successfully');
-    } else {
-      console.log('Creating new assignment');
-      // Create new assignment
-      const { data, error } = await supabase
-        .from('staff_assignments')
-        .insert({
-          staff_id: staffId,
-          team_id: teamId,
-          assignment_date: formattedDate
-        })
-        .select()
-        .single();
-        
-      if (error) {
-        console.error('Error creating staff assignment:', error);
-        throw error;
-      }
-      
-      result = data;
-      console.log('New assignment created successfully');
+    if (error) {
+      console.error('Error assigning staff to team:', error);
+      throw error;
     }
 
-    // Log the assignment change
-    await logAssignmentChange({
-      staffId,
-      oldTeamId,
-      newTeamId: teamId,
-      date: formattedDate,
-      changeType
-    });
-
-    return result;
+    console.log('Staff assigned successfully:', data);
   } catch (error) {
     console.error('Error in assignStaffToTeam:', error);
     throw error;
   }
 };
 
-// Remove a staff assignment for a specific date
-export const removeStaffAssignment = async (staffId: string, date: Date) => {
+// Remove staff assignment for a specific date
+export const removeStaffAssignment = async (staffId: string, date: Date): Promise<void> => {
   try {
-    console.log(`Removing assignment for staff ${staffId} on ${date.toISOString().split('T')[0]}`);
-    const formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD format
-    
-    // Get the current assignment to log the removal
-    const { data: currentAssignment, error: fetchError } = await supabase
-      .from('staff_assignments')
-      .select('team_id')
-      .eq('staff_id', staffId)
-      .eq('assignment_date', formattedDate)
-      .maybeSingle();
-    
-    if (fetchError) {
-      console.error('Error fetching current assignment:', fetchError);
-      throw fetchError;
-    }
+    const dateStr = date.toISOString().split('T')[0];
+    console.log(`Removing assignment for staff ${staffId} on date ${dateStr}`);
 
     const { error } = await supabase
       .from('staff_assignments')
       .delete()
       .eq('staff_id', staffId)
-      .eq('assignment_date', formattedDate);
-      
+      .eq('assignment_date', dateStr);
+
     if (error) {
       console.error('Error removing staff assignment:', error);
       throw error;
     }
-    
-    console.log('Assignment removed successfully');
 
-    // Log the assignment removal
-    if (currentAssignment) {
-      await logAssignmentChange({
-        staffId,
-        oldTeamId: currentAssignment.team_id,
-        newTeamId: null,
-        date: formattedDate,
-        changeType: 'remove'
-      });
-    }
-    
-    return true;
+    console.log('Staff assignment removed successfully');
   } catch (error) {
     console.error('Error in removeStaffAssignment:', error);
     throw error;
   }
 };
 
-// Get all assignments for a staff member within a date range
-export const getStaffAssignmentsForPeriod = async (staffId: string, startDate: Date, endDate: Date) => {
-  const startFormatted = startDate.toISOString().split('T')[0];
-  const endFormatted = endDate.toISOString().split('T')[0];
-  
-  const { data, error } = await supabase
-    .from('staff_assignments')
-    .select(`
-      id,
-      team_id,
-      assignment_date
-    `)
-    .eq('staff_id', staffId)
-    .gte('assignment_date', startFormatted)
-    .lte('assignment_date', endFormatted)
-    .order('assignment_date');
-    
-  if (error) {
-    console.error('Error fetching staff assignments for period:', error);
+// Get available staff (not assigned to any team) for a specific date
+export const getAvailableStaff = async (date: Date): Promise<StaffMember[]> => {
+  try {
+    const dateStr = date.toISOString().split('T')[0];
+    console.log(`Fetching available staff for date: ${dateStr}`);
+
+    // Get all staff members
+    const { data: allStaff, error: staffError } = await supabase
+      .from('staff_members')
+      .select('*')
+      .order('name');
+
+    if (staffError) {
+      console.error('Error fetching all staff:', staffError);
+      throw staffError;
+    }
+
+    // Get assigned staff IDs for the date
+    const { data: assignments, error: assignmentError } = await supabase
+      .from('staff_assignments')
+      .select('staff_id')
+      .eq('assignment_date', dateStr);
+
+    if (assignmentError) {
+      console.error('Error fetching assignments:', assignmentError);
+      throw assignmentError;
+    }
+
+    const assignedStaffIds = new Set(assignments?.map(a => a.staff_id) || []);
+    const availableStaff = (allStaff || []).filter(staff => !assignedStaffIds.has(staff.id));
+
+    console.log(`Found ${availableStaff.length} available staff members`);
+    return availableStaff;
+  } catch (error) {
+    console.error('Error in getAvailableStaff:', error);
     throw error;
   }
-  
-  return data || [];
 };

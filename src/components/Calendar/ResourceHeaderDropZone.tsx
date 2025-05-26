@@ -60,18 +60,33 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         // Get staff assigned to this specific team on this date
         const { fetchStaffAssignments } = await import('@/services/staffService');
         const staffAssignments = await fetchStaffAssignments(currentDate, resource.id);
-        console.log(`ResourceHeaderDropZone: Loaded ${staffAssignments.length} staff assignments for resource ${resource.id} on ${currentDate.toISOString().split('T')[0]}:`, staffAssignments);
+        console.log(`ResourceHeaderDropZone: Raw staff assignments for resource ${resource.id}:`, staffAssignments);
         
-        // Now staffAssignments only contains assignments for this resource
-        const mappedStaff = staffAssignments.map(assignment => ({
-          id: assignment.staff_id,
-          name: assignment.staff_members?.name || 'Unknown',
-          email: assignment.staff_members?.email,
-          phone: assignment.staff_members?.phone,
-          assignedTeam: resource.id
-        }));
+        // Improved mapping with better error handling and data extraction
+        const mappedStaff = staffAssignments.map(assignment => {
+          console.log(`Processing assignment:`, assignment);
+          
+          // Handle both direct staff_members object and nested structure
+          const staffMemberData = assignment.staff_members || assignment;
+          const staffName = staffMemberData?.name || 
+                           assignment.staff_name || 
+                           assignment.name || 
+                           'Unknown Staff';
+          const staffEmail = staffMemberData?.email || assignment.email;
+          const staffPhone = staffMemberData?.phone || assignment.phone;
+          
+          console.log(`Extracted staff data: name=${staffName}, email=${staffEmail}, id=${assignment.staff_id}`);
+          
+          return {
+            id: assignment.staff_id,
+            name: staffName,
+            email: staffEmail,
+            phone: staffPhone,
+            assignedTeam: resource.id
+          };
+        });
         
-        console.log(`ResourceHeaderDropZone: Mapped staff for resource ${resource.id}:`, mappedStaff);
+        console.log(`ResourceHeaderDropZone: Final mapped staff for resource ${resource.id}:`, mappedStaff);
         setAssignedStaff(mappedStaff);
       } catch (error) {
         console.error('ResourceHeaderDropZone: Error loading assigned staff:', error);
@@ -82,7 +97,7 @@ export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     };
     
     loadAssignedStaff();
-  }, [resource.id, currentDate, refreshKey]); // Use refreshKey instead of forceRefresh
+  }, [resource.id, currentDate, refreshKey]);
 
   // Handle clicking on the team title to select staff
   const handleTeamTitleClick = () => {
