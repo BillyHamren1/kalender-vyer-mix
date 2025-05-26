@@ -1,643 +1,327 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-api-key',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+interface BookingData {
+  id: string;
+  client: string;
+  rigdaydate?: string;
+  eventdate?: string;
+  rigdowndate?: string;
+  deliveryaddress?: string;
+  delivery_city?: string;
+  delivery_postal_code?: string;
+  delivery_latitude?: number;
+  delivery_longitude?: number;
+  carry_more_than_10m?: boolean;
+  ground_nails_allowed?: boolean;
+  exact_time_needed?: boolean;
+  exact_time_info?: string;
+  internalnotes?: string;
+  status?: string;
+  booking_number?: string;
+  version?: number;
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
-  // Only allow POST requests
-  if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 405 }
-    )
-  }
-
   try {
-    // Get the external API key for the bookings API
-    const EXTERNAL_BOOKING_API_KEY = Deno.env.get('EXPORT_API_KEY')
-    if (!EXTERNAL_BOOKING_API_KEY) {
-      console.error('Missing EXPORT_API_KEY in environment variables')
-      return new Response(
-        JSON.stringify({ error: 'External booking API key not configured' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-      )
-    }
-
-    // Create a Supabase client with service role key to bypass RLS
-    const supabaseClient = createClient(
+    const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '', // Using service role instead of anon key
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Parse request body for filter parameters
-    const requestData = await req.json().catch(() => ({}))
-    const { startDate, endDate, clientName, quiet = false, syncMode = 'full', handleStatusChanges = false } = requestData
+    const { quiet = false, syncMode = 'incremental' } = await req.json()
 
-    // Build the URL for the external bookings API
-    const externalApiUrl = new URL("https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings")
-    
-    // Add query parameters if provided
-    if (startDate) externalApiUrl.searchParams.append('startDate', startDate)
-    if (endDate) externalApiUrl.searchParams.append('endDate', endDate)
-    if (clientName) externalApiUrl.searchParams.append('client', clientName)
-
-    if (!quiet) {
-      console.log(`Starting ${syncMode} sync from external API: ${externalApiUrl.toString()}`)
+    // Get API key from secrets
+    const importApiKey = Deno.env.get('IMPORT_API_KEY')
+    if (!importApiKey) {
+      throw new Error('IMPORT_API_KEY not configured')
     }
 
-    // Fetch bookings from the external API using x-api-key header
-    const externalResponse = await fetch(externalApiUrl.toString(), {
-      method: 'GET',
+    // Fetch bookings from external API
+    const externalResponse = await fetch('https://booking-import.deno.dev/api/bookings', {
       headers: {
-        'x-api-key': EXTERNAL_BOOKING_API_KEY,
-        'Content-Type': 'application/json',
-      },
+        'Authorization': `Bearer ${importApiKey}`,
+        'Content-Type': 'application/json'
+      }
     })
 
     if (!externalResponse.ok) {
-      const errorText = await externalResponse.text()
-      console.error(`Error from external API: ${externalResponse.status} - ${errorText}`)
-      return new Response(
-        JSON.stringify({ 
-          error: 'Failed to fetch from external bookings API',
-          status: externalResponse.status,
-          details: errorText
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 502 }
-      )
+      throw new Error(`External API error: ${externalResponse.status}`)
     }
 
-    // Parse the external API response
     const externalData = await externalResponse.json()
-    
-    // Check if we have the data array in the response
-    if (!externalData || !externalData.data || !Array.isArray(externalData.data)) {
-      console.error('Invalid response format from external API:', JSON.stringify(externalData))
-      return new Response(
-        JSON.stringify({ 
-          error: 'External API returned an invalid response format',
-          receivedData: externalData
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 502 }
-      )
-    }
-    
-    const bookings = externalData.data
-    if (!quiet) {
-      console.log(`Received ${bookings.length} bookings from external API for ${syncMode} sync`)
+    console.log('External bookings data:', JSON.stringify(externalData, null, 2))
+
+    if (!externalData.success || !Array.isArray(externalData.data)) {
+      throw new Error('Invalid external API response format')
     }
 
-    // Keep track of imports
     const results = {
-      total: bookings.length,
+      total: 0,
       imported: 0,
       failed: 0,
       calendar_events_created: 0,
-      new_bookings: [] as string[],
-      updated_bookings: [] as string[],
-      status_changed_bookings: [] as string[],
-      errors: [] as { booking_id: string; error: string }[],
-      sync_mode: syncMode,
+      new_bookings: [],
+      updated_bookings: [],
+      status_changed_bookings: [],
+      errors: [],
+      sync_mode: syncMode
     }
 
-    // For incremental sync, get the timestamp of last sync to optimize processing
-    let lastSyncTime: Date | null = null;
-    if (syncMode === 'incremental' && startDate) {
-      lastSyncTime = new Date(startDate);
-      if (!quiet) {
-        console.log(`Incremental sync: processing bookings updated since ${lastSyncTime.toISOString()}`);
-      }
-    }
+    // Get existing bookings for comparison
+    const { data: existingBookings } = await supabase
+      .from('bookings')
+      .select('id, status, version, booking_number')
 
-    // Process each booking
-    for (const externalBooking of bookings) {
+    const existingBookingMap = new Map(existingBookings?.map(b => [b.id, b]) || [])
+
+    for (const externalBooking of externalData.data) {
       try {
-        if (!quiet) {
-          console.log(`Processing booking data:`, JSON.stringify(externalBooking, null, 2))
-        }
-        
-        // Check if the booking has the required fields - first log what we have
-        if (!quiet) {
-          console.log(`Booking ID field (id): ${externalBooking.id}`)
-          console.log(`Client field (client): ${externalBooking.client}`)
-          console.log(`All booking fields:`, Object.keys(externalBooking))
-        }
-        
-        // Validate required fields - use 'id' and 'client' as they appear in the external data
-        if (!externalBooking.id || !externalBooking.client) {
-          throw new Error(`Booking is missing required fields - id: ${externalBooking.id}, client: ${externalBooking.client}`)
-        }
+        results.total++
 
-        // For incremental sync, skip bookings that haven't been updated since last sync
-        if (syncMode === 'incremental' && lastSyncTime && externalBooking.updated_at) {
-          const bookingUpdateTime = new Date(externalBooking.updated_at);
-          if (bookingUpdateTime <= lastSyncTime) {
-            if (!quiet) {
-              console.log(`Skipping booking ${externalBooking.id} - not updated since last sync`);
-            }
-            continue;
+        // Extract booking number properly - check multiple possible fields
+        let bookingNumber = externalBooking.booking_number || 
+                           externalBooking.bookingNumber || 
+                           externalBooking.number || 
+                           externalBooking.id
+
+        // If no booking number found, generate one based on the ID
+        if (!bookingNumber || bookingNumber === externalBooking.id) {
+          // Try to extract year and sequence from ID if it follows a pattern
+          const idMatch = externalBooking.id.match(/^(\d{4})-(\d+)$/)
+          if (idMatch) {
+            bookingNumber = `${idMatch[1]}-${idMatch[2]}`
+          } else {
+            // Fallback: use the full ID as booking number
+            bookingNumber = externalBooking.id
           }
         }
 
-        // Extract dates from arrays, using the first item for backward compatibility
-        const rigdaydate = externalBooking.rig_up_dates && externalBooking.rig_up_dates.length > 0 
-          ? externalBooking.rig_up_dates[0] : externalBooking.rigdaydate
-        const eventdate = externalBooking.event_dates && externalBooking.event_dates.length > 0 
-          ? externalBooking.event_dates[0] : externalBooking.eventdate
-        const rigdowndate = externalBooking.rig_down_dates && externalBooking.rig_down_dates.length > 0 
-          ? externalBooking.rig_down_dates[0] : externalBooking.rigdowndate
-
-        // Check if booking already exists - using 'id' field as the ID
-        const { data: existingBooking } = await supabaseClient
-          .from('bookings')
-          .select('id, updated_at, status')
-          .eq('id', externalBooking.id)
-          .maybeSingle()
-
-        // Extract location data for geocoding - improved handling for different formats
-        let deliveryLatitude = null;
-        let deliveryLongitude = null;
-
-        // Check for delivery_geocode format (this is the format used in API response)
-        if (externalBooking.delivery_geocode?.lat !== undefined && externalBooking.delivery_geocode?.lng !== undefined) {
-          deliveryLatitude = parseFloat(String(externalBooking.delivery_geocode.lat));
-          deliveryLongitude = parseFloat(String(externalBooking.delivery_geocode.lng));
-          if (!quiet) {
-            console.log(`Found coordinates in delivery_geocode: lat=${deliveryLatitude}, lng=${deliveryLongitude}`);
-          }
-        }
-        // Check for direct coordinate fields as fallback
-        else if (externalBooking.delivery_latitude !== undefined && externalBooking.delivery_latitude !== null) {
-          deliveryLatitude = parseFloat(String(externalBooking.delivery_latitude));
-          if (externalBooking.delivery_longitude !== undefined && externalBooking.delivery_longitude !== null) {
-            deliveryLongitude = parseFloat(String(externalBooking.delivery_longitude));
-          }
-          if (!quiet) {
-            console.log(`Found coordinates in direct fields: lat=${deliveryLatitude}, lng=${deliveryLongitude}`);
-          }
-        }
-        
-        // Validate coordinates are numbers and within valid ranges
-        if (deliveryLatitude !== null && (isNaN(deliveryLatitude) || deliveryLatitude < -90 || deliveryLatitude > 90)) {
-          console.warn(`Invalid latitude value for booking ${externalBooking.id}: ${deliveryLatitude}`);
-          deliveryLatitude = null;
-        }
-        
-        if (deliveryLongitude !== null && (isNaN(deliveryLongitude) || deliveryLongitude < -180 || deliveryLongitude > 180)) {
-          console.warn(`Invalid longitude value for booking ${externalBooking.id}: ${deliveryLongitude}`);
-          deliveryLongitude = null;
-        }
-        
-        if (!quiet) {
-          console.log(`Geodata for booking ${externalBooking.id}: latitude=${deliveryLatitude}, longitude=${deliveryLongitude}`);
-        }
-                                
-        // Get the status from external booking, defaulting to 'OFFER' if not provided
-        const externalStatus = externalBooking.status || 'OFFER'
-                              
-        // Check for status change and handle calendar sync accordingly
-        let statusChanged = false
-        let previousStatus = null
-        if (existingBooking && existingBooking.status !== externalStatus) {
-          if (!quiet) {
-            console.log(`Status changed for booking ${externalBooking.id}: ${existingBooking.status} -> ${externalStatus}`)
-          }
-          
-          statusChanged = true
-          previousStatus = existingBooking.status
-          results.status_changed_bookings.push(externalBooking.id)
-          
-          // Handle calendar sync based on status change
-          await handleStatusChangeCalendarSync(supabaseClient, externalBooking.id, externalStatus, previousStatus, !quiet)
-        }
-        
-        // Extract address components
-        const deliveryAddress = externalBooking.deliveryaddress || externalBooking.delivery_address || 
-                              (externalBooking.location ? `${externalBooking.location}` : null);
-        const deliveryCity = externalBooking.delivery_city || externalBooking.city || 
-                           (externalBooking.location?.city ? externalBooking.location.city : null);
-        const deliveryPostalCode = externalBooking.delivery_postal_code || externalBooking.postal_code || 
-                                 (externalBooking.location?.postal_code ? externalBooking.location.postal_code : null);
-        
-        // Extract client name properly - handle both string and object formats
-        let clientName = '';
-        if (typeof externalBooking.client === 'string') {
-          // If it's already a string, use it directly
-          clientName = externalBooking.client;
-        } else if (typeof externalBooking.client === 'object' && externalBooking.client !== null) {
-          // If it's an object, extract the name field
-          clientName = externalBooking.client.name || externalBooking.client.client_name || '';
-          if (!quiet) {
-            console.log(`Extracted client name from object: ${clientName}`);
-          }
-        } else {
-          // Fallback - convert to string
-          clientName = String(externalBooking.client || '');
-        }
-        
-        if (!clientName) {
-          throw new Error(`Unable to extract client name from booking ${externalBooking.id}`);
-        }
-        
-        // Prepare booking data - map external fields to our schema using correct field names
-        const bookingData = {
-          id: externalBooking.id, // Use 'id' as our ID
-          client: clientName, // Store only the client name string
-          rigdaydate: rigdaydate, // Use first rig_up_date for backward compatibility
-          eventdate: eventdate, // Use first event_date for backward compatibility
-          rigdowndate: rigdowndate, // Use first rig_down_date for backward compatibility
-          deliveryaddress: deliveryAddress,
-          // Delivery address details
-          delivery_city: deliveryCity,
-          delivery_postal_code: deliveryPostalCode,
-          delivery_latitude: deliveryLatitude,
-          delivery_longitude: deliveryLongitude,
-          // Logistics options
+        const bookingData: BookingData = {
+          id: externalBooking.id,
+          client: externalBooking.client || externalBooking.customer || '',
+          rigdaydate: externalBooking.rigdaydate || externalBooking.rig_day_date,
+          eventdate: externalBooking.eventdate || externalBooking.event_date,
+          rigdowndate: externalBooking.rigdowndate || externalBooking.rig_down_date,
+          deliveryaddress: externalBooking.deliveryaddress || externalBooking.delivery_address,
+          delivery_city: externalBooking.delivery_city,
+          delivery_postal_code: externalBooking.delivery_postal_code,
+          delivery_latitude: externalBooking.delivery_latitude,
+          delivery_longitude: externalBooking.delivery_longitude,
           carry_more_than_10m: externalBooking.carry_more_than_10m || false,
           ground_nails_allowed: externalBooking.ground_nails_allowed || false,
           exact_time_needed: externalBooking.exact_time_needed || false,
-          exact_time_info: externalBooking.exact_time_info || null,
+          exact_time_info: externalBooking.exact_time_info,
           internalnotes: externalBooking.internalnotes || externalBooking.internal_notes,
-          created_at: externalBooking.created_at || new Date().toISOString(),
-          updated_at: externalBooking.updated_at || new Date().toISOString(),
-          status: externalStatus, // Use the status from external booking
-          viewed: existingBooking ? (statusChanged ? false : true) : false // Mark as unviewed for new bookings or status changes
+          status: externalBooking.status || 'PENDING',
+          booking_number: bookingNumber,
+          version: 1
         }
 
-        // Check if external booking has a newer update timestamp when existing booking exists
-        let isUpdated = false;
+        console.log(`Processing booking ${bookingData.id} with booking number: ${bookingData.booking_number}`)
+
+        const existingBooking = existingBookingMap.get(bookingData.id)
+
         if (existingBooking) {
-          if (externalBooking.updated_at && 
-              new Date(externalBooking.updated_at) > new Date(existingBooking.updated_at)) {
-            isUpdated = true;
-          }
+          // Check if status changed
+          const statusChanged = existingBooking.status !== bookingData.status
           
-          // Update existing booking - now using direct update since RLS is disabled
-          const { error: updateError } = await supabaseClient
+          if (statusChanged) {
+            results.status_changed_bookings.push(bookingData.id)
+          } else {
+            results.updated_bookings.push(bookingData.id)
+          }
+
+          // Update existing booking
+          const { error: updateError } = await supabase
             .from('bookings')
-            .update(bookingData)
-            .eq('id', externalBooking.id)
+            .update({
+              ...bookingData,
+              version: (existingBooking.version || 1) + 1,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', bookingData.id)
 
           if (updateError) {
-            throw new Error(`Failed to update booking: ${updateError.message}`)
-          }
-          
-          // Delete existing products & attachments for clean slate
-          await supabaseClient.from('booking_products').delete().eq('booking_id', externalBooking.id)
-          await supabaseClient.from('booking_attachments').delete().eq('booking_id', externalBooking.id)
-          
-          if (!quiet) {
-            console.log(`Updated existing booking ${externalBooking.id}`)
-          }
-          
-          // Track updated bookings
-          if (isUpdated && !statusChanged) {
-            results.updated_bookings.push(externalBooking.id);
+            console.error(`Error updating booking ${bookingData.id}:`, updateError)
+            results.errors.push(`Failed to update ${bookingData.id}: ${updateError.message}`)
+            results.failed++
+            continue
           }
         } else {
-          // Insert new booking - now using direct insert since RLS is disabled
-          const { error: insertError } = await supabaseClient
+          // Insert new booking
+          const { error: insertError } = await supabase
             .from('bookings')
             .insert(bookingData)
 
           if (insertError) {
-            throw new Error(`Failed to insert booking: ${insertError.message}`)
+            console.error(`Error inserting booking ${bookingData.id}:`, insertError)
+            results.errors.push(`Failed to insert ${bookingData.id}: ${insertError.message}`)
+            results.failed++
+            continue
           }
-          
-          if (!quiet) {
-            console.log(`Inserted new booking ${externalBooking.id}`)
-          }
-          
-          // Track new bookings
-          results.new_bookings.push(externalBooking.id);
+
+          results.new_bookings.push(bookingData.id)
         }
 
-        // Insert products if available
-        if (externalBooking.products && externalBooking.products.length > 0) {
-          const products = externalBooking.products.map(product => ({
-            booking_id: externalBooking.id,
-            name: product.product_name || product.name,
-            quantity: product.quantity,
-            notes: product.notes || null
-          }))
-
-          const { error: productsError } = await supabaseClient
-            .from('booking_products')
-            .insert(products)
-
-          if (productsError) {
-            console.error(`Error inserting products for booking ${externalBooking.id}:`, productsError)
-          } else if (!quiet) {
-            console.log(`Inserted ${products.length} products for booking ${externalBooking.id}`)
-          }
-        }
-
-        // Insert attachments if available (files_metadata)
-        if (externalBooking.files_metadata && externalBooking.files_metadata.length > 0) {
-          const attachments = externalBooking.files_metadata.map(attachment => ({
-            booking_id: externalBooking.id,
-            url: attachment.url,
-            file_name: attachment.file_name || attachment.fileName || 'Unknown file',
-            file_type: attachment.file_type || attachment.fileType || 'application/octet-stream',
-            uploaded_at: attachment.uploaded_at || new Date().toISOString()
-          }))
-
-          const { error: attachmentsError } = await supabaseClient
-            .from('booking_attachments')
-            .insert(attachments)
-
-          if (attachmentsError) {
-            console.error(`Error inserting attachments for booking ${externalBooking.id}:`, attachmentsError)
-          } else if (!quiet) {
-            console.log(`Inserted ${attachments.length} attachments for booking ${externalBooking.id}`)
-          }
-        }
-
-        // Create calendar events for all dates in the arrays, but only if status is CONFIRMED
-        // Make this case-insensitive by converting to uppercase before comparison
-        if (externalStatus.toUpperCase() === 'CONFIRMED') {
-          const eventsCreated = await createCalendarEvents(supabaseClient, {
-            id: externalBooking.id,
-            client: clientName, // Use the extracted client name
-            rig_up_dates: externalBooking.rig_up_dates || [],
-            event_dates: externalBooking.event_dates || [],
-            rig_down_dates: externalBooking.rig_down_dates || []
-          })
-          
-          results.calendar_events_created += eventsCreated
-        }
-        
         results.imported++
-        if (!quiet) {
-          console.log(`Successfully imported booking ${externalBooking.id}`)
+
+        // Create calendar events for the booking
+        const calendarEvents = []
+        
+        if (bookingData.rigdaydate) {
+          calendarEvents.push({
+            booking_id: bookingData.id,
+            booking_number: bookingData.booking_number,
+            title: `${bookingData.id}: ${bookingData.client}`,
+            start_time: `${bookingData.rigdaydate}T08:00:00`,
+            end_time: `${bookingData.rigdaydate}T17:00:00`,
+            event_type: 'rig',
+            delivery_address: bookingData.deliveryaddress
+          })
         }
+
+        if (bookingData.eventdate) {
+          calendarEvents.push({
+            booking_id: bookingData.id,
+            booking_number: bookingData.booking_number,
+            title: `${bookingData.id}: ${bookingData.client}`,
+            start_time: `${bookingData.eventdate}T08:00:00`,
+            end_time: `${bookingData.eventdate}T17:00:00`,
+            event_type: 'event',
+            delivery_address: bookingData.deliveryaddress
+          })
+        }
+
+        if (bookingData.rigdowndate) {
+          calendarEvents.push({
+            booking_id: bookingData.id,
+            booking_number: bookingData.booking_number,
+            title: `${bookingData.id}: ${bookingData.client}`,
+            start_time: `${bookingData.rigdowndate}T08:00:00`,
+            end_time: `${bookingData.rigdowndate}T17:00:00`,
+            event_type: 'rigDown',
+            delivery_address: bookingData.deliveryaddress
+          })
+        }
+
+        // Assign calendar events to teams automatically
+        if (calendarEvents.length > 0) {
+          // Get existing calendar events to find available teams
+          const { data: existingEvents } = await supabase
+            .from('calendar_events')
+            .select('resource_id, start_time, end_time')
+
+          const teamAvailability = new Map()
+          const teams = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5', 'team-6']
+
+          // Initialize team availability
+          teams.forEach(team => teamAvailability.set(team, 0))
+
+          // Count existing events per team for the dates we're scheduling
+          existingEvents?.forEach(event => {
+            const eventDate = new Date(event.start_time).toISOString().split('T')[0]
+            calendarEvents.forEach(newEvent => {
+              const newEventDate = new Date(newEvent.start_time).toISOString().split('T')[0]
+              if (eventDate === newEventDate) {
+                const currentCount = teamAvailability.get(event.resource_id) || 0
+                teamAvailability.set(event.resource_id, currentCount + 1)
+              }
+            })
+          })
+
+          // Assign events to teams with least conflicts
+          for (const event of calendarEvents) {
+            let selectedTeam = 'team-1'
+            let minConflicts = teamAvailability.get('team-1') || 0
+
+            teams.forEach(team => {
+              const conflicts = teamAvailability.get(team) || 0
+              if (conflicts < minConflicts) {
+                selectedTeam = team
+                minConflicts = conflicts
+              }
+            })
+
+            console.log(`Selected ${selectedTeam} with ${minConflicts} events for new event`)
+
+            // Update the team availability for next event
+            teamAvailability.set(selectedTeam, minConflicts + 1)
+
+            // Insert calendar event with assigned team
+            const { error: eventError } = await supabase
+              .from('calendar_events')
+              .insert({
+                ...event,
+                resource_id: selectedTeam
+              })
+
+            if (eventError) {
+              console.error(`Error creating calendar event:`, eventError)
+            } else {
+              results.calendar_events_created++
+            }
+          }
+        }
+
       } catch (error) {
-        console.error(`Error importing booking ${externalBooking.id || 'unknown'}:`, error)
+        console.error(`Error processing booking ${externalBooking.id}:`, error)
+        results.errors.push(`Failed to process ${externalBooking.id}: ${error.message}`)
         results.failed++
-        results.errors.push({
-          booking_id: externalBooking.id || 'unknown',
-          error: error.message
-        })
       }
     }
 
-    if (!quiet) {
-      console.log(`${syncMode.charAt(0).toUpperCase() + syncMode.slice(1)} sync completed: ${results.imported}/${results.total} bookings processed`)
-    }
+    // Update sync state
+    await supabase
+      .from('sync_state')
+      .upsert({
+        sync_type: 'booking_import',
+        last_sync_timestamp: new Date().toISOString(),
+        last_sync_mode: syncMode,
+        last_sync_status: results.failed > 0 ? 'partial_success' : 'success',
+        metadata: { results }
+      })
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        results,
-        // Include the original data for debugging if not in quiet mode
-        originalData: !quiet ? {
-          count: bookings.length,
-          metadata: externalData.metadata
-        } : undefined
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ success: true, results }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      },
     )
+
   } catch (error) {
-    console.error('Error processing import request:', error)
+    console.error('Import error:', error)
     return new Response(
-      JSON.stringify({ error: 'Internal Server Error', details: error.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      JSON.stringify({ 
+        success: false, 
+        error: error.message,
+        results: {
+          total: 0,
+          imported: 0,
+          failed: 0,
+          calendar_events_created: 0,
+          new_bookings: [],
+          updated_bookings: [],
+          status_changed_bookings: [],
+          errors: [error.message],
+          sync_mode: 'failed'
+        }
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      },
     )
   }
 })
-
-// Handle status changes during import with calendar sync
-async function handleStatusChangeCalendarSync(supabase, bookingId, newStatus, previousStatus, verbose = true) {
-  try {
-    const normalizedNewStatus = newStatus.toUpperCase();
-    const normalizedPreviousStatus = previousStatus?.toUpperCase();
-    
-    if (verbose) {
-      console.log(`Handling status change for booking ${bookingId}: ${normalizedPreviousStatus} -> ${normalizedNewStatus}`);
-    }
-    
-    switch (normalizedNewStatus) {
-      case 'CONFIRMED':
-        // When status becomes confirmed, create calendar events
-        if (verbose) {
-          console.log(`Creating calendar events for booking ${bookingId} (status: CONFIRMED)`);
-        }
-        // The calendar events will be created in the main flow
-        break;
-
-      case 'CANCELLED':
-        // When status becomes cancelled, remove from calendar
-        if (verbose) {
-          console.log(`Removing booking ${bookingId} from calendar (status: CANCELLED)`);
-        }
-        await deleteAllBookingEvents(supabase, bookingId);
-        break;
-
-      case 'OFFER':
-        // When status becomes offer, remove from calendar if previously confirmed
-        if (normalizedPreviousStatus === 'CONFIRMED') {
-          if (verbose) {
-            console.log(`Removing booking ${bookingId} from calendar (status changed from CONFIRMED to ${normalizedNewStatus})`);
-          }
-          await deleteAllBookingEvents(supabase, bookingId);
-        }
-        break;
-
-      default:
-        if (verbose) {
-          console.warn(`Unknown status during import: ${normalizedNewStatus}`);
-        }
-    }
-  } catch (error) {
-    console.error(`Error handling status change for booking ${bookingId}:`, error);
-    // Don't throw here - import should continue even if calendar sync fails
-  }
-}
-
-// Find the team with the least events for a specific date and time
-async function findTeamWithLeastEvents(supabase, startDate, endDate) {
-  try {
-    // Get available teams
-    const { data: teamEvents, error: teamError } = await supabase
-      .from('calendar_events')
-      .select('resource_id, id')
-      .gte('start_time', new Date(startDate.getTime() - 24 * 60 * 60 * 1000).toISOString()) // Include events from the day before
-      .lte('end_time', new Date(endDate.getTime() + 24 * 60 * 60 * 1000).toISOString());   // Include events from the day after
-    
-    if (teamError) {
-      console.error('Error fetching team events:', teamError);
-      return 'team-1'; // Default to team-1 if there's an error
-    }
-    
-    // Count events per team
-    const teamCounts = {};
-    
-    // Default teams to consider (1-5)
-    for (let i = 1; i <= 5; i++) {
-      teamCounts[`team-${i}`] = 0;
-    }
-    
-    // Count events for each team
-    if (teamEvents) {
-      teamEvents.forEach(event => {
-        const teamId = event.resource_id.startsWith('team-') 
-          ? event.resource_id 
-          : `team-${event.resource_id}`;
-        
-        if (teamCounts[teamId] !== undefined) {
-          teamCounts[teamId]++;
-        } else if (teamId !== 'team-6') { // Ignore "Today's events" team
-          teamCounts[teamId] = 1;
-        }
-      });
-    }
-    
-    // Find team with least events
-    let minEvents = Number.MAX_SAFE_INTEGER;
-    let selectedTeam = 'team-1';
-    
-    // First identify the minimum number of events
-    for (const [teamId, count] of Object.entries(teamCounts)) {
-      if (count < minEvents) {
-        minEvents = count;
-      }
-    }
-    
-    // Then find the team with the lowest number that has this minimum
-    for (let i = 1; i <= 5; i++) {
-      const teamId = `team-${i}`;
-      if (teamCounts[teamId] === minEvents) {
-        selectedTeam = teamId;
-        break; // Take the first (lowest numbered) team with minimum events
-      }
-    }
-    
-    console.log(`Selected ${selectedTeam} with ${minEvents} events for new event`);
-    return selectedTeam;
-  } catch (error) {
-    console.error('Error finding team with least events:', error);
-    return 'team-1'; // Default to team-1 if there's an error
-  }
-}
-
-// Modified function to create calendar events for multiple dates per booking
-async function createCalendarEvents(supabase, booking) {
-  const events = []
-  
-  // Function to create a single event
-  async function createEvent(date, eventType) {
-    if (!date) return null
-
-    // Create a start date (9 AM) and end date (5 PM)
-    const startDate = new Date(date)
-    startDate.setHours(9, 0, 0, 0)
-    
-    const endDate = new Date(date)
-    endDate.setHours(17, 0, 0, 0)
-
-    // Find the team with the least events
-    const teamId = await findTeamWithLeastEvents(supabase, startDate, endDate);
-
-    const title = `${booking.id}: ${booking.client}`
-    
-    const eventData = {
-      resource_id: teamId,
-      booking_id: booking.id,
-      title: title,
-      start_time: startDate.toISOString(),
-      end_time: endDate.toISOString(),
-      event_type: eventType
-    }
-    
-    // Check if event already exists for this specific date and event type
-    const { data: existingEvents } = await supabase
-      .from('calendar_events')
-      .select('id')
-      .eq('booking_id', booking.id)
-      .eq('event_type', eventType)
-      .eq('start_time', startDate.toISOString())
-      .eq('end_time', endDate.toISOString())
-    
-    if (existingEvents && existingEvents.length > 0) {
-      // Update existing event
-      const { error } = await supabase
-        .from('calendar_events')
-        .update(eventData)
-        .eq('id', existingEvents[0].id)
-        
-      if (error) throw error
-      return existingEvents[0].id
-    } else {
-      // Insert new event
-      const { data, error } = await supabase
-        .from('calendar_events')
-        .insert(eventData)
-        .select('id')
-        .single()
-      
-      if (error) throw error
-      return data.id
-    }
-  }
-  
-  // Process all rig day dates
-  if (booking.rig_up_dates && booking.rig_up_dates.length > 0) {
-    for (const date of booking.rig_up_dates) {
-      const rigEventId = await createEvent(date, 'rig')
-      if (rigEventId) events.push(rigEventId)
-    }
-  } else if (booking.rigdaydate) {
-    // Backward compatibility
-    const rigEventId = await createEvent(booking.rigdaydate, 'rig')
-    if (rigEventId) events.push(rigEventId)
-  }
-  
-  // Process all event dates
-  if (booking.event_dates && booking.event_dates.length > 0) {
-    for (const date of booking.event_dates) {
-      const mainEventId = await createEvent(date, 'event')
-      if (mainEventId) events.push(mainEventId)
-    }
-  } else if (booking.eventdate) {
-    // Backward compatibility
-    const mainEventId = await createEvent(booking.eventdate, 'event')
-    if (mainEventId) events.push(mainEventId)
-  }
-  
-  // Process all rig down dates
-  if (booking.rig_down_dates && booking.rig_down_dates.length > 0) {
-    for (const date of booking.rig_down_dates) {
-      const rigDownEventId = await createEvent(date, 'rigDown')
-      if (rigDownEventId) events.push(rigDownEventId)
-    }
-  } else if (booking.rigdowndate) {
-    // Backward compatibility
-    const rigDownEventId = await createEvent(booking.rigdowndate, 'rigDown')
-    if (rigDownEventId) events.push(rigDownEventId)
-  }
-  
-  return events.length
-}
-
-// Function to delete all calendar events for a booking
-async function deleteAllBookingEvents(supabase, bookingId) {
-  const { error } = await supabase
-    .from('calendar_events')
-    .delete()
-    .eq('booking_id', bookingId)
-    
-  if (error) {
-    console.error(`Error deleting calendar events for booking ${bookingId}:`, error)
-    throw error
-  }
-  
-  return true
-}
