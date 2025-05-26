@@ -7,7 +7,7 @@ export const useStaffOperations = (currentDate: Date) => {
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
   const [processingStaffIds, setProcessingStaffIds] = useState<string[]>([]);
 
-  // Handle staff drop for assignment with optimistic updates
+  // Handle staff drop for assignment
   const handleStaffDrop = useCallback(async (staffId: string, resourceId: string | null) => {
     console.log(`useStaffOperations.handleStaffDrop called with staffId=${staffId}, resourceId=${resourceId || 'unassigned'}, date=${currentDate.toISOString().split('T')[0]}`);
     
@@ -24,21 +24,19 @@ export const useStaffOperations = (currentDate: Date) => {
     try {
       if (resourceId) {
         console.log(`Assigning staff ${staffId} to team ${resourceId} for date ${currentDate.toISOString().split('T')[0]}`);
-        // Show toast in background without blocking UI
         const toastId = toast.loading(`Assigning staff to team...`);
         
         await assignStaffToTeam(staffId, resourceId, currentDate);
         toast.success('Staff assigned successfully', { id: toastId });
       } else {
         console.log(`Removing staff ${staffId} assignment for date ${currentDate.toISOString().split('T')[0]}`);
-        // Show toast in background without blocking UI
         const toastId = toast.loading(`Removing staff assignment...`);
         
         await removeStaffAssignment(staffId, currentDate);
         toast.success('Staff removed successfully', { id: toastId });
       }
       
-      // Trigger a refresh of the staff assignments after backend update (ONLY refresh, no optimistic update)
+      // Trigger a refresh of the staff assignments after backend update
       console.log('Staff operation successful, triggering UI refresh...');
       setStaffAssignmentsUpdated(prev => !prev);
       

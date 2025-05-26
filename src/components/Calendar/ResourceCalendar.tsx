@@ -87,10 +87,10 @@ const AddressWrapStyles = () => (
   </style>
 );
 
-interface SharedHeightData {
-  getStaffForTeamAndDate: (teamId: string, date: Date) => Array<{id: string, name: string}>;
-  getTeamMinHeight: (teamId: string) => number;
-  staffLoading: boolean;
+interface LocalStaffData {
+  resourceId: string;
+  staff: Array<{id: string, name: string}>;
+  minHeight: number;
 }
 
 interface ResourceCalendarProps {
@@ -106,7 +106,7 @@ interface ResourceCalendarProps {
   forceRefresh?: boolean;
   calendarProps?: Record<string, any>; 
   droppableScope?: string;
-  sharedHeightData?: SharedHeightData;
+  localStaffData?: LocalStaffData[];
 }
 
 const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
@@ -122,14 +122,14 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   forceRefresh,
   calendarProps = {},
   droppableScope = 'weekly-calendar',
-  sharedHeightData
+  localStaffData
 }) => {
   const calendarRef = useRef<any>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(currentDate);
   const { isMobile, getInitialView, getMobileHeaderToolbar, getAspectRatio } = useCalendarView();
   const [currentView, setCurrentView] = useState<string>("resourceTimeGridDay");
   
-  console.log(`ResourceCalendar: Rendering for date ${currentDate.toISOString().split('T')[0]} with shared height data: ${!!sharedHeightData}`);
+  console.log(`ResourceCalendar: Rendering for date ${currentDate.toISOString().split('T')[0]} with local staff data: ${!!localStaffData}`);
   
   // Get the event actions hook
   const { duplicateEvent } = useEventActions(events, () => {}, resources);
@@ -209,20 +209,16 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     }
   };
 
-  // Custom resource header content renderer with shared height data
+  // Custom resource header content renderer with local staff data
   const resourceHeaderContent = (info: any) => {
     if (isMobile) return info.resource.title;
     
-    console.log(`ResourceCalendar: Rendering ResourceHeaderDropZone for ${info.resource.id} with shared height data: ${!!sharedHeightData}`);
+    console.log(`ResourceCalendar: Rendering ResourceHeaderDropZone for ${info.resource.id} with local staff data: ${!!localStaffData}`);
     
-    // Get staff data and height from shared system if available
-    const assignedStaff = sharedHeightData 
-      ? sharedHeightData.getStaffForTeamAndDate(info.resource.id, currentDate)
-      : [];
-    const minHeight = sharedHeightData 
-      ? sharedHeightData.getTeamMinHeight(info.resource.id)
-      : 80;
-    const staffLoading = sharedHeightData?.staffLoading || false;
+    // Get staff data and height from local staff data if available
+    const localData = localStaffData?.find(data => data.resourceId === info.resource.id);
+    const assignedStaff = localData?.staff || [];
+    const minHeight = localData?.minHeight || 80;
     
     return (
       <ResourceHeaderDropZone 
@@ -232,7 +228,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         onSelectStaff={onSelectStaff}
         assignedStaff={assignedStaff}
         minHeight={minHeight}
-        isLoading={staffLoading}
       />
     );
   };

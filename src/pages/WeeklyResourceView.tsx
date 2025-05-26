@@ -103,13 +103,12 @@ const WeeklyResourceView = () => {
     setShowStaffDisplay(prev => !prev);
   }, []);
 
-  // Staff drop handler with optimistic updates handled by shared hook
+  // Staff drop handler - simplified without optimistic updates (handled by UnifiedResourceCalendar)
   const handleWeeklyStaffDrop = useCallback(async (staffId: string, resourceId: string | null, targetDate?: Date) => {
     console.log('WeeklyResourceView: Staff drop for date:', targetDate || hookCurrentDate);
     const dateToUse = targetDate || hookCurrentDate;
     setSelectedDate(dateToUse);
     
-    // The optimistic update is now handled by useSharedResourceHeights
     return handleStaffDrop(staffId, resourceId);
   }, [handleStaffDrop, hookCurrentDate]);
 
@@ -170,7 +169,6 @@ const WeeklyResourceView = () => {
         throw insertError;
       }
 
-      // The useSharedResourceHeights hook will automatically pick up the changes via real-time
       toast.success('Staff assignments copied successfully');
       
     } catch (error) {
@@ -248,7 +246,7 @@ const WeeklyResourceView = () => {
           </div>
         </div>
         
-        {/* Unified Calendar View with shared height management */}
+        {/* Unified Calendar View with local state management */}
         <div className="weekly-view-container overflow-x-auto">
           <UnifiedResourceCalendar
             events={events}

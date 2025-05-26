@@ -12,7 +12,6 @@ interface ResourceHeaderDropZoneProps {
   onSelectStaff?: (resourceId: string, resourceTitle: string) => void;
   assignedStaff?: Array<{id: string, name: string}>;
   minHeight?: number;
-  isLoading?: boolean;
 }
 
 const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
@@ -21,8 +20,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   onStaffDrop,
   onSelectStaff,
   assignedStaff = [],
-  minHeight = 80,
-  isLoading = false
+  minHeight = 80
 }) => {
   console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff, minHeight: ${minHeight}`);
 
@@ -90,9 +88,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       
       {/* Staff Section - shows assigned staff names below the button */}
       <div className="staff-section flex-1 min-h-0">
-        {isLoading ? (
-          <div className="text-xs text-gray-400 text-center">Loading...</div>
-        ) : assignedStaff.length > 0 ? (
+        {assignedStaff.length > 0 ? (
           <div className="space-y-1">
             {assignedStaff.map((staff) => (
               <div
