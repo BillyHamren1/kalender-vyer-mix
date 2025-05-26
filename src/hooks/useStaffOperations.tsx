@@ -1,15 +1,16 @@
-
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { assignStaffToTeam, removeStaffAssignment } from '@/services/staffService';
 
+// DEPRECATED: This hook is being replaced by useReliableStaffOperations
+// Keeping minimal functionality for backward compatibility
 export const useStaffOperations = (currentDate: Date) => {
   const [staffAssignmentsUpdated, setStaffAssignmentsUpdated] = useState(false);
   const [processingStaffIds, setProcessingStaffIds] = useState<string[]>([]);
 
-  // Handle staff drop for assignment
+  // Simple refresh trigger for backward compatibility
   const handleStaffDrop = useCallback(async (staffId: string, resourceId: string | null) => {
-    console.log(`useStaffOperations.handleStaffDrop called with staffId=${staffId}, resourceId=${resourceId || 'unassigned'}, date=${currentDate.toISOString().split('T')[0]}`);
+    console.log(`useStaffOperations.handleStaffDrop (deprecated) called with staffId=${staffId}, resourceId=${resourceId || 'unassigned'}`);
     
     // If both staffId and resourceId are empty, just trigger a refresh
     if (!staffId) {
@@ -18,6 +19,9 @@ export const useStaffOperations = (currentDate: Date) => {
       return Promise.resolve();
     }
 
+    // For actual operations, log a warning that this is deprecated
+    console.warn('useStaffOperations is deprecated. Use useReliableStaffOperations instead.');
+    
     // Track staff being processed
     setProcessingStaffIds(prev => [...prev, staffId]);
     
