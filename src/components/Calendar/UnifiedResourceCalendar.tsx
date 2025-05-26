@@ -6,6 +6,7 @@ import { format, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, each
 import { useNavigate } from 'react-router-dom';
 import { useContext } from 'react';
 import { CalendarContext } from '@/App';
+import { useSharedResourceHeights } from '@/hooks/useSharedResourceHeights';
 import './WeeklyCalendarStyles.css';
 
 interface UnifiedResourceCalendarProps {
@@ -40,8 +41,18 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   const navigate = useNavigate();
   const { setLastViewedDate } = useContext(CalendarContext);
 
-  console.log(`UnifiedResourceCalendar: forceRefresh prop is ${forceRefresh}`);
-  console.log(`UnifiedResourceCalendar: Total events received: ${events.length}`);
+  // Use shared resource heights for weekly view
+  const {
+    teamHeights,
+    staffData,
+    isLoading: staffLoading,
+    optimisticStaffUpdate,
+    getStaffForTeamAndDate,
+    getTeamMinHeight,
+    refreshStaffData
+  } = useSharedResourceHeights(viewMode === 'weekly' ? currentDate : new Date(), resources);
+
+  console.log(`UnifiedResourceCalendar: ${viewMode} view with ${events.length} events`);
 
   // Generate days based on view mode
   const getDaysToRender = () => {
@@ -78,15 +89,34 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     navigate('/resource-view');
   };
 
-  // FIXED: Handle staff drop with specific date
+  // Enhanced staff drop handler with optimistic updates
   const handleStaffDrop = async (staffId: string, resourceId: string | null, dayDate: Date) => {
     console.log(`UnifiedResourceCalendar.handleStaffDrop: staffId=${staffId}, resourceId=${resourceId || 'null'}, date=${format(dayDate, 'yyyy-MM-dd')}`);
+    
+    // Find staff name for optimistic update
+    const staffMember = staffData.find(s => s.staffId === staffId);
+    const staffName = staffMember?.staffName || 'Unknown';
+    
+    // Apply optimistic update immediately
+    if (viewMode === 'weekly') {
+      optimisticStaffUpdate(staffId, staffName, resourceId, dayDate);
+    }
+    
     if (onStaffDrop) {
       try {
         await onStaffDrop(staffId, resourceId, dayDate);
         console.log('Staff drop operation successful for date:', format(dayDate, 'yyyy-MM-dd'));
+        
+        // Refresh staff data after successful backend update
+        if (viewMode === 'weekly') {
+          refreshStaffData();
+        }
       } catch (error) {
         console.error('Error in handleStaffDrop:', error);
+        // Revert optimistic update on error
+        if (viewMode === 'weekly') {
+          refreshStaffData();
+        }
       }
     }
   };
@@ -97,7 +127,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     onDateSet(dateInfo);
   };
 
-  // FIXED: Handle team selection with specific date
+  // Enhanced team selection handler
   const handleSelectStaff = (resourceId: string, resourceTitle: string, dayDate: Date) => {
     console.log('UnifiedResourceCalendar.handleSelectStaff called with:', resourceId, resourceTitle, 'for date:', format(dayDate, 'yyyy-MM-dd'));
     if (onSelectStaff) {
@@ -141,7 +171,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     };
   };
 
-  // FIXED: Filter events for each specific day to prevent duplicates
+  // Filter events for each specific day to prevent duplicates
   const getEventsForDay = (date: Date): CalendarEvent[] => {
     const dateStr = format(date, 'yyyy-MM-dd');
     
@@ -190,7 +220,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     <div className={getContainerClass()}>
       <div className={getCalendarContainerClass()} ref={containerRef}>
         {days.map((date, index) => {
-          // CRITICAL FIX: Get only the events for this specific day
+          // Get only the events for this specific day
           const dayEvents = getEventsForDay(date);
           const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
           const isCurrentMonth = viewMode === 'monthly' ? isSameMonth(date, currentDate) : true;
@@ -226,6 +256,12 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
                   key={`calendar-${format(date, 'yyyy-MM-dd')}`}
                   droppableScope={`${viewMode}-calendar`}
                   calendarProps={getCommonCalendarProps(index)}
+                  // Pass shared height data for weekly view
+                  sharedHeightData={viewMode === 'weekly' ? {
+                    getStaffForTeamAndDate,
+                    getTeamMinHeight,
+                    staffLoading
+                  } : undefined}
                 />
               </div>
             </div>

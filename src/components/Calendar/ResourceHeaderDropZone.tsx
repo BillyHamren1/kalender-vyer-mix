@@ -1,19 +1,18 @@
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
 import { Button } from '@/components/ui/button';
 import { Users } from 'lucide-react';
-import { fetchStaffAssignmentsForDate } from '@/services/staffAssignmentService';
-import { fetchStaffMembers } from '@/services/staffService';
-import { format } from 'date-fns';
 
 interface ResourceHeaderDropZoneProps {
   resource: Resource;
   currentDate: Date;
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
   onSelectStaff?: (resourceId: string, resourceTitle: string) => void;
-  forceRefresh?: boolean;
+  assignedStaff?: Array<{id: string, name: string}>;
+  minHeight?: number;
+  isLoading?: boolean;
 }
 
 const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
@@ -21,49 +20,11 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   currentDate,
   onStaffDrop,
   onSelectStaff,
-  forceRefresh
+  assignedStaff = [],
+  minHeight = 80,
+  isLoading = false
 }) => {
-  const [assignedStaff, setAssignedStaff] = useState<Array<{id: string, name: string}>>([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with forceRefresh=${forceRefresh}`);
-
-  // Fetch assigned staff for this team on the current date
-  const fetchAssignedStaff = async () => {
-    if (!currentDate) return;
-    
-    try {
-      setIsLoading(true);
-      const dateStr = format(currentDate, 'yyyy-MM-dd');
-      console.log(`ResourceHeaderDropZone: Fetching staff assignments for ${resource.id} on ${dateStr}`);
-      
-      // Get assignments for this team on this date
-      const assignments = await fetchStaffAssignmentsForDate(currentDate);
-      const teamAssignments = assignments.filter(assignment => assignment.teamId === resource.id);
-      
-      // Get full staff details
-      const allStaff = await fetchStaffMembers();
-      const assignedStaffDetails = teamAssignments
-        .map(assignment => {
-          const staff = allStaff.find(s => s.id === assignment.staffId);
-          return staff ? { id: staff.id, name: staff.name } : null;
-        })
-        .filter(Boolean);
-      
-      console.log(`ResourceHeaderDropZone: Found ${assignedStaffDetails.length} staff assigned to ${resource.id}`);
-      setAssignedStaff(assignedStaffDetails);
-    } catch (error) {
-      console.error('Error fetching assigned staff:', error);
-      setAssignedStaff([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Fetch staff when component mounts or when date/team/forceRefresh changes
-  useEffect(() => {
-    fetchAssignedStaff();
-  }, [resource.id, currentDate, forceRefresh]);
+  console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff, minHeight: ${minHeight}`);
 
   const [{ isOver }, drop] = useDrop({
     accept: 'staff',
@@ -72,8 +33,6 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       if (onStaffDrop) {
         try {
           await onStaffDrop(item.id, resource.id);
-          // Refresh the staff assignments after successful drop
-          await fetchAssignedStaff();
         } catch (error) {
           console.error('Error handling staff drop:', error);
         }
@@ -96,13 +55,15 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   return (
     <div
       ref={drop}
-      className={`resource-header-drop-zone p-2 h-full w-full flex flex-col justify-between min-h-[50px] relative ${
+      className={`resource-header-drop-zone p-2 h-full w-full flex flex-col justify-between relative ${
         isOver ? 'bg-blue-100 border-2 border-blue-300' : 'bg-gray-50'
       } transition-colors duration-200`}
       style={{ 
         width: '80px',
         minWidth: '80px', 
         maxWidth: '80px',
+        minHeight: `${minHeight}px`,
+        height: `${minHeight}px`,
         overflow: 'visible',
         position: 'relative',
         zIndex: 10
@@ -136,7 +97,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
             {assignedStaff.map((staff) => (
               <div
                 key={staff.id}
-                className="bg-blue-100 text-blue-800 text-xs px-1 py-0.5 rounded truncate"
+                className="bg-blue-100 text-blue-800 text-xs px-1 py-0.5 rounded truncate transition-all duration-200"
                 title={staff.name}
               >
                 {staff.name}

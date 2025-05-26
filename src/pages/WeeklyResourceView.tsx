@@ -56,13 +56,13 @@ const WeeklyResourceView = () => {
   // State for showing staff display panel
   const [showStaffDisplay, setShowStaffDisplay] = useState(false);
 
-  // Add state for staff selection dialog - FIXED: Track which specific day's date
+  // Add state for staff selection dialog
   const [staffSelectionDialogOpen, setStaffSelectionDialogOpen] = useState(false);
   const [selectedResourceId, setSelectedResourceId] = useState('');
   const [selectedResourceTitle, setSelectedResourceTitle] = useState('');
-  const [selectedDate, setSelectedDate] = useState<Date>(hookCurrentDate); // Track specific date
+  const [selectedDate, setSelectedDate] = useState<Date>(hookCurrentDate);
 
-  // Get staff operations - FIXED: Use selectedDate for operations
+  // Get staff operations
   const {
     staffAssignmentsUpdated,
     handleStaffDrop,
@@ -82,16 +82,16 @@ const WeeklyResourceView = () => {
     }
   }, [handleDatesSet, hookCurrentDate]);
 
-  // FIXED: Handle staff selection for a specific team AND date
+  // Handle staff selection for a specific team AND date
   const handleOpenStaffSelectionDialog = useCallback((resourceId: string, resourceTitle: string, targetDate?: Date) => {
     console.log('WeeklyResourceView: Opening staff selection dialog for:', resourceId, resourceTitle, 'Date:', targetDate || hookCurrentDate);
     setSelectedResourceId(resourceId);
     setSelectedResourceTitle(resourceTitle);
-    setSelectedDate(targetDate || hookCurrentDate); // Use the specific date if provided
+    setSelectedDate(targetDate || hookCurrentDate);
     setStaffSelectionDialogOpen(true);
   }, [hookCurrentDate]);
 
-  // Handle successful staff assignment - FIXED: Use selectedDate
+  // Handle successful staff assignment
   const handleStaffAssigned = useCallback(() => {
     console.log('WeeklyResourceView: Staff assigned successfully for date:', selectedDate, 'refreshing...');
     // Toggle the staffAssignmentsUpdated flag to trigger a refresh
@@ -103,14 +103,13 @@ const WeeklyResourceView = () => {
     setShowStaffDisplay(prev => !prev);
   }, []);
 
-  // FIXED: Staff drop handler that uses the correct date
+  // Staff drop handler with optimistic updates handled by shared hook
   const handleWeeklyStaffDrop = useCallback(async (staffId: string, resourceId: string | null, targetDate?: Date) => {
     console.log('WeeklyResourceView: Staff drop for date:', targetDate || hookCurrentDate);
     const dateToUse = targetDate || hookCurrentDate;
     setSelectedDate(dateToUse);
     
-    // Use the staff operations with the correct date
-    const tempStaffOps = await import('@/hooks/useStaffOperations');
+    // The optimistic update is now handled by useSharedResourceHeights
     return handleStaffDrop(staffId, resourceId);
   }, [handleStaffDrop, hookCurrentDate]);
 
@@ -171,14 +170,14 @@ const WeeklyResourceView = () => {
         throw insertError;
       }
 
-      // Trigger a refresh of the calendar
-      handleStaffDrop('', '');
+      // The useSharedResourceHeights hook will automatically pick up the changes via real-time
+      toast.success('Staff assignments copied successfully');
       
     } catch (error) {
       console.error('Error copying assignments from previous week:', error);
-      throw error;
+      toast.error('Failed to copy staff assignments from previous week');
     }
-  }, [currentWeekStart, handleStaffDrop]);
+  }, [currentWeekStart]);
 
   // Wrapper function to ensure Promise<void> return type
   const handleRefresh = async (): Promise<void> => {
@@ -189,7 +188,7 @@ const WeeklyResourceView = () => {
     <DndProvider backend={HTML5Backend}>
       <StaffSyncManager currentDate={hookCurrentDate} />
       
-      {/* FIXED: Staff Selection Dialog now uses selectedDate */}
+      {/* Staff Selection Dialog */}
       <StaffSelectionDialog
         resourceId={selectedResourceId}
         resourceTitle={selectedResourceTitle}
@@ -249,7 +248,7 @@ const WeeklyResourceView = () => {
           </div>
         </div>
         
-        {/* Unified Calendar View */}
+        {/* Unified Calendar View with shared height management */}
         <div className="weekly-view-container overflow-x-auto">
           <UnifiedResourceCalendar
             events={events}

@@ -87,6 +87,12 @@ const AddressWrapStyles = () => (
   </style>
 );
 
+interface SharedHeightData {
+  getStaffForTeamAndDate: (teamId: string, date: Date) => Array<{id: string, name: string}>;
+  getTeamMinHeight: (teamId: string) => number;
+  staffLoading: boolean;
+}
+
 interface ResourceCalendarProps {
   events: CalendarEvent[];
   resources: Resource[];
@@ -100,6 +106,7 @@ interface ResourceCalendarProps {
   forceRefresh?: boolean;
   calendarProps?: Record<string, any>; 
   droppableScope?: string;
+  sharedHeightData?: SharedHeightData;
 }
 
 const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
@@ -114,14 +121,15 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   onSelectStaff,
   forceRefresh,
   calendarProps = {},
-  droppableScope = 'weekly-calendar'
+  droppableScope = 'weekly-calendar',
+  sharedHeightData
 }) => {
   const calendarRef = useRef<any>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(currentDate);
   const { isMobile, getInitialView, getMobileHeaderToolbar, getAspectRatio } = useCalendarView();
   const [currentView, setCurrentView] = useState<string>("resourceTimeGridDay");
   
-  console.log(`ResourceCalendar: forceRefresh prop is ${forceRefresh} for date ${currentDate.toISOString().split('T')[0]}`);
+  console.log(`ResourceCalendar: Rendering for date ${currentDate.toISOString().split('T')[0]} with shared height data: ${!!sharedHeightData}`);
   
   // Get the event actions hook
   const { duplicateEvent } = useEventActions(events, () => {}, resources);
@@ -201,11 +209,20 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     }
   };
 
-  // Custom resource header content renderer
+  // Custom resource header content renderer with shared height data
   const resourceHeaderContent = (info: any) => {
     if (isMobile) return info.resource.title;
     
-    console.log(`ResourceCalendar: Rendering ResourceHeaderDropZone for ${info.resource.id} with forceRefresh=${forceRefresh}`);
+    console.log(`ResourceCalendar: Rendering ResourceHeaderDropZone for ${info.resource.id} with shared height data: ${!!sharedHeightData}`);
+    
+    // Get staff data and height from shared system if available
+    const assignedStaff = sharedHeightData 
+      ? sharedHeightData.getStaffForTeamAndDate(info.resource.id, currentDate)
+      : [];
+    const minHeight = sharedHeightData 
+      ? sharedHeightData.getTeamMinHeight(info.resource.id)
+      : 80;
+    const staffLoading = sharedHeightData?.staffLoading || false;
     
     return (
       <ResourceHeaderDropZone 
@@ -213,7 +230,9 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         currentDate={currentDate}
         onStaffDrop={onStaffDrop}
         onSelectStaff={onSelectStaff}
-        forceRefresh={forceRefresh}
+        assignedStaff={assignedStaff}
+        minHeight={minHeight}
+        isLoading={staffLoading}
       />
     );
   };
@@ -288,21 +307,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       setupEventActions(info, handleDuplicateButtonClick);
     },
     resourceLabelDidMount: setupResourceHeaderStyles,
-    resourceLabelContent: (info: any) => {
-      if (isMobile) return info.resource.title;
-      
-      console.log(`ResourceCalendar: FullCalendar resourceLabelContent for ${info.resource.id} with forceRefresh=${forceRefresh}`);
-      
-      return (
-        <ResourceHeaderDropZone 
-          resource={info.resource}
-          currentDate={currentDate}
-          onStaffDrop={onStaffDrop}
-          onSelectStaff={handleSelectStaff}
-          forceRefresh={forceRefresh}
-        />
-      );
-    },
+    resourceLabelContent: resourceHeaderContent,
     slotLabelDidMount: (info: any) => {
       info.el.style.zIndex = '1';
     },
