@@ -108,12 +108,26 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         zIndex: 10
       }}
     >
-      {/* Team Title */}
-      <div className="text-xs font-medium text-center mb-1 truncate" title={resource.title}>
-        {resource.title}
+      {/* Team Header with Title and Staff Button */}
+      <div className="flex flex-col">
+        {/* Team Title */}
+        <div className="text-xs font-medium text-center mb-1 truncate" title={resource.title}>
+          {resource.title}
+        </div>
+        
+        {/* Select Staff Button - Always visible */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleSelectStaff}
+          className="h-6 w-full text-xs p-1 mb-1"
+          title="Select staff for this team"
+        >
+          <Users className="h-3 w-3" />
+        </Button>
       </div>
       
-      {/* Staff Section - only show assigned staff names, no "No staff assigned" text */}
+      {/* Staff Section - shows assigned staff names below the button */}
       <div className="staff-section flex-1 min-h-0">
         {isLoading ? (
           <div className="text-xs text-gray-400 text-center">Loading...</div>
@@ -131,17 +145,6 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
           </div>
         ) : null}
       </div>
-      
-      {/* Select Staff Button */}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={handleSelectStaff}
-        className="h-6 w-full text-xs p-1 mt-1"
-        title="Select staff for this team"
-      >
-        <Users className="h-3 w-3" />
-      </Button>
     </div>
   );
 };
