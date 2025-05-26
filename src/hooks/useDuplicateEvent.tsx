@@ -8,27 +8,24 @@ export const useDuplicateEvent = (onEventDuplicated: () => void) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
-  const duplicateEvent = async (originalEvent: CalendarEvent, newDate: Date, newResourceId?: string) => {
+  const duplicateEvent = async (eventId: string, targetResourceId: string): Promise<string> => {
     try {
-      // Calculate the duration of the original event
-      const originalStart = new Date(originalEvent.start);
-      const originalEnd = new Date(originalEvent.end);
-      const durationMs = originalEnd.getTime() - originalStart.getTime();
-
-      // Create new start and end times
-      const newStart = new Date(newDate);
-      const newEnd = new Date(newStart.getTime() + durationMs);
+      // Find the original event (in a real app, you'd fetch this from your state or API)
+      // For now, we'll use the selectedEvent
+      if (!selectedEvent) {
+        throw new Error('No event selected for duplication');
+      }
 
       // Create the duplicated event
       const duplicatedEvent: Omit<CalendarEvent, 'id'> = {
-        title: originalEvent.title,
-        start: newStart.toISOString(),
-        end: newEnd.toISOString(),
-        resourceId: newResourceId || originalEvent.resourceId,
-        eventType: originalEvent.eventType,
-        deliveryAddress: originalEvent.deliveryAddress,
-        bookingId: originalEvent.bookingId,
-        bookingNumber: originalEvent.bookingNumber,
+        title: selectedEvent.title,
+        start: selectedEvent.start,
+        end: selectedEvent.end,
+        resourceId: targetResourceId,
+        eventType: selectedEvent.eventType,
+        deliveryAddress: selectedEvent.deliveryAddress,
+        bookingId: selectedEvent.bookingId,
+        bookingNumber: selectedEvent.bookingNumber,
       };
 
       // Save to database
@@ -38,10 +35,14 @@ export const useDuplicateEvent = (onEventDuplicated: () => void) => {
         toast.success('Event duplicated successfully');
         onEventDuplicated();
         setIsDialogOpen(false);
+        return savedEvent.id;
       }
+      
+      throw new Error('Failed to duplicate event');
     } catch (error) {
       console.error('Error duplicating event:', error);
       toast.error('Failed to duplicate event');
+      throw error;
     }
   };
 

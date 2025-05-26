@@ -216,7 +216,9 @@ export type Database = {
       calendar_events: {
         Row: {
           booking_id: string | null
+          booking_number: string | null
           created_at: string
+          delivery_address: string | null
           end_time: string
           event_type: string | null
           id: string
@@ -227,7 +229,9 @@ export type Database = {
         }
         Insert: {
           booking_id?: string | null
+          booking_number?: string | null
           created_at?: string
+          delivery_address?: string | null
           end_time: string
           event_type?: string | null
           id?: string
@@ -238,7 +242,9 @@ export type Database = {
         }
         Update: {
           booking_id?: string | null
+          booking_number?: string | null
           created_at?: string
+          delivery_address?: string | null
           end_time?: string
           event_type?: string | null
           id?: string

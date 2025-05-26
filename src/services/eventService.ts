@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { CalendarEvent } from "@/components/Calendar/ResourceData";
 import { getEventColor } from "@/components/Calendar/ResourceData";
@@ -113,7 +114,7 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
     const bookingId = event.booking_id || '';
     
     // Get the delivery address for this event's booking
-    const deliveryAddress = bookingAddresses[bookingId] || 'No address provided';
+    const deliveryAddress = bookingAddresses[bookingId] || event.delivery_address || 'No address provided';
     
     const calendarEvent: CalendarEvent = {
       id: event.id,
@@ -123,7 +124,7 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
       end: event.end_time,
       eventType: eventType,
       bookingId: bookingId,
-      color: getEventColor(eventType),
+      bookingNumber: event.booking_number || bookingId || 'No ID',
       deliveryAddress: deliveryAddress
     };
     
@@ -234,7 +235,8 @@ export const fetchEventsByBookingId = async (bookingId: string): Promise<Calenda
       end: event.end_time,
       eventType: eventType,
       bookingId: event.booking_id,
-      color: getEventColor(eventType)
+      bookingNumber: event.booking_number || event.booking_id || 'No ID',
+      deliveryAddress: event.delivery_address || 'No address provided'
     };
   });
 };
