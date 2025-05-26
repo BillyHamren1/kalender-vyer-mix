@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -119,12 +118,23 @@ const WeeklyResourceView = () => {
     setShowStaffDisplay(prev => !prev);
   }, []);
 
-  // Staff drop handler with date awareness
+  // Staff drop handler with enhanced logging and date awareness
   const handleWeeklyStaffDrop = useCallback(async (staffId: string, resourceId: string | null, targetDate?: Date) => {
-    console.log('WeeklyResourceView: Staff drop for date:', targetDate || currentWeekStart);
+    console.log('WeeklyResourceView.handleWeeklyStaffDrop:', {
+      staffId,
+      resourceId,
+      targetDate: targetDate ? format(targetDate, 'yyyy-MM-dd') : 'undefined',
+      currentWeekStart: format(currentWeekStart, 'yyyy-MM-dd')
+    });
     
-    // For weekly view, we use the current week start date for all operations
-    await handleStaffDrop(staffId, resourceId);
+    try {
+      // Use the reliable staff drop handler
+      await handleStaffDrop(staffId, resourceId);
+      console.log('WeeklyResourceView: Staff drop completed successfully');
+    } catch (error) {
+      console.error('WeeklyResourceView: Error in staff drop:', error);
+      toast.error('Failed to update staff assignment');
+    }
   }, [handleStaffDrop, currentWeekStart]);
 
   // Copy staff assignments from previous week
@@ -203,85 +213,87 @@ const WeeklyResourceView = () => {
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <StaffSyncManager currentDate={hookCurrentDate} />
-      
-      {/* Staff Selection Dialog */}
-      <StaffSelectionDialog
-        resourceId={selectedResourceId}
-        resourceTitle={selectedResourceTitle}
-        currentDate={selectedDate}
-        open={staffSelectionDialogOpen}
-        onOpenChange={setStaffSelectionDialogOpen}
-        onStaffAssigned={handleStaffAssigned}
-      />
-      
-      <ResourceLayout 
-        showStaffDisplay={showStaffDisplay}
-        staffDisplay={showStaffDisplay ? (
-          <AvailableStaffDisplay 
-            currentDate={hookCurrentDate} 
-            onStaffDrop={handleWeeklyStaffDrop}
-          />
-        ) : <></>}
-        isMobile={isMobile}
-      >
-        {/* ResourceHeader component with team management controls */}
-        <ResourceHeader
-          teamResources={teamResources}
-          teamCount={teamCount}
-          onAddTeam={addTeam}
-          onRemoveTeam={removeTeam}
-          dialogOpen={dialogOpen}
-          setDialogOpen={setDialogOpen}
+      <div className="weekly-resource-view-container">
+        <StaffSyncManager currentDate={hookCurrentDate} />
+        
+        {/* Staff Selection Dialog */}
+        <StaffSelectionDialog
+          resourceId={selectedResourceId}
+          resourceTitle={selectedResourceTitle}
+          currentDate={selectedDate}
+          open={staffSelectionDialogOpen}
+          onOpenChange={setStaffSelectionDialogOpen}
+          onStaffAssigned={handleStaffAssigned}
         />
-
-        {/* Week Navigation and Header */}
-        <div className="flex flex-col space-y-2 mb-4">
-          <div className="flex items-center justify-between">
-            <WeekNavigation 
-              currentWeekStart={currentWeekStart}
-              setCurrentWeekStart={setCurrentWeekStart}
+        
+        <ResourceLayout 
+          showStaffDisplay={showStaffDisplay}
+          staffDisplay={showStaffDisplay ? (
+            <AvailableStaffDisplay 
+              currentDate={hookCurrentDate} 
+              onStaffDrop={handleWeeklyStaffDrop}
             />
-            
-            <div className="flex items-center gap-2">
-              <TeamEditDialog
-                teamResources={teamResources}
-                teamCount={teamCount}
-                onAddTeam={addTeam}
-                onRemoveTeam={removeTeam}
+          ) : <></>}
+          isMobile={isMobile}
+        >
+          {/* ResourceHeader component with team management controls */}
+          <ResourceHeader
+            teamResources={teamResources}
+            teamCount={teamCount}
+            onAddTeam={addTeam}
+            onRemoveTeam={removeTeam}
+            dialogOpen={dialogOpen}
+            setDialogOpen={setDialogOpen}
+          />
+
+          {/* Week Navigation and Header */}
+          <div className="flex flex-col space-y-2 mb-4">
+            <div className="flex items-center justify-between">
+              <WeekNavigation 
                 currentWeekStart={currentWeekStart}
-                onCopyFromPreviousWeek={handleCopyFromPreviousWeek}
+                setCurrentWeekStart={setCurrentWeekStart}
               />
               
-              <ResourceToolbar
-                isLoading={isLoading || staffLoading}
-                currentDate={hookCurrentDate}
-                resources={resources}
-                onRefresh={handleRefresh}
-                onAddTask={addEventToCalendar}
-                onShowStaffCurtain={handleToggleStaffDisplay}
-              />
+              <div className="flex items-center gap-2">
+                <TeamEditDialog
+                  teamResources={teamResources}
+                  teamCount={teamCount}
+                  onAddTeam={addTeam}
+                  onRemoveTeam={removeTeam}
+                  currentWeekStart={currentWeekStart}
+                  onCopyFromPreviousWeek={handleCopyFromPreviousWeek}
+                />
+                
+                <ResourceToolbar
+                  isLoading={isLoading || staffLoading}
+                  currentDate={hookCurrentDate}
+                  resources={resources}
+                  onRefresh={handleRefresh}
+                  onAddTask={addEventToCalendar}
+                  onShowStaffCurtain={handleToggleStaffDisplay}
+                />
+              </div>
             </div>
           </div>
-        </div>
-        
-        {/* Unified Calendar View with reliable staff data */}
-        <div className="weekly-view-container overflow-x-auto">
-          <UnifiedResourceCalendar
-            events={events}
-            resources={resources}
-            isLoading={isLoading}
-            isMounted={isMounted}
-            currentDate={currentWeekStart}
-            onDateSet={handleCalendarDateSet}
-            refreshEvents={refreshEvents}
-            onStaffDrop={handleWeeklyStaffDrop}
-            onSelectStaff={handleOpenStaffSelectionDialog}
-            forceRefresh={refreshTrigger}
-            viewMode="weekly"
-          />
-        </div>
-      </ResourceLayout>
+          
+          {/* Unified Calendar View with reliable staff data */}
+          <div className="weekly-view-container overflow-x-auto">
+            <UnifiedResourceCalendar
+              events={events}
+              resources={resources}
+              isLoading={isLoading}
+              isMounted={isMounted}
+              currentDate={currentWeekStart}
+              onDateSet={handleCalendarDateSet}
+              refreshEvents={refreshEvents}
+              onStaffDrop={handleWeeklyStaffDrop}
+              onSelectStaff={handleOpenStaffSelectionDialog}
+              forceRefresh={refreshTrigger}
+              viewMode="weekly"
+            />
+          </div>
+        </ResourceLayout>
+      </div>
     </DndProvider>
   );
 };

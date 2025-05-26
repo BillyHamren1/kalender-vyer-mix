@@ -25,20 +25,42 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
 }) => {
   console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff, minHeight: ${minHeight}`);
 
-  const [{ isOver }, drop] = useDrop({
-    accept: 'STAFF', // Changed from 'staff' to 'STAFF' to match DraggableStaffItem
-    drop: async (item: { id: string }) => {
-      console.log(`ResourceHeaderDropZone: Staff ${item.id} dropped on team ${resource.id}`);
+  const [{ isOver, canDrop }, drop] = useDrop({
+    accept: 'STAFF',
+    drop: async (item: { id: string; name: string; assignedTeam?: string | null }) => {
+      console.log(`ResourceHeaderDropZone: Staff dropped:`, {
+        staffId: item.id,
+        staffName: item.name,
+        fromTeam: item.assignedTeam,
+        toTeam: resource.id,
+        resourceTitle: resource.title
+      });
+      
       if (onStaffDrop) {
         try {
           await onStaffDrop(item.id, resource.id);
+          console.log('ResourceHeaderDropZone: Staff drop completed successfully');
         } catch (error) {
-          console.error('Error handling staff drop:', error);
+          console.error('ResourceHeaderDropZone: Error handling staff drop:', error);
         }
       }
     },
+    canDrop: (item: { id: string; assignedTeam?: string | null }) => {
+      // Check if staff is already assigned to this team
+      const isAlreadyAssigned = assignedStaff.some(staff => staff.id === item.id);
+      const canDropHere = !isAlreadyAssigned;
+      
+      console.log(`ResourceHeaderDropZone: Can drop check for ${item.id}:`, {
+        isAlreadyAssigned,
+        canDropHere,
+        targetTeam: resource.id
+      });
+      
+      return canDropHere;
+    },
     collect: (monitor) => ({
       isOver: !!monitor.isOver(),
+      canDrop: !!monitor.canDrop(),
     }),
   });
 
@@ -57,18 +79,30 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     if (onStaffDrop) {
       try {
         await onStaffDrop(staffId, null); // null resourceId means removal
+        console.log('ResourceHeaderDropZone: Staff removal completed successfully');
       } catch (error) {
-        console.error('Error removing staff:', error);
+        console.error('ResourceHeaderDropZone: Error removing staff:', error);
       }
+    }
+  };
+
+  // Get drop zone styling with better visual feedback
+  const getDropZoneClass = () => {
+    let baseClass = `resource-header-drop-zone p-2 h-full w-full flex flex-col justify-between relative transition-all duration-200`;
+    
+    if (isOver && canDrop) {
+      return `${baseClass} bg-green-100 border-2 border-green-400 shadow-lg`;
+    } else if (isOver && !canDrop) {
+      return `${baseClass} bg-red-100 border-2 border-red-400`;
+    } else {
+      return `${baseClass} bg-gray-50 hover:bg-gray-100`;
     }
   };
 
   return (
     <div
       ref={drop}
-      className={`resource-header-drop-zone p-2 h-full w-full flex flex-col justify-between relative ${
-        isOver ? 'bg-blue-100 border-2 border-blue-300' : 'bg-gray-50'
-      } transition-colors duration-200`}
+      className={getDropZoneClass()}
       style={{ 
         width: '80px',
         minWidth: '80px', 
@@ -115,6 +149,19 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
           </div>
         ) : null}
       </div>
+      
+      {/* Drop feedback overlay */}
+      {isOver && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className={`text-xs font-medium px-2 py-1 rounded ${
+            canDrop 
+              ? 'bg-green-200 text-green-800' 
+              : 'bg-red-200 text-red-800'
+          }`}>
+            {canDrop ? 'Drop here' : 'Already assigned'}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -3,7 +3,7 @@ import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useEventActions } from '@/hooks/useEventActions';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useStaffOperations } from '@/hooks/useStaffOperations';
+import { useReliableStaffOperations } from '@/hooks/useReliableStaffOperations';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import ResourceHeader from '@/components/Calendar/ResourceHeader';
@@ -57,9 +57,31 @@ const MonthlyResourceView = () => {
 
   // Get staff operations
   const {
-    staffAssignmentsUpdated,
+    handleStaffAssigned,
+  } = useReliableStaffOperations(hookCurrentDate);
+
+  // Get reliable staff operations
+  const {
     handleStaffDrop,
-  } = useStaffOperations(hookCurrentDate);
+    refreshTrigger
+  } = useReliableStaffOperations(hookCurrentDate);
+
+  // Enhanced staff drop handler with logging
+  const handleMonthlyStaffDrop = useCallback(async (staffId: string, resourceId: string | null, targetDate?: Date) => {
+    console.log('MonthlyResourceView.handleMonthlyStaffDrop:', {
+      staffId,
+      resourceId,
+      targetDate: targetDate ? targetDate.toISOString().split('T')[0] : 'undefined'
+    });
+    
+    try {
+      await handleStaffDrop(staffId, resourceId);
+      console.log('MonthlyResourceView: Staff drop completed successfully');
+    } catch (error) {
+      console.error('MonthlyResourceView: Error in staff drop:', error);
+      toast.error('Failed to update staff assignment');
+    }
+  }, [handleStaffDrop]);
 
   // Only update when hookCurrentDate changes, not on every render
   useEffect(() => {
@@ -78,11 +100,6 @@ const MonthlyResourceView = () => {
     setStaffSelectionDialogOpen(true);
   }, []);
 
-  const handleStaffAssigned = useCallback(async (staffId: string, staffName: string): Promise<void> => {
-    // Trigger a refresh of staff assignments
-    handleStaffDrop('', '');
-  }, [handleStaffDrop]);
-
   const handleToggleStaffDisplay = useCallback(() => {
     setShowStaffDisplay(prev => !prev);
   }, []);
@@ -93,89 +110,91 @@ const MonthlyResourceView = () => {
   };
 
   // Convert boolean to number for compatibility with UnifiedResourceCalendar
-  const forceRefreshNumber = staffAssignmentsUpdated ? 1 : 0;
+  const forceRefreshNumber = refreshTrigger ? 1 : 0;
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <StaffSyncManager currentDate={hookCurrentDate} />
-      
-      <StaffSelectionDialog
-        resourceId={selectedResourceId}
-        resourceTitle={selectedResourceTitle}
-        currentDate={hookCurrentDate}
-        open={staffSelectionDialogOpen}
-        onOpenChange={setStaffSelectionDialogOpen}
-        onStaffAssigned={handleStaffAssigned}
-      />
-      
-      <ResourceLayout 
-        showStaffDisplay={showStaffDisplay}
-        staffDisplay={showStaffDisplay ? (
-          <AvailableStaffDisplay 
-            currentDate={hookCurrentDate} 
-            onStaffDrop={handleStaffDrop}
-          />
-        ) : <></>}
-        isMobile={isMobile}
-      >
-        <ResourceHeader
-          teamResources={teamResources}
-          teamCount={teamCount}
-          onAddTeam={addTeam}
-          onRemoveTeam={removeTeam}
-          dialogOpen={dialogOpen}
-          setDialogOpen={setDialogOpen}
+      <div className="monthly-resource-view-container">
+        <StaffSyncManager currentDate={hookCurrentDate} />
+        
+        <StaffSelectionDialog
+          resourceId={selectedResourceId}
+          resourceTitle={selectedResourceTitle}
+          currentDate={hookCurrentDate}
+          open={staffSelectionDialogOpen}
+          onOpenChange={setStaffSelectionDialogOpen}
+          onStaffAssigned={handleStaffAssigned}
         />
+        
+        <ResourceLayout 
+          showStaffDisplay={showStaffDisplay}
+          staffDisplay={showStaffDisplay ? (
+            <AvailableStaffDisplay 
+              currentDate={hookCurrentDate} 
+              onStaffDrop={handleMonthlyStaffDrop}
+            />
+          ) : <></>}
+          isMobile={isMobile}
+        >
+          <ResourceHeader
+            teamResources={teamResources}
+            teamCount={teamCount}
+            onAddTeam={addTeam}
+            onRemoveTeam={removeTeam}
+            dialogOpen={dialogOpen}
+            setDialogOpen={setDialogOpen}
+          />
 
-        {/* ResourceToolbar by itself */}
-        <div className="flex justify-end mb-4">
-          <ResourceToolbar
-            isLoading={isLoading}
-            currentDate={hookCurrentDate}
-            resources={resources}
-            onRefresh={handleRefresh}
-            onAddTask={addEventToCalendar}
-            onShowStaffCurtain={handleToggleStaffDisplay}
-          />
-        </div>
-        
-        {/* MonthNavigation with Edit button aligned */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex-1"></div>
-          <div className="flex-1 flex justify-center">
-            <MonthNavigation 
-              currentMonthStart={currentMonthStart}
-              setCurrentMonthStart={setCurrentMonthStart}
+          {/* ResourceToolbar by itself */}
+          <div className="flex justify-end mb-4">
+            <ResourceToolbar
+              isLoading={isLoading}
+              currentDate={hookCurrentDate}
+              resources={resources}
+              onRefresh={handleRefresh}
+              onAddTask={addEventToCalendar}
+              onShowStaffCurtain={handleToggleStaffDisplay}
             />
           </div>
-          <div className="flex-1 flex justify-end">
-            <TeamManagementDialog
-              teamResources={teamResources}
-              teamCount={teamCount}
-              onAddTeam={addTeam}
-              onRemoveTeam={removeTeam}
-              dialogOpen={dialogOpen}
-              setDialogOpen={setDialogOpen}
+          
+          {/* MonthNavigation with Edit button aligned */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex-1"></div>
+            <div className="flex-1 flex justify-center">
+              <MonthNavigation 
+                currentMonthStart={currentMonthStart}
+                setCurrentMonthStart={setCurrentMonthStart}
+              />
+            </div>
+            <div className="flex-1 flex justify-end">
+              <TeamManagementDialog
+                teamResources={teamResources}
+                teamCount={teamCount}
+                onAddTeam={addTeam}
+                onRemoveTeam={removeTeam}
+                dialogOpen={dialogOpen}
+                setDialogOpen={setDialogOpen}
+              />
+            </div>
+          </div>
+          
+          <div className="weekly-view-container overflow-x-auto">
+            <UnifiedResourceCalendar
+              events={events}
+              resources={resources}
+              isLoading={isLoading}
+              isMounted={isMounted}
+              currentDate={hookCurrentDate}
+              onDateSet={handleCalendarDateSet}
+              refreshEvents={refreshEvents}
+              onStaffDrop={handleMonthlyStaffDrop}
+              onSelectStaff={handleOpenStaffSelectionDialog}
+              forceRefresh={forceRefreshNumber}
+              viewMode="monthly"
             />
           </div>
-        </div>
-        
-        <div className="weekly-view-container overflow-x-auto">
-          <UnifiedResourceCalendar
-            events={events}
-            resources={resources}
-            isLoading={isLoading}
-            isMounted={isMounted}
-            currentDate={hookCurrentDate}
-            onDateSet={handleCalendarDateSet}
-            refreshEvents={refreshEvents}
-            onStaffDrop={handleStaffDrop}
-            onSelectStaff={handleOpenStaffSelectionDialog}
-            forceRefresh={forceRefreshNumber}
-            viewMode="monthly"
-          />
-        </div>
-      </ResourceLayout>
+        </ResourceLayout>
+      </div>
     </DndProvider>
   );
 };
