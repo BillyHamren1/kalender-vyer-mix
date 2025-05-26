@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
 import { Copy } from 'lucide-react';
@@ -29,14 +28,14 @@ export const renderEventContent = (eventInfo: any) => {
   if (eventInfo.view.type === 'resourceTimelineWeek') {
     // More compact display for timeline view
     return (
-      <div className="event-content-wrapper">
-        <div className="event-booking-id text-xs opacity-80 truncate">#{displayId}</div>
+      <div className="event-content-wrapper" style={{ color: '#000000' }}>
+        <div className="event-booking-id text-xs opacity-80 truncate" style={{ color: '#000000' }}>#{displayId}</div>
         <div className="event-client-name text-sm break-words whitespace-normal" 
-             style={{ lineHeight: '1.2', maxHeight: '2.4em', overflow: 'hidden' }}>
+             style={{ lineHeight: '1.2', maxHeight: '2.4em', overflow: 'hidden', color: '#000000' }}>
           {clientName}
         </div>
         {city && (
-          <div className="event-city text-xs opacity-80 truncate">{city}</div>
+          <div className="event-city text-xs opacity-80 truncate" style={{ color: '#000000' }}>{city}</div>
         )}
       </div>
     );
@@ -44,14 +43,14 @@ export const renderEventContent = (eventInfo: any) => {
   
   // Default display for other views
   return (
-    <div className="event-content-wrapper">
-      <div className="event-booking-id text-xs opacity-80 truncate">#{displayId}</div>
+    <div className="event-content-wrapper" style={{ color: '#000000' }}>
+      <div className="event-booking-id text-xs opacity-80 truncate" style={{ color: '#000000' }}>#{displayId}</div>
       <div className="event-client-name text-sm break-words whitespace-normal" 
-           style={{ lineHeight: '1.2', maxHeight: '2.4em', overflow: 'hidden' }}>
+           style={{ lineHeight: '1.2', maxHeight: '2.4em', overflow: 'hidden', color: '#000000' }}>
         {clientName}
       </div>
       {city && (
-        <div className="event-city text-xs opacity-80 truncate">{city}</div>
+        <div className="event-city text-xs opacity-80 truncate" style={{ color: '#000000' }}>{city}</div>
       )}
     </div>
   );

@@ -1,3 +1,4 @@
+
 /* Calendar styling with teal theme */
 .fc .fc-button-primary {
   background-color: #7BAEBF !important;
@@ -53,7 +54,7 @@
   background-color: rgba(0, 0, 0, 0.02);
 }
 
-/* Event type color styling - Updated to target all event types in all views */
+/* Event type color styling - Updated to use solid black text */
 .event-rig,
 .fc-event[class*="event-rig"],
 .fc-daygrid-event[data-event-type="rig"],
@@ -62,7 +63,7 @@
 .fc-event.fc-event-start.fc-event-end.fc-event-future.fc-timegrid-event[style*="rig"] {
   background-color: #F2FCE2 !important;
   border-color: #D4EAB5 !important;
-  color: #000000e6 !important;
+  color: #000000 !important;
 }
 
 .event-event,
@@ -73,7 +74,7 @@
 .fc-event.fc-event-start.fc-event-end.fc-event-future.fc-timegrid-event[style*="event"] {
   background-color: #FEF7CD !important;
   border-color: #F3E8A3 !important;
-  color: #000000e6 !important;
+  color: #000000 !important;
 }
 
 .event-rigDown,
@@ -84,7 +85,7 @@
 .fc-event.fc-event-start.fc-event-end.fc-event-future.fc-timegrid-event[style*="rigDown"] {
   background-color: #FEC6A1 !important;
   border-color: #FEB190 !important;
-  color: #000000e6 !important;
+  color: #000000 !important;
 }
 
 /* Loading state styling */
@@ -498,7 +499,7 @@
   padding: 2px;
 }
 
-/* Client name styling - bold and slightly larger */
+/* Client name styling - bold and slightly larger with solid black text */
 .stacked-event-content .event-client-name {
   font-weight: bold;
   font-size: 0.9em;
@@ -506,19 +507,21 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: #000000 !important;
 }
 
-/* Booking ID styling - smaller and lighter */
+/* Booking ID styling - smaller and lighter with solid black text */
 .stacked-event-content .event-booking-id {
   font-size: 0.75rem;
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: #000000 !important;
   opacity: 0.8;
 }
 
-/* Delivery address styling - smaller and italicized */
+/* Delivery address styling - smaller and italicized with solid black text */
 .stacked-event-content .event-delivery-address {
   font-size: 0.75rem;
   font-style: italic;
@@ -526,6 +529,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: #000000 !important;
   opacity: 0.7;
 }
 
@@ -555,10 +559,11 @@
   border-left: 4px solid #FFDEE2 !important;
 }
 
-/* Additional styling for event times in stacked events */
+/* Additional styling for event times in stacked events with solid black text */
 .stacked-event .fc-event-time {
   font-weight: bold !important;
   font-size: 0.9em !important;
+  color: #000000 !important;
 }
 
 /* Make sure the events are not editable in team-6 */
@@ -566,12 +571,13 @@
   cursor: default !important;
 }
 
-/* Event content styling */
+/* Event content styling with solid black text */
 .fc-event-title {
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: #000000 !important;
 }
 
 .fc-event-address,
@@ -581,4 +587,17 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: #000000 !important;
+}
+
+/* Ensure all event content has solid black text */
+.event-content-wrapper,
+.event-content-wrapper * {
+  color: #000000 !important;
+}
+
+.event-client-name,
+.event-booking-id,
+.event-city {
+  color: #000000 !important;
 }
