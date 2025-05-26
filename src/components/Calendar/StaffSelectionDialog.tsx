@@ -21,7 +21,7 @@ interface StaffSelectionDialogProps {
   currentDate: Date;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onStaffAssigned: (staffId: string, staffName: string) => void; // Updated to pass staff info
+  onStaffAssigned: (staffId: string, staffName: string) => void; // Pass both ID and name
 }
 
 const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
@@ -52,8 +52,8 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
           const assignmentData = await fetchStaffAssignments(currentDate);
           setAssignments(assignmentData);
           
-          console.log('Loaded staff for selection:', staffData);
-          console.log('Current assignments:', assignmentData);
+          console.log('StaffSelectionDialog: Loaded staff members:', staffData);
+          console.log('StaffSelectionDialog: Current assignments:', assignmentData);
         } catch (error) {
           console.error('Error loading staff data:', error);
           toast.error('Failed to load staff data');
@@ -115,9 +115,13 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
   // Handle staff assignment
   const handleAssignStaff = async (staffId: string, staffName: string) => {
     try {
+      console.log(`StaffSelectionDialog: Assigning staff ${staffName} (${staffId}) to team ${resourceId}`);
+      
       await assignStaffToTeam(staffId, resourceId, currentDate);
-      toast.success('Staff assigned to team successfully');
-      onStaffAssigned(staffId, staffName); // Pass both ID and name
+      toast.success(`${staffName} assigned to ${resourceTitle} successfully`);
+      
+      // Pass both staff ID and name to the callback
+      onStaffAssigned(staffId, staffName);
       onOpenChange(false);
     } catch (error) {
       console.error('Error assigning staff:', error);

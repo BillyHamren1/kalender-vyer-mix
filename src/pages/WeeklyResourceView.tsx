@@ -20,7 +20,6 @@ import TeamEditDialog from '@/components/Calendar/TeamEditDialog';
 import { startOfWeek, subDays, format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { fetchStaffMembers } from '@/services/staffService';
 
 const WeeklyResourceView = () => {
   // Use the new real-time calendar events hook
@@ -107,17 +106,16 @@ const WeeklyResourceView = () => {
     setStaffSelectionDialogOpen(true);
   }, [hookCurrentDate]);
 
-  // Handle successful staff assignment with proper sync
-  const handleStaffAssigned = useCallback(async () => {
-    console.log('WeeklyResourceView: Staff assigned successfully for date:', selectedDate);
+  // Handle successful staff assignment with proper sync - FIXED to receive staff info
+  const handleStaffAssigned = useCallback(async (staffId: string, staffName: string) => {
+    console.log(`WeeklyResourceView: Staff ${staffName} (${staffId}) assigned successfully to team ${selectedResourceId} for date:`, selectedDate);
     
-    // Sync local state with the new assignment
+    // Sync local state with the new assignment using the actual staff ID and name
     try {
-      // Get the staff ID from the last assignment (we'll need to modify this to get proper staff ID)
-      // For now, trigger a refresh to ensure consistency
-      await syncAfterAssignment('', selectedResourceId, selectedDate);
+      await syncAfterAssignment(staffId, selectedResourceId, selectedDate);
+      console.log('Local state synced successfully');
       
-      // Also trigger the global refresh
+      // Also trigger the global refresh to ensure consistency
       handleStaffDrop('', '');
     } catch (error) {
       console.error('Error syncing after staff assignment:', error);
@@ -143,16 +141,7 @@ const WeeklyResourceView = () => {
       
       // Then sync local state if it was an assignment (not removal)
       if (resourceId && staffId) {
-        // Get staff name for proper sync
-        try {
-          const staffMembers = await fetchStaffMembers();
-          const staff = staffMembers.find(s => s.id === staffId);
-          const staffName = staff?.name || `Staff ${staffId}`;
-          
-          await syncAfterAssignment(staffId, resourceId, dateToUse);
-        } catch (error) {
-          console.error('Error syncing after drop:', error);
-        }
+        await syncAfterAssignment(staffId, resourceId, dateToUse);
       }
     } catch (error) {
       console.error('Error in staff drop operation:', error);
