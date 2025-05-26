@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
@@ -210,6 +211,10 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
               }))
             : [];
           
+          // Calculate combined refresh value and convert to boolean for ResourceCalendar
+          const combinedRefreshValue = numericForceRefresh + refreshTrigger;
+          const resourceCalendarForceRefresh = combinedRefreshValue > 0;
+          
           console.log(`UnifiedResourceCalendar: Rendering calendar for ${format(date, 'yyyy-MM-dd')} with ${dayEvents.length} events, refresh triggers: ${numericForceRefresh}-${refreshTrigger}`);
           
           return (
@@ -237,7 +242,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
                   refreshEvents={refreshEvents}
                   onStaffDrop={(staffId: string, resourceId: string | null) => handleStaffDrop(staffId, resourceId, date)}
                   onSelectStaff={(resourceId: string, resourceTitle: string) => handleSelectStaff(resourceId, resourceTitle, date)}
-                  forceRefresh={numericForceRefresh + refreshTrigger}
+                  forceRefresh={resourceCalendarForceRefresh}
                   key={`calendar-${format(date, 'yyyy-MM-dd')}-${numericForceRefresh}-${refreshTrigger}`}
                   droppableScope={`${viewMode}-calendar`}
                   calendarProps={getCommonCalendarProps(index)}
