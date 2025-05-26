@@ -22,10 +22,12 @@ import {
   fetchUpcomingBookings,
   fetchConfirmedBookings 
 } from '@/services/bookingService';
+import { fetchRecentBookingChanges, getFieldChangeType, BookingChange } from '@/services/booking/bookingChangeService';
 import { toast } from 'sonner';
 import { RefreshCcw, Search, CalendarDays, AlertTriangle, Filter, CalendarRange, Calendar } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import StatusBadge from '@/components/booking/StatusBadge';
+import ChangeHighlight from '@/components/booking/ChangeHighlight';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -41,6 +43,7 @@ const BookingList = () => {
   const [showPlannedBookings, setShowPlannedBookings] = useState(false);
   const [plannedBookings, setPlannedBookings] = useState<Booking[]>([]);
   const [isLoadingPlanned, setIsLoadingPlanned] = useState(false);
+  const [bookingChanges, setBookingChanges] = useState<BookingChange[]>([]);
   
   // New state for planned bookings filters
   const [plannedDaysAhead, setPlannedDaysAhead] = useState<number>(30);
@@ -52,8 +55,14 @@ const BookingList = () => {
     try {
       setIsLoading(true);
       setImportError(null);
-      const data = await fetchBookings(); // Use fetchBookings instead of fetchConfirmedBookings
+      const data = await fetchBookings();
       setBookings(data);
+      
+      // Fetch recent changes for all bookings
+      const bookingIds = data.map(booking => booking.id);
+      const changes = await fetchRecentBookingChanges(bookingIds);
+      setBookingChanges(changes);
+      
       return data.length > 0;
     } catch (error) {
       console.error('Failed to load bookings:', error);
@@ -193,10 +202,28 @@ const BookingList = () => {
       // Remove from recently updated list and status changed list if present
       setRecentlyUpdatedBookingIds(prev => prev.filter(bookingId => bookingId !== id));
       setStatusChangedBookingIds(prev => prev.filter(bookingId => bookingId !== id));
+      
+      // Remove from booking changes
+      setBookingChanges(prev => prev.filter(change => change.booking_id !== id));
     } catch (error) {
       console.error('Error marking booking as viewed:', error);
       toast.error('Failed to mark booking as viewed');
     }
+  };
+  
+  // Helper function to render table cell with change highlighting
+  const renderHighlightedCell = (content: React.ReactNode, bookingId: string, fieldName: string) => {
+    const changeType = getFieldChangeType(bookingChanges, bookingId, fieldName);
+    
+    if (changeType) {
+      return (
+        <ChangeHighlight changeType={changeType} className="px-1 py-0.5 rounded">
+          {content}
+        </ChangeHighlight>
+      );
+    }
+    
+    return content;
   };
   
   // Auto-import and load bookings on initial component mount
@@ -470,16 +497,27 @@ const BookingList = () => {
                       className="hover:bg-[#F5F3FF] cursor-pointer" 
                       onClick={() => handleRowClick(booking.id)}
                     >
-                      <TableCell className="font-medium text-[#2d3748]">{booking.bookingNumber || booking.id}</TableCell>
-                      <TableCell>{booking.client}</TableCell>
-                      <TableCell>{booking.rigDayDate}</TableCell>
-                      <TableCell>{booking.eventDate}</TableCell>
-                      <TableCell>{booking.rigDownDate}</TableCell>
+                      <TableCell className="font-medium text-[#2d3748]">
+                        {renderHighlightedCell(booking.bookingNumber || booking.id, booking.id, 'booking_number')}
+                      </TableCell>
                       <TableCell>
-                        <StatusBadge 
-                          status={booking.status} 
-                          isNew={true}
-                        />
+                        {renderHighlightedCell(booking.client, booking.id, 'client')}
+                      </TableCell>
+                      <TableCell>
+                        {renderHighlightedCell(booking.rigDayDate, booking.id, 'rigdaydate')}
+                      </TableCell>
+                      <TableCell>
+                        {renderHighlightedCell(booking.eventDate, booking.id, 'eventdate')}
+                      </TableCell>
+                      <TableCell>
+                        {renderHighlightedCell(booking.rigDownDate, booking.id, 'rigdowndate')}
+                      </TableCell>
+                      <TableCell>
+                        {renderHighlightedCell(
+                          <StatusBadge status={booking.status} isNew={true} />, 
+                          booking.id, 
+                          'status'
+                        )}
                       </TableCell>
                       <TableCell>
                         <Button 
@@ -522,45 +560,46 @@ const BookingList = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {updatedBookings.map((booking) => {
-                    const isStatusChanged = statusChangedBookingIds.includes(booking.id);
-                    return (
-                      <TableRow 
-                        key={booking.id} 
-                        className={`cursor-pointer ${isStatusChanged ? 'hover:bg-[#FEF3C7] bg-[#FFFBEB]' : 'hover:bg-[#F0FDF4]'}`}
-                        onClick={() => handleRowClick(booking.id)}
-                      >
-                        <TableCell className="font-medium text-[#2d3748]">
-                          <div className="flex items-center">
-                            {booking.bookingNumber || booking.id}
-                            {isStatusChanged && (
-                              <AlertTriangle className="h-4 w-4 text-amber-500 ml-2" />
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>{booking.client}</TableCell>
-                        <TableCell>{booking.rigDayDate}</TableCell>
-                        <TableCell>{booking.eventDate}</TableCell>
-                        <TableCell>{booking.rigDownDate}</TableCell>
-                        <TableCell>
-                          <StatusBadge 
-                            status={booking.status} 
-                            isUpdated={true}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={(e) => handleMarkAsViewed(booking.id, e)}
-                            className={`text-xs ${isStatusChanged ? 'bg-[#FEF3C7]' : 'bg-[#F0FDF4]'}`}
-                          >
-                            Mark as viewed
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {updatedBookings.map((booking) => (
+                    <TableRow 
+                      key={booking.id} 
+                      className="hover:bg-[#F0FDF4] cursor-pointer"
+                      onClick={() => handleRowClick(booking.id)}
+                    >
+                      <TableCell className="font-medium text-[#2d3748]">
+                        {renderHighlightedCell(booking.bookingNumber || booking.id, booking.id, 'booking_number')}
+                      </TableCell>
+                      <TableCell>
+                        {renderHighlightedCell(booking.client, booking.id, 'client')}
+                      </TableCell>
+                      <TableCell>
+                        {renderHighlightedCell(booking.rigDayDate, booking.id, 'rigdaydate')}
+                      </TableCell>
+                      <TableCell>
+                        {renderHighlightedCell(booking.eventDate, booking.id, 'eventdate')}
+                      </TableCell>
+                      <TableCell>
+                        {renderHighlightedCell(booking.rigDownDate, booking.id, 'rigdowndate')}
+                      </TableCell>
+                      <TableCell>
+                        {renderHighlightedCell(
+                          <StatusBadge status={booking.status} isUpdated={true} />, 
+                          booking.id, 
+                          'status'
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={(e) => handleMarkAsViewed(booking.id, e)}
+                          className="text-xs"
+                        >
+                          Mark as viewed
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </Card>
