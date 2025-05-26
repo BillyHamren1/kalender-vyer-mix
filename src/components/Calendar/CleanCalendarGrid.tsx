@@ -31,13 +31,11 @@ const CleanCalendarGrid: React.FC<CleanCalendarGridProps> = ({
   const getEventsForDate = (date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
     
-    console.log(`CleanCalendarGrid: Getting events for date ${dateStr}`);
+    console.log(`CleanCalendarGrid: Getting events for date ${dateStr} from ${events.length} total events`);
     
     const matchingEvents = events.filter(event => {
       // Extract date from event start time (format: YYYY-MM-DDTHH:mm:ss)
       const eventDate = event.start.split('T')[0]; // Get just the date part
-      
-      console.log(`CleanCalendarGrid: Comparing event date ${eventDate} with calendar date ${dateStr}`);
       
       const dateMatch = eventDate === dateStr;
       
@@ -58,13 +56,21 @@ const CleanCalendarGrid: React.FC<CleanCalendarGridProps> = ({
       
       const matches = dateMatch && clientMatch;
       if (matches) {
-        console.log(`CleanCalendarGrid: Event ${event.title} matches date ${dateStr}, type: ${event.eventType}`);
+        console.log(`CleanCalendarGrid: Event ${event.title} matches date ${dateStr}, type: ${event.eventType}, staff: ${event.staffName}`);
       }
       
       return matches;
     });
     
-    console.log(`CleanCalendarGrid: Found ${matchingEvents.length} events for ${dateStr}:`, matchingEvents.map(e => ({ title: e.title, type: e.eventType, client: e.client })));
+    console.log(`CleanCalendarGrid: Found ${matchingEvents.length} events for ${dateStr}:`, 
+      matchingEvents.map(e => ({ 
+        title: e.title, 
+        type: e.eventType, 
+        client: e.client, 
+        staff: e.staffName,
+        bookingId: e.bookingId 
+      }))
+    );
     return matchingEvents;
   };
 
@@ -88,52 +94,78 @@ const CleanCalendarGrid: React.FC<CleanCalendarGridProps> = ({
           const isCurrentMonth = isSameMonth(date, currentDate);
           const isTodayDate = isToday(date);
           
-          // Separate booking events from assignment events
+          // Separate booking events from assignment events with enhanced logic
           const bookingEvents = dayEvents.filter(event => event.eventType === 'booking_event');
           const assignmentEvents = dayEvents.filter(event => event.eventType === 'assignment');
+          
+          // Group booking events by staff to show staff assignments clearly
+          const staffBookingGroups = bookingEvents.reduce((acc, event) => {
+            if (!event.staffName) return acc;
+            
+            if (!acc[event.staffName]) {
+              acc[event.staffName] = [];
+            }
+            acc[event.staffName].push(event);
+            return acc;
+          }, {} as Record<string, typeof bookingEvents>);
           
           return (
             <div
               key={date.toISOString()}
               className={`
-                min-h-[100px] p-2 border-b border-r border-gray-100 cursor-pointer hover:bg-gray-50
+                min-h-[120px] p-2 border-b border-r border-gray-100 cursor-pointer hover:bg-gray-50
                 ${!isCurrentMonth ? 'bg-gray-50 text-gray-400' : ''}
                 ${isTodayDate ? 'bg-blue-50' : ''}
               `}
               onClick={() => onDateClick?.(date)}
             >
               <div className={`
-                text-sm font-medium mb-1
+                text-sm font-medium mb-2
                 ${isTodayDate ? 'text-blue-600' : isCurrentMonth ? 'text-gray-900' : 'text-gray-400'}
               `}>
                 {format(date, 'd')}
               </div>
               
-              {/* Display booking events (actual jobs) first */}
+              {/* Display staff-booking assignments */}
               <div className="space-y-1">
-                {bookingEvents.slice(0, 3).map((event) => (
+                {Object.entries(staffBookingGroups).slice(0, 3).map(([staffName, staffEvents]) => (
                   <div
-                    key={event.id}
-                    className="text-xs px-2 py-1 rounded text-white truncate bg-green-600"
-                    title={`${event.client || event.title} - Team ${event.teamId} - ${event.bookingId ? `Booking ID: ${event.bookingId}` : 'Team Event'}`}
+                    key={staffName}
+                    className="text-xs px-2 py-1 rounded text-white bg-green-600"
+                    title={`${staffName} - ${staffEvents.length} booking(s): ${staffEvents.map(e => e.client || e.title).join(', ')}`}
                   >
-                    {event.client || event.title}
+                    <div className="font-medium truncate">{staffName}</div>
+                    <div className="text-xs opacity-90 truncate">
+                      {staffEvents.length} booking{staffEvents.length > 1 ? 's' : ''}
+                      {staffEvents.length === 1 && staffEvents[0].client && `: ${staffEvents[0].client}`}
+                    </div>
                   </div>
                 ))}
                 
                 {/* Show assignment indicator only if staff is assigned but no specific bookings */}
                 {assignmentEvents.length > 0 && bookingEvents.length === 0 && (
                   <div
-                    className="text-xs px-2 py-1 rounded text-white truncate bg-blue-500"
-                    title={`${assignmentEvents[0].staffName} assigned to Team ${assignmentEvents[0].teamId}`}
+                    className="text-xs px-2 py-1 rounded text-white bg-blue-500"
+                    title={`${assignmentEvents.map(e => e.staffName).join(', ')} assigned to teams but no specific bookings`}
                   >
-                    Team Assignment
+                    <div className="font-medium">Team Assignment</div>
+                    <div className="text-xs opacity-90">
+                      {assignmentEvents.length} staff member{assignmentEvents.length > 1 ? 's' : ''}
+                    </div>
                   </div>
                 )}
                 
-                {bookingEvents.length > 3 && (
+                {/* Show overflow indicator */}
+                {Object.keys(staffBookingGroups).length > 3 && (
+                  <div className="text-xs text-gray-500 px-2 py-1 bg-gray-100 rounded">
+                    +{Object.keys(staffBookingGroups).length - 3} more staff
+                  </div>
+                )}
+                
+                {/* Show total booking count if many bookings */}
+                {bookingEvents.length > Object.keys(staffBookingGroups).length && (
                   <div className="text-xs text-gray-500 px-2">
-                    +{bookingEvents.length - 3} more bookings
+                    Total: {bookingEvents.length} booking{bookingEvents.length > 1 ? 's' : ''}
                   </div>
                 )}
               </div>

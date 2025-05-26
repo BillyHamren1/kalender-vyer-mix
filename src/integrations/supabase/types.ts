@@ -141,6 +141,36 @@ export type Database = {
           },
         ]
       }
+      booking_staff_assignments: {
+        Row: {
+          assignment_date: string
+          booking_id: string
+          created_at: string
+          id: string
+          staff_id: string
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          assignment_date: string
+          booking_id: string
+          created_at?: string
+          id?: string
+          staff_id: string
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          assignment_date?: string
+          booking_id?: string
+          created_at?: string
+          id?: string
+          staff_id?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       bookings: {
         Row: {
           booking_number: string | null
@@ -411,6 +441,16 @@ export type Database = {
       }
     }
     Functions: {
+      handle_booking_move: {
+        Args: {
+          p_booking_id: string
+          p_old_team_id: string
+          p_new_team_id: string
+          p_old_date: string
+          p_new_date: string
+        }
+        Returns: Json
+      }
       jsonb_object_keys_array: {
         Args: { j: Json }
         Returns: string[]
