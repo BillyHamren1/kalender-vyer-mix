@@ -2,6 +2,7 @@
 import { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { fetchCalendarEvents } from '@/services/eventService';
+import { syncConfirmedBookingsToCalendar, syncSingleBookingToCalendar, removeBookingEventsFromCalendar } from '@/services/bookingToCalendarSync';
 import { toast } from 'sonner';
 import { CalendarContext } from '@/App';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,6 +13,7 @@ export const useRealTimeCalendarEvents = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const activeRef = useRef(true);
+  const [syncCompleted, setSyncCompleted] = useState(false);
 
   // Initialize currentDate from context, sessionStorage, or default to today
   const [currentDate, setCurrentDate] = useState<Date>(() => {
@@ -20,11 +22,21 @@ export const useRealTimeCalendarEvents = () => {
     return stored ? new Date(stored) : new Date();
   });
 
-  // Load initial events
+  // Load initial events and sync bookings
   const loadEvents = useCallback(async () => {
     try {
       console.log('Loading calendar events...');
       setIsLoading(true);
+      
+      // First sync confirmed bookings to calendar if not done yet
+      if (!syncCompleted) {
+        console.log('Syncing confirmed bookings to calendar...');
+        const syncedCount = await syncConfirmedBookingsToCalendar();
+        if (syncedCount > 0) {
+          toast.success(`Synced ${syncedCount} booking events to calendar`);
+        }
+        setSyncCompleted(true);
+      }
       
       const calendarEvents = await fetchCalendarEvents();
       
@@ -43,7 +55,7 @@ export const useRealTimeCalendarEvents = () => {
         setIsMounted(true);
       }
     }
-  }, []);
+  }, [syncCompleted]);
 
   // Handle real-time calendar event changes
   const handleCalendarEventChange = useCallback((payload: any) => {
@@ -111,22 +123,55 @@ export const useRealTimeCalendarEvents = () => {
   }, []);
 
   // Handle real-time booking changes that might affect calendar events
-  const handleBookingChange = useCallback((payload: any) => {
+  const handleBookingChange = useCallback(async (payload: any) => {
     console.log('Real-time booking change:', payload.eventType);
     
     if (!activeRef.current) return;
 
-    // For booking changes, we'll do a simple refresh to ensure consistency
-    // This is safer than trying to guess which events are affected
-    const { eventType, new: newRecord } = payload;
+    const { eventType, new: newRecord, old: oldRecord } = payload;
     
-    if (eventType === 'UPDATE' && newRecord) {
-      // Check if the booking status changed to/from CONFIRMED
-      // Only refresh if this might affect calendar visibility
-      console.log('Booking updated, refreshing events to maintain consistency');
-      loadEvents();
+    try {
+      if (eventType === 'UPDATE') {
+        // Check if status changed to CONFIRMED
+        if (newRecord?.status === 'CONFIRMED' && oldRecord?.status !== 'CONFIRMED') {
+          console.log(`Booking ${newRecord.id} was confirmed, syncing to calendar...`);
+          await syncSingleBookingToCalendar(newRecord.id);
+          toast.success('Booking confirmed and added to calendar');
+        }
+        // Check if status changed from CONFIRMED to something else
+        else if (oldRecord?.status === 'CONFIRMED' && newRecord?.status !== 'CONFIRMED') {
+          console.log(`Booking ${newRecord.id} status changed from confirmed, removing from calendar...`);
+          await removeBookingEventsFromCalendar(newRecord.id);
+          toast.info('Booking events removed from calendar');
+        }
+        // Check if dates changed for a confirmed booking
+        else if (newRecord?.status === 'CONFIRMED' && (
+          oldRecord?.rigdaydate !== newRecord?.rigdaydate ||
+          oldRecord?.eventdate !== newRecord?.eventdate ||
+          oldRecord?.rigdowndate !== newRecord?.rigdowndate
+        )) {
+          console.log(`Confirmed booking ${newRecord.id} dates changed, updating calendar...`);
+          // Remove old events and create new ones
+          await removeBookingEventsFromCalendar(newRecord.id);
+          await syncSingleBookingToCalendar(newRecord.id);
+          toast.success('Booking dates updated in calendar');
+        }
+      }
+      else if (eventType === 'INSERT' && newRecord?.status === 'CONFIRMED') {
+        console.log(`New confirmed booking ${newRecord.id} created, syncing to calendar...`);
+        await syncSingleBookingToCalendar(newRecord.id);
+        toast.success('New confirmed booking added to calendar');
+      }
+      else if (eventType === 'DELETE' && oldRecord?.status === 'CONFIRMED') {
+        console.log(`Confirmed booking ${oldRecord.id} deleted, removing from calendar...`);
+        await removeBookingEventsFromCalendar(oldRecord.id);
+        toast.info('Deleted booking events removed from calendar');
+      }
+    } catch (error) {
+      console.error('Error handling booking change:', error);
+      toast.error('Failed to sync booking changes to calendar');
     }
-  }, [loadEvents]);
+  }, []);
 
   // Initialize calendar events and set up real-time subscriptions
   useEffect(() => {
@@ -152,7 +197,7 @@ export const useRealTimeCalendarEvents = () => {
       .channel('bookings_realtime')
       .on('postgres_changes', 
         { 
-          event: 'UPDATE', 
+          event: '*', 
           schema: 'public', 
           table: 'bookings' 
         }, 
