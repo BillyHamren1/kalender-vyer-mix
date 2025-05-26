@@ -89,42 +89,46 @@ serve(async (req) => {
       try {
         results.total++
 
-        // Extract booking number properly - check multiple possible fields
-        let bookingNumber = externalBooking.booking_number || 
-                           externalBooking.bookingNumber || 
-                           externalBooking.number || 
-                           externalBooking.id
-
-        // If no booking number found, generate one based on the ID
-        if (!bookingNumber || bookingNumber === externalBooking.id) {
-          // Try to extract year and sequence from ID if it follows a pattern
-          const idMatch = externalBooking.id.match(/^(\d{4})-(\d+)$/)
-          if (idMatch) {
-            bookingNumber = `${idMatch[1]}-${idMatch[2]}`
-          } else {
-            // Fallback: use the full ID as booking number
-            bookingNumber = externalBooking.id
-          }
+        // Extract client name - try clientName first, then fallback to nested client object
+        let clientName = externalBooking.clientName
+        if (!clientName && externalBooking.client?.name) {
+          clientName = externalBooking.client.name
         }
+        if (!clientName) {
+          clientName = ''
+        }
+
+        // Handle multiple date arrays - use first date from each array
+        const rigdaydate = externalBooking.rig_up_dates && externalBooking.rig_up_dates.length > 0 
+          ? externalBooking.rig_up_dates[0] 
+          : undefined
+
+        const eventdate = externalBooking.event_dates && externalBooking.event_dates.length > 0 
+          ? externalBooking.event_dates[0] 
+          : undefined
+
+        const rigdowndate = externalBooking.rig_down_dates && externalBooking.rig_down_dates.length > 0 
+          ? externalBooking.rig_down_dates[0] 
+          : undefined
 
         const bookingData: BookingData = {
           id: externalBooking.id,
-          client: externalBooking.client || externalBooking.customer || '',
-          rigdaydate: externalBooking.rigdaydate || externalBooking.rig_day_date,
-          eventdate: externalBooking.eventdate || externalBooking.event_date,
-          rigdowndate: externalBooking.rigdowndate || externalBooking.rig_down_date,
-          deliveryaddress: externalBooking.deliveryaddress || externalBooking.delivery_address,
+          client: clientName,
+          rigdaydate: rigdaydate,
+          eventdate: eventdate,
+          rigdowndate: rigdowndate,
+          deliveryaddress: externalBooking.delivery_address,
           delivery_city: externalBooking.delivery_city,
           delivery_postal_code: externalBooking.delivery_postal_code,
-          delivery_latitude: externalBooking.delivery_latitude,
-          delivery_longitude: externalBooking.delivery_longitude,
+          delivery_latitude: externalBooking.delivery_geocode?.latitude,
+          delivery_longitude: externalBooking.delivery_geocode?.longitude,
           carry_more_than_10m: externalBooking.carry_more_than_10m || false,
           ground_nails_allowed: externalBooking.ground_nails_allowed || false,
           exact_time_needed: externalBooking.exact_time_needed || false,
           exact_time_info: externalBooking.exact_time_info,
-          internalnotes: externalBooking.internalnotes || externalBooking.internal_notes,
+          internalnotes: externalBooking.internal_notes,
           status: externalBooking.status || 'PENDING',
-          booking_number: bookingNumber,
+          booking_number: externalBooking.booking_number, // Use directly, no fallbacks
           version: 1
         }
 
