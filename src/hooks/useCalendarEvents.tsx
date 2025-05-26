@@ -1,8 +1,11 @@
+
 import { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { fetchCalendarEvents } from '@/services/eventService';
 import { toast } from 'sonner';
 import { CalendarContext } from '@/App';
+import { resyncBookingToCalendar } from '@/services/bookingCalendarService';
+import { supabase } from '@/integrations/supabase/client';
 
 export const useCalendarEvents = () => {
   const { lastViewedDate, setLastViewedDate } = useContext(CalendarContext);
@@ -19,6 +22,69 @@ export const useCalendarEvents = () => {
     const stored = sessionStorage.getItem('calendarDate');
     return stored ? new Date(stored) : new Date();
   });
+
+  // One-time sync function to restore calendar from confirmed bookings
+  const performOneTimeSync = useCallback(async () => {
+    try {
+      // Check if sync has already been performed
+      const syncKey = 'calendar-sync-completed';
+      const syncCompleted = localStorage.getItem(syncKey);
+      
+      if (syncCompleted === 'true') {
+        console.log('One-time sync already completed, skipping...');
+        return;
+      }
+
+      console.log('Starting one-time calendar sync from confirmed bookings...');
+      
+      // Get all confirmed bookings
+      const { data: confirmedBookings, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('status', 'CONFIRMED');
+
+      if (error) {
+        console.error('Error fetching confirmed bookings:', error);
+        return;
+      }
+
+      if (!confirmedBookings || confirmedBookings.length === 0) {
+        console.log('No confirmed bookings found to sync');
+        localStorage.setItem(syncKey, 'true');
+        return;
+      }
+
+      console.log(`Found ${confirmedBookings.length} confirmed bookings to sync`);
+      
+      let syncedCount = 0;
+      
+      // Sync each confirmed booking to calendar
+      for (const booking of confirmedBookings) {
+        try {
+          const result = await resyncBookingToCalendar(booking.id);
+          if (result) {
+            syncedCount++;
+          }
+        } catch (error) {
+          console.error(`Error syncing booking ${booking.id}:`, error);
+        }
+      }
+
+      console.log(`Successfully synced ${syncedCount} bookings to calendar`);
+      
+      // Mark sync as completed
+      localStorage.setItem(syncKey, 'true');
+      
+      if (syncedCount > 0) {
+        toast.success(`Calendar restored`, {
+          description: `Successfully restored ${syncedCount} confirmed bookings to the calendar`
+        });
+      }
+      
+    } catch (error) {
+      console.error('Error during one-time sync:', error);
+    }
+  }, []);
 
   // Memoize the loadEvents function to prevent recreations
   const loadEvents = useCallback(async (force = false) => {
@@ -57,8 +123,19 @@ export const useCalendarEvents = () => {
   useEffect(() => {
     activeRef.current = true;
 
-    // Initial load
-    loadEvents(true);
+    const initializeCalendar = async () => {
+      // First load existing events
+      await loadEvents(true);
+      
+      // Then perform one-time sync if needed
+      await performOneTimeSync();
+      
+      // Reload events after sync
+      await loadEvents(true);
+    };
+
+    // Initialize calendar
+    initializeCalendar();
 
     // Set up polling every 45 seconds (increased from 30) to reduce load
     pollIntervalRef.current = window.setInterval(() => {
@@ -73,7 +150,7 @@ export const useCalendarEvents = () => {
         clearInterval(pollIntervalRef.current);
       }
     };
-  }, [loadEvents]);
+  }, [loadEvents, performOneTimeSync]);
 
   // Optimized handleDatesSet to only trigger when date changes significantly (more than 1 day)
   const handleDatesSet = useCallback((dateInfo: any) => {
