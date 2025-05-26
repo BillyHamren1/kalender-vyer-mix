@@ -1,9 +1,7 @@
 
 import React from 'react';
-import { Button } from '@/components/ui/button';
-import { RefreshCw, Plus, Users } from 'lucide-react';
+import { Plus, Users } from 'lucide-react';
 import AddTaskButton from './AddTaskButton';
-import ClearCalendarButton from './ClearCalendarButton';
 import { Resource } from './ResourceData';
 
 interface ResourceToolbarProps {
@@ -25,19 +23,6 @@ const ResourceToolbar: React.FC<ResourceToolbarProps> = ({
 }) => {
   return (
     <div className="flex items-center gap-2">
-      <Button
-        onClick={onRefresh}
-        disabled={isLoading}
-        variant="outline"
-        size="sm"
-        className="gap-2"
-      >
-        <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-        {isLoading ? 'Updating...' : 'Update'}
-      </Button>
-      
-      <ClearCalendarButton onRefresh={onRefresh} />
-      
       <AddTaskButton
         currentDate={currentDate}
         resources={resources}
@@ -45,15 +30,13 @@ const ResourceToolbar: React.FC<ResourceToolbarProps> = ({
       />
       
       {onShowStaffCurtain && (
-        <Button
+        <button
           onClick={onShowStaffCurtain}
-          variant="outline"
-          size="sm"
-          className="gap-2"
+          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 rounded-md px-3"
         >
           <Users className="h-4 w-4" />
           Staff
-        </Button>
+        </button>
       )}
     </div>
   );

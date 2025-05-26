@@ -239,33 +239,31 @@ const WeeklyResourceView = () => {
             setDialogOpen={setDialogOpen}
           />
 
-          {/* Week Navigation and Header */}
-          <div className="flex flex-col space-y-2 mb-4">
-            <div className="flex items-center justify-between">
-              <WeekNavigation 
+          {/* Week Navigation and Header - CENTERED */}
+          <div className="flex flex-col items-center space-y-4 mb-4">
+            <WeekNavigation 
+              currentWeekStart={currentWeekStart}
+              setCurrentWeekStart={setCurrentWeekStart}
+            />
+            
+            <div className="flex items-center gap-2">
+              <TeamEditDialog
+                teamResources={teamResources}
+                teamCount={teamCount}
+                onAddTeam={addTeam}
+                onRemoveTeam={removeTeam}
                 currentWeekStart={currentWeekStart}
-                setCurrentWeekStart={setCurrentWeekStart}
+                onCopyFromPreviousWeek={handleCopyFromPreviousWeek}
               />
               
-              <div className="flex items-center gap-2">
-                <TeamEditDialog
-                  teamResources={teamResources}
-                  teamCount={teamCount}
-                  onAddTeam={addTeam}
-                  onRemoveTeam={removeTeam}
-                  currentWeekStart={currentWeekStart}
-                  onCopyFromPreviousWeek={handleCopyFromPreviousWeek}
-                />
-                
-                <ResourceToolbar
-                  isLoading={isLoading || processingStaffIds.length > 0}
-                  currentDate={hookCurrentDate}
-                  resources={resources}
-                  onRefresh={handleRefresh}
-                  onAddTask={addEventToCalendar}
-                  onShowStaffCurtain={handleToggleStaffDisplay}
-                />
-              </div>
+              <ResourceToolbar
+                isLoading={isLoading || processingStaffIds.length > 0}
+                currentDate={hookCurrentDate}
+                resources={resources}
+                onRefresh={handleRefresh}
+                onAddTask={addEventToCalendar}
+                onShowStaffCurtain={handleToggleStaffDisplay}
+              />
             </div>
           </div>
           
