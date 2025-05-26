@@ -92,6 +92,9 @@ const MonthlyResourceView = () => {
     await refreshEvents();
   };
 
+  // Convert boolean to number for compatibility with UnifiedResourceCalendar
+  const forceRefreshNumber = staffAssignmentsUpdated ? 1 : 0;
+
   return (
     <DndProvider backend={HTML5Backend}>
       <StaffSyncManager currentDate={hookCurrentDate} />
@@ -168,7 +171,7 @@ const MonthlyResourceView = () => {
             refreshEvents={refreshEvents}
             onStaffDrop={handleStaffDrop}
             onSelectStaff={handleOpenStaffSelectionDialog}
-            forceRefresh={staffAssignmentsUpdated}
+            forceRefresh={forceRefreshNumber}
             viewMode="monthly"
           />
         </div>
