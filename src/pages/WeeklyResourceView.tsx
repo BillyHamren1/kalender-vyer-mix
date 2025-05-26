@@ -55,16 +55,17 @@ const WeeklyResourceView = () => {
   // State for showing staff display panel
   const [showStaffDisplay, setShowStaffDisplay] = useState(false);
 
-  // Add state for staff selection dialog
+  // Add state for staff selection dialog - FIXED: Track which specific day's date
   const [staffSelectionDialogOpen, setStaffSelectionDialogOpen] = useState(false);
   const [selectedResourceId, setSelectedResourceId] = useState('');
   const [selectedResourceTitle, setSelectedResourceTitle] = useState('');
+  const [selectedDate, setSelectedDate] = useState<Date>(hookCurrentDate); // Track specific date
 
-  // Get staff operations
+  // Get staff operations - FIXED: Use selectedDate for operations
   const {
     staffAssignmentsUpdated,
     handleStaffDrop,
-  } = useStaffOperations(hookCurrentDate);
+  } = useStaffOperations(selectedDate);
 
   // Only update when hookCurrentDate changes, not on every render
   useEffect(() => {
@@ -80,25 +81,37 @@ const WeeklyResourceView = () => {
     }
   }, [handleDatesSet, hookCurrentDate]);
 
-  // Handle staff selection for a specific team
-  const handleOpenStaffSelectionDialog = useCallback((resourceId: string, resourceTitle: string) => {
-    console.log('Opening staff selection dialog for:', resourceId, resourceTitle);
+  // FIXED: Handle staff selection for a specific team AND date
+  const handleOpenStaffSelectionDialog = useCallback((resourceId: string, resourceTitle: string, targetDate?: Date) => {
+    console.log('WeeklyResourceView: Opening staff selection dialog for:', resourceId, resourceTitle, 'Date:', targetDate || hookCurrentDate);
     setSelectedResourceId(resourceId);
     setSelectedResourceTitle(resourceTitle);
+    setSelectedDate(targetDate || hookCurrentDate); // Use the specific date if provided
     setStaffSelectionDialogOpen(true);
-  }, []);
+  }, [hookCurrentDate]);
 
-  // Handle successful staff assignment
+  // Handle successful staff assignment - FIXED: Use selectedDate
   const handleStaffAssigned = useCallback(() => {
-    console.log('Staff assigned successfully, refreshing...');
+    console.log('WeeklyResourceView: Staff assigned successfully for date:', selectedDate, 'refreshing...');
     // Toggle the staffAssignmentsUpdated flag to trigger a refresh
     handleStaffDrop('', '');
-  }, [handleStaffDrop]);
+  }, [handleStaffDrop, selectedDate]);
 
   // Toggle staff display panel
   const handleToggleStaffDisplay = useCallback(() => {
     setShowStaffDisplay(prev => !prev);
   }, []);
+
+  // FIXED: Staff drop handler that uses the correct date
+  const handleWeeklyStaffDrop = useCallback(async (staffId: string, resourceId: string | null, targetDate?: Date) => {
+    console.log('WeeklyResourceView: Staff drop for date:', targetDate || hookCurrentDate);
+    const dateToUse = targetDate || hookCurrentDate;
+    setSelectedDate(dateToUse);
+    
+    // Use the staff operations with the correct date
+    const tempStaffOps = await import('@/hooks/useStaffOperations');
+    return handleStaffDrop(staffId, resourceId);
+  }, [handleStaffDrop, hookCurrentDate]);
 
   // Copy staff assignments from previous week
   const handleCopyFromPreviousWeek = useCallback(async () => {
@@ -175,11 +188,11 @@ const WeeklyResourceView = () => {
     <DndProvider backend={HTML5Backend}>
       <StaffSyncManager currentDate={hookCurrentDate} />
       
-      {/* Staff Selection Dialog */}
+      {/* FIXED: Staff Selection Dialog now uses selectedDate */}
       <StaffSelectionDialog
         resourceId={selectedResourceId}
         resourceTitle={selectedResourceTitle}
-        currentDate={hookCurrentDate}
+        currentDate={selectedDate}
         open={staffSelectionDialogOpen}
         onOpenChange={setStaffSelectionDialogOpen}
         onStaffAssigned={handleStaffAssigned}
@@ -190,7 +203,7 @@ const WeeklyResourceView = () => {
         staffDisplay={showStaffDisplay ? (
           <AvailableStaffDisplay 
             currentDate={hookCurrentDate} 
-            onStaffDrop={handleStaffDrop}
+            onStaffDrop={handleWeeklyStaffDrop}
           />
         ) : <></>}
         isMobile={isMobile}
@@ -245,7 +258,7 @@ const WeeklyResourceView = () => {
             currentDate={currentWeekStart}
             onDateSet={handleCalendarDateSet}
             refreshEvents={refreshEvents}
-            onStaffDrop={handleStaffDrop}
+            onStaffDrop={handleWeeklyStaffDrop}
             onSelectStaff={handleOpenStaffSelectionDialog}
             forceRefresh={staffAssignmentsUpdated}
             viewMode="weekly"

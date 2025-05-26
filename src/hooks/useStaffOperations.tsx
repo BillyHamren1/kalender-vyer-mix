@@ -9,7 +9,7 @@ export const useStaffOperations = (currentDate: Date) => {
 
   // Handle staff drop for assignment with optimistic updates
   const handleStaffDrop = useCallback(async (staffId: string, resourceId: string | null) => {
-    console.log(`useStaffOperations.handleStaffDrop called with staffId=${staffId}, resourceId=${resourceId || 'unassigned'}`);
+    console.log(`useStaffOperations.handleStaffDrop called with staffId=${staffId}, resourceId=${resourceId || 'unassigned'}, date=${currentDate.toISOString().split('T')[0]}`);
     
     // If both staffId and resourceId are empty, just trigger a refresh
     if (!staffId) {
@@ -23,14 +23,14 @@ export const useStaffOperations = (currentDate: Date) => {
     
     try {
       if (resourceId) {
-        console.log(`Assigning staff ${staffId} to team ${resourceId}`);
+        console.log(`Assigning staff ${staffId} to team ${resourceId} for date ${currentDate.toISOString().split('T')[0]}`);
         // Show toast in background without blocking UI
         const toastId = toast.loading(`Assigning staff to team...`);
         
         await assignStaffToTeam(staffId, resourceId, currentDate);
         toast.success('Staff assigned successfully', { id: toastId });
       } else {
-        console.log(`Removing staff ${staffId} assignment`);
+        console.log(`Removing staff ${staffId} assignment for date ${currentDate.toISOString().split('T')[0]}`);
         // Show toast in background without blocking UI
         const toastId = toast.loading(`Removing staff assignment...`);
         

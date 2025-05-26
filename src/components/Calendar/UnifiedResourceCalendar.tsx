@@ -16,8 +16,8 @@ interface UnifiedResourceCalendarProps {
   currentDate: Date;
   onDateSet: (dateInfo: any) => void;
   refreshEvents: () => Promise<void | CalendarEvent[]>;
-  onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
-  onSelectStaff?: (resourceId: string, resourceTitle: string) => void;
+  onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
+  onSelectStaff?: (resourceId: string, resourceTitle: string, targetDate?: Date) => void;
   forceRefresh?: boolean;
   viewMode: 'weekly' | 'monthly';
 }
@@ -78,13 +78,13 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     navigate('/resource-view');
   };
 
-  // Log staff drop operations for debugging
-  const handleStaffDrop = async (staffId: string, resourceId: string | null) => {
-    console.log(`UnifiedResourceCalendar.handleStaffDrop: staffId=${staffId}, resourceId=${resourceId || 'null'}`);
+  // FIXED: Handle staff drop with specific date
+  const handleStaffDrop = async (staffId: string, resourceId: string | null, dayDate: Date) => {
+    console.log(`UnifiedResourceCalendar.handleStaffDrop: staffId=${staffId}, resourceId=${resourceId || 'null'}, date=${format(dayDate, 'yyyy-MM-dd')}`);
     if (onStaffDrop) {
       try {
-        await onStaffDrop(staffId, resourceId);
-        console.log('Staff drop operation successful');
+        await onStaffDrop(staffId, resourceId, dayDate);
+        console.log('Staff drop operation successful for date:', format(dayDate, 'yyyy-MM-dd'));
       } catch (error) {
         console.error('Error in handleStaffDrop:', error);
       }
@@ -97,11 +97,11 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     onDateSet(dateInfo);
   };
 
-  // Handle team selection
-  const handleSelectStaff = (resourceId: string, resourceTitle: string) => {
-    console.log('UnifiedResourceCalendar.handleSelectStaff called with:', resourceId, resourceTitle);
+  // FIXED: Handle team selection with specific date
+  const handleSelectStaff = (resourceId: string, resourceTitle: string, dayDate: Date) => {
+    console.log('UnifiedResourceCalendar.handleSelectStaff called with:', resourceId, resourceTitle, 'for date:', format(dayDate, 'yyyy-MM-dd'));
     if (onSelectStaff) {
-      onSelectStaff(resourceId, resourceTitle);
+      onSelectStaff(resourceId, resourceTitle, dayDate);
     } else {
       console.error('UnifiedResourceCalendar: onSelectStaff prop is not defined');
     }
@@ -220,8 +220,8 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
                   currentDate={date}
                   onDateSet={handleNestedCalendarDateSet}
                   refreshEvents={refreshEvents}
-                  onStaffDrop={handleStaffDrop}
-                  onSelectStaff={handleSelectStaff}
+                  onStaffDrop={(staffId: string, resourceId: string | null) => handleStaffDrop(staffId, resourceId, date)}
+                  onSelectStaff={(resourceId: string, resourceTitle: string) => handleSelectStaff(resourceId, resourceTitle, date)}
                   forceRefresh={forceRefresh}
                   key={`calendar-${format(date, 'yyyy-MM-dd')}`}
                   droppableScope={`${viewMode}-calendar`}
