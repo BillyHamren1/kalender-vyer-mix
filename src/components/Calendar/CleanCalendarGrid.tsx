@@ -31,13 +31,13 @@ const CleanCalendarGrid: React.FC<CleanCalendarGridProps> = ({
   const getEventsForDate = (date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
     
-    console.log(`Getting events for date ${dateStr}`);
+    console.log(`CleanCalendarGrid: Getting events for date ${dateStr}`);
     
     const matchingEvents = events.filter(event => {
       // Extract date from event start time (format: YYYY-MM-DDTHH:mm:ss)
       const eventDate = event.start.split('T')[0]; // Get just the date part
       
-      console.log(`Comparing event date ${eventDate} with calendar date ${dateStr}`);
+      console.log(`CleanCalendarGrid: Comparing event date ${eventDate} with calendar date ${dateStr}`);
       
       const dateMatch = eventDate === dateStr;
       
@@ -58,13 +58,13 @@ const CleanCalendarGrid: React.FC<CleanCalendarGridProps> = ({
       
       const matches = dateMatch && clientMatch;
       if (matches) {
-        console.log(`Event ${event.title} matches date ${dateStr}`);
+        console.log(`CleanCalendarGrid: Event ${event.title} matches date ${dateStr}, type: ${event.eventType}`);
       }
       
       return matches;
     });
     
-    console.log(`Found ${matchingEvents.length} events for ${dateStr}:`, matchingEvents);
+    console.log(`CleanCalendarGrid: Found ${matchingEvents.length} events for ${dateStr}:`, matchingEvents.map(e => ({ title: e.title, type: e.eventType, client: e.client })));
     return matchingEvents;
   };
 
@@ -115,9 +115,9 @@ const CleanCalendarGrid: React.FC<CleanCalendarGridProps> = ({
                   <div
                     key={event.id}
                     className="text-xs px-2 py-1 rounded text-white truncate bg-green-600"
-                    title={`${event.client || 'Unknown Client'} - Team ${event.teamId} - Booking ID: ${event.bookingId}`}
+                    title={`${event.client || event.title} - Team ${event.teamId} - ${event.bookingId ? `Booking ID: ${event.bookingId}` : 'Team Event'}`}
                   >
-                    {event.client || 'Booking'}
+                    {event.client || event.title}
                   </div>
                 ))}
                 

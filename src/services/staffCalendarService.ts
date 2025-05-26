@@ -72,62 +72,51 @@ export const getStaffCalendarEvents = async (
     );
 
     console.log(`Found ${filteredAssignments.length} assignments for selected staff`);
-    console.log('Assignment details:', filteredAssignments);
 
-    // Convert assignments to calendar events
+    // Get team calendar events for the assigned teams and dates
     for (const assignment of filteredAssignments) {
       const staffName = staffMap.get(assignment.staffId) || `Staff ${assignment.staffId}`;
       
       console.log(`Processing assignment for ${staffName} on ${assignment.date}, team ${assignment.teamId}`);
-      console.log(`Assignment has ${assignment.bookings?.length || 0} bookings`);
 
-      // Add booking events if available - these are the actual jobs
-      if (assignment.bookings && assignment.bookings.length > 0) {
-        for (const booking of assignment.bookings) {
-          console.log(`Processing booking ${booking.id} for client ${booking.client}`);
+      // Fetch calendar events for this team on this specific date
+      const { data: teamEvents, error } = await supabase
+        .from('calendar_events')
+        .select('*')
+        .eq('resource_id', assignment.teamId)
+        .gte('start_time', `${assignment.date}T00:00:00`)
+        .lt('start_time', `${assignment.date}T23:59:59`);
+
+      if (error) {
+        console.error(`Error fetching team events for ${assignment.teamId} on ${assignment.date}:`, error);
+        continue;
+      }
+
+      console.log(`Found ${teamEvents?.length || 0} team events for ${assignment.teamId} on ${assignment.date}`);
+
+      if (teamEvents && teamEvents.length > 0) {
+        // Convert team calendar events to staff calendar events
+        for (const teamEvent of teamEvents) {
+          console.log(`Adding team event: ${teamEvent.title} for staff ${staffName}`);
           
-          if (booking.events && booking.events.length > 0) {
-            for (const bookingEvent of booking.events) {
-              console.log(`Adding booking event: ${bookingEvent.title} for ${booking.client}`);
-              
-              events.push({
-                id: `booking-${bookingEvent.id}`,
-                title: `${booking.client} - ${bookingEvent.title}`,
-                start: bookingEvent.start,
-                end: bookingEvent.end,
-                resourceId: assignment.staffId,
-                teamId: assignment.teamId,
-                bookingId: booking.id,
-                staffName: staffName,
-                client: booking.client,
-                eventType: 'booking_event',
-                backgroundColor: getEventColor(bookingEvent.type),
-                borderColor: getEventBorderColor(bookingEvent.type)
-              });
-            }
-          } else {
-            // If booking has no events, create a day-long event for the assignment date
-            console.log(`Booking ${booking.id} has no events, creating day event`);
-            
-            events.push({
-              id: `booking-day-${booking.id}`,
-              title: `${booking.client} - Booking`,
-              start: `${assignment.date}T08:00:00`,
-              end: `${assignment.date}T17:00:00`,
-              resourceId: assignment.staffId,
-              teamId: assignment.teamId,
-              bookingId: booking.id,
-              staffName: staffName,
-              client: booking.client,
-              eventType: 'booking_event',
-              backgroundColor: '#4caf50',
-              borderColor: '#388e3c'
-            });
-          }
+          events.push({
+            id: `staff-${assignment.staffId}-event-${teamEvent.id}`,
+            title: teamEvent.title,
+            start: teamEvent.start_time,
+            end: teamEvent.end_time,
+            resourceId: assignment.staffId,
+            teamId: assignment.teamId,
+            bookingId: teamEvent.booking_id,
+            staffName: staffName,
+            client: extractClientFromTitle(teamEvent.title),
+            eventType: 'booking_event',
+            backgroundColor: getEventColor(teamEvent.event_type || 'event'),
+            borderColor: getEventBorderColor(teamEvent.event_type || 'event')
+          });
         }
       } else {
-        // Create assignment event only if no bookings (shows staff is assigned but no jobs yet)
-        console.log(`No bookings for assignment, creating assignment event`);
+        // Only create assignment event if no team events exist for this date
+        console.log(`No team events found for ${assignment.teamId} on ${assignment.date}, creating assignment event`);
         
         events.push({
           id: `assignment-${assignment.staffId}-${assignment.date}`,
@@ -145,7 +134,7 @@ export const getStaffCalendarEvents = async (
       }
     }
 
-    console.log(`Generated ${events.length} calendar events:`);
+    console.log(`Generated ${events.length} calendar events for staff view:`);
     events.forEach(event => {
       console.log(`- Event: ${event.title}, Date: ${event.start}, Type: ${event.eventType}, Client: ${event.client || 'N/A'}`);
     });
@@ -155,6 +144,19 @@ export const getStaffCalendarEvents = async (
     console.error('Error fetching staff calendar events:', error);
     throw error;
   }
+};
+
+// Helper function to extract client name from event title
+const extractClientFromTitle = (title: string): string | undefined => {
+  // Try to extract client name from common title formats
+  // e.g., "#2025-123 - John Doe" -> "John Doe"
+  const clientMatch = title.match(/^#?[\d\-]+\s*-\s*(.+)$/);
+  if (clientMatch) {
+    return clientMatch[1].trim();
+  }
+  
+  // If no pattern matches, return the title as is (might be the client name)
+  return title;
 };
 
 // Get event colors based on event type
