@@ -16,6 +16,7 @@ import StaffSelector from '@/components/Calendar/StaffSelector';
 const StaffCalendarView: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedClients, setSelectedClients] = useState<string[]>([]);
+  // Start with no staff selected for empty calendar on page load
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('month');
 
@@ -29,7 +30,7 @@ const StaffCalendarView: React.FC = () => {
 
   const { start: startDate, end: endDate } = getDateRange();
 
-  // Fetch calendar events for selected staff only
+  // Fetch calendar events for selected staff only - start disabled
   const { 
     data: calendarEvents = [], 
     isLoading: isLoadingEvents, 
@@ -38,7 +39,7 @@ const StaffCalendarView: React.FC = () => {
   } = useQuery({
     queryKey: ['staffCalendarEvents', selectedStaffIds, startDate, endDate],
     queryFn: () => getStaffCalendarEvents(selectedStaffIds, startDate, endDate),
-    enabled: selectedStaffIds.length > 0,
+    enabled: selectedStaffIds.length > 0, // Only fetch when staff is selected
   });
 
   const handleDateChange = (newDate: Date) => {
@@ -126,7 +127,7 @@ const StaffCalendarView: React.FC = () => {
             <CardContent className="p-8 text-center">
               <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Select Staff Members</h3>
-              <p className="text-gray-600">Please select one or more staff members to view their calendar.</p>
+              <p className="text-gray-600">Please select one or more staff members to view their calendar and assigned bookings.</p>
             </CardContent>
           </Card>
         ) : (

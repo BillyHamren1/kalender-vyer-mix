@@ -72,18 +72,9 @@ const CleanCalendarGrid: React.FC<CleanCalendarGridProps> = ({
           const isCurrentMonth = isSameMonth(date, currentDate);
           const isTodayDate = isToday(date);
           
-          // Group events by staff to avoid showing duplicate staff names
-          const staffEvents = dayEvents.reduce((acc, event) => {
-            if (!acc[event.resourceId]) {
-              acc[event.resourceId] = {
-                staffName: event.staffName || 'Unknown Staff',
-                teamId: event.teamId,
-                events: []
-              };
-            }
-            acc[event.resourceId].events.push(event);
-            return acc;
-          }, {} as Record<string, { staffName: string; teamId?: string; events: StaffCalendarEvent[] }>);
+          // Separate booking events from assignment events
+          const bookingEvents = dayEvents.filter(event => event.eventType === 'booking_event');
+          const assignmentEvents = dayEvents.filter(event => event.eventType === 'assignment');
           
           return (
             <div
@@ -102,20 +93,31 @@ const CleanCalendarGrid: React.FC<CleanCalendarGridProps> = ({
                 {format(date, 'd')}
               </div>
               
-              {/* Staff indicators */}
+              {/* Display booking events (actual jobs) */}
               <div className="space-y-1">
-                {Object.entries(staffEvents).slice(0, 3).map(([staffId, staffInfo]) => (
+                {bookingEvents.slice(0, 3).map((event) => (
                   <div
-                    key={staffId}
-                    className="text-xs px-2 py-1 rounded text-white truncate bg-blue-500"
-                    title={`${staffInfo.staffName}${staffInfo.teamId ? ` (Team ${staffInfo.teamId})` : ''} - ${staffInfo.events.length} events`}
+                    key={event.id}
+                    className="text-xs px-2 py-1 rounded text-white truncate bg-green-600"
+                    title={`${event.client || 'Unknown Client'} - ${event.staffName} - Booking ID: ${event.bookingId}`}
                   >
-                    {staffInfo.staffName}
+                    {event.client || 'Booking'}
                   </div>
                 ))}
-                {Object.keys(staffEvents).length > 3 && (
+                
+                {/* Show assignment indicator if staff is assigned but no specific bookings */}
+                {assignmentEvents.length > 0 && bookingEvents.length === 0 && (
+                  <div
+                    className="text-xs px-2 py-1 rounded text-white truncate bg-blue-500"
+                    title={`${assignmentEvents[0].staffName} assigned to Team ${assignmentEvents[0].teamId}`}
+                  >
+                    Staff Assigned
+                  </div>
+                )}
+                
+                {bookingEvents.length > 3 && (
                   <div className="text-xs text-gray-500 px-2">
-                    +{Object.keys(staffEvents).length - 3} more staff
+                    +{bookingEvents.length - 3} more bookings
                   </div>
                 )}
               </div>
