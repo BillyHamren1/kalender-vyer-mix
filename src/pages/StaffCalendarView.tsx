@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import StaffSelector from '@/components/Calendar/StaffSelector';
 import IndividualStaffCalendar from '@/components/Calendar/IndividualStaffCalendar';
-import MonthNavigation from '@/components/Calendar/MonthNavigation';
+import StaffCalendarNavigation from '@/components/Calendar/StaffCalendarNavigation';
 import { getStaffCalendarEvents, getStaffResources } from '@/services/staffCalendarService';
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays, subDays } from 'date-fns';
 import { toast } from 'sonner';
@@ -92,6 +92,10 @@ const StaffCalendarView: React.FC = () => {
     }
   };
 
+  const goToToday = () => {
+    setCurrentDate(new Date());
+  };
+
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 p-8">
@@ -152,10 +156,10 @@ const StaffCalendarView: React.FC = () => {
         {/* Calendar Navigation */}
         <Card>
           <CardContent className="pt-6">
-            <MonthNavigation
+            <StaffCalendarNavigation
               currentDate={currentDate}
               onNavigate={navigateDate}
-              onToday={() => setCurrentDate(new Date())}
+              onToday={goToToday}
               viewMode={viewMode}
             />
           </CardContent>
