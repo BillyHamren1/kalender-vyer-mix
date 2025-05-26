@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { fetchStaffAssignmentsForDateRange, StaffAssignmentResponse } from "./staffAssignmentService";
 import { fetchStaffMembers, StaffMember } from "./staffService";
@@ -232,7 +231,7 @@ export const handleBookingMove = async (
       throw error;
     }
 
-    return data as BookingMoveResult;
+    return data as unknown as BookingMoveResult;
   } catch (error) {
     console.error('Error in handleBookingMove:', error);
     throw error;

@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { Booking } from "@/types/booking";
 
@@ -74,6 +73,39 @@ const getStaffApiKey = async (): Promise<string> => {
     console.error('Error getting staff API key:', error);
     throw error;
   }
+};
+
+// Helper function to convert database booking to StaffBooking format
+const convertToStaffBooking = (booking: any, teamId: string, events: BookingEvent[], isDirectlyAssigned: boolean): StaffBooking => {
+  return {
+    id: booking.id,
+    bookingNumber: booking.booking_number,
+    client: booking.client,
+    rigDayDate: booking.rigdaydate,
+    eventDate: booking.eventdate,
+    rigDownDate: booking.rigdowndate,
+    deliveryAddress: booking.deliveryaddress,
+    deliveryCity: booking.delivery_city,
+    deliveryPostalCode: booking.delivery_postal_code,
+    deliveryLatitude: booking.delivery_latitude,
+    deliveryLongitude: booking.delivery_longitude,
+    carryMoreThan10m: booking.carry_more_than_10m,
+    groundNailsAllowed: booking.ground_nails_allowed,
+    exactTimeNeeded: booking.exact_time_needed,
+    exactTimeInfo: booking.exact_time_info,
+    products: [],
+    internalNotes: booking.internalnotes,
+    attachments: [],
+    viewed: booking.viewed,
+    status: booking.status,
+    teamId,
+    events,
+    isDirectlyAssigned,
+    coordinates: {
+      latitude: booking.delivery_latitude,
+      longitude: booking.delivery_longitude
+    }
+  };
 };
 
 // Fetch a staff member's assignments and bookings for a specific date (updated to include direct booking assignments)
@@ -175,17 +207,14 @@ export const fetchStaffAssignment = async (staffId: string, date: Date): Promise
 
           const bookingAssignment = bookingAssignments?.find(ba => ba.booking_id === booking.id);
           
-          allBookings.push({
-            ...booking,
-            teamId: bookingAssignment?.team_id || teamId,
-            events: bookingEvents,
-            isDirectlyAssigned: true,
-            coordinates: {
-              latitude: booking.delivery_latitude,
-              longitude: booking.delivery_longitude
-            }
-          });
+          const staffBooking = convertToStaffBooking(
+            booking,
+            bookingAssignment?.team_id || teamId,
+            bookingEvents,
+            true
+          );
 
+          allBookings.push(staffBooking);
           allEvents = allEvents.concat(bookingEvents);
         }
       }
@@ -234,17 +263,14 @@ export const fetchStaffAssignment = async (staffId: string, date: Date): Promise
                   title: event.title
                 }));
 
-              allBookings.push({
-                ...booking,
+              const staffBooking = convertToStaffBooking(
+                booking,
                 teamId,
-                events: bookingEvents,
-                isDirectlyAssigned: false,
-                coordinates: {
-                  latitude: booking.delivery_latitude,
-                  longitude: booking.delivery_longitude
-                }
-              });
+                bookingEvents,
+                false
+              );
 
+              allBookings.push(staffBooking);
               allEvents = allEvents.concat(bookingEvents);
             }
           }
@@ -389,16 +415,14 @@ export const fetchAllStaffBookings = async (date: Date): Promise<StaffBooking[]>
       // Find team assignment for this booking (could be multiple staff)
       const assignment = bookingAssignments.find(ba => ba.booking_id === booking.id);
       
-      processedBookings.push({
-        ...booking,
-        teamId: assignment?.team_id || '',
-        events: bookingEvents,
-        isDirectlyAssigned: true, // These are all from booking assignments
-        coordinates: {
-          latitude: booking.delivery_latitude,
-          longitude: booking.delivery_longitude
-        }
-      });
+      const staffBooking = convertToStaffBooking(
+        booking,
+        assignment?.team_id || '',
+        bookingEvents,
+        true
+      );
+
+      processedBookings.push(staffBooking);
     }
 
     console.log(`Processed ${processedBookings.length} staff bookings using booking assignment system`);
