@@ -11,10 +11,12 @@ import CleanCalendarGrid from '@/components/Calendar/CleanCalendarGrid';
 import ClientSelector from '@/components/Calendar/ClientSelector';
 import JobSummaryList from '@/components/Calendar/JobSummaryList';
 import SimpleCalendarNavigation from '@/components/Calendar/SimpleCalendarNavigation';
+import StaffSelector from '@/components/Calendar/StaffSelector';
 
 const StaffCalendarView: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedClients, setSelectedClients] = useState<string[]>([]);
+  const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('month');
 
   // Get date range based on view mode (for now, always show month range for data)
@@ -33,19 +35,23 @@ const StaffCalendarView: React.FC = () => {
     queryFn: getStaffResources,
   });
 
-  // Get all staff IDs for fetching events
-  const allStaffIds = allStaffResources.map(staff => staff.id);
+  // Auto-select all staff when they're loaded (if none selected)
+  useEffect(() => {
+    if (allStaffResources.length > 0 && selectedStaffIds.length === 0) {
+      setSelectedStaffIds(allStaffResources.map(staff => staff.id));
+    }
+  }, [allStaffResources, selectedStaffIds.length]);
 
-  // Fetch calendar events for all staff
+  // Fetch calendar events for selected staff only
   const { 
     data: calendarEvents = [], 
     isLoading: isLoadingEvents, 
     error,
     refetch 
   } = useQuery({
-    queryKey: ['staffCalendarEvents', allStaffIds, startDate, endDate],
-    queryFn: () => getStaffCalendarEvents(allStaffIds, startDate, endDate),
-    enabled: allStaffIds.length > 0,
+    queryKey: ['staffCalendarEvents', selectedStaffIds, startDate, endDate],
+    queryFn: () => getStaffCalendarEvents(selectedStaffIds, startDate, endDate),
+    enabled: selectedStaffIds.length > 0,
   });
 
   const handleDateChange = (newDate: Date) => {
@@ -74,6 +80,11 @@ const StaffCalendarView: React.FC = () => {
     // You can add functionality here to show day details
   };
 
+  // Get filtered staff resources for selected staff
+  const selectedStaffResources = allStaffResources.filter(staff => 
+    selectedStaffIds.includes(staff.id)
+  );
+
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -95,6 +106,11 @@ const StaffCalendarView: React.FC = () => {
             <h1 className="text-3xl font-bold text-gray-900">Staff Calendar</h1>
           </div>
           <div className="flex items-center space-x-4">
+            <StaffSelector
+              selectedStaffIds={selectedStaffIds}
+              onSelectionChange={setSelectedStaffIds}
+              disabled={isLoadingStaff}
+            />
             <ClientSelector
               events={calendarEvents}
               selectedClients={selectedClients}
@@ -124,41 +140,51 @@ const StaffCalendarView: React.FC = () => {
 
       {/* Main Content */}
       <div className="p-6">
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* Calendar - Takes up 2/3 of the space */}
-          <div className="xl:col-span-2">
-            <Card>
-              <CardContent className="p-0">
-                {isLoadingEvents ? (
-                  <div className="flex items-center justify-center h-96">
-                    <div className="text-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                      <p className="text-sm text-gray-600">Loading calendar...</p>
+        {selectedStaffIds.length === 0 ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Select Staff Members</h3>
+              <p className="text-gray-600">Please select one or more staff members to view their calendar.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            {/* Calendar - Takes up 2/3 of the space */}
+            <div className="xl:col-span-2">
+              <Card>
+                <CardContent className="p-0">
+                  {isLoadingEvents ? (
+                    <div className="flex items-center justify-center h-96">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                        <p className="text-sm text-gray-600">Loading calendar...</p>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <CleanCalendarGrid
-                    currentDate={currentDate}
-                    events={calendarEvents}
-                    selectedClients={selectedClients}
-                    onDateClick={handleDateClick}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                  ) : (
+                    <CleanCalendarGrid
+                      currentDate={currentDate}
+                      events={calendarEvents}
+                      selectedClients={selectedClients}
+                      onDateClick={handleDateClick}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            </div>
 
-          {/* Job Summary - Takes up 1/3 of the space */}
-          <div className="xl:col-span-1">
-            <JobSummaryList
-              events={calendarEvents}
-              staffResources={allStaffResources}
-              selectedClients={selectedClients}
-              currentDate={currentDate}
-              viewMode={viewMode}
-            />
+            {/* Job Summary - Takes up 1/3 of the space */}
+            <div className="xl:col-span-1">
+              <JobSummaryList
+                events={calendarEvents}
+                staffResources={selectedStaffResources}
+                selectedClients={selectedClients}
+                currentDate={currentDate}
+                viewMode={viewMode}
+              />
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
