@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +10,7 @@ interface JobSummaryListProps {
   staffResources: StaffResource[];
   selectedClients: string[];
   currentDate: Date;
-  viewMode: 'week' | 'month';
+  viewMode: 'day' | 'week' | 'month';
 }
 
 interface JobSummary {

@@ -8,7 +8,7 @@ interface StaffCalendarNavigationProps {
   currentDate: Date;
   onNavigate: (direction: 'prev' | 'next') => void;
   onToday: () => void;
-  viewMode: 'week' | 'month';
+  viewMode: 'day' | 'week' | 'month';
 }
 
 const StaffCalendarNavigation: React.FC<StaffCalendarNavigationProps> = ({

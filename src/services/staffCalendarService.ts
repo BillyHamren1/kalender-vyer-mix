@@ -1,7 +1,15 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { fetchStaffAssignmentsForDateRange, StaffAssignmentResponse } from "./staffAssignmentService";
 import { fetchStaffMembers, StaffMember } from "./staffService";
 import { format } from "date-fns";
+
+export interface StaffResource {
+  id: string;
+  title: string;
+  name: string;
+  email?: string;
+}
 
 export interface StaffCalendarEvent {
   id: string;

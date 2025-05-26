@@ -11,7 +11,7 @@ interface IndividualStaffCalendarProps {
   events: StaffCalendarEvent[];
   staffResources: StaffResource[];
   currentDate: Date;
-  viewMode: 'week' | 'month';
+  viewMode: 'day' | 'week' | 'month';
   onDateChange: (date: Date) => void;
   isLoading?: boolean;
 }
