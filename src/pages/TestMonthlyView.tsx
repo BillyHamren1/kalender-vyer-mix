@@ -72,7 +72,8 @@ const TestMonthlyView = () => {
     setStaffSelectionDialogOpen(true);
   }, []);
 
-  const handleStaffAssigned = useCallback(() => {
+  const handleStaffAssigned = useCallback(async (staffId: string, staffName: string): Promise<void> => {
+    // Trigger a refresh of staff assignments
     handleStaffDrop('', '');
   }, [handleStaffDrop]);
 

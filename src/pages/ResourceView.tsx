@@ -93,7 +93,7 @@ const ResourceView = () => {
   };
 
   // Handle staff assignment updated callback
-  const handleStaffAssigned = () => {
+  const handleStaffAssigned = async (staffId: string, staffName: string): Promise<void> => {
     console.log('Staff assigned, refreshing...');
     // Force refresh of staff assignments
   };
