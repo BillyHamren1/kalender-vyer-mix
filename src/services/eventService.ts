@@ -238,3 +238,58 @@ export const fetchEventsByBookingId = async (bookingId: string): Promise<Calenda
     };
   });
 };
+
+// Create a calendar event
+export const createCalendarEvent = async (eventData: Omit<CalendarEvent, 'id'>): Promise<CalendarEvent | null> => {
+  try {
+    console.log('Creating calendar event with data:', eventData);
+    
+    // Map application resource ID to database format
+    const dbResourceId = mapAppToDatabaseResourceId(eventData.resourceId);
+    
+    const { data, error } = await supabase
+      .from('calendar_events')
+      .insert({
+        title: eventData.title,
+        start_time: eventData.start,
+        end_time: eventData.end,
+        resource_id: dbResourceId,
+        event_type: eventData.eventType || 'event',
+        delivery_address: eventData.deliveryAddress,
+        booking_id: eventData.bookingId,
+        booking_number: eventData.bookingNumber,
+        viewed: eventData.viewed || false
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating calendar event:', error);
+      throw error;
+    }
+
+    if (data) {
+      // Convert back to application format
+      const calendarEvent: CalendarEvent = {
+        id: data.id,
+        title: data.title,
+        start: data.start_time,
+        end: data.end_time,
+        resourceId: mapDatabaseToAppResourceId(data.resource_id),
+        eventType: data.event_type as 'rig' | 'event' | 'rigDown',
+        deliveryAddress: data.delivery_address,
+        bookingId: data.booking_id,
+        bookingNumber: data.booking_number,
+        viewed: data.viewed
+      };
+
+      console.log('Created calendar event:', calendarEvent);
+      return calendarEvent;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error in createCalendarEvent:', error);
+    throw error;
+  }
+};

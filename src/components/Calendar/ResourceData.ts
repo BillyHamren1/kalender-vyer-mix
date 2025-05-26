@@ -1,4 +1,5 @@
-import { EventInput } from '@fullcalendar/react';
+
+import { EventInput } from '@fullcalendar/core';
 
 export interface Resource {
   id: string;
@@ -29,5 +30,29 @@ export const getEventColor = (eventType: string | undefined): string => {
       return '#10b981'; // green-500
     default:
       return '#6b7280'; // gray-500
+  }
+};
+
+// Generate unique event ID
+export const generateEventId = (): string => {
+  return `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
+
+// Save resources to localStorage
+export const saveResourcesToStorage = (resources: Resource[]): void => {
+  localStorage.setItem('calendarResources', JSON.stringify(resources));
+};
+
+// Load resources from localStorage
+export const loadResourcesFromStorage = (): Resource[] => {
+  try {
+    const storedResources = localStorage.getItem('calendarResources');
+    if (storedResources) {
+      return JSON.parse(storedResources);
+    }
+    return [];
+  } catch (error) {
+    console.error('Error loading resources from storage:', error);
+    return [];
   }
 };
