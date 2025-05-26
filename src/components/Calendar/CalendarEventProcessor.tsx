@@ -1,4 +1,3 @@
-
 import { CalendarEvent, Resource } from './ResourceData';
 
 export const processEvents = (events: CalendarEvent[], resources: Resource[]): CalendarEvent[] => {
@@ -19,15 +18,20 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
     if (eventType === 'event') {
       targetResourceId = 'team-6';
       
-      // Set EVENT events to 2.5 hours duration
+      // Set EVENT events to 3 hours duration
       const startTime = new Date(event.start);
       const endTime = new Date(startTime);
-      endTime.setHours(startTime.getHours() + 2, startTime.getMinutes() + 30); // 2.5 hours
+      endTime.setHours(startTime.getHours() + 3); // 3 hours
       
       const processedEvent = {
         ...event,
         resourceId: targetResourceId,
         end: endTime.toISOString(),
+        // Keep all properties that make events draggable
+        editable: true,
+        startEditable: true,
+        durationEditable: true,
+        resourceEditable: true,
         extendedProps: {
           ...event.extendedProps,
           bookingId: event.extendedProps?.bookingId || event.bookingId,
@@ -40,14 +44,19 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
         }
       };
 
-      console.log(`Processed EVENT type event ${event.id}: moved to team-6 with 2.5hr duration`);
+      console.log(`Processed EVENT type event ${event.id}: moved to team-6 with 3hr duration and draggable`);
       return processedEvent;
     }
 
-    // For non-EVENT types, process normally
+    // For non-EVENT types, process normally and ensure they remain draggable
     const processedEvent = {
       ...event,
       resourceId: targetResourceId,
+      // Ensure all events are draggable
+      editable: true,
+      startEditable: true,
+      durationEditable: true,
+      resourceEditable: true,
       extendedProps: {
         ...event.extendedProps,
         bookingId: event.extendedProps?.bookingId || event.bookingId,
@@ -63,7 +72,8 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
       title: event.title,
       bookingId: processedEvent.extendedProps.bookingId,
       resourceId: processedEvent.resourceId,
-      eventType: eventType
+      eventType: eventType,
+      editable: processedEvent.editable
     });
 
     return processedEvent;
