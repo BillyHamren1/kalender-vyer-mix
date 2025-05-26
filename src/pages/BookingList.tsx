@@ -499,7 +499,7 @@ const BookingList = () => {
           </div>
         )}
 
-        {/* Combined Updated Bookings Section - includes both status changes and regular updates */}
+        {/* Updated Bookings Section - includes both status changes and regular updates */}
         {updatedBookings.length > 0 && (
           <div className="mb-8">
             <div className="flex items-center mb-4">
@@ -555,7 +555,7 @@ const BookingList = () => {
                             onClick={(e) => handleMarkAsViewed(booking.id, e)}
                             className={`text-xs ${isStatusChanged ? 'bg-[#FEF3C7]' : 'bg-[#F0FDF4]'}`}
                           >
-                            {isStatusChanged ? 'Acknowledge' : 'Mark as reviewed'}
+                            Mark as viewed
                           </Button>
                         </TableCell>
                       </TableRow>
