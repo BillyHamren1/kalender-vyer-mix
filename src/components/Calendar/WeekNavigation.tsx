@@ -1,7 +1,15 @@
 
-import React, { useCallback } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { format, addDays } from 'date-fns';
+import React, { useCallback, useState } from 'react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
+import { format, addDays, startOfWeek } from 'date-fns';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 interface WeekNavigationProps {
   currentWeekStart: Date;
@@ -12,6 +20,8 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
   currentWeekStart,
   setCurrentWeekStart
 }) => {
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+
   // Navigation functions
   const goToPreviousWeek = useCallback(() => {
     const prevWeek = new Date(currentWeekStart);
@@ -24,6 +34,16 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
     nextWeek.setDate(nextWeek.getDate() + 7);
     setCurrentWeekStart(nextWeek);
   }, [currentWeekStart, setCurrentWeekStart]);
+
+  // Handle date selection from calendar
+  const handleDateSelect = useCallback((selectedDate: Date | undefined) => {
+    if (selectedDate) {
+      // Calculate the Monday of the week containing the selected date
+      const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
+      setCurrentWeekStart(weekStart);
+      setDatePickerOpen(false);
+    }
+  }, [setCurrentWeekStart]);
 
   // Format the week range for display (Monday to Sunday)
   const weekRangeText = (() => {
@@ -44,9 +64,32 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
           />
         </button>
         
-        <div className="text-4xl font-bold text-slate-800 px-8 py-4 min-w-[360px] text-center tracking-wider">
-          {weekRangeText}
-        </div>
+        {/* Clickable date range that opens calendar picker */}
+        <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              className={cn(
+                "text-4xl font-bold text-slate-800 px-8 py-4 min-w-[360px] text-center tracking-wider h-auto",
+                "hover:bg-slate-100 transition-colors duration-200 cursor-pointer"
+              )}
+            >
+              <div className="flex items-center justify-center gap-3">
+                <CalendarIcon className="h-8 w-8" />
+                {weekRangeText}
+              </div>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="center">
+            <Calendar
+              mode="single"
+              selected={currentWeekStart}
+              onSelect={handleDateSelect}
+              initialFocus
+              className={cn("p-3 pointer-events-auto")}
+            />
+          </PopoverContent>
+        </Popover>
         
         <button
           onClick={goToNextWeek}

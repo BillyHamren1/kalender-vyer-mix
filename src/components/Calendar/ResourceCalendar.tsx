@@ -171,16 +171,16 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     return aNum - bNum;
   });
 
-  // Log events and resources for debugging
+  // Log events and resources for debugging - REMOVED the problematic render() call
   useEffect(() => {
     console.log('ResourceCalendar received events:', events);
     console.log('ResourceCalendar received resources:', resources);
     console.log('ResourceCalendar staff assignments:', assignments);
     
-    // Force calendar to rerender when events change
-    if (calendarRef.current) {
-      calendarRef.current.getApi().render();
-    }
+    // REMOVED: Force calendar to rerender when events change - this was causing flushSync warnings
+    // if (calendarRef.current) {
+    //   calendarRef.current.getApi().render();
+    // }
   }, [events, resources, assignments]);
 
   // Process events to ensure valid resources and add styling
