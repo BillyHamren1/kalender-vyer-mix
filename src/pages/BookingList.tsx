@@ -419,7 +419,7 @@ const BookingList = () => {
                           className="hover:bg-[#F7FAFC] cursor-pointer" 
                           onClick={() => handleRowClick(booking.id)}
                         >
-                          <TableCell className="font-medium text-[#2d3748]">{booking.id}</TableCell>
+                          <TableCell className="font-medium text-[#2d3748]">{booking.bookingNumber || booking.id}</TableCell>
                           <TableCell>{booking.client}</TableCell>
                           <TableCell>{booking.rigDayDate}</TableCell>
                           <TableCell>{booking.eventDate}</TableCell>
@@ -478,7 +478,7 @@ const BookingList = () => {
                       className="hover:bg-[#FEF3C7] cursor-pointer" 
                       onClick={() => handleRowClick(booking.id)}
                     >
-                      <TableCell className="font-medium text-[#2d3748]">{booking.id}</TableCell>
+                      <TableCell className="font-medium text-[#2d3748]">{booking.bookingNumber || booking.id}</TableCell>
                       <TableCell>{booking.client}</TableCell>
                       <TableCell>{booking.rigDayDate}</TableCell>
                       <TableCell>{booking.eventDate}</TableCell>
@@ -536,7 +536,7 @@ const BookingList = () => {
                       className="hover:bg-[#F5F3FF] cursor-pointer" 
                       onClick={() => handleRowClick(booking.id)}
                     >
-                      <TableCell className="font-medium text-[#2d3748]">{booking.id}</TableCell>
+                      <TableCell className="font-medium text-[#2d3748]">{booking.bookingNumber || booking.id}</TableCell>
                       <TableCell>{booking.client}</TableCell>
                       <TableCell>{booking.rigDayDate}</TableCell>
                       <TableCell>{booking.eventDate}</TableCell>
@@ -594,7 +594,7 @@ const BookingList = () => {
                       className="hover:bg-[#F0FDF4] cursor-pointer" 
                       onClick={() => handleRowClick(booking.id)}
                     >
-                      <TableCell className="font-medium text-[#2d3748]">{booking.id}</TableCell>
+                      <TableCell className="font-medium text-[#2d3748]">{booking.bookingNumber || booking.id}</TableCell>
                       <TableCell>{booking.client}</TableCell>
                       <TableCell>{booking.rigDayDate}</TableCell>
                       <TableCell>{booking.eventDate}</TableCell>
@@ -652,7 +652,7 @@ const BookingList = () => {
                       className="hover:bg-gray-50 cursor-pointer" 
                       onClick={() => handleRowClick(booking.id)}
                     >
-                      <TableCell className="font-medium text-[#2d3748]">{booking.id}</TableCell>
+                      <TableCell className="font-medium text-[#2d3748]">{booking.bookingNumber || booking.id}</TableCell>
                       <TableCell>{booking.client}</TableCell>
                       <TableCell>{booking.rigDayDate}</TableCell>
                       <TableCell>{booking.eventDate}</TableCell>
