@@ -14,6 +14,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useEventActions } from '@/hooks/useEventActions';
 import ResourceHeaderDropZone from './ResourceHeaderDropZone';
 import { useEventOperations } from '@/hooks/useEventOperations';
+import { useReliableStaffOperations } from '@/hooks/useReliableStaffOperations';
 import { 
   renderEventContent, 
   setupEventActions, 
@@ -88,12 +89,6 @@ const AddressWrapStyles = () => (
   </style>
 );
 
-interface LocalStaffData {
-  resourceId: string;
-  staff: Array<{id: string, name: string}>;
-  minHeight: number;
-}
-
 interface ResourceCalendarProps {
   events: CalendarEvent[];
   resources: Resource[];
@@ -107,7 +102,6 @@ interface ResourceCalendarProps {
   forceRefresh?: boolean;
   calendarProps?: Record<string, any>; 
   droppableScope?: string;
-  localStaffData?: LocalStaffData[];
   targetDate?: Date; // NEW: specific target date for this calendar
 }
 
@@ -124,7 +118,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   forceRefresh,
   calendarProps = {},
   droppableScope = 'weekly-calendar',
-  localStaffData,
   targetDate // NEW: Use this specific date for operations
 }) => {
   const calendarRef = useRef<any>(null);
@@ -136,6 +129,9 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   const effectiveDate = targetDate || currentDate;
   
   console.log(`ResourceCalendar: Rendering for date ${format(effectiveDate, 'yyyy-MM-dd')} with target date: ${targetDate ? format(targetDate, 'yyyy-MM-dd') : 'none'}`);
+  
+  // Use the reliable staff operations hook for real-time updates
+  const { assignments, handleStaffDrop: reliableHandleStaffDrop, getStaffForTeam } = useReliableStaffOperations(effectiveDate);
   
   // Get the event actions hook
   const { duplicateEvent } = useEventActions(events, () => {}, resources);
@@ -179,12 +175,13 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   useEffect(() => {
     console.log('ResourceCalendar received events:', events);
     console.log('ResourceCalendar received resources:', resources);
+    console.log('ResourceCalendar staff assignments:', assignments);
     
     // Force calendar to rerender when events change
     if (calendarRef.current) {
       calendarRef.current.getApi().render();
     }
-  }, [events, resources]);
+  }, [events, resources, assignments]);
 
   // Process events to ensure valid resources and add styling
   const processedEvents = processEvents(events, resources);
@@ -221,17 +218,16 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     
     console.log(`ResourceCalendar: Rendering ResourceHeaderDropZone for ${info.resource.id} with target date: ${format(effectiveDate, 'yyyy-MM-dd')}`);
     
-    // Get staff data and height from local staff data if available
-    const localData = localStaffData?.find(data => data.resourceId === info.resource.id);
-    const assignedStaff = localData?.staff || [];
-    const minHeight = localData?.minHeight || 80;
+    // Get staff data from reliable staff operations
+    const assignedStaff = getStaffForTeam(info.resource.id);
+    const minHeight = 80;
     
     return (
       <ResourceHeaderDropZone 
         resource={info.resource}
         currentDate={effectiveDate}
         targetDate={effectiveDate}
-        onStaffDrop={onStaffDrop}
+        onStaffDrop={reliableHandleStaffDrop}
         onSelectStaff={onSelectStaff}
         assignedStaff={assignedStaff}
         minHeight={minHeight}
