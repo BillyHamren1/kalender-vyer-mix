@@ -228,15 +228,10 @@ const BookingList = () => {
   // Split bookings into categories
   const newBookings = bookings.filter(booking => !booking.viewed);
   
-  // Status changed bookings (shown in a special section with warning)
-  const statusChangedBookings = bookings.filter(
-    booking => booking.viewed && statusChangedBookingIds.includes(booking.id)
-  );
-  
-  const recentlyUpdatedBookings = bookings.filter(
+  // Combine recently updated and status changed bookings into a single "Updated Bookings" section
+  const updatedBookings = bookings.filter(
     booking => booking.viewed && 
-               recentlyUpdatedBookingIds.includes(booking.id) && 
-               !statusChangedBookingIds.includes(booking.id) // Don't show bookings that changed status here
+               (recentlyUpdatedBookingIds.includes(booking.id) || statusChangedBookingIds.includes(booking.id))
   );
   
   // Filter viewed bookings based on search term
@@ -446,67 +441,6 @@ const BookingList = () => {
           </div>
         )}
 
-        {/* Status Changed Bookings Section - New section for bookings that changed status */}
-        {statusChangedBookings.length > 0 && (
-          <div className="mb-8">
-            <div className="flex items-center mb-4">
-              <h2 className="text-xl font-semibold text-[#2d3748] flex items-center">
-                <AlertTriangle className="h-5 w-5 text-amber-500 mr-2" />
-                Status Changed
-              </h2>
-              <Badge className="ml-2 bg-[#F59E0B] hover:bg-[#D97706]">
-                {statusChangedBookings.length}
-              </Badge>
-            </div>
-            <Card className="overflow-hidden border-0 shadow-md rounded-lg border-l-4 border-l-amber-500">
-              <Table>
-                <TableHeader className="bg-[#FFFBEB]">
-                  <TableRow>
-                    <TableHead className="text-[#2d3748]">Booking ID</TableHead>
-                    <TableHead className="text-[#2d3748]">Client</TableHead>
-                    <TableHead className="text-[#2d3748]">Rig day date</TableHead>
-                    <TableHead className="text-[#2d3748]">Event date</TableHead>
-                    <TableHead className="text-[#2d3748]">Rig down date</TableHead>
-                    <TableHead className="text-[#2d3748]">Status</TableHead>
-                    <TableHead className="text-[#2d3748]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {statusChangedBookings.map((booking) => (
-                    <TableRow 
-                      key={booking.id} 
-                      className="hover:bg-[#FEF3C7] cursor-pointer" 
-                      onClick={() => handleRowClick(booking.id)}
-                    >
-                      <TableCell className="font-medium text-[#2d3748]">{booking.bookingNumber || booking.id}</TableCell>
-                      <TableCell>{booking.client}</TableCell>
-                      <TableCell>{booking.rigDayDate}</TableCell>
-                      <TableCell>{booking.eventDate}</TableCell>
-                      <TableCell>{booking.rigDownDate}</TableCell>
-                      <TableCell>
-                        <StatusBadge 
-                          status={booking.status} 
-                          isUpdated={true}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={(e) => handleMarkAsViewed(booking.id, e)}
-                          className="text-xs bg-[#FEF3C7]"
-                        >
-                          Acknowledge
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
-          </div>
-        )}
-
         {/* New Bookings Section */}
         {newBookings.length > 0 && (
           <div className="mb-8">
@@ -565,13 +499,13 @@ const BookingList = () => {
           </div>
         )}
 
-        {/* Recently Updated Bookings Section */}
-        {recentlyUpdatedBookings.length > 0 && (
+        {/* Combined Updated Bookings Section - includes both status changes and regular updates */}
+        {updatedBookings.length > 0 && (
           <div className="mb-8">
             <div className="flex items-center mb-4">
-              <h2 className="text-xl font-semibold text-[#2d3748]">Uppdaterade bokningar</h2>
+              <h2 className="text-xl font-semibold text-[#2d3748]">Updated Bookings</h2>
               <Badge className="ml-2 bg-[#22C55E] hover:bg-[#16A34A]">
-                {recentlyUpdatedBookings.length}
+                {updatedBookings.length}
               </Badge>
             </div>
             <Card className="overflow-hidden border-0 shadow-md rounded-lg">
@@ -588,35 +522,45 @@ const BookingList = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {recentlyUpdatedBookings.map((booking) => (
-                    <TableRow 
-                      key={booking.id} 
-                      className="hover:bg-[#F0FDF4] cursor-pointer" 
-                      onClick={() => handleRowClick(booking.id)}
-                    >
-                      <TableCell className="font-medium text-[#2d3748]">{booking.bookingNumber || booking.id}</TableCell>
-                      <TableCell>{booking.client}</TableCell>
-                      <TableCell>{booking.rigDayDate}</TableCell>
-                      <TableCell>{booking.eventDate}</TableCell>
-                      <TableCell>{booking.rigDownDate}</TableCell>
-                      <TableCell>
-                        <StatusBadge 
-                          status={booking.status} 
-                          isUpdated={true}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={(e) => handleMarkAsViewed(booking.id, e)}
-                          className="text-xs bg-[#F0FDF4]"
-                        >
-                          Mark as reviewed
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {updatedBookings.map((booking) => {
+                    const isStatusChanged = statusChangedBookingIds.includes(booking.id);
+                    return (
+                      <TableRow 
+                        key={booking.id} 
+                        className={`cursor-pointer ${isStatusChanged ? 'hover:bg-[#FEF3C7] bg-[#FFFBEB]' : 'hover:bg-[#F0FDF4]'}`}
+                        onClick={() => handleRowClick(booking.id)}
+                      >
+                        <TableCell className="font-medium text-[#2d3748]">
+                          <div className="flex items-center">
+                            {booking.bookingNumber || booking.id}
+                            {isStatusChanged && (
+                              <AlertTriangle className="h-4 w-4 text-amber-500 ml-2" />
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>{booking.client}</TableCell>
+                        <TableCell>{booking.rigDayDate}</TableCell>
+                        <TableCell>{booking.eventDate}</TableCell>
+                        <TableCell>{booking.rigDownDate}</TableCell>
+                        <TableCell>
+                          <StatusBadge 
+                            status={booking.status} 
+                            isUpdated={true}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={(e) => handleMarkAsViewed(booking.id, e)}
+                            className={`text-xs ${isStatusChanged ? 'bg-[#FEF3C7]' : 'bg-[#F0FDF4]'}`}
+                          >
+                            {isStatusChanged ? 'Acknowledge' : 'Mark as reviewed'}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </Card>
@@ -624,7 +568,7 @@ const BookingList = () => {
         )}
 
         {/* Separator between sections if multiple sections are visible */}
-        {((newBookings.length > 0 || recentlyUpdatedBookings.length > 0 || statusChangedBookingIds.length > 0) && 
+        {((newBookings.length > 0 || updatedBookings.length > 0) && 
           filteredViewedBookings.length > 0) && (
           <Separator className="my-6" />
         )}
@@ -670,8 +614,7 @@ const BookingList = () => {
 
         {/* Message when no bookings are found */}
         {newBookings.length === 0 && 
-         recentlyUpdatedBookings.length === 0 && 
-         statusChangedBookingIds.length === 0 && 
+         updatedBookings.length === 0 && 
          filteredViewedBookings.length === 0 && (
           <Card className="p-8 text-center border-0 shadow-md rounded-lg">
             <p className="text-gray-500 mb-4">
