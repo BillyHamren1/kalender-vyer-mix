@@ -1,12 +1,13 @@
-
 import React from 'react';
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
 import { format } from 'date-fns';
 
-// Function to stack and arrange team-6 events with 2-hour durations and stacked from bottom up
+// SIMPLIFIED: Function to stack and arrange team-6 events with 2-hour durations and stacked from bottom up
 const processTeam6Events = (events: CalendarEvent[]) => {
   // Get only events for team-6
   const team6Events = events.filter(event => event.resourceId === 'team-6');
+  
+  console.log(`CalendarEventProcessor: Processing ${team6Events.length} team-6 events`);
   
   // Sort events by booking ID to keep related bookings together
   // and then by start time within the same booking ID
@@ -53,6 +54,8 @@ const processTeam6Events = (events: CalendarEvent[]) => {
     // Get the delivery address from the event's deliveryAddress or use default message
     const deliveryAddress = event.deliveryAddress || 'No address provided';
     
+    console.log(`CalendarEventProcessor: Team-6 event ${event.id} positioned at slot ${position} (${startHour}:00)`);
+    
     return {
       ...event,
       start: start.toISOString(),
@@ -73,10 +76,22 @@ const processTeam6Events = (events: CalendarEvent[]) => {
 
 export const processEvents = (events: CalendarEvent[], resources: Resource[]) => {
   // Log events for debugging
-  console.log('Processing events for calendar display:', events);
+  console.log(`CalendarEventProcessor: Processing ${events.length} events for calendar display`);
   
-  // Ensure all events have valid resources
-  const eventsWithValidResources = events.map(event => {
+  // IMPORTANT: Create a Set to track processed event IDs to prevent duplicates
+  const processedEventIds = new Set<string>();
+  
+  // Ensure all events have valid resources and deduplicate
+  const uniqueEventsWithValidResources = events.filter(event => {
+    // Skip if we've already processed this event
+    if (processedEventIds.has(event.id)) {
+      console.log(`CalendarEventProcessor: Skipping duplicate event ${event.id}`);
+      return false;
+    }
+    
+    processedEventIds.add(event.id);
+    return true;
+  }).map(event => {
     // Check if event's resourceId exists in resources
     const resourceExists = resources.some(r => r.id === event.resourceId);
     
@@ -92,12 +107,14 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]) =>
     return event;
   });
 
+  console.log(`CalendarEventProcessor: After deduplication: ${uniqueEventsWithValidResources.length} unique events`);
+
   // First process regular events (non-team-6)
-  const regularEvents = eventsWithValidResources
+  const regularEvents = uniqueEventsWithValidResources
     .filter(event => event.resourceId !== 'team-6')
     .map(event => {
       // Log event type for debugging
-      console.log(`Processing regular event ${event.id}, type: ${event.eventType}`);
+      console.log(`CalendarEventProcessor: Processing regular event ${event.id}, type: ${event.eventType}`);
       
       const backgroundColor = getEventColor(event.eventType);
       
@@ -121,11 +138,11 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]) =>
     });
   
   // Then process and stack team-6 events
-  const team6ProcessedEvents = processTeam6Events(eventsWithValidResources);
+  const team6ProcessedEvents = processTeam6Events(uniqueEventsWithValidResources);
   
   // Convert team-6 events to FullCalendar format
   const team6Events = team6ProcessedEvents.map(event => {
-    console.log(`Processing team-6 event ${event.id}, type: ${event.eventType}`);
+    console.log(`CalendarEventProcessor: Processing team-6 event ${event.id}, type: ${event.eventType}`);
     
     const backgroundColor = getEventColor(event.eventType);
     
@@ -145,7 +162,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]) =>
   // Combine both sets of events
   const processed = [...regularEvents, ...team6Events];
   
-  console.log('Processed events with styles:', processed);
+  console.log(`CalendarEventProcessor: Final processed events: ${processed.length} (${regularEvents.length} regular + ${team6Events.length} team-6)`);
   return processed;
 };
 

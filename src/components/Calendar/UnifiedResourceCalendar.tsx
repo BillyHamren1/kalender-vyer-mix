@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
@@ -40,6 +41,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   const { setLastViewedDate } = useContext(CalendarContext);
 
   console.log(`UnifiedResourceCalendar: forceRefresh prop is ${forceRefresh}`);
+  console.log(`UnifiedResourceCalendar: Total events received: ${events.length}`);
 
   // Generate days based on view mode
   const getDaysToRender = () => {
@@ -139,14 +141,18 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     };
   };
 
-  const getEventsForDay = (date: Date) => {
+  // FIXED: Filter events for each specific day to prevent duplicates
+  const getEventsForDay = (date: Date): CalendarEvent[] => {
     const dateStr = format(date, 'yyyy-MM-dd');
     
-    return events.filter(event => {
+    const dayEvents = events.filter(event => {
       const eventStart = new Date(event.start);
       const eventDateStr = format(eventStart, 'yyyy-MM-dd');
       return eventDateStr === dateStr;
     });
+    
+    console.log(`UnifiedResourceCalendar: Events for ${dateStr}: ${dayEvents.length} events`);
+    return dayEvents;
   };
 
   // Scroll to today for monthly view
@@ -184,11 +190,12 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     <div className={getContainerClass()}>
       <div className={getCalendarContainerClass()} ref={containerRef}>
         {days.map((date, index) => {
+          // CRITICAL FIX: Get only the events for this specific day
           const dayEvents = getEventsForDay(date);
           const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
           const isCurrentMonth = viewMode === 'monthly' ? isSameMonth(date, currentDate) : true;
           
-          console.log(`UnifiedResourceCalendar: Rendering calendar for ${format(date, 'yyyy-MM-dd')} with forceRefresh=${forceRefresh}`);
+          console.log(`UnifiedResourceCalendar: Rendering calendar for ${format(date, 'yyyy-MM-dd')} with ${dayEvents.length} events (filtered from ${events.length} total)`);
           
           return (
             <div 
@@ -206,7 +213,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
               </div>
               <div className={viewMode === 'weekly' ? 'weekly-view-calendar' : 'monthly-view-calendar'}>
                 <ResourceCalendar
-                  events={events}
+                  events={dayEvents}
                   resources={resources}
                   isLoading={isLoading}
                   isMounted={isMounted}
