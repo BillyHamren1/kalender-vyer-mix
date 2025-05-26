@@ -51,10 +51,7 @@ const TestMonthlyView = () => {
   const [selectedResourceId, setSelectedResourceId] = useState('');
   const [selectedResourceTitle, setSelectedResourceTitle] = useState('');
 
-  const {
-    staffAssignmentsUpdated,
-    handleStaffDrop,
-  } = useStaffOperations(hookCurrentDate);
+  const { handleStaffDrop } = useStaffOperations(hookCurrentDate);
 
   useEffect(() => {
     setCurrentMonthStart(startOfMonth(new Date(hookCurrentDate)));
@@ -170,7 +167,6 @@ const TestMonthlyView = () => {
             refreshEvents={refreshEvents}
             onStaffDrop={handleStaffDrop}
             onSelectStaff={handleOpenStaffSelectionDialog}
-            forceRefresh={staffAssignmentsUpdated}
           />
         </div>
       </ResourceLayout>

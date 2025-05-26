@@ -54,7 +54,7 @@ const ResourceView = () => {
   const [selectedTeamTitle, setSelectedTeamTitle] = useState('');
   
   // Use staff operations hook
-  const { staffAssignmentsUpdated, handleStaffDrop } = useStaffOperations(currentDate);
+  const { handleStaffDrop } = useStaffOperations(currentDate);
   
   // Setup completed flag to prevent multiple setups
   useEffect(() => {
@@ -153,7 +153,6 @@ const ResourceView = () => {
           onDateSet={handleDatesSet}
           refreshEvents={refreshEvents}
           onStaffDrop={handleStaffDrop}
-          forceRefresh={staffAssignmentsUpdated}
           onSelectStaff={handleOpenStaffSelectionDialog}
         />
         
