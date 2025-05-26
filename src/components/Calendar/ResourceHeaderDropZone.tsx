@@ -1,167 +1,149 @@
 
 import React, { useEffect, useState } from 'react';
-import { Resource } from './ResourceData';
-import { StaffMember } from './StaffTypes';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useDrop } from 'react-dnd';
-import DraggableStaffItem from './DraggableStaffItem';
+import { Resource } from './ResourceData';
+import { Button } from '@/components/ui/button';
+import { Users } from 'lucide-react';
+import { fetchStaffAssignmentsForDate } from '@/services/staffAssignmentService';
+import { fetchStaffMembers } from '@/services/staffService';
+import { format } from 'date-fns';
 
 interface ResourceHeaderDropZoneProps {
   resource: Resource;
-  currentDate?: Date;
+  currentDate: Date;
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
   onSelectStaff?: (resourceId: string, resourceTitle: string) => void;
   forceRefresh?: boolean;
 }
 
-export const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({ 
+const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   resource,
-  currentDate = new Date(),
+  currentDate,
   onStaffDrop,
   onSelectStaff,
   forceRefresh
 }) => {
-  const [assignedStaff, setAssignedStaff] = useState<StaffMember[]>([]);
+  const [assignedStaff, setAssignedStaff] = useState<Array<{id: string, name: string}>>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
-  
-  // Set up drop target for staff assignment
+
+  console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with forceRefresh=${forceRefresh}`);
+
+  // Fetch assigned staff for this team on the current date
+  const fetchAssignedStaff = async () => {
+    if (!currentDate) return;
+    
+    try {
+      setIsLoading(true);
+      const dateStr = format(currentDate, 'yyyy-MM-dd');
+      console.log(`ResourceHeaderDropZone: Fetching staff assignments for ${resource.id} on ${dateStr}`);
+      
+      // Get assignments for this team on this date
+      const assignments = await fetchStaffAssignmentsForDate(currentDate);
+      const teamAssignments = assignments.filter(assignment => assignment.teamId === resource.id);
+      
+      // Get full staff details
+      const allStaff = await fetchStaffMembers();
+      const assignedStaffDetails = teamAssignments
+        .map(assignment => {
+          const staff = allStaff.find(s => s.id === assignment.staffId);
+          return staff ? { id: staff.id, name: staff.name } : null;
+        })
+        .filter(Boolean);
+      
+      console.log(`ResourceHeaderDropZone: Found ${assignedStaffDetails.length} staff assigned to ${resource.id}`);
+      setAssignedStaff(assignedStaffDetails);
+    } catch (error) {
+      console.error('Error fetching assigned staff:', error);
+      setAssignedStaff([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch staff when component mounts or when date/team/forceRefresh changes
+  useEffect(() => {
+    fetchAssignedStaff();
+  }, [resource.id, currentDate, forceRefresh]);
+
   const [{ isOver }, drop] = useDrop({
-    accept: 'STAFF',
-    drop: (item: StaffMember) => {
-      console.log('Dropping staff onto resource header:', item.id, resource.id);
+    accept: 'staff',
+    drop: async (item: { id: string }) => {
+      console.log(`ResourceHeaderDropZone: Staff ${item.id} dropped on team ${resource.id}`);
       if (onStaffDrop) {
-        onStaffDrop(item.id, resource.id);
+        try {
+          await onStaffDrop(item.id, resource.id);
+          // Refresh the staff assignments after successful drop
+          await fetchAssignedStaff();
+        } catch (error) {
+          console.error('Error handling staff drop:', error);
+        }
       }
     },
     collect: (monitor) => ({
       isOver: !!monitor.isOver(),
     }),
   });
-  
-  // Update refresh key when forceRefresh changes
-  useEffect(() => {
-    console.log(`ResourceHeaderDropZone: forceRefresh changed to ${forceRefresh} for resource ${resource.id}`);
-    setRefreshKey(prev => prev + 1);
-  }, [forceRefresh, resource.id]);
-  
-  // Fetch assigned staff when component mounts or when refresh key changes
-  useEffect(() => {
-    console.log(`ResourceHeaderDropZone: useEffect triggered for resource ${resource.id}, refreshKey=${refreshKey}, date=${currentDate.toISOString().split('T')[0]}`);
-    
-    const loadAssignedStaff = async () => {
-      if (!currentDate) return;
-      
-      try {
-        setIsLoading(true);
-        console.log(`ResourceHeaderDropZone: Starting to fetch staff assignments for resource ${resource.id}`);
-        
-        // Get staff assigned to this specific team on this date
-        const { fetchStaffAssignments } = await import('@/services/staffService');
-        const staffAssignments = await fetchStaffAssignments(currentDate, resource.id);
-        console.log(`ResourceHeaderDropZone: Raw staff assignments for resource ${resource.id}:`, staffAssignments);
-        
-        // Improved mapping with better error handling and data extraction
-        const mappedStaff = staffAssignments.map(assignment => {
-          console.log(`Processing assignment:`, assignment);
-          
-          // Handle both direct staff_members object and nested structure
-          const staffMemberData = assignment.staff_members || assignment;
-          const staffName = staffMemberData?.name || 
-                           assignment.staff_name || 
-                           assignment.name || 
-                           'Unknown Staff';
-          const staffEmail = staffMemberData?.email || assignment.email;
-          const staffPhone = staffMemberData?.phone || assignment.phone;
-          
-          console.log(`Extracted staff data: name=${staffName}, email=${staffEmail}, id=${assignment.staff_id}`);
-          
-          return {
-            id: assignment.staff_id,
-            name: staffName,
-            email: staffEmail,
-            phone: staffPhone,
-            assignedTeam: resource.id
-          };
-        });
-        
-        console.log(`ResourceHeaderDropZone: Final mapped staff for resource ${resource.id}:`, mappedStaff);
-        setAssignedStaff(mappedStaff);
-      } catch (error) {
-        console.error('ResourceHeaderDropZone: Error loading assigned staff:', error);
-        setAssignedStaff([]); // Clear staff on error
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    loadAssignedStaff();
-  }, [resource.id, currentDate, refreshKey]);
 
-  // Handle clicking on the team title to select staff
-  const handleTeamTitleClick = () => {
-    console.log('ResourceHeaderDropZone: Team title clicked for', resource.id, resource.title);
+  const handleSelectStaff = () => {
+    console.log(`ResourceHeaderDropZone: Select staff clicked for ${resource.id}`);
     if (onSelectStaff) {
       onSelectStaff(resource.id, resource.title);
     } else {
-      console.error('ResourceHeaderDropZone: onSelectStaff prop is not defined');
+      console.error('ResourceHeaderDropZone: onSelectStaff is not defined');
     }
   };
-
-  // Create placeholder staff slots to ensure consistent height
-  const emptySlots = 5 - assignedStaff.length;
-  const placeholders = Array(emptySlots > 0 ? emptySlots : 0).fill(null);
-
-  // Handle staff item removal
-  const handleRemoveStaff = (staffId: string) => {
-    if (onStaffDrop) {
-      onStaffDrop(staffId, null);
-    }
-  };
-
-  console.log(`ResourceHeaderDropZone: Rendering ${assignedStaff.length} staff for resource ${resource.id}`, assignedStaff);
 
   return (
-    <div 
-      ref={drop} 
-      className={`resource-header-wrapper flex flex-col h-full w-full ${isOver ? 'bg-purple-50' : ''}`}
+    <div
+      ref={drop}
+      className={`resource-header-drop-zone p-2 h-full w-full flex flex-col justify-between min-h-[50px] relative ${
+        isOver ? 'bg-blue-100 border-2 border-blue-300' : 'bg-gray-50'
+      } transition-colors duration-200`}
+      style={{ 
+        width: '80px',
+        minWidth: '80px', 
+        maxWidth: '80px',
+        overflow: 'visible',
+        position: 'relative',
+        zIndex: 10
+      }}
     >
-      {/* Team title - now fully clickable */}
-      <button 
-        onClick={handleTeamTitleClick}
-        className="resource-title-area font-medium text-sm mb-1 sticky top-0 z-10 w-full text-left hover:bg-gray-50 active:bg-gray-100 transition-colors duration-200 cursor-pointer px-1 py-1 rounded"
-        title="Click to assign staff"
-      >
+      {/* Team Title */}
+      <div className="text-xs font-medium text-center mb-1 truncate" title={resource.title}>
         {resource.title}
-      </button>
-      
-      {/* Assigned staff area - fixed height to accommodate 5 staff members */}
-      <div className="assigned-staff-area flex flex-col gap-1 mb-1 overflow-visible min-h-[130px]">
-        {isLoading ? (
-          <div className="text-xs text-gray-500">Loading staff...</div>
-        ) : assignedStaff.length > 0 ? (
-          assignedStaff.map((staff) => (
-            <DraggableStaffItem
-              key={staff.id}
-              staff={staff}
-              onRemove={() => handleRemoveStaff(staff.id)}
-              currentDate={currentDate}
-              teamName={resource.title}
-            />
-          ))
-        ) : (
-          <div className="text-xs text-gray-400">No staff assigned</div>
-        )}
-        
-        {/* Empty placeholder slots to maintain consistent height */}
-        {placeholders.map((_, index) => (
-          <div 
-            key={`placeholder-${index}`}
-            className="staff-placeholder h-[22px] w-full opacity-0"
-          />
-        ))}
       </div>
+      
+      {/* Staff Section - only show assigned staff names, no "No staff assigned" text */}
+      <div className="staff-section flex-1 min-h-0">
+        {isLoading ? (
+          <div className="text-xs text-gray-400 text-center">Loading...</div>
+        ) : assignedStaff.length > 0 ? (
+          <div className="space-y-1">
+            {assignedStaff.map((staff) => (
+              <div
+                key={staff.id}
+                className="bg-blue-100 text-blue-800 text-xs px-1 py-0.5 rounded truncate"
+                title={staff.name}
+              >
+                {staff.name}
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      
+      {/* Select Staff Button */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={handleSelectStaff}
+        className="h-6 w-full text-xs p-1 mt-1"
+        title="Select staff for this team"
+      >
+        <Users className="h-3 w-3" />
+      </Button>
     </div>
   );
 };
+
+export default ResourceHeaderDropZone;
