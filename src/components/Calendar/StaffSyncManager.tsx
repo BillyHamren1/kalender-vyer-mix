@@ -49,12 +49,12 @@ const StaffSyncManager: React.FC<StaffSyncManagerProps> = ({
         const staffList = data.data as ExternalStaffMember[];
         
         for (const staff of staffList) {
-          await syncStaffMember(
-            staff.id,
-            staff.name,
-            staff.email || undefined,
-            staff.phone || undefined
-          );
+          await syncStaffMember({
+            id: staff.id,
+            name: staff.name,
+            email: staff.email || undefined,
+            phone: staff.phone || undefined
+          });
         }
         
         console.log(`Synced ${staffList.length} staff members`);

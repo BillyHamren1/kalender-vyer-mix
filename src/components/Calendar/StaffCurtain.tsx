@@ -65,13 +65,13 @@ const StaffCurtain: React.FC<StaffCurtainProps> = ({
           for (const externalStaff of data.data) {
             if (externalStaff.isavailable) {
               try {
-                // Sync the staff member to our database
-                await syncStaffMember(
-                  externalStaff.id,
-                  externalStaff.name,
-                  externalStaff.email || undefined,
-                  externalStaff.phone || undefined
-                );
+                // Sync the staff member to our database with correct signature
+                await syncStaffMember({
+                  id: externalStaff.id,
+                  name: externalStaff.name,
+                  email: externalStaff.email || undefined,
+                  phone: externalStaff.phone || undefined
+                });
                 
                 // Add to our available staff list
                 staffList.push({

@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface StaffMember {
@@ -71,6 +70,36 @@ export const syncStaffMember = async (staffData: any): Promise<void> => {
     console.log('Staff member synced successfully:', data);
   } catch (error) {
     console.error('Error in syncStaffMember:', error);
+    throw error;
+  }
+};
+
+// Add a new staff member to the database
+export const addStaffMember = async (name: string, email?: string, phone?: string): Promise<StaffMember> => {
+  try {
+    // Generate a unique ID for the new staff member
+    const id = `staff_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    const { data, error } = await supabase
+      .from('staff_members')
+      .insert({
+        id,
+        name,
+        email,
+        phone
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error adding staff member:', error);
+      throw error;
+    }
+
+    console.log('Staff member added successfully:', data);
+    return data;
+  } catch (error) {
+    console.error('Error in addStaffMember:', error);
     throw error;
   }
 };
