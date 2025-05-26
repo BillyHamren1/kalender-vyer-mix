@@ -72,34 +72,27 @@ export const getStaffCalendarEvents = async (
     );
 
     console.log(`Found ${filteredAssignments.length} assignments for selected staff`);
+    console.log('Assignment details:', filteredAssignments);
 
     // Convert assignments to calendar events
     for (const assignment of filteredAssignments) {
       const staffName = staffMap.get(assignment.staffId) || `Staff ${assignment.staffId}`;
       
-      // Create assignment event (shows staff member assigned to team for the day)
-      events.push({
-        id: `assignment-${assignment.staffId}-${assignment.date}`,
-        title: `${staffName} (Team ${assignment.teamId})`,
-        start: `${assignment.date}T08:00:00`,
-        end: `${assignment.date}T17:00:00`,
-        resourceId: assignment.staffId,
-        teamId: assignment.teamId,
-        teamName: assignment.teamName,
-        staffName: staffName,
-        eventType: 'assignment',
-        backgroundColor: '#e3f2fd',
-        borderColor: '#1976d2'
-      });
+      console.log(`Processing assignment for ${staffName} on ${assignment.date}, team ${assignment.teamId}`);
+      console.log(`Assignment has ${assignment.bookings?.length || 0} bookings`);
 
-      // Add booking events if available
+      // Add booking events if available - these are the actual jobs
       if (assignment.bookings && assignment.bookings.length > 0) {
         for (const booking of assignment.bookings) {
+          console.log(`Processing booking ${booking.id} for client ${booking.client}`);
+          
           if (booking.events && booking.events.length > 0) {
             for (const bookingEvent of booking.events) {
+              console.log(`Adding booking event: ${bookingEvent.title} for ${booking.client}`);
+              
               events.push({
                 id: `booking-${bookingEvent.id}`,
-                title: `${staffName} - ${bookingEvent.title}`,
+                title: `${booking.client} - ${bookingEvent.title}`,
                 start: bookingEvent.start,
                 end: bookingEvent.end,
                 resourceId: assignment.staffId,
@@ -112,12 +105,51 @@ export const getStaffCalendarEvents = async (
                 borderColor: getEventBorderColor(bookingEvent.type)
               });
             }
+          } else {
+            // If booking has no events, create a day-long event for the assignment date
+            console.log(`Booking ${booking.id} has no events, creating day event`);
+            
+            events.push({
+              id: `booking-day-${booking.id}`,
+              title: `${booking.client} - Booking`,
+              start: `${assignment.date}T08:00:00`,
+              end: `${assignment.date}T17:00:00`,
+              resourceId: assignment.staffId,
+              teamId: assignment.teamId,
+              bookingId: booking.id,
+              staffName: staffName,
+              client: booking.client,
+              eventType: 'booking_event',
+              backgroundColor: '#4caf50',
+              borderColor: '#388e3c'
+            });
           }
         }
+      } else {
+        // Create assignment event only if no bookings (shows staff is assigned but no jobs yet)
+        console.log(`No bookings for assignment, creating assignment event`);
+        
+        events.push({
+          id: `assignment-${assignment.staffId}-${assignment.date}`,
+          title: `${staffName} (Team ${assignment.teamId})`,
+          start: `${assignment.date}T08:00:00`,
+          end: `${assignment.date}T17:00:00`,
+          resourceId: assignment.staffId,
+          teamId: assignment.teamId,
+          teamName: assignment.teamName,
+          staffName: staffName,
+          eventType: 'assignment',
+          backgroundColor: '#e3f2fd',
+          borderColor: '#1976d2'
+        });
       }
     }
 
-    console.log(`Generated ${events.length} calendar events`);
+    console.log(`Generated ${events.length} calendar events:`);
+    events.forEach(event => {
+      console.log(`- Event: ${event.title}, Date: ${event.start}, Type: ${event.eventType}, Client: ${event.client || 'N/A'}`);
+    });
+    
     return events;
   } catch (error) {
     console.error('Error fetching staff calendar events:', error);

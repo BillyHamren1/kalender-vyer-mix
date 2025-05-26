@@ -30,8 +30,16 @@ const CleanCalendarGrid: React.FC<CleanCalendarGridProps> = ({
   // Filter events by selected clients and get events for specific date
   const getEventsForDate = (date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
-    return events.filter(event => {
-      const eventDate = format(new Date(event.start), 'yyyy-MM-dd');
+    
+    console.log(`Getting events for date ${dateStr}`);
+    
+    const matchingEvents = events.filter(event => {
+      // Extract date from event start time (format: YYYY-MM-DDTHH:mm:ss)
+      const eventDate = event.start.split('T')[0]; // Get just the date part
+      
+      console.log(`Comparing event date ${eventDate} with calendar date ${dateStr}`);
+      
+      const dateMatch = eventDate === dateStr;
       
       // Client filtering logic
       let clientMatch = true;
@@ -48,8 +56,16 @@ const CleanCalendarGrid: React.FC<CleanCalendarGridProps> = ({
         }
       }
       
-      return eventDate === dateStr && clientMatch;
+      const matches = dateMatch && clientMatch;
+      if (matches) {
+        console.log(`Event ${event.title} matches date ${dateStr}`);
+      }
+      
+      return matches;
     });
+    
+    console.log(`Found ${matchingEvents.length} events for ${dateStr}:`, matchingEvents);
+    return matchingEvents;
   };
 
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -72,8 +88,9 @@ const CleanCalendarGrid: React.FC<CleanCalendarGridProps> = ({
           const isCurrentMonth = isSameMonth(date, currentDate);
           const isTodayDate = isToday(date);
           
-          // Only show booking events (actual jobs/bookings)
+          // Separate booking events from assignment events
           const bookingEvents = dayEvents.filter(event => event.eventType === 'booking_event');
+          const assignmentEvents = dayEvents.filter(event => event.eventType === 'assignment');
           
           return (
             <div
@@ -92,7 +109,7 @@ const CleanCalendarGrid: React.FC<CleanCalendarGridProps> = ({
                 {format(date, 'd')}
               </div>
               
-              {/* Display booking events (actual jobs assigned to the team) */}
+              {/* Display booking events (actual jobs) first */}
               <div className="space-y-1">
                 {bookingEvents.slice(0, 3).map((event) => (
                   <div
@@ -103,6 +120,16 @@ const CleanCalendarGrid: React.FC<CleanCalendarGridProps> = ({
                     {event.client || 'Booking'}
                   </div>
                 ))}
+                
+                {/* Show assignment indicator only if staff is assigned but no specific bookings */}
+                {assignmentEvents.length > 0 && bookingEvents.length === 0 && (
+                  <div
+                    className="text-xs px-2 py-1 rounded text-white truncate bg-blue-500"
+                    title={`${assignmentEvents[0].staffName} assigned to Team ${assignmentEvents[0].teamId}`}
+                  >
+                    Team Assignment
+                  </div>
+                )}
                 
                 {bookingEvents.length > 3 && (
                   <div className="text-xs text-gray-500 px-2">
