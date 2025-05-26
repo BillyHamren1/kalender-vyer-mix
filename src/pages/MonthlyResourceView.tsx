@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -16,6 +17,7 @@ import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
 import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
 import TeamManagementDialog from '@/components/Calendar/TeamManagementDialog';
 import { startOfMonth } from 'date-fns';
+import { toast } from 'sonner';
 
 const MonthlyResourceView = () => {
   // Use our custom hooks to manage state and logic
@@ -55,18 +57,13 @@ const MonthlyResourceView = () => {
   const [selectedResourceId, setSelectedResourceId] = useState('');
   const [selectedResourceTitle, setSelectedResourceTitle] = useState('');
 
-  // Get staff operations
-  const {
-    handleStaffAssigned,
-  } = useReliableStaffOperations(hookCurrentDate);
-
-  // Get reliable staff operations
+  // Get reliable staff operations - single instance
   const {
     handleStaffDrop,
     refreshTrigger
   } = useReliableStaffOperations(hookCurrentDate);
 
-  // Enhanced staff drop handler with logging
+  // Enhanced staff drop handler with logging and instant updates
   const handleMonthlyStaffDrop = useCallback(async (staffId: string, resourceId: string | null, targetDate?: Date) => {
     console.log('MonthlyResourceView.handleMonthlyStaffDrop:', {
       staffId,
@@ -75,6 +72,7 @@ const MonthlyResourceView = () => {
     });
     
     try {
+      // Use the reliable staff drop handler - it handles optimistic updates
       await handleStaffDrop(staffId, resourceId);
       console.log('MonthlyResourceView: Staff drop completed successfully');
     } catch (error) {
@@ -82,6 +80,20 @@ const MonthlyResourceView = () => {
       toast.error('Failed to update staff assignment');
     }
   }, [handleStaffDrop]);
+
+  // Handle staff assignment - simplified to just trigger the reliable handler
+  const handleStaffAssigned = useCallback(async (staffId: string, staffName: string) => {
+    console.log(`MonthlyResourceView: Staff ${staffName} (${staffId}) assigned successfully to team ${selectedResourceId}`);
+    
+    try {
+      // Use the reliable staff drop handler
+      await handleStaffDrop(staffId, selectedResourceId);
+      console.log('MonthlyResourceView: Staff assignment completed successfully');
+    } catch (error) {
+      console.error('MonthlyResourceView: Error in staff assignment:', error);
+      toast.error('Failed to assign staff');
+    }
+  }, [selectedResourceId, handleStaffDrop]);
 
   // Only update when hookCurrentDate changes, not on every render
   useEffect(() => {
@@ -104,13 +116,13 @@ const MonthlyResourceView = () => {
     setShowStaffDisplay(prev => !prev);
   }, []);
 
-  // Wrapper function to ensure Promise<void> return type
+  // Simplified refresh - no redundant calls
   const handleRefresh = async (): Promise<void> => {
     await refreshEvents();
   };
 
-  // Convert boolean to number for compatibility with UnifiedResourceCalendar
-  const forceRefreshNumber = refreshTrigger ? 1 : 0;
+  // Convert refreshTrigger to number for compatibility with UnifiedResourceCalendar
+  const forceRefreshNumber = refreshTrigger || 0;
 
   return (
     <DndProvider backend={HTML5Backend}>

@@ -37,7 +37,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
   // State for confirmation dialog
   const [dialogOpen, setDialogOpen] = useState(false);
   
-  // Configure drag functionality with enhanced logging
+  // Configure drag functionality with immediate feedback
   const [{ isDragging }, drag, dragPreview] = useDrag({
     type: 'STAFF',
     item: () => {
@@ -93,11 +93,15 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
 
   // Determine styling based on variant and assignment status
   const isAssigned = variant === 'available' && !!staff.assignedTeam;
-  const baseClasses = `p-1 border border-gray-200 rounded-md mb-1 cursor-move flex items-center w-full transition-all duration-200 hover:shadow-sm active:cursor-grabbing`;
+  const baseClasses = `p-1 border border-gray-200 rounded-md mb-1 cursor-move flex items-center w-full transition-all duration-150 hover:shadow-sm active:cursor-grabbing`;
   const variantClasses = variant === 'available' 
     ? `${isAssigned ? 'bg-gray-100 opacity-60' : 'bg-white shadow-sm'}`
     : 'bg-white';
-  const dragClasses = isDragging ? 'opacity-50 transform rotate-2 scale-105' : 'opacity-100';
+  
+  // Enhanced drag feedback - more pronounced visual changes
+  const dragClasses = isDragging 
+    ? 'opacity-30 transform rotate-1 scale-110 shadow-lg bg-blue-50 border-blue-300' 
+    : 'opacity-100';
 
   return (
     <>
@@ -111,7 +115,9 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
           height: variant === 'available' ? "28px" : "24px", 
           maxWidth: "100%",
           userSelect: 'none',
-          WebkitUserSelect: 'none'
+          WebkitUserSelect: 'none',
+          // Add immediate visual feedback
+          transition: isDragging ? 'all 0.1s ease-out' : 'all 0.15s ease-in-out'
         }}
         onDoubleClick={handleDoubleClick}
         draggable="true"
@@ -120,16 +126,16 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
         <div className="flex items-center gap-1 w-full pointer-events-none">
           <Avatar className={`h-4 w-4 flex-shrink-0 ${
             variant === 'available' && isAssigned ? 'bg-gray-200' : 'bg-purple-100'
-          }`}>
+          } ${isDragging ? 'bg-blue-200' : ''}`}>
             <AvatarFallback className={`text-[10px] ${
               variant === 'available' && isAssigned ? 'text-gray-500' : 'text-purple-700'
-            }`}>
+            } ${isDragging ? 'text-blue-700' : ''}`}>
               {getInitials(staff.name)}
             </AvatarFallback>
           </Avatar>
           <span className={`text-xs font-medium whitespace-nowrap overflow-hidden text-ellipsis ${
             variant === 'available' && isAssigned ? 'text-gray-500' : ''
-          }`}>
+          } ${isDragging ? 'text-blue-700 font-semibold' : ''}`}>
             {getFirstName(staff.name)}
           </span>
           {variant === 'available' && isAssigned && (

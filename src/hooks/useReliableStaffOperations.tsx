@@ -61,7 +61,7 @@ export const useReliableStaffOperations = (currentDate: Date) => {
         },
         (payload) => {
           console.log('Real-time staff assignment change:', payload);
-          // Refresh assignments when any change occurs
+          // Refresh assignments when any change occurs - this provides the instant update
           fetchAssignments();
         }
       )
@@ -73,7 +73,7 @@ export const useReliableStaffOperations = (currentDate: Date) => {
     };
   }, [dateStr, fetchAssignments]);
 
-  // Handle staff assignment with proper error handling and rollback
+  // Handle staff assignment with optimistic updates and no redundant fetches
   const handleStaffDrop = useCallback(async (staffId: string, resourceId: string | null) => {
     if (!staffId) {
       // Just trigger refresh
@@ -81,12 +81,12 @@ export const useReliableStaffOperations = (currentDate: Date) => {
       return;
     }
 
-    console.log(`Assigning staff ${staffId} to ${resourceId || 'unassigned'} for ${dateStr}`);
+    console.log(`Optimistic update: Assigning staff ${staffId} to ${resourceId || 'unassigned'} for ${dateStr}`);
     
     // Store current state for rollback
     const previousAssignments = [...assignments];
     
-    // Optimistic update
+    // INSTANT optimistic update - this makes the UI change immediately
     if (resourceId) {
       // Find staff name from existing assignments or use ID
       const existingAssignment = assignments.find(a => a.staffId === staffId);
@@ -108,23 +108,27 @@ export const useReliableStaffOperations = (currentDate: Date) => {
       setAssignments(prev => prev.filter(a => a.staffId !== staffId));
     }
 
+    // Set loading state but don't block UI
     setIsLoading(true);
     
     try {
+      // Perform database operation in background
       if (resourceId) {
         await assignStaffToTeam(staffId, resourceId, currentDate);
-        toast.success('Staff assigned successfully');
+        console.log('Database update successful: Staff assigned');
       } else {
         await removeStaffAssignment(staffId, currentDate);
-        toast.success('Staff removed successfully');
+        console.log('Database update successful: Staff removed');
       }
       
-      // Fetch fresh data to ensure consistency
-      await fetchAssignments();
+      // Don't fetch here - let the real-time subscription handle the confirmation
+      // This prevents delays and double-updates
+      
     } catch (error) {
       console.error('Error in staff operation:', error);
       
-      // Rollback optimistic update
+      // Rollback optimistic update only on error
+      console.log('Rolling back optimistic update due to error');
       setAssignments(previousAssignments);
       
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -132,7 +136,7 @@ export const useReliableStaffOperations = (currentDate: Date) => {
     } finally {
       setIsLoading(false);
     }
-  }, [assignments, currentDate, dateStr, fetchAssignments]);
+  }, [assignments, currentDate, dateStr]);
 
   // Get staff for a specific team
   const getStaffForTeam = useCallback((teamId: string) => {

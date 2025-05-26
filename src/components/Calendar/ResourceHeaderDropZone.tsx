@@ -38,6 +38,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       
       if (onStaffDrop) {
         try {
+          // Call the drop handler - this should trigger immediate optimistic updates
           await onStaffDrop(item.id, resource.id);
           console.log('ResourceHeaderDropZone: Staff drop completed successfully');
         } catch (error) {
@@ -73,11 +74,12 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     }
   };
 
-  // Handle staff removal
+  // Handle staff removal with immediate UI feedback
   const handleStaffRemove = async (staffId: string) => {
     console.log(`ResourceHeaderDropZone: Removing staff ${staffId} from team ${resource.id}`);
     if (onStaffDrop) {
       try {
+        // This should trigger immediate optimistic updates
         await onStaffDrop(staffId, null); // null resourceId means removal
         console.log('ResourceHeaderDropZone: Staff removal completed successfully');
       } catch (error) {
@@ -86,14 +88,14 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     }
   };
 
-  // Get drop zone styling with better visual feedback
+  // Enhanced drop zone styling with smoother transitions
   const getDropZoneClass = () => {
-    let baseClass = `resource-header-drop-zone p-2 h-full w-full flex flex-col justify-between relative transition-all duration-200`;
+    let baseClass = `resource-header-drop-zone p-2 h-full w-full flex flex-col justify-between relative transition-all duration-150`;
     
     if (isOver && canDrop) {
-      return `${baseClass} bg-green-100 border-2 border-green-400 shadow-lg`;
+      return `${baseClass} bg-green-100 border-2 border-green-400 shadow-lg transform scale-105`;
     } else if (isOver && !canDrop) {
-      return `${baseClass} bg-red-100 border-2 border-red-400`;
+      return `${baseClass} bg-red-100 border-2 border-red-400 transform scale-105`;
     } else {
       return `${baseClass} bg-gray-50 hover:bg-gray-100`;
     }
@@ -150,13 +152,13 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         ) : null}
       </div>
       
-      {/* Drop feedback overlay */}
+      {/* Enhanced drop feedback overlay with smooth animations */}
       {isOver && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className={`text-xs font-medium px-2 py-1 rounded ${
+          <div className={`text-xs font-medium px-2 py-1 rounded transition-all duration-150 ${
             canDrop 
-              ? 'bg-green-200 text-green-800' 
-              : 'bg-red-200 text-red-800'
+              ? 'bg-green-200 text-green-800 shadow-lg' 
+              : 'bg-red-200 text-red-800 shadow-lg'
           }`}>
             {canDrop ? 'Drop here' : 'Already assigned'}
           </div>
