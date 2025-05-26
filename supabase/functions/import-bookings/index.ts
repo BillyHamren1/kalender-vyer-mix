@@ -63,9 +63,9 @@ serve(async (req) => {
     const externalData = await externalResponse.json()
     console.log('External bookings data:', JSON.stringify(externalData, null, 2))
 
-    // Handle the response format from export-bookings function
-    if (!externalData.bookings || !Array.isArray(externalData.bookings)) {
-      throw new Error('Invalid external API response format - expected bookings array')
+    // Handle the response format from export-bookings function - it returns { data: [...], metadata: {...} }
+    if (!externalData.data || !Array.isArray(externalData.data)) {
+      throw new Error('Invalid external API response format - expected data array')
     }
 
     const results = {
@@ -87,26 +87,48 @@ serve(async (req) => {
 
     const existingBookingMap = new Map(existingBookings?.map(b => [b.id, b]) || [])
 
-    for (const externalBooking of externalData.bookings) {
+    for (const externalBooking of externalData.data) {
       try {
         results.total++
 
+        // Extract client name - try clientName first, then fallback to nested client object
+        let clientName = externalBooking.clientName
+        if (!clientName && externalBooking.client?.name) {
+          clientName = externalBooking.client.name
+        }
+        if (!clientName) {
+          clientName = ''
+        }
+
+        // Handle multiple date arrays - use first date from each array
+        const rigdaydate = externalBooking.rig_up_dates && externalBooking.rig_up_dates.length > 0 
+          ? externalBooking.rig_up_dates[0] 
+          : undefined
+
+        const eventdate = externalBooking.event_dates && externalBooking.event_dates.length > 0 
+          ? externalBooking.event_dates[0] 
+          : undefined
+
+        const rigdowndate = externalBooking.rig_down_dates && externalBooking.rig_down_dates.length > 0 
+          ? externalBooking.rig_down_dates[0] 
+          : undefined
+
         const bookingData: BookingData = {
           id: externalBooking.id,
-          client: externalBooking.client || '',
-          rigdaydate: externalBooking.rigdaydate,
-          eventdate: externalBooking.eventdate,
-          rigdowndate: externalBooking.rigdowndate,
-          deliveryaddress: externalBooking.deliveryaddress,
-          delivery_city: externalBooking.deliveryCity,
-          delivery_postal_code: externalBooking.deliveryPostalCode,
-          delivery_latitude: externalBooking.deliveryLatitude,
-          delivery_longitude: externalBooking.deliveryLongitude,
-          carry_more_than_10m: externalBooking.carryMoreThan10m || false,
-          ground_nails_allowed: externalBooking.groundNailsAllowed || false,
-          exact_time_needed: externalBooking.exactTimeNeeded || false,
-          exact_time_info: externalBooking.exactTimeInfo,
-          internalnotes: externalBooking.internalnotes,
+          client: clientName,
+          rigdaydate: rigdaydate,
+          eventdate: eventdate,
+          rigdowndate: rigdowndate,
+          deliveryaddress: externalBooking.delivery_address,
+          delivery_city: externalBooking.delivery_city,
+          delivery_postal_code: externalBooking.delivery_postal_code,
+          delivery_latitude: externalBooking.delivery_geocode?.lat,
+          delivery_longitude: externalBooking.delivery_geocode?.lng,
+          carry_more_than_10m: externalBooking.carry_more_than_10m || false,
+          ground_nails_allowed: externalBooking.ground_nails_allowed || false,
+          exact_time_needed: externalBooking.exact_time_needed || false,
+          exact_time_info: externalBooking.exact_time_info,
+          internalnotes: externalBooking.internal_notes,
           status: externalBooking.status || 'PENDING',
           booking_number: externalBooking.booking_number,
           version: 1
