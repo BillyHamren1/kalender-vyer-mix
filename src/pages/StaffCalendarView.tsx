@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Users, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { getStaffCalendarEvents, getStaffResources } from '@/services/staffCalendarService';
+import { getStaffCalendarEvents } from '@/services/staffCalendarService';
 import { startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
 import { toast } from 'sonner';
 import CleanCalendarGrid from '@/components/Calendar/CleanCalendarGrid';
@@ -28,19 +28,6 @@ const StaffCalendarView: React.FC = () => {
   };
 
   const { start: startDate, end: endDate } = getDateRange();
-
-  // Fetch staff resources
-  const { data: allStaffResources = [], isLoading: isLoadingStaff } = useQuery({
-    queryKey: ['staffResources'],
-    queryFn: getStaffResources,
-  });
-
-  // Auto-select all staff when they're loaded (if none selected)
-  useEffect(() => {
-    if (allStaffResources.length > 0 && selectedStaffIds.length === 0) {
-      setSelectedStaffIds(allStaffResources.map(staff => staff.id));
-    }
-  }, [allStaffResources, selectedStaffIds.length]);
 
   // Fetch calendar events for selected staff only
   const { 
@@ -80,11 +67,6 @@ const StaffCalendarView: React.FC = () => {
     // You can add functionality here to show day details
   };
 
-  // Get filtered staff resources for selected staff
-  const selectedStaffResources = allStaffResources.filter(staff => 
-    selectedStaffIds.includes(staff.id)
-  );
-
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -109,7 +91,6 @@ const StaffCalendarView: React.FC = () => {
             <StaffSelector
               selectedStaffIds={selectedStaffIds}
               onSelectionChange={setSelectedStaffIds}
-              disabled={isLoadingStaff}
             />
             <ClientSelector
               events={calendarEvents}
@@ -177,7 +158,7 @@ const StaffCalendarView: React.FC = () => {
             <div className="xl:col-span-1">
               <JobSummaryList
                 events={calendarEvents}
-                staffResources={selectedStaffResources}
+                staffResources={[]} // Pass empty array since we're not using this in the current context
                 selectedClients={selectedClients}
                 currentDate={currentDate}
                 viewMode={viewMode}
