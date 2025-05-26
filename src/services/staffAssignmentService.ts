@@ -498,3 +498,34 @@ export const fetchStaffAssignmentsForDateRange = async (
     throw error;
   }
 };
+
+// NEW: Simple function to fetch staff assignments for a specific date
+export const fetchStaffAssignmentsForDate = async (date: Date): Promise<Array<{
+  staffId: string;
+  teamId: string;
+  assignmentDate: string;
+}>> => {
+  try {
+    const formattedDate = date.toISOString().split('T')[0];
+    console.log(`Fetching staff assignments for date: ${formattedDate}`);
+
+    const { data: assignments, error } = await supabase
+      .from('staff_assignments')
+      .select('staff_id, team_id, assignment_date')
+      .eq('assignment_date', formattedDate);
+
+    if (error) {
+      console.error('Error fetching staff assignments:', error);
+      throw error;
+    }
+
+    return (assignments || []).map(assignment => ({
+      staffId: assignment.staff_id,
+      teamId: assignment.team_id,
+      assignmentDate: assignment.assignment_date
+    }));
+  } catch (error) {
+    console.error('Error in fetchStaffAssignmentsForDate:', error);
+    throw error;
+  }
+};

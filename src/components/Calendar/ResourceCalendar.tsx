@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
@@ -10,7 +11,7 @@ import { processEvents } from './CalendarEventProcessor';
 import { getCalendarViews, getCalendarOptions } from './CalendarConfig';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useEventActions } from '@/hooks/useEventActions';
-import { ResourceHeaderDropZone } from './ResourceHeaderDropZone';
+import ResourceHeaderDropZone from './ResourceHeaderDropZone';
 import { useEventOperations } from '@/hooks/useEventOperations';
 import { 
   renderEventContent, 
