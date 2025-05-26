@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { fetchStaffAssignmentsForDateRange, StaffAssignmentResponse } from "./staffAssignmentService";
 import { fetchStaffMembers, StaffMember } from "./staffService";
@@ -32,6 +33,7 @@ export interface StaffCalendarEvent {
     eventType?: string;
     staffName?: string;
     client?: string;
+    teamName?: string; // Add teamName to the interface
   };
 }
 
