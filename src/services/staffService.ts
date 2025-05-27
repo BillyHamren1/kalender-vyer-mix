@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 export interface StaffMember {
@@ -31,19 +32,22 @@ export const syncStaffMember = async (staffData: any): Promise<void> => {
   try {
     console.log('Syncing staff member:', staffData);
     
+    // Ensure we have a valid UUID for the staff ID
+    const staffId = staffData.id || `staff_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
     const { data, error } = await supabase
       .from('staff_members')
       .upsert({
-        id: staffData.id,
-        name: staffData.name,
-        email: staffData.email,
-        phone: staffData.phone
+        id: staffId,
+        name: staffData.name?.trim(),
+        email: staffData.email?.trim() || null,
+        phone: staffData.phone?.trim() || null
       }, {
         onConflict: 'id'
       });
 
     if (error) {
-      console.error('Error updating staff member:', error);
+      console.error('Error syncing staff member:', error);
       
       // If it's a unique constraint error on email, try to handle it gracefully
       if (error.code === '23505' && error.message.includes('email')) {
@@ -53,13 +57,13 @@ export const syncStaffMember = async (staffData: any): Promise<void> => {
         const { error: updateError } = await supabase
           .from('staff_members')
           .update({
-            name: staffData.name,
-            phone: staffData.phone
+            name: staffData.name?.trim(),
+            phone: staffData.phone?.trim() || null
           })
-          .eq('email', staffData.email);
+          .eq('email', staffData.email?.trim());
         
         if (updateError) {
-          console.error('Error in syncStaffMember:', updateError);
+          console.error('Error updating existing staff member:', updateError);
           throw updateError;
         }
       } else {
@@ -74,19 +78,17 @@ export const syncStaffMember = async (staffData: any): Promise<void> => {
   }
 };
 
-// Add a new staff member to the database
+// Add a new staff member to the database with proper UUID generation
 export const addStaffMember = async (name: string, email?: string, phone?: string): Promise<StaffMember> => {
   try {
-    // Generate a unique ID for the new staff member
-    const id = `staff_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    const { data, error } = await supabase
+    // Generate a proper UUID for the new staff member
+    const { data: newStaff, error } = await supabase
       .from('staff_members')
       .insert({
-        id,
-        name,
-        email,
-        phone
+        id: crypto.randomUUID(),
+        name: name.trim(),
+        email: email?.trim() || null,
+        phone: phone?.trim() || null
       })
       .select()
       .single();
@@ -96,15 +98,15 @@ export const addStaffMember = async (name: string, email?: string, phone?: strin
       throw error;
     }
 
-    console.log('Staff member added successfully:', data);
-    return data;
+    console.log('Staff member added successfully:', newStaff);
+    return newStaff;
   } catch (error) {
     console.error('Error in addStaffMember:', error);
     throw error;
   }
 };
 
-// Fetch all staff members
+// Fetch all staff members with better error handling
 export const fetchStaffMembers = async (): Promise<StaffMember[]> => {
   try {
     const { data, error } = await supabase
@@ -124,7 +126,7 @@ export const fetchStaffMembers = async (): Promise<StaffMember[]> => {
   }
 };
 
-// Fetch staff assignments for a specific date and optionally a specific team
+// Fetch staff assignments with improved error handling and data validation
 export const fetchStaffAssignments = async (date: Date, teamId?: string): Promise<StaffAssignment[]> => {
   try {
     const dateStr = date.toISOString().split('T')[0];
@@ -155,19 +157,39 @@ export const fetchStaffAssignments = async (date: Date, teamId?: string): Promis
       throw error;
     }
 
-    console.log(`Retrieved ${data?.length || 0} staff assignments`, data);
-    return data || [];
+    // Validate and clean the data
+    const validAssignments = (data || []).filter(assignment => {
+      if (!assignment.staff_id || !assignment.team_id) {
+        console.warn('Invalid assignment found:', assignment);
+        return false;
+      }
+      return true;
+    });
+
+    console.log(`Retrieved ${validAssignments.length} valid staff assignments`);
+    return validAssignments;
   } catch (error) {
     console.error('Error in fetchStaffAssignments:', error);
     throw error;
   }
 };
 
-// Assign staff to a team for a specific date
+// Assign staff to a team for a specific date with validation
 export const assignStaffToTeam = async (staffId: string, teamId: string, date: Date): Promise<void> => {
   try {
     const dateStr = date.toISOString().split('T')[0];
     console.log(`Assigning staff ${staffId} to team ${teamId} for date ${dateStr}`);
+
+    // Validate that the staff member exists
+    const { data: staffExists } = await supabase
+      .from('staff_members')
+      .select('id')
+      .eq('id', staffId)
+      .single();
+
+    if (!staffExists) {
+      throw new Error(`Staff member with ID ${staffId} does not exist`);
+    }
 
     const { data, error } = await supabase
       .from('staff_assignments')

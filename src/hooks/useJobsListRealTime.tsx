@@ -12,11 +12,13 @@ export const useJobsListRealTime = (initialFilters?: JobsListFilters) => {
     queryKey: ['jobsList', filters],
     queryFn: () => fetchJobsList(filters),
     refetchInterval: 30000, // Fallback polling every 30 seconds
+    retry: 3, // Retry failed requests
+    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
   });
 
   // Set up real-time subscriptions
   useEffect(() => {
-    console.log('Setting up real-time subscriptions for jobs list (calendar events only)');
+    console.log('Setting up real-time subscriptions for jobs list');
     
     const unsubscribe = subscribeToJobsListUpdates(() => {
       console.log('Real-time update detected, refreshing jobs list');
@@ -39,6 +41,7 @@ export const useJobsListRealTime = (initialFilters?: JobsListFilters) => {
   }, []);
 
   const refreshJobs = useCallback(() => {
+    console.log('Manual refresh requested');
     return refetch();
   }, [refetch]);
 
@@ -48,10 +51,17 @@ export const useJobsListRealTime = (initialFilters?: JobsListFilters) => {
   const jobsWithoutCalendarEvents = 0; // None without calendar events
   const newJobs = jobsList.filter(job => !job.viewed).length;
 
+  // Enhanced error handling
+  const enhancedError = error ? {
+    ...error,
+    message: error.message || 'Failed to load jobs list',
+    timestamp: new Date().toISOString()
+  } : null;
+
   return {
     jobsList,
     isLoading,
-    error,
+    error: enhancedError,
     filters,
     updateFilters,
     clearFilters,

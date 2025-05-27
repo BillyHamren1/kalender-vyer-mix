@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Resource } from './ResourceData';
 import { 
@@ -38,6 +39,7 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [staffDialogOpen, setStaffDialogOpen] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   
   // State for the staff selection dialog
   const [staffSelectionOpen, setStaffSelectionOpen] = useState(false);
@@ -48,11 +50,13 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
     const loadData = async () => {
       try {
         setIsLoading(true);
-        // Fetch staff members
+        setError(null);
+        
+        // Fetch staff members with error handling
         const staffData = await fetchStaffMembers();
         setStaffMembers(staffData);
         
-        // Fetch assignments for the current date
+        // Fetch assignments for the current date with error handling
         const assignmentData = await fetchStaffAssignments(currentDate);
         setAssignments(assignmentData);
 
@@ -60,6 +64,7 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
         console.log('Loaded assignments:', assignmentData);
       } catch (error) {
         console.error('Error loading staff data:', error);
+        setError('Failed to load staff data');
         toast.error('Failed to load staff data');
       } finally {
         setIsLoading(false);
@@ -72,7 +77,12 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
   // Handler for adding a new staff member
   const handleAddStaff = async (name: string, email: string, phone: string) => {
     try {
-      const newStaff = await addStaffMember(name, email || undefined, phone || undefined);
+      if (!name.trim()) {
+        toast.error('Staff name is required');
+        return;
+      }
+
+      const newStaff = await addStaffMember(name.trim(), email?.trim() || undefined, phone?.trim() || undefined);
       
       setStaffMembers(prev => [...prev, newStaff]);
       
@@ -98,6 +108,13 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
     try {
       console.log(`StaffAssignmentRow: Handling staff drop: ${staffId} to ${resourceId || 'unassigned'}`);
       
+      // Validate staff member exists
+      const staffMember = staffMembers.find(s => s.id === staffId);
+      if (!staffMember) {
+        toast.error('Staff member not found');
+        return;
+      }
+      
       // If an external onStaffDrop is provided, use that instead
       if (onStaffDrop) {
         try {
@@ -113,7 +130,7 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
           // Assign staff to team
           try {
             await assignStaffToTeam(staffId, resourceId, currentDate);
-            toast.success('Staff assigned to team');
+            toast.success(`${staffMember.name} assigned to team`);
           } catch (error) {
             console.error('Error assigning staff to team:', error);
             toast.error('Failed to assign staff to team');
@@ -123,7 +140,7 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
           // Remove assignment
           try {
             await removeStaffAssignment(staffId, currentDate);
-            toast.success('Staff assignment removed');
+            toast.success(`${staffMember.name} assignment removed`);
           } catch (error) {
             console.error('Error removing staff assignment:', error);
             toast.error('Failed to remove staff assignment');
@@ -160,8 +177,13 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
   
   // Handler for refreshing the staff list after a staff member is assigned
   const handleStaffAssignmentRefresh = async () => {
-    const assignmentData = await fetchStaffAssignments(currentDate);
-    setAssignments(assignmentData);
+    try {
+      const assignmentData = await fetchStaffAssignments(currentDate);
+      setAssignments(assignmentData);
+    } catch (error) {
+      console.error('Error refreshing assignments:', error);
+      toast.error('Failed to refresh assignments');
+    }
   };
 
   // If still loading, show a loading indicator
@@ -175,12 +197,31 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
     );
   }
 
+  // If there's an error, show error state
+  if (error) {
+    return (
+      <div className="mt-4 border border-red-200 rounded-md overflow-hidden">
+        <div className="bg-red-50 p-2 border-b border-red-200">
+          <h3 className="text-xs font-semibold text-red-700">Error: {error}</h3>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => window.location.reload()}
+            className="mt-2 text-xs"
+          >
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // Main component render
   return (
     <div className="mt-4 border border-gray-200 rounded-md overflow-hidden">
       <div className="bg-gray-100 p-2 border-b border-gray-200 flex justify-between items-center">
         <h3 className="text-xs font-semibold">
-          Assign Staff for {currentDate.toLocaleDateString()}
+          Assign Staff for {currentDate.toLocaleDateString()} ({staffMembers.length} staff, {assignments.length} assignments)
         </h3>
         <Dialog open={staffDialogOpen} onOpenChange={setStaffDialogOpen}>
           <DialogTrigger asChild>
