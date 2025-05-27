@@ -15,8 +15,8 @@ interface DynamicSizingConfig {
 export const useDynamicColumnSizing = (
   resources: Resource[],
   viewportWidth?: number,
-  minColumnWidth: number = 80,
-  maxColumnWidth: number = 200
+  minColumnWidth: number = 120,
+  maxColumnWidth: number = 300
 ): DynamicSizingConfig => {
   const [windowWidth, setWindowWidth] = useState(
     viewportWidth || (typeof window !== 'undefined' ? window.innerWidth : 1200)
@@ -39,16 +39,18 @@ export const useDynamicColumnSizing = (
     const timeAxisWidth = 80; // Fixed time axis width
     const padding = 40; // Total padding/margins
     
-    // Use 85% of the available width to ensure all columns fit
-    const usableWidth = (windowWidth - timeAxisWidth - padding) * 0.85;
-    const availableWidth = usableWidth * zoomLevel;
-    
-    // Calculate optimal column width based on available space and number of resources
+    // Use about 33% of screen width for each column as requested
+    const usableWidth = windowWidth - timeAxisWidth - padding;
     const teamCount = resources.length || 6; // Default to 6 teams
-    const calculatedColumnWidth = Math.floor(availableWidth / teamCount);
+    
+    // Calculate base column width (33% of available space divided by teams)
+    const baseColumnWidth = Math.floor((usableWidth * 0.33) / teamCount);
+    
+    // Apply zoom to the base width
+    const zoomedColumnWidth = Math.floor(baseColumnWidth * zoomLevel);
     
     // Ensure column width stays within min/max bounds
-    const columnWidth = Math.max(minColumnWidth, Math.min(maxColumnWidth, calculatedColumnWidth));
+    const columnWidth = Math.max(minColumnWidth, Math.min(maxColumnWidth, zoomedColumnWidth));
     
     // Calculate total widths based on actual column width used
     const totalCalendarWidth = (columnWidth * teamCount) + timeAxisWidth;
@@ -60,12 +62,15 @@ export const useDynamicColumnSizing = (
       '--dynamic-total-calendar-width': `${totalCalendarWidth}px`,
       '--dynamic-time-axis-width': `${timeAxisWidth}px`,
       '--zoom-level': zoomLevel.toString(),
+      '--team-count': teamCount.toString(),
     };
 
     console.log('Dynamic sizing calculated:', {
       windowWidth,
       usableWidth,
       teamCount,
+      baseColumnWidth,
+      zoomedColumnWidth,
       columnWidth,
       totalCalendarWidth,
       zoomLevel
@@ -84,3 +89,4 @@ export const useDynamicColumnSizing = (
 
   return config;
 };
+
