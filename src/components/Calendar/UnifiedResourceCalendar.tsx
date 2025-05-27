@@ -70,6 +70,16 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 
   console.log(`UnifiedResourceCalendar: ${viewMode} view with ${events.length} events, forceRefresh: ${numericForceRefresh}`);
 
+  // Calculate day width for weekly view
+  const getDayWidth = () => {
+    if (viewMode === 'weekly' && containerRef.current) {
+      const containerWidth = containerRef.current.offsetWidth;
+      const dayWidth = Math.floor(containerWidth / 7);
+      return dayWidth;
+    }
+    return 'auto';
+  };
+
   // Handle day header click to navigate to resource view
   const handleDayHeaderClick = (date: Date) => {
     // Store the selected date in context and session storage
@@ -193,6 +203,13 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 
   return (
     <div className={getContainerClass()}>
+      {/* Display day width information for weekly view */}
+      {viewMode === 'weekly' && (
+        <div className="mb-2 text-sm text-gray-600 text-center">
+          Day width: {getDayWidth()}px (Container: {containerRef.current?.offsetWidth || 0}px ÷ 7 days)
+        </div>
+      )}
+      
       <div className={getCalendarContainerClass()} ref={containerRef}>
         {days.map((date, index) => {
           // Get only the events for this specific day
@@ -210,14 +227,18 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
               key={format(date, 'yyyy-MM-dd')} 
               className={viewMode === 'weekly' ? 'day-calendar-wrapper' : 'monthly-day-wrapper'}
               ref={isToday ? todayRef : null}
+              style={viewMode === 'weekly' ? { width: `${getDayWidth()}px` } : {}}
             >
-              {/* Clickable day header */}
+              {/* Clickable day header with width info for weekly view */}
               <div 
                 className={`day-header ${isToday ? 'today' : ''} ${!isCurrentMonth ? 'other-month' : ''} cursor-pointer hover:bg-blue-50 transition-colors`}
                 onClick={() => handleDayHeaderClick(date)}
                 title="Click to view resource schedule"
               >
-                {format(date, 'EEE d')}
+                <div>{format(date, 'EEE d')}</div>
+                {viewMode === 'weekly' && (
+                  <div className="text-xs text-gray-500">{getDayWidth()}px</div>
+                )}
               </div>
               <div className={viewMode === 'weekly' ? 'weekly-view-calendar' : 'monthly-view-calendar'}>
                 <ResourceCalendar
