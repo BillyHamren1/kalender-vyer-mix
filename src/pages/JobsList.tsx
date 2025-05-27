@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useJobsListRealTime } from '@/hooks/useJobsListRealTime';
 import { getTeamsForFilter } from '@/services/jobsListService';
@@ -80,6 +79,13 @@ const JobsList = () => {
       case 'CANCELLED': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  // Helper function to display teams
+  const displayTeams = (teams?: string[]) => {
+    if (!teams || teams.length === 0) return 'No team assigned';
+    if (teams.length === 1) return `Team ${teams[0]}`;
+    return `Teams ${teams.join(', ')}`;
   };
 
   if (error) {
@@ -272,7 +278,7 @@ const JobsList = () => {
 
               <Separator className="my-4" />
 
-              {/* Event Details */}
+              {/* Enhanced Event Details with Multiple Teams */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Rig Day */}
                 {job.rigDate && (
@@ -288,9 +294,9 @@ const JobsList = () => {
                           {job.rigTime}
                         </div>
                       )}
-                      {job.rigTeam && (
+                      {job.rigTeams && job.rigTeams.length > 0 && (
                         <div className="text-sm text-gray-600 ml-6">
-                          Team: {job.rigTeam}
+                          {displayTeams(job.rigTeams)}
                         </div>
                       )}
                       {job.rigStaff && job.rigStaff.length > 0 && (
@@ -316,9 +322,9 @@ const JobsList = () => {
                           {job.eventTime}
                         </div>
                       )}
-                      {job.eventTeam && (
+                      {job.eventTeams && job.eventTeams.length > 0 && (
                         <div className="text-sm text-gray-600 ml-6">
-                          Team: {job.eventTeam}
+                          {displayTeams(job.eventTeams)}
                         </div>
                       )}
                       {job.eventStaff && job.eventStaff.length > 0 && (
@@ -344,9 +350,9 @@ const JobsList = () => {
                           {job.rigDownTime}
                         </div>
                       )}
-                      {job.rigDownTeam && (
+                      {job.rigDownTeams && job.rigDownTeams.length > 0 && (
                         <div className="text-sm text-gray-600 ml-6">
-                          Team: {job.rigDownTeam}
+                          {displayTeams(job.rigDownTeams)}
                         </div>
                       )}
                       {job.rigDownStaff && job.rigDownStaff.length > 0 && (

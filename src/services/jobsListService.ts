@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { JobsListItem, JobsListFilters } from "@/types/jobsList";
 import { format } from "date-fns";
 
-// Simple team mapping for the SQL query
+// Enhanced team mapping function that handles both directions
 const getTeamMappingConditions = () => {
   return `
     (ce.resource_id = sa.team_id) OR 
@@ -22,8 +22,28 @@ const getTeamMappingConditions = () => {
   `;
 };
 
+// Helper function to get all team variations for a given team ID
+const getTeamVariations = (teamId: string): string[] => {
+  const mapping: { [key: string]: string[] } = {
+    'a': ['a', 'team-1'],
+    'team-1': ['a', 'team-1'],
+    'b': ['b', 'team-2'],
+    'team-2': ['b', 'team-2'],
+    'c': ['c', 'team-3'],
+    'team-3': ['c', 'team-3'],
+    'd': ['d', 'team-4'],
+    'team-4': ['d', 'team-4'],
+    'e': ['e', 'team-5'],
+    'team-5': ['e', 'team-5'],
+    'f': ['f', 'team-6'],
+    'team-6': ['f', 'team-6']
+  };
+  
+  return mapping[teamId] || [teamId];
+};
+
 export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsListItem[]> => {
-  console.log('Fetching jobs list with simplified SQL approach, filters:', filters);
+  console.log('Fetching jobs list with enhanced multi-team support, filters:', filters);
   
   try {
     // Build the base query with all JOINs
@@ -83,21 +103,10 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
         booking.calendar_events.forEach((event: any) => {
           const eventDate = new Date(event.start_time).toISOString().split('T')[0];
           allEventDates.add(eventDate);
-          allTeamIds.add(event.resource_id);
           
-          // Add mapped team IDs
-          if (event.resource_id === 'a') allTeamIds.add('team-1');
-          if (event.resource_id === 'b') allTeamIds.add('team-2');
-          if (event.resource_id === 'c') allTeamIds.add('team-3');
-          if (event.resource_id === 'd') allTeamIds.add('team-4');
-          if (event.resource_id === 'e') allTeamIds.add('team-5');
-          if (event.resource_id === 'f') allTeamIds.add('team-6');
-          if (event.resource_id === 'team-1') allTeamIds.add('a');
-          if (event.resource_id === 'team-2') allTeamIds.add('b');
-          if (event.resource_id === 'team-3') allTeamIds.add('c');
-          if (event.resource_id === 'team-4') allTeamIds.add('d');
-          if (event.resource_id === 'team-5') allTeamIds.add('e');
-          if (event.resource_id === 'team-6') allTeamIds.add('f');
+          // Add both the original team ID and all its variations
+          const teamVariations = getTeamVariations(event.resource_id);
+          teamVariations.forEach(teamId => allTeamIds.add(teamId));
         });
       }
     });
@@ -122,68 +131,75 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
     const assignments = staffAssignments || [];
     console.log(`Found ${assignments.length} staff assignments`);
 
-    // Helper function to get staff for a team and date
-    const getStaffForTeamAndDate = (teamId: string, date: string): string[] => {
-      const teamVariations = [
-        teamId,
-        teamId === 'a' ? 'team-1' : teamId === 'team-1' ? 'a' : null,
-        teamId === 'b' ? 'team-2' : teamId === 'team-2' ? 'b' : null,
-        teamId === 'c' ? 'team-3' : teamId === 'team-3' ? 'c' : null,
-        teamId === 'd' ? 'team-4' : teamId === 'team-4' ? 'd' : null,
-        teamId === 'e' ? 'team-5' : teamId === 'team-5' ? 'e' : null,
-        teamId === 'f' ? 'team-6' : teamId === 'team-6' ? 'f' : null,
-      ].filter(Boolean);
-
+    // Helper function to get staff for all team variations and date
+    const getStaffForTeamsAndDate = (teamIds: string[], date: string): string[] => {
+      const allTeamVariations = teamIds.flatMap(teamId => getTeamVariations(teamId));
+      
       const staffNames = assignments
         .filter(assignment => 
-          teamVariations.includes(assignment.team_id) && 
+          allTeamVariations.includes(assignment.team_id) && 
           assignment.assignment_date === date &&
           assignment.staff_members
         )
         .map(assignment => assignment.staff_members.name)
         .filter(name => name);
 
-      return staffNames;
+      return [...new Set(staffNames)]; // Remove duplicates
+    };
+
+    // Helper function to get all teams for a given event type
+    const getTeamsForEventType = (events: any[], eventType: string): string[] => {
+      return [...new Set(
+        events
+          .filter(event => event.event_type === eventType)
+          .map(event => event.resource_id)
+      )];
     };
 
     // Process bookings into JobsListItems
     const jobsList: JobsListItem[] = bookingsWithEvents.map(booking => {
       const events = booking.calendar_events || [];
       
-      // Group events by type
+      // Group events by type and get all teams for each type
       const rigEvents = events.filter((event: any) => event.event_type === 'rig');
       const eventEvents = events.filter((event: any) => event.event_type === 'event');
       const rigDownEvents = events.filter((event: any) => event.event_type === 'rigDown');
 
-      // Helper to format event data
-      const formatEventData = (events: any[]) => {
-        if (events.length === 0) {
+      // Helper to format event data for multiple teams
+      const formatEventDataWithMultipleTeams = (typeEvents: any[]) => {
+        if (typeEvents.length === 0) {
           return { 
             date: undefined, 
             time: undefined, 
-            team: undefined, 
+            teams: [], 
             staff: [],
             hasCalendarEvent: false
           };
         }
         
-        const event = events[0];
-        const eventDate = new Date(event.start_time);
+        // Get all unique teams for this event type
+        const teams = getTeamsForEventType(typeEvents, typeEvents[0].event_type);
+        
+        // Use the first event for date/time (they should all be on the same date)
+        const firstEvent = typeEvents[0];
+        const eventDate = new Date(firstEvent.start_time);
         const eventDateStr = eventDate.toISOString().split('T')[0];
-        const staffList = getStaffForTeamAndDate(event.resource_id, eventDateStr);
+        
+        // Get staff from all teams
+        const staffList = getStaffForTeamsAndDate(teams, eventDateStr);
         
         return {
           date: format(eventDate, 'MMM d, yyyy'),
-          time: `${format(eventDate, 'HH:mm')} - ${format(new Date(event.end_time), 'HH:mm')}`,
-          team: event.resource_id,
+          time: `${format(eventDate, 'HH:mm')} - ${format(new Date(firstEvent.end_time), 'HH:mm')}`,
+          teams: teams,
           staff: staffList,
           hasCalendarEvent: true
         };
       };
 
-      const rigData = formatEventData(rigEvents);
-      const eventData = formatEventData(eventEvents);
-      const rigDownData = formatEventData(rigDownEvents);
+      const rigData = formatEventDataWithMultipleTeams(rigEvents);
+      const eventData = formatEventDataWithMultipleTeams(eventEvents);
+      const rigDownData = formatEventDataWithMultipleTeams(rigDownEvents);
 
       return {
         bookingId: booking.id,
@@ -192,15 +208,15 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
         status: booking.status || 'PENDING',
         rigDate: rigData.date,
         rigTime: rigData.time,
-        rigTeam: rigData.team,
+        rigTeams: rigData.teams, // Changed to teams (plural)
         rigStaff: rigData.staff,
         eventDate: eventData.date,
         eventTime: eventData.time,
-        eventTeam: eventData.team,
+        eventTeams: eventData.teams, // Changed to teams (plural)
         eventStaff: eventData.staff,
         rigDownDate: rigDownData.date,
         rigDownTime: rigDownData.time,
-        rigDownTeam: rigDownData.team,
+        rigDownTeams: rigDownData.teams, // Changed to teams (plural)
         rigDownStaff: rigDownData.staff,
         deliveryAddress: booking.deliveryaddress,
         deliveryCity: booking.delivery_city,
@@ -210,22 +226,14 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
       };
     });
 
-    // Apply team filter if specified
+    // Apply team filter if specified (check against all team variations)
     if (filters?.team) {
-      const teamVariations = [
-        filters.team,
-        filters.team === 'a' ? 'team-1' : filters.team === 'team-1' ? 'a' : null,
-        filters.team === 'b' ? 'team-2' : filters.team === 'team-2' ? 'b' : null,
-        filters.team === 'c' ? 'team-3' : filters.team === 'team-3' ? 'c' : null,
-        filters.team === 'd' ? 'team-4' : filters.team === 'team-4' ? 'd' : null,
-        filters.team === 'e' ? 'team-5' : filters.team === 'team-5' ? 'e' : null,
-        filters.team === 'f' ? 'team-6' : filters.team === 'team-6' ? 'f' : null,
-      ].filter(Boolean);
+      const teamVariations = getTeamVariations(filters.team);
       
       const filteredJobs = jobsList.filter(job => 
-        teamVariations.includes(job.rigTeam || '') || 
-        teamVariations.includes(job.eventTeam || '') || 
-        teamVariations.includes(job.rigDownTeam || '')
+        (job.rigTeams && job.rigTeams.some(team => teamVariations.includes(team))) ||
+        (job.eventTeams && job.eventTeams.some(team => teamVariations.includes(team))) ||
+        (job.rigDownTeams && job.rigDownTeams.some(team => teamVariations.includes(team)))
       );
       
       console.log(`Filtered jobs by team ${filters.team}: ${filteredJobs.length} jobs`);
@@ -262,7 +270,6 @@ export const getTeamsForFilter = async (): Promise<string[]> => {
   }
 };
 
-// Real-time updates subscription
 export const subscribeToJobsListUpdates = (callback: () => void) => {
   const bookingsChannel = supabase
     .channel('jobs_list_bookings')

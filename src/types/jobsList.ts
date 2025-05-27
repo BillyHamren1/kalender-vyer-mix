@@ -1,25 +1,24 @@
 
 export interface JobsListItem {
   bookingId: string;
-  bookingNumber?: string; // Add booking number field for display
+  bookingNumber?: string;
   client: string;
   status: string;
   rigDate?: string;
   rigTime?: string;
-  rigTeam?: string;
+  rigTeams?: string[]; // Changed from rigTeam to rigTeams (array)
   rigStaff?: string[];
   eventDate?: string;
   eventTime?: string;
-  eventTeam?: string;
+  eventTeams?: string[]; // Changed from eventTeam to eventTeams (array)
   eventStaff?: string[];
   rigDownDate?: string;
   rigDownTime?: string;
-  rigDownTeam?: string;
+  rigDownTeams?: string[]; // Changed from rigDownTeam to rigDownTeams (array)
   rigDownStaff?: string[];
   deliveryAddress?: string;
   deliveryCity?: string;
   viewed: boolean;
-  // New fields for enhanced functionality
   hasCalendarEvents?: boolean;
   totalCalendarEvents?: number;
 }
@@ -30,7 +29,6 @@ export interface JobsListFilters {
   status?: string;
   team?: string;
   search?: string;
-  // New filter options
   hasCalendarEvents?: boolean;
   deliveryCity?: string;
 }
