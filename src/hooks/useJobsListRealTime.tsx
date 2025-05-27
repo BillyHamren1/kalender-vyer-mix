@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchJobsList, subscribeToJobsListUpdates } from '@/services/jobsListService';
+import { StaffAssignmentSyncService } from '@/services/staffAssignmentSyncService';
 import { JobsListItem, JobsListFilters } from '@/types/jobsList';
 
 export const useJobsListRealTime = (initialFilters?: JobsListFilters) => {
@@ -10,7 +11,11 @@ export const useJobsListRealTime = (initialFilters?: JobsListFilters) => {
 
   const { data: jobsList = [], isLoading, error, refetch } = useQuery({
     queryKey: ['jobsList', filters],
-    queryFn: () => fetchJobsList(filters),
+    queryFn: async () => {
+      // Sync staff assignments before fetching jobs list
+      await StaffAssignmentSyncService.syncStaffAssignments();
+      return fetchJobsList(filters);
+    },
     refetchInterval: 30000, // Fallback polling every 30 seconds
     retry: 3, // Retry failed requests
     retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
@@ -40,10 +45,17 @@ export const useJobsListRealTime = (initialFilters?: JobsListFilters) => {
     setFilters({});
   }, []);
 
-  const refreshJobs = useCallback(() => {
+  const refreshJobs = useCallback(async () => {
     console.log('Manual refresh requested');
+    // Sync staff assignments before refreshing
+    await StaffAssignmentSyncService.syncStaffAssignments();
     return refetch();
   }, [refetch]);
+
+  // Debug function to check staff assignments
+  const debugStaffAssignments = useCallback(async () => {
+    await StaffAssignmentSyncService.debugStaffAssignments();
+  }, []);
 
   // Derived data - all jobs will have calendar events now
   const totalJobs = jobsList.length;
@@ -66,6 +78,7 @@ export const useJobsListRealTime = (initialFilters?: JobsListFilters) => {
     updateFilters,
     clearFilters,
     refreshJobs,
+    debugStaffAssignments,
     // Statistics
     totalJobs,
     jobsWithCalendarEvents,

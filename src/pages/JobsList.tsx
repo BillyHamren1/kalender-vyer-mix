@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Filter, ArrowUpDown, Calendar, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { Search, Filter, ArrowUpDown, Calendar, AlertTriangle, CheckCircle, Clock, Bug } from 'lucide-react';
 import Navbar from '@/components/Navigation/Navbar';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -25,7 +24,7 @@ const JobsList: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Use the new real-time hook
+  // Use the enhanced real-time hook
   const {
     jobsList,
     isLoading,
@@ -34,6 +33,7 @@ const JobsList: React.FC = () => {
     updateFilters,
     clearFilters,
     refreshJobs,
+    debugStaffAssignments,
     totalJobs,
     jobsWithCalendarEvents,
     jobsWithoutCalendarEvents,
@@ -159,6 +159,14 @@ const JobsList: React.FC = () => {
     return uniqueStaff;
   };
 
+  const handleDebug = async () => {
+    console.log('=== JOBS LIST DEBUG ===');
+    await debugStaffAssignments();
+    console.log('Current filters:', filters);
+    console.log('Current jobs:', jobsList);
+    console.log('=== END DEBUG ===');
+  };
+
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -182,13 +190,24 @@ const JobsList: React.FC = () => {
             <div>
               <span className="text-sm text-gray-600 font-medium">{totalJobs} bookings</span>
             </div>
-            <Button
-              variant="ghost"
-              onClick={() => refreshJobs()}
-              className="text-sm font-medium"
-            >
-              Refresh
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => refreshJobs()}
+                className="text-sm font-medium"
+              >
+                Refresh
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleDebug}
+                className="text-sm font-medium"
+                size="sm"
+              >
+                <Bug className="h-4 w-4 mr-2" />
+                Debug
+              </Button>
+            </div>
           </div>
           
           {/* Search and Filter Controls */}
