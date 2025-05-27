@@ -2,15 +2,7 @@
 import React, { useState } from 'react';
 import { useDrag } from 'react-dnd';
 import { StaffMember } from './StaffTypes';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import ConfirmationDialog from '@/components/ConfirmationDialog';
-
-// Helper function to get initials for avatar
-const getInitials = (name: string): string => {
-  const nameParts = name.trim().split(' ');
-  if (nameParts.length === 1) return nameParts[0].substring(0, 2).toUpperCase();
-  return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
-};
 
 // Helper function to get display name - first name only
 const getDisplayName = (fullName: string, variant: 'assigned' | 'available'): string => {
@@ -124,21 +116,11 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
         title={variant === 'available' && isAssigned ? `Assigned to team` : undefined}
       >
         <div className="flex items-center gap-3 w-full pointer-events-none">
-          <Avatar className={`h-6 w-6 flex-shrink-0 ${
-            variant === 'available' && isAssigned ? 'bg-gray-200' : 'bg-purple-100'
-          } ${isDragging ? 'bg-blue-200' : ''}`}>
-            <AvatarFallback className={`text-xs ${
-              variant === 'available' && isAssigned ? 'text-gray-500' : 'text-purple-700'
-            } ${isDragging ? 'text-blue-700' : ''}`}>
-              {getInitials(staff.name)}
-            </AvatarFallback>
-          </Avatar>
           <span className={`text-sm font-medium flex-1 ${
             variant === 'available' && isAssigned ? 'text-gray-500' : ''
           } ${isDragging ? 'text-blue-700 font-semibold' : ''}`}>
             {getDisplayName(staff.name, variant)}
           </span>
-          {/* Removed the checkmark badge */}
         </div>
       </div>
       

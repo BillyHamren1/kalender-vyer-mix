@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,6 @@ import { StaffMember } from './StaffTypes';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { syncStaffMember } from '@/services/staffService';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 interface StaffCurtainProps {
   currentDate: Date;
@@ -28,13 +28,6 @@ const StaffCurtain: React.FC<StaffCurtainProps> = ({
 }) => {
   const [availableStaff, setAvailableStaff] = useState<StaffMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
-  // Helper function to get initials for avatar
-  const getInitials = (name: string): string => {
-    const nameParts = name.trim().split(' ');
-    if (nameParts.length === 1) return nameParts[0].substring(0, 2).toUpperCase();
-    return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
-  };
 
   // Fetch available staff
   useEffect(() => {
@@ -190,7 +183,6 @@ const StaffCurtain: React.FC<StaffCurtainProps> = ({
           {isLoading ? (
             Array(5).fill(0).map((_, i) => (
               <div key={i} className="flex items-center gap-2 p-2 mb-1 border rounded-md">
-                <Skeleton className="h-6 w-6 rounded-full" />
                 <Skeleton className="h-4 w-full" />
               </div>
             ))
@@ -207,11 +199,6 @@ const StaffCurtain: React.FC<StaffCurtainProps> = ({
                   `}
                 >
                   <div className="flex items-center gap-2">
-                    <Avatar className={`h-6 w-6 ${isAssigned ? 'bg-gray-200' : 'bg-purple-100'}`}>
-                      <AvatarFallback className={`text-[10px] ${isAssigned ? 'text-gray-500' : 'text-purple-700'}`}>
-                        {getInitials(staff.name)}
-                      </AvatarFallback>
-                    </Avatar>
                     <div className="text-sm font-medium">{staff.name}</div>
                   </div>
                   
