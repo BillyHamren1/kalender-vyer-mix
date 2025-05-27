@@ -12,9 +12,11 @@ import { processEvents } from './CalendarEventProcessor';
 import { getCalendarViews, getCalendarOptions } from './CalendarConfig';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useEventActions } from '@/hooks/useEventActions';
+import { useEventDeletion } from '@/hooks/useEventDeletion';
 import ResourceHeaderDropZone from './ResourceHeaderDropZone';
 import { useEventOperations } from '@/hooks/useEventOperations';
 import { useReliableStaffOperations } from '@/hooks/useReliableStaffOperations';
+import ConfirmationDialog from '@/components/ConfirmationDialog';
 import { 
   renderEventContent, 
   setupEventActions, 
@@ -125,6 +127,10 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   const { isMobile, getInitialView, getMobileHeaderToolbar, getAspectRatio } = useCalendarView();
   const [currentView, setCurrentView] = useState<string>("resourceTimeGridDay");
   
+  // Delete confirmation dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [eventToDelete, setEventToDelete] = useState<{ id: string; title: string } | null>(null);
+  
   // Use targetDate if provided, otherwise fall back to currentDate
   const effectiveDate = targetDate || currentDate;
   
@@ -135,6 +141,11 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   
   // Get the event actions hook
   const { duplicateEvent } = useEventActions(events, () => {}, resources);
+  
+  // Use event deletion hook
+  const { deleteEvent, isDeleting } = useEventDeletion(async () => {
+    await refreshEvents();
+  });
   
   // Use the calendar event handlers with the duplicate event function
   const { handleEventClick, DuplicateEventDialog } = useCalendarEventHandlers(
@@ -176,11 +187,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     console.log('ResourceCalendar received events:', events);
     console.log('ResourceCalendar received resources:', resources);
     console.log('ResourceCalendar staff assignments:', assignments);
-    
-    // REMOVED: Force calendar to rerender when events change - this was causing flushSync warnings
-    // if (calendarRef.current) {
-    //   calendarRef.current.getApi().render();
-    // }
   }, [events, resources, assignments]);
 
   // Process events to ensure valid resources and add styling
@@ -209,6 +215,25 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         const customEvent = new CustomEvent('openDuplicateDialog', { detail: dialogEvent });
         document.dispatchEvent(customEvent);
       }
+    }
+  };
+
+  // Handler for delete button click
+  const handleDeleteButtonClick = (eventId: string) => {
+    console.log('Delete button clicked for event:', eventId);
+    const event = events.find(event => event.id === eventId);
+    if (event) {
+      setEventToDelete({ id: event.id, title: event.title });
+      setDeleteDialogOpen(true);
+    }
+  };
+
+  // Handle confirmed deletion
+  const handleConfirmDelete = async () => {
+    if (eventToDelete) {
+      await deleteEvent(eventToDelete.id, eventToDelete.title);
+      setDeleteDialogOpen(false);
+      setEventToDelete(null);
     }
   };
 
@@ -302,7 +327,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     eventContent: renderEventContent,
     eventDidMount: (info: any) => {
       addEventAttributes(info);
-      setupEventActions(info, handleDuplicateButtonClick);
+      setupEventActions(info, handleDuplicateButtonClick, handleDeleteButtonClick);
     },
     resourceLabelDidMount: setupResourceHeaderStyles,
     resourceLabelContent: resourceHeaderContent,
@@ -343,6 +368,19 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       
       {/* Render the duplicate dialog */}
       <DuplicateEventDialog />
+      
+      {/* Delete confirmation dialog */}
+      <ConfirmationDialog
+        title="Delete Event"
+        description={`Are you sure you want to delete "${eventToDelete?.title}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleConfirmDelete}
+      >
+        <div />
+      </ConfirmationDialog>
     </div>
   );
 };
