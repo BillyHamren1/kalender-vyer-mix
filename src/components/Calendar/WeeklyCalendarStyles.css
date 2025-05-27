@@ -1,5 +1,5 @@
 
-/* Unified Calendar Styles for both Weekly and Monthly Views */
+/* Unified Calendar Styles for both Weekly and Monthly Views with Dynamic Sizing Support */
 .weekly-view-container,
 .monthly-grid-container {
   width: 100%;
@@ -8,11 +8,15 @@
 }
 
 .weekly-calendar-container {
-  min-width: 8400px;
-  width: 8400px;
   display: flex;
   overflow-x: auto;
   scroll-behavior: smooth;
+}
+
+/* Dynamic container - will be sized by CSS variables */
+.dynamic-calendar-container {
+  min-width: var(--dynamic-total-calendar-width, 1050px);
+  width: var(--dynamic-total-calendar-width, 1050px);
 }
 
 .monthly-calendar-grid {
@@ -23,11 +27,18 @@
   max-width: 100%;
 }
 
-.day-calendar-wrapper,
-.monthly-day-wrapper {
+.day-calendar-wrapper {
   min-width: 1200px;
   width: 1200px;
   flex: none;
+  border-right: 1px solid #e5e7eb;
+}
+
+/* Dynamic day wrapper - will be sized by CSS variables */
+.dynamic-day-wrapper {
+  min-width: var(--dynamic-day-container-width, 1200px);
+  width: var(--dynamic-day-container-width, 1200px);
+  flex: 0 0 var(--dynamic-day-container-width, 1200px);
   border-right: 1px solid #e5e7eb;
 }
 
@@ -40,22 +51,12 @@
   min-height: 200px;
 }
 
-.day-calendar-wrapper:last-child {
+.day-calendar-wrapper:last-child,
+.dynamic-day-wrapper:last-child {
   border-right: none;
 }
 
-/* ... keep existing code (all other styling) */
-
-/* Make resource timeline work properly */
-.fc-resource-timeline-divider {
-  width: 1px !important;
-  background-color: #e5e7eb;
-}
-
-/* Ensure scrolling works properly */
-.fc-scroller {
-  overflow: visible !important;
-}
+/* ... keep existing code (day header styling) */
 
 /* Day resource header styling - more calendar-like */
 .day-resource-header {
@@ -67,13 +68,13 @@
   border-radius: 6px 6px 0 0;
 }
 
-/* Enforce SMALLER fixed width for ALL resource columns - DECREASED WIDTH to 150px so 6 columns fit */
-.fc-resource-area td,
-.fc-resource-area th,
-.fc-resource-lane,
-.fc-datagrid-cell,
-.fc-datagrid-cell-frame,
-.fc-timegrid-col {
+/* Resource column widths for NON-dynamic containers (fallback) */
+.fc-resource-area td:not(.dynamic-resource-columns *),
+.fc-resource-area th:not(.dynamic-resource-columns *),
+.fc-resource-lane:not(.dynamic-resource-columns *),
+.fc-datagrid-cell:not(.dynamic-resource-columns *),
+.fc-datagrid-cell-frame:not(.dynamic-resource-columns *),
+.fc-timegrid-col:not(.dynamic-resource-columns *) {
   min-width: 150px !important;
   width: 150px !important;
   max-width: 150px !important;
@@ -81,7 +82,22 @@
   border-left: none !important;
 }
 
-/* Fix for resource header hierarchical nesting - softer styling */
+/* Dynamic resource columns will use CSS variables */
+.dynamic-resource-columns .fc-resource-area td,
+.dynamic-resource-columns .fc-resource-area th,
+.dynamic-resource-columns .fc-resource-lane,
+.dynamic-resource-columns .fc-datagrid-cell,
+.dynamic-resource-columns .fc-datagrid-cell-frame,
+.dynamic-resource-columns .fc-timegrid-col {
+  min-width: var(--dynamic-column-width, 150px) !important;
+  width: var(--dynamic-column-width, 150px) !important;
+  max-width: var(--dynamic-column-width, 150px) !important;
+  border-right: 1px solid #f0f0f0 !important;
+  border-left: none !important;
+}
+
+/* ... keep existing code (fix for resource header hierarchical nesting) */
+
 .fc-datagrid-cell-cushion {
   font-weight: 500;
   padding: 8px 6px;
@@ -114,10 +130,23 @@
   right: 0 !important;
   margin-left: 2px !important;
   margin-right: 2px !important;
-  max-width: calc(100% - 4px) !important;
   overflow: hidden !important;
   box-sizing: border-box !important;
 }
+
+/* Dynamic events use CSS variables for max-width */
+.dynamic-resource-columns .fc-timeline-event,
+.dynamic-resource-columns .fc-timegrid-event {
+  max-width: calc(var(--dynamic-column-width, 150px) - 4px) !important;
+}
+
+/* Non-dynamic events use fixed width */
+.fc-timeline-event:not(.dynamic-resource-columns *),
+.fc-timegrid-event:not(.dynamic-resource-columns *) {
+  max-width: calc(100% - 4px) !important;
+}
+
+/* ... keep existing code (improve event rendering, special team-6 handling) */
 
 /* Improve event rendering */
 .fc-timeline-event {
@@ -134,12 +163,31 @@
 [data-resource-id="team-6"].fc-datagrid-cell-frame,
 [data-resource-id="team-6"] .fc-timegrid-col,
 [data-resource-id="team-6"].fc-timegrid-col {
-  min-width: 150px !important;
-  width: 150px !important;
-  max-width: 150px !important;
   border-right: 1px solid #f0f0f0 !important;
   overflow: hidden !important;
 }
+
+/* Dynamic team-6 sizing */
+.dynamic-resource-columns [data-resource-id="team-6"] .fc-datagrid-cell,
+.dynamic-resource-columns [data-resource-id="team-6"].fc-datagrid-cell,
+.dynamic-resource-columns [data-resource-id="team-6"] .fc-timegrid-col,
+.dynamic-resource-columns [data-resource-id="team-6"].fc-timegrid-col {
+  min-width: var(--dynamic-column-width, 150px) !important;
+  width: var(--dynamic-column-width, 150px) !important;
+  max-width: var(--dynamic-column-width, 150px) !important;
+}
+
+/* Non-dynamic team-6 sizing (fallback) */
+[data-resource-id="team-6"]:not(.dynamic-resource-columns *) .fc-datagrid-cell,
+[data-resource-id="team-6"]:not(.dynamic-resource-columns *).fc-datagrid-cell,
+[data-resource-id="team-6"]:not(.dynamic-resource-columns *) .fc-timegrid-col,
+[data-resource-id="team-6"]:not(.dynamic-resource-columns *).fc-timegrid-col {
+  min-width: 150px !important;
+  width: 150px !important;
+  max-width: 150px !important;
+}
+
+/* ... keep existing code (all other styling including team-6 event stacking, timeline slots, etc.) */
 
 /* CRITICAL: Fix team-6 events to stack vertically without overlapping */
 [data-resource-id="team-6"] .fc-timeline-event,
@@ -148,13 +196,24 @@
   left: auto !important;
   right: auto !important;
   width: 100% !important;
-  max-width: 146px !important;
   margin: 2px 1px !important;
   overflow: hidden !important;
   box-sizing: border-box !important;
   display: block !important;
   float: none !important;
   clear: both !important;
+}
+
+/* Dynamic team-6 events */
+.dynamic-resource-columns [data-resource-id="team-6"] .fc-timeline-event,
+.dynamic-resource-columns [data-resource-id="team-6"] .fc-timegrid-event {
+  max-width: calc(var(--dynamic-column-width, 150px) - 2px) !important;
+}
+
+/* Non-dynamic team-6 events */
+[data-resource-id="team-6"]:not(.dynamic-resource-columns *) .fc-timeline-event,
+[data-resource-id="team-6"]:not(.dynamic-resource-columns *) .fc-timegrid-event {
+  max-width: 146px !important;
 }
 
 /* Force team-6 events to stack in a vertical layout */
@@ -177,19 +236,41 @@
 
 /* Ensure timeline slot width with softer borders */
 .fc-timeline-slot {
-  min-width: 150px !important;
-  width: 150px !important;
   border-right: 1px solid #f8f9fa !important;
   overflow: hidden !important;
+}
+
+/* Dynamic timeline slots */
+.dynamic-resource-columns .fc-timeline-slot {
+  min-width: var(--dynamic-column-width, 150px) !important;
+  width: var(--dynamic-column-width, 150px) !important;
+}
+
+/* Non-dynamic timeline slots (fallback) */
+.fc-timeline-slot:not(.dynamic-resource-columns *) {
+  min-width: 150px !important;
+  width: 150px !important;
 }
 
 /* CRITICAL: Fix event positioning within timeline slots */
 .fc-timeline-slot-frame {
   position: relative !important;
   overflow: hidden !important;
+}
+
+/* Dynamic timeline slot frames */
+.dynamic-resource-columns .fc-timeline-slot-frame {
+  width: var(--dynamic-column-width, 150px) !important;
+  max-width: var(--dynamic-column-width, 150px) !important;
+}
+
+/* Non-dynamic timeline slot frames */
+.fc-timeline-slot-frame:not(.dynamic-resource-columns *) {
   width: 150px !important;
   max-width: 150px !important;
 }
+
+/* ... keep existing code (optimize event content, etc.) */
 
 /* Optimize event content */
 .event-content-wrapper {
@@ -252,6 +333,13 @@
   border-right: 1px solid #f0f0f0 !important;
 }
 
+/* Dynamic time axis width */
+.dynamic-resource-columns .weekly-view-calendar .fc-timegrid-axis,
+.dynamic-resource-columns .monthly-view-calendar .fc-timegrid-axis {
+  width: var(--dynamic-time-axis-width, 80px) !important;
+  min-width: var(--dynamic-time-axis-width, 80px) !important;
+}
+
 /* Critical fix - enforce resource column width in both views */
 .weekly-view-calendar .fc-resource-timeline-divider,
 .monthly-view-calendar .fc-resource-timeline-divider {
@@ -259,24 +347,21 @@
   background-color: #f0f0f0;
 }
 
-.weekly-view-calendar .fc-timegrid-col,
-.monthly-view-calendar .fc-timegrid-col {
-  min-width: 150px !important;
-  width: 150px !important;
-  max-width: 150px !important;
-  border-right: 1px solid #f8f9fa !important;
+/* Dynamic column headers */
+.dynamic-resource-columns .weekly-view-calendar .fc-col-header-cell,
+.dynamic-resource-columns .monthly-view-calendar .fc-col-header-cell {
+  min-width: var(--dynamic-column-width, 150px) !important;
+  width: var(--dynamic-column-width, 150px) !important;
+  max-width: var(--dynamic-column-width, 150px) !important;
+  border-right: 1px solid #f0f0f0 !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  background-color: #fafafa !important;
   overflow: hidden !important;
 }
 
-/* Make sure day columns have adequate space - INCREASED for 6 columns (5 teams + 1 Today's events) */
-.weekly-view-calendar .fc-timegrid-cols,
-.monthly-view-calendar .fc-timegrid-cols {
-  min-width: 1050px !important;
-}
-
-/* Critical fix - ensure ALL resource column headers have consistent width and soft borders */
-.weekly-view-calendar .fc-col-header-cell,
-.monthly-view-calendar .fc-col-header-cell {
+/* Non-dynamic column headers (fallback) */
+.weekly-view-calendar .fc-col-header-cell:not(.dynamic-resource-columns *),
+.monthly-view-calendar .fc-col-header-cell:not(.dynamic-resource-columns *) {
   min-width: 150px !important;
   width: 150px !important;
   max-width: 150px !important;
@@ -286,84 +371,7 @@
   overflow: hidden !important;
 }
 
-/* Fix for resource container width - INCREASED for 6 columns */
-.weekly-view-calendar .fc-resource-timeline-body,
-.monthly-view-calendar .fc-resource-timeline-body {
-  min-width: 1050px !important;
-}
-
-/* Critical fix - ensure ALL resource cells have exact same width with soft borders */
-.weekly-view-calendar .fc-resource-group,
-.weekly-view-calendar .fc-datagrid-cell,
-.monthly-view-calendar .fc-resource-group,
-.monthly-view-calendar .fc-datagrid-cell {
-  min-width: 150px !important;
-  width: 150px !important;
-  max-width: 150px !important;
-  border-right: 1px solid #f0f0f0 !important;
-  border-bottom: 1px solid #f8f9fa !important;
-  overflow: hidden !important;
-}
-
-/* Ensure time labels have enough room with soft styling */
-.weekly-view-calendar .fc-timegrid-axis,
-.monthly-view-calendar .fc-timegrid-axis {
-  width: 150px !important;
-  min-width: 150px !important;
-  background-color: #fafafa;
-  border-right: 1px solid #f0f0f0 !important;
-}
-
-/* Force consistent column widths for team-6 (Today's events) */
-.weekly-view-calendar [data-resource-id="team-6"] td,
-.weekly-view-calendar [data-resource-id="team-6"] th,
-.weekly-view-calendar [data-resource-id="team-6"].fc-datagrid-cell,
-.weekly-view-calendar [data-resource-id="team-6"] .fc-datagrid-cell-frame,
-.weekly-view-calendar [data-resource-id="team-6"] .fc-timegrid-col,
-.monthly-view-calendar [data-resource-id="team-6"] td,
-.monthly-view-calendar [data-resource-id="team-6"] th,
-.monthly-view-calendar [data-resource-id="team-6"].fc-datagrid-cell,
-.monthly-view-calendar [data-resource-id="team-6"] .fc-datagrid-cell-frame,
-.monthly-view-calendar [data-resource-id="team-6"] .fc-timegrid-col {
-  min-width: 150px !important;
-  width: 150px !important;
-  max-width: 150px !important;
-  border-right: 1px solid #f0f0f0 !important;
-  overflow: hidden !important;
-}
-
-/* Ensure ALL columns are exactly the same width with soft borders */
-.weekly-view-calendar .fc-datagrid-cell,
-.weekly-view-calendar .fc-datagrid-cell-frame,
-.weekly-view-calendar .fc-timegrid-col,
-.weekly-view-calendar .fc-col-header-cell,
-.monthly-view-calendar .fc-datagrid-cell,
-.monthly-view-calendar .fc-datagrid-cell-frame,
-.monthly-view-calendar .fc-timegrid-col,
-.monthly-view-calendar .fc-col-header-cell {
-  min-width: 150px !important;
-  width: 150px !important;
-  max-width: 150px !important;
-  border-right: 1px solid #f0f0f0 !important;
-  overflow: hidden !important;
-}
-
-/* Soften the main grid borders */
-.weekly-view-calendar .fc-scrollgrid-section table,
-.weekly-view-calendar .fc-datagrid-body,
-.weekly-view-calendar .fc-datagrid-header,
-.monthly-view-calendar .fc-scrollgrid-section table,
-.monthly-view-calendar .fc-datagrid-body,
-.monthly-view-calendar .fc-datagrid-header {
-  border: 1px solid #f0f0f0 !important;
-}
-
-/* Remove harsh grid lines and add soft ones */
-.weekly-view-calendar .fc-scrollgrid-section-liquid > td,
-.monthly-view-calendar .fc-scrollgrid-section-liquid > td {
-  border-top: 1px solid #f8f9fa !important;
-  border-bottom: 1px solid #f8f9fa !important;
-}
+/* ... keep existing code (all remaining styles) */
 
 /* Icon-only assign button styling - keep existing */
 .assign-button-icon {

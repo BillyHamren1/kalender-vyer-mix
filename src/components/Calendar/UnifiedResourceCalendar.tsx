@@ -5,6 +5,8 @@ import { format, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, each
 import { useNavigate } from 'react-router-dom';
 import { useContext } from 'react';
 import { CalendarContext } from '@/App';
+import { useDynamicColumnSizing } from '@/hooks/useDynamicColumnSizing';
+import { DynamicResourceStyles } from './DynamicResourceStyles';
 import './WeeklyCalendarStyles.css';
 
 interface UnifiedResourceCalendarProps {
@@ -39,6 +41,9 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   const navigate = useNavigate();
   const { setLastViewedDate } = useContext(CalendarContext);
 
+  // Use dynamic column sizing
+  const dynamicSizing = useDynamicColumnSizing(resources, undefined, 120, 300);
+
   const getDaysToRender = () => {
     if (viewMode === 'weekly') {
       return Array.from({ length: 7 }, (_, i) => {
@@ -63,6 +68,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   const numericForceRefresh = typeof forceRefresh === 'boolean' ? (forceRefresh ? 1 : 0) : (forceRefresh || 0);
 
   console.log(`UnifiedResourceCalendar: ${viewMode} view with ${events.length} events, forceRefresh: ${numericForceRefresh}`);
+  console.log('Dynamic sizing config:', dynamicSizing);
 
   const handleDayHeaderClick = (date: Date) => {
     setLastViewedDate(date);
@@ -98,13 +104,13 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 
   const getResourceTimeGridOptions = () => {
     return {
-      resourceAreaWidth: '150px',
+      resourceAreaWidth: dynamicSizing.columnWidth,
       resourceLabelText: 'Teams',
       resourceAreaHeaderContent: 'Teams',
       stickyResourceAreaHeaders: true,
       resourceOrder: 'title',
       resourcesInitiallyExpanded: true,
-      slotMinWidth: '150px'
+      slotMinWidth: dynamicSizing.columnWidth
     };
   };
 
@@ -114,13 +120,13 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
       headerToolbar: false,
       allDaySlot: false,
       initialView: 'resourceTimeGridDay',
-      resourceAreaWidth: '150px',
-      slotMinWidth: '150px',
+      resourceAreaWidth: dynamicSizing.columnWidth,
+      slotMinWidth: dynamicSizing.columnWidth,
       resourceAreaColumns: [
         {
           field: 'title',
           headerContent: 'Teams',
-          width: '150px'
+          width: dynamicSizing.columnWidth
         }
       ],
       ...getResourceTimeGridOptions(),
@@ -164,14 +170,32 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 
   const getCalendarContainerClass = () => {
     if (viewMode === 'weekly') {
-      return 'weekly-calendar-container';
+      return 'weekly-calendar-container dynamic-calendar-container';
     } else {
       return 'monthly-calendar-grid';
     }
   };
 
+  // Apply CSS variables to the document root
+  useEffect(() => {
+    const rootElement = document.documentElement;
+    Object.entries(dynamicSizing.cssVariables).forEach(([key, value]) => {
+      rootElement.style.setProperty(key, value);
+    });
+
+    return () => {
+      // Cleanup on unmount
+      Object.keys(dynamicSizing.cssVariables).forEach(key => {
+        rootElement.style.removeProperty(key);
+      });
+    };
+  }, [dynamicSizing.cssVariables]);
+
   return (
     <div className={getContainerClass()}>
+      {/* Apply dynamic styles */}
+      <DynamicResourceStyles cssVariables={dynamicSizing.cssVariables} />
+      
       <div className={getCalendarContainerClass()} ref={containerRef}>
         {days.map((date, index) => {
           const dayEvents = getEventsForDay(date);
@@ -184,7 +208,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
           return (
             <div 
               key={format(date, 'yyyy-MM-dd')} 
-              className={viewMode === 'weekly' ? 'day-calendar-wrapper' : 'monthly-day-wrapper'}
+              className={`${viewMode === 'weekly' ? 'day-calendar-wrapper' : 'monthly-day-wrapper'} dynamic-day-wrapper`}
               ref={isToday ? todayRef : null}
             >
               <div 
@@ -194,7 +218,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
               >
                 <div>{format(date, 'EEE d')}</div>
               </div>
-              <div className={viewMode === 'weekly' ? 'weekly-view-calendar' : 'monthly-view-calendar'}>
+              <div className={`${viewMode === 'weekly' ? 'weekly-view-calendar' : 'monthly-view-calendar'} dynamic-resource-columns`}>
                 <ResourceCalendar
                   events={dayEvents}
                   resources={resources}
