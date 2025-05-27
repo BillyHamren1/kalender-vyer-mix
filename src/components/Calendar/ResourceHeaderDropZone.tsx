@@ -90,7 +90,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   };
 
   const getDropZoneClass = () => {
-    let baseClass = `staff-drop-zone p-2 h-full w-full transition-all duration-150`;
+    let baseClass = `h-full w-full transition-all duration-150`;
     
     if (isOver && canDrop) {
       return `${baseClass} bg-green-100 border-2 border-green-400 shadow-lg`;
@@ -104,24 +104,27 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   };
 
   return (
-    <div className="w-full">
-      {/* Team header - separate container */}
-      <div className="bg-gray-100 border border-gray-200 border-b-0 rounded-t-md p-3 relative">
-        <div className="text-sm font-semibold text-gray-700 text-center pr-6">
-          {resource.title}
+    <div className="w-full h-full flex flex-col">
+      {/* Team header - wider container with team number and name on same row */}
+      <div className="bg-gray-100 border border-gray-200 border-b-0 rounded-t-md p-2 relative flex-shrink-0">
+        <div className="flex items-center justify-between w-full">
+          <div className="text-sm font-semibold text-gray-700 flex items-center gap-1">
+            <span>{resource.id.replace('team-', '')}</span>
+            <span>{resource.title}</span>
+          </div>
+          
+          {/* System-styled add button */}
+          <button
+            onClick={handleSelectStaff}
+            className="w-6 h-6 border border-gray-300 bg-white hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded flex items-center justify-center text-xs transition-colors shadow-sm"
+            title="Assign staff"
+          >
+            <Plus className="h-3 w-3" />
+          </button>
         </div>
-        
-        {/* System-styled add button */}
-        <button
-          onClick={handleSelectStaff}
-          className="absolute top-2 right-2 w-6 h-6 border border-gray-300 bg-white hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded flex items-center justify-center text-xs transition-colors shadow-sm"
-          title="Assign staff"
-        >
-          <Plus className="h-3 w-3" />
-        </button>
       </div>
 
-      {/* Staff assignment area - no containers, direct placement */}
+      {/* Staff assignment area - no padding, no containers, full width */}
       <div
         ref={drop}
         className={getDropZoneClass()}
