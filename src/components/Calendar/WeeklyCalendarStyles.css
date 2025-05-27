@@ -1,449 +1,127 @@
 
-/* Unified Calendar Styles for both Weekly and Monthly Views with Dynamic Sizing Support */
-.weekly-view-container,
-.monthly-grid-container {
+/* Weekly Resource Calendar Styles */
+
+.weekly-resource-view-container {
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.weekly-view-container {
+  flex: 1;
   width: 100%;
   overflow-x: auto;
-  position: relative;
+  overflow-y: hidden;
+  min-height: 0;
 }
 
 .weekly-calendar-container {
   display: flex;
-  overflow-x: auto;
-  scroll-behavior: smooth;
-}
-
-/* Dynamic container - will be sized by CSS variables */
-.dynamic-calendar-container {
-  min-width: var(--dynamic-total-calendar-width, 1050px);
-  width: var(--dynamic-total-calendar-width, 1050px);
-}
-
-.monthly-calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 8px;
-  width: 100%;
-  max-width: 100%;
+  height: 100%;
+  min-width: 100%;
+  gap: 2px;
+  padding: 0 10px;
+  transform: scale(var(--zoom-level, 1));
+  transform-origin: top left;
+  transition: transform 0.2s ease-in-out;
 }
 
 .day-calendar-wrapper {
-  min-width: 1200px;
-  width: 1200px;
-  flex: none;
-  border-right: 1px solid #e5e7eb;
-}
-
-/* Dynamic day wrapper - will be sized by CSS variables */
-.dynamic-day-wrapper {
-  min-width: var(--dynamic-day-container-width, 1200px);
-  width: var(--dynamic-day-container-width, 1200px);
-  flex: 0 0 var(--dynamic-day-container-width, 1200px);
-  border-right: 1px solid #e5e7eb;
-}
-
-.monthly-day-wrapper {
-  min-width: unset;
-  width: auto;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  overflow: hidden;
-  min-height: 200px;
-}
-
-.day-calendar-wrapper:last-child,
-.dynamic-day-wrapper:last-child {
-  border-right: none;
-}
-
-/* ... keep existing code (day header styling) */
-
-/* Day resource header styling - more calendar-like */
-.day-resource-header {
-  font-weight: 500;
-  font-size: 1rem;
-  padding: 12px 8px;
-  background-color: #fafafa;
-  border-bottom: 1px solid #e5e7eb;
-  border-radius: 6px 6px 0 0;
-}
-
-/* Resource column widths for NON-dynamic containers (fallback) */
-.fc-resource-area td:not(.dynamic-resource-columns *),
-.fc-resource-area th:not(.dynamic-resource-columns *),
-.fc-resource-lane:not(.dynamic-resource-columns *),
-.fc-datagrid-cell:not(.dynamic-resource-columns *),
-.fc-datagrid-cell-frame:not(.dynamic-resource-columns *),
-.fc-timegrid-col:not(.dynamic-resource-columns *) {
-  min-width: 150px !important;
-  width: 150px !important;
-  max-width: 150px !important;
-  border-right: 1px solid #f0f0f0 !important;
-  border-left: none !important;
-}
-
-/* Dynamic resource columns will use CSS variables */
-.dynamic-resource-columns .fc-resource-area td,
-.dynamic-resource-columns .fc-resource-area th,
-.dynamic-resource-columns .fc-resource-lane,
-.dynamic-resource-columns .fc-datagrid-cell,
-.dynamic-resource-columns .fc-datagrid-cell-frame,
-.dynamic-resource-columns .fc-timegrid-col {
-  min-width: var(--dynamic-column-width, 150px) !important;
-  width: var(--dynamic-column-width, 150px) !important;
-  max-width: var(--dynamic-column-width, 150px) !important;
-  border-right: 1px solid #f0f0f0 !important;
-  border-left: none !important;
-}
-
-/* ... keep existing code (fix for resource header hierarchical nesting) */
-
-.fc-datagrid-cell-cushion {
-  font-weight: 500;
-  padding: 8px 6px;
-  background-color: #fafafa;
-  border-radius: 4px;
-  margin: 2px;
-  transition: background-color 0.2s ease;
-}
-
-.fc-datagrid-cell-cushion:hover {
-  background-color: #f3f4f6;
-}
-
-/* Day header cells - softer styling */
-.fc-datagrid-group-cushion {
-  font-weight: 600;
-  color: #374151;
-  text-transform: capitalize;
-  padding: 10px 8px;
-  background-color: #f8fafc;
-  border-radius: 6px;
-  margin: 2px;
-}
-
-/* CRITICAL FIX: Ensure events stay within their resource columns */
-.fc-timeline-event,
-.fc-timegrid-event {
-  position: absolute !important;
-  left: 0 !important;
-  right: 0 !important;
-  margin-left: 2px !important;
-  margin-right: 2px !important;
-  overflow: hidden !important;
-  box-sizing: border-box !important;
-}
-
-/* Dynamic events use CSS variables for max-width */
-.dynamic-resource-columns .fc-timeline-event,
-.dynamic-resource-columns .fc-timegrid-event {
-  max-width: calc(var(--dynamic-column-width, 150px) - 4px) !important;
-}
-
-/* Non-dynamic events use fixed width */
-.fc-timeline-event:not(.dynamic-resource-columns *),
-.fc-timegrid-event:not(.dynamic-resource-columns *) {
-  max-width: calc(100% - 4px) !important;
-}
-
-/* ... keep existing code (improve event rendering, special team-6 handling) */
-
-/* Improve event rendering */
-.fc-timeline-event {
-  min-height: 25px;
-  padding: 2px 4px;
-  border-radius: 4px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-/* CRITICAL FIX: Special handling for team-6 events to stack properly */
-[data-resource-id="team-6"] .fc-datagrid-cell,
-[data-resource-id="team-6"].fc-datagrid-cell,
-[data-resource-id="team-6"] .fc-datagrid-cell-frame,
-[data-resource-id="team-6"].fc-datagrid-cell-frame,
-[data-resource-id="team-6"] .fc-timegrid-col,
-[data-resource-id="team-6"].fc-timegrid-col {
-  border-right: 1px solid #f0f0f0 !important;
-  overflow: hidden !important;
-}
-
-/* Dynamic team-6 sizing */
-.dynamic-resource-columns [data-resource-id="team-6"] .fc-datagrid-cell,
-.dynamic-resource-columns [data-resource-id="team-6"].fc-datagrid-cell,
-.dynamic-resource-columns [data-resource-id="team-6"] .fc-timegrid-col,
-.dynamic-resource-columns [data-resource-id="team-6"].fc-timegrid-col {
-  min-width: var(--dynamic-column-width, 150px) !important;
-  width: var(--dynamic-column-width, 150px) !important;
-  max-width: var(--dynamic-column-width, 150px) !important;
-}
-
-/* Non-dynamic team-6 sizing (fallback) */
-[data-resource-id="team-6"]:not(.dynamic-resource-columns *) .fc-datagrid-cell,
-[data-resource-id="team-6"]:not(.dynamic-resource-columns *).fc-datagrid-cell,
-[data-resource-id="team-6"]:not(.dynamic-resource-columns *) .fc-timegrid-col,
-[data-resource-id="team-6"]:not(.dynamic-resource-columns *).fc-timegrid-col {
-  min-width: 150px !important;
-  width: 150px !important;
-  max-width: 150px !important;
-}
-
-/* ... keep existing code (all other styling including team-6 event stacking, timeline slots, etc.) */
-
-/* CRITICAL: Fix team-6 events to stack vertically without overlapping */
-[data-resource-id="team-6"] .fc-timeline-event,
-[data-resource-id="team-6"] .fc-timegrid-event {
-  position: static !important;
-  left: auto !important;
-  right: auto !important;
-  width: 100% !important;
-  margin: 2px 1px !important;
-  overflow: hidden !important;
-  box-sizing: border-box !important;
-  display: block !important;
-  float: none !important;
-  clear: both !important;
-}
-
-/* Dynamic team-6 events */
-.dynamic-resource-columns [data-resource-id="team-6"] .fc-timeline-event,
-.dynamic-resource-columns [data-resource-id="team-6"] .fc-timegrid-event {
-  max-width: calc(var(--dynamic-column-width, 150px) - 2px) !important;
-}
-
-/* Non-dynamic team-6 events */
-[data-resource-id="team-6"]:not(.dynamic-resource-columns *) .fc-timeline-event,
-[data-resource-id="team-6"]:not(.dynamic-resource-columns *) .fc-timegrid-event {
-  max-width: 146px !important;
-}
-
-/* Force team-6 events to stack in a vertical layout */
-[data-resource-id="team-6"] .fc-timegrid-col-events {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 2px !important;
-  padding: 2px !important;
-}
-
-/* Ensure team-6 events don't use absolute positioning */
-[data-resource-id="team-6"] .fc-timegrid-event-harness {
-  position: static !important;
-  top: auto !important;
-  left: auto !important;
-  right: auto !important;
-  height: auto !important;
-  width: 100% !important;
-}
-
-/* Ensure timeline slot width with softer borders */
-.fc-timeline-slot {
-  border-right: 1px solid #f8f9fa !important;
-  overflow: hidden !important;
-}
-
-/* Dynamic timeline slots */
-.dynamic-resource-columns .fc-timeline-slot {
-  min-width: var(--dynamic-column-width, 150px) !important;
-  width: var(--dynamic-column-width, 150px) !important;
-}
-
-/* Non-dynamic timeline slots (fallback) */
-.fc-timeline-slot:not(.dynamic-resource-columns *) {
-  min-width: 150px !important;
-  width: 150px !important;
-}
-
-/* CRITICAL: Fix event positioning within timeline slots */
-.fc-timeline-slot-frame {
-  position: relative !important;
-  overflow: hidden !important;
-}
-
-/* Dynamic timeline slot frames */
-.dynamic-resource-columns .fc-timeline-slot-frame {
-  width: var(--dynamic-column-width, 150px) !important;
-  max-width: var(--dynamic-column-width, 150px) !important;
-}
-
-/* Non-dynamic timeline slot frames */
-.fc-timeline-slot-frame:not(.dynamic-resource-columns *) {
-  width: 150px !important;
-  max-width: 150px !important;
-}
-
-/* ... keep existing code (optimize event content, etc.) */
-
-/* Optimize event content */
-.event-content-wrapper {
+  flex: 0 0 auto;
+  width: var(--dynamic-day-container-width);
+  min-width: var(--dynamic-day-container-width);
   display: flex;
   flex-direction: column;
-  min-height: 100%;
-  padding: 4px;
-  overflow: hidden;
-  box-sizing: border-box;
+  height: 100%;
 }
 
-.event-delivery-address {
-  overflow-wrap: break-word;
-  word-wrap: break-word;
-  hyphens: auto;
-  max-height: none !important;
-  white-space: normal !important;
-  font-size: 11px;
+.weekly-view-calendar {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
 }
 
-.fc-event-title {
-  white-space: normal !important;
-  overflow: visible !important;
-}
-
-.fc-event-time {
-  white-space: nowrap;
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.event-client-name {
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.event-booking-id {
-  font-size: 11px;
-  opacity: 0.8;
-}
-
-/* Reduced height for weekly view calendars */
-.weekly-view-calendar .fc-view-harness,
-.monthly-view-calendar .fc-view-harness {
-  min-height: 400px !important;
-  max-height: 600px !important;
-}
-
-/* Make weekly calendars more compact but with softer styling */
-.weekly-view-calendar .fc-timegrid-slot,
-.monthly-view-calendar .fc-timegrid-slot {
-  height: 35px !important;
-  border-bottom: 1px solid #f8f9fa !important;
-  overflow: hidden !important;
-}
-
-/* Soften time grid borders */
-.weekly-view-calendar .fc-timegrid-axis,
-.monthly-view-calendar .fc-timegrid-axis {
-  border-right: 1px solid #f0f0f0 !important;
-}
-
-/* Dynamic time axis width */
-.dynamic-resource-columns .weekly-view-calendar .fc-timegrid-axis,
-.dynamic-resource-columns .monthly-view-calendar .fc-timegrid-axis {
-  width: var(--dynamic-time-axis-width, 80px) !important;
-  min-width: var(--dynamic-time-axis-width, 80px) !important;
-}
-
-/* Critical fix - enforce resource column width in both views */
-.weekly-view-calendar .fc-resource-timeline-divider,
-.monthly-view-calendar .fc-resource-timeline-divider {
-  width: 1px !important;
-  background-color: #f0f0f0;
-}
-
-/* Dynamic column headers */
-.dynamic-resource-columns .weekly-view-calendar .fc-col-header-cell,
-.dynamic-resource-columns .monthly-view-calendar .fc-col-header-cell {
-  min-width: var(--dynamic-column-width, 150px) !important;
-  width: var(--dynamic-column-width, 150px) !important;
-  max-width: var(--dynamic-column-width, 150px) !important;
-  border-right: 1px solid #f0f0f0 !important;
-  border-bottom: 1px solid #e5e7eb !important;
-  background-color: #fafafa !important;
-  overflow: hidden !important;
-}
-
-/* Non-dynamic column headers (fallback) */
-.weekly-view-calendar .fc-col-header-cell:not(.dynamic-resource-columns *),
-.monthly-view-calendar .fc-col-header-cell:not(.dynamic-resource-columns *) {
-  min-width: 150px !important;
-  width: 150px !important;
-  max-width: 150px !important;
-  border-right: 1px solid #f0f0f0 !important;
-  border-bottom: 1px solid #e5e7eb !important;
-  background-color: #fafafa !important;
-  overflow: hidden !important;
-}
-
-/* ... keep existing code (all remaining styles) */
-
-/* Icon-only assign button styling - keep existing */
-.assign-button-icon {
-  height: 20px !important;
-  width: 20px !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px dashed #d1d5db;
-  border-radius: 0.25rem;
-  color: #6b7280;
-  transition: all 0.2s ease;
-  z-index: 10;
-  background-color: transparent;
-  padding: 3px;
-  margin-left: auto;
-}
-
-.assign-button-icon:hover {
-  background-color: #f3f4f6;
-}
-
-.weekly-view-calendar .assign-button-icon svg,
-.monthly-view-calendar .assign-button-icon svg {
-  height: 12px !important;
-  width: 12px !important;
-}
-
-/* Unified simple day header styling - matching monthly view exactly */
 .day-header {
   background: #f0f9f9;
-  border: 1px solid #d1d5db;
-  border-bottom: 1px solid #d1d5db;
+  border: 1px solid #000000;
+  border-bottom: 2px solid #000000;
   text-align: center;
-  padding: 8px;
+  padding: 8px 4px;
   font-weight: 600;
   color: #374151;
   margin-bottom: 2px;
-  border-radius: 8px 8px 0 0;
+  border-radius: 6px 6px 0 0;
   position: sticky;
   top: 0;
   z-index: 10;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   transition: background-color 0.2s, transform 0.1s;
-  font-size: 14px;
+  cursor: pointer;
 }
 
-/* Add hover effect to indicate clickable */
 .day-header:hover {
   background: #e1f1f3;
   transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 3px 5px rgba(0, 0, 0, 0.08);
 }
 
-/* Active state for when clicking */
 .day-header:active {
   transform: translateY(0);
   background: #d8eaee;
 }
 
-/* Today styling for day headers */
 .day-header.today {
   background: #e8f4f6;
-  border: 2px solid #5fb3cc;
-  border-bottom: 3px solid #5fb3cc;
+  border: 3px solid #000000;
+  border-bottom: 4px solid #000000;
   color: #2c5f6b;
   font-weight: 700;
 }
 
-/* Other month styling for monthly view */
-.day-header.other-month {
-  background: #f8f9fa;
-  color: #9ca3af;
-  opacity: 0.6;
+/* Ensure calendar content fills available space */
+.weekly-view-calendar .fc {
+  height: 100%;
+  width: 100%;
+}
+
+.weekly-view-calendar .fc-view-harness {
+  height: 100%;
+}
+
+/* Hide the built-in FullCalendar header since we have our own */
+.weekly-view-calendar .fc-header-toolbar {
+  display: none !important;
+}
+
+/* Ensure proper scrolling behavior */
+.weekly-view-container::-webkit-scrollbar {
+  height: 8px;
+}
+
+.weekly-view-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.weekly-view-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.weekly-view-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .weekly-calendar-container {
+    padding: 0 5px;
+  }
+  
+  .day-header {
+    padding: 4px 2px;
+    font-size: 12px;
+  }
 }

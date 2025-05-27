@@ -39,18 +39,18 @@ export const useDynamicColumnSizing = (
     const timeAxisWidth = 80; // Fixed time axis width
     const padding = 40; // Total padding/margins
     
-    // Use about 33% of the available width for better proportions
-    const usableWidth = (windowWidth - timeAxisWidth - padding) * 0.33;
+    // Use 85% of the available width to ensure all columns fit
+    const usableWidth = (windowWidth - timeAxisWidth - padding) * 0.85;
     const availableWidth = usableWidth * zoomLevel;
     
     // Calculate optimal column width based on available space and number of resources
-    const teamCount = resources.length || 5; // Default to 5 if no resources
+    const teamCount = resources.length || 6; // Default to 6 teams
     const calculatedColumnWidth = Math.floor(availableWidth / teamCount);
     
     // Ensure column width stays within min/max bounds
     const columnWidth = Math.max(minColumnWidth, Math.min(maxColumnWidth, calculatedColumnWidth));
     
-    // Calculate total widths
+    // Calculate total widths based on actual column width used
     const totalCalendarWidth = (columnWidth * teamCount) + timeAxisWidth;
     const dayContainerWidth = totalCalendarWidth + 20; // Small margin
 
@@ -61,6 +61,15 @@ export const useDynamicColumnSizing = (
       '--dynamic-time-axis-width': `${timeAxisWidth}px`,
       '--zoom-level': zoomLevel.toString(),
     };
+
+    console.log('Dynamic sizing calculated:', {
+      windowWidth,
+      usableWidth,
+      teamCount,
+      columnWidth,
+      totalCalendarWidth,
+      zoomLevel
+    });
 
     return {
       columnWidth,

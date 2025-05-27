@@ -11,15 +11,17 @@ export const DynamicResourceStyles: React.FC<DynamicResourceStylesProps> = ({ cs
     .dynamic-calendar-container {
       width: var(--dynamic-total-calendar-width);
       min-width: var(--dynamic-total-calendar-width);
+      max-width: var(--dynamic-total-calendar-width);
     }
     
     .dynamic-day-wrapper {
       width: var(--dynamic-day-container-width);
       min-width: var(--dynamic-day-container-width);
+      max-width: var(--dynamic-day-container-width);
       flex: 0 0 var(--dynamic-day-container-width);
     }
     
-    /* Resource column widths */
+    /* Resource column widths - ensure they fit exactly */
     .dynamic-resource-columns .fc-resource-area td,
     .dynamic-resource-columns .fc-resource-area th,
     .dynamic-resource-columns .fc-resource-lane,
@@ -38,6 +40,7 @@ export const DynamicResourceStyles: React.FC<DynamicResourceStylesProps> = ({ cs
     .dynamic-resource-columns .fc-timegrid-axis {
       width: var(--dynamic-time-axis-width) !important;
       min-width: var(--dynamic-time-axis-width) !important;
+      max-width: var(--dynamic-time-axis-width) !important;
     }
     
     /* Header alignment */
@@ -58,14 +61,26 @@ export const DynamicResourceStyles: React.FC<DynamicResourceStylesProps> = ({ cs
       margin-right: 2px !important;
     }
     
-    /* Special handling for team-6 */
-    .dynamic-resource-columns [data-resource-id="team-6"] .fc-datagrid-cell,
-    .dynamic-resource-columns [data-resource-id="team-6"].fc-datagrid-cell,
-    .dynamic-resource-columns [data-resource-id="team-6"] .fc-timegrid-col,
-    .dynamic-resource-columns [data-resource-id="team-6"].fc-timegrid-col {
+    /* Ensure the calendar scrolls properly */
+    .dynamic-resource-columns .fc-scroller {
+      overflow-x: visible !important;
+    }
+    
+    /* Force exact sizing for team columns */
+    .dynamic-resource-columns [data-resource-id^="team-"] .fc-datagrid-cell,
+    .dynamic-resource-columns [data-resource-id^="team-"].fc-datagrid-cell,
+    .dynamic-resource-columns [data-resource-id^="team-"] .fc-timegrid-col,
+    .dynamic-resource-columns [data-resource-id^="team-"].fc-timegrid-col {
       min-width: var(--dynamic-column-width) !important;
       width: var(--dynamic-column-width) !important;
       max-width: var(--dynamic-column-width) !important;
+    }
+    
+    /* Ensure resource area doesn't overflow */
+    .dynamic-resource-columns .fc-resource-area {
+      min-width: calc(var(--dynamic-column-width) * var(--team-count, 6)) !important;
+      width: calc(var(--dynamic-column-width) * var(--team-count, 6)) !important;
+      max-width: calc(var(--dynamic-column-width) * var(--team-count, 6)) !important;
     }
   `;
 
