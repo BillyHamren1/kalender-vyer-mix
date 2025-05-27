@@ -18,6 +18,9 @@ export interface JobsListItem {
   deliveryAddress?: string;
   deliveryCity?: string;
   viewed: boolean;
+  // New fields for enhanced functionality
+  hasCalendarEvents?: boolean;
+  totalCalendarEvents?: number;
 }
 
 export interface JobsListFilters {
@@ -26,4 +29,7 @@ export interface JobsListFilters {
   status?: string;
   team?: string;
   search?: string;
+  // New filter options
+  hasCalendarEvents?: boolean;
+  deliveryCity?: string;
 }

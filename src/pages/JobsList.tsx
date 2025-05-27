@@ -1,58 +1,63 @@
 
-import React, { useState, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Filter, ArrowUpDown } from 'lucide-react';
+import { Search, Filter, ArrowUpDown, Calendar, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import Navbar from '@/components/Navigation/Navbar';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import StatusChangeForm from '@/components/booking/StatusChangeForm';
-import { fetchJobsList, getTeamsForFilter } from '@/services/jobsListService';
-import { JobsListFilters, JobsListItem } from '@/types/jobsList';
+import { useJobsListRealTime } from '@/hooks/useJobsListRealTime';
+import { getTeamsForFilter } from '@/services/jobsListService';
+import { JobsListItem } from '@/types/jobsList';
+import { useQuery } from '@tanstack/react-query';
 
-type SortField = 'bookingId' | 'client' | 'eventDate' | 'status';
+type SortField = 'bookingId' | 'client' | 'eventDate' | 'status' | 'hasCalendarEvents';
 type SortDirection = 'asc' | 'desc';
 
 const JobsList: React.FC = () => {
-  const [filters, setFilters] = useState<JobsListFilters>({});
   const [sortField, setSortField] = useState<SortField>('eventDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [showFilters, setShowFilters] = useState(false);
-  const queryClient = useQueryClient();
+  const [searchTerm, setSearchTerm] = useState('');
 
-  const { data: jobsList = [], isLoading, error } = useQuery({
-    queryKey: ['jobsList', filters],
-    queryFn: () => fetchJobsList(filters),
-  });
-
-  // Add debugging for the jobs list data
-  React.useEffect(() => {
-    if (jobsList.length > 0) {
-      console.log('Jobs list received:', jobsList.length, 'jobs');
-      console.log('Sample job data:', jobsList[0]);
-      
-      // Check how many jobs have staff assignments
-      const jobsWithRigStaff = jobsList.filter(job => job.rigStaff && job.rigStaff.length > 0);
-      const jobsWithEventStaff = jobsList.filter(job => job.eventStaff && job.eventStaff.length > 0);
-      const jobsWithRigDownStaff = jobsList.filter(job => job.rigDownStaff && job.rigDownStaff.length > 0);
-      
-      console.log(`Jobs with staff: Rig: ${jobsWithRigStaff.length}, Event: ${jobsWithEventStaff.length}, RigDown: ${jobsWithRigDownStaff.length}`);
-    }
-  }, [jobsList]);
+  // Use the new real-time hook
+  const {
+    jobsList,
+    isLoading,
+    error,
+    filters,
+    updateFilters,
+    clearFilters,
+    refreshJobs,
+    totalJobs,
+    jobsWithCalendarEvents,
+    jobsWithoutCalendarEvents,
+    newJobs
+  } = useJobsListRealTime();
 
   const { data: availableTeams = [] } = useQuery({
     queryKey: ['teamsForFilter'],
     queryFn: getTeamsForFilter,
   });
 
+  // Handle search with debouncing
+  React.useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      updateFilters({ search: searchTerm || undefined });
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, updateFilters]);
+
   // Sort the jobs list
-  const sortedJobs = useMemo(() => {
+  const sortedJobs = React.useMemo(() => {
     const sorted = [...jobsList].sort((a, b) => {
-      let aValue: string | undefined;
-      let bValue: string | undefined;
+      let aValue: any;
+      let bValue: any;
 
       switch (sortField) {
         case 'bookingId':
@@ -71,6 +76,10 @@ const JobsList: React.FC = () => {
           aValue = a.status;
           bValue = b.status;
           break;
+        case 'hasCalendarEvents':
+          aValue = a.hasCalendarEvents ? 1 : 0;
+          bValue = b.hasCalendarEvents ? 1 : 0;
+          break;
         default:
           return 0;
       }
@@ -79,7 +88,7 @@ const JobsList: React.FC = () => {
       if (!aValue) return 1;
       if (!bValue) return -1;
 
-      const comparison = aValue.localeCompare(bValue);
+      const comparison = String(aValue).localeCompare(String(bValue));
       return sortDirection === 'asc' ? comparison : -comparison;
     });
 
@@ -95,20 +104,10 @@ const JobsList: React.FC = () => {
     }
   };
 
-  const handleFilterChange = (key: keyof JobsListFilters, value: string) => {
-    setFilters(prev => ({
-      ...prev,
+  const handleFilterChange = (key: string, value: string) => {
+    updateFilters({
       [key]: value === 'all' ? undefined : (value || undefined)
-    }));
-  };
-
-  const clearFilters = () => {
-    setFilters({});
-  };
-
-  const handleStatusChange = (bookingId: string, newStatus: string) => {
-    // Invalidate and refetch the jobs list to get updated data
-    queryClient.invalidateQueries({ queryKey: ['jobsList'] });
+    });
   };
 
   const formatStaffList = (staff: string[] = []) => {
@@ -158,14 +157,65 @@ const JobsList: React.FC = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Jobs List</h1>
           
+          {/* Statistics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-600">Total Jobs</p>
+                    <p className="text-2xl font-bold">{totalJobs}</p>
+                  </div>
+                  <Calendar className="h-8 w-8 text-blue-500" />
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-600">With Calendar Events</p>
+                    <p className="text-2xl font-bold">{jobsWithCalendarEvents}</p>
+                  </div>
+                  <CheckCircle className="h-8 w-8 text-green-500" />
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-600">Missing Calendar Events</p>
+                    <p className="text-2xl font-bold">{jobsWithoutCalendarEvents}</p>
+                  </div>
+                  <AlertTriangle className="h-8 w-8 text-orange-500" />
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-600">New Jobs</p>
+                    <p className="text-2xl font-bold">{newJobs}</p>
+                  </div>
+                  <Clock className="h-8 w-8 text-purple-500" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          
           {/* Search and Filter Controls */}
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Search by booking number or client..."
-                value={filters.search || ''}
-                onChange={(e) => handleFilterChange('search', e.target.value)}
+                placeholder="Search by booking number, client, or address..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
             </div>
@@ -178,12 +228,20 @@ const JobsList: React.FC = () => {
               <Filter className="h-4 w-4 mr-2" />
               Filters
             </Button>
+
+            <Button
+              variant="outline"
+              onClick={() => refreshJobs()}
+              className="shrink-0"
+            >
+              Refresh
+            </Button>
           </div>
 
           {/* Advanced Filters */}
           {showFilters && (
             <div className="bg-white p-4 rounded-lg border mb-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Date From</label>
                   <Input
@@ -212,6 +270,7 @@ const JobsList: React.FC = () => {
                       <SelectItem value="all">All statuses</SelectItem>
                       <SelectItem value="confirmed">Confirmed</SelectItem>
                       <SelectItem value="offer">Offer</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
                       <SelectItem value="cancelled">Cancelled</SelectItem>
                     </SelectContent>
                   </Select>
@@ -228,6 +287,20 @@ const JobsList: React.FC = () => {
                       {availableTeams.map(team => (
                         <SelectItem key={team} value={team}>{team}</SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Calendar Events</label>
+                  <Select value={filters.hasCalendarEvents?.toString() || 'all'} onValueChange={(value) => handleFilterChange('hasCalendarEvents', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All jobs" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All jobs</SelectItem>
+                      <SelectItem value="true">With calendar events</SelectItem>
+                      <SelectItem value="false">Missing calendar events</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -281,6 +354,16 @@ const JobsList: React.FC = () => {
                     </div>
                   </TableHead>
                   <TableHead>Rig Down</TableHead>
+                  <TableHead>Address</TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-gray-50"
+                    onClick={() => handleSort('hasCalendarEvents')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Calendar
+                      <ArrowUpDown className="h-4 w-4" />
+                    </div>
+                  </TableHead>
                   <TableHead 
                     className="cursor-pointer hover:bg-gray-50"
                     onClick={() => handleSort('status')}
@@ -356,10 +439,33 @@ const JobsList: React.FC = () => {
                       )}
                     </TableCell>
                     <TableCell>
+                      <div className="text-sm">
+                        <div>{job.deliveryAddress || 'No address'}</div>
+                        {job.deliveryCity && (
+                          <div className="text-xs text-gray-500">{job.deliveryCity}</div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {job.hasCalendarEvents ? (
+                          <Badge variant="default" className="bg-green-100 text-green-800">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            {job.totalCalendarEvents} events
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="bg-orange-100 text-orange-800">
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                            Missing
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
                       <StatusChangeForm
                         currentStatus={job.status}
                         bookingId={job.bookingId}
-                        onStatusChange={(newStatus) => handleStatusChange(job.bookingId, newStatus)}
+                        onStatusChange={() => refreshJobs()}
                       />
                     </TableCell>
                   </TableRow>
@@ -373,7 +479,8 @@ const JobsList: React.FC = () => {
         {sortedJobs.length > 0 && (
           <div className="mt-6 text-sm text-gray-600">
             Showing {sortedJobs.length} job{sortedJobs.length !== 1 ? 's' : ''}
-            {Object.keys(filters).some(key => filters[key as keyof JobsListFilters]) && ' (filtered)'}
+            {Object.keys(filters).some(key => filters[key as keyof typeof filters]) && ' (filtered)'}
+            • {jobsWithCalendarEvents} with calendar events • {jobsWithoutCalendarEvents} missing calendar events
           </div>
         )}
       </div>
