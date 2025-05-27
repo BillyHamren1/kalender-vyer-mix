@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Filter, ArrowUpDown, Calendar, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
@@ -150,96 +151,59 @@ const JobsList: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       <Navbar />
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-6 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Jobs List</h1>
-          
-          {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-600">Total Jobs</p>
-                    <p className="text-2xl font-bold">{totalJobs}</p>
-                  </div>
-                  <Calendar className="h-8 w-8 text-blue-500" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-600">With Calendar Events</p>
-                    <p className="text-2xl font-bold">{jobsWithCalendarEvents}</p>
-                  </div>
-                  <CheckCircle className="h-8 w-8 text-green-500" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-600">Missing Calendar Events</p>
-                    <p className="text-2xl font-bold">{jobsWithoutCalendarEvents}</p>
-                  </div>
-                  <AlertTriangle className="h-8 w-8 text-orange-500" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-600">New Jobs</p>
-                    <p className="text-2xl font-bold">{newJobs}</p>
-                  </div>
-                  <Clock className="h-8 w-8 text-purple-500" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-          
-          {/* Search and Filter Controls */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input
-                placeholder="Search by booking number, client, or address..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+          {/* Header with job count */}
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <span className="text-sm text-gray-600 font-medium">{totalJobs} bookings</span>
             </div>
-            
             <Button
-              variant="outline"
-              onClick={() => setShowFilters(!showFilters)}
-              className="shrink-0"
-            >
-              <Filter className="h-4 w-4 mr-2" />
-              Filters
-            </Button>
-
-            <Button
-              variant="outline"
+              variant="ghost"
               onClick={() => refreshJobs()}
-              className="shrink-0"
+              className="text-sm font-medium"
             >
               Refresh
             </Button>
           </div>
+          
+          {/* Search and Filter Controls */}
+          <div className="flex flex-col sm:flex-row gap-4 mb-8">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Search bookings..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 border-gray-200 focus:border-gray-300 focus:ring-0"
+              />
+            </div>
+            
+            <div className="flex space-x-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowFilters(!showFilters)}
+                className="shrink-0 border-gray-200"
+              >
+                <Filter className="h-4 w-4 mr-2" />
+                Filter
+              </Button>
+
+              <Button
+                variant="outline"
+                className="shrink-0 border-gray-200"
+              >
+                <Calendar className="h-4 w-4 mr-2" />
+                Date Range
+              </Button>
+            </div>
+          </div>
 
           {/* Advanced Filters */}
           {showFilters && (
-            <div className="bg-white p-4 rounded-lg border mb-6">
+            <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 mb-6">
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Date From</label>
@@ -314,169 +278,159 @@ const JobsList: React.FC = () => {
           )}
         </div>
 
-        {/* Jobs Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        {/* Jobs Table - Clean minimal style */}
+        <div className="bg-white">
           {isLoading ? (
             <div className="p-8 text-center">Loading jobs...</div>
           ) : sortedJobs.length === 0 ? (
             <div className="p-8 text-center text-gray-500">No jobs found</div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
-                    onClick={() => handleSort('bookingId')}
-                  >
-                    <div className="flex items-center gap-2">
-                      Booking Nr
-                      <ArrowUpDown className="h-4 w-4" />
-                    </div>
-                  </TableHead>
-                  <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
-                    onClick={() => handleSort('client')}
-                  >
-                    <div className="flex items-center gap-2">
-                      Client
-                      <ArrowUpDown className="h-4 w-4" />
-                    </div>
-                  </TableHead>
-                  <TableHead>Rig</TableHead>
-                  <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
-                    onClick={() => handleSort('eventDate')}
-                  >
-                    <div className="flex items-center gap-2">
-                      Event
-                      <ArrowUpDown className="h-4 w-4" />
-                    </div>
-                  </TableHead>
-                  <TableHead>Rig Down</TableHead>
-                  <TableHead>Address</TableHead>
-                  <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
-                    onClick={() => handleSort('hasCalendarEvents')}
-                  >
-                    <div className="flex items-center gap-2">
-                      Calendar
-                      <ArrowUpDown className="h-4 w-4" />
-                    </div>
-                  </TableHead>
-                  <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
-                    onClick={() => handleSort('status')}
-                  >
-                    <div className="flex items-center gap-2">
-                      Status
-                      <ArrowUpDown className="h-4 w-4" />
-                    </div>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedJobs.map((job) => (
-                  <TableRow 
-                    key={job.bookingId}
-                    className={`hover:bg-gray-50 ${!job.viewed ? 'bg-blue-50' : ''}`}
-                  >
-                    <TableCell>
-                      <Link 
-                        to={`/booking/${job.bookingId}`}
-                        className="text-blue-600 hover:text-blue-800 font-medium"
-                      >
-                        {job.bookingNumber || job.bookingId}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="font-medium">{job.client}</TableCell>
-                    <TableCell>
-                      {job.rigDate ? (
-                        <div className="space-y-2">
-                          <div>
-                            <div className="text-sm font-medium">{job.rigDate}</div>
-                            <div className="text-xs text-gray-500">{job.rigTime}</div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-600 mb-1">Assigned Staff:</div>
-                            {formatStaffList(job.rigStaff)}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {job.eventDate ? (
-                        <div className="space-y-2">
-                          <div>
-                            <div className="text-sm font-medium">{job.eventDate}</div>
-                            <div className="text-xs text-gray-500">{job.eventTime}</div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-600 mb-1">Assigned Staff:</div>
-                            {formatStaffList(job.eventStaff)}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {job.rigDownDate ? (
-                        <div className="space-y-2">
-                          <div>
-                            <div className="text-sm font-medium">{job.rigDownDate}</div>
-                            <div className="text-xs text-gray-500">{job.rigDownTime}</div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-600 mb-1">Assigned Staff:</div>
-                            {formatStaffList(job.rigDownStaff)}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        <div>{job.deliveryAddress || 'No address'}</div>
-                        {job.deliveryCity && (
-                          <div className="text-xs text-gray-500">{job.deliveryCity}</div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {job.hasCalendarEvents ? (
-                          <Badge variant="default" className="bg-green-100 text-green-800">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            {job.totalCalendarEvents} events
-                          </Badge>
-                        ) : (
-                          <Badge variant="destructive" className="bg-orange-100 text-orange-800">
-                            <AlertTriangle className="h-3 w-3 mr-1" />
-                            Missing
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <StatusChangeForm
-                        currentStatus={job.status}
-                        bookingId={job.bookingId}
-                        onStatusChange={() => refreshJobs()}
-                      />
-                    </TableCell>
+            <div className="overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-b border-gray-200">
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                      onClick={() => handleSort('bookingId')}
+                    >
+                      BOOKING NUMBER
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                      onClick={() => handleSort('client')}
+                    >
+                      CLIENT
+                    </TableHead>
+                    <TableHead className="py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      RIG
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                      onClick={() => handleSort('eventDate')}
+                    >
+                      DATE
+                    </TableHead>
+                    <TableHead className="py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      RIG DOWN
+                    </TableHead>
+                    <TableHead className="py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      ADDRESS
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                      onClick={() => handleSort('hasCalendarEvents')}
+                    >
+                      CALENDAR
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                      onClick={() => handleSort('status')}
+                    >
+                      STATUS
+                    </TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {sortedJobs.map((job) => (
+                    <TableRow 
+                      key={job.bookingId}
+                      className="hover:bg-gray-50 border-b border-gray-100"
+                    >
+                      <TableCell className="py-4">
+                        <Link 
+                          to={`/booking/${job.bookingId}`}
+                          className="text-gray-900 hover:text-blue-600 font-medium"
+                        >
+                          {job.bookingNumber || job.bookingId}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="py-4 text-gray-900">{job.client}</TableCell>
+                      <TableCell className="py-4">
+                        {job.rigDate ? (
+                          <div className="space-y-1">
+                            <div className="text-sm text-gray-900">{job.rigDate}</div>
+                            <div className="text-xs text-gray-500">{job.rigTime}</div>
+                            {job.rigStaff && job.rigStaff.length > 0 && (
+                              <div className="mt-1">
+                                {formatStaffList(job.rigStaff)}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-4">
+                        {job.eventDate ? (
+                          <div className="space-y-1">
+                            <div className="text-sm text-gray-900">{job.eventDate}</div>
+                            <div className="text-xs text-gray-500">{job.eventTime}</div>
+                            {job.eventStaff && job.eventStaff.length > 0 && (
+                              <div className="mt-1">
+                                {formatStaffList(job.eventStaff)}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-4">
+                        {job.rigDownDate ? (
+                          <div className="space-y-1">
+                            <div className="text-sm text-gray-900">{job.rigDownDate}</div>
+                            <div className="text-xs text-gray-500">{job.rigDownTime}</div>
+                            {job.rigDownStaff && job.rigDownStaff.length > 0 && (
+                              <div className="mt-1">
+                                {formatStaffList(job.rigDownStaff)}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <div className="text-sm text-gray-900">
+                          <div>{job.deliveryAddress || 'No address'}</div>
+                          {job.deliveryCity && (
+                            <div className="text-xs text-gray-500">{job.deliveryCity}</div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <div className="flex items-center gap-2">
+                          {job.hasCalendarEvents ? (
+                            <Badge variant="default" className="bg-green-100 text-green-800 text-xs">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              {job.totalCalendarEvents} events
+                            </Badge>
+                          ) : (
+                            <Badge variant="destructive" className="bg-orange-100 text-orange-800 text-xs">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Missing
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <StatusChangeForm
+                          currentStatus={job.status}
+                          bookingId={job.bookingId}
+                          onStatusChange={() => refreshJobs()}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </div>
 
         {/* Summary */}
         {sortedJobs.length > 0 && (
-          <div className="mt-6 text-sm text-gray-600">
+          <div className="mt-6 text-sm text-gray-500">
             Showing {sortedJobs.length} job{sortedJobs.length !== 1 ? 's' : ''}
             {Object.keys(filters).some(key => filters[key as keyof typeof filters]) && ' (filtered)'}
             • {jobsWithCalendarEvents} with calendar events • {jobsWithoutCalendarEvents} missing calendar events
