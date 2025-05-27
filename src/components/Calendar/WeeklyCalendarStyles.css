@@ -8,8 +8,8 @@
 }
 
 .weekly-calendar-container {
-  min-width: 2100px;
-  width: 2100px;
+  min-width: 5250px;
+  width: 5250px;
   display: flex;
   overflow-x: auto;
   scroll-behavior: smooth;
@@ -25,8 +25,8 @@
 
 .day-calendar-wrapper,
 .monthly-day-wrapper {
-  min-width: 300px;
-  width: 300px;
+  min-width: 750px;
+  width: 750px;
   flex: none;
   border-right: 1px solid #e5e7eb;
 }
@@ -210,7 +210,7 @@
 /* Make sure day columns have adequate space */
 .weekly-view-calendar .fc-timegrid-cols,
 .monthly-view-calendar .fc-timegrid-cols {
-  min-width: 450px !important;
+  min-width: 1125px !important;
 }
 
 /* Critical fix - ensure ALL resource column headers have consistent width and soft borders */
@@ -227,7 +227,7 @@
 /* Fix for resource container width */
 .weekly-view-calendar .fc-resource-timeline-body,
 .monthly-view-calendar .fc-resource-timeline-body {
-  min-width: 450px !important;
+  min-width: 1125px !important;
 }
 
 /* Critical fix - ensure ALL resource cells have exact same width with soft borders */
