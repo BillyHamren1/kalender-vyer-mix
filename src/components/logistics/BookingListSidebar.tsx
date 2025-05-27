@@ -44,7 +44,7 @@ const BookingListSidebar: React.FC<BookingListSidebarProps> = ({
 
   if (!bookings.length) {
     return (
-      <div className="w-1/3 p-4 border-r">
+      <div className="w-1/6 p-4 border-r">
         <div className="text-center p-6">
           <h3 className="text-lg font-medium text-gray-900">No Bookings</h3>
           <p className="mt-2 text-sm text-gray-500">
@@ -56,7 +56,7 @@ const BookingListSidebar: React.FC<BookingListSidebarProps> = ({
   }
 
   return (
-    <div className="w-1/3 border-r">
+    <div className="w-1/6 border-r">
       <ScrollArea className="h-full">
         <div className="p-4">
           <h3 className="text-lg font-medium mb-4">Bookings ({bookings.length})</h3>

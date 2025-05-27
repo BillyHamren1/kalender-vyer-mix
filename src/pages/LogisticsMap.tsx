@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -80,7 +79,7 @@ const LogisticsMap = () => {
                         onBookingSelect={setSelectedBooking}
                       />
                     )}
-                    <div className={`${showSidebar ? 'w-2/3' : 'w-full'} h-full`}>
+                    <div className={`${showSidebar ? 'w-5/6' : 'w-full'} h-full`}>
                       <MapComponent 
                         bookings={filteredBookings} 
                         selectedBooking={selectedBooking}
