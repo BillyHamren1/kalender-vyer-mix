@@ -1,9 +1,42 @@
+
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Clock, Users, MapPin, Calendar } from 'lucide-react';
-import { StaffCalendarEvent, StaffResource } from '@/services/staffCalendarService';
 import { format, differenceInHours } from 'date-fns';
+
+interface StaffCalendarEvent {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  resourceId: string;
+  teamId?: string;
+  teamName?: string;
+  staffName?: string;
+  bookingId?: string;
+  eventType: 'assignment' | 'booking_event';
+  backgroundColor?: string;
+  borderColor?: string;
+  client?: string;
+  extendedProps?: {
+    bookingId?: string;
+    booking_id?: string;
+    deliveryAddress?: string;
+    bookingNumber?: string;
+    eventType?: string;
+    staffName?: string;
+    client?: string;
+    teamName?: string;
+  };
+}
+
+interface StaffResource {
+  id: string;
+  title: string;
+  name: string;
+  email?: string;
+}
 
 interface JobSummaryListProps {
   events: StaffCalendarEvent[];
@@ -20,6 +53,7 @@ interface JobSummary {
   staffMembers: string[];
   totalHours: number;
   events: StaffCalendarEvent[];
+  bookingId?: string;
 }
 
 const JobSummaryList: React.FC<JobSummaryListProps> = ({
@@ -29,11 +63,63 @@ const JobSummaryList: React.FC<JobSummaryListProps> = ({
   currentDate,
   viewMode
 }) => {
+  // Helper function to extract clean client name from title
+  const extractClientName = (title: string): string => {
+    // Remove booking ID pattern like "#2025-123 - " or "999149e3-abd5-4199-ae51-cae5c62a0173: "
+    const cleanTitle = title
+      .replace(/^#?\d{4}-\d+\s*-\s*/, '') // Remove "#2025-123 - "
+      .replace(/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}:\s*/, '') // Remove UUID pattern
+      .trim();
+    
+    return cleanTitle || 'Unknown Client';
+  };
+
+  // Helper function to get staff name with fallback
+  const getStaffName = (event: StaffCalendarEvent): string => {
+    // First try extendedProps.staffName
+    if (event.extendedProps?.staffName) {
+      return event.extendedProps.staffName;
+    }
+    
+    // Then try staffName property
+    if (event.staffName) {
+      return event.staffName;
+    }
+    
+    // Look up in staffResources by resourceId
+    const staffResource = staffResources.find(s => s.id === event.resourceId);
+    if (staffResource) {
+      return staffResource.name;
+    }
+    
+    // Final fallback
+    return `Staff Member`;
+  };
+
+  // Helper function to get event type display name
+  const getEventTypeDisplayName = (event: StaffCalendarEvent): string => {
+    const eventType = event.extendedProps?.eventType || event.eventType;
+    
+    switch (eventType) {
+      case 'rig':
+        return 'Rig Setup';
+      case 'event':
+        return 'Event';
+      case 'rigDown':
+        return 'Rig Down';
+      case 'booking_event':
+        return 'Booking Event';
+      default:
+        return 'Work Assignment';
+    }
+  };
+
   // Filter and group events by job/client
   const filteredEvents = events.filter(event => {
     if (selectedClients.length === 0) return true;
+    const clientName = extractClientName(event.title);
     return selectedClients.some(client => 
-      event.title.toLowerCase().includes(client.toLowerCase())
+      clientName.toLowerCase().includes(client.toLowerCase())
     );
   });
 
@@ -42,7 +128,10 @@ const JobSummaryList: React.FC<JobSummaryListProps> = ({
   const groupedEvents = new Map<string, StaffCalendarEvent[]>();
 
   filteredEvents.forEach(event => {
-    const key = `${event.title}-${format(new Date(event.start), 'yyyy-MM-dd')}`;
+    const bookingId = event.bookingId || event.extendedProps?.bookingId || event.extendedProps?.booking_id;
+    const eventDate = format(new Date(event.start), 'yyyy-MM-dd');
+    const key = bookingId ? `${bookingId}-${eventDate}` : `${event.title}-${eventDate}`;
+    
     if (!groupedEvents.has(key)) {
       groupedEvents.set(key, []);
     }
@@ -51,14 +140,14 @@ const JobSummaryList: React.FC<JobSummaryListProps> = ({
 
   groupedEvents.forEach((eventGroup, key) => {
     const firstEvent = eventGroup[0];
-    const client = firstEvent.title.split(' - ')[0] || 'Unknown Client';
-    const jobTitle = firstEvent.title;
+    const client = extractClientName(firstEvent.title);
+    const bookingId = firstEvent.bookingId || firstEvent.extendedProps?.bookingId || firstEvent.extendedProps?.booking_id;
+    
+    // Create a clean job title
+    const jobTitle = client;
     
     // Get unique staff members for this job
-    const staffIds = [...new Set(eventGroup.map(e => e.resourceId))];
-    const staffNames = staffIds.map(id => 
-      staffResources.find(s => s.id === id)?.name || `Staff-${id}`
-    );
+    const staffNames = [...new Set(eventGroup.map(e => getStaffName(e)))];
 
     // Calculate total hours
     const totalHours = eventGroup.reduce((total, event) => {
@@ -73,7 +162,8 @@ const JobSummaryList: React.FC<JobSummaryListProps> = ({
       date: format(new Date(firstEvent.start), 'MMM d, yyyy'),
       staffMembers: staffNames,
       totalHours,
-      events: eventGroup
+      events: eventGroup,
+      bookingId
     });
   });
 
@@ -108,7 +198,7 @@ const JobSummaryList: React.FC<JobSummaryListProps> = ({
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-orange-600">
-                {totalStaffHours > 0 ? Math.round(totalStaffHours / uniqueStaff.size) : 0}h
+                {totalStaffHours > 0 && uniqueStaff.size > 0 ? Math.round(totalStaffHours / uniqueStaff.size) : 0}h
               </div>
               <div className="text-sm text-gray-600">Avg Hours/Staff</div>
             </div>
@@ -129,11 +219,13 @@ const JobSummaryList: React.FC<JobSummaryListProps> = ({
           ) : (
             <div className="space-y-4">
               {jobSummaries.map((job, index) => (
-                <div key={`${job.jobTitle}-${job.date}-${index}`} className="border border-gray-200 rounded-lg p-4">
+                <div key={`${job.bookingId || job.jobTitle}-${job.date}-${index}`} className="border border-gray-200 rounded-lg p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <h3 className="font-semibold text-gray-900">{job.client}</h3>
-                      <p className="text-sm text-gray-600">{job.jobTitle}</p>
+                      {job.bookingId && (
+                        <p className="text-xs text-gray-500">Booking ID: {job.bookingId}</p>
+                      )}
                     </div>
                     <Badge variant="outline" className="ml-2">
                       {job.totalHours}h total
@@ -161,8 +253,8 @@ const JobSummaryList: React.FC<JobSummaryListProps> = ({
                   <div className="mt-3">
                     <div className="text-xs text-gray-500 mb-1">Assigned Staff:</div>
                     <div className="flex flex-wrap gap-1">
-                      {job.staffMembers.map(staff => (
-                        <Badge key={staff} variant="secondary" className="text-xs">
+                      {job.staffMembers.map((staff, idx) => (
+                        <Badge key={`${staff}-${idx}`} variant="secondary" className="text-xs">
                           {staff}
                         </Badge>
                       ))}
@@ -175,10 +267,12 @@ const JobSummaryList: React.FC<JobSummaryListProps> = ({
                     <div className="space-y-1">
                       {job.events.map(event => {
                         const duration = differenceInHours(new Date(event.end), new Date(event.start));
-                        const staffName = staffResources.find(s => s.id === event.resourceId)?.name || 'Unknown';
+                        const staffName = getStaffName(event);
+                        const eventTypeName = getEventTypeDisplayName(event);
+                        
                         return (
                           <div key={event.id} className="text-xs bg-gray-50 p-2 rounded flex justify-between">
-                            <span>{staffName}</span>
+                            <span>{staffName} - {eventTypeName}</span>
                             <span>{format(new Date(event.start), 'HH:mm')} - {format(new Date(event.end), 'HH:mm')} ({duration}h)</span>
                           </div>
                         );
