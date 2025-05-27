@@ -147,6 +147,18 @@ const JobsList: React.FC = () => {
     );
   };
 
+  // Get all assigned staff for a job (across all phases)
+  const getAllAssignedStaff = (job: JobsListItem) => {
+    const allStaff = [
+      ...(job.rigStaff || []),
+      ...(job.eventStaff || []),
+      ...(job.rigDownStaff || [])
+    ];
+    // Remove duplicates
+    const uniqueStaff = [...new Set(allStaff)];
+    return uniqueStaff;
+  };
+
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -326,6 +338,9 @@ const JobsList: React.FC = () => {
                     <TableHead className="py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       ADDRESS
                     </TableHead>
+                    <TableHead className="py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      ASSIGNED STAFF
+                    </TableHead>
                     <TableHead 
                       className="cursor-pointer hover:bg-gray-50 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider"
                       onClick={() => handleSort('hasCalendarEvents')}
@@ -404,6 +419,11 @@ const JobsList: React.FC = () => {
                           {job.deliveryCity && (
                             <div className="text-xs text-gray-500">{job.deliveryCity}</div>
                           )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <div className="space-y-1">
+                          {formatStaffList(getAllAssignedStaff(job))}
                         </div>
                       </TableCell>
                       <TableCell className="py-4">
