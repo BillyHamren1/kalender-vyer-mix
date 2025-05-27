@@ -5,6 +5,8 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { Booking } from '@/types/booking';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { Button } from '@/components/ui/button';
+import { Ruler, Satellite, Map } from 'lucide-react';
 
 interface MapComponentProps {
   bookings: Booking[];
@@ -24,6 +26,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const popups = useRef<{[key: string]: mapboxgl.Popup}>({});
   const [mapboxToken, setMapboxToken] = useState<string | null>(null);
   const [isLoadingToken, setIsLoadingToken] = useState(true);
+  const [isSatelliteView, setIsSatelliteView] = useState(true);
+  const [isMeasuring, setIsMeasuring] = useState(false);
+  const [measurementPoints, setMeasurementPoints] = useState<number[][]>([]);
+  const [totalDistance, setTotalDistance] = useState(0);
 
   // Fetch Mapbox token from edge function
   useEffect(() => {
@@ -57,15 +63,79 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: [0, 0], // Default to world view
-      zoom: 1
+      style: 'mapbox://styles/mapbox/satellite-streets-v12', // Start with satellite view
+      center: [0, 0],
+      zoom: 2,
+      minZoom: 0,
+      maxZoom: 22, // Very high zoom level for detailed measurements
+      pitch: 0,
+      bearing: 0
     });
 
-    map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+    // Enhanced navigation controls
+    map.current.addControl(new mapboxgl.NavigationControl({
+      showCompass: true,
+      showZoom: true,
+      visualizePitch: true
+    }), 'top-right');
+
+    // Add fullscreen control
+    map.current.addControl(new mapboxgl.FullscreenControl(), 'top-right');
+
+    // Add scale control for distance reference
+    map.current.addControl(new mapboxgl.ScaleControl({
+      maxWidth: 200,
+      unit: 'metric'
+    }), 'bottom-left');
     
     map.current.on('load', () => {
       setMapInitialized(true);
+      
+      // Add sources and layers for measurement
+      map.current!.addSource('measurement-points', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: []
+        }
+      });
+      
+      map.current!.addSource('measurement-line', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: []
+        }
+      });
+      
+      // Add layer for measurement line
+      map.current!.addLayer({
+        id: 'measurement-line',
+        type: 'line',
+        source: 'measurement-line',
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': '#ff0000',
+          'line-width': 3,
+          'line-dasharray': [2, 2]
+        }
+      });
+      
+      // Add layer for measurement points
+      map.current!.addLayer({
+        id: 'measurement-points',
+        type: 'circle',
+        source: 'measurement-points',
+        paint: {
+          'circle-radius': 6,
+          'circle-color': '#ff0000',
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2
+        }
+      });
     });
 
     return () => {
@@ -73,6 +143,123 @@ const MapComponent: React.FC<MapComponentProps> = ({
       map.current = null;
     };
   }, [mapboxToken, isLoadingToken]);
+
+  // Calculate distance between two points using Haversine formula
+  const calculateDistance = (point1: number[], point2: number[]) => {
+    const R = 6371000; // Earth's radius in meters
+    const lat1 = point1[1] * Math.PI / 180;
+    const lat2 = point2[1] * Math.PI / 180;
+    const deltaLat = (point2[1] - point1[1]) * Math.PI / 180;
+    const deltaLng = (point2[0] - point1[0]) * Math.PI / 180;
+
+    const a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+              Math.cos(lat1) * Math.cos(lat2) *
+              Math.sin(deltaLng / 2) * Math.sin(deltaLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // Distance in meters
+  };
+
+  // Handle measurement tool
+  const toggleMeasurement = () => {
+    if (!map.current) return;
+    
+    if (isMeasuring) {
+      // Stop measuring
+      setIsMeasuring(false);
+      setMeasurementPoints([]);
+      setTotalDistance(0);
+      
+      // Clear measurement data
+      (map.current.getSource('measurement-points') as mapboxgl.GeoJSONSource)?.setData({
+        type: 'FeatureCollection',
+        features: []
+      });
+      
+      (map.current.getSource('measurement-line') as mapboxgl.GeoJSONSource)?.setData({
+        type: 'FeatureCollection',
+        features: []
+      });
+      
+      map.current.off('click', handleMeasurementClick);
+      map.current.getCanvas().style.cursor = '';
+      toast.info('Measurement stopped');
+    } else {
+      // Start measuring
+      setIsMeasuring(true);
+      setMeasurementPoints([]);
+      setTotalDistance(0);
+      map.current.on('click', handleMeasurementClick);
+      map.current.getCanvas().style.cursor = 'crosshair';
+      toast.info('Click on the map to start measuring distances');
+    }
+  };
+
+  const handleMeasurementClick = (e: mapboxgl.MapMouseEvent) => {
+    if (!map.current) return;
+    
+    const newPoint = [e.lngLat.lng, e.lngLat.lat];
+    const newPoints = [...measurementPoints, newPoint];
+    setMeasurementPoints(newPoints);
+    
+    // Calculate total distance
+    let distance = 0;
+    for (let i = 1; i < newPoints.length; i++) {
+      distance += calculateDistance(newPoints[i - 1], newPoints[i]);
+    }
+    setTotalDistance(distance);
+    
+    // Update points on map
+    (map.current.getSource('measurement-points') as mapboxgl.GeoJSONSource)?.setData({
+      type: 'FeatureCollection',
+      features: newPoints.map(point => ({
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: point
+        },
+        properties: {}
+      }))
+    });
+    
+    // Update line on map
+    if (newPoints.length > 1) {
+      (map.current.getSource('measurement-line') as mapboxgl.GeoJSONSource)?.setData({
+        type: 'FeatureCollection',
+        features: [{
+          type: 'Feature',
+          geometry: {
+            type: 'LineString',
+            coordinates: newPoints
+          },
+          properties: {}
+        }]
+      });
+    }
+    
+    // Show distance popup
+    if (distance > 0) {
+      const distanceText = distance > 1000 
+        ? `${(distance / 1000).toFixed(2)} km`
+        : `${distance.toFixed(2)} m`;
+      
+      new mapboxgl.Popup({ closeOnClick: false })
+        .setLngLat(e.lngLat)
+        .setHTML(`<div class="text-sm font-medium">Distance: ${distanceText}</div>`)
+        .addTo(map.current);
+    }
+  };
+
+  const toggleMapStyle = () => {
+    if (!map.current) return;
+    
+    const newStyle = isSatelliteView 
+      ? 'mapbox://styles/mapbox/streets-v12'
+      : 'mapbox://styles/mapbox/satellite-streets-v12';
+    
+    map.current.setStyle(newStyle);
+    setIsSatelliteView(!isSatelliteView);
+  };
 
   // Add or update markers when bookings change
   useEffect(() => {
@@ -165,7 +352,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     if (selectedBooking.deliveryLatitude && selectedBooking.deliveryLongitude) {
       map.current.flyTo({
         center: [selectedBooking.deliveryLongitude, selectedBooking.deliveryLatitude],
-        zoom: 15,
+        zoom: 18, // Higher zoom for better detail
         duration: 1000
       });
       
@@ -199,8 +386,43 @@ const MapComponent: React.FC<MapComponentProps> = ({
     );
   }
 
+  const formatDistance = (distance: number) => {
+    return distance > 1000 
+      ? `${(distance / 1000).toFixed(2)} km`
+      : `${distance.toFixed(2)} m`;
+  };
+
   return (
-    <div className="h-full w-full rounded-lg overflow-hidden">
+    <div className="h-full w-full rounded-lg overflow-hidden relative">
+      {/* Map Controls */}
+      <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
+        <Button
+          onClick={toggleMapStyle}
+          variant="outline"
+          size="sm"
+          className="bg-white/90 backdrop-blur-sm"
+        >
+          {isSatelliteView ? <Map className="h-4 w-4 mr-2" /> : <Satellite className="h-4 w-4 mr-2" />}
+          {isSatelliteView ? 'Street View' : 'Satellite'}
+        </Button>
+        
+        <Button
+          onClick={toggleMeasurement}
+          variant={isMeasuring ? "default" : "outline"}
+          size="sm"
+          className="bg-white/90 backdrop-blur-sm"
+        >
+          <Ruler className="h-4 w-4 mr-2" />
+          {isMeasuring ? 'Stop Measuring' : 'Measure Distance'}
+        </Button>
+        
+        {isMeasuring && totalDistance > 0 && (
+          <div className="bg-white/90 backdrop-blur-sm p-2 rounded text-sm font-medium">
+            Total: {formatDistance(totalDistance)}
+          </div>
+        )}
+      </div>
+      
       <div ref={mapContainer} className="h-full w-full" />
     </div>
   );
