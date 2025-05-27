@@ -35,7 +35,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({
     case 'CONFIRMED':
       statusText = 'Confirmed';
       icon = <CheckCircle className="h-3 w-3" />;
-      badgeClasses = 'bg-[#7BAEBF]/20 text-[#7DB6C5] hover:bg-[#7BAEBF]/20 border-[#7DB6C5]';
+      badgeClasses = 'bg-gray-50 text-gray-500 hover:bg-gray-50 border border-gray-200';
       break;
     case 'CANCELLED':
       statusText = 'Cancelled';
