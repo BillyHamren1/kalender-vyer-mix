@@ -8,8 +8,8 @@
 }
 
 .weekly-calendar-container {
-  min-width: 1400px;
-  width: 100%;
+  min-width: 2100px;
+  width: 2100px;
   display: flex;
   overflow-x: auto;
   scroll-behavior: smooth;
@@ -25,13 +25,15 @@
 
 .day-calendar-wrapper,
 .monthly-day-wrapper {
-  min-width: 550px;
-  flex: 1;
+  min-width: 300px;
+  width: 300px;
+  flex: none;
   border-right: 1px solid #e5e7eb;
 }
 
 .monthly-day-wrapper {
   min-width: unset;
+  width: auto;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   overflow: hidden;
@@ -42,55 +44,7 @@
   border-right: none;
 }
 
-/* Unified simple day header styling - matching monthly view exactly */
-.day-header {
-  background: #f0f9f9;
-  border: 1px solid #d1d5db;
-  border-bottom: 1px solid #d1d5db;
-  text-align: center;
-  padding: 8px;
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 2px;
-  border-radius: 8px 8px 0 0;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  transition: background-color 0.2s, transform 0.1s;
-  font-size: 14px;
-}
-
-/* Add hover effect to indicate clickable */
-.day-header:hover {
-  background: #e1f1f3;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
-}
-
-/* Active state for when clicking */
-.day-header:active {
-  transform: translateY(0);
-  background: #d8eaee;
-}
-
-/* Today styling for day headers */
-.day-header.today {
-  background: #e8f4f6;
-  border: 2px solid #5fb3cc;
-  border-bottom: 3px solid #5fb3cc;
-  color: #2c5f6b;
-  font-weight: 700;
-}
-
-/* Other month styling for monthly view */
-.day-header.other-month {
-  background: #f8f9fa;
-  color: #9ca3af;
-  opacity: 0.6;
-}
-
-/* ... keep existing code (all resource and calendar styling) */
+/* ... keep existing code (all other styling) */
 
 /* Make resource timeline work properly */
 .fc-resource-timeline-divider {
@@ -371,4 +325,52 @@
 .monthly-view-calendar .assign-button-icon svg {
   height: 12px !important;
   width: 12px !important;
+}
+
+/* Unified simple day header styling - matching monthly view exactly */
+.day-header {
+  background: #f0f9f9;
+  border: 1px solid #d1d5db;
+  border-bottom: 1px solid #d1d5db;
+  text-align: center;
+  padding: 8px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 2px;
+  border-radius: 8px 8px 0 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.2s, transform 0.1s;
+  font-size: 14px;
+}
+
+/* Add hover effect to indicate clickable */
+.day-header:hover {
+  background: #e1f1f3;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+/* Active state for when clicking */
+.day-header:active {
+  transform: translateY(0);
+  background: #d8eaee;
+}
+
+/* Today styling for day headers */
+.day-header.today {
+  background: #e8f4f6;
+  border: 2px solid #5fb3cc;
+  border-bottom: 3px solid #5fb3cc;
+  color: #2c5f6b;
+  font-weight: 700;
+}
+
+/* Other month styling for monthly view */
+.day-header.other-month {
+  background: #f8f9fa;
+  color: #9ca3af;
+  opacity: 0.6;
 }
