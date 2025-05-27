@@ -16,7 +16,7 @@ export const useJobsListRealTime = (initialFilters?: JobsListFilters) => {
 
   // Set up real-time subscriptions
   useEffect(() => {
-    console.log('Setting up real-time subscriptions for jobs list');
+    console.log('Setting up real-time subscriptions for jobs list (calendar events only)');
     
     const unsubscribe = subscribeToJobsListUpdates(() => {
       console.log('Real-time update detected, refreshing jobs list');
@@ -42,10 +42,10 @@ export const useJobsListRealTime = (initialFilters?: JobsListFilters) => {
     return refetch();
   }, [refetch]);
 
-  // Derived data
+  // Derived data - all jobs will have calendar events now
   const totalJobs = jobsList.length;
-  const jobsWithCalendarEvents = jobsList.filter(job => job.hasCalendarEvents).length;
-  const jobsWithoutCalendarEvents = totalJobs - jobsWithCalendarEvents;
+  const jobsWithCalendarEvents = jobsList.length; // All jobs have calendar events
+  const jobsWithoutCalendarEvents = 0; // None without calendar events
   const newJobs = jobsList.filter(job => !job.viewed).length;
 
   return {

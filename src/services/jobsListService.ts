@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { JobsListItem, JobsListFilters } from "@/types/jobsList";
 import { format } from "date-fns";
@@ -17,14 +16,35 @@ const mapTeamId = (teamId: string): string => {
   return teamMapping[teamId] || teamId;
 };
 
-// Enhanced fetch function to get ALL bookings with comprehensive data
+// Enhanced fetch function to get ONLY bookings with calendar events
 export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsListItem[]> => {
-  console.log('Fetching enhanced jobs list with filters:', filters);
+  console.log('Fetching jobs list with calendar events only, filters:', filters);
   
-  // Build the bookings query with filters
+  // First, get all calendar events with booking IDs
+  const { data: calendarEvents, error: eventsError } = await supabase
+    .from('calendar_events')
+    .select('*')
+    .not('booking_id', 'is', null);
+
+  if (eventsError) {
+    console.error('Error fetching calendar events:', eventsError);
+    throw eventsError;
+  }
+
+  if (!calendarEvents || calendarEvents.length === 0) {
+    console.log('No calendar events with booking IDs found');
+    return [];
+  }
+
+  // Get unique booking IDs from calendar events
+  const bookingIdsWithEvents = [...new Set(calendarEvents.map(event => event.booking_id))];
+  console.log(`Found ${bookingIdsWithEvents.length} unique bookings with calendar events`);
+
+  // Build the bookings query with filters, only for bookings that have calendar events
   let bookingsQuery = supabase
     .from('bookings')
     .select('*')
+    .in('id', bookingIdsWithEvents)
     .order('eventdate', { ascending: true });
   
   // Apply filters to bookings query
@@ -52,29 +72,17 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
   }
 
   if (!bookings || bookings.length === 0) {
-    console.log('No bookings found');
+    console.log('No bookings found with calendar events');
     return [];
   }
 
-  console.log(`Found ${bookings.length} bookings`);
-
-  // Fetch ALL calendar events (not just for these bookings)
-  const { data: allCalendarEvents, error: eventsError } = await supabase
-    .from('calendar_events')
-    .select('*');
-
-  if (eventsError) {
-    console.error('Error fetching calendar events:', eventsError);
-    throw eventsError;
-  }
-
-  console.log(`Found ${allCalendarEvents?.length || 0} total calendar events`);
+  console.log(`Found ${bookings.length} bookings with calendar events`);
 
   // Get unique team IDs and dates for staff assignment lookup
-  const allTeamIds = [...new Set(allCalendarEvents?.map(event => event.resource_id) || [])];
+  const allTeamIds = [...new Set(calendarEvents?.map(event => event.resource_id) || [])];
   const mappedTeamIds = [...new Set(allTeamIds.map(mapTeamId))];
   
-  const allEventDates = [...new Set(allCalendarEvents?.map(event => {
+  const allEventDates = [...new Set(calendarEvents?.map(event => {
     const date = new Date(event.start_time);
     return date.toISOString().split('T')[0];
   }) || [])];
@@ -119,10 +127,10 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
     }
   }
 
-  // Process and combine the data for ALL bookings
+  // Process and combine the data for bookings with calendar events only
   const jobsList: JobsListItem[] = bookings.map(booking => {
     // Find calendar events for this booking
-    const bookingEvents = allCalendarEvents?.filter(event => event.booking_id === booking.id) || [];
+    const bookingEvents = calendarEvents?.filter(event => event.booking_id === booking.id) || [];
     
     console.log(`Processing booking ${booking.id} with ${bookingEvents.length} events`);
     
@@ -149,29 +157,9 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
       return staffNames;
     };
 
-    // Helper function to format event data with fallback handling
-    const formatEventData = (events: any[], eventType: string) => {
+    // Helper function to format event data
+    const formatEventData = (events: any[]) => {
       if (events.length === 0) {
-        // For bookings without calendar events, try to use booking dates
-        let fallbackDate: string | undefined;
-        if (eventType === 'rig' && booking.rigdaydate) {
-          fallbackDate = booking.rigdaydate;
-        } else if (eventType === 'event' && booking.eventdate) {
-          fallbackDate = booking.eventdate;
-        } else if (eventType === 'rigDown' && booking.rigdowndate) {
-          fallbackDate = booking.rigdowndate;
-        }
-        
-        if (fallbackDate) {
-          return {
-            date: format(new Date(fallbackDate), 'MMM d, yyyy'),
-            time: 'Not scheduled',
-            team: undefined,
-            staff: [],
-            hasCalendarEvent: false
-          };
-        }
-        
         return { 
           date: undefined, 
           time: undefined, 
@@ -196,9 +184,9 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
       };
     };
 
-    const rigData = formatEventData(rigEvents, 'rig');
-    const eventData = formatEventData(eventEvents, 'event');
-    const rigDownData = formatEventData(rigDownEvents, 'rigDown');
+    const rigData = formatEventData(rigEvents);
+    const eventData = formatEventData(eventEvents);
+    const rigDownData = formatEventData(rigDownEvents);
 
     const jobItem = {
       bookingId: booking.id,
@@ -219,8 +207,8 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
       deliveryAddress: booking.deliveryaddress,
       deliveryCity: booking.delivery_city,
       viewed: booking.viewed,
-      // Additional metadata
-      hasCalendarEvents: bookingEvents.length > 0,
+      // These will always be true since we only fetch bookings with calendar events
+      hasCalendarEvents: true,
       totalCalendarEvents: bookingEvents.length
     };
     
@@ -240,7 +228,7 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
     });
   }
 
-  console.log(`Returning ${jobsList.length} jobs (${jobsList.filter(j => j.hasCalendarEvents).length} with calendar events)`);
+  console.log(`Returning ${jobsList.length} jobs (all with calendar events)`);
   return jobsList;
 };
 
