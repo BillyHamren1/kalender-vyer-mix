@@ -16,6 +16,7 @@ import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
 import DateNavigationHeader from '@/components/Calendar/DateNavigationHeader';
 import { useStaffOperations } from '@/hooks/useStaffOperations';
 import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
+import { checkAndOfferCleanup, runCalendarCleanup } from '@/utils/calendarCleanup';
 
 const ResourceView = () => {
   // Use the new real-time calendar events hook
@@ -55,6 +56,22 @@ const ResourceView = () => {
   
   // Use staff operations hook
   const { handleStaffDrop } = useStaffOperations(currentDate);
+
+  // Check for cleanup on first load
+  useEffect(() => {
+    if (checkAndOfferCleanup()) {
+      const shouldCleanup = window.confirm(
+        'It looks like there might be duplicate calendar events. Would you like to clean them up now? This will remove any duplicate events and prevent future duplications.'
+      );
+      
+      if (shouldCleanup) {
+        runCalendarCleanup();
+      } else {
+        // Mark as completed even if user declined, so we don't ask again
+        localStorage.setItem('calendar-cleanup-completed', 'true');
+      }
+    }
+  }, []);
   
   // Setup completed flag to prevent multiple setups
   useEffect(() => {
