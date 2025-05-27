@@ -85,17 +85,25 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
 
   // Determine styling based on variant and assignment status
   const isAssigned = variant === 'available' && !!staff.assignedTeam;
-  const baseClasses = `p-2 border border-gray-200 rounded-md cursor-move flex items-center transition-all duration-150 hover:shadow-sm active:cursor-grabbing w-full`;
   
-  // Always use white background for both variants
-  const variantClasses = isAssigned ? 'bg-white opacity-60' : 'bg-white shadow-sm';
+  // Clean, professional styling with minimal spacing
+  const baseClasses = `
+    cursor-move inline-flex items-center justify-center
+    transition-all duration-150 active:cursor-grabbing
+    px-2 py-1 text-xs font-medium rounded-md
+    border border-gray-200 bg-white
+    hover:shadow-sm hover:border-gray-300
+  `.trim().replace(/\s+/g, ' ');
   
-  // Enhanced drag feedback - more pronounced visual changes
+  // Assignment-based styling
+  const variantClasses = isAssigned 
+    ? 'opacity-60 bg-gray-50 text-gray-500' 
+    : 'text-gray-700 hover:bg-gray-50';
+  
+  // Enhanced drag feedback
   const dragClasses = isDragging 
-    ? 'opacity-30 transform rotate-1 scale-110 shadow-lg bg-blue-50 border-blue-300' 
+    ? 'opacity-30 transform scale-105 shadow-lg bg-blue-50 border-blue-300 text-blue-700' 
     : 'opacity-100';
-
-  const itemHeight = variant === 'available' ? "32px" : "auto";
 
   return (
     <>
@@ -106,7 +114,6 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
         }}
         className={`${baseClasses} ${variantClasses} ${dragClasses}`}
         style={{ 
-          height: itemHeight,
           userSelect: 'none',
           WebkitUserSelect: 'none',
           transition: isDragging ? 'all 0.1s ease-out' : 'all 0.15s ease-in-out'
@@ -115,13 +122,9 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
         draggable="true"
         title={variant === 'available' && isAssigned ? `Assigned to team` : undefined}
       >
-        <div className="flex items-center gap-3 w-full pointer-events-none">
-          <span className={`text-sm font-medium flex-1 ${
-            variant === 'available' && isAssigned ? 'text-gray-500' : ''
-          } ${isDragging ? 'text-blue-700 font-semibold' : ''}`}>
-            {getDisplayName(staff.name, variant)}
-          </span>
-        </div>
+        <span className={`leading-none ${isDragging ? 'font-semibold' : ''}`}>
+          {getDisplayName(staff.name, variant)}
+        </span>
       </div>
       
       {showRemoveDialog && variant === 'assigned' && (
