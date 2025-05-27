@@ -1,7 +1,7 @@
 
 import React from 'react';
 
-// Custom styles to ensure addresses wrap properly and CONSISTENT COLUMN WIDTHS
+// Custom styles to ensure addresses wrap properly and OPTIMAL COLUMN WIDTHS for 5 teams
 export const ResourceCalendarStyles: React.FC = () => (
   <style>
     {`
@@ -28,7 +28,7 @@ export const ResourceCalendarStyles: React.FC = () => (
       .fc-timegrid-event .fc-event-main {
         padding: 2px 4px !important;
       }
-      /* CRITICAL: Force ALL resource columns to be exactly 200px - highest specificity */
+      /* OPTIMAL: Force ALL resource columns to be exactly 150px for 5 teams visibility */
       .fc-resource-area td,
       .fc-resource-area th,
       .fc-resource-lane,
@@ -37,9 +37,9 @@ export const ResourceCalendarStyles: React.FC = () => (
       .fc-datagrid-cell-cushion,
       .fc-timegrid-col,
       .fc-col-header-cell {
-        min-width: 200px !important;
-        width: 200px !important;
-        max-width: 200px !important;
+        min-width: 150px !important;
+        width: 150px !important;
+        max-width: 150px !important;
         box-sizing: border-box !important;
       }
       /* Ensure header area matches content area exactly */
@@ -47,9 +47,9 @@ export const ResourceCalendarStyles: React.FC = () => (
       .fc-datagrid-header .fc-datagrid-cell-frame,
       .fc-datagrid-body .fc-datagrid-cell,
       .fc-datagrid-body .fc-datagrid-cell-frame {
-        min-width: 200px !important;
-        width: 200px !important;
-        max-width: 200px !important;
+        min-width: 150px !important;
+        width: 150px !important;
+        max-width: 150px !important;
       }
       /* Special handling for team-6 to ensure consistency */
       [data-resource-id="team-6"] .fc-datagrid-cell,
@@ -58,9 +58,9 @@ export const ResourceCalendarStyles: React.FC = () => (
       [data-resource-id="team-6"].fc-datagrid-cell-frame,
       [data-resource-id="team-6"] .fc-timegrid-col,
       [data-resource-id="team-6"].fc-timegrid-col {
-        min-width: 200px !important;
-        width: 200px !important;
-        max-width: 200px !important;
+        min-width: 150px !important;
+        width: 150px !important;
+        max-width: 150px !important;
       }
     `}
   </style>

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
@@ -99,13 +98,13 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 
   const getResourceTimeGridOptions = () => {
     return {
-      resourceAreaWidth: '80px',
+      resourceAreaWidth: '150px',
       resourceLabelText: 'Teams',
       resourceAreaHeaderContent: 'Teams',
       stickyResourceAreaHeaders: true,
       resourceOrder: 'title',
       resourcesInitiallyExpanded: true,
-      slotMinWidth: '80px'
+      slotMinWidth: '150px'
     };
   };
 
@@ -115,13 +114,13 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
       headerToolbar: false,
       allDaySlot: false,
       initialView: 'resourceTimeGridDay',
-      resourceAreaWidth: '80px',
-      slotMinWidth: '80px',
+      resourceAreaWidth: '150px',
+      slotMinWidth: '150px',
       resourceAreaColumns: [
         {
           field: 'title',
           headerContent: 'Teams',
-          width: '80px'
+          width: '150px'
         }
       ],
       ...getResourceTimeGridOptions(),
