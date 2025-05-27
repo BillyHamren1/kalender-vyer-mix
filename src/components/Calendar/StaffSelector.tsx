@@ -25,38 +25,39 @@ interface StaffSelectorProps {
 }
 
 const StaffSelector: React.FC<StaffSelectorProps> = ({
-  selectedStaffIds,
+  selectedStaffIds = [], // Ensure default value
   onSelectionChange,
 }) => {
   const [open, setOpen] = useState(false);
 
-  const { data: staffResources = [], isLoading } = useQuery({
+  const { data: staffResources, isLoading, error } = useQuery({
     queryKey: ['staffResources'],
     queryFn: getStaffResources,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
+  // Ensure we always have a valid array to work with
+  const safeStaffResources = staffResources || [];
+  const safeSelectedStaffIds = selectedStaffIds || [];
+
   const handleStaffToggle = (staffId: string) => {
-    const newSelection = selectedStaffIds.includes(staffId)
-      ? selectedStaffIds.filter(id => id !== staffId)
-      : [...selectedStaffIds, staffId];
+    if (!onSelectionChange) return;
+    
+    const newSelection = safeSelectedStaffIds.includes(staffId)
+      ? safeSelectedStaffIds.filter(id => id !== staffId)
+      : [...safeSelectedStaffIds, staffId];
     
     onSelectionChange(newSelection);
   };
 
   const handleSelectAll = () => {
-    if (selectedStaffIds.length === staffResources.length) {
+    if (!onSelectionChange || !safeStaffResources) return;
+    
+    if (safeSelectedStaffIds.length === safeStaffResources.length) {
       onSelectionChange([]);
     } else {
-      onSelectionChange(staffResources.map(staff => staff.id));
+      onSelectionChange(safeStaffResources.map(staff => staff.id));
     }
-  };
-
-  const getSelectedStaffNames = () => {
-    return selectedStaffIds
-      .map(id => staffResources.find(staff => staff.id === id)?.name)
-      .filter(Boolean)
-      .join(', ');
   };
 
   if (isLoading) {
@@ -64,6 +65,25 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
       <Button variant="outline" disabled>
         <Users className="h-4 w-4 mr-2" />
         Loading staff...
+      </Button>
+    );
+  }
+
+  if (error) {
+    return (
+      <Button variant="outline" disabled>
+        <Users className="h-4 w-4 mr-2" />
+        Error loading staff
+      </Button>
+    );
+  }
+
+  // Don't render the popover if we don't have valid data
+  if (!safeStaffResources || safeStaffResources.length === 0) {
+    return (
+      <Button variant="outline" disabled>
+        <Users className="h-4 w-4 mr-2" />
+        No staff available
       </Button>
     );
   }
@@ -79,12 +99,12 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
         >
           <div className="flex items-center">
             <Users className="h-4 w-4 mr-2" />
-            {selectedStaffIds.length === 0 ? (
+            {safeSelectedStaffIds.length === 0 ? (
               "Select staff members..."
-            ) : selectedStaffIds.length === 1 ? (
-              staffResources.find(staff => staff.id === selectedStaffIds[0])?.name || "Unknown Staff"
+            ) : safeSelectedStaffIds.length === 1 ? (
+              safeStaffResources.find(staff => staff.id === safeSelectedStaffIds[0])?.name || "Unknown Staff"
             ) : (
-              `${selectedStaffIds.length} staff selected`
+              `${safeSelectedStaffIds.length} staff selected`
             )}
           </div>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -99,12 +119,12 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
               <Check
                 className={cn(
                   "mr-2 h-4 w-4",
-                  selectedStaffIds.length === staffResources.length ? "opacity-100" : "opacity-0"
+                  safeSelectedStaffIds.length === safeStaffResources.length ? "opacity-100" : "opacity-0"
                 )}
               />
-              {selectedStaffIds.length === staffResources.length ? "Deselect All" : "Select All"}
+              {safeSelectedStaffIds.length === safeStaffResources.length ? "Deselect All" : "Select All"}
             </CommandItem>
-            {staffResources.map((staff) => (
+            {safeStaffResources.map((staff) => (
               <CommandItem
                 key={staff.id}
                 onSelect={() => handleStaffToggle(staff.id)}
@@ -112,11 +132,11 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
                 <Check
                   className={cn(
                     "mr-2 h-4 w-4",
-                    selectedStaffIds.includes(staff.id) ? "opacity-100" : "opacity-0"
+                    safeSelectedStaffIds.includes(staff.id) ? "opacity-100" : "opacity-0"
                   )}
                 />
                 <div className="flex flex-col">
-                  <span>{staff.name}</span>
+                  <span>{staff.name || 'Unknown Staff'}</span>
                   {staff.email && (
                     <span className="text-xs text-gray-500">{staff.email}</span>
                   )}
