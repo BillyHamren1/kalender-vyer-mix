@@ -3,200 +3,159 @@ import { supabase } from "@/integrations/supabase/client";
 import { JobsListItem, JobsListFilters } from "@/types/jobsList";
 import { format } from "date-fns";
 
-// Enhanced team mapping function to handle both directions
-const mapTeamId = (teamId: string): string => {
-  const teamMapping: { [key: string]: string } = {
-    'a': 'team-1',
-    'b': 'team-2', 
-    'c': 'team-3',
-    'd': 'team-4',
-    'e': 'team-5',
-    'f': 'team-6'
-  };
-  
-  return teamMapping[teamId] || teamId;
+// Simple team mapping for the SQL query
+const getTeamMappingConditions = () => {
+  return `
+    (ce.resource_id = sa.team_id) OR 
+    (ce.resource_id = 'a' AND sa.team_id = 'team-1') OR
+    (ce.resource_id = 'b' AND sa.team_id = 'team-2') OR
+    (ce.resource_id = 'c' AND sa.team_id = 'team-3') OR
+    (ce.resource_id = 'd' AND sa.team_id = 'team-4') OR
+    (ce.resource_id = 'e' AND sa.team_id = 'team-5') OR
+    (ce.resource_id = 'f' AND sa.team_id = 'team-6') OR
+    (ce.resource_id = 'team-1' AND sa.team_id = 'a') OR
+    (ce.resource_id = 'team-2' AND sa.team_id = 'b') OR
+    (ce.resource_id = 'team-3' AND sa.team_id = 'c') OR
+    (ce.resource_id = 'team-4' AND sa.team_id = 'd') OR
+    (ce.resource_id = 'team-5' AND sa.team_id = 'e') OR
+    (ce.resource_id = 'team-6' AND sa.team_id = 'f')
+  `;
 };
 
-// Reverse mapping for standardization
-const reverseMapTeamId = (teamId: string): string => {
-  const reverseMapping: { [key: string]: string } = {
-    'team-1': 'a',
-    'team-2': 'b',
-    'team-3': 'c',
-    'team-4': 'd',
-    'team-5': 'e',
-    'team-6': 'f'
-  };
-  
-  return reverseMapping[teamId] || teamId;
-};
-
-// Enhanced fetch function to get ONLY bookings with calendar events
 export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsListItem[]> => {
-  console.log('Fetching jobs list with calendar events only, filters:', filters);
+  console.log('Fetching jobs list with simplified SQL approach, filters:', filters);
   
   try {
-    // First, get all calendar events with booking IDs
-    const { data: calendarEvents, error: eventsError } = await supabase
-      .from('calendar_events')
-      .select('*')
-      .not('booking_id', 'is', null);
-
-    if (eventsError) {
-      console.error('Error fetching calendar events:', eventsError);
-      throw eventsError;
-    }
-
-    if (!calendarEvents || calendarEvents.length === 0) {
-      console.log('No calendar events with booking IDs found');
-      return [];
-    }
-
-    // Get unique booking IDs from calendar events
-    const bookingIdsWithEvents = [...new Set(calendarEvents.map(event => event.booking_id))];
-    console.log(`Found ${bookingIdsWithEvents.length} unique bookings with calendar events`);
-
-    // Build the bookings query with filters, only for bookings that have calendar events
-    let bookingsQuery = supabase
+    // Build the base query with all JOINs
+    let query = supabase
       .from('bookings')
-      .select('*')
-      .in('id', bookingIdsWithEvents)
+      .select(`
+        *,
+        calendar_events!inner(
+          id,
+          event_type,
+          start_time,
+          end_time,
+          resource_id,
+          title
+        )
+      `)
+      .not('calendar_events.booking_id', 'is', null)
       .order('eventdate', { ascending: true });
-    
-    // Apply filters to bookings query
+
+    // Apply filters to the main query
     if (filters?.status) {
-      bookingsQuery = bookingsQuery.ilike('status', filters.status);
+      query = query.ilike('status', filters.status);
     }
     
     if (filters?.search) {
-      bookingsQuery = bookingsQuery.or(`id.ilike.%${filters.search}%,client.ilike.%${filters.search}%,deliveryaddress.ilike.%${filters.search}%`);
+      query = query.or(`id.ilike.%${filters.search}%,client.ilike.%${filters.search}%,deliveryaddress.ilike.%${filters.search}%`);
     }
     
     if (filters?.dateFrom) {
-      bookingsQuery = bookingsQuery.or(`rigdaydate.gte.${filters.dateFrom},eventdate.gte.${filters.dateFrom},rigdowndate.gte.${filters.dateFrom}`);
+      query = query.or(`rigdaydate.gte.${filters.dateFrom},eventdate.gte.${filters.dateFrom},rigdowndate.gte.${filters.dateFrom}`);
     }
     
     if (filters?.dateTo) {
-      bookingsQuery = bookingsQuery.or(`rigdaydate.lte.${filters.dateTo},eventdate.lte.${filters.dateTo},rigdowndate.lte.${filters.dateTo}`);
+      query = query.or(`rigdaydate.lte.${filters.dateTo},eventdate.lte.${filters.dateTo},rigdowndate.lte.${filters.dateTo}`);
     }
 
-    const { data: bookings, error: bookingsError } = await bookingsQuery;
+    const { data: bookingsWithEvents, error: bookingsError } = await query;
 
     if (bookingsError) {
-      console.error('Error fetching bookings:', bookingsError);
+      console.error('Error fetching bookings with events:', bookingsError);
       throw bookingsError;
     }
 
-    if (!bookings || bookings.length === 0) {
-      console.log('No bookings found with calendar events');
+    if (!bookingsWithEvents || bookingsWithEvents.length === 0) {
+      console.log('No bookings with calendar events found');
       return [];
     }
 
-    console.log(`Found ${bookings.length} bookings with calendar events`);
+    console.log(`Found ${bookingsWithEvents.length} bookings with calendar events`);
 
-    // Get all unique event dates and team IDs for comprehensive staff assignment lookup
-    const allEventDates = [...new Set(calendarEvents?.map(event => {
-      const date = new Date(event.start_time);
-      return date.toISOString().split('T')[0];
-    }) || [])];
+    // Get all unique event dates and team IDs for staff lookup
+    const allEventDates = new Set<string>();
+    const allTeamIds = new Set<string>();
 
-    const allTeamIds = [...new Set(calendarEvents?.map(event => event.resource_id) || [])];
-    console.log('All Team IDs from calendar events:', allTeamIds);
-
-    // Create comprehensive team ID list including both formats
-    const allMappedTeamIds = [...new Set([
-      ...allTeamIds,
-      ...allTeamIds.map(mapTeamId),
-      ...allTeamIds.map(reverseMapTeamId)
-    ])].filter(id => id);
-
-    console.log('All mapped Team IDs for staff lookup:', allMappedTeamIds);
-    console.log('All Event dates for staff lookup:', allEventDates.length, 'unique dates');
-
-    // Fetch ALL staff assignments for the relevant dates and teams
-    let staffAssignments: any[] = [];
-    if (allMappedTeamIds.length > 0 && allEventDates.length > 0) {
-      console.log('Fetching staff assignments for teams:', allMappedTeamIds, 'and dates:', allEventDates);
-      
-      const { data: assignments, error: assignmentsError } = await supabase
-        .from('staff_assignments')
-        .select('*')
-        .in('team_id', allMappedTeamIds)
-        .in('assignment_date', allEventDates);
-
-      if (assignmentsError) {
-        console.error('Error fetching staff assignments:', assignmentsError);
-        staffAssignments = [];
-      } else {
-        staffAssignments = assignments || [];
-        console.log(`Found ${staffAssignments.length} staff assignments for lookup`);
+    bookingsWithEvents.forEach(booking => {
+      if (booking.calendar_events) {
+        booking.calendar_events.forEach((event: any) => {
+          const eventDate = new Date(event.start_time).toISOString().split('T')[0];
+          allEventDates.add(eventDate);
+          allTeamIds.add(event.resource_id);
+          
+          // Add mapped team IDs
+          if (event.resource_id === 'a') allTeamIds.add('team-1');
+          if (event.resource_id === 'b') allTeamIds.add('team-2');
+          if (event.resource_id === 'c') allTeamIds.add('team-3');
+          if (event.resource_id === 'd') allTeamIds.add('team-4');
+          if (event.resource_id === 'e') allTeamIds.add('team-5');
+          if (event.resource_id === 'f') allTeamIds.add('team-6');
+          if (event.resource_id === 'team-1') allTeamIds.add('a');
+          if (event.resource_id === 'team-2') allTeamIds.add('b');
+          if (event.resource_id === 'team-3') allTeamIds.add('c');
+          if (event.resource_id === 'team-4') allTeamIds.add('d');
+          if (event.resource_id === 'team-5') allTeamIds.add('e');
+          if (event.resource_id === 'team-6') allTeamIds.add('f');
+        });
       }
+    });
+
+    // Fetch all relevant staff assignments in one query
+    const { data: staffAssignments, error: staffError } = await supabase
+      .from('staff_assignments')
+      .select(`
+        *,
+        staff_members(
+          id,
+          name
+        )
+      `)
+      .in('team_id', Array.from(allTeamIds))
+      .in('assignment_date', Array.from(allEventDates));
+
+    if (staffError) {
+      console.error('Error fetching staff assignments:', staffError);
     }
 
-    // Fetch all staff member details
-    const allStaffIds = [...new Set(staffAssignments.map(assignment => assignment.staff_id))];
-    console.log('All Staff IDs to fetch details for:', allStaffIds.length);
-    
-    let staffMembers: any[] = [];
-    if (allStaffIds.length > 0) {
-      const { data: staff, error: staffError } = await supabase
-        .from('staff_members')
-        .select('*')
-        .in('id', allStaffIds);
+    const assignments = staffAssignments || [];
+    console.log(`Found ${assignments.length} staff assignments`);
 
-      if (staffError) {
-        console.error('Error fetching staff members:', staffError);
-        staffMembers = [];
-      } else {
-        staffMembers = staff || [];
-        console.log(`Found ${staffMembers.length} staff members`);
-      }
-    }
+    // Helper function to get staff for a team and date
+    const getStaffForTeamAndDate = (teamId: string, date: string): string[] => {
+      const teamVariations = [
+        teamId,
+        teamId === 'a' ? 'team-1' : teamId === 'team-1' ? 'a' : null,
+        teamId === 'b' ? 'team-2' : teamId === 'team-2' ? 'b' : null,
+        teamId === 'c' ? 'team-3' : teamId === 'team-3' ? 'c' : null,
+        teamId === 'd' ? 'team-4' : teamId === 'team-4' ? 'd' : null,
+        teamId === 'e' ? 'team-5' : teamId === 'team-5' ? 'e' : null,
+        teamId === 'f' ? 'team-6' : teamId === 'team-6' ? 'f' : null,
+      ].filter(Boolean);
 
-    // Process and combine the data for bookings with calendar events only
-    const jobsList: JobsListItem[] = bookings.map(booking => {
-      // Find calendar events for this booking
-      const bookingEvents = calendarEvents?.filter(event => event.booking_id === booking.id) || [];
-      
-      console.log(`Processing booking ${booking.id} with ${bookingEvents.length} events`);
+      const staffNames = assignments
+        .filter(assignment => 
+          teamVariations.includes(assignment.team_id) && 
+          assignment.assignment_date === date &&
+          assignment.staff_members
+        )
+        .map(assignment => assignment.staff_members.name)
+        .filter(name => name);
+
+      return staffNames;
+    };
+
+    // Process bookings into JobsListItems
+    const jobsList: JobsListItem[] = bookingsWithEvents.map(booking => {
+      const events = booking.calendar_events || [];
       
       // Group events by type
-      const rigEvents = bookingEvents.filter(event => event.event_type === 'rig');
-      const eventEvents = bookingEvents.filter(event => event.event_type === 'event');
-      const rigDownEvents = bookingEvents.filter(event => event.event_type === 'rigDown');
+      const rigEvents = events.filter((event: any) => event.event_type === 'rig');
+      const eventEvents = events.filter((event: any) => event.event_type === 'event');
+      const rigDownEvents = events.filter((event: any) => event.event_type === 'rigDown');
 
-      // Enhanced helper function to get staff for a team on a specific date
-      const getStaffForTeamAndDate = (teamId: string, date: string): string[] => {
-        if (!teamId || !date) {
-          console.log('Missing teamId or date for staff lookup:', { teamId, date });
-          return [];
-        }
-        
-        // Try all possible team ID variations
-        const teamVariations = [
-          teamId,
-          mapTeamId(teamId),
-          reverseMapTeamId(teamId)
-        ].filter((id, index, arr) => arr.indexOf(id) === index); // Remove duplicates
-        
-        console.log(`Looking for staff assignments for team variations [${teamVariations.join(', ')}] on ${date}`);
-        
-        const dateAssignments = staffAssignments.filter(assignment => 
-          teamVariations.includes(assignment.team_id) && assignment.assignment_date === date
-        );
-        
-        console.log(`Found ${dateAssignments.length} staff assignments for team ${teamId} on ${date}:`, dateAssignments);
-        
-        const staffNames = dateAssignments.map(assignment => {
-          const staff = staffMembers.find(member => member.id === assignment.staff_id);
-          return staff ? staff.name : `Staff-${assignment.staff_id}`;
-        }).filter(name => name && name.trim() !== '');
-        
-        console.log(`Staff names for team ${teamId} on ${date}:`, staffNames);
-        return staffNames;
-      };
-
-      // Helper function to format event data
+      // Helper to format event data
       const formatEventData = (events: any[]) => {
         if (events.length === 0) {
           return { 
@@ -208,11 +167,9 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
           };
         }
         
-        const event = events[0]; // Take the first event if multiple
+        const event = events[0];
         const eventDate = new Date(event.start_time);
         const eventDateStr = eventDate.toISOString().split('T')[0];
-        
-        console.log(`Formatting event data for team ${event.resource_id} on ${eventDateStr}`);
         const staffList = getStaffForTeamAndDate(event.resource_id, eventDateStr);
         
         return {
@@ -228,7 +185,7 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
       const eventData = formatEventData(eventEvents);
       const rigDownData = formatEventData(rigDownEvents);
 
-      const jobItem = {
+      return {
         bookingId: booking.id,
         bookingNumber: booking.booking_number,
         client: booking.client || 'Unknown Client',
@@ -248,33 +205,28 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
         deliveryAddress: booking.deliveryaddress,
         deliveryCity: booking.delivery_city,
         viewed: booking.viewed,
-        // These will always be true since we only fetch bookings with calendar events
         hasCalendarEvents: true,
-        totalCalendarEvents: bookingEvents.length
+        totalCalendarEvents: events.length
       };
-      
-      console.log(`Processed job ${booking.id} with staff assignments:`, {
-        rig: jobItem.rigStaff,
-        event: jobItem.eventStaff,
-        rigDown: jobItem.rigDownStaff
-      });
-      
-      return jobItem;
     });
 
-    // Apply team filter if specified (handle both original and mapped team IDs)
+    // Apply team filter if specified
     if (filters?.team) {
-      const filteredJobs = jobsList.filter(job => {
-        const teamVariations = [
-          filters.team,
-          mapTeamId(filters.team),
-          reverseMapTeamId(filters.team)
-        ];
-        
-        return teamVariations.includes(job.rigTeam || '') || 
-               teamVariations.includes(job.eventTeam || '') || 
-               teamVariations.includes(job.rigDownTeam || '');
-      });
+      const teamVariations = [
+        filters.team,
+        filters.team === 'a' ? 'team-1' : filters.team === 'team-1' ? 'a' : null,
+        filters.team === 'b' ? 'team-2' : filters.team === 'team-2' ? 'b' : null,
+        filters.team === 'c' ? 'team-3' : filters.team === 'team-3' ? 'c' : null,
+        filters.team === 'd' ? 'team-4' : filters.team === 'team-4' ? 'd' : null,
+        filters.team === 'e' ? 'team-5' : filters.team === 'team-5' ? 'e' : null,
+        filters.team === 'f' ? 'team-6' : filters.team === 'team-6' ? 'f' : null,
+      ].filter(Boolean);
+      
+      const filteredJobs = jobsList.filter(job => 
+        teamVariations.includes(job.rigTeam || '') || 
+        teamVariations.includes(job.eventTeam || '') || 
+        teamVariations.includes(job.rigDownTeam || '')
+      );
       
       console.log(`Filtered jobs by team ${filters.team}: ${filteredJobs.length} jobs`);
       return filteredJobs;
@@ -289,7 +241,7 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
   }
 };
 
-// Get unique teams from calendar events (enhanced)
+// Get unique teams from calendar events
 export const getTeamsForFilter = async (): Promise<string[]> => {
   try {
     const { data: events, error } = await supabase
@@ -310,7 +262,7 @@ export const getTeamsForFilter = async (): Promise<string[]> => {
   }
 };
 
-// New function to get real-time updates
+// Real-time updates subscription
 export const subscribeToJobsListUpdates = (callback: () => void) => {
   const bookingsChannel = supabase
     .channel('jobs_list_bookings')
