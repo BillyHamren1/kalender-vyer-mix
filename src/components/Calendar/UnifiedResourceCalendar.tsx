@@ -98,13 +98,13 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 
   const getResourceTimeGridOptions = () => {
     return {
-      resourceAreaWidth: '150px',
+      resourceAreaWidth: '250px',
       resourceLabelText: 'Teams',
       resourceAreaHeaderContent: 'Teams',
       stickyResourceAreaHeaders: true,
       resourceOrder: 'title',
       resourcesInitiallyExpanded: true,
-      slotMinWidth: '150px'
+      slotMinWidth: '250px'
     };
   };
 
@@ -114,13 +114,13 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
       headerToolbar: false,
       allDaySlot: false,
       initialView: 'resourceTimeGridDay',
-      resourceAreaWidth: '150px',
-      slotMinWidth: '150px',
+      resourceAreaWidth: '250px',
+      slotMinWidth: '250px',
       resourceAreaColumns: [
         {
           field: 'title',
           headerContent: 'Teams',
-          width: '150px'
+          width: '250px'
         }
       ],
       ...getResourceTimeGridOptions(),
