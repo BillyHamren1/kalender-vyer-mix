@@ -1,8 +1,9 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { addCalendarEvent } from './eventService';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 
-// Sync confirmed bookings to calendar events - STRENGTHENED DUPLICATE PREVENTION
+// Sync confirmed bookings to calendar events
 export const syncConfirmedBookingsToCalendar = async (): Promise<number> => {
   console.log('Starting sync of confirmed bookings to calendar...');
   
@@ -109,7 +110,7 @@ export const syncConfirmedBookingsToCalendar = async (): Promise<number> => {
   }
 };
 
-// Sync a single booking to calendar events - STRENGTHENED DUPLICATE PREVENTION
+// Sync a single booking to calendar events (when a booking is confirmed)
 export const syncSingleBookingToCalendar = async (bookingId: string): Promise<void> => {
   console.log(`Syncing single booking ${bookingId} to calendar...`);
   
@@ -221,77 +222,6 @@ export const removeBookingEventsFromCalendar = async (bookingId: string): Promis
     console.log(`Successfully removed calendar events for booking ${bookingId}`);
   } catch (error) {
     console.error(`Error removing events for booking ${bookingId}:`, error);
-    throw error;
-  }
-};
-
-// Clean up duplicate calendar events - NEW FUNCTION
-export const cleanupDuplicateCalendarEvents = async (): Promise<number> => {
-  console.log('Starting cleanup of duplicate calendar events...');
-  
-  try {
-    // Find all bookings with calendar events
-    const { data: eventGroups, error } = await supabase
-      .from('calendar_events')
-      .select('booking_id, event_type, id, created_at')
-      .not('booking_id', 'is', null)
-      .order('booking_id')
-      .order('event_type')
-      .order('created_at');
-
-    if (error) {
-      console.error('Error fetching events for cleanup:', error);
-      throw error;
-    }
-
-    if (!eventGroups || eventGroups.length === 0) {
-      console.log('No events found for cleanup');
-      return 0;
-    }
-
-    // Group events by booking_id and event_type
-    const groupedEvents = eventGroups.reduce((acc, event) => {
-      const key = `${event.booking_id}-${event.event_type}`;
-      if (!acc[key]) {
-        acc[key] = [];
-      }
-      acc[key].push(event);
-      return acc;
-    }, {} as Record<string, any[]>);
-
-    let deletedCount = 0;
-
-    // For each group, keep only the oldest event and delete the rest
-    for (const [key, events] of Object.entries(groupedEvents)) {
-      if (events.length > 1) {
-        // Sort by created_at to keep the oldest
-        events.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-        
-        // Keep the first (oldest) event, delete the rest
-        const eventsToDelete = events.slice(1);
-        const idsToDelete = eventsToDelete.map(e => e.id);
-        
-        console.log(`Found ${events.length} duplicate events for ${key}, keeping oldest, deleting ${idsToDelete.length}`);
-        
-        const { error: deleteError } = await supabase
-          .from('calendar_events')
-          .delete()
-          .in('id', idsToDelete);
-
-        if (deleteError) {
-          console.error(`Error deleting duplicate events for ${key}:`, deleteError);
-        } else {
-          deletedCount += idsToDelete.length;
-          console.log(`Deleted ${idsToDelete.length} duplicate events for ${key}`);
-        }
-      }
-    }
-
-    console.log(`Cleanup completed. Deleted ${deletedCount} duplicate calendar events.`);
-    return deletedCount;
-
-  } catch (error) {
-    console.error('Error in cleanup:', error);
     throw error;
   }
 };

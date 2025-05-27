@@ -12,9 +12,9 @@ const getInitials = (name: string): string => {
   return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
 };
 
-// Helper function to get display name - first name only
-const getDisplayName = (fullName: string, variant: 'assigned' | 'available'): string => {
-  return fullName.trim().split(' ')[0]; // First name only
+// Helper function to get first name only
+const getFirstName = (fullName: string): string => {
+  return fullName.trim().split(' ')[0];
 };
 
 interface UnifiedDraggableStaffItemProps {
@@ -93,17 +93,15 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
 
   // Determine styling based on variant and assignment status
   const isAssigned = variant === 'available' && !!staff.assignedTeam;
-  const baseClasses = `p-2 border border-gray-200 rounded-md cursor-move flex items-center transition-all duration-150 hover:shadow-sm active:cursor-grabbing w-full`;
-  
-  // Always use white background for both variants
-  const variantClasses = isAssigned ? 'bg-white opacity-60' : 'bg-white shadow-sm';
+  const baseClasses = `p-1 border border-gray-200 rounded-md mb-1 cursor-move flex items-center w-full transition-all duration-150 hover:shadow-sm active:cursor-grabbing`;
+  const variantClasses = variant === 'available' 
+    ? `${isAssigned ? 'bg-gray-100 opacity-60' : 'bg-white shadow-sm'}`
+    : 'bg-white';
   
   // Enhanced drag feedback - more pronounced visual changes
   const dragClasses = isDragging 
     ? 'opacity-30 transform rotate-1 scale-110 shadow-lg bg-blue-50 border-blue-300' 
     : 'opacity-100';
-
-  const itemHeight = variant === 'available' ? "32px" : "auto";
 
   return (
     <>
@@ -114,31 +112,37 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
         }}
         className={`${baseClasses} ${variantClasses} ${dragClasses}`}
         style={{ 
-          height: itemHeight,
+          height: variant === 'available' ? "28px" : "24px", 
+          maxWidth: "100%",
           userSelect: 'none',
           WebkitUserSelect: 'none',
+          // Add immediate visual feedback
           transition: isDragging ? 'all 0.1s ease-out' : 'all 0.15s ease-in-out'
         }}
         onDoubleClick={handleDoubleClick}
         draggable="true"
         title={variant === 'available' && isAssigned ? `Assigned to team` : undefined}
       >
-        <div className="flex items-center gap-3 w-full pointer-events-none">
-          <Avatar className={`h-6 w-6 flex-shrink-0 ${
+        <div className="flex items-center gap-1 w-full pointer-events-none">
+          <Avatar className={`h-4 w-4 flex-shrink-0 ${
             variant === 'available' && isAssigned ? 'bg-gray-200' : 'bg-purple-100'
           } ${isDragging ? 'bg-blue-200' : ''}`}>
-            <AvatarFallback className={`text-xs ${
+            <AvatarFallback className={`text-[10px] ${
               variant === 'available' && isAssigned ? 'text-gray-500' : 'text-purple-700'
             } ${isDragging ? 'text-blue-700' : ''}`}>
               {getInitials(staff.name)}
             </AvatarFallback>
           </Avatar>
-          <span className={`text-sm font-medium flex-1 ${
+          <span className={`text-xs font-medium whitespace-nowrap overflow-hidden text-ellipsis ${
             variant === 'available' && isAssigned ? 'text-gray-500' : ''
           } ${isDragging ? 'text-blue-700 font-semibold' : ''}`}>
-            {getDisplayName(staff.name, variant)}
+            {getFirstName(staff.name)}
           </span>
-          {/* Removed the checkmark badge */}
+          {variant === 'available' && isAssigned && (
+            <span className="text-xs text-gray-400 ml-auto mr-1">
+              &#10003;
+            </span>
+          )}
         </div>
       </div>
       

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,13 +33,13 @@ const LogisticsMap = () => {
   return (
     <>
       <Navbar />
-      <div className="container mx-auto p-2">
-        <h1 className="text-2xl font-bold mb-2">Logistics Map Dashboard</h1>
+      <div className="container mx-auto p-4">
+        <h1 className="text-2xl font-bold mb-4">Logistics Map Dashboard</h1>
         
         {/* Main Content - Full Width */}
         <div className="w-full">
           <Card className="flex-grow">
-            <CardHeader className="flex flex-row items-center justify-between py-3">
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Booking Locations</CardTitle>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={toggleSidebar}>
@@ -48,7 +49,7 @@ const LogisticsMap = () => {
             </CardHeader>
             <CardContent className="p-0 relative">
               {/* Filter Controls at the top of the map */}
-              <div className="p-3 border-b bg-gray-50">
+              <div className="p-4 border-b bg-gray-50">
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
                     <Filter className="h-5 w-5" />
@@ -63,8 +64,8 @@ const LogisticsMap = () => {
                 </div>
               </div>
 
-              {/* Map Area - Much larger height */}
-              <div className="h-[85vh]">
+              {/* Map Area */}
+              <div className="h-[70vh]">
                 {isLoading ? (
                   <div className="flex items-center justify-center h-full">
                     <Loader className="h-8 w-8 animate-spin text-gray-400" />
@@ -79,7 +80,7 @@ const LogisticsMap = () => {
                         onBookingSelect={setSelectedBooking}
                       />
                     )}
-                    <div className={`${showSidebar ? 'w-5/6' : 'w-full'} h-full`}>
+                    <div className={`${showSidebar ? 'w-2/3' : 'w-full'} h-full`}>
                       <MapComponent 
                         bookings={filteredBookings} 
                         selectedBooking={selectedBooking}

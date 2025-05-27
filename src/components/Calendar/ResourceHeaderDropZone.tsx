@@ -2,14 +2,15 @@
 import React from 'react';
 import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
-import { Plus } from 'lucide-react';
-import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
+import { Button } from '@/components/ui/button';
+import { Users } from 'lucide-react';
+import DraggableStaffItem from './DraggableStaffItem';
 import { format } from 'date-fns';
 
 interface ResourceHeaderDropZoneProps {
   resource: Resource;
   currentDate: Date;
-  targetDate?: Date;
+  targetDate?: Date; // NEW: specific target date for this drop zone
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
   onSelectStaff?: (resourceId: string, resourceTitle: string) => void;
   assignedStaff?: Array<{id: string, name: string}>;
@@ -19,15 +20,16 @@ interface ResourceHeaderDropZoneProps {
 const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   resource,
   currentDate,
-  targetDate,
+  targetDate, // NEW: Use this for operations
   onStaffDrop,
   onSelectStaff,
   assignedStaff = [],
-  minHeight = 120
+  minHeight = 80
 }) => {
+  // Use targetDate if provided, otherwise fall back to currentDate
   const effectiveDate = targetDate || currentDate;
   
-  console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff:`, assignedStaff);
+  console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff, target date: ${format(effectiveDate, 'yyyy-MM-dd')}, minHeight: ${minHeight}`);
 
   const [{ isOver, canDrop }, drop] = useDrop({
     accept: 'STAFF',
@@ -43,6 +45,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       
       if (onStaffDrop) {
         try {
+          // Call the drop handler - this should trigger immediate optimistic updates
           await onStaffDrop(item.id, resource.id);
           console.log('ResourceHeaderDropZone: Staff drop completed successfully for date:', format(effectiveDate, 'yyyy-MM-dd'));
         } catch (error) {
@@ -51,6 +54,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       }
     },
     canDrop: (item: { id: string; assignedTeam?: string | null }) => {
+      // Check if staff is already assigned to this team for this specific date
       const isAlreadyAssigned = assignedStaff.some(staff => staff.id === item.id);
       const canDropHere = !isAlreadyAssigned;
       
@@ -77,11 +81,13 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     }
   };
 
+  // Handle staff removal with immediate UI feedback for the specific date
   const handleStaffRemove = async (staffId: string) => {
     console.log(`ResourceHeaderDropZone: Removing staff ${staffId} from team ${resource.id} for date ${format(effectiveDate, 'yyyy-MM-dd')}`);
     if (onStaffDrop) {
       try {
-        await onStaffDrop(staffId, null);
+        // This should trigger immediate optimistic updates for the specific date
+        await onStaffDrop(staffId, null); // null resourceId means removal
         console.log('ResourceHeaderDropZone: Staff removal completed successfully for date:', format(effectiveDate, 'yyyy-MM-dd'));
       } catch (error) {
         console.error('ResourceHeaderDropZone: Error removing staff:', error);
@@ -89,66 +95,79 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     }
   };
 
+  // Enhanced drop zone styling with smoother transitions
   const getDropZoneClass = () => {
-    let baseClass = `h-full w-full relative transition-all duration-150 p-3`;
+    let baseClass = `resource-header-drop-zone p-2 h-full w-full flex flex-col justify-between relative transition-all duration-150`;
     
     if (isOver && canDrop) {
-      return `${baseClass} bg-green-100 border-2 border-green-400 shadow-lg`;
+      return `${baseClass} bg-green-100 border-2 border-green-400 shadow-lg transform scale-105`;
     } else if (isOver && !canDrop) {
-      return `${baseClass} bg-red-100 border-2 border-red-400`;
-    } else if (canDrop) {
-      return `${baseClass} bg-blue-50 border-2 border-blue-200`;
+      return `${baseClass} bg-red-100 border-2 border-red-400 transform scale-105`;
+    } else {
+      return `${baseClass} bg-gray-50 hover:bg-gray-100`;
     }
-    
-    return `${baseClass}`;
   };
 
   return (
     <div
       ref={drop}
       className={getDropZoneClass()}
-      style={{ minHeight: `${minHeight}px` }}
+      style={{ 
+        width: '80px',
+        minWidth: '80px', 
+        maxWidth: '80px',
+        minHeight: `${minHeight}px`,
+        height: `${minHeight}px`,
+        overflow: 'visible',
+        position: 'relative',
+        zIndex: 10
+      }}
     >
-      {/* Team header with more spacing */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="text-sm font-semibold text-gray-700">
+      {/* Team Header with Title and Staff Button */}
+      <div className="flex flex-col">
+        {/* Team Title */}
+        <div className="text-xs font-medium text-center mb-1 truncate" title={resource.title}>
           {resource.title}
         </div>
         
-        <button
+        {/* Select Staff Button - Always visible */}
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={handleSelectStaff}
-          className="w-7 h-7 border border-gray-300 bg-white hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded flex items-center justify-center transition-colors shadow-sm"
-          title="Assign staff"
+          className="h-6 w-full text-xs p-1 mb-1"
+          title={`Select staff for this team on ${format(effectiveDate, 'MMM d')}`}
         >
-          <Plus className="h-4 w-4" />
-        </button>
-      </div>
-
-      {/* Staff items with more space */}
-      <div className="space-y-2">
-        {assignedStaff.map((staff) => (
-          <UnifiedDraggableStaffItem
-            key={staff.id}
-            staff={{
-              id: staff.id,
-              name: staff.name,
-              email: '',
-              assignedTeam: resource.id
-            }}
-            onRemove={() => handleStaffRemove(staff.id)}
-            currentDate={effectiveDate}
-            teamName={resource.title}
-            variant="assigned"
-            showRemoveDialog={true}
-          />
-        ))}
+          <Users className="h-3 w-3" />
+        </Button>
       </div>
       
-      {/* Drop zone feedback overlay */}
+      {/* Staff Section - shows assigned staff using DraggableStaffItem */}
+      <div className="staff-section flex-1 min-h-0">
+        {assignedStaff.length > 0 ? (
+          <div className="space-y-1">
+            {assignedStaff.map((staff) => (
+              <DraggableStaffItem
+                key={staff.id}
+                staff={staff}
+                onRemove={() => handleStaffRemove(staff.id)}
+                currentDate={effectiveDate}
+                teamName={resource.title}
+              />
+            ))}
+          </div>
+        ) : null}
+      </div>
+      
+      {/* Enhanced drop feedback overlay with smooth animations */}
       {isOver && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-10 rounded z-20">
-          <div className="text-sm font-medium text-gray-700 bg-white px-3 py-2 rounded shadow">
-            {canDrop ? 'Drop to assign' : 'Already assigned'}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className={`text-xs font-medium px-2 py-1 rounded transition-all duration-150 ${
+            canDrop 
+              ? 'bg-green-200 text-green-800 shadow-lg' 
+              : 'bg-red-200 text-red-800 shadow-lg'
+          }`}>
+            {canDrop ? `Drop for ${format(effectiveDate, 'MMM d')}` : 'Already assigned'}
           </div>
         </div>
       )}

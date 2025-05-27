@@ -36,10 +36,10 @@ export const useResourceCalendarConfig = (
     return aNum - bNum;
   });
 
-  // SMALLER: Consistent resource column configuration - using NUMBERS for FullCalendar (150px so 5 teams fit)
+  // FIXED: Consistent resource column configuration - using NUMBERS for FullCalendar
   const getResourceColumnConfig = () => {
-    // Use numeric values for FullCalendar (pixels without 'px') - smaller to fit all 5 teams
-    const standardWidth = 150;
+    // Use numeric values for FullCalendar (pixels without 'px')
+    const standardWidth = 80;
     
     return {
       resourceAreaWidth: standardWidth,
@@ -80,7 +80,7 @@ export const useResourceCalendarConfig = (
     aspectRatio: getAspectRatio(),
     dropAccept: ".fc-event",
     eventAllow: () => true,
-    // Add the SMALLER resource column config with consistent 150px width (as numbers)
+    // Add the FIXED resource column config with consistent 80px width (as numbers)
     ...getResourceColumnConfig(),
     // Add calendar options
     ...getCalendarOptions(),
@@ -89,8 +89,8 @@ export const useResourceCalendarConfig = (
     // Apply any additional calendar props (but prioritize our width settings)
     ...calendarProps,
     // OVERRIDE any conflicting width settings from calendarProps with NUMBERS
-    resourceAreaWidth: 150,
-    slotMinWidth: 150,
+    resourceAreaWidth: 80,
+    slotMinWidth: 80,
     // Update resource rendering to include select button
     resourceAreaHeaderContent: (args: any) => {
       return (

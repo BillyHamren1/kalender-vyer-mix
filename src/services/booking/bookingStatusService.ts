@@ -68,7 +68,7 @@ const handleCalendarSync = async (
 export const getStatusColor = (status: BookingStatus): string => {
   switch (status.toUpperCase()) {
     case 'CONFIRMED':
-      return 'bg-[#7BAEBF]/20 text-[#7DB6C5] hover:bg-[#7BAEBF]/20 border-[#7DB6C5]';
+      return 'bg-gray-50 text-gray-500 hover:bg-gray-50 border border-gray-200';
     case 'CANCELLED':
       return 'bg-red-100 text-red-700 hover:bg-red-100 border-red-200';
     case 'OFFER':

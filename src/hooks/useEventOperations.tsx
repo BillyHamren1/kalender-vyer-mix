@@ -2,7 +2,6 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
-import { StaffAssignmentSyncService } from '@/services/staffAssignmentSyncService';
 import { Resource } from '@/components/Calendar/ResourceData';
 
 interface UseEventOperationsProps {
@@ -47,10 +46,6 @@ export const useEventOperations = ({
           end: info.event.end.toISOString(),
           resourceId: resourceId
         });
-
-        // Sync staff assignments for the updated event
-        console.log('Syncing staff assignments for updated event...');
-        await StaffAssignmentSyncService.syncCalendarEventStaffAssignments(info.event.id);
         
         // Find the resource name for the toast message
         const resourceName = resources.find(r => r.id === resourceId)?.title || resourceId;
@@ -106,10 +101,6 @@ export const useEventOperations = ({
           end: info.event.end.toISOString(),
           resourceId: resourceId
         });
-
-        // Sync staff assignments for the received event
-        console.log('Syncing staff assignments for received event...');
-        await StaffAssignmentSyncService.syncCalendarEventStaffAssignments(info.event.id);
         
         // Find the resource name for the toast message
         const resourceName = resources.find(r => r.id === resourceId)?.title || resourceId;
