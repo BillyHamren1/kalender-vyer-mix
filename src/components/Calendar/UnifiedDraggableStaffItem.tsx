@@ -12,12 +12,12 @@ const getInitials = (name: string): string => {
   return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
 };
 
-// Helper function to get first name only for available staff, full name for assigned
+// Helper function to get display name - first name only for assigned staff
 const getDisplayName = (fullName: string, variant: 'assigned' | 'available'): string => {
   if (variant === 'assigned') {
-    return fullName.trim(); // Full name for assigned staff
+    return fullName.trim().split(' ')[0]; // First name only for assigned staff
   }
-  return fullName.trim().split(' ')[0]; // First name only for available staff
+  return fullName.trim().split(' ')[0]; // First name only for available staff too
 };
 
 interface UnifiedDraggableStaffItemProps {
@@ -96,7 +96,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
 
   // Determine styling based on variant and assignment status
   const isAssigned = variant === 'available' && !!staff.assignedTeam;
-  const baseClasses = `p-2 border border-gray-200 rounded-md mb-1 cursor-move flex items-center transition-all duration-150 hover:shadow-sm active:cursor-grabbing`;
+  const baseClasses = `p-2 border border-gray-200 rounded-md cursor-move flex items-center transition-all duration-150 hover:shadow-sm active:cursor-grabbing w-full`;
   const variantClasses = variant === 'available' 
     ? `${isAssigned ? 'bg-gray-100 opacity-60' : 'bg-white shadow-sm'}`
     : 'bg-white';
@@ -115,7 +115,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
           drag(node);
           dragPreview(node);
         }}
-        className={`${baseClasses} ${variantClasses} ${dragClasses} w-full`}
+        className={`${baseClasses} ${variantClasses} ${dragClasses}`}
         style={{ 
           height: itemHeight,
           userSelect: 'none',
@@ -126,8 +126,8 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
         draggable="true"
         title={variant === 'available' && isAssigned ? `Assigned to team` : undefined}
       >
-        <div className="flex items-center gap-2 w-full pointer-events-none">
-          <Avatar className={`h-5 w-5 flex-shrink-0 ${
+        <div className="flex items-center gap-3 w-full pointer-events-none">
+          <Avatar className={`h-6 w-6 flex-shrink-0 ${
             variant === 'available' && isAssigned ? 'bg-gray-200' : 'bg-purple-100'
           } ${isDragging ? 'bg-blue-200' : ''}`}>
             <AvatarFallback className={`text-xs ${
