@@ -28,11 +28,11 @@ export const useStaffOperations = (currentDate: Date) => {
           : 'Moving staff...'
       )
 
-      const response = await fetch('https://<your-project-id>.supabase.co/functions/v1/staff-assignments', {
+      const response = await fetch('https://gpgbmopqqpvkvbfycyqm.supabase.co/functions/v1/staff-assignments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': 'your-secret-key' // <-- byt ut mot din STAFF_API_KEY
+          'x-api-key': 'api-12345678'
         },
         body: JSON.stringify({
           staffId,
