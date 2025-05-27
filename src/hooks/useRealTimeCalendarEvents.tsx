@@ -3,6 +3,7 @@ import { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { fetchCalendarEvents } from '@/services/eventService';
 import { syncConfirmedBookingsToCalendar, syncSingleBookingToCalendar, removeBookingEventsFromCalendar } from '@/services/bookingToCalendarSync';
+import { StaffAssignmentSyncService } from '@/services/staffAssignmentSyncService';
 import { toast } from 'sonner';
 import { CalendarContext } from '@/App';
 import { supabase } from '@/integrations/supabase/client';
@@ -58,12 +59,28 @@ export const useRealTimeCalendarEvents = () => {
   }, [syncCompleted]);
 
   // Handle real-time calendar event changes
-  const handleCalendarEventChange = useCallback((payload: any) => {
+  const handleCalendarEventChange = useCallback(async (payload: any) => {
     console.log('Real-time calendar event change:', payload.eventType);
     
     if (!activeRef.current) return;
 
     const { eventType, new: newRecord, old: oldRecord } = payload;
+    
+    // Sync staff assignments when calendar events change
+    try {
+      if (eventType === 'INSERT' && newRecord?.booking_id) {
+        console.log('Calendar event inserted, syncing staff assignments...');
+        await StaffAssignmentSyncService.syncCalendarEventStaffAssignments(newRecord.id);
+      } else if (eventType === 'UPDATE' && newRecord?.booking_id) {
+        console.log('Calendar event updated, syncing staff assignments...');
+        await StaffAssignmentSyncService.syncCalendarEventStaffAssignments(newRecord.id);
+      } else if (eventType === 'DELETE' && oldRecord?.booking_id) {
+        console.log('Calendar event deleted, resyncing booking staff assignments...');
+        await StaffAssignmentSyncService.syncBookingStaffAssignments(oldRecord.booking_id);
+      }
+    } catch (error) {
+      console.error('Error syncing staff assignments:', error);
+    }
     
     setEvents(currentEvents => {
       let updatedEvents = [...currentEvents];
@@ -173,6 +190,28 @@ export const useRealTimeCalendarEvents = () => {
     }
   }, []);
 
+  // Handle real-time staff assignment changes
+  const handleStaffAssignmentChange = useCallback(async (payload: any) => {
+    console.log('Real-time staff assignment change:', payload.eventType);
+    
+    if (!activeRef.current) return;
+
+    const { eventType, new: newRecord, old: oldRecord } = payload;
+    
+    try {
+      // When staff assignments change, we need to update booking staff assignments
+      if (eventType === 'INSERT' || eventType === 'UPDATE') {
+        console.log('Staff assignment changed, resyncing all staff assignments...');
+        await StaffAssignmentSyncService.syncStaffAssignments();
+      } else if (eventType === 'DELETE') {
+        console.log('Staff assignment deleted, resyncing all staff assignments...');
+        await StaffAssignmentSyncService.syncStaffAssignments();
+      }
+    } catch (error) {
+      console.error('Error handling staff assignment change:', error);
+    }
+  }, []);
+
   // Initialize calendar events and set up real-time subscriptions
   useEffect(() => {
     activeRef.current = true;
@@ -204,15 +243,28 @@ export const useRealTimeCalendarEvents = () => {
         handleBookingChange)
       .subscribe();
 
+    // Set up real-time subscription for staff assignment changes
+    const staffAssignmentChannel = supabase
+      .channel('staff_assignments_realtime')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'staff_assignments' 
+        }, 
+        handleStaffAssignmentChange)
+      .subscribe();
+
     console.log('Real-time subscriptions established');
 
     return () => {
       activeRef.current = false;
       supabase.removeChannel(calendarChannel);
       supabase.removeChannel(bookingChannel);
+      supabase.removeChannel(staffAssignmentChannel);
       console.log('Real-time subscriptions cleaned up');
     };
-  }, [loadEvents, handleCalendarEventChange, handleBookingChange]);
+  }, [loadEvents, handleCalendarEventChange, handleBookingChange, handleStaffAssignmentChange]);
 
   // Handle date changes
   const handleDatesSet = useCallback((dateInfo: any) => {
