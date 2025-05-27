@@ -8,17 +8,21 @@ interface DynamicSizingConfig {
   totalCalendarWidth: number;
   timeAxisWidth: number;
   cssVariables: Record<string, string>;
+  zoomLevel: number;
+  setZoomLevel: (level: number) => void;
 }
 
 export const useDynamicColumnSizing = (
   resources: Resource[],
   viewportWidth?: number,
-  minColumnWidth: number = 120,
-  maxColumnWidth: number = 250
+  minColumnWidth: number = 80,
+  maxColumnWidth: number = 200
 ): DynamicSizingConfig => {
   const [windowWidth, setWindowWidth] = useState(
     viewportWidth || (typeof window !== 'undefined' ? window.innerWidth : 1200)
   );
+  
+  const [zoomLevel, setZoomLevel] = useState(1.0);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -34,7 +38,10 @@ export const useDynamicColumnSizing = (
   const config = useMemo(() => {
     const timeAxisWidth = 80; // Fixed time axis width
     const padding = 40; // Total padding/margins
-    const availableWidth = windowWidth - timeAxisWidth - padding;
+    
+    // Use about 33% of the available width for better proportions
+    const usableWidth = (windowWidth - timeAxisWidth - padding) * 0.33;
+    const availableWidth = usableWidth * zoomLevel;
     
     // Calculate optimal column width based on available space and number of resources
     const teamCount = resources.length || 5; // Default to 5 if no resources
@@ -52,6 +59,7 @@ export const useDynamicColumnSizing = (
       '--dynamic-day-container-width': `${dayContainerWidth}px`,
       '--dynamic-total-calendar-width': `${totalCalendarWidth}px`,
       '--dynamic-time-axis-width': `${timeAxisWidth}px`,
+      '--zoom-level': zoomLevel.toString(),
     };
 
     return {
@@ -60,8 +68,10 @@ export const useDynamicColumnSizing = (
       totalCalendarWidth,
       timeAxisWidth,
       cssVariables,
+      zoomLevel,
+      setZoomLevel,
     };
-  }, [windowWidth, resources.length, minColumnWidth, maxColumnWidth]);
+  }, [windowWidth, resources.length, minColumnWidth, maxColumnWidth, zoomLevel]);
 
   return config;
 };

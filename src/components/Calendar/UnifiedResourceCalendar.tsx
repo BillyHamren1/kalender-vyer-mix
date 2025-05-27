@@ -7,6 +7,7 @@ import { useContext } from 'react';
 import { CalendarContext } from '@/App';
 import { useDynamicColumnSizing } from '@/hooks/useDynamicColumnSizing';
 import { DynamicResourceStyles } from './DynamicResourceStyles';
+import { CalendarZoomControls } from './CalendarZoomControls';
 import './WeeklyCalendarStyles.css';
 
 interface UnifiedResourceCalendarProps {
@@ -41,8 +42,8 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   const navigate = useNavigate();
   const { setLastViewedDate } = useContext(CalendarContext);
 
-  // Use dynamic column sizing
-  const dynamicSizing = useDynamicColumnSizing(resources, undefined, 120, 300);
+  // Use dynamic column sizing with zoom controls
+  const dynamicSizing = useDynamicColumnSizing(resources, undefined, 60, 150);
 
   const getDaysToRender = () => {
     if (viewMode === 'weekly') {
@@ -195,6 +196,16 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     <div className={getContainerClass()}>
       {/* Apply dynamic styles */}
       <DynamicResourceStyles cssVariables={dynamicSizing.cssVariables} />
+      
+      {/* Zoom Controls */}
+      <div className="flex justify-end mb-4">
+        <CalendarZoomControls
+          zoomLevel={dynamicSizing.zoomLevel}
+          onZoomChange={dynamicSizing.setZoomLevel}
+          minZoom={0.5}
+          maxZoom={2.5}
+        />
+      </div>
       
       <div className={getCalendarContainerClass()} ref={containerRef}>
         {days.map((date, index) => {
