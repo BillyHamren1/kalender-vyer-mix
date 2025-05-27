@@ -1,91 +1,70 @@
 
 import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Check, ChevronsUpDown, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
+import { 
   Command,
   CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
-  CommandList,
 } from '@/components/ui/command';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { useQuery } from '@tanstack/react-query';
-import { getStaffResources, StaffResource } from '@/services/staffCalendarService';
+import { Badge } from '@/components/ui/badge';
+import { getStaffResources } from '@/services/staffCalendarService';
 import { cn } from '@/lib/utils';
 
 interface StaffSelectorProps {
   selectedStaffIds: string[];
   onSelectionChange: (staffIds: string[]) => void;
-  disabled?: boolean;
 }
 
 const StaffSelector: React.FC<StaffSelectorProps> = ({
   selectedStaffIds,
   onSelectionChange,
-  disabled = false
 }) => {
   const [open, setOpen] = useState(false);
 
-  // Fetch staff resources with proper error handling
-  const { 
-    data: staffResources = [], 
-    isLoading, 
-    error 
-  } = useQuery({
+  const { data: staffResources = [], isLoading } = useQuery({
     queryKey: ['staffResources'],
     queryFn: getStaffResources,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  // Ensure we always have a valid array
-  const safeStaffResources = Array.isArray(staffResources) ? staffResources : [];
-
   const handleStaffToggle = (staffId: string) => {
-    const currentSelection = selectedStaffIds || [];
+    const newSelection = selectedStaffIds.includes(staffId)
+      ? selectedStaffIds.filter(id => id !== staffId)
+      : [...selectedStaffIds, staffId];
     
-    if (currentSelection.includes(staffId)) {
-      // Remove staff member
-      onSelectionChange(currentSelection.filter(id => id !== staffId));
-    } else {
-      // Add staff member
-      onSelectionChange([...currentSelection, staffId]);
-    }
+    onSelectionChange(newSelection);
   };
 
   const handleSelectAll = () => {
-    if (safeStaffResources.length === 0) return;
-    
-    onSelectionChange(safeStaffResources.map(staff => staff.id));
-  };
-
-  const handleSelectNone = () => {
-    onSelectionChange([]);
-  };
-
-  const getButtonText = () => {
-    if (isLoading) return 'Loading staff...';
-    if (error) return 'Error loading staff';
-    if (!selectedStaffIds || selectedStaffIds.length === 0) return 'Select staff members';
-    if (selectedStaffIds.length === safeStaffResources.length) return 'All staff selected';
-    if (selectedStaffIds.length === 1) {
-      const selectedStaff = safeStaffResources.find(staff => staff.id === selectedStaffIds[0]);
-      return selectedStaff ? selectedStaff.name : '1 staff member';
+    if (selectedStaffIds.length === staffResources.length) {
+      onSelectionChange([]);
+    } else {
+      onSelectionChange(staffResources.map(staff => staff.id));
     }
-    return `${selectedStaffIds.length} staff members`;
   };
 
-  // Don't render the selector if there's an error or no data
-  if (error) {
+  const getSelectedStaffNames = () => {
+    return selectedStaffIds
+      .map(id => staffResources.find(staff => staff.id === id)?.name)
+      .filter(Boolean)
+      .join(', ');
+  };
+
+  if (isLoading) {
     return (
-      <div className="flex items-center text-red-600 text-sm">
+      <Button variant="outline" disabled>
         <Users className="h-4 w-4 mr-2" />
-        Error loading staff
-      </div>
+        Loading staff...
+      </Button>
     );
   }
 
@@ -96,59 +75,55 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-[280px] justify-between"
-          disabled={disabled || isLoading}
+          className="w-[300px] justify-between"
         >
-          <Users className="h-4 w-4 mr-2" />
-          {getButtonText()}
+          <div className="flex items-center">
+            <Users className="h-4 w-4 mr-2" />
+            {selectedStaffIds.length === 0 ? (
+              "Select staff members..."
+            ) : selectedStaffIds.length === 1 ? (
+              staffResources.find(staff => staff.id === selectedStaffIds[0])?.name || "Unknown Staff"
+            ) : (
+              `${selectedStaffIds.length} staff selected`
+            )}
+          </div>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[280px] p-0" align="start">
+      <PopoverContent className="w-[300px] p-0">
         <Command>
           <CommandInput placeholder="Search staff members..." />
-          <CommandList>
-            <CommandEmpty>
-              {isLoading ? 'Loading...' : 'No staff members found.'}
-            </CommandEmpty>
-            {!isLoading && safeStaffResources.length > 0 && (
-              <CommandGroup>
-                <CommandItem onSelect={handleSelectAll}>
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      selectedStaffIds.length === safeStaffResources.length ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                  Select All ({safeStaffResources.length})
-                </CommandItem>
-                <CommandItem onSelect={handleSelectNone}>
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      selectedStaffIds.length === 0 ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                  Select None
-                </CommandItem>
-                {safeStaffResources.map((staff) => (
-                  <CommandItem
-                    key={staff.id}
-                    value={staff.name}
-                    onSelect={() => handleStaffToggle(staff.id)}
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        selectedStaffIds.includes(staff.id) ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                    {staff.name}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
-          </CommandList>
+          <CommandEmpty>No staff members found.</CommandEmpty>
+          <CommandGroup>
+            <CommandItem onSelect={handleSelectAll}>
+              <Check
+                className={cn(
+                  "mr-2 h-4 w-4",
+                  selectedStaffIds.length === staffResources.length ? "opacity-100" : "opacity-0"
+                )}
+              />
+              {selectedStaffIds.length === staffResources.length ? "Deselect All" : "Select All"}
+            </CommandItem>
+            {staffResources.map((staff) => (
+              <CommandItem
+                key={staff.id}
+                onSelect={() => handleStaffToggle(staff.id)}
+              >
+                <Check
+                  className={cn(
+                    "mr-2 h-4 w-4",
+                    selectedStaffIds.includes(staff.id) ? "opacity-100" : "opacity-0"
+                  )}
+                />
+                <div className="flex flex-col">
+                  <span>{staff.name}</span>
+                  {staff.email && (
+                    <span className="text-xs text-gray-500">{staff.email}</span>
+                  )}
+                </div>
+              </CommandItem>
+            ))}
+          </CommandGroup>
         </Command>
       </PopoverContent>
     </Popover>

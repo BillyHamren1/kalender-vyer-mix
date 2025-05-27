@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { fetchStaffAssignmentsForDateRange, StaffAssignmentResponse } from "./staffAssignmentService";
 import { fetchStaffMembers, StaffMember } from "./staffService";
@@ -32,7 +33,7 @@ export interface StaffCalendarEvent {
     eventType?: string;
     staffName?: string;
     client?: string;
-    teamName?: string; // Add teamName to the interface
+    teamName?: string;
   };
 }
 
@@ -67,7 +68,17 @@ export const getStaffResources = async (): Promise<StaffResource[]> => {
   try {
     const staffMembers = await fetchStaffMembers();
     
-    return staffMembers.map(staff => ({
+    // Filter out duplicates and prefer entries with emails
+    const uniqueStaff = new Map<string, StaffMember>();
+    
+    staffMembers.forEach(staff => {
+      const existing = uniqueStaff.get(staff.name);
+      if (!existing || (staff.email && !existing.email)) {
+        uniqueStaff.set(staff.name, staff);
+      }
+    });
+    
+    return Array.from(uniqueStaff.values()).map(staff => ({
       id: staff.id,
       title: staff.name,
       name: staff.name,
@@ -103,7 +114,7 @@ export const getBookingStaffAssignments = async (
   }
 };
 
-// Optimized function to get staff members with caching
+// Optimized function to get staff members with caching and duplicate filtering
 const getCachedStaffMembers = async (): Promise<StaffMember[]> => {
   const now = Date.now();
   
@@ -111,10 +122,41 @@ const getCachedStaffMembers = async (): Promise<StaffMember[]> => {
     return staffMembersCache.data;
   }
   
-  const staffMembers = await fetchStaffMembers();
-  staffMembersCache = { data: staffMembers, timestamp: now };
+  const allStaffMembers = await fetchStaffMembers();
   
-  return staffMembers;
+  // Filter out duplicates and prefer entries with emails
+  const uniqueStaff = new Map<string, StaffMember>();
+  
+  allStaffMembers.forEach(staff => {
+    const existing = uniqueStaff.get(staff.name);
+    if (!existing || (staff.email && !existing.email)) {
+      uniqueStaff.set(staff.name, staff);
+    }
+  });
+  
+  const filteredStaff = Array.from(uniqueStaff.values());
+  staffMembersCache = { data: filteredStaff, timestamp: now };
+  
+  return filteredStaff;
+};
+
+// Get team name from team ID
+const getTeamName = (teamId: string): string => {
+  // Map team IDs to readable names
+  const teamNames: { [key: string]: string } = {
+    'a': 'Team A',
+    'b': 'Team B', 
+    'c': 'Team C',
+    'd': 'Team D',
+    'e': 'Team E',
+    'team-1': 'Team 1',
+    'team-2': 'Team 2',
+    'team-3': 'Team 3',
+    'team-4': 'Team 4',
+    'team-5': 'Team 5'
+  };
+  
+  return teamNames[teamId] || `Team ${teamId}`;
 };
 
 // Get calendar events for selected staff members within a date range using the new booking-staff assignment system
@@ -132,7 +174,7 @@ export const getStaffCalendarEvents = async (
 
     const events: StaffCalendarEvent[] = [];
 
-    // Use cached staff members to improve performance
+    // Use cached staff members to improve performance and get proper names
     const allStaff = await getCachedStaffMembers();
     const staffMap = new Map(allStaff.map(staff => [staff.id, staff.name]));
 
@@ -150,9 +192,30 @@ export const getStaffCalendarEvents = async (
       return events;
     }
 
+    // Get all booking IDs and fetch booking details
+    const bookingIds = [...new Set(filteredBookingAssignments.map(ba => ba.booking_id))];
+    
+    // Fetch booking details to get client names and booking numbers
+    const { data: bookingsData, error: bookingsError } = await supabase
+      .from('bookings')
+      .select('id, client, booking_number')
+      .in('id', bookingIds);
+
+    if (bookingsError) {
+      console.error('Error fetching booking details:', bookingsError);
+    }
+
+    const bookingsMap = new Map(
+      (bookingsData || []).map(booking => [booking.id, booking])
+    );
+
     // Process booking assignments (these are the actual work assignments)
     for (const bookingAssignment of filteredBookingAssignments) {
-      const staffName = staffMap.get(bookingAssignment.staff_id) || `Staff ${bookingAssignment.staff_id}`;
+      const staffName = staffMap.get(bookingAssignment.staff_id) || `Unknown Staff`;
+      const teamName = getTeamName(bookingAssignment.team_id);
+      const booking = bookingsMap.get(bookingAssignment.booking_id);
+      const clientName = booking?.client || 'Unknown Client';
+      const bookingNumber = booking?.booking_number || bookingAssignment.booking_id;
       
       // Get the calendar events for this booking
       const { data: calendarEvents, error } = await supabase
@@ -170,18 +233,22 @@ export const getStaffCalendarEvents = async (
 
       if (calendarEvents && calendarEvents.length > 0) {
         for (const calendarEvent of calendarEvents) {
-          console.log(`Adding booking event: ${calendarEvent.title} for staff ${staffName} with booking ID: ${bookingAssignment.booking_id}`);
+          // Create a more readable title
+          const eventTitle = `${bookingNumber} - ${clientName}`;
+          
+          console.log(`Adding booking event: ${eventTitle} for staff ${staffName} with booking ID: ${bookingAssignment.booking_id}`);
           
           events.push({
             id: `staff-${bookingAssignment.staff_id}-booking-${calendarEvent.id}`,
-            title: calendarEvent.title,
+            title: eventTitle,
             start: calendarEvent.start_time,
             end: calendarEvent.end_time,
             resourceId: bookingAssignment.staff_id,
             teamId: bookingAssignment.team_id,
+            teamName: teamName,
             bookingId: bookingAssignment.booking_id,
             staffName: staffName,
-            client: extractClientFromTitle(calendarEvent.title),
+            client: clientName,
             eventType: 'booking_event',
             backgroundColor: getEventColor(calendarEvent.event_type || 'event'),
             borderColor: getEventBorderColor(calendarEvent.event_type || 'event'),
@@ -189,10 +256,11 @@ export const getStaffCalendarEvents = async (
               bookingId: bookingAssignment.booking_id,
               booking_id: bookingAssignment.booking_id,
               deliveryAddress: calendarEvent.delivery_address,
-              bookingNumber: calendarEvent.booking_number,
+              bookingNumber: bookingNumber,
               eventType: 'booking_event',
               staffName: staffName,
-              client: extractClientFromTitle(calendarEvent.title)
+              client: clientName,
+              teamName: teamName
             }
           });
         }
@@ -201,7 +269,7 @@ export const getStaffCalendarEvents = async (
 
     console.log(`Generated ${events.length} calendar events for staff view (booking assignments only):`);
     events.forEach(event => {
-      console.log(`- Event: ${event.title}, Date: ${event.start}, Type: ${event.eventType}, Booking ID: ${event.bookingId || 'N/A'}, Client: ${event.client || 'N/A'}`);
+      console.log(`- Event: ${event.title}, Date: ${event.start}, Type: ${event.eventType}, Staff: ${event.staffName}, Team: ${event.teamName}, Client: ${event.client || 'N/A'}`);
     });
     
     return events;
@@ -392,6 +460,10 @@ export const getStaffSummaryForDate = async (
     // Get booking assignments
     const bookingAssignments = await getBookingStaffAssignments(date, date);
     
+    // Get staff names
+    const allStaff = await getCachedStaffMembers();
+    const staffMap = new Map(allStaff.map(staff => [staff.id, staff.name]));
+    
     return staffIds.map(staffId => {
       const assignment = assignments.find(a => a.staffId === staffId && a.date === dateStr);
       const bookingCount = bookingAssignments.filter(ba => 
@@ -401,7 +473,7 @@ export const getStaffSummaryForDate = async (
       return {
         staffId,
         teamId: assignment?.teamId,
-        teamName: assignment?.teamName,
+        teamName: assignment?.teamId ? getTeamName(assignment.teamId) : undefined,
         bookingsCount: bookingCount
       };
     });

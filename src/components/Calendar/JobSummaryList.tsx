@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,10 +17,12 @@ interface JobSummaryListProps {
 interface JobSummary {
   client: string;
   jobTitle: string;
+  bookingNumber: string;
   date: string;
   staffMembers: string[];
   totalHours: number;
   events: StaffCalendarEvent[];
+  teamName?: string;
 }
 
 const JobSummaryList: React.FC<JobSummaryListProps> = ({
@@ -33,6 +36,7 @@ const JobSummaryList: React.FC<JobSummaryListProps> = ({
   const filteredEvents = events.filter(event => {
     if (selectedClients.length === 0) return true;
     return selectedClients.some(client => 
+      (event.client && event.client.toLowerCase().includes(client.toLowerCase())) ||
       event.title.toLowerCase().includes(client.toLowerCase())
     );
   });
@@ -42,7 +46,8 @@ const JobSummaryList: React.FC<JobSummaryListProps> = ({
   const groupedEvents = new Map<string, StaffCalendarEvent[]>();
 
   filteredEvents.forEach(event => {
-    const key = `${event.title}-${format(new Date(event.start), 'yyyy-MM-dd')}`;
+    const bookingId = event.bookingId || event.extendedProps?.bookingId || '';
+    const key = `${bookingId}-${format(new Date(event.start), 'yyyy-MM-dd')}`;
     if (!groupedEvents.has(key)) {
       groupedEvents.set(key, []);
     }
@@ -51,14 +56,21 @@ const JobSummaryList: React.FC<JobSummaryListProps> = ({
 
   groupedEvents.forEach((eventGroup, key) => {
     const firstEvent = eventGroup[0];
-    const client = firstEvent.title.split(' - ')[0] || 'Unknown Client';
+    const client = firstEvent.client || firstEvent.extendedProps?.client || 'Unknown Client';
+    const bookingNumber = firstEvent.extendedProps?.bookingNumber || firstEvent.bookingId || 'No ID';
     const jobTitle = firstEvent.title;
     
-    // Get unique staff members for this job
+    // Get unique staff members for this job with proper names
     const staffIds = [...new Set(eventGroup.map(e => e.resourceId))];
-    const staffNames = staffIds.map(id => 
-      staffResources.find(s => s.id === id)?.name || `Staff-${id}`
-    );
+    const staffNames = staffIds.map(id => {
+      // First try to get the name from the event itself
+      const eventWithStaff = eventGroup.find(e => e.resourceId === id);
+      if (eventWithStaff?.staffName) {
+        return eventWithStaff.staffName;
+      }
+      // Fallback to staff resources
+      return staffResources.find(s => s.id === id)?.name || `Staff-${id}`;
+    });
 
     // Calculate total hours
     const totalHours = eventGroup.reduce((total, event) => {
@@ -70,10 +82,12 @@ const JobSummaryList: React.FC<JobSummaryListProps> = ({
     jobSummaries.push({
       client,
       jobTitle,
+      bookingNumber,
       date: format(new Date(firstEvent.start), 'MMM d, yyyy'),
       staffMembers: staffNames,
       totalHours,
-      events: eventGroup
+      events: eventGroup,
+      teamName: firstEvent.teamName || firstEvent.extendedProps?.teamName
     });
   });
 
@@ -129,61 +143,60 @@ const JobSummaryList: React.FC<JobSummaryListProps> = ({
           ) : (
             <div className="space-y-4">
               {jobSummaries.map((job, index) => (
-                <div key={`${job.jobTitle}-${job.date}-${index}`} className="border border-gray-200 rounded-lg p-4">
+                <div key={`${job.bookingNumber}-${job.date}-${index}`} className="border border-gray-200 rounded-lg p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h3 className="font-semibold text-gray-900">{job.client}</h3>
-                      <p className="text-sm text-gray-600">{job.jobTitle}</p>
+                      <h3 className="font-semibold text-lg text-gray-900">{job.client}</h3>
+                      <p className="text-sm text-gray-600">#{job.bookingNumber}</p>
+                      {job.teamName && (
+                        <Badge variant="outline" className="mt-1">
+                          {job.teamName}
+                        </Badge>
+                      )}
                     </div>
-                    <Badge variant="outline" className="ml-2">
-                      {job.totalHours}h total
-                    </Badge>
+                    <div className="text-right">
+                      <div className="flex items-center text-sm text-gray-600 mb-1">
+                        <Calendar className="h-4 w-4 mr-1" />
+                        {job.date}
+                      </div>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Clock className="h-4 w-4 mr-1" />
+                        {job.totalHours}h total
+                      </div>
+                    </div>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="h-4 w-4 text-gray-500" />
-                      <span>{job.date}</span>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <Users className="h-4 w-4 text-gray-500" />
-                      <span>{job.staffMembers.length} staff</span>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <Clock className="h-4 w-4 text-gray-500" />
-                      <span>{job.events.length} events</span>
-                    </div>
+                  <div className="flex items-center mb-2">
+                    <Users className="h-4 w-4 mr-2 text-gray-500" />
+                    <span className="text-sm font-medium">Assigned Staff:</span>
                   </div>
-
-                  {/* Staff assignments */}
-                  <div className="mt-3">
-                    <div className="text-xs text-gray-500 mb-1">Assigned Staff:</div>
-                    <div className="flex flex-wrap gap-1">
-                      {job.staffMembers.map(staff => (
-                        <Badge key={staff} variant="secondary" className="text-xs">
-                          {staff}
-                        </Badge>
-                      ))}
-                    </div>
+                  
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {job.staffMembers.map((staffName, staffIndex) => (
+                      <Badge key={staffIndex} variant="secondary">
+                        {staffName}
+                      </Badge>
+                    ))}
                   </div>
-
-                  {/* Event breakdown */}
-                  <div className="mt-3">
-                    <div className="text-xs text-gray-500 mb-1">Events:</div>
-                    <div className="space-y-1">
-                      {job.events.map(event => {
-                        const duration = differenceInHours(new Date(event.end), new Date(event.start));
-                        const staffName = staffResources.find(s => s.id === event.resourceId)?.name || 'Unknown';
-                        return (
-                          <div key={event.id} className="text-xs bg-gray-50 p-2 rounded flex justify-between">
-                            <span>{staffName}</span>
-                            <span>{format(new Date(event.start), 'HH:mm')} - {format(new Date(event.end), 'HH:mm')} ({duration}h)</span>
+                  
+                  <div className="space-y-2">
+                    <span className="text-sm font-medium text-gray-700">Events:</span>
+                    {job.events.map((event, eventIndex) => (
+                      <div key={eventIndex} className="bg-gray-50 rounded p-2 text-sm">
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium">{event.title}</span>
+                          <span className="text-gray-600">
+                            {format(new Date(event.start), 'HH:mm')} - {format(new Date(event.end), 'HH:mm')}
+                          </span>
+                        </div>
+                        {event.extendedProps?.deliveryAddress && (
+                          <div className="flex items-center mt-1 text-gray-600">
+                            <MapPin className="h-3 w-3 mr-1" />
+                            <span className="text-xs">{event.extendedProps.deliveryAddress}</span>
                           </div>
-                        );
-                      })}
-                    </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
