@@ -153,3 +153,35 @@ export const fetchConfirmedBookings = async (): Promise<Booking[]> => {
 
   return data.map(transformBookingData);
 };
+
+export const fetchBookingsWithCoordinates = async (): Promise<Booking[]> => {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select(`
+      *,
+      booking_products (
+        id,
+        name,
+        quantity,
+        notes
+      ),
+      booking_attachments (
+        id,
+        url,
+        file_name,
+        file_type
+      )
+    `)
+    .not('delivery_latitude', 'is', null)
+    .not('delivery_longitude', 'is', null)
+    .not('status', 'in', '("CANCELLED","Cancelled")')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching bookings with coordinates:', error);
+    throw error;
+  }
+
+  console.log(`Found ${data.length} bookings with coordinates (excluding cancelled)`);
+  return data.map(transformBookingData);
+};

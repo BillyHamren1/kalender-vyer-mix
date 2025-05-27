@@ -4,7 +4,8 @@ export {
   fetchBookings,
   fetchBookingById,
   fetchUpcomingBookings,
-  fetchConfirmedBookings
+  fetchConfirmedBookings,
+  fetchBookingsWithCoordinates
 } from './booking/bookingFetchService';
 
 export {

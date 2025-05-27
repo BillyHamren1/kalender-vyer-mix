@@ -48,7 +48,7 @@ const BookingListSidebar: React.FC<BookingListSidebarProps> = ({
         <div className="text-center p-6">
           <h3 className="text-lg font-medium text-gray-900">No Bookings</h3>
           <p className="mt-2 text-sm text-gray-500">
-            No bookings with location data found
+            No confirmed bookings with location data found
           </p>
         </div>
       </div>

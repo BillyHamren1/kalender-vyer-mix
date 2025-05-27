@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { Booking } from '@/types/booking';
-import { fetchConfirmedBookings } from '@/services/bookingService';
+import { fetchBookingsWithCoordinates } from '@/services/bookingService';
 import { toast } from 'sonner';
 
 export const useLogisticsMap = () => {
@@ -14,27 +14,20 @@ export const useLogisticsMap = () => {
   const loadBookings = async () => {
     try {
       setIsLoading(true);
-      const data = await fetchConfirmedBookings();
+      const data = await fetchBookingsWithCoordinates();
       
-      // Filter bookings with valid coordinates
-      const bookingsWithCoordinates = data.filter(
-        booking => 
-          booking.deliveryLatitude !== undefined && 
-          booking.deliveryLatitude !== null && 
-          booking.deliveryLongitude !== undefined && 
-          booking.deliveryLongitude !== null
-      );
+      console.log(`Loaded ${data.length} bookings with coordinates:`, data);
       
-      setBookings(bookingsWithCoordinates);
-      setFilteredBookings(bookingsWithCoordinates);
+      setBookings(data);
+      setFilteredBookings(data);
       
-      if (bookingsWithCoordinates.length === 0) {
-        toast.warning('No bookings with coordinates found');
+      if (data.length === 0) {
+        toast.info('No non-cancelled bookings with coordinates found');
       } else {
-        toast.success(`Loaded ${bookingsWithCoordinates.length} bookings with location data`);
+        toast.success(`Loaded ${data.length} bookings with location data`);
       }
       
-      return bookingsWithCoordinates;
+      return data;
     } catch (error) {
       console.error('Error loading bookings:', error);
       toast.error('Failed to load bookings');
@@ -60,6 +53,7 @@ export const useLogisticsMap = () => {
       );
     }
 
+    console.log(`Filtered to ${filtered.length} bookings after date filter`);
     setFilteredBookings(filtered);
   }, [bookings, filterDate]);
 
