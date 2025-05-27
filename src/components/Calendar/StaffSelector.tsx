@@ -9,6 +9,7 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
+  CommandList,
 } from '@/components/ui/command';
 import {
   Popover,
@@ -37,11 +38,11 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
   });
 
   // Ensure we always have a valid array to work with
-  const safeStaffResources = staffResources || [];
-  const safeSelectedStaffIds = selectedStaffIds || [];
+  const safeStaffResources = Array.isArray(staffResources) ? staffResources : [];
+  const safeSelectedStaffIds = Array.isArray(selectedStaffIds) ? selectedStaffIds : [];
 
   const handleStaffToggle = (staffId: string) => {
-    if (!onSelectionChange) return;
+    if (!onSelectionChange || !staffId) return;
     
     const newSelection = safeSelectedStaffIds.includes(staffId)
       ? safeSelectedStaffIds.filter(id => id !== staffId)
@@ -51,12 +52,12 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
   };
 
   const handleSelectAll = () => {
-    if (!onSelectionChange || !safeStaffResources) return;
+    if (!onSelectionChange || safeStaffResources.length === 0) return;
     
     if (safeSelectedStaffIds.length === safeStaffResources.length) {
       onSelectionChange([]);
     } else {
-      onSelectionChange(safeStaffResources.map(staff => staff.id));
+      onSelectionChange(safeStaffResources.map(staff => staff?.id).filter(Boolean));
     }
   };
 
@@ -79,7 +80,7 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
   }
 
   // Don't render the popover if we don't have valid data
-  if (!safeStaffResources || safeStaffResources.length === 0) {
+  if (safeStaffResources.length === 0) {
     return (
       <Button variant="outline" disabled>
         <Users className="h-4 w-4 mr-2" />
@@ -87,6 +88,17 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
       </Button>
     );
   }
+
+  const getDisplayText = () => {
+    if (safeSelectedStaffIds.length === 0) {
+      return "Select staff members...";
+    } else if (safeSelectedStaffIds.length === 1) {
+      const staff = safeStaffResources.find(staff => staff?.id === safeSelectedStaffIds[0]);
+      return staff?.name || "Unknown Staff";
+    } else {
+      return `${safeSelectedStaffIds.length} staff selected`;
+    }
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -99,13 +111,7 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
         >
           <div className="flex items-center">
             <Users className="h-4 w-4 mr-2" />
-            {safeSelectedStaffIds.length === 0 ? (
-              "Select staff members..."
-            ) : safeSelectedStaffIds.length === 1 ? (
-              safeStaffResources.find(staff => staff.id === safeSelectedStaffIds[0])?.name || "Unknown Staff"
-            ) : (
-              `${safeSelectedStaffIds.length} staff selected`
-            )}
+            {getDisplayText()}
           </div>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -113,37 +119,43 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
       <PopoverContent className="w-[300px] p-0">
         <Command>
           <CommandInput placeholder="Search staff members..." />
-          <CommandEmpty>No staff members found.</CommandEmpty>
-          <CommandGroup>
-            <CommandItem onSelect={handleSelectAll}>
-              <Check
-                className={cn(
-                  "mr-2 h-4 w-4",
-                  safeSelectedStaffIds.length === safeStaffResources.length ? "opacity-100" : "opacity-0"
-                )}
-              />
-              {safeSelectedStaffIds.length === safeStaffResources.length ? "Deselect All" : "Select All"}
-            </CommandItem>
-            {safeStaffResources.map((staff) => (
-              <CommandItem
-                key={staff.id}
-                onSelect={() => handleStaffToggle(staff.id)}
-              >
+          <CommandList>
+            <CommandEmpty>No staff members found.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem onSelect={handleSelectAll}>
                 <Check
                   className={cn(
                     "mr-2 h-4 w-4",
-                    safeSelectedStaffIds.includes(staff.id) ? "opacity-100" : "opacity-0"
+                    safeSelectedStaffIds.length === safeStaffResources.length ? "opacity-100" : "opacity-0"
                   )}
                 />
-                <div className="flex flex-col">
-                  <span>{staff.name || 'Unknown Staff'}</span>
-                  {staff.email && (
-                    <span className="text-xs text-gray-500">{staff.email}</span>
-                  )}
-                </div>
+                {safeSelectedStaffIds.length === safeStaffResources.length ? "Deselect All" : "Select All"}
               </CommandItem>
-            ))}
-          </CommandGroup>
+              {safeStaffResources.map((staff) => {
+                if (!staff || !staff.id) return null;
+                
+                return (
+                  <CommandItem
+                    key={staff.id}
+                    onSelect={() => handleStaffToggle(staff.id)}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        safeSelectedStaffIds.includes(staff.id) ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    <div className="flex flex-col">
+                      <span>{staff.name || 'Unknown Staff'}</span>
+                      {staff.email && (
+                        <span className="text-xs text-gray-500">{staff.email}</span>
+                      )}
+                    </div>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
         </Command>
       </PopoverContent>
     </Popover>
