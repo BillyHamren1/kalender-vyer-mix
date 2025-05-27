@@ -12,12 +12,9 @@ const getInitials = (name: string): string => {
   return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
 };
 
-// Helper function to get display name - first name only for assigned staff
+// Helper function to get display name - first name only
 const getDisplayName = (fullName: string, variant: 'assigned' | 'available'): string => {
-  if (variant === 'assigned') {
-    return fullName.trim().split(' ')[0]; // First name only for assigned staff
-  }
-  return fullName.trim().split(' ')[0]; // First name only for available staff too
+  return fullName.trim().split(' ')[0]; // First name only
 };
 
 interface UnifiedDraggableStaffItemProps {
@@ -97,9 +94,9 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
   // Determine styling based on variant and assignment status
   const isAssigned = variant === 'available' && !!staff.assignedTeam;
   const baseClasses = `p-2 border border-gray-200 rounded-md cursor-move flex items-center transition-all duration-150 hover:shadow-sm active:cursor-grabbing w-full`;
-  const variantClasses = variant === 'available' 
-    ? `${isAssigned ? 'bg-gray-100 opacity-60' : 'bg-white shadow-sm'}`
-    : 'bg-white';
+  
+  // Always use white background for both variants
+  const variantClasses = isAssigned ? 'bg-white opacity-60' : 'bg-white shadow-sm';
   
   // Enhanced drag feedback - more pronounced visual changes
   const dragClasses = isDragging 
@@ -141,11 +138,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
           } ${isDragging ? 'text-blue-700 font-semibold' : ''}`}>
             {getDisplayName(staff.name, variant)}
           </span>
-          {variant === 'available' && isAssigned && (
-            <span className="text-xs text-gray-400">
-              &#10003;
-            </span>
-          )}
+          {/* Removed the checkmark badge */}
         </div>
       </div>
       
