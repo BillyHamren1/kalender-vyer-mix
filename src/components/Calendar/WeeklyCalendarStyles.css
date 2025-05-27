@@ -1,4 +1,3 @@
-
 /* Unified Calendar Styles for both Weekly and Monthly Views */
 .weekly-view-container,
 .monthly-grid-container {
@@ -67,16 +66,16 @@
   border-radius: 6px 6px 0 0;
 }
 
-/* Enforce WIDER fixed width for ALL resource columns - INCREASED WIDTH to 250px */
+/* Enforce SMALLER fixed width for ALL resource columns - DECREASED WIDTH to 150px so 5 teams fit */
 .fc-resource-area td,
 .fc-resource-area th,
 .fc-resource-lane,
 .fc-datagrid-cell,
 .fc-datagrid-cell-frame,
 .fc-timegrid-col {
-  min-width: 250px !important;
-  width: 250px !important;
-  max-width: 250px !important;
+  min-width: 150px !important;
+  width: 150px !important;
+  max-width: 150px !important;
   border-right: 1px solid #f0f0f0 !important;
   border-left: none !important;
 }
@@ -121,16 +120,16 @@
 [data-resource-id="team-6"].fc-datagrid-cell-frame,
 [data-resource-id="team-6"] .fc-timegrid-col,
 [data-resource-id="team-6"].fc-timegrid-col {
-  min-width: 250px !important;
-  width: 250px !important;
-  max-width: 250px !important;
+  min-width: 150px !important;
+  width: 150px !important;
+  max-width: 150px !important;
   border-right: 1px solid #f0f0f0 !important;
 }
 
 /* Ensure timeline slot width with softer borders */
 .fc-timeline-slot {
-  min-width: 250px !important;
-  width: 250px !important;
+  min-width: 150px !important;
+  width: 150px !important;
   border-right: 1px solid #f8f9fa !important;
 }
 
@@ -201,24 +200,24 @@
 
 .weekly-view-calendar .fc-timegrid-col,
 .monthly-view-calendar .fc-timegrid-col {
-  min-width: 250px !important;
-  width: 250px !important;
-  max-width: 250px !important;
+  min-width: 150px !important;
+  width: 150px !important;
+  max-width: 150px !important;
   border-right: 1px solid #f8f9fa !important;
 }
 
-/* Make sure day columns have adequate space */
+/* Make sure day columns have adequate space with smaller team columns */
 .weekly-view-calendar .fc-timegrid-cols,
 .monthly-view-calendar .fc-timegrid-cols {
-  min-width: 3750px !important;
+  min-width: 2250px !important;
 }
 
 /* Critical fix - ensure ALL resource column headers have consistent width and soft borders */
 .weekly-view-calendar .fc-col-header-cell,
 .monthly-view-calendar .fc-col-header-cell {
-  min-width: 250px !important;
-  width: 250px !important;
-  max-width: 250px !important;
+  min-width: 150px !important;
+  width: 150px !important;
+  max-width: 150px !important;
   border-right: 1px solid #f0f0f0 !important;
   border-bottom: 1px solid #e5e7eb !important;
   background-color: #fafafa !important;
@@ -227,7 +226,7 @@
 /* Fix for resource container width */
 .weekly-view-calendar .fc-resource-timeline-body,
 .monthly-view-calendar .fc-resource-timeline-body {
-  min-width: 3750px !important;
+  min-width: 2250px !important;
 }
 
 /* Critical fix - ensure ALL resource cells have exact same width with soft borders */
@@ -235,9 +234,9 @@
 .weekly-view-calendar .fc-datagrid-cell,
 .monthly-view-calendar .fc-resource-group,
 .monthly-view-calendar .fc-datagrid-cell {
-  min-width: 250px !important;
-  width: 250px !important;
-  max-width: 250px !important;
+  min-width: 150px !important;
+  width: 150px !important;
+  max-width: 150px !important;
   border-right: 1px solid #f0f0f0 !important;
   border-bottom: 1px solid #f8f9fa !important;
 }
@@ -262,9 +261,9 @@
 .monthly-view-calendar [data-resource-id="team-6"].fc-datagrid-cell,
 .monthly-view-calendar [data-resource-id="team-6"] .fc-datagrid-cell-frame,
 .monthly-view-calendar [data-resource-id="team-6"] .fc-timegrid-col {
-  min-width: 250px !important;
-  width: 250px !important;
-  max-width: 250px !important;
+  min-width: 150px !important;
+  width: 150px !important;
+  max-width: 150px !important;
   border-right: 1px solid #f0f0f0 !important;
 }
 
@@ -277,9 +276,9 @@
 .monthly-view-calendar .fc-datagrid-cell-frame,
 .monthly-view-calendar .fc-timegrid-col,
 .monthly-view-calendar .fc-col-header-cell {
-  min-width: 250px !important;
-  width: 250px !important;
-  max-width: 250px !important;
+  min-width: 150px !important;
+  width: 150px !important;
+  max-width: 150px !important;
   border-right: 1px solid #f0f0f0 !important;
 }
 
