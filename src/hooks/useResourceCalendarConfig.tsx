@@ -4,7 +4,6 @@ import { Resource } from '@/components/Calendar/ResourceData';
 import { useCalendarView } from '@/components/Calendar/CalendarViewConfig';
 import { getCalendarViews, getCalendarOptions } from '@/components/Calendar/CalendarConfig';
 import { getCalendarTimeFormatting } from '@/components/Calendar/CalendarEventHandlers';
-import { useDynamicColumnSizing } from '@/hooks/useDynamicColumnSizing';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
@@ -17,9 +16,6 @@ export const useResourceCalendarConfig = (
 ) => {
   const calendarRef = useRef<any>(null);
   const { isMobile, getInitialView, getMobileHeaderToolbar, getAspectRatio } = useCalendarView();
-  
-  // Use dynamic column sizing
-  const dynamicSizing = useDynamicColumnSizing(resources);
 
   // Sort resources in the correct order before passing to FullCalendar
   const sortedResources = [...resources].sort((a, b) => {
@@ -40,22 +36,25 @@ export const useResourceCalendarConfig = (
     return aNum - bNum;
   });
 
-  // Dynamic resource column configuration using calculated values
+  // SMALLER: Consistent resource column configuration - using NUMBERS for FullCalendar (150px so 5 teams fit)
   const getResourceColumnConfig = () => {
+    // Use numeric values for FullCalendar (pixels without 'px') - smaller to fit all 5 teams
+    const standardWidth = 150;
+    
     return {
-      resourceAreaWidth: dynamicSizing.columnWidth,
-      slotMinWidth: dynamicSizing.columnWidth,
+      resourceAreaWidth: standardWidth,
+      slotMinWidth: standardWidth,
       resourceAreaColumns: [
         {
           field: 'title',
           headerContent: 'Teams',
-          width: dynamicSizing.columnWidth
+          width: standardWidth
         }
       ],
       resourcesInitiallyExpanded: true,
       stickyResourceAreaHeaders: true,
-      resourceLaneWidth: dynamicSizing.columnWidth,
-      resourceWidth: dynamicSizing.columnWidth
+      resourceLaneWidth: standardWidth,
+      resourceWidth: standardWidth
     };
   };
 
@@ -81,7 +80,7 @@ export const useResourceCalendarConfig = (
     aspectRatio: getAspectRatio(),
     dropAccept: ".fc-event",
     eventAllow: () => true,
-    // Add the dynamic resource column config
+    // Add the SMALLER resource column config with consistent 150px width (as numbers)
     ...getResourceColumnConfig(),
     // Add calendar options
     ...getCalendarOptions(),
@@ -89,9 +88,9 @@ export const useResourceCalendarConfig = (
     ...getCalendarTimeFormatting(),
     // Apply any additional calendar props (but prioritize our width settings)
     ...calendarProps,
-    // OVERRIDE any conflicting width settings from calendarProps with dynamic values
-    resourceAreaWidth: dynamicSizing.columnWidth,
-    slotMinWidth: dynamicSizing.columnWidth,
+    // OVERRIDE any conflicting width settings from calendarProps with NUMBERS
+    resourceAreaWidth: 150,
+    slotMinWidth: 150,
     // Update resource rendering to include select button
     resourceAreaHeaderContent: (args: any) => {
       return (
@@ -108,7 +107,6 @@ export const useResourceCalendarConfig = (
     calendarRef,
     isMobile,
     sortedResources,
-    getBaseCalendarProps,
-    dynamicSizing
+    getBaseCalendarProps
   };
 };

@@ -110,7 +110,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       style={{ minHeight: `${minHeight}px` }}
     >
       {/* Team header with more spacing */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-4">
         <div className="text-sm font-semibold text-gray-700">
           {resource.title}
         </div>
@@ -124,8 +124,8 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         </button>
       </div>
 
-      {/* Staff items with clean, compact layout */}
-      <div className="flex flex-wrap gap-1">
+      {/* Staff items with more space */}
+      <div className="space-y-2">
         {assignedStaff.map((staff) => (
           <UnifiedDraggableStaffItem
             key={staff.id}
