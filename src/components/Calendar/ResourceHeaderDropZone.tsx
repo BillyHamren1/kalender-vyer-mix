@@ -90,7 +90,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   };
 
   const getDropZoneClass = () => {
-    let baseClass = `h-full w-full transition-all duration-150`;
+    let baseClass = `h-full w-full relative p-2 transition-all duration-150`;
     
     if (isOver && canDrop) {
       return `${baseClass} bg-green-100 border-2 border-green-400 shadow-lg`;
@@ -100,36 +100,32 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       return `${baseClass} bg-blue-50 border-2 border-blue-200`;
     }
     
-    return `${baseClass} bg-gray-50 border border-gray-200`;
+    return `${baseClass}`;
   };
 
   return (
-    <div className="w-full h-full flex flex-col">
-      {/* Team header - wider container with team number and name on same row */}
-      <div className="bg-gray-100 border border-gray-200 border-b-0 rounded-t-md p-2 relative flex-shrink-0">
-        <div className="flex items-center justify-between w-full">
-          <div className="text-sm font-semibold text-gray-700 flex items-center gap-1">
-            <span>{resource.id.replace('team-', '')}</span>
-            <span>{resource.title}</span>
-          </div>
-          
-          {/* System-styled add button */}
-          <button
-            onClick={handleSelectStaff}
-            className="w-6 h-6 border border-gray-300 bg-white hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded flex items-center justify-center text-xs transition-colors shadow-sm"
-            title="Assign staff"
-          >
-            <Plus className="h-3 w-3" />
-          </button>
+    <div
+      ref={drop}
+      className={getDropZoneClass()}
+      style={{ minHeight: `${minHeight}px` }}
+    >
+      {/* Floating team header within the drop zone */}
+      <div className="absolute top-2 left-2 right-2 flex items-center justify-between z-10">
+        <div className="text-sm font-semibold text-gray-700 bg-white px-2 py-1 rounded shadow-sm">
+          {resource.title}
         </div>
+        
+        <button
+          onClick={handleSelectStaff}
+          className="w-6 h-6 border border-gray-300 bg-white hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded flex items-center justify-center text-xs transition-colors shadow-sm"
+          title="Assign staff"
+        >
+          <Plus className="h-3 w-3" />
+        </button>
       </div>
 
-      {/* Staff assignment area - no padding, no containers, full width */}
-      <div
-        ref={drop}
-        className={getDropZoneClass()}
-        style={{ minHeight: `${minHeight}px` }}
-      >
+      {/* Staff items - positioned below the header with full width */}
+      <div className="pt-10 space-y-1">
         {assignedStaff.map((staff) => (
           <UnifiedDraggableStaffItem
             key={staff.id}
@@ -146,16 +142,16 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
             showRemoveDialog={true}
           />
         ))}
-        
-        {/* Drop zone feedback */}
-        {isOver && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-10 rounded">
-            <div className="text-xs font-medium text-gray-700">
-              {canDrop ? 'Drop to assign' : 'Already assigned'}
-            </div>
-          </div>
-        )}
       </div>
+      
+      {/* Drop zone feedback overlay */}
+      {isOver && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-10 rounded z-20">
+          <div className="text-xs font-medium text-gray-700 bg-white px-2 py-1 rounded shadow">
+            {canDrop ? 'Drop to assign' : 'Already assigned'}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
