@@ -37,14 +37,11 @@ export const useDynamicColumnSizing = (
 
   const config = useMemo(() => {
     const timeAxisWidth = 80; // Fixed time axis width
-    const padding = 40; // Total padding/margins
-    
-    // Use about 33% of screen width for each column as requested
-    const usableWidth = windowWidth - timeAxisWidth - padding;
     const teamCount = resources.length || 6; // Default to 6 teams
     
-    // Calculate base column width (33% of available space divided by teams)
-    const baseColumnWidth = Math.floor((usableWidth * 0.33) / teamCount);
+    // Use a fixed base column width instead of percentage calculation
+    // This ensures each column is readable and properly sized
+    const baseColumnWidth = 160; // Fixed base width per column
     
     // Apply zoom to the base width
     const zoomedColumnWidth = Math.floor(baseColumnWidth * zoomLevel);
@@ -53,6 +50,7 @@ export const useDynamicColumnSizing = (
     const columnWidth = Math.max(minColumnWidth, Math.min(maxColumnWidth, zoomedColumnWidth));
     
     // Calculate total widths based on actual column width used
+    // Allow the calendar to extend beyond viewport and scroll horizontally
     const totalCalendarWidth = (columnWidth * teamCount) + timeAxisWidth;
     const dayContainerWidth = totalCalendarWidth + 20; // Small margin
 
@@ -65,15 +63,15 @@ export const useDynamicColumnSizing = (
       '--team-count': teamCount.toString(),
     };
 
-    console.log('Dynamic sizing calculated:', {
+    console.log('Dynamic sizing calculated (FIXED WIDTH):', {
       windowWidth,
-      usableWidth,
       teamCount,
       baseColumnWidth,
       zoomedColumnWidth,
       columnWidth,
       totalCalendarWidth,
-      zoomLevel
+      zoomLevel,
+      willScroll: totalCalendarWidth > windowWidth
     });
 
     return {
@@ -89,4 +87,3 @@ export const useDynamicColumnSizing = (
 
   return config;
 };
-

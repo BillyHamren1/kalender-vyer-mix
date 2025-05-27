@@ -11,13 +11,13 @@ export const DynamicResourceStyles: React.FC<DynamicResourceStylesProps> = ({ cs
     .dynamic-calendar-container {
       width: var(--dynamic-total-calendar-width);
       min-width: var(--dynamic-total-calendar-width);
-      max-width: var(--dynamic-total-calendar-width);
+      max-width: none; /* Allow expansion beyond viewport */
     }
     
     .dynamic-day-wrapper {
       width: var(--dynamic-day-container-width);
       min-width: var(--dynamic-day-container-width);
-      max-width: var(--dynamic-day-container-width);
+      max-width: none; /* Allow expansion beyond viewport */
       flex: 0 0 var(--dynamic-day-container-width);
     }
     
@@ -70,9 +70,10 @@ export const DynamicResourceStyles: React.FC<DynamicResourceStylesProps> = ({ cs
       margin-right: 2px !important;
     }
     
-    /* Ensure the calendar scrolls properly */
+    /* Enable horizontal scrolling */
     .dynamic-resource-columns .fc-scroller {
-      overflow-x: visible !important;
+      overflow-x: auto !important;
+      overflow-y: visible !important;
     }
     
     /* Force exact sizing for team columns */
@@ -85,11 +86,24 @@ export const DynamicResourceStyles: React.FC<DynamicResourceStylesProps> = ({ cs
       max-width: var(--dynamic-column-width) !important;
     }
     
-    /* Ensure resource area doesn't overflow */
+    /* Ensure resource area expands to full width needed */
     .dynamic-resource-columns .fc-resource-area {
       min-width: calc(var(--dynamic-column-width) * var(--team-count, 6)) !important;
       width: calc(var(--dynamic-column-width) * var(--team-count, 6)) !important;
-      max-width: calc(var(--dynamic-column-width) * var(--team-count, 6)) !important;
+      max-width: none !important; /* Allow full expansion */
+    }
+    
+    /* Calendar container scrolling improvements */
+    .dynamic-resource-columns .fc-view-harness {
+      overflow-x: auto !important;
+      overflow-y: visible !important;
+    }
+    
+    /* Ensure main calendar table can expand */
+    .dynamic-resource-columns .fc-scrollgrid {
+      width: var(--dynamic-total-calendar-width) !important;
+      min-width: var(--dynamic-total-calendar-width) !important;
+      max-width: none !important;
     }
   `;
 
