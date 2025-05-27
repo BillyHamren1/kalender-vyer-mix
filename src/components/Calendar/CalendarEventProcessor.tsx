@@ -1,3 +1,4 @@
+
 import { CalendarEvent, Resource } from './ResourceData';
 
 export const processEvents = (events: CalendarEvent[], resources: Resource[]): CalendarEvent[] => {
@@ -18,10 +19,10 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
     if (eventType === 'event') {
       targetResourceId = 'team-6';
       
-      // Set EVENT events to 3 hours duration
+      // Set EVENT events to 2.5 hours duration (150 minutes)
       const startTime = new Date(event.start);
       const endTime = new Date(startTime);
-      endTime.setHours(startTime.getHours() + 3); // 3 hours
+      endTime.setTime(startTime.getTime() + (2.5 * 60 * 60 * 1000)); // 2.5 hours in milliseconds
       
       const processedEvent = {
         ...event,
@@ -44,7 +45,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
         }
       };
 
-      console.log(`Processed EVENT type event ${event.id}: moved to team-6 with 3hr duration and draggable`);
+      console.log(`Processed EVENT type event ${event.id}: moved to team-6 with 2.5hr duration and draggable`);
       return processedEvent;
     }
 
