@@ -1,3 +1,4 @@
+
 /* Unified Calendar Styles for both Weekly and Monthly Views */
 .weekly-view-container,
 .monthly-grid-container {
@@ -7,8 +8,8 @@
 }
 
 .weekly-calendar-container {
-  min-width: 5250px;
-  width: 5250px;
+  min-width: 6000px;
+  width: 6000px;
   display: flex;
   overflow-x: auto;
   scroll-behavior: smooth;
@@ -24,8 +25,8 @@
 
 .day-calendar-wrapper,
 .monthly-day-wrapper {
-  min-width: 750px;
-  width: 750px;
+  min-width: 850px;
+  width: 850px;
   flex: none;
   border-right: 1px solid #e5e7eb;
 }
@@ -206,10 +207,10 @@
   border-right: 1px solid #f8f9fa !important;
 }
 
-/* Make sure day columns have adequate space with smaller team columns */
+/* Make sure day columns have adequate space with smaller team columns - INCREASED for 5 teams */
 .weekly-view-calendar .fc-timegrid-cols,
 .monthly-view-calendar .fc-timegrid-cols {
-  min-width: 2250px !important;
+  min-width: 2750px !important;
 }
 
 /* Critical fix - ensure ALL resource column headers have consistent width and soft borders */
@@ -223,10 +224,10 @@
   background-color: #fafafa !important;
 }
 
-/* Fix for resource container width */
+/* Fix for resource container width - INCREASED for 5 teams */
 .weekly-view-calendar .fc-resource-timeline-body,
 .monthly-view-calendar .fc-resource-timeline-body {
-  min-width: 2250px !important;
+  min-width: 2750px !important;
 }
 
 /* Critical fix - ensure ALL resource cells have exact same width with soft borders */
