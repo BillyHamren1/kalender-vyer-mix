@@ -3,8 +3,9 @@ import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
-import { BookingStatus, updateBookingStatusWithCalendarSync, getStatusColor } from "@/services/booking/bookingStatusService";
+import { CheckCircle, XCircle, Clock, AlertTriangle, Edit } from 'lucide-react';
+import { BookingStatus, updateBookingStatusWithCalendarSync } from "@/services/booking/bookingStatusService";
+import StatusBadge from './StatusBadge';
 import { toast } from 'sonner';
 
 interface StatusChangeFormProps {
@@ -23,6 +24,7 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
   const [selectedStatus, setSelectedStatus] = useState<BookingStatus>(currentStatus.toUpperCase() as BookingStatus);
   const [isUpdating, setIsUpdating] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showSelector, setShowSelector] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<BookingStatus | null>(null);
 
   const statusOptions: { value: BookingStatus; label: string; icon: React.ReactNode }[] = [
@@ -45,8 +47,6 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
 
   const needsConfirmation = (newStatus: BookingStatus): boolean => {
     const current = currentStatus.toUpperCase();
-    // Confirm when moving from CONFIRMED to CANCELLED (removes from calendar)
-    // Or when moving TO CONFIRMED (adds to calendar)
     return (current === 'CONFIRMED' && newStatus === 'CANCELLED') || 
            (current !== 'CONFIRMED' && newStatus === 'CONFIRMED');
   };
@@ -66,7 +66,10 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
   };
 
   const handleStatusSelect = (newStatus: BookingStatus) => {
-    if (newStatus === currentStatus.toUpperCase()) return;
+    if (newStatus === currentStatus.toUpperCase()) {
+      setShowSelector(false);
+      return;
+    }
     
     setSelectedStatus(newStatus);
     
@@ -76,6 +79,7 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
     } else {
       handleStatusUpdate(newStatus);
     }
+    setShowSelector(false);
   };
 
   const handleStatusUpdate = async (newStatus: BookingStatus) => {
@@ -86,7 +90,6 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
       
       onStatusChange(newStatus);
       
-      // Show appropriate toast message
       if (newStatus === 'CONFIRMED') {
         toast.success('Booking confirmed', {
           description: 'Booking has been confirmed and synced to calendar'
@@ -107,7 +110,6 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
         description: 'Please try again or contact support'
       });
       
-      // Reset to current status on error
       setSelectedStatus(currentStatus.toUpperCase() as BookingStatus);
     } finally {
       setIsUpdating(false);
@@ -128,41 +130,59 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
     setSelectedStatus(currentStatus.toUpperCase() as BookingStatus);
   };
 
-  // Get the current status styling
-  const currentStatusColors = getStatusColor(selectedStatus);
-  const currentOption = statusOptions.find(opt => opt.value === selectedStatus);
-
   return (
     <>
-      <div className="flex items-center gap-3">
-        {/* Status Selector with colored background */}
-        <Select
-          value={selectedStatus}
-          onValueChange={handleStatusSelect}
-          disabled={disabled || isUpdating}
-        >
-          <SelectTrigger className={`w-32 ${currentStatusColors}`}>
-            <div className="flex items-center gap-2">
-              {currentOption?.icon}
-              <SelectValue placeholder="Change status" />
-            </div>
-          </SelectTrigger>
-          <SelectContent>
-            {statusOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                <div className="flex items-center gap-2">
-                  {option.icon}
-                  {option.label}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex items-center gap-2">
+        {/* Status Badge Display */}
+        <StatusBadge
+          status={currentStatus}
+          interactive={!disabled && !isUpdating}
+          onClick={() => !disabled && !isUpdating && setShowSelector(true)}
+        />
+
+        {/* Edit Button */}
+        {!disabled && !isUpdating && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowSelector(true)}
+            className="h-6 w-6 p-0"
+          >
+            <Edit className="h-3 w-3" />
+          </Button>
+        )}
 
         {isUpdating && (
           <div className="text-sm text-gray-500">Updating...</div>
         )}
       </div>
+
+      {/* Status Selector Dialog */}
+      <Dialog open={showSelector} onOpenChange={setShowSelector}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Status</DialogTitle>
+            <DialogDescription>
+              Select a new status for this booking
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {statusOptions.map((option) => (
+              <Button
+                key={option.value}
+                variant={selectedStatus === option.value ? "default" : "outline"}
+                className="w-full justify-start"
+                onClick={() => handleStatusSelect(option.value)}
+              >
+                <div className="flex items-center gap-2">
+                  {option.icon}
+                  {option.label}
+                </div>
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Confirmation Dialog */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
