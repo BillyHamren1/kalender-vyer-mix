@@ -2,8 +2,7 @@
 import React from 'react';
 import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
-import { Button } from '@/components/ui/button';
-import { UserPlus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
 import { format } from 'date-fns';
 
@@ -91,7 +90,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   };
 
   const getDropZoneClass = () => {
-    let baseClass = `resource-header-drop-zone p-2 h-full w-full flex flex-col justify-between relative transition-all duration-150`;
+    let baseClass = `resource-header-drop-zone p-2 h-full w-full flex flex-col relative transition-all duration-150`;
     
     if (isOver && canDrop) {
       return `${baseClass} bg-green-100 border-2 border-green-400 shadow-lg transform scale-105`;
@@ -105,56 +104,55 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   };
 
   return (
-    <div
-      ref={drop}
-      className={getDropZoneClass()}
-      style={{ minHeight: `${minHeight}px` }}
-    >
-      {/* Team title */}
-      <div className="text-sm font-semibold text-gray-700 mb-1 text-center">
-        {resource.title}
-      </div>
-      
-      {/* Staff list - NO "No staff assigned" text */}
-      <div className="flex-1 space-y-1 overflow-y-auto max-h-32">
-        {assignedStaff.map((staff) => (
-          <UnifiedDraggableStaffItem
-            key={staff.id}
-            staff={{
-              id: staff.id,
-              name: staff.name,
-              email: '',
-              assignedTeam: resource.id
-            }}
-            onRemove={() => handleStaffRemove(staff.id)}
-            currentDate={effectiveDate}
-            teamName={resource.title}
-            variant="assigned"
-            showRemoveDialog={true}
-          />
-        ))}
-      </div>
-      
-      {/* Add staff button - ICON ONLY */}
-      <div className="mt-1">
-        <Button
-          onClick={handleSelectStaff}
-          variant="outline"
-          size="sm"
-          className="w-full h-8 p-0"
-        >
-          <UserPlus className="h-4 w-4" />
-        </Button>
-      </div>
-      
-      {/* Drop zone feedback */}
-      {isOver && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-10 rounded">
-          <div className="text-xs font-medium text-gray-700">
-            {canDrop ? 'Drop to assign' : 'Already assigned'}
-          </div>
+    <div className="relative">
+      {/* Small + button positioned in top-right corner */}
+      <button
+        onClick={handleSelectStaff}
+        className="absolute -top-1 -right-1 z-20 w-5 h-5 bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center justify-center text-xs transition-colors shadow-sm"
+        title="Assign staff"
+      >
+        <Plus className="h-3 w-3" />
+      </button>
+
+      <div
+        ref={drop}
+        className={getDropZoneClass()}
+        style={{ minHeight: `${minHeight}px` }}
+      >
+        {/* Team title */}
+        <div className="text-sm font-semibold text-gray-700 mb-1 text-center">
+          {resource.title}
         </div>
-      )}
+        
+        {/* Staff list */}
+        <div className="flex-1 space-y-1 overflow-y-auto max-h-32">
+          {assignedStaff.map((staff) => (
+            <UnifiedDraggableStaffItem
+              key={staff.id}
+              staff={{
+                id: staff.id,
+                name: staff.name,
+                email: '',
+                assignedTeam: resource.id
+              }}
+              onRemove={() => handleStaffRemove(staff.id)}
+              currentDate={effectiveDate}
+              teamName={resource.title}
+              variant="assigned"
+              showRemoveDialog={true}
+            />
+          ))}
+        </div>
+        
+        {/* Drop zone feedback */}
+        {isOver && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-10 rounded">
+            <div className="text-xs font-medium text-gray-700">
+              {canDrop ? 'Drop to assign' : 'Already assigned'}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
