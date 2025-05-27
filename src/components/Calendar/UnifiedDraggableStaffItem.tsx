@@ -86,13 +86,14 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
   // Determine styling based on variant and assignment status
   const isAssigned = variant === 'available' && !!staff.assignedTeam;
   
-  // Clean, professional styling with minimal spacing
+  // Ultra-compact, zoom-responsive styling
   const baseClasses = `
     cursor-move inline-flex items-center justify-center
     transition-all duration-150 active:cursor-grabbing
-    px-2 py-1 text-xs font-medium rounded-md
-    border border-gray-200 bg-white
-    hover:shadow-sm hover:border-gray-300
+    px-1.5 py-0.5 text-xs font-medium rounded
+    border border-gray-300 bg-white
+    hover:shadow-sm hover:border-gray-400
+    zoom-responsive-badge
   `.trim().replace(/\s+/g, ' ');
   
   // Assignment-based styling
@@ -116,7 +117,10 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
         style={{ 
           userSelect: 'none',
           WebkitUserSelect: 'none',
-          transition: isDragging ? 'all 0.1s ease-out' : 'all 0.15s ease-in-out'
+          transition: isDragging ? 'all 0.1s ease-out' : 'all 0.15s ease-in-out',
+          fontSize: 'calc(10px * var(--zoom-level, 1))',
+          minHeight: 'calc(18px * var(--zoom-level, 1))',
+          lineHeight: 1
         }}
         onDoubleClick={handleDoubleClick}
         draggable="true"

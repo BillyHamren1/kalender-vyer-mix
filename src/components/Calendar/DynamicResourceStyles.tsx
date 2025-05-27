@@ -21,6 +21,15 @@ export const DynamicResourceStyles: React.FC<DynamicResourceStylesProps> = ({ cs
       flex: 0 0 var(--dynamic-day-container-width);
     }
     
+    /* Zoom-responsive staff badges */
+    .zoom-responsive-badge {
+      font-size: calc(10px * var(--zoom-level, 1)) !important;
+      min-height: calc(18px * var(--zoom-level, 1)) !important;
+      padding: calc(2px * var(--zoom-level, 1)) calc(6px * var(--zoom-level, 1)) !important;
+      border-radius: calc(3px * var(--zoom-level, 1)) !important;
+      line-height: 1 !important;
+    }
+    
     /* Resource column widths - ensure they fit exactly */
     .dynamic-resource-columns .fc-resource-area td,
     .dynamic-resource-columns .fc-resource-area th,
