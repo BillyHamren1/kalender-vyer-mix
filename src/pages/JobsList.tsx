@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Filter, ArrowUpDown, Calendar, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
@@ -386,7 +385,7 @@ const JobsList: React.FC = () => {
                         to={`/booking/${job.bookingId}`}
                         className="text-blue-600 hover:text-blue-800 font-medium"
                       >
-                        {job.bookingId}
+                        {job.bookingNumber || job.bookingId}
                       </Link>
                     </TableCell>
                     <TableCell className="font-medium">{job.client}</TableCell>

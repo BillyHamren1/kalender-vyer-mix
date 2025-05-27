@@ -1,6 +1,7 @@
 
 export interface JobsListItem {
   bookingId: string;
+  bookingNumber?: string; // Add booking number field for display
   client: string;
   status: string;
   rigDate?: string;

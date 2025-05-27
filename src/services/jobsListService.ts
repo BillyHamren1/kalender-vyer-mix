@@ -190,6 +190,7 @@ export const fetchJobsList = async (filters?: JobsListFilters): Promise<JobsList
 
     const jobItem = {
       bookingId: booking.id,
+      bookingNumber: booking.booking_number, // Map the booking number for display
       client: booking.client,
       status: booking.status || 'PENDING',
       rigDate: rigData.date,
