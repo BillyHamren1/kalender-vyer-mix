@@ -90,7 +90,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   };
 
   const getDropZoneClass = () => {
-    let baseClass = `staff-drop-zone p-2 h-full w-full flex flex-col transition-all duration-150`;
+    let baseClass = `staff-drop-zone p-2 h-full w-full transition-all duration-150`;
     
     if (isOver && canDrop) {
       return `${baseClass} bg-green-100 border-2 border-green-400 shadow-lg`;
@@ -121,13 +121,12 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         </button>
       </div>
 
-      {/* Staff assignment area - direct drop zone without container */}
+      {/* Staff assignment area - no containers, direct placement */}
       <div
         ref={drop}
         className={getDropZoneClass()}
         style={{ minHeight: `${minHeight}px` }}
       >
-        {/* Staff items - directly placed without wrapper container */}
         {assignedStaff.map((staff) => (
           <UnifiedDraggableStaffItem
             key={staff.id}
