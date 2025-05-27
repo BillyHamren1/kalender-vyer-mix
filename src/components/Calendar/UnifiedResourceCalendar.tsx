@@ -42,8 +42,8 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   const navigate = useNavigate();
   const { setLastViewedDate } = useContext(CalendarContext);
 
-  // Use dynamic column sizing with zoom controls
-  const dynamicSizing = useDynamicColumnSizing(resources, undefined, 60, 150);
+  // Use dynamic column sizing with more compact parameters
+  const dynamicSizing = useDynamicColumnSizing(resources, undefined, 90, 180);
 
   const getDaysToRender = () => {
     if (viewMode === 'weekly') {

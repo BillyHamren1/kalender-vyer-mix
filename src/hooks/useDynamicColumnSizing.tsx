@@ -15,8 +15,8 @@ interface DynamicSizingConfig {
 export const useDynamicColumnSizing = (
   resources: Resource[],
   viewportWidth?: number,
-  minColumnWidth: number = 120,
-  maxColumnWidth: number = 300
+  minColumnWidth: number = 100,
+  maxColumnWidth: number = 200
 ): DynamicSizingConfig => {
   const [windowWidth, setWindowWidth] = useState(
     viewportWidth || (typeof window !== 'undefined' ? window.innerWidth : 1200)
@@ -39,9 +39,8 @@ export const useDynamicColumnSizing = (
     const timeAxisWidth = 80; // Fixed time axis width
     const teamCount = resources.length || 6; // Default to 6 teams
     
-    // Use a fixed base column width instead of percentage calculation
-    // This ensures each column is readable and properly sized
-    const baseColumnWidth = 160; // Fixed base width per column
+    // Use a more compact base column width
+    const baseColumnWidth = 120; // Reduced from 160px to 120px for more compact sizing
     
     // Apply zoom to the base width
     const zoomedColumnWidth = Math.floor(baseColumnWidth * zoomLevel);
@@ -63,7 +62,7 @@ export const useDynamicColumnSizing = (
       '--team-count': teamCount.toString(),
     };
 
-    console.log('Dynamic sizing calculated (FIXED WIDTH):', {
+    console.log('Dynamic sizing calculated (COMPACT WIDTH):', {
       windowWidth,
       teamCount,
       baseColumnWidth,
