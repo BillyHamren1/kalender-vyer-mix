@@ -14,11 +14,11 @@ import ResourceLayout from '@/components/Calendar/ResourceLayout';
 import ResourceToolbar from '@/components/Calendar/ResourceToolbar';
 import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
 import DateNavigationHeader from '@/components/Calendar/DateNavigationHeader';
-import { useStaffOperations } from '@/hooks/useStaffOperations';
+import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
 
 const ResourceView = () => {
-  // Use the new real-time calendar events hook
+  // Use the real-time calendar events hook
   const {
     events,
     setEvents,
@@ -39,11 +39,9 @@ const ResourceView = () => {
     removeTeam
   } = useTeamResources();
   
-  // Get the event actions hook
   const { addEventToCalendar, duplicateEvent } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
   
-  // Using useState with localStorage to track setup completion
   const [setupDone, setSetupDone] = useState(() => {
     return localStorage.getItem('eventsSetupDone') === 'true';
   });
@@ -53,13 +51,12 @@ const ResourceView = () => {
   const [selectedTeamId, setSelectedTeamId] = useState('');
   const [selectedTeamTitle, setSelectedTeamTitle] = useState('');
   
-  // Use staff operations hook
-  const { handleStaffDrop } = useStaffOperations(currentDate);
+  // Use unified staff operations hook
+  const { handleStaffDrop } = useUnifiedStaffOperations(currentDate);
   
   // Setup completed flag to prevent multiple setups
   useEffect(() => {
     if (resources.length > 0 && !setupDone && teamResources.some(r => r.id === 'team-6')) {
-      // Move all yellow events (event type = "event") to Team 6
       const team6Id = 'team-6';
       const moveYellowEvents = async () => {
         try {
@@ -68,10 +65,7 @@ const ResourceView = () => {
             toast.success(`Moved ${movedCount} events to "Todays events"`, {
               description: "All yellow events have been moved to Team 6"
             });
-            // Refresh to show the changes
             refreshEvents();
-            
-            // Set the flag in localStorage to prevent running this again
             localStorage.setItem('eventsSetupDone', 'true');
             setSetupDone(true);
           }
@@ -84,7 +78,6 @@ const ResourceView = () => {
     }
   }, [resources, setupDone, teamResources]);
 
-  // Function to open the staff selection dialog
   const handleOpenStaffSelectionDialog = (teamId: string, teamTitle: string) => {
     console.log('ResourceView: Opening staff selection dialog for team:', teamId, teamTitle);
     setSelectedTeamId(teamId);
@@ -92,18 +85,14 @@ const ResourceView = () => {
     setStaffDialogOpen(true);
   };
 
-  // Handle staff assignment updated callback
   const handleStaffAssigned = async (staffId: string, staffName: string): Promise<void> => {
     console.log('Staff assigned, refreshing...');
-    // Force refresh of staff assignments
   };
 
-  // Handle date change from navigation header
   const handleDateChange = (newDate: Date) => {
     handleDatesSet({ start: newDate });
   };
 
-  // Wrapper function to ensure Promise<void> return type
   const handleRefresh = async (): Promise<void> => {
     await refreshEvents();
   };

@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Users, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { getStaffCalendarEvents } from '@/services/staffCalendarService';
+import { unifiedStaffService } from '@/services/unifiedStaffService';
 import { startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
 import { toast } from 'sonner';
 import CleanCalendarGrid from '@/components/Calendar/CleanCalendarGrid';
@@ -16,11 +16,9 @@ import StaffSelector from '@/components/Calendar/StaffSelector';
 const StaffCalendarView: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedClients, setSelectedClients] = useState<string[]>([]);
-  // Start with no staff selected for empty calendar on page load
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('month');
 
-  // Get date range based on view mode (for now, always show month range for data)
   const getDateRange = () => {
     return {
       start: startOfMonth(currentDate),
@@ -30,18 +28,18 @@ const StaffCalendarView: React.FC = () => {
 
   const { start: startDate, end: endDate } = getDateRange();
 
-  // Fetch calendar events for selected staff only - but don't block UI
+  // Fetch calendar events using unified service
   const { 
     data: calendarEvents = [], 
     isLoading: isLoadingEvents, 
     error,
     refetch 
   } = useQuery({
-    queryKey: ['staffCalendarEvents', selectedStaffIds, startDate, endDate],
-    queryFn: () => getStaffCalendarEvents(selectedStaffIds, startDate, endDate),
-    enabled: selectedStaffIds.length > 0, // Only fetch when staff is selected
-    staleTime: 30000, // Cache for 30 seconds
-    refetchOnWindowFocus: false, // Don't refetch on window focus
+    queryKey: ['unifiedStaffCalendarEvents', selectedStaffIds, startDate, endDate],
+    queryFn: () => unifiedStaffService.getStaffCalendarEvents(selectedStaffIds, startDate, endDate),
+    enabled: selectedStaffIds.length > 0,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
   });
 
   const handleDateChange = (newDate: Date) => {
@@ -67,7 +65,6 @@ const StaffCalendarView: React.FC = () => {
 
   const handleDateClick = (date: Date) => {
     console.log('Date clicked:', date);
-    // You can add functionality here to show day details
   };
 
   if (error) {
@@ -122,7 +119,7 @@ const StaffCalendarView: React.FC = () => {
         onViewModeChange={setViewMode}
       />
 
-      {/* Main Content - Always show, don't wait for loading */}
+      {/* Main Content */}
       <div className="p-6">
         {selectedStaffIds.length === 0 ? (
           <Card>
@@ -134,11 +131,10 @@ const StaffCalendarView: React.FC = () => {
           </Card>
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            {/* Calendar - Takes up 2/3 of the space - Show immediately */}
+            {/* Calendar */}
             <div className="xl:col-span-2">
               <Card>
                 <CardContent className="p-0 relative">
-                  {/* Show loading indicator as overlay, not blocking the calendar */}
                   {isLoadingEvents && (
                     <div className="absolute top-4 right-4 z-10">
                       <div className="flex items-center space-x-2 bg-white px-3 py-2 rounded-lg shadow-sm border">
@@ -148,7 +144,6 @@ const StaffCalendarView: React.FC = () => {
                     </div>
                   )}
                   
-                  {/* Always show the calendar, even while loading */}
                   <CleanCalendarGrid
                     currentDate={currentDate}
                     events={calendarEvents}
@@ -159,11 +154,11 @@ const StaffCalendarView: React.FC = () => {
               </Card>
             </div>
 
-            {/* Job Summary - Takes up 1/3 of the space - Also show immediately */}
+            {/* Job Summary */}
             <div className="xl:col-span-1">
               <JobSummaryList
                 events={calendarEvents}
-                staffResources={[]} // Pass empty array since we're not using this in the current context
+                staffResources={[]}
                 selectedClients={selectedClients}
                 currentDate={currentDate}
                 viewMode={viewMode}
