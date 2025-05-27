@@ -19,6 +19,7 @@ import TeamEditDialog from '@/components/Calendar/TeamEditDialog';
 import { startOfWeek, subDays, format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { runAggressiveCalendarCleanup, runNuclearCleanup } from '@/utils/calendarCleanup';
 
 const WeeklyResourceView = () => {
   // Use the new real-time calendar events hook
@@ -64,6 +65,23 @@ const WeeklyResourceView = () => {
 
   // Use date-aware staff operations
   const { handleStaffDrop, processingStaffIds } = useDateAwareStaffOperations();
+
+  // IMMEDIATE CLEANUP on component mount
+  useEffect(() => {
+    const runImmediateCleanup = async () => {
+      console.log('WeeklyResourceView: Running immediate aggressive cleanup...');
+      await runAggressiveCalendarCleanup();
+      // Refresh events after cleanup
+      setTimeout(() => {
+        refreshEvents();
+      }, 2000);
+    };
+    
+    // Run cleanup immediately if we detect massive duplicates
+    if (events.length > 100) { // If more than 100 events in weekly view, definitely duplicates
+      runImmediateCleanup();
+    }
+  }, [events.length, refreshEvents]);
 
   // Only update when hookCurrentDate changes, not on every render
   useEffect(() => {
@@ -264,6 +282,24 @@ const WeeklyResourceView = () => {
                 onAddTask={addEventToCalendar}
                 onShowStaffCurtain={handleToggleStaffDisplay}
               />
+              
+              {/* EMERGENCY CLEANUP BUTTONS */}
+              <div className="flex gap-2">
+                <button
+                  onClick={runAggressiveCalendarCleanup}
+                  className="px-3 py-1 bg-orange-500 text-white rounded text-sm hover:bg-orange-600"
+                  title="Remove all duplicate events, keep oldest"
+                >
+                  CLEANUP
+                </button>
+                <button
+                  onClick={runNuclearCleanup}
+                  className="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600"
+                  title="DELETE ALL calendar events"
+                >
+                  NUCLEAR
+                </button>
+              </div>
             </div>
           </div>
           
