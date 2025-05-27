@@ -121,31 +121,29 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         </button>
       </div>
 
-      {/* Staff assignment area - full width container */}
+      {/* Staff assignment area - direct drop zone without container */}
       <div
         ref={drop}
         className={getDropZoneClass()}
         style={{ minHeight: `${minHeight}px` }}
       >
-        {/* Staff list - full width */}
-        <div className="flex-1 space-y-1 overflow-y-auto max-h-32 w-full">
-          {assignedStaff.map((staff) => (
-            <UnifiedDraggableStaffItem
-              key={staff.id}
-              staff={{
-                id: staff.id,
-                name: staff.name,
-                email: '',
-                assignedTeam: resource.id
-              }}
-              onRemove={() => handleStaffRemove(staff.id)}
-              currentDate={effectiveDate}
-              teamName={resource.title}
-              variant="assigned"
-              showRemoveDialog={true}
-            />
-          ))}
-        </div>
+        {/* Staff items - directly placed without wrapper container */}
+        {assignedStaff.map((staff) => (
+          <UnifiedDraggableStaffItem
+            key={staff.id}
+            staff={{
+              id: staff.id,
+              name: staff.name,
+              email: '',
+              assignedTeam: resource.id
+            }}
+            onRemove={() => handleStaffRemove(staff.id)}
+            currentDate={effectiveDate}
+            teamName={resource.title}
+            variant="assigned"
+            showRemoveDialog={true}
+          />
+        ))}
         
         {/* Drop zone feedback */}
         {isOver && (
