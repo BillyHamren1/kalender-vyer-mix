@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import { format } from 'date-fns';
@@ -30,7 +29,7 @@ interface ResourceCalendarProps {
   forceRefresh?: boolean;
   calendarProps?: Record<string, any>; 
   droppableScope?: string;
-  targetDate?: Date; // NEW: specific target date for this calendar
+  targetDate?: Date;
 }
 
 const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
@@ -46,7 +45,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   forceRefresh,
   calendarProps = {},
   droppableScope = 'weekly-calendar',
-  targetDate // NEW: Use this specific date for operations
+  targetDate
 }) => {
   const [selectedDate, setSelectedDate] = useState<Date>(currentDate);
   const [currentView, setCurrentView] = useState<string>("resourceTimeGridDay");
@@ -66,6 +65,11 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     calendarProps
   );
 
+  // Create a wrapper function that ensures Promise<void> return type
+  const wrappedRefreshEvents = async (): Promise<void> => {
+    await refreshEvents();
+  };
+
   // Use calendar handlers hook
   const {
     handleEventDrop,
@@ -79,7 +83,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     setDeleteDialogOpen,
     eventToDelete,
     DuplicateEventDialog
-  } = useResourceCalendarHandlers(events, resources, refreshEvents);
+  } = useResourceCalendarHandlers(events, resources, wrappedRefreshEvents);
 
   // Log events and resources for debugging
   useEffect(() => {
