@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Search, Filter, ArrowUpDown, Calendar, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import Navbar from '@/components/Navigation/Navbar';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +19,7 @@ type SortField = 'bookingId' | 'client' | 'eventDate' | 'status' | 'hasCalendarE
 type SortDirection = 'asc' | 'desc';
 
 const JobsList: React.FC = () => {
+  const navigate = useNavigate();
   const [sortField, setSortField] = useState<SortField>('eventDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [showFilters, setShowFilters] = useState(false);
@@ -108,6 +109,15 @@ const JobsList: React.FC = () => {
     updateFilters({
       [key]: value === 'all' ? undefined : (value || undefined)
     });
+  };
+
+  const handleRowClick = (bookingId: string, event: React.MouseEvent) => {
+    // Prevent navigation if clicking on interactive elements
+    const target = event.target as HTMLElement;
+    if (target.closest('button') || target.closest('select') || target.closest('a')) {
+      return;
+    }
+    navigate(`/booking/${bookingId}`);
   };
 
   const formatStaffList = (staff: string[] = []) => {
@@ -334,15 +344,13 @@ const JobsList: React.FC = () => {
                   {sortedJobs.map((job) => (
                     <TableRow 
                       key={job.bookingId}
-                      className="hover:bg-gray-50 border-b border-gray-100"
+                      className="hover:bg-gray-50 border-b border-gray-100 cursor-pointer"
+                      onClick={(event) => handleRowClick(job.bookingId, event)}
                     >
                       <TableCell className="py-4">
-                        <Link 
-                          to={`/booking/${job.bookingId}`}
-                          className="text-gray-900 hover:text-blue-600 font-medium"
-                        >
+                        <div className="text-gray-900 font-medium">
                           {job.bookingNumber || job.bookingId}
-                        </Link>
+                        </div>
                       </TableCell>
                       <TableCell className="py-4 text-gray-900">{job.client}</TableCell>
                       <TableCell className="py-4">
