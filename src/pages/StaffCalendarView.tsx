@@ -49,6 +49,15 @@ const StaffCalendarView: React.FC = () => {
     refetchOnWindowFocus: false,
   });
 
+  // Auto-select all staff when staff resources are loaded
+  useEffect(() => {
+    if (staffResources.length > 0 && selectedStaffIds.length === 0) {
+      const allStaffIds = staffResources.map(staff => staff.id);
+      console.log('StaffCalendarView: Auto-selecting all staff:', allStaffIds);
+      setSelectedStaffIds(allStaffIds);
+    }
+  }, [staffResources, selectedStaffIds.length]);
+
   // Fetch calendar events with improved query key that includes the formatted date
   const { 
     data: calendarEvents = [], 
@@ -133,14 +142,14 @@ const StaffCalendarView: React.FC = () => {
             <h1 className="text-3xl font-bold text-gray-900">Staff Calendar</h1>
           </div>
           <div className="flex items-center space-x-4">
-            <StaffSelector
-              selectedStaffIds={selectedStaffIds}
-              onSelectionChange={setSelectedStaffIds}
-            />
             <ClientSelector
               events={calendarEvents}
               selectedClients={selectedClients}
               onSelectionChange={setSelectedClients}
+            />
+            <StaffSelector
+              selectedStaffIds={selectedStaffIds}
+              onSelectionChange={setSelectedStaffIds}
             />
             <Button 
               onClick={handleRefresh} 
@@ -164,55 +173,45 @@ const StaffCalendarView: React.FC = () => {
         onViewModeChange={setViewMode}
       />
 
-      {/* Main Content */}
+      {/* Main Content - Always show calendar since staff are auto-selected */}
       <div className="p-6">
-        {selectedStaffIds.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Select Staff Members</h3>
-              <p className="text-gray-600">Please select one or more staff members to view their calendar with assignments and bookings.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            {/* Calendar */}
-            <div className="xl:col-span-2">
-              <Card>
-                <CardContent className="p-0 relative">
-                  {(isLoadingEvents || isLoadingStaff) && (
-                    <div className="absolute top-4 right-4 z-10">
-                      <div className="flex items-center space-x-2 bg-white px-3 py-2 rounded-lg shadow-sm border">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                        <span className="text-sm text-gray-600">Loading calendar...</span>
-                      </div>
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          {/* Calendar */}
+          <div className="xl:col-span-2">
+            <Card>
+              <CardContent className="p-0 relative">
+                {(isLoadingEvents || isLoadingStaff) && (
+                  <div className="absolute top-4 right-4 z-10">
+                    <div className="flex items-center space-x-2 bg-white px-3 py-2 rounded-lg shadow-sm border">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                      <span className="text-sm text-gray-600">Loading calendar...</span>
                     </div>
-                  )}
-                  
-                  <IndividualStaffCalendar
-                    events={calendarEvents}
-                    staffResources={filteredStaffResources}
-                    currentDate={currentDate}
-                    viewMode={viewMode}
-                    onDateChange={handleDateChange}
-                    isLoading={isLoadingEvents || isLoadingStaff}
-                  />
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Job Summary */}
-            <div className="xl:col-span-1">
-              <JobSummaryList
-                events={calendarEvents}
-                staffResources={filteredStaffResources}
-                selectedClients={selectedClients}
-                currentDate={currentDate}
-                viewMode={viewMode}
-              />
-            </div>
+                  </div>
+                )}
+                
+                <IndividualStaffCalendar
+                  events={calendarEvents}
+                  staffResources={filteredStaffResources}
+                  currentDate={currentDate}
+                  viewMode={viewMode}
+                  onDateChange={handleDateChange}
+                  isLoading={isLoadingEvents || isLoadingStaff}
+                />
+              </CardContent>
+            </Card>
           </div>
-        )}
+
+          {/* Job Summary */}
+          <div className="xl:col-span-1">
+            <JobSummaryList
+              events={calendarEvents}
+              staffResources={filteredStaffResources}
+              selectedClients={selectedClients}
+              currentDate={currentDate}
+              viewMode={viewMode}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
