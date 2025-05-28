@@ -220,30 +220,33 @@ const BookingDetail = () => {
             </div>
 
             {/* Right Column */}
-            <div className="space-y-2">
-              {/* Event Information - moved above Delivery Address */}
-              <EventInformationCard
-                rigDates={rigDates}
-                eventDates={eventDates}
-                rigDownDates={rigDownDates}
-                onAddDate={addDate}
-                onRemoveDate={removeDate}
-                autoSync={autoSync}
-              />
-              
-              {/* Combined Delivery Information Card */}
-              <DeliveryInformationCard
-                contactName={booking.contactName}
-                contactPhone={booking.contactPhone}
-                contactEmail={booking.contactEmail}
-                initialAddress={booking.deliveryAddress || ''}
-                initialCity={booking.deliveryCity || ''}
-                initialPostalCode={booking.deliveryPostalCode || ''}
-                deliveryLatitude={booking.deliveryLatitude}
-                deliveryLongitude={booking.deliveryLongitude}
-                isSaving={isSaving}
-                onSave={handleDeliveryDetailsChange}
-              />
+            <div className="space-y-2 flex flex-col">
+              {/* Event Information and Delivery Information side by side */}
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
+                {/* Event Information */}
+                <EventInformationCard
+                  rigDates={rigDates}
+                  eventDates={eventDates}
+                  rigDownDates={rigDownDates}
+                  onAddDate={addDate}
+                  onRemoveDate={removeDate}
+                  autoSync={autoSync}
+                />
+                
+                {/* Combined Delivery Information Card */}
+                <DeliveryInformationCard
+                  contactName={booking.contactName}
+                  contactPhone={booking.contactPhone}
+                  contactEmail={booking.contactEmail}
+                  initialAddress={booking.deliveryAddress || ''}
+                  initialCity={booking.deliveryCity || ''}
+                  initialPostalCode={booking.deliveryPostalCode || ''}
+                  deliveryLatitude={booking.deliveryLatitude}
+                  deliveryLongitude={booking.deliveryLongitude}
+                  isSaving={isSaving}
+                  onSave={handleDeliveryDetailsChange}
+                />
+              </div>
             </div>
           </div>
 
