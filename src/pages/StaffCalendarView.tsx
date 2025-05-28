@@ -21,7 +21,7 @@ const StaffCalendarView: React.FC = () => {
   });
   
   const [selectedClients, setSelectedClients] = useState<string[]>([]);
-  const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
+  const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]); // Start with empty array - no auto-selection
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('month');
 
   // Improved date range calculation with proper month boundaries
@@ -48,14 +48,14 @@ const StaffCalendarView: React.FC = () => {
     refetchOnWindowFocus: false,
   });
 
-  // Auto-select all staff when staff resources are loaded
-  useEffect(() => {
-    if (staffResources.length > 0 && selectedStaffIds.length === 0) {
-      const allStaffIds = staffResources.map(staff => staff.id);
-      console.log('StaffCalendarView: Auto-selecting all staff:', allStaffIds);
-      setSelectedStaffIds(allStaffIds);
-    }
-  }, [staffResources, selectedStaffIds.length]);
+  // Remove the auto-selection effect - staff selection is now manual only
+  // useEffect(() => {
+  //   if (staffResources.length > 0 && selectedStaffIds.length === 0) {
+  //     const allStaffIds = staffResources.map(staff => staff.id);
+  //     console.log('StaffCalendarView: Auto-selecting all staff:', allStaffIds);
+  //     setSelectedStaffIds(allStaffIds);
+  //   }
+  // }, [staffResources, selectedStaffIds.length]);
 
   // Fetch calendar events with improved query key that includes the formatted date
   const { 
