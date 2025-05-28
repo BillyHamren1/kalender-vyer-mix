@@ -200,23 +200,15 @@ const BookingDetail = () => {
         <div className="p-2 md:p-3">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
             {/* Left Column */}
-            <div className="space-y-2">
+            <div className="space-y-2 flex flex-col">
               <ClientInformation client={booking.client} />
               
-              {/* Display Products */}
+              {/* Display Products - now fills remaining space */}
               {booking.products && booking.products.length > 0 && (
-                <ProductsList products={booking.products} />
+                <div className="flex-1">
+                  <ProductsList products={booking.products} />
+                </div>
               )}
-
-              {/* Logistics Options moved to left column */}
-              <LogisticsOptionsForm
-                initialCarryMoreThan10m={booking.carryMoreThan10m || false}
-                initialGroundNailsAllowed={booking.groundNailsAllowed || false}
-                initialExactTimeNeeded={booking.exactTimeNeeded || false}
-                initialExactTimeInfo={booking.exactTimeInfo || ''}
-                isSaving={isSaving}
-                onSave={handleLogisticsChange}
-              />
             </div>
 
             {/* Right Column */}
@@ -252,6 +244,16 @@ const BookingDetail = () => {
 
           {/* Full width sections */}
           <div className="mt-2 space-y-2">
+            {/* Logistics Options - now full width */}
+            <LogisticsOptionsForm
+              initialCarryMoreThan10m={booking.carryMoreThan10m || false}
+              initialGroundNailsAllowed={booking.groundNailsAllowed || false}
+              initialExactTimeNeeded={booking.exactTimeNeeded || false}
+              initialExactTimeInfo={booking.exactTimeInfo || ''}
+              isSaving={isSaving}
+              onSave={handleLogisticsChange}
+            />
+
             {/* Display Attachments */}
             {booking.attachments && booking.attachments.length > 0 && (
               <AttachmentsList attachments={booking.attachments} />
