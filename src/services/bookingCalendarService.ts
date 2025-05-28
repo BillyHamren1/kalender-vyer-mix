@@ -2,6 +2,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { format } from 'date-fns';
 
+// Helper function to generate user-friendly event titles
+const generateEventTitle = (booking: any): string => {
+  if (booking.booking_number) {
+    return `${booking.booking_number}: ${booking.client}`;
+  }
+  // If no booking number, just use client name
+  return booking.client;
+};
+
 export const syncBookingEvents = async (): Promise<CalendarEvent[]> => {
   console.log('Starting booking event sync...');
   
@@ -53,7 +62,7 @@ export const syncBookingEvents = async (): Promise<CalendarEvent[]> => {
 
       for (const { date, type, label } of dates) {
         const eventId = `${booking.id}-${type}`;
-        const eventTitle = `${booking.booking_number || booking.id}: ${booking.client}`;
+        const eventTitle = generateEventTitle(booking); // Use the helper function
         
         // Determine resource assignment based on event type
         let resourceId = 'unassigned';
@@ -189,7 +198,7 @@ export const resyncBookingToCalendar = async (bookingId: string): Promise<void> 
 
     for (const { date, type } of dates) {
       const eventId = `${booking.id}-${type}`;
-      const eventTitle = `${booking.booking_number || booking.id}: ${booking.client}`;
+      const eventTitle = generateEventTitle(booking); // Use the helper function
       
       let resourceId = 'unassigned';
       if (type === 'event') {
@@ -245,6 +254,80 @@ export const deleteAllBookingEvents = async (bookingId: string): Promise<void> =
     console.log(`Successfully deleted calendar events for booking ${bookingId}`);
   } catch (error) {
     console.error('Error in deleteAllBookingEvents:', error);
+    throw error;
+  }
+};
+
+// Function to fix existing calendar event titles
+export const fixExistingEventTitles = async (): Promise<void> => {
+  console.log('Fixing existing calendar event titles...');
+  
+  try {
+    // Get all calendar events with their booking data
+    const { data: events, error: fetchError } = await supabase
+      .from('calendar_events')
+      .select(`
+        id,
+        title,
+        booking_id,
+        bookings!calendar_events_booking_id_fkey (
+          id,
+          client,
+          booking_number
+        )
+      `)
+      .not('booking_id', 'is', null);
+
+    if (fetchError) {
+      console.error('Error fetching events for title fix:', fetchError);
+      throw fetchError;
+    }
+
+    if (!events || events.length === 0) {
+      console.log('No events found to fix');
+      return;
+    }
+
+    console.log(`Found ${events.length} events to potentially fix`);
+
+    const eventsToUpdate = [];
+
+    for (const event of events) {
+      const booking = event.bookings;
+      if (!booking) continue;
+
+      const correctTitle = generateEventTitle(booking);
+      
+      // Only update if the title is different (i.e., currently showing UUID)
+      if (event.title !== correctTitle) {
+        eventsToUpdate.push({
+          id: event.id,
+          title: correctTitle
+        });
+        console.log(`Will update event ${event.id} from "${event.title}" to "${correctTitle}"`);
+      }
+    }
+
+    if (eventsToUpdate.length === 0) {
+      console.log('No events need title updates');
+      return;
+    }
+
+    // Update events in batches
+    for (const eventUpdate of eventsToUpdate) {
+      const { error: updateError } = await supabase
+        .from('calendar_events')
+        .update({ title: eventUpdate.title })
+        .eq('id', eventUpdate.id);
+
+      if (updateError) {
+        console.error(`Error updating event ${eventUpdate.id}:`, updateError);
+      }
+    }
+
+    console.log(`Successfully updated ${eventsToUpdate.length} event titles`);
+  } catch (error) {
+    console.error('Error in fixExistingEventTitles:', error);
     throw error;
   }
 };

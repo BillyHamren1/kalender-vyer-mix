@@ -1,7 +1,9 @@
+
 import { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { fetchCalendarEvents, mapDatabaseToAppResourceId } from '@/services/eventService';
 import { smartUpdateBookingCalendar } from '@/services/bookingCalendarService';
+import { fixAllEventTitles } from '@/services/eventTitleFixService';
 import { toast } from 'sonner';
 import { CalendarContext } from '@/App';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,7 +22,7 @@ export const useRealTimeCalendarEvents = () => {
     return stored ? new Date(stored) : new Date();
   });
 
-  // Load initial events (no automatic sync)
+  // Load initial events and fix titles if needed
   const loadEvents = useCallback(async () => {
     try {
       console.log('Loading calendar events...');
@@ -31,6 +33,33 @@ export const useRealTimeCalendarEvents = () => {
       if (activeRef.current) {
         setEvents(calendarEvents);
         console.log(`Loaded ${calendarEvents.length} calendar events`);
+        
+        // Check if we need to fix any titles (only run once per session)
+        const titleFixKey = 'title-fix-attempted';
+        if (!sessionStorage.getItem(titleFixKey)) {
+          console.log('Checking if event titles need fixing...');
+          
+          // Check if any events have UUID-style titles
+          const hasUuidTitles = calendarEvents.some(event => 
+            event.title && event.title.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)
+          );
+          
+          if (hasUuidTitles) {
+            console.log('Found events with UUID titles, attempting to fix...');
+            try {
+              await fixAllEventTitles();
+              // Reload events after fixing titles
+              const updatedEvents = await fetchCalendarEvents();
+              if (activeRef.current) {
+                setEvents(updatedEvents);
+              }
+            } catch (error) {
+              console.error('Error fixing event titles:', error);
+            }
+          }
+          
+          sessionStorage.setItem(titleFixKey, 'true');
+        }
       }
     } catch (error) {
       console.error('Error loading calendar events:', error);
