@@ -1,10 +1,10 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { StaffCalendarEvent, StaffResource } from '@/services/staffCalendarService';
 import { format } from 'date-fns';
+import { useEventNavigation } from '@/hooks/useEventNavigation';
 
 interface IndividualStaffCalendarProps {
   events: StaffCalendarEvent[];
@@ -25,6 +25,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
 }) => {
   const calendarRef = useRef<FullCalendar>(null);
   const [lastProcessedDate, setLastProcessedDate] = useState<string>('');
+  const { handleEventClick } = useEventNavigation();
 
   // Update FullCalendar when currentDate changes from parent
   useEffect(() => {
@@ -41,16 +42,20 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
     }
   }, [currentDate, lastProcessedDate]);
 
-  // Event click handler
-  const handleEventClick = (clickInfo: any) => {
+  // Updated event click handler to use navigation hook
+  const handleStaffEventClick = (clickInfo: any) => {
     const event = clickInfo.event;
     
     console.log('Staff Calendar Event Clicked:', {
       title: event.title,
       staff: event.extendedProps.staffName,
       date: format(event.start, 'yyyy-MM-dd'),
+      bookingId: event.extendedProps.bookingId,
       details: event.extendedProps
     });
+
+    // Use the event navigation hook to handle booking navigation
+    handleEventClick(clickInfo);
   };
 
   // Format events for FullCalendar - Show only booking events with client name and event type
@@ -104,7 +109,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
           nowIndicator={true}
           weekends={true}
           initialDate={currentDate}
-          eventClick={handleEventClick}
+          eventClick={handleStaffEventClick}
           eventContent={(renderInfo) => {
             const { event } = renderInfo;
             const props = event.extendedProps;

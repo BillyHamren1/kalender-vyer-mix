@@ -361,30 +361,30 @@ const extractClientFromTitle = (title: string): string | undefined => {
   return title;
 };
 
-// Get event colors based on event type
+// Get event colors based on event type - Updated to match staff calendar requirements
 const getEventColor = (eventType: string): string => {
   switch (eventType) {
     case 'rig':
-      return '#fff3e0'; // Light orange
+      return '#F2FCE2'; // Light green
     case 'event':
-      return '#fff9c4'; // Light yellow
+      return '#FEF7CD'; // Yellow
     case 'rigDown':
-      return '#f3e5f5'; // Light purple
+      return '#FFDEE2'; // Light red
     default:
-      return '#e8f5e8'; // Light green
+      return '#e8f5e8'; // Light green fallback
   }
 };
 
 const getEventBorderColor = (eventType: string): string => {
   switch (eventType) {
     case 'rig':
-      return '#ff9800'; // Orange
+      return '#D4EAB5'; // Light green border
     case 'event':
-      return '#ffeb3b'; // Yellow
+      return '#F3E8A3'; // Yellow border
     case 'rigDown':
-      return '#9c27b0'; // Purple
+      return '#FEB190'; // Light red border
     default:
-      return '#4caf50'; // Green
+      return '#4caf50'; // Green fallback
   }
 };
 
