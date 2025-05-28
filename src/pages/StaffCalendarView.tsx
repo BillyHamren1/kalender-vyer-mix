@@ -22,7 +22,7 @@ const StaffCalendarView: React.FC = () => {
   
   const [selectedClients, setSelectedClients] = useState<string[]>([]);
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
-  const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('week');
+  const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('month');
 
   // Force date to current date on component mount
   useEffect(() => {
