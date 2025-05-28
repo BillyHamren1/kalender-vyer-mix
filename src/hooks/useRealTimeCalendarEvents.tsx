@@ -1,7 +1,6 @@
-
 import { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
-import { fetchCalendarEvents } from '@/services/eventService';
+import { fetchCalendarEvents, mapDatabaseToAppResourceId } from '@/services/eventService';
 import { smartUpdateBookingCalendar } from '@/services/bookingCalendarService';
 import { toast } from 'sonner';
 import { CalendarContext } from '@/App';
@@ -62,7 +61,7 @@ export const useRealTimeCalendarEvents = () => {
           if (newRecord && !updatedEvents.find(e => e.id === newRecord.id)) {
             const newEvent: CalendarEvent = {
               id: newRecord.id,
-              resourceId: newRecord.resource_id,
+              resourceId: mapDatabaseToAppResourceId(newRecord.resource_id), // Convert DB format to app format
               title: newRecord.title,
               start: newRecord.start_time,
               end: newRecord.end_time,
@@ -72,7 +71,7 @@ export const useRealTimeCalendarEvents = () => {
               deliveryAddress: newRecord.delivery_address || 'No address provided'
             };
             updatedEvents.push(newEvent);
-            console.log('Added new event:', newEvent.title);
+            console.log('Added new event:', newEvent.title, 'to team:', newEvent.resourceId);
           }
           break;
           
@@ -82,7 +81,7 @@ export const useRealTimeCalendarEvents = () => {
             if (index !== -1) {
               updatedEvents[index] = {
                 id: newRecord.id,
-                resourceId: newRecord.resource_id,
+                resourceId: mapDatabaseToAppResourceId(newRecord.resource_id), // Convert DB format to app format
                 title: newRecord.title,
                 start: newRecord.start_time,
                 end: newRecord.end_time,
@@ -91,7 +90,7 @@ export const useRealTimeCalendarEvents = () => {
                 bookingNumber: newRecord.booking_number || newRecord.booking_id || 'No ID',
                 deliveryAddress: newRecord.delivery_address || 'No address provided'
               };
-              console.log('Updated event:', newRecord.title);
+              console.log('Updated event:', newRecord.title, 'moved to team:', updatedEvents[index].resourceId);
             }
           }
           break;
