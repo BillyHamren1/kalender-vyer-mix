@@ -403,7 +403,9 @@ export const resyncBookingCalendarEvents = async (bookingId: string): Promise<bo
   try {
     toast.info(`Resyncing booking ${bookingId} to calendar...`);
     
-    const success = await smartUpdateBookingCalendar(bookingId);
+    // Import the resync function and call it properly
+    const { resyncBookingToCalendar } = await import('./bookingCalendarService');
+    const success = await resyncBookingToCalendar(bookingId, true); // Force resync
     
     if (success) {
       toast.success(`Successfully resynced booking ${bookingId} calendar events`);

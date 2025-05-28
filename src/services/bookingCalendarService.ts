@@ -3,6 +3,37 @@ import { supabase } from "@/integrations/supabase/client";
 import { addCalendarEvent, deleteCalendarEvent, fetchEventsByBookingId } from './eventService';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 
+// Fetch dates by booking ID and event type
+export const fetchBookingDatesByType = async (bookingId: string, eventType: 'rig' | 'event' | 'rigDown'): Promise<string[]> => {
+  console.log(`Fetching ${eventType} dates for booking ${bookingId}`);
+  
+  try {
+    const { data: events, error } = await supabase
+      .from('calendar_events')
+      .select('start_time')
+      .eq('booking_id', bookingId)
+      .eq('event_type', eventType)
+      .order('start_time', { ascending: true });
+
+    if (error) {
+      console.error(`Error fetching ${eventType} dates:`, error);
+      return [];
+    }
+
+    // Extract dates from start_time and format them as YYYY-MM-DD
+    const dates = events?.map(event => {
+      const date = new Date(event.start_time);
+      return date.toISOString().split('T')[0];
+    }) || [];
+
+    console.log(`Found ${dates.length} ${eventType} dates for booking ${bookingId}:`, dates);
+    return dates;
+  } catch (error) {
+    console.error(`Error fetching ${eventType} dates for booking ${bookingId}:`, error);
+    return [];
+  }
+};
+
 // Enhanced sync function that respects existing events
 export const resyncBookingToCalendar = async (bookingId: string, force: boolean = false): Promise<boolean> => {
   console.log(`Resyncing booking ${bookingId} to calendar (force: ${force})`);
