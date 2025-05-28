@@ -48,18 +48,18 @@ export const EventInformationCard = ({
     eventType: 'rig' | 'event' | 'rigDown';
     bgColor: string;
   }) => (
-    <div className="text-center">
-      <div className="text-xs text-gray-500 mb-1">{title}</div>
+    <div className="w-full">
+      <div className="text-sm font-medium text-gray-700 mb-2">{title}</div>
       {dates.length > 0 ? (
-        <div className="space-y-1">
+        <div className="space-y-2">
           {dates.map((date, index) => (
-            <div key={index} className="flex items-center justify-center gap-1">
+            <div key={index} className="flex items-center justify-between">
               <Popover open={openPopover === `${eventType}-${index}`} onOpenChange={(open) => setOpenPopover(open ? `${eventType}-${index}` : null)}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="ghost"
                     className={cn(
-                      "text-xs font-medium border px-1.5 py-0.5 rounded text-black h-auto",
+                      "text-sm font-medium border px-3 py-2 rounded text-black h-auto flex-1 mr-2",
                       bgColor
                     )}
                   >
@@ -86,7 +86,7 @@ export const EventInformationCard = ({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-4 w-4 p-0 text-red-500 hover:text-red-700"
+                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
                   onClick={() => handleDateRemove(date, eventType)}
                 >
                   ×
@@ -99,9 +99,9 @@ export const EventInformationCard = ({
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-xs text-gray-500 hover:text-gray-700 h-auto px-1 py-0.5"
+                className="text-sm text-gray-500 hover:text-gray-700 h-auto px-2 py-1 w-full"
               >
-                + Add
+                + Add {title}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="center">
@@ -119,9 +119,9 @@ export const EventInformationCard = ({
           <PopoverTrigger asChild>
             <Button
               variant="ghost"
-              className="text-xs text-gray-400 hover:text-gray-600 h-auto px-1 py-0.5"
+              className="text-sm text-gray-400 hover:text-gray-600 h-auto px-2 py-1 w-full"
             >
-              + Add date
+              + Add {title}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="center">
@@ -138,22 +138,22 @@ export const EventInformationCard = ({
   );
 
   return (
-    <Card className="shadow-sm">
+    <Card className="shadow-sm h-full flex flex-col">
       <CardHeader className="py-3 px-4">
         <CardTitle className="flex items-center gap-1.5 text-base">
           <Calendar className="h-4 w-4" />
           <span>Event Information</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-0 px-4 pb-3">
-        <div className="space-y-2">
+      <CardContent className="pt-0 px-4 pb-3 flex-1 flex flex-col">
+        <div className="space-y-4 flex-1">
           <div>
             <p className="text-xs font-medium text-gray-500">Event Type</p>
             <p className="text-sm">Corporate Event</p>
           </div>
-          <div>
-            <p className="text-xs font-medium text-gray-500 mb-1">Event Dates</p>
-            <div className="grid grid-cols-3 gap-2">
+          <div className="flex-1">
+            <p className="text-xs font-medium text-gray-500 mb-3">Event Dates</p>
+            <div className="space-y-4">
               <DateSection 
                 title="Rig Up" 
                 dates={rigDates} 
