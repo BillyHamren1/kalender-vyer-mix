@@ -133,16 +133,17 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         zIndex: 10
       }}
     >
-      {/* Team Header Section with border */}
-      <div className="flex flex-col border-b border-gray-200 pb-1 mb-1">
-        {/* Clickable Team Title with Plus Icon */}
+      {/* Team Header Section with border and relative positioning */}
+      <div className="flex flex-col border-b border-gray-200 pb-1 mb-1 relative">
+        {/* Full-width Clickable Team Title */}
         <div 
-          className="flex items-center justify-center gap-1 text-xs font-medium text-center cursor-pointer hover:bg-blue-100 hover:text-blue-800 transition-colors duration-200 p-1 rounded border border-transparent hover:border-blue-200" 
+          className="w-full text-xs font-medium text-center cursor-pointer hover:bg-blue-100 hover:text-blue-800 transition-colors duration-200 p-1 rounded border border-transparent hover:border-blue-200 relative" 
           title={`Click to assign staff to ${resource.title} on ${format(effectiveDate, 'MMM d')}`}
           onClick={handleSelectStaff}
         >
-          <span className="truncate flex-1">{resource.title}</span>
-          <Plus className="h-3 w-3 flex-shrink-0" />
+          <span className="truncate block pr-4">{resource.title}</span>
+          {/* Plus icon positioned as overlay in top-right */}
+          <Plus className="h-3 w-3 absolute top-1 right-1" />
         </div>
       </div>
       
