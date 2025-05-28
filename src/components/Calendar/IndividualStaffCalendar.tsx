@@ -1,8 +1,8 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
-import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import resourceDayGridPlugin from '@fullcalendar/resource-daygrid';
+import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { StaffCalendarEvent, StaffResource } from '@/services/staffCalendarService';
 import { format } from 'date-fns';
@@ -29,10 +29,17 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
 
   // Calculate calendar height based on number of staff and view mode
   useEffect(() => {
-    const baseHeight = viewMode === 'week' ? 600 : 800;
-    const staffCount = Math.max(1, staffResources.length);
-    const calculatedHeight = Math.min(baseHeight + (staffCount * 60), 1200);
-    setCalendarHeight(`${calculatedHeight}px`);
+    if (viewMode === 'month') {
+      const baseHeight = 800;
+      const staffCount = Math.max(1, staffResources.length);
+      const calculatedHeight = Math.min(baseHeight + (staffCount * 40), 1200);
+      setCalendarHeight(`${calculatedHeight}px`);
+    } else {
+      const baseHeight = 600;
+      const staffCount = Math.max(1, staffResources.length);
+      const calculatedHeight = Math.min(baseHeight + (staffCount * 60), 1000);
+      setCalendarHeight(`${calculatedHeight}px`);
+    }
   }, [staffResources.length, viewMode]);
 
   // Handle navigation
@@ -57,7 +64,10 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
 
   // Get calendar view based on mode
   const getCalendarView = () => {
-    return viewMode === 'week' ? 'resourceTimeGridWeek' : 'resourceDayGridMonth';
+    if (viewMode === 'month') {
+      return staffResources.length > 0 ? 'resourceDayGridMonth' : 'dayGridMonth';
+    }
+    return 'dayGridMonth'; // Default to month view for this calendar
   };
 
   // Format events for FullCalendar
@@ -91,30 +101,31 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
       <div className="relative">
         <FullCalendar
           ref={calendarRef}
-          plugins={[resourceTimeGridPlugin, resourceDayGridPlugin, interactionPlugin]}
+          plugins={[resourceDayGridPlugin, dayGridPlugin, interactionPlugin]}
           initialView={getCalendarView()}
-          headerToolbar={false}
+          headerToolbar={{
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth'
+          }}
           height={calendarHeight}
-          resources={staffResources}
+          resources={staffResources.length > 0 ? staffResources : []}
           events={formattedEvents}
           resourceAreaWidth="150px"
           resourceAreaHeaderContent="Staff Members"
           resourceLabelContent="Staff"
-          slotMinTime="06:00:00"
-          slotMaxTime="20:00:00"
-          allDaySlot={false}
           nowIndicator={true}
           weekends={true}
           initialDate={currentDate}
           datesSet={handleDatesSet}
           eventClick={handleEventClick}
           resourceOrder="title"
-          resourceAreaColumns={[
+          resourceAreaColumns={staffResources.length > 0 ? [
             {
               field: 'title',
               headerContent: 'Staff Member'
             }
-          ]}
+          ] : []}
           eventContent={(renderInfo) => {
             const { event } = renderInfo;
             const props = event.extendedProps;
@@ -134,8 +145,11 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
               </div>
             );
           }}
-          dayMaxEvents={false}
+          dayMaxEvents={3}
           moreLinkClick="popover"
+          fixedWeekCount={false}
+          showNonCurrentDates={true}
+          firstDay={1} // Start week on Monday
         />
       </div>
       
@@ -144,28 +158,16 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
           position: relative;
         }
         
-        .fc-resource-timeline-header {
-          background-color: #f8fafc;
-        }
-        
-        .fc-event {
-          font-size: 11px;
+        .fc-daygrid-event {
+          margin: 1px;
+          padding: 1px 3px;
           border-radius: 3px;
-          margin: 1px 0;
+          font-size: 11px;
         }
         
         .fc-event-title {
           font-weight: 500;
           line-height: 1.2;
-        }
-        
-        .fc-daygrid-event {
-          margin: 1px;
-          padding: 1px 3px;
-        }
-        
-        .fc-timegrid-event {
-          border-radius: 2px;
         }
         
         .fc-resource-area-header {
@@ -176,6 +178,23 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
         .fc-resource-cell {
           border-right: 1px solid #e2e8f0;
           background-color: #fafafa;
+        }
+        
+        .fc-day-today {
+          background-color: #fef3c7 !important;
+        }
+        
+        .fc-daygrid-day-number {
+          font-weight: 600;
+        }
+        
+        .fc-col-header-cell {
+          background-color: #f8fafc;
+        }
+        
+        .fc-more-link {
+          color: #3b82f6;
+          font-size: 10px;
         }
       `}</style>
     </div>
