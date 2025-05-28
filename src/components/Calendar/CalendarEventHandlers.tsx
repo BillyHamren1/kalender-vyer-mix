@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 
@@ -14,17 +15,8 @@ export const getEventHandlers = (
   handleEventClick: (info: any) => void,
   handleEventReceive?: (info: any) => void
 ) => {
-  // Custom handler for event drops that prevents changes to team-6 events
+  // Custom handler for event drops - REMOVED the team-6 blocking logic
   const handleEventDrop = (info: any) => {
-    const isTeam6Event = info.event.getResources?.()?.[0]?.id === 'team-6' || 
-                         info.event._def?.resourceIds?.[0] === 'team-6';
-    
-    // If it's a team-6 event, revert the drop operation
-    if (isTeam6Event) {
-      info.revert();
-      return;
-    }
-    
     // Log detailed information about the drop operation
     console.log('Event drop detected:', {
       eventId: info.event.id,
@@ -37,7 +29,7 @@ export const getEventHandlers = (
       delta: info.delta,
     });
     
-    // Otherwise, let the regular handler process it
+    // Allow all events to be dropped, including team-6 events
     handleEventChange(info);
   };
 

@@ -35,6 +35,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
         startEditable: true,
         durationEditable: true,
         resourceEditable: true,
+        constraint: undefined, // Remove any constraints that might prevent dragging
         extendedProps: {
           ...event.extendedProps,
           bookingId: event.extendedProps?.bookingId || event.bookingId,
@@ -47,7 +48,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
         }
       };
 
-      console.log(`Processed EVENT type event ${event.id}: moved to team-6 with 2.5hr duration and draggable`);
+      console.log(`Processed EVENT type event ${event.id}: moved to team-6 with 2.5hr duration and FULLY DRAGGABLE`);
       return processedEvent;
     }
 
@@ -60,6 +61,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
       startEditable: true,
       durationEditable: true,
       resourceEditable: true,
+      constraint: undefined, // Remove any constraints that might prevent dragging
       extendedProps: {
         ...event.extendedProps,
         bookingId: event.extendedProps?.bookingId || event.bookingId,
