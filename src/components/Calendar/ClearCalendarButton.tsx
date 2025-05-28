@@ -12,7 +12,7 @@ const ClearCalendarButton: React.FC<ClearCalendarButtonProps> = ({ onRefresh }) 
   const [isClearing, setIsClearing] = useState(false);
 
   const handleClearCalendar = async () => {
-    if (!window.confirm('Are you sure you want to clear ALL calendar events? This action cannot be undone.')) {
+    if (!window.confirm('Are you sure you want to clear ALL calendar events AND staff assignments? This action cannot be undone.')) {
       return;
     }
 
@@ -33,7 +33,7 @@ const ClearCalendarButton: React.FC<ClearCalendarButtonProps> = ({ onRefresh }) 
       className="gap-2"
     >
       <Trash2 className="h-4 w-4" />
-      {isClearing ? 'Clearing...' : 'Clear Calendar'}
+      {isClearing ? 'Clearing...' : 'Clear All Data'}
     </Button>
   );
 };
