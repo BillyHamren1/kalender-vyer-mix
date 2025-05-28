@@ -5,7 +5,7 @@ import { Users, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { getStaffCalendarEvents, getStaffResources } from '@/services/staffCalendarService';
-import { startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
+import { startOfMonth, endOfMonth, addMonths, subMonths, format } from 'date-fns';
 import { toast } from 'sonner';
 import IndividualStaffCalendar from '@/components/Calendar/IndividualStaffCalendar';
 import ClientSelector from '@/components/Calendar/ClientSelector';
@@ -19,11 +19,14 @@ const StaffCalendarView: React.FC = () => {
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('week');
 
+  // Improved date range calculation with proper month boundaries
   const getDateRange = () => {
-    return {
-      start: startOfMonth(currentDate),
-      end: endOfMonth(currentDate)
-    };
+    const start = startOfMonth(currentDate);
+    const end = endOfMonth(currentDate);
+    
+    console.log('StaffCalendarView: Date range for', format(currentDate, 'yyyy-MM-dd'), 'is', format(start, 'yyyy-MM-dd'), 'to', format(end, 'yyyy-MM-dd'));
+    
+    return { start, end };
   };
 
   const { start: startDate, end: endDate } = getDateRange();
@@ -40,22 +43,35 @@ const StaffCalendarView: React.FC = () => {
     refetchOnWindowFocus: false,
   });
 
-  // Fetch calendar events using the correct staffCalendarService
+  // Fetch calendar events with improved query key that includes the formatted date
   const { 
     data: calendarEvents = [], 
     isLoading: isLoadingEvents, 
     error,
     refetch: refetchEvents 
   } = useQuery({
-    queryKey: ['staffCalendarEvents', selectedStaffIds, startDate, endDate],
-    queryFn: () => getStaffCalendarEvents(selectedStaffIds, startDate, endDate),
+    queryKey: ['staffCalendarEvents', selectedStaffIds, format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd')],
+    queryFn: () => {
+      console.log('StaffCalendarView: Fetching events for staff:', selectedStaffIds, 'from', format(startDate, 'yyyy-MM-dd'), 'to', format(endDate, 'yyyy-MM-dd'));
+      return getStaffCalendarEvents(selectedStaffIds, startDate, endDate);
+    },
     enabled: selectedStaffIds.length > 0,
     staleTime: 30000,
     refetchOnWindowFocus: false,
   });
 
+  // Improved date change handler that ensures proper month boundaries
   const handleDateChange = (newDate: Date) => {
-    setCurrentDate(newDate);
+    console.log('StaffCalendarView: Date changed from', format(currentDate, 'yyyy-MM-dd'), 'to', format(newDate, 'yyyy-MM-dd'));
+    
+    // Only update if the month actually changed to prevent unnecessary re-renders
+    const currentMonth = format(currentDate, 'yyyy-MM');
+    const newMonth = format(newDate, 'yyyy-MM');
+    
+    if (currentMonth !== newMonth) {
+      console.log('StaffCalendarView: Month changed, updating currentDate');
+      setCurrentDate(newDate);
+    }
   };
 
   const handleRefresh = () => {
@@ -64,16 +80,20 @@ const StaffCalendarView: React.FC = () => {
     toast.success('Calendar refreshed');
   };
 
+  // Improved navigation with better month handling
   const navigateDate = (direction: 'prev' | 'next') => {
-    if (direction === 'prev') {
-      setCurrentDate(subMonths(currentDate, 1));
-    } else {
-      setCurrentDate(addMonths(currentDate, 1));
-    }
+    const newDate = direction === 'prev' 
+      ? subMonths(currentDate, 1) 
+      : addMonths(currentDate, 1);
+    
+    console.log('StaffCalendarView: Navigating', direction, 'from', format(currentDate, 'yyyy-MM'), 'to', format(newDate, 'yyyy-MM'));
+    setCurrentDate(newDate);
   };
 
   const goToToday = () => {
-    setCurrentDate(new Date());
+    const today = new Date();
+    console.log('StaffCalendarView: Going to today:', format(today, 'yyyy-MM-dd'));
+    setCurrentDate(today);
   };
 
   const handleDateClick = (date: Date) => {
