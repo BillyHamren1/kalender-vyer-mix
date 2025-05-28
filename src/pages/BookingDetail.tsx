@@ -179,7 +179,7 @@ const BookingDetail = () => {
                     #{booking.bookingNumber || 'No booking number'}
                   </p>
                   <span className="text-gray-400">•</span>
-                  <p className="text-xs font-medium text-gray-700">{booking.client}</p>
+                  <p className="text-sm font-bold text-gray-900">{booking.client}</p>
                 </div>
               )}
             </div>
