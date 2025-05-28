@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { updateCalendarEvent } from '@/services/eventService';
 import { CalendarEvent, Resource } from '@/components/Calendar/ResourceData';
@@ -13,7 +14,7 @@ export const useEventOperations = ({
 }) => {
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Enhanced event change handler with detailed logging
+  // Enhanced event change handler with detailed logging and consistent resource ID handling
   const handleEventChange = async (info: any) => {
     console.log('🔄 Event change detected:', {
       eventId: info.event.id,
@@ -38,13 +39,17 @@ export const useEventOperations = ({
       const eventData: Partial<CalendarEvent> = {};
       let changeDescription = '';
 
-      // Handle resource (team) changes
+      // Handle resource (team) changes with proper logging
       if (info.newResource && info.oldResource?.id !== info.newResource.id) {
-        eventData.resourceId = info.newResource.id;
+        eventData.resourceId = info.newResource.id; // This should be in team-X format
         const oldTeam = resources.find(r => r.id === info.oldResource?.id)?.title || info.oldResource?.id;
         const newTeam = resources.find(r => r.id === info.newResource.id)?.title || info.newResource.id;
         changeDescription = `Event moved from ${oldTeam} to ${newTeam}`;
-        console.log('📋 Team change:', { from: info.oldResource?.id, to: info.newResource.id });
+        console.log('📋 Team change detected:', { 
+          from: info.oldResource?.id, 
+          to: info.newResource.id,
+          eventDataResourceId: eventData.resourceId 
+        });
       }
 
       // Handle time changes
@@ -70,7 +75,7 @@ export const useEventOperations = ({
         updates: eventData
       });
 
-      // Update the event in the database
+      // Update the event in the database - the service will handle resource ID mapping
       await updateCalendarEvent(info.event.id, eventData);
       
       console.log('✅ Event updated successfully in database');

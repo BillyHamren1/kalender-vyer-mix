@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { CalendarEvent } from "@/components/Calendar/ResourceData";
 
-// Resource ID mapping - converts between database IDs and application format
+// Resource ID mapping - converts between database IDs (single letters) and application format (team-X)
 const resourceIdMap: Record<string, string> = {
   'a': 'team-1',
   'b': 'team-2',
@@ -15,43 +15,61 @@ const resourceIdMap: Record<string, string> = {
   'j': 'team-10'
 };
 
-// Reverse mapping for saving to database
+// Reverse mapping for saving to database (team-X -> single letter)
 const reverseResourceIdMap: Record<string, string> = Object.entries(resourceIdMap)
   .reduce((map, [key, value]) => ({ ...map, [value]: key }), {});
 
-// Convert database resource ID to application format
+// Convert database resource ID (single letter) to application format (team-X)
 export const mapDatabaseToAppResourceId = (dbResourceId: string): string => {
-  // If it's already in team-X format, return as is
-  if (dbResourceId.startsWith('team-')) {
-    return dbResourceId;
-  }
-  // Return mapped ID or original if not found in the map
-  return resourceIdMap[dbResourceId] || `team-${dbResourceId}`;
-};
-
-// Convert application resource ID to database format
-export const mapAppToDatabaseResourceId = (appResourceId: string): string => {
-  // If it's already a single character like 'a', 'b', etc., return as is
-  if (appResourceId.length === 1 && reverseResourceIdMap[`team-${appResourceId}`]) {
-    return appResourceId;
-  }
+  console.log(`🔄 Mapping database ID "${dbResourceId}" to app format`);
   
-  // Handle direct team-X format
-  const result = reverseResourceIdMap[appResourceId];
-  
-  if (result) {
-    console.log(`✅ Mapped app ID ${appResourceId} to database ID ${result}`);
+  // If it's a single letter, map to team-X format
+  if (resourceIdMap[dbResourceId]) {
+    const result = resourceIdMap[dbResourceId];
+    console.log(`✅ Mapped "${dbResourceId}" -> "${result}"`);
     return result;
   }
   
-  // If the ID has format "team-X" but isn't in our map, extract the X
-  if (appResourceId.startsWith('team-')) {
-    const teamNumber = appResourceId.split('-')[1];
-    console.log(`⚠️ Team ID ${appResourceId} not in mapping, using extracted value ${teamNumber}`);
-    return teamNumber;
+  // If it's already in team-X format, return as is (shouldn't happen after migration)
+  if (dbResourceId.startsWith('team-')) {
+    console.log(`⚠️ Already in team format: "${dbResourceId}"`);
+    return dbResourceId;
   }
   
-  console.log(`❌ No mapping found for ${appResourceId}, using as is`);
+  // Fallback: assume it's a team number and convert
+  const fallback = `team-${dbResourceId}`;
+  console.log(`❌ Unknown format "${dbResourceId}", using fallback: "${fallback}"`);
+  return fallback;
+};
+
+// Convert application resource ID (team-X) to database format (single letter)
+export const mapAppToDatabaseResourceId = (appResourceId: string): string => {
+  console.log(`🔄 Mapping app ID "${appResourceId}" to database format`);
+  
+  // If it's in team-X format, map to single letter
+  if (reverseResourceIdMap[appResourceId]) {
+    const result = reverseResourceIdMap[appResourceId];
+    console.log(`✅ Mapped "${appResourceId}" -> "${result}"`);
+    return result;
+  }
+  
+  // If it's already a single letter, return as is
+  if (appResourceId.length === 1 && resourceIdMap[appResourceId]) {
+    console.log(`⚠️ Already in single letter format: "${appResourceId}"`);
+    return appResourceId;
+  }
+  
+  // Handle team-X format by extracting the number and converting to letter
+  if (appResourceId.startsWith('team-')) {
+    const teamNumber = parseInt(appResourceId.split('-')[1]);
+    if (teamNumber >= 1 && teamNumber <= 10) {
+      const letter = String.fromCharCode(96 + teamNumber); // 'a' = 97, so 96 + 1 = 97
+      console.log(`🔧 Converted "${appResourceId}" to letter "${letter}"`);
+      return letter;
+    }
+  }
+  
+  console.log(`❌ No mapping found for "${appResourceId}", using as is`);
   return appResourceId;
 };
 
@@ -182,7 +200,7 @@ export const updateCalendarEvent = async (
     const updateData: any = {};
     
     if (updates.resourceId) {
-      // Convert resourceId to database format
+      // Convert resourceId to database format (single letter)
       const dbResourceId = mapAppToDatabaseResourceId(updates.resourceId);
       updateData.resource_id = dbResourceId;
       console.log(`📋 Converting resource ID ${updates.resourceId} -> ${dbResourceId}`);
