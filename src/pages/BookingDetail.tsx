@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 
 // Import refactored components
-import { ClientInformation } from '@/components/booking/ClientInformation';
 import { DeliveryInformationCard } from '@/components/booking/DeliveryInformationCard';
 import { EventInformationCard } from '@/components/booking/EventInformationCard';
 import { LogisticsOptionsForm } from '@/components/booking/LogisticsOptionsForm';
@@ -201,8 +200,6 @@ const BookingDetail = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
             {/* Left Column */}
             <div className="space-y-2 flex flex-col">
-              <ClientInformation client={booking.client} />
-              
               {/* Display Products - now fills remaining space */}
               {booking.products && booking.products.length > 0 && (
                 <div className="flex-1">
