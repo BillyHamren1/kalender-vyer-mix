@@ -37,18 +37,13 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event }) => {
         {children}
       </HoverCardTrigger>
       <HoverCardContent 
-        className="w-80 max-w-80 p-3 bg-white border shadow-lg z-[10000] max-h-80 overflow-y-auto" 
-        side="bottom" 
-        align="center"
-        sideOffset={5}
+        className="w-80 max-w-80 p-3 bg-white border shadow-lg z-[10000] max-h-96 overflow-y-auto" 
+        side="top" 
+        align="start"
+        sideOffset={10}
         alignOffset={0}
-        avoidCollisions={false}
-        collisionPadding={0}
-        style={{
-          position: 'absolute',
-          transform: 'translateX(-50%)',
-          left: '50%'
-        }}
+        avoidCollisions={true}
+        collisionPadding={20}
       >
         <div className="space-y-3">
           {/* Event Title and Booking Number */}
