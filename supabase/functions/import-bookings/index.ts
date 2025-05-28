@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -41,6 +40,31 @@ interface AttachmentData {
   file_name: string;
   file_type: string;
 }
+
+/**
+ * Helper function to calculate end time based on event type
+ */
+const getEndTimeForEventType = (startTime: string, eventType: 'rig' | 'event' | 'rigDown'): string => {
+  const start = new Date(startTime);
+  let hoursToAdd: number;
+  
+  switch (eventType) {
+    case 'rig':
+      hoursToAdd = 4; // 4 hours for rig events
+      break;
+    case 'event':
+      hoursToAdd = 3; // 3 hours for event days
+      break;
+    case 'rigDown':
+      hoursToAdd = 4; // 4 hours for rig down events
+      break;
+    default:
+      hoursToAdd = 4; // fallback to 4 hours
+  }
+  
+  const end = new Date(start.getTime() + (hoursToAdd * 60 * 60 * 1000));
+  return end.toISOString();
+};
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -317,36 +341,45 @@ serve(async (req) => {
           const calendarEvents = []
           
           if (bookingData.rigdaydate) {
+            const startTime = `${bookingData.rigdaydate}T08:00:00`
+            const endTime = getEndTimeForEventType(startTime, 'rig')
+            
             calendarEvents.push({
               booking_id: bookingData.id,
               booking_number: bookingData.booking_number,
               title: `${bookingData.id}: ${bookingData.client}`,
-              start_time: `${bookingData.rigdaydate}T08:00:00`,
-              end_time: `${bookingData.rigdaydate}T17:00:00`,
+              start_time: startTime,
+              end_time: endTime,
               event_type: 'rig',
               delivery_address: bookingData.deliveryaddress
             })
           }
 
           if (bookingData.eventdate) {
+            const startTime = `${bookingData.eventdate}T08:00:00`
+            const endTime = getEndTimeForEventType(startTime, 'event')
+            
             calendarEvents.push({
               booking_id: bookingData.id,
               booking_number: bookingData.booking_number,
               title: `${bookingData.id}: ${bookingData.client}`,
-              start_time: `${bookingData.eventdate}T08:00:00`,
-              end_time: `${bookingData.eventdate}T17:00:00`,
+              start_time: startTime,
+              end_time: endTime,
               event_type: 'event',
               delivery_address: bookingData.deliveryaddress
             })
           }
 
           if (bookingData.rigdowndate) {
+            const startTime = `${bookingData.rigdowndate}T08:00:00`
+            const endTime = getEndTimeForEventType(startTime, 'rigDown')
+            
             calendarEvents.push({
               booking_id: bookingData.id,
               booking_number: bookingData.booking_number,
               title: `${bookingData.id}: ${bookingData.client}`,
-              start_time: `${bookingData.rigdowndate}T08:00:00`,
-              end_time: `${bookingData.rigdowndate}T17:00:00`,
+              start_time: startTime,
+              end_time: endTime,
               event_type: 'rigDown',
               delivery_address: bookingData.deliveryaddress
             })
