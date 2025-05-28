@@ -42,6 +42,15 @@ const BookingListSidebar: React.FC<BookingListSidebarProps> = ({
     return 'Past event';
   };
 
+  const getDisplayBookingNumber = (booking: Booking) => {
+    // Use booking number if available, otherwise show a shortened version of the ID
+    if (booking.bookingNumber) {
+      return `Booking #${booking.bookingNumber}`;
+    }
+    // Show first 8 characters of ID if no booking number
+    return `Booking #${booking.id.substring(0, 8)}...`;
+  };
+
   if (!bookings.length) {
     return (
       <div className="w-1/3 p-4 border-r">
@@ -72,7 +81,7 @@ const BookingListSidebar: React.FC<BookingListSidebarProps> = ({
                 onClick={() => onBookingSelect(booking)}
               >
                 <h4 className="font-medium text-gray-900 truncate">{booking.client}</h4>
-                <p className="text-sm text-gray-500 truncate">Booking #{booking.id}</p>
+                <p className="text-sm text-gray-500 truncate">{getDisplayBookingNumber(booking)}</p>
                 
                 <div className="mt-2 flex items-center gap-1 text-xs text-gray-600">
                   <Calendar className="h-3 w-3" />

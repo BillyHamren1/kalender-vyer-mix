@@ -74,6 +74,15 @@ const MapComponent: React.FC<MapComponentProps> = ({
     };
   }, [mapboxToken, isLoadingToken]);
 
+  const getDisplayBookingNumber = (booking: Booking) => {
+    // Use booking number if available, otherwise show a shortened version of the ID
+    if (booking.bookingNumber) {
+      return `Booking #${booking.bookingNumber}`;
+    }
+    // Show first 8 characters of ID if no booking number
+    return `Booking #${booking.id.substring(0, 8)}...`;
+  };
+
   // Add or update markers when bookings change
   useEffect(() => {
     if (!map.current || !mapInitialized) return;
@@ -99,7 +108,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
         <div>
           <h3 class="font-bold">${booking.client}</h3>
-          <p>Booking #${booking.id}</p>
+          <p>${getDisplayBookingNumber(booking)}</p>
           <p>${booking.deliveryAddress || 'No address'}</p>
           <button 
             class="px-2 py-1 mt-2 text-xs bg-blue-500 text-white rounded"
