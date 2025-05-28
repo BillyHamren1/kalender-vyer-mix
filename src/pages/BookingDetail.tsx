@@ -1,3 +1,4 @@
+
 import React, { useEffect, useContext, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -231,20 +232,21 @@ const BookingDetail = () => {
                 isSaving={isSaving}
                 onSave={handleDeliveryDetailsChange}
               />
+
+              {/* Logistics Options moved to right column */}
+              <LogisticsOptionsForm
+                initialCarryMoreThan10m={booking.carryMoreThan10m || false}
+                initialGroundNailsAllowed={booking.groundNailsAllowed || false}
+                initialExactTimeNeeded={booking.exactTimeNeeded || false}
+                initialExactTimeInfo={booking.exactTimeInfo || ''}
+                isSaving={isSaving}
+                onSave={handleLogisticsChange}
+              />
             </div>
           </div>
 
           {/* Full width sections */}
           <div className="mt-2 space-y-2">
-            <LogisticsOptionsForm
-              initialCarryMoreThan10m={booking.carryMoreThan10m || false}
-              initialGroundNailsAllowed={booking.groundNailsAllowed || false}
-              initialExactTimeNeeded={booking.exactTimeNeeded || false}
-              initialExactTimeInfo={booking.exactTimeInfo || ''}
-              isSaving={isSaving}
-              onSave={handleLogisticsChange}
-            />
-
             <ScheduleCard
               bookingId={actualBookingId || ''}
               rigDates={rigDates}
