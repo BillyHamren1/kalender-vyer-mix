@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Users, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getStaffCalendarEvents, getStaffResources } from '@/services/staffCalendarService';
 import { startOfMonth, endOfMonth, addMonths, subMonths, format } from 'date-fns';
 import { toast } from 'sonner';
@@ -11,7 +10,7 @@ import IndividualStaffCalendar from '@/components/Calendar/IndividualStaffCalend
 import ClientSelector from '@/components/Calendar/ClientSelector';
 import JobSummaryList from '@/components/Calendar/JobSummaryList';
 import SimpleCalendarNavigation from '@/components/Calendar/SimpleCalendarNavigation';
-import StaffSelector from '@/components/Calendar/StaffSelector';
+import StaffSelectorPanel from '@/components/Calendar/StaffSelectorPanel';
 
 const StaffCalendarView: React.FC = () => {
   // Initialize with TODAY'S date
@@ -147,10 +146,6 @@ const StaffCalendarView: React.FC = () => {
               selectedClients={selectedClients}
               onSelectionChange={setSelectedClients}
             />
-            <StaffSelector
-              selectedStaffIds={selectedStaffIds}
-              onSelectionChange={setSelectedStaffIds}
-            />
             <Button 
               onClick={handleRefresh} 
               variant="outline" 
@@ -173,11 +168,11 @@ const StaffCalendarView: React.FC = () => {
         onViewModeChange={setViewMode}
       />
 
-      {/* Main Content - Always show calendar since staff are auto-selected */}
+      {/* Main Content */}
       <div className="p-6">
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* Calendar */}
-          <div className="xl:col-span-2">
+        <div className="grid grid-cols-4 gap-6">
+          {/* Calendar - Takes up 3 columns */}
+          <div className="col-span-3">
             <Card>
               <CardContent className="p-0 relative">
                 {(isLoadingEvents || isLoadingStaff) && (
@@ -201,8 +196,17 @@ const StaffCalendarView: React.FC = () => {
             </Card>
           </div>
 
-          {/* Job Summary */}
-          <div className="xl:col-span-1">
+          {/* Right Sidebar - Staff Selection and Job Summary */}
+          <div className="col-span-1 space-y-6">
+            {/* Staff Selection Panel */}
+            <StaffSelectorPanel
+              staffResources={staffResources}
+              selectedStaffIds={selectedStaffIds}
+              onSelectionChange={setSelectedStaffIds}
+              isLoading={isLoadingStaff}
+            />
+
+            {/* Job Summary */}
             <JobSummaryList
               events={calendarEvents}
               staffResources={filteredStaffResources}
