@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceDayGridPlugin from '@fullcalendar/resource-daygrid';
@@ -96,6 +95,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
         <FullCalendar
           ref={calendarRef}
           plugins={[resourceDayGridPlugin, dayGridPlugin, interactionPlugin]}
+          schedulerLicenseKey={import.meta.env.VITE_FULLCALENDAR_LICENSE_KEY || "GPL-My-Project-Is-Open-Source"}
           initialView={staffResources.length > 0 ? 'resourceDayGridMonth' : 'dayGridMonth'}
           headerToolbar={{
             left: 'prev,next today',
