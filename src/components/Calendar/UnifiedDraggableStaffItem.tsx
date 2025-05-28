@@ -93,9 +93,15 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
 
   // Determine styling based on variant and assignment status
   const isAssigned = variant === 'available' && !!staff.assignedTeam;
+  
+  // Don't render available staff if they are already assigned (this prevents duplicates)
+  if (variant === 'available' && isAssigned) {
+    return null;
+  }
+  
   const baseClasses = `p-1 border border-gray-200 rounded-md mb-1 cursor-move flex items-center w-full transition-all duration-150 hover:shadow-sm active:cursor-grabbing`;
   const variantClasses = variant === 'available' 
-    ? `${isAssigned ? 'bg-gray-100 opacity-60' : 'bg-white shadow-sm'}`
+    ? 'bg-white shadow-sm'
     : 'bg-white';
   
   // Enhanced drag feedback - more pronounced visual changes
@@ -121,28 +127,18 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
         }}
         onDoubleClick={handleDoubleClick}
         draggable="true"
-        title={variant === 'available' && isAssigned ? `Assigned to team` : undefined}
       >
         <div className="flex items-center gap-1 w-full pointer-events-none">
-          <Avatar className={`h-4 w-4 flex-shrink-0 ${
-            variant === 'available' && isAssigned ? 'bg-gray-200' : 'bg-purple-100'
-          } ${isDragging ? 'bg-blue-200' : ''}`}>
-            <AvatarFallback className={`text-[10px] ${
-              variant === 'available' && isAssigned ? 'text-gray-500' : 'text-purple-700'
-            } ${isDragging ? 'text-blue-700' : ''}`}>
+          <Avatar className={`h-4 w-4 flex-shrink-0 bg-purple-100 ${isDragging ? 'bg-blue-200' : ''}`}>
+            <AvatarFallback className={`text-[10px] text-purple-700 ${isDragging ? 'text-blue-700' : ''}`}>
               {getInitials(staff.name)}
             </AvatarFallback>
           </Avatar>
           <span className={`text-xs font-medium whitespace-nowrap overflow-hidden text-ellipsis ${
-            variant === 'available' && isAssigned ? 'text-gray-500' : ''
-          } ${isDragging ? 'text-blue-700 font-semibold' : ''}`}>
+            isDragging ? 'text-blue-700 font-semibold' : ''
+          }`}>
             {getFirstName(staff.name)}
           </span>
-          {variant === 'available' && isAssigned && (
-            <span className="text-xs text-gray-400 ml-auto mr-1">
-              &#10003;
-            </span>
-          )}
         </div>
       </div>
       
