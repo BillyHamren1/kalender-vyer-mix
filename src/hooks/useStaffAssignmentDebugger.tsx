@@ -86,14 +86,63 @@ export const useStaffAssignmentDebugger = () => {
     try {
       console.log(`🔧 Creating assignment directly: Staff ${staffId} → Team ${teamId} on ${dateStr}`);
       
+      // First check if staff is already assigned to a different team on this date
+      const { data: existingAssignment, error: checkError } = await supabase
+        .from('staff_assignments')
+        .select('team_id, staff_members(name)')
+        .eq('staff_id', staffId)
+        .eq('assignment_date', dateStr)
+        .maybeSingle();
+      
+      if (checkError) {
+        addDebugLog({
+          operation: 'create_assignment_direct',
+          staffId,
+          teamId,
+          date: dateStr,
+          success: false,
+          error: checkError.message
+        });
+        return { success: false, error: checkError.message };
+      }
+      
+      if (existingAssignment && existingAssignment.team_id !== teamId) {
+        const staffName = existingAssignment.staff_members?.name || `Staff ${staffId}`;
+        const errorMessage = `${staffName} is already assigned to Team ${existingAssignment.team_id} on ${dateStr}. Remove them from that team first.`;
+        
+        addDebugLog({
+          operation: 'create_assignment_direct',
+          staffId,
+          teamId,
+          date: dateStr,
+          success: false,
+          error: errorMessage
+        });
+        
+        toast.error(errorMessage);
+        return { success: false, error: errorMessage };
+      }
+      
+      // If staff is already assigned to the same team, no need to do anything
+      if (existingAssignment && existingAssignment.team_id === teamId) {
+        addDebugLog({
+          operation: 'create_assignment_direct',
+          staffId,
+          teamId,
+          date: dateStr,
+          success: true,
+          dbResult: { message: 'Already assigned to this team' }
+        });
+        return { success: true, data: existingAssignment };
+      }
+      
+      // Create new assignment
       const { data, error } = await supabase
         .from('staff_assignments')
-        .upsert({
+        .insert({
           staff_id: staffId,
           team_id: teamId,
           assignment_date: dateStr
-        }, {
-          onConflict: 'staff_id,assignment_date'
         })
         .select();
       
@@ -119,7 +168,6 @@ export const useStaffAssignmentDebugger = () => {
         dbResult: data
       });
       
-      toast.success(`Assignment created: ${staffId} → ${teamId}`);
       return { success: true, data };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -165,7 +213,6 @@ export const useStaffAssignmentDebugger = () => {
         success: true
       });
       
-      toast.success(`Assignment removed: ${staffId}`);
       return { success: true };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';

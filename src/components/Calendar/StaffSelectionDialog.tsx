@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { fetchStaffMembers } from '@/services/staffService';
 import { StaffMember } from './StaffAssignmentRow';
@@ -140,7 +139,7 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
     }
   }, [allStaff, searchQuery, resourceId, resourceTitle, dateStr, reliableStaffOperations]);
   
-  // Handle staff assignment with reliable operations
+  // Handle staff assignment with proper conflict detection
   const handleAssignStaff = async (staffId: string, staffName: string) => {
     if (assigning) return; // Prevent double-clicks
     
@@ -148,12 +147,21 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
       setAssigning(staffId);
       console.log(`StaffSelectionDialog: Assigning staff ${staffName} (${staffId}) to team ${resourceId} on ${dateStr}`);
       
+      // Check if staff is already assigned to a different team
+      const existingAssignment = reliableStaffOperations?.assignments.find(
+        a => a.staffId === staffId && a.date === dateStr && a.teamId !== resourceId
+      );
+      
+      if (existingAssignment) {
+        const errorMessage = `${staffName} is already assigned to Team ${existingAssignment.teamId} on ${format(currentDate, 'MMM d, yyyy')}. Remove them from that team first.`;
+        toast.error(errorMessage);
+        return;
+      }
+      
       // Call the callback which will use reliable operations
       await onStaffAssigned(staffId, staffName);
       
       console.log('StaffSelectionDialog: Assignment completed successfully');
-      
-      toast.success(`${staffName} assigned to ${resourceTitle} successfully`);
       onOpenChange(false);
     } catch (error) {
       console.error('Error assigning staff:', error);
@@ -238,8 +246,8 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
                           </p>
                         )}
                         {isAssignedToOtherTeam && (
-                          <p className="text-xs text-gray-500">
-                            Assigned to {getTeamName(staff.assignedTeamId!)}
+                          <p className="text-xs text-red-500">
+                            Assigned to {getTeamName(staff.assignedTeamId!)} - remove first
                           </p>
                         )}
                       </div>

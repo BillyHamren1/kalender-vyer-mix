@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -110,7 +109,7 @@ export const useReliableStaffOperations = (currentDate: Date) => {
     };
   }, [dateStr, fetchAssignments, addDebugLog]);
 
-  // Reliable staff drop handler with verification
+  // Reliable staff drop handler with proper conflict handling
   const handleStaffDrop = useCallback(async (staffId: string, resourceId: string | null) => {
     if (!staffId) {
       console.warn('No staffId provided to handleStaffDrop');
@@ -125,7 +124,7 @@ export const useReliableStaffOperations = (currentDate: Date) => {
       let result;
       
       if (resourceId) {
-        // Assign staff to team
+        // Assign staff to team - this will now properly check for conflicts
         result = await createAssignmentDirectly(staffId, resourceId, currentDate);
       } else {
         // Remove assignment
@@ -134,6 +133,7 @@ export const useReliableStaffOperations = (currentDate: Date) => {
       
       if (!result.success) {
         console.error('Staff operation failed:', result.error);
+        // Error message is already shown by the createAssignmentDirectly function
         return;
       }
       
@@ -146,7 +146,10 @@ export const useReliableStaffOperations = (currentDate: Date) => {
             toast.error('Assignment may not have been saved properly');
           } else {
             console.log('✅ Assignment verified in database');
+            toast.success(`Staff assigned successfully`);
           }
+        } else {
+          toast.success(`Staff assignment removed successfully`);
         }
         
         // Refresh to show actual database state
