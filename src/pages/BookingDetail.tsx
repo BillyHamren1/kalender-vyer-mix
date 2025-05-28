@@ -1,3 +1,4 @@
+
 import React, { useEffect, useContext, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -209,6 +210,13 @@ const BookingDetail = () => {
 
             {/* Right Column */}
             <div className="space-y-3">
+              {/* Event Information - moved above Delivery Address */}
+              <EventInformationCard
+                rigDates={rigDates}
+                eventDates={eventDates}
+                rigDownDates={rigDownDates}
+              />
+              
               <DeliveryAddressForm
                 initialAddress={booking.deliveryAddress || ''}
                 initialCity={booking.deliveryCity || ''}
@@ -217,13 +225,6 @@ const BookingDetail = () => {
                 deliveryLongitude={booking.deliveryLongitude}
                 isSaving={isSaving}
                 onSave={handleDeliveryDetailsChange}
-              />
-              
-              {/* Event Information - moved above Delivery Contact */}
-              <EventInformationCard
-                rigDates={rigDates}
-                eventDates={eventDates}
-                rigDownDates={rigDownDates}
               />
               
               {/* Delivery Contact */}
