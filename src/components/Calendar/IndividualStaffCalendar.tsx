@@ -29,11 +29,16 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
 
   // Calculate calendar height based on number of staff and view mode
   useEffect(() => {
-    const baseHeight = 700;
-    const staffCount = Math.max(1, staffResources.length);
-    const calculatedHeight = Math.min(baseHeight + (staffCount * 80), 1200);
-    setCalendarHeight(`${calculatedHeight}px`);
-  }, [staffResources.length]);
+    if (viewMode === 'month') {
+      // For monthly view, use a fixed height that shows the full month grid
+      setCalendarHeight('600px');
+    } else {
+      const baseHeight = 700;
+      const staffCount = Math.max(1, staffResources.length);
+      const calculatedHeight = Math.min(baseHeight + (staffCount * 80), 1200);
+      setCalendarHeight(`${calculatedHeight}px`);
+    }
+  }, [staffResources.length, viewMode]);
 
   // Update FullCalendar when currentDate changes
   useEffect(() => {
@@ -96,6 +101,17 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
   console.log('Staff resources:', staffResources);
   console.log('Current date prop:', format(currentDate, 'yyyy-MM-dd'));
 
+  // Determine the correct view based on staff resources and view mode
+  const getCalendarView = () => {
+    if (viewMode === 'month') {
+      // For monthly view, use standard dayGridMonth regardless of staff resources
+      return 'dayGridMonth';
+    } else {
+      // For other views, use resource views if staff are selected
+      return staffResources.length > 0 ? 'resourceDayGridMonth' : 'dayGridMonth';
+    }
+  };
+
   return (
     <div className="staff-calendar-container relative">
       {isLoading && (
@@ -112,10 +128,10 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
           ref={calendarRef}
           plugins={[resourceDayGridPlugin, dayGridPlugin, interactionPlugin]}
           schedulerLicenseKey={import.meta.env.VITE_FULLCALENDAR_LICENSE_KEY || "GPL-My-Project-Is-Open-Source"}
-          initialView={staffResources.length > 0 ? 'resourceDayGridMonth' : 'dayGridMonth'}
+          initialView={getCalendarView()}
           headerToolbar={false}
           height={calendarHeight}
-          resources={staffResources.length > 0 ? staffResources.map(staff => ({
+          resources={staffResources.length > 0 && viewMode !== 'month' ? staffResources.map(staff => ({
             id: staff.id,
             title: staff.name
           })) : undefined}
@@ -128,7 +144,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
           datesSet={handleDatesSet}
           eventClick={handleEventClick}
           resourceOrder="title"
-          resourceAreaColumns={staffResources.length > 0 ? [
+          resourceAreaColumns={staffResources.length > 0 && viewMode !== 'month' ? [
             {
               field: 'title',
               headerContent: 'Staff Member'
@@ -154,6 +170,11 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
                       Team Assignment
                     </div>
                   )}
+                  {viewMode === 'month' && props.staffName && (
+                    <div className="text-xs opacity-75 mt-1">
+                      {props.staffName}
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -164,7 +185,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
           showNonCurrentDates={true}
           firstDay={1}
           eventDisplay="block"
-          displayEventTime={false}
+          displayEventTime={viewMode !== 'month'}
         />
       </div>
       
