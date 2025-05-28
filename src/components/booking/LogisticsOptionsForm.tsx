@@ -46,55 +46,52 @@ export const LogisticsOptionsForm = ({
 
   return (
     <Card className="shadow-sm">
-      <CardHeader className="py-2 px-3">
-        <CardTitle className="flex items-center gap-1.5 text-sm">
-          <Truck className="h-3.5 w-3.5" />
+      <CardHeader className="py-3 px-4">
+        <CardTitle className="flex items-center gap-1.5 text-base">
+          <Truck className="h-4 w-4" />
           <span>Logistics Options</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-0 px-3 pb-2">
-        <div className="space-y-1.5">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-1.5">
-            <div className="flex items-center space-x-1.5">
+      <CardContent className="pt-0 px-4 pb-3">
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex items-center space-x-2">
               <Switch
                 id="carry-more-than-10m"
                 checked={carryMoreThan10m}
                 onCheckedChange={setCarryMoreThan10m}
-                className="h-3.5 w-6"
               />
               <Label
                 htmlFor="carry-more-than-10m"
-                className="text-xs font-medium"
+                className="text-sm font-medium"
               >
                 Carry distance &gt;10m
               </Label>
             </div>
             
-            <div className="flex items-center space-x-1.5">
+            <div className="flex items-center space-x-2">
               <Switch
                 id="ground-nails-allowed"
                 checked={groundNailsAllowed}
                 onCheckedChange={setGroundNailsAllowed}
-                className="h-3.5 w-6"
               />
               <Label
                 htmlFor="ground-nails-allowed"
-                className="text-xs font-medium"
+                className="text-sm font-medium"
               >
                 Ground nails allowed
               </Label>
             </div>
             
-            <div className="flex items-center space-x-1.5">
+            <div className="flex items-center space-x-2">
               <Switch
                 id="exact-time-needed"
                 checked={exactTimeNeeded}
                 onCheckedChange={setExactTimeNeeded}
-                className="h-3.5 w-6"
               />
               <Label
                 htmlFor="exact-time-needed"
-                className="text-xs font-medium"
+                className="text-sm font-medium"
               >
                 Exact time required
               </Label>
@@ -103,13 +100,15 @@ export const LogisticsOptionsForm = ({
           
           {exactTimeNeeded && (
             <div>
-              <Label htmlFor="exact-time-info" className="text-xs">Time Details</Label>
+              <Label htmlFor="exact-time-info" className="text-sm font-medium text-gray-500">
+                Time Details
+              </Label>
               <Textarea 
                 id="exact-time-info"
                 value={exactTimeInfo}
                 onChange={(e) => setExactTimeInfo(e.target.value)}
                 placeholder="Specify the time requirements"
-                className="mt-0.5 min-h-[50px] text-xs"
+                className="mt-1"
               />
             </div>
           )}
@@ -117,8 +116,8 @@ export const LogisticsOptionsForm = ({
           <Button
             onClick={handleSave}
             disabled={isSaving}
-            className="mt-1 h-7 text-xs"
-            size="sm"
+            className="w-full"
+            size="default"
           >
             Save Options
           </Button>
