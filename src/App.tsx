@@ -16,6 +16,7 @@ import MonthlyBookingSchedule from './pages/MonthlyBookingSchedule';
 import LogisticsMap from './pages/LogisticsMap';
 import APITester from './pages/APITester';
 import StaffEndpoint from './pages/StaffEndpoint';
+import StaffManagement from './pages/StaffManagement';
 import NotFound from './pages/NotFound';
 import StaffCalendarView from './pages/StaffCalendarView';
 
@@ -55,6 +56,7 @@ function App() {
               <Route path="/weekly-view" element={<WeeklyResourceView />} />
               <Route path="/monthly-view" element={<MonthlyResourceView />} />
               <Route path="/staff-calendar" element={<StaffCalendarView />} />
+              <Route path="/staff-management" element={<StaffManagement />} />
               <Route path="/test-monthly-view" element={<TestMonthlyView />} />
               <Route path="/day-view" element={<DayView />} />
               <Route path="/booking-list" element={<BookingList />} />
