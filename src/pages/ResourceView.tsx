@@ -13,7 +13,6 @@ import ResourceHeader from '@/components/Calendar/ResourceHeader';
 import ResourceLayout from '@/components/Calendar/ResourceLayout';
 import ResourceToolbar from '@/components/Calendar/ResourceToolbar';
 import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
-import DateNavigationHeader from '@/components/Calendar/DateNavigationHeader';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
 
@@ -105,11 +104,6 @@ const ResourceView = () => {
         showStaffDisplay={false}
         staffDisplay={<div>Staff Display Placeholder</div>} 
         isMobile={isMobile}>
-        {/* Date Navigation Header */}
-        <DateNavigationHeader
-          currentDate={currentDate}
-          onDateChange={handleDateChange}
-        />
         
         {/* ResourceHeader component with team management controls */}
         <ResourceHeader
