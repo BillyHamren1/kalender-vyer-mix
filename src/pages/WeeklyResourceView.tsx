@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -21,6 +20,8 @@ import StaffConnectionValidator from '@/components/Calendar/StaffConnectionValid
 import { startOfWeek, subDays, format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import StaffAssignmentDebugPanel from '@/components/Calendar/StaffAssignmentDebugPanel';
+import { useReliableStaffOperations } from '@/hooks/useReliableStaffOperations';
 
 const WeeklyResourceView = () => {
   // Use the new real-time calendar events hook
@@ -49,8 +50,8 @@ const WeeklyResourceView = () => {
   const { addEventToCalendar, duplicateEvent } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
   
-  // Use enhanced staff operations with validation and logging
-  const enhancedStaffOps = useEnhancedStaffOperations(hookCurrentDate);
+  // Use reliable staff operations with direct database access
+  const reliableStaffOps = useReliableStaffOperations(hookCurrentDate);
   
   // Week navigation - managed independently from calendar's currentDate
   // Set to the start of the current week (Monday)
@@ -94,49 +95,49 @@ const WeeklyResourceView = () => {
     setStaffSelectionDialogOpen(true);
   }, [hookCurrentDate]);
 
-  // Handle successful staff assignment with enhanced operations
+  // Handle successful staff assignment with reliable operations
   const handleStaffAssigned = useCallback(async (staffId: string, staffName: string) => {
     console.log(`WeeklyResourceView: Staff ${staffName} (${staffId}) assigned successfully to team ${selectedResourceId} for date:`, selectedDate);
     
     try {
-      // Use the enhanced staff drop handler with validation
-      await enhancedStaffOps.handleStaffDrop(staffId, selectedResourceId);
-      console.log('WeeklyResourceView: Enhanced staff assignment completed successfully');
+      // Use the reliable staff drop handler with direct database access
+      await reliableStaffOps.handleStaffDrop(staffId, selectedResourceId);
+      console.log('WeeklyResourceView: Reliable staff assignment completed successfully');
     } catch (error) {
-      console.error('WeeklyResourceView: Error in enhanced staff assignment:', error);
-      // Fallback to the original method
+      console.error('WeeklyResourceView: Error in reliable staff assignment:', error);
+      // Fallback to the original method only if reliable fails
       await fallbackStaffDrop(staffId, selectedResourceId, selectedDate);
     }
-  }, [selectedResourceId, selectedDate, enhancedStaffOps, fallbackStaffDrop]);
+  }, [selectedResourceId, selectedDate, reliableStaffOps, fallbackStaffDrop]);
 
   // Toggle staff display panel
   const handleToggleStaffDisplay = useCallback(() => {
     setShowStaffDisplay(prev => !prev);
   }, []);
 
-  // Enhanced staff drop handler with validation and logging
+  // Enhanced staff drop handler with reliable operations
   const handleWeeklyStaffDrop = useCallback(async (staffId: string, resourceId: string | null, targetDate?: Date) => {
     if (!targetDate) {
       console.error('WeeklyResourceView: No target date provided for staff drop');
       return;
     }
 
-    console.log('WeeklyResourceView.handleWeeklyStaffDrop (Enhanced):', {
+    console.log('WeeklyResourceView.handleWeeklyStaffDrop (Reliable):', {
       staffId,
       resourceId,
       targetDate: format(targetDate, 'yyyy-MM-dd')
     });
     
     try {
-      // Use enhanced staff operations for better validation and logging
-      await enhancedStaffOps.handleStaffDrop(staffId, resourceId);
-      console.log('WeeklyResourceView: Enhanced staff drop completed successfully for date:', format(targetDate, 'yyyy-MM-dd'));
+      // Use reliable staff operations for direct database access
+      await reliableStaffOps.handleStaffDrop(staffId, resourceId);
+      console.log('WeeklyResourceView: Reliable staff drop completed successfully for date:', format(targetDate, 'yyyy-MM-dd'));
     } catch (error) {
-      console.error('WeeklyResourceView: Error in enhanced staff drop, falling back:', error);
-      // Fallback to the original method
+      console.error('WeeklyResourceView: Error in reliable staff drop, falling back:', error);
+      // Fallback to the original method only if reliable fails
       await fallbackStaffDrop(staffId, resourceId, targetDate);
     }
-  }, [enhancedStaffOps, fallbackStaffDrop]);
+  }, [reliableStaffOps, fallbackStaffDrop]);
 
   // Copy staff assignments from previous week
   const handleCopyFromPreviousWeek = useCallback(async () => {
@@ -198,18 +199,18 @@ const WeeklyResourceView = () => {
       toast.success('Staff assignments copied successfully');
       
       // Force refresh the enhanced operations
-      enhancedStaffOps.forceRefresh();
+      reliableStaffOps.forceRefresh();
       
     } catch (error) {
       console.error('Error copying assignments from previous week:', error);
       toast.error('Failed to copy staff assignments from previous week');
     }
-  }, [currentWeekStart, enhancedStaffOps]);
+  }, [currentWeekStart, reliableStaffOps]);
 
   // Wrapper function to ensure Promise<void> return type
   const handleRefresh = async (): Promise<void> => {
     await refreshEvents();
-    enhancedStaffOps.forceRefresh();
+    reliableStaffOps.forceRefresh();
   };
 
   // Handle validation completion
@@ -272,7 +273,7 @@ const WeeklyResourceView = () => {
               />
               
               <ResourceToolbar
-                isLoading={isLoading || processingStaffIds.length > 0 || enhancedStaffOps.isLoading}
+                isLoading={isLoading || processingStaffIds.length > 0 || reliableStaffOps.isLoading}
                 currentDate={hookCurrentDate}
                 resources={resources}
                 onRefresh={handleRefresh}
@@ -281,18 +282,21 @@ const WeeklyResourceView = () => {
               />
             </div>
             
-            {/* Staff-Booking Connection Validator */}
-            {showConnectionValidator && (
-              <div className="w-full max-w-md">
+            {/* Staff-Booking Connection Validator and Debug Panel */}
+            <div className="flex flex-col items-center gap-2 w-full max-w-2xl">
+              {showConnectionValidator && (
                 <StaffConnectionValidator
                   currentDate={hookCurrentDate}
                   onValidationComplete={handleValidationComplete}
                 />
-              </div>
-            )}
+              )}
+              
+              {/* Debug Panel for Staff Assignments */}
+              <StaffAssignmentDebugPanel currentDate={hookCurrentDate} />
+            </div>
           </div>
           
-          {/* Unified Calendar View with enhanced staff handling */}
+          {/* Unified Calendar View with reliable staff handling */}
           <div className="weekly-view-container overflow-x-auto">
             <UnifiedResourceCalendar
               events={events}

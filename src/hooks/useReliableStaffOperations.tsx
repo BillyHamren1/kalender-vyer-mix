@@ -1,8 +1,8 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
-import { assignStaffToTeam, removeStaffAssignment, fetchStaffAssignments } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
+import { useStaffAssignmentDebugger } from './useStaffAssignmentDebugger';
 import { format } from 'date-fns';
 
 export interface StaffAssignment {
@@ -16,41 +16,60 @@ export const useReliableStaffOperations = (currentDate: Date) => {
   const [assignments, setAssignments] = useState<StaffAssignment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
+  const {
+    verifyAssignmentInDatabase,
+    createAssignmentDirectly,
+    removeAssignmentDirectly,
+    getAllAssignmentsForDate,
+    addDebugLog
+  } = useStaffAssignmentDebugger();
 
   const dateStr = format(currentDate, 'yyyy-MM-dd');
 
-  // Fetch assignments from database
+  // Fetch assignments directly from database
   const fetchAssignments = useCallback(async () => {
     try {
-      console.log('Fetching staff assignments for date:', dateStr);
-      const data = await fetchStaffAssignments(currentDate);
+      setIsLoading(true);
+      console.log(`🔄 Fetching assignments for ${dateStr} (reliable)`);
       
-      const formattedAssignments = data.map(assignment => ({
+      const result = await getAllAssignmentsForDate(currentDate);
+      
+      if (!result.success) {
+        console.error('Failed to fetch assignments:', result.error);
+        toast.error('Failed to load staff assignments');
+        return;
+      }
+      
+      const formattedAssignments = result.assignments.map(assignment => ({
         staffId: assignment.staff_id,
         staffName: assignment.staff_members?.name || `Staff ${assignment.staff_id}`,
         teamId: assignment.team_id,
         date: dateStr
       }));
       
-      console.log('Fetched assignments:', formattedAssignments);
+      console.log(`✅ Fetched ${formattedAssignments.length} assignments from database:`, formattedAssignments);
       setAssignments(formattedAssignments);
+      
     } catch (error) {
-      console.error('Error fetching staff assignments:', error);
+      console.error('Error in fetchAssignments:', error);
       toast.error('Failed to load staff assignments');
+    } finally {
+      setIsLoading(false);
     }
-  }, [currentDate, dateStr]);
+  }, [currentDate, dateStr, getAllAssignmentsForDate]);
 
-  // Initial load
+  // Initial load and refresh trigger
   useEffect(() => {
     fetchAssignments();
   }, [fetchAssignments, refreshTrigger]);
 
-  // Real-time subscription to staff_assignments table
+  // Real-time subscription
   useEffect(() => {
-    console.log('Setting up real-time subscription for staff assignments');
+    console.log('🔔 Setting up real-time subscription (reliable)');
     
     const channel = supabase
-      .channel('staff-assignments-changes')
+      .channel('reliable-staff-assignments-changes')
       .on(
         'postgres_changes',
         {
@@ -60,83 +79,76 @@ export const useReliableStaffOperations = (currentDate: Date) => {
           filter: `assignment_date=eq.${dateStr}`
         },
         (payload) => {
-          console.log('Real-time staff assignment change:', payload);
-          // Refresh assignments when any change occurs - this provides the instant update
+          const staffId = payload.new?.staff_id || payload.old?.staff_id || 'unknown';
+          console.log(`🔔 Real-time change: ${payload.eventType} for staff ${staffId}`);
+          addDebugLog({
+            operation: 'realtime_change',
+            staffId,
+            date: dateStr,
+            success: true,
+            dbResult: payload
+          });
           fetchAssignments();
         }
       )
       .subscribe();
 
     return () => {
-      console.log('Cleaning up real-time subscription');
+      console.log('🔔 Cleaning up real-time subscription (reliable)');
       supabase.removeChannel(channel);
     };
-  }, [dateStr, fetchAssignments]);
+  }, [dateStr, fetchAssignments, addDebugLog]);
 
-  // Handle staff assignment with optimistic updates and no redundant fetches
+  // Reliable staff drop handler with verification
   const handleStaffDrop = useCallback(async (staffId: string, resourceId: string | null) => {
     if (!staffId) {
-      // Just trigger refresh
-      setRefreshTrigger(prev => prev + 1);
+      console.warn('No staffId provided to handleStaffDrop');
       return;
     }
 
-    console.log(`Optimistic update: Assigning staff ${staffId} to ${resourceId || 'unassigned'} for ${dateStr}`);
+    console.log(`🎯 Reliable staff drop: ${staffId} to ${resourceId || 'unassigned'} on ${dateStr}`);
     
-    // Store current state for rollback
-    const previousAssignments = [...assignments];
-    
-    // INSTANT optimistic update - this makes the UI change immediately
-    if (resourceId) {
-      // Find staff name from existing assignments or use ID
-      const existingAssignment = assignments.find(a => a.staffId === staffId);
-      const staffName = existingAssignment?.staffName || `Staff ${staffId}`;
-      
-      setAssignments(prev => {
-        // Remove any existing assignment for this staff
-        const filtered = prev.filter(a => a.staffId !== staffId);
-        // Add new assignment
-        return [...filtered, {
-          staffId,
-          staffName,
-          teamId: resourceId,
-          date: dateStr
-        }];
-      });
-    } else {
-      // Remove assignment
-      setAssignments(prev => prev.filter(a => a.staffId !== staffId));
-    }
-
-    // Set loading state but don't block UI
     setIsLoading(true);
     
     try {
-      // Perform database operation in background
+      let result;
+      
       if (resourceId) {
-        await assignStaffToTeam(staffId, resourceId, currentDate);
-        console.log('Database update successful: Staff assigned');
+        // Assign staff to team
+        result = await createAssignmentDirectly(staffId, resourceId, currentDate);
       } else {
-        await removeStaffAssignment(staffId, currentDate);
-        console.log('Database update successful: Staff removed');
+        // Remove assignment
+        result = await removeAssignmentDirectly(staffId, currentDate);
       }
       
-      // Don't fetch here - let the real-time subscription handle the confirmation
-      // This prevents delays and double-updates
+      if (!result.success) {
+        console.error('Staff operation failed:', result.error);
+        return;
+      }
+      
+      // Verify the operation was successful
+      setTimeout(async () => {
+        if (resourceId) {
+          const verification = await verifyAssignmentInDatabase(staffId, currentDate, resourceId);
+          if (!verification.exists) {
+            console.error('⚠️ Assignment verification failed - not found in database');
+            toast.error('Assignment may not have been saved properly');
+          } else {
+            console.log('✅ Assignment verified in database');
+          }
+        }
+        
+        // Refresh to show actual database state
+        fetchAssignments();
+      }, 500);
       
     } catch (error) {
-      console.error('Error in staff operation:', error);
-      
-      // Rollback optimistic update only on error
-      console.log('Rolling back optimistic update due to error');
-      setAssignments(previousAssignments);
-      
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      toast.error(`Failed to update staff assignment: ${errorMessage}`);
+      console.error('Error in reliable staff drop:', error);
+      toast.error('Failed to update staff assignment');
     } finally {
       setIsLoading(false);
     }
-  }, [assignments, currentDate, dateStr]);
+  }, [staffId, currentDate, dateStr, createAssignmentDirectly, removeAssignmentDirectly, verifyAssignmentInDatabase, fetchAssignments]);
 
   // Get staff for a specific team
   const getStaffForTeam = useCallback((teamId: string) => {
@@ -147,13 +159,13 @@ export const useReliableStaffOperations = (currentDate: Date) => {
         name: a.staffName
       }));
     
-    console.log(`Getting staff for team ${teamId}:`, teamStaff);
+    console.log(`📋 Getting staff for team ${teamId}: ${teamStaff.length} members`, teamStaff);
     return teamStaff;
   }, [assignments]);
 
   // Force refresh
   const forceRefresh = useCallback(() => {
-    console.log('Force refreshing staff assignments');
+    console.log('🔄 Force refreshing assignments (reliable)');
     setRefreshTrigger(prev => prev + 1);
   }, []);
 
@@ -163,6 +175,9 @@ export const useReliableStaffOperations = (currentDate: Date) => {
     handleStaffDrop,
     getStaffForTeam,
     forceRefresh,
-    refreshTrigger
+    refreshTrigger,
+    verifyAssignmentInDatabase,
+    createAssignmentDirectly,
+    removeAssignmentDirectly
   };
 };
