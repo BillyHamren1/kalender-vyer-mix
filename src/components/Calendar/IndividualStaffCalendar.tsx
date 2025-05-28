@@ -24,25 +24,33 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
   isLoading = false
 }) => {
   const calendarRef = useRef<FullCalendar>(null);
+  const [lastProcessedDate, setLastProcessedDate] = useState<string>('');
 
   // Update FullCalendar when currentDate changes from parent
   useEffect(() => {
     if (calendarRef.current) {
       const calendarApi = calendarRef.current.getApi();
-      console.log('IndividualStaffCalendar: Updating calendar to date:', format(currentDate, 'yyyy-MM-dd'));
-      calendarApi.gotoDate(currentDate);
+      const dateStr = format(currentDate, 'yyyy-MM-dd');
+      
+      // Only update if the date actually changed
+      if (lastProcessedDate !== dateStr) {
+        console.log('IndividualStaffCalendar: Updating calendar to date:', dateStr);
+        calendarApi.gotoDate(currentDate);
+        setLastProcessedDate(dateStr);
+      }
     }
-  }, [currentDate]);
+  }, [currentDate, lastProcessedDate]);
 
-  // Handle user navigation in the calendar
+  // Handle user navigation in the calendar - FIXED to prevent loops
   const handleDatesSet = (dateInfo: any) => {
     const newDate = dateInfo.start;
-    const newMonth = format(newDate, 'yyyy-MM');
-    const currentMonth = format(currentDate, 'yyyy-MM');
+    const newDateStr = format(newDate, 'yyyy-MM-dd');
+    const currentDateStr = format(currentDate, 'yyyy-MM-dd');
     
-    // Only trigger onDateChange if the user navigated to a different month
-    if (newMonth !== currentMonth) {
-      console.log('IndividualStaffCalendar: User navigated to month:', newMonth);
+    // Only trigger onDateChange if the date actually changed and we haven't processed this date yet
+    if (newDateStr !== currentDateStr && lastProcessedDate !== newDateStr) {
+      console.log('IndividualStaffCalendar: User navigated to date:', newDateStr);
+      setLastProcessedDate(newDateStr);
       onDateChange(newDate);
     }
   };
@@ -101,7 +109,11 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
           ref={calendarRef}
           plugins={[dayGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
-          headerToolbar={false}
+          headerToolbar={{
+            left: 'prev,next',
+            center: 'title',
+            right: ''
+          }}
           height="600px"
           events={formattedEvents}
           nowIndicator={true}
@@ -184,6 +196,26 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
         
         .fc-event-main {
           padding: 1px 2px;
+        }
+        
+        .fc-toolbar {
+          margin-bottom: 1rem;
+        }
+        
+        .fc-toolbar-title {
+          font-size: 1.5rem;
+          font-weight: 600;
+        }
+        
+        .fc-button {
+          background-color: #f8fafc;
+          border-color: #e2e8f0;
+          color: #374151;
+        }
+        
+        .fc-button:hover {
+          background-color: #e2e8f0;
+          border-color: #cbd5e1;
         }
       `}</style>
     </div>
