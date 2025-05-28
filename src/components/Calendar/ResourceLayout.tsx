@@ -1,49 +1,34 @@
 
 import React from 'react';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { Resource } from './ResourceData';
 
 interface ResourceLayoutProps {
   children: React.ReactNode;
-  staffDisplay: React.ReactNode;
   showStaffDisplay: boolean;
+  staffDisplay: React.ReactNode;
   isMobile: boolean;
 }
 
-/**
- * Component for laying out the resource view with responsive design
- */
-const ResourceLayout: React.FC<ResourceLayoutProps> = ({ 
-  children, 
-  staffDisplay, 
+const ResourceLayout: React.FC<ResourceLayoutProps> = ({
+  children,
   showStaffDisplay,
-  isMobile 
+  staffDisplay,
+  isMobile
 }) => {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className={`container mx-auto pt-2 ${isMobile ? 'px-2' : ''}`} style={{ maxWidth: isMobile ? '100%' : '94%' }}>
-        <div className={`bg-white rounded-lg shadow-md mb-4 ${isMobile ? 'p-2' : 'p-3'}`}>
-          {/* Children contains header and navigation */}
+    <div className="flex h-full w-full">
+      {/* Main content area */}
+      <div className={`flex flex-col ${showStaffDisplay ? 'flex-1' : 'w-full'} h-full`}>
+        <div className="flex-1 flex flex-col overflow-hidden p-2">
           {children}
-
-          {/* Always use grid layout for side-by-side display regardless of screen size */}
-          <div className="grid" 
-               style={{ gridTemplateColumns: showStaffDisplay ? '200px 1fr' : '1fr', gap: '1rem' }}>
-            
-            {/* Left column: Available Staff Display */}
-            {showStaffDisplay && (
-              <div style={{ marginTop: '39px' }}>
-                {staffDisplay}
-              </div>
-            )}
-            
-            {/* Right column: Calendar */}
-            <div className="flex-grow">
-              {/* Calendar will be rendered here */}
-            </div>
-          </div>
         </div>
       </div>
+      
+      {/* Staff display panel */}
+      {showStaffDisplay && (
+        <div className="w-80 border-l bg-gray-50 flex-shrink-0 h-full overflow-y-auto">
+          {staffDisplay}
+        </div>
+      )}
     </div>
   );
 };

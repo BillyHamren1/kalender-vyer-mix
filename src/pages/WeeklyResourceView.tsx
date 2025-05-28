@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -213,7 +214,7 @@ const WeeklyResourceView = () => {
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="weekly-resource-view-container">
+      <div className="fixed inset-0 flex flex-col bg-white overflow-hidden">
         <StaffSyncManager currentDate={hookCurrentDate} />
         
         {/* Staff Selection Dialog with reliable data */}
@@ -248,7 +249,7 @@ const WeeklyResourceView = () => {
           />
 
           {/* Week Navigation and Header - CENTERED */}
-          <div className="flex flex-col items-center space-y-4 mb-4">
+          <div className="flex flex-col items-center space-y-2 mb-2 flex-shrink-0">
             <WeekNavigation 
               currentWeekStart={currentWeekStart}
               setCurrentWeekStart={setCurrentWeekStart}
@@ -275,21 +276,23 @@ const WeeklyResourceView = () => {
             </div>
           </div>
           
-          {/* Unified Calendar View with reliable staff handling */}
-          <div className="weekly-view-container overflow-x-auto">
-            <UnifiedResourceCalendar
-              events={events}
-              resources={resources}
-              isLoading={isLoading}
-              isMounted={isMounted}
-              currentDate={currentWeekStart}
-              onDateSet={handleCalendarDateSet}
-              refreshEvents={refreshEvents}
-              onStaffDrop={handleWeeklyStaffDrop}
-              onSelectStaff={handleOpenStaffSelectionDialog}
-              forceRefresh={false}
-              viewMode="weekly"
-            />
+          {/* Unified Calendar View with reliable staff handling - Full height */}
+          <div className="flex-1 overflow-hidden">
+            <div className="h-full overflow-x-auto">
+              <UnifiedResourceCalendar
+                events={events}
+                resources={resources}
+                isLoading={isLoading}
+                isMounted={isMounted}
+                currentDate={currentWeekStart}
+                onDateSet={handleCalendarDateSet}
+                refreshEvents={refreshEvents}
+                onStaffDrop={handleWeeklyStaffDrop}
+                onSelectStaff={handleOpenStaffSelectionDialog}
+                forceRefresh={false}
+                viewMode="weekly"
+              />
+            </div>
           </div>
         </ResourceLayout>
       </div>
