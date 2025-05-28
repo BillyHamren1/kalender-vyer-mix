@@ -142,8 +142,8 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
           onClick={handleSelectStaff}
         >
           <span className="block pr-3">{resource.title}</span>
-          {/* Plus icon positioned as overlay in top-right with teal color */}
-          <Plus className="h-3 w-3 absolute top-0.5 right-0.5 text-teal-500" />
+          {/* Plus icon positioned as overlay in top-right with the specific teal color */}
+          <Plus className="h-3 w-3 absolute top-0.5 right-0.5 text-[#7BAEBF]" />
         </div>
       </div>
       
