@@ -9,6 +9,8 @@ import { ArrowLeft } from 'lucide-react';
 // Import refactored components
 import { ClientInformation } from '@/components/booking/ClientInformation';
 import { DeliveryAddressForm } from '@/components/booking/DeliveryAddressForm';
+import { DeliveryContactCard } from '@/components/booking/DeliveryContactCard';
+import { EventInformationCard } from '@/components/booking/EventInformationCard';
 import { LogisticsOptionsForm } from '@/components/booking/LogisticsOptionsForm';
 import { ScheduleCard } from '@/components/booking/ScheduleCard';
 import { InternalNotes } from '@/components/booking/InternalNotes';
@@ -161,16 +163,20 @@ const BookingDetail = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="border-b bg-white px-6 py-4">
+      <div className="border-b bg-white px-6 py-4 shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="sm" onClick={handleBack}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
-              <h1 className="text-xl font-semibold">Booking Details: #{actualBookingId}</h1>
+              <h1 className="text-2xl font-semibold text-gray-900">Booking Details</h1>
               {booking && (
-                <p className="text-sm text-gray-600">{booking.client}</p>
+                <div className="flex items-center gap-4 mt-1">
+                  <p className="text-sm text-gray-600">#{actualBookingId}</p>
+                  <span className="text-gray-400">•</span>
+                  <p className="text-sm font-medium text-gray-700">{booking.client}</p>
+                </div>
               )}
             </div>
           </div>
@@ -190,7 +196,7 @@ const BookingDetail = () => {
       {/* Content */}
       {booking ? (
         <div className="p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Left Column */}
             <div className="space-y-6">
               <ClientInformation client={booking.client} />
@@ -201,102 +207,11 @@ const BookingDetail = () => {
               )}
               
               {/* Event Information */}
-              <div className="bg-white border border-gray-200 rounded-lg p-6">
-                <h3 className="text-sm font-medium text-gray-900 mb-4">Event Information</h3>
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs text-gray-500">Event Type</label>
-                    <p className="text-sm">Corporate Event</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">Event Dates</label>
-                    <div className="flex items-center gap-4 mt-2">
-                      <div className="text-center">
-                        <div className="text-xs text-gray-500">Rig Up</div>
-                        {rigDates.length > 0 && (
-                          <div className="text-sm font-medium">{new Date(rigDates[0]).toLocaleDateString()}</div>
-                        )}
-                      </div>
-                      <div className="text-center">
-                        <div className="text-xs text-gray-500">Event</div>
-                        {eventDates.length > 0 && (
-                          <div className="text-sm font-medium">{new Date(eventDates[0]).toLocaleDateString()}</div>
-                        )}
-                      </div>
-                      <div className="text-center">
-                        <div className="text-xs text-gray-500">Rig Down</div>
-                        {rigDownDates.length > 0 && (
-                          <div className="text-sm font-medium">{new Date(rigDownDates[0]).toLocaleDateString()}</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Middle Column */}
-            <div className="space-y-6">
-              <div className="bg-white border border-gray-200 rounded-lg p-6">
-                <h3 className="text-sm font-medium text-gray-900 mb-4">Billing Information</h3>
-                <Button variant="outline" size="sm" className="mb-4">
-                  Copy from client
-                </Button>
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs text-gray-500">Billing Name</label>
-                    <input 
-                      type="text" 
-                      placeholder="Billing name"
-                      className="w-full mt-1 p-2 border border-gray-300 rounded text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">Billing Address</label>
-                    <input 
-                      type="text" 
-                      placeholder="Street address"
-                      className="w-full mt-1 p-2 border border-gray-300 rounded text-sm"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs text-gray-500">Billing Postal Code</label>
-                      <input 
-                        type="text" 
-                        placeholder="Postal code"
-                        className="w-full mt-1 p-2 border border-gray-300 rounded text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500">Billing City</label>
-                      <input 
-                        type="text" 
-                        placeholder="City"
-                        className="w-full mt-1 p-2 border border-gray-300 rounded text-sm"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs text-gray-500">Billing Email</label>
-                      <input 
-                        type="email" 
-                        placeholder="Email address"
-                        className="w-full mt-1 p-2 border border-gray-300 rounded text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500">Billing Phone</label>
-                      <input 
-                        type="tel" 
-                        placeholder="Phone number"
-                        className="w-full mt-1 p-2 border border-gray-300 rounded text-sm"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <EventInformationCard
+                rigDates={rigDates}
+                eventDates={eventDates}
+                rigDownDates={rigDownDates}
+              />
             </div>
 
             {/* Right Column */}
@@ -310,11 +225,14 @@ const BookingDetail = () => {
                 isSaving={isSaving}
                 onSave={handleDeliveryDetailsChange}
               />
+              
+              {/* Delivery Contact - placeholder for now */}
+              <DeliveryContactCard />
             </div>
           </div>
 
           {/* Full width sections */}
-          <div className="mt-6 space-y-6">
+          <div className="mt-8 space-y-6">
             <LogisticsOptionsForm
               initialCarryMoreThan10m={booking.carryMoreThan10m || false}
               initialGroundNailsAllowed={booking.groundNailsAllowed || false}
@@ -343,8 +261,8 @@ const BookingDetail = () => {
             <InternalNotes notes={booking.internalNotes || ''} />
 
             {lastViewedDate && (
-              <div className="p-4 bg-blue-50 rounded-lg">
-                <p className="text-sm text-blue-600">
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-700">
                   You came from calendar view on: {lastViewedDate.toLocaleDateString()}
                 </p>
               </div>
@@ -353,14 +271,16 @@ const BookingDetail = () => {
         </div>
       ) : (
         <div className="p-6">
-          <p className="text-gray-700">No booking data available.</p>
-          <Button 
-            onClick={() => loadBookingData()} 
-            className="mt-4"
-            variant="outline"
-          >
-            Reload Booking Data
-          </Button>
+          <div className="text-center py-12">
+            <p className="text-gray-500 text-lg">No booking data available.</p>
+            <Button 
+              onClick={() => loadBookingData()} 
+              className="mt-4"
+              variant="outline"
+            >
+              Reload Booking Data
+            </Button>
+          </div>
         </div>
       )}
     </div>
