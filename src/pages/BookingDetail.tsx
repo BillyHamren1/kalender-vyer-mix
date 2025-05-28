@@ -1,3 +1,4 @@
+
 import React, { useEffect, useContext, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -197,50 +198,46 @@ const BookingDetail = () => {
       {/* Content - tighter spacing */}
       {booking ? (
         <div className="p-2 md:p-3">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-            {/* Left Column */}
-            <div className="space-y-2 flex flex-col">
-              {/* Display Products - now fills remaining space */}
-              {booking.products && booking.products.length > 0 && (
-                <div className="flex-1">
-                  <ProductsList products={booking.products} />
-                </div>
-              )}
-            </div>
-
-            {/* Right Column */}
-            <div className="space-y-2 flex flex-col">
-              {/* Event Information and Delivery Information side by side */}
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-                {/* Event Information */}
-                <EventInformationCard
-                  rigDates={rigDates}
-                  eventDates={eventDates}
-                  rigDownDates={rigDownDates}
-                  onAddDate={addDate}
-                  onRemoveDate={removeDate}
-                  autoSync={autoSync}
-                />
-                
-                {/* Combined Delivery Information Card */}
-                <DeliveryInformationCard
-                  contactName={booking.contactName}
-                  contactPhone={booking.contactPhone}
-                  contactEmail={booking.contactEmail}
-                  initialAddress={booking.deliveryAddress || ''}
-                  initialCity={booking.deliveryCity || ''}
-                  initialPostalCode={booking.deliveryPostalCode || ''}
-                  deliveryLatitude={booking.deliveryLatitude}
-                  deliveryLongitude={booking.deliveryLongitude}
-                  isSaving={isSaving}
-                  onSave={handleDeliveryDetailsChange}
-                />
+          {/* Three equal cards in a grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mb-2">
+            {/* Products Card */}
+            {booking.products && booking.products.length > 0 && (
+              <div className="h-full">
+                <ProductsList products={booking.products} />
               </div>
+            )}
+            
+            {/* Event Information Card */}
+            <div className="h-full">
+              <EventInformationCard
+                rigDates={rigDates}
+                eventDates={eventDates}
+                rigDownDates={rigDownDates}
+                onAddDate={addDate}
+                onRemoveDate={removeDate}
+                autoSync={autoSync}
+              />
+            </div>
+            
+            {/* Delivery Information Card */}
+            <div className="h-full">
+              <DeliveryInformationCard
+                contactName={booking.contactName}
+                contactPhone={booking.contactPhone}
+                contactEmail={booking.contactEmail}
+                initialAddress={booking.deliveryAddress || ''}
+                initialCity={booking.deliveryCity || ''}
+                initialPostalCode={booking.deliveryPostalCode || ''}
+                deliveryLatitude={booking.deliveryLatitude}
+                deliveryLongitude={booking.deliveryLongitude}
+                isSaving={isSaving}
+                onSave={handleDeliveryDetailsChange}
+              />
             </div>
           </div>
 
           {/* Full width sections */}
-          <div className="mt-2 space-y-2">
+          <div className="space-y-2">
             {/* Logistics Options - now full width */}
             <LogisticsOptionsForm
               initialCarryMoreThan10m={booking.carryMoreThan10m || false}
