@@ -27,10 +27,11 @@ const StaffMemberCalendar: React.FC<StaffMemberCalendarProps> = ({ staffId, staf
     staleTime: 30000,
   });
 
-  // Create a staff resource for the calendar - fix the property structure
+  // Create a staff resource for the calendar - include both name and title properties
   const staffResource = {
     id: staffId,
-    name: staffName, // Changed from 'title' to 'name'
+    name: staffName,
+    title: staffName, // Add the required title property
     extendedProps: {
       type: 'staff'
     }
