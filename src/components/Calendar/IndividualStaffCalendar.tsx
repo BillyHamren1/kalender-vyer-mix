@@ -1,5 +1,4 @@
 
-
 import React, { useEffect, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -90,7 +89,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
   console.log('Current date prop:', format(currentDate, 'yyyy-MM-dd'));
 
   return (
-    <div className="staff-calendar-container relative bg-white rounded-xl shadow-lg overflow-hidden">
+    <div className="staff-calendar-container relative bg-white rounded-xl shadow-lg overflow-hidden max-w-4xl mx-auto">
       {isLoading && (
         <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center z-20 backdrop-blur-sm">
           <div className="text-center">
@@ -100,13 +99,13 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
         </div>
       )}
       
-      <div className="relative p-6">
+      <div className="relative p-4">
         <FullCalendar
           ref={calendarRef}
           plugins={[dayGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
           headerToolbar={false}
-          height="650px"
+          height="500px"
           events={formattedEvents}
           nowIndicator={true}
           weekends={true}
@@ -133,6 +132,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
           firstDay={1}
           eventDisplay="block"
           displayEventTime={false}
+          aspectRatio={1.8}
         />
       </div>
       
@@ -140,6 +140,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
         .staff-calendar-container {
           position: relative;
           border: 1px solid #e2e8f0;
+          max-width: 900px;
         }
         
         /* Modern calendar grid styling */
@@ -156,7 +157,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
           border: 1px solid #f1f5f9 !important;
           background: #ffffff;
           transition: all 0.2s ease;
-          min-height: 100px !important;
+          min-height: 70px !important;
         }
         
         .fc-daygrid-day:hover {
@@ -166,17 +167,17 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
         /* Stunning day numbers */
         .fc-daygrid-day-number {
           font-weight: 600 !important;
-          font-size: 16px !important;
+          font-size: 14px !important;
           color: #374151 !important;
-          padding: 12px !important;
+          padding: 8px !important;
           text-decoration: none !important;
           display: flex;
           align-items: center;
           justify-content: center;
-          width: 40px;
-          height: 40px;
+          width: 32px;
+          height: 32px;
           border-radius: 50%;
-          margin: 8px;
+          margin: 6px;
           transition: all 0.2s ease;
         }
         
@@ -205,11 +206,11 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
           background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%) !important;
           border: 1px solid #e2e8f0 !important;
           font-weight: 700 !important;
-          font-size: 14px !important;
+          font-size: 12px !important;
           color: #475569 !important;
           text-transform: uppercase !important;
           letter-spacing: 0.5px !important;
-          padding: 16px 8px !important;
+          padding: 12px 6px !important;
           text-align: center !important;
         }
         
@@ -221,20 +222,20 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
         
         /* Stunning event styling */
         .fc-daygrid-event {
-          margin: 3px 6px !important;
-          padding: 6px 10px !important;
-          border-radius: 8px !important;
-          font-size: 12px !important;
-          line-height: 1.4 !important;
+          margin: 2px 4px !important;
+          padding: 4px 6px !important;
+          border-radius: 6px !important;
+          font-size: 11px !important;
+          line-height: 1.3 !important;
           border: none !important;
-          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1) !important;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
           transition: all 0.2s ease !important;
           cursor: pointer !important;
         }
         
         .fc-daygrid-event:hover {
           transform: translateY(-1px) !important;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
         }
         
         .fc-event-title {
@@ -245,13 +246,13 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
         /* More link styling */
         .fc-more-link {
           color: #0ea5e9 !important;
-          font-size: 11px !important;
+          font-size: 10px !important;
           font-weight: 600 !important;
           text-decoration: none !important;
-          padding: 4px 8px !important;
+          padding: 3px 6px !important;
           border-radius: 4px !important;
           background: #f0f9ff !important;
-          margin: 2px 6px !important;
+          margin: 1px 4px !important;
           transition: all 0.2s ease !important;
         }
         
@@ -262,17 +263,17 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
         
         /* Day frame styling */
         .fc-daygrid-day-frame {
-          min-height: 100px !important;
+          min-height: 70px !important;
           position: relative !important;
         }
         
         .fc-daygrid-day-events {
-          margin-top: 50px !important;
-          padding: 0 4px !important;
+          margin-top: 38px !important;
+          padding: 0 3px !important;
         }
         
         .fc-event-main {
-          padding: 2px 4px !important;
+          padding: 1px 3px !important;
         }
         
         .fc-daygrid-day-top {
@@ -298,17 +299,17 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
         /* Event color overrides for better visibility */
         .fc-daygrid-event[style*="background-color: rgb(242, 252, 226)"] {
           background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%) !important;
-          border-left: 4px solid #22c55e !important;
+          border-left: 3px solid #22c55e !important;
         }
         
         .fc-daygrid-event[style*="background-color: rgb(254, 247, 205)"] {
           background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%) !important;
-          border-left: 4px solid #f59e0b !important;
+          border-left: 3px solid #f59e0b !important;
         }
         
         .fc-daygrid-event[style*="background-color: rgb(254, 198, 161)"] {
           background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%) !important;
-          border-left: 4px solid #ef4444 !important;
+          border-left: 3px solid #ef4444 !important;
         }
         
         /* Smooth scrolling */
@@ -327,7 +328,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
         
         /* Perfect spacing */
         .fc-daygrid-day-events {
-          min-height: 50px !important;
+          min-height: 35px !important;
         }
       `}</style>
     </div>
@@ -335,4 +336,3 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
 };
 
 export default IndividualStaffCalendar;
-

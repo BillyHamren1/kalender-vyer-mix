@@ -53,7 +53,7 @@ const StaffMemberCalendar: React.FC<StaffMemberCalendarProps> = ({ staffId, staf
   };
 
   return (
-    <Card>
+    <Card className="max-w-5xl mx-auto">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center">
@@ -92,16 +92,14 @@ const StaffMemberCalendar: React.FC<StaffMemberCalendarProps> = ({ staffId, staf
             <span className="ml-2 text-gray-600">Loading calendar...</span>
           </div>
         ) : (
-          <div className="h-96">
-            <IndividualStaffCalendar
-              events={calendarEvents}
-              staffResources={[staffResource]}
-              currentDate={currentDate}
-              viewMode="month"
-              onDateChange={handleDateChange}
-              isLoading={isLoading}
-            />
-          </div>
+          <IndividualStaffCalendar
+            events={calendarEvents}
+            staffResources={[staffResource]}
+            currentDate={currentDate}
+            viewMode="month"
+            onDateChange={handleDateChange}
+            isLoading={isLoading}
+          />
         )}
       </CardContent>
     </Card>
