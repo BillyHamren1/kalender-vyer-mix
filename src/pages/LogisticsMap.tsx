@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Map, Filter } from 'lucide-react';
+import { Map, Filter, Loader } from 'lucide-react';
 import MapComponent from '@/components/logistics/MapComponent';
 import BookingListSidebar from '@/components/logistics/BookingListSidebar';
 import FilterControls from '@/components/logistics/FilterControls';
