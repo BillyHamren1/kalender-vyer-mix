@@ -18,6 +18,15 @@ const StaffList: React.FC<StaffListProps> = ({ staffMembers, isLoading, onRefres
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [deletingStaff, setDeletingStaff] = useState<StaffMember | null>(null);
 
+  const handleCardClick = (staff: StaffMember) => {
+    setEditingStaff(staff);
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent, staff: StaffMember) => {
+    e.stopPropagation(); // Prevent card click
+    setDeletingStaff(staff);
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -55,7 +64,11 @@ const StaffList: React.FC<StaffListProps> = ({ staffMembers, isLoading, onRefres
     <>
       <div className="space-y-3">
         {staffMembers.map((staff) => (
-          <Card key={staff.id} className="hover:shadow-md transition-shadow">
+          <Card 
+            key={staff.id} 
+            className="hover:shadow-md transition-shadow cursor-pointer hover:bg-gray-50"
+            onClick={() => handleCardClick(staff)}
+          >
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4 flex-1">
@@ -89,14 +102,17 @@ const StaffList: React.FC<StaffListProps> = ({ staffMembers, isLoading, onRefres
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setEditingStaff(staff)}
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent card click
+                      setEditingStaff(staff);
+                    }}
                   >
                     <Edit className="h-4 w-4" />
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setDeletingStaff(staff)}
+                    onClick={(e) => handleDeleteClick(e, staff)}
                     className="text-red-600 hover:text-red-700 hover:border-red-300"
                   >
                     <Trash2 className="h-4 w-4" />
