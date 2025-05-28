@@ -14,8 +14,10 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
       targetResourceId = resources[0]?.id || 'team-1'; // Fallback to first resource
     }
 
-    // Force all EVENT type events to be displayed in team-6 (Todays events)
-    const eventType = event.extendedProps?.eventType || event.eventType || 'event';
+    // Get the actual event type - don't default to 'event' for everything
+    const eventType = event.extendedProps?.eventType || event.eventType;
+    
+    // Only force EVENT type events to team-6 (Todays events), leave other types in their assigned teams
     if (eventType === 'event') {
       targetResourceId = 'team-6';
       
@@ -69,7 +71,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
       }
     };
 
-    console.log(`Processed event ${event.id}:`, {
+    console.log(`Processed ${eventType || 'unknown'} type event ${event.id}:`, {
       title: event.title,
       bookingId: processedEvent.extendedProps.bookingId,
       resourceId: processedEvent.resourceId,
