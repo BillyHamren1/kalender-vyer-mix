@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import { format } from 'date-fns';
@@ -90,20 +91,28 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     console.log('ResourceCalendar received events:', events);
     console.log('ResourceCalendar received resources:', resources);
     console.log('ResourceCalendar staff assignments:', assignments);
-  }, [events, resources, assignments]);
+    
+    // Debug: Log staff assignments per team for this specific date
+    resources.forEach(resource => {
+      const staffForTeam = getStaffForTeam(resource.id);
+      console.log(`ResourceCalendar: Team ${resource.id} (${resource.title}) has ${staffForTeam.length} staff assigned for ${format(effectiveDate, 'yyyy-MM-dd')}:`, staffForTeam);
+    });
+  }, [events, resources, assignments, effectiveDate, getStaffForTeam]);
 
   // Process events to ensure valid resources and add styling
   const processedEvents = processEvents(events, resources);
 
-  // Custom resource header content renderer with target date
+  // Custom resource header content renderer with enhanced staff retrieval
   const resourceHeaderContent = (info: any) => {
     if (isMobile) return info.resource.title;
     
     console.log(`ResourceCalendar: Rendering ResourceHeaderDropZone for ${info.resource.id} with target date: ${format(effectiveDate, 'yyyy-MM-dd')}`);
     
-    // Get staff data from reliable staff operations
+    // Get ALL staff data from reliable staff operations for this specific team and date
     const assignedStaff = getStaffForTeam(info.resource.id);
-    const minHeight = 80;
+    console.log(`ResourceCalendar: Found ${assignedStaff.length} staff members for team ${info.resource.id}:`, assignedStaff.map(s => s.name));
+    
+    const minHeight = Math.max(80, 60 + (assignedStaff.length * 35)); // Dynamic minimum height based on staff count
     
     return (
       <ResourceHeaderDropZone 
