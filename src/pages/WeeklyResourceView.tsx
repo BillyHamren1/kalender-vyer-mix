@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -86,16 +85,17 @@ const WeeklyResourceView = () => {
 
   // Handle staff selection for a specific team AND date
   const handleOpenStaffSelectionDialog = useCallback((resourceId: string, resourceTitle: string, targetDate?: Date) => {
-    console.log('WeeklyResourceView: Opening staff selection dialog for:', resourceId, resourceTitle, 'Date:', targetDate || hookCurrentDate);
+    const effectiveTargetDate = targetDate || hookCurrentDate;
+    console.log('WeeklyResourceView: Opening staff selection dialog for:', resourceId, resourceTitle, 'Date:', format(effectiveTargetDate, 'yyyy-MM-dd'));
     setSelectedResourceId(resourceId);
     setSelectedResourceTitle(resourceTitle);
-    setSelectedDate(targetDate || hookCurrentDate);
+    setSelectedDate(effectiveTargetDate);
     setStaffSelectionDialogOpen(true);
   }, [hookCurrentDate]);
 
   // Handle successful staff assignment with reliable operations
   const handleStaffAssigned = useCallback(async (staffId: string, staffName: string) => {
-    console.log(`WeeklyResourceView: Staff ${staffName} (${staffId}) assigned successfully to team ${selectedResourceId} for date:`, selectedDate);
+    console.log(`WeeklyResourceView: Staff ${staffName} (${staffId}) assigned successfully to team ${selectedResourceId} for date:`, format(selectedDate, 'yyyy-MM-dd'));
     
     try {
       // Use the reliable staff drop handler with direct database access
@@ -216,7 +216,7 @@ const WeeklyResourceView = () => {
       <div className="weekly-resource-view-container">
         <StaffSyncManager currentDate={hookCurrentDate} />
         
-        {/* Staff Selection Dialog */}
+        {/* Staff Selection Dialog with reliable data */}
         <StaffSelectionDialog
           resourceId={selectedResourceId}
           resourceTitle={selectedResourceTitle}
@@ -224,6 +224,7 @@ const WeeklyResourceView = () => {
           open={staffSelectionDialogOpen}
           onOpenChange={setStaffSelectionDialogOpen}
           onStaffAssigned={handleStaffAssigned}
+          reliableStaffOperations={reliableStaffOps}
         />
         
         <ResourceLayout 

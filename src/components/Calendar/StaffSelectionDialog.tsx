@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { fetchStaffMembers, fetchStaffAssignments, assignStaffToTeam } from '@/services/staffService';
+import { fetchStaffMembers } from '@/services/staffService';
 import { StaffMember } from './StaffAssignmentRow';
 import { toast } from 'sonner';
 import { 
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Search, UserPlus } from 'lucide-react';
+import { format } from 'date-fns';
 
 interface StaffSelectionDialogProps {
   resourceId: string;
@@ -22,6 +23,16 @@ interface StaffSelectionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onStaffAssigned: (staffId: string, staffName: string) => Promise<void>;
+  reliableStaffOperations?: {
+    assignments: Array<{
+      staffId: string;
+      staffName: string;
+      teamId: string;
+      date: string;
+    }>;
+    getStaffForTeam: (teamId: string) => Array<{id: string, name: string}>;
+    handleStaffDrop: (staffId: string, resourceId: string | null) => Promise<void>;
+  };
 }
 
 // Extended interface for staff with assignment status
@@ -37,31 +48,32 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
   currentDate,
   open,
   onOpenChange,
-  onStaffAssigned
+  onStaffAssigned,
+  reliableStaffOperations
 }) => {
   const [allStaff, setAllStaff] = useState<StaffMember[]>([]);
   const [filteredStaff, setFilteredStaff] = useState<StaffWithAssignmentStatus[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [assignments, setAssignments] = useState<any[]>([]);
   const [assigning, setAssigning] = useState<string | null>(null);
+
+  const dateStr = format(currentDate, 'yyyy-MM-dd');
   
-  // Load all staff and current assignments
+  // Load all staff members
   useEffect(() => {
     if (open) {
-      const loadData = async () => {
+      const loadStaffData = async () => {
         try {
           setLoading(true);
-          // Fetch all staff members
           const staffData = await fetchStaffMembers();
           setAllStaff(staffData);
           
-          // Fetch assignments for the current date
-          const assignmentData = await fetchStaffAssignments(currentDate);
-          setAssignments(assignmentData);
-          
           console.log('StaffSelectionDialog: Loaded staff members:', staffData);
-          console.log('StaffSelectionDialog: Current assignments:', assignmentData);
+          console.log('StaffSelectionDialog: Using reliable assignments for date:', dateStr);
+          
+          if (reliableStaffOperations) {
+            console.log('StaffSelectionDialog: Current reliable assignments:', reliableStaffOperations.assignments);
+          }
         } catch (error) {
           console.error('Error loading staff data:', error);
           toast.error('Failed to load staff data');
@@ -70,20 +82,24 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
         }
       };
       
-      loadData();
+      loadStaffData();
     }
-  }, [open, currentDate]);
+  }, [open, currentDate, dateStr, reliableStaffOperations]);
   
-  // Filter and sort staff - show ALL staff but with different visual states
+  // Filter and sort staff using reliable data
   useEffect(() => {
-    if (allStaff.length) {
-      // Get assignment information for each staff member
+    if (allStaff.length && reliableStaffOperations) {
+      // Create assignment map from reliable data for the specific date
       const assignedStaffMap = new Map();
-      assignments.forEach(assignment => {
-        assignedStaffMap.set(assignment.staff_id, assignment.team_id);
-      });
+      reliableStaffOperations.assignments
+        .filter(assignment => assignment.date === dateStr)
+        .forEach(assignment => {
+          assignedStaffMap.set(assignment.staffId, assignment.teamId);
+        });
       
-      // Filter by search query but keep all staff
+      console.log(`StaffSelectionDialog: Assignment map for ${dateStr}:`, Object.fromEntries(assignedStaffMap));
+      
+      // Filter by search query
       const searchFiltered = allStaff.filter(staff => {
         if (searchQuery) {
           return staff.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -91,13 +107,19 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
         return true;
       });
       
-      // Add assignment status to each staff member
-      const staffWithStatus: StaffWithAssignmentStatus[] = searchFiltered.map(staff => ({
-        ...staff,
-        assignedTeamId: assignedStaffMap.get(staff.id) || null,
-        isAssignedToCurrentTeam: assignedStaffMap.get(staff.id) === resourceId,
-        isAssignedToOtherTeam: assignedStaffMap.has(staff.id) && assignedStaffMap.get(staff.id) !== resourceId
-      }));
+      // Add assignment status to each staff member using reliable data
+      const staffWithStatus: StaffWithAssignmentStatus[] = searchFiltered.map(staff => {
+        const assignedTeamId = assignedStaffMap.get(staff.id) || null;
+        const isAssignedToCurrentTeam = assignedTeamId === resourceId;
+        const isAssignedToOtherTeam = assignedTeamId && assignedTeamId !== resourceId;
+        
+        return {
+          ...staff,
+          assignedTeamId,
+          isAssignedToCurrentTeam,
+          isAssignedToOtherTeam
+        };
+      });
       
       // Sort: unassigned first, then assigned to current team, then assigned to other teams
       const sorted = staffWithStatus.sort((a, b) => {
@@ -113,27 +135,23 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
         return a.name.localeCompare(b.name);
       });
       
+      console.log(`StaffSelectionDialog: Processed ${sorted.length} staff with assignment status for ${resourceTitle} on ${dateStr}`);
       setFilteredStaff(sorted);
     }
-  }, [allStaff, assignments, searchQuery, resourceId]);
+  }, [allStaff, searchQuery, resourceId, resourceTitle, dateStr, reliableStaffOperations]);
   
-  // Handle staff assignment with proper async handling
+  // Handle staff assignment with reliable operations
   const handleAssignStaff = async (staffId: string, staffName: string) => {
     if (assigning) return; // Prevent double-clicks
     
     try {
       setAssigning(staffId);
-      console.log(`StaffSelectionDialog: Assigning staff ${staffName} (${staffId}) to team ${resourceId}`);
+      console.log(`StaffSelectionDialog: Assigning staff ${staffName} (${staffId}) to team ${resourceId} on ${dateStr}`);
       
-      // First, make the API call to assign staff
-      await assignStaffToTeam(staffId, resourceId, currentDate);
-      
-      console.log('StaffSelectionDialog: API assignment successful, calling callback');
-      
-      // Then call the callback and wait for it to complete
+      // Call the callback which will use reliable operations
       await onStaffAssigned(staffId, staffName);
       
-      console.log('StaffSelectionDialog: Callback completed successfully');
+      console.log('StaffSelectionDialog: Assignment completed successfully');
       
       toast.success(`${staffName} assigned to ${resourceTitle} successfully`);
       onOpenChange(false);
@@ -162,7 +180,7 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>
-            Add Staff to {resourceTitle}
+            Add Staff to {resourceTitle} ({format(currentDate, 'MMM d, yyyy')})
           </DialogTitle>
         </DialogHeader>
         
@@ -180,6 +198,10 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
           {loading ? (
             <div className="flex justify-center items-center h-16">
               <p className="text-sm text-muted-foreground">Loading staff...</p>
+            </div>
+          ) : !reliableStaffOperations ? (
+            <div className="flex justify-center items-center h-16">
+              <p className="text-sm text-muted-foreground">Loading assignments...</p>
             </div>
           ) : filteredStaff.length === 0 ? (
             <div className="flex justify-center items-center h-16">
