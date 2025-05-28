@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 export interface StaffMember {
@@ -5,6 +6,16 @@ export interface StaffMember {
   name: string;
   email?: string;
   phone?: string;
+  address?: string;
+  city?: string;
+  postal_code?: string;
+  role?: string;
+  department?: string;
+  salary?: number;
+  hire_date?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  notes?: string;
   assignedTeam?: string;
 }
 

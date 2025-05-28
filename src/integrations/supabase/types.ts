@@ -349,25 +349,55 @@ export type Database = {
       }
       staff_members: {
         Row: {
+          address: string | null
+          city: string | null
           created_at: string
+          department: string | null
           email: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          hire_date: string | null
           id: string
           name: string
+          notes: string | null
           phone: string | null
+          postal_code: string | null
+          role: string | null
+          salary: number | null
         }
         Insert: {
+          address?: string | null
+          city?: string | null
           created_at?: string
+          department?: string | null
           email?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          hire_date?: string | null
           id: string
           name: string
+          notes?: string | null
           phone?: string | null
+          postal_code?: string | null
+          role?: string | null
+          salary?: number | null
         }
         Update: {
+          address?: string | null
+          city?: string | null
           created_at?: string
+          department?: string | null
           email?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          hire_date?: string | null
           id?: string
           name?: string
+          notes?: string | null
           phone?: string | null
+          postal_code?: string | null
+          role?: string | null
+          salary?: number | null
         }
         Relationships: []
       }

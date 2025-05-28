@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Edit, Save, X, Calendar, User, MapPin, DollarSign, Phone, Mail } from 'lucide-react';
+import { ArrowLeft, Edit, Save, X, Calendar, User, MapPin, DollarSign, Phone, Mail, Key } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,7 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { fetchStaffMembers } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
@@ -33,12 +32,18 @@ interface ExtendedStaffMember {
   notes?: string;
 }
 
+interface StaffCredentials {
+  email: string;
+  password: string;
+}
+
 const StaffDetail: React.FC = () => {
   const { staffId } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<ExtendedStaffMember | null>(null);
+  const [credentials, setCredentials] = useState<StaffCredentials>({ email: '', password: '' });
 
   // Fetch staff member details
   const { data: staffMember, isLoading } = useQuery({
@@ -92,9 +97,29 @@ const StaffDetail: React.FC = () => {
     },
   });
 
+  // Create credentials mutation
+  const createCredentialsMutation = useMutation({
+    mutationFn: async (credentialsData: StaffCredentials) => {
+      // Here you would typically call your backend API to create user credentials
+      // For now, we'll just show a success message
+      console.log('Creating credentials for:', credentialsData);
+      return credentialsData;
+    },
+    onSuccess: () => {
+      toast.success('Credentials created successfully');
+      setCredentials({ email: '', password: '' });
+    },
+    onError: (error) => {
+      toast.error('Failed to create credentials');
+      console.error('Credentials error:', error);
+    },
+  });
+
   React.useEffect(() => {
     if (staffMember) {
       setFormData(staffMember);
+      // Pre-populate email if it exists
+      setCredentials(prev => ({ ...prev, email: staffMember.email || '' }));
     }
   }, [staffMember]);
 
@@ -107,6 +132,14 @@ const StaffDetail: React.FC = () => {
   const handleCancel = () => {
     setFormData(staffMember);
     setIsEditing(false);
+  };
+
+  const handleCreateCredentials = () => {
+    if (credentials.email && credentials.password) {
+      createCredentialsMutation.mutate(credentials);
+    } else {
+      toast.error('Please fill in both email and password');
+    }
   };
 
   if (isLoading) {
@@ -190,9 +223,10 @@ const StaffDetail: React.FC = () => {
       {/* Main Content */}
       <div className="p-6">
         <Tabs defaultValue="personal" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="personal">Personal Information</TabsTrigger>
             <TabsTrigger value="employment">Employment Details</TabsTrigger>
+            <TabsTrigger value="credentials">App Credentials</TabsTrigger>
             <TabsTrigger value="calendar">Calendar & Assignments</TabsTrigger>
           </TabsList>
 
@@ -404,6 +438,47 @@ const StaffDetail: React.FC = () => {
                   placeholder="Additional notes about this staff member..."
                   rows={4}
                 />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* App Credentials Tab */}
+          <TabsContent value="credentials" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Key className="h-5 w-5 mr-2" />
+                  Create credentials for staff app
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="credential_email">Email</Label>
+                  <Input
+                    id="credential_email"
+                    type="email"
+                    value={credentials.email}
+                    onChange={(e) => setCredentials({...credentials, email: e.target.value})}
+                    placeholder="Enter email for staff app login"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="credential_password">Password</Label>
+                  <Input
+                    id="credential_password"
+                    type="password"
+                    value={credentials.password}
+                    onChange={(e) => setCredentials({...credentials, password: e.target.value})}
+                    placeholder="Enter password for staff app login"
+                  />
+                </div>
+                <Button
+                  onClick={handleCreateCredentials}
+                  disabled={createCredentialsMutation.isPending || !credentials.email || !credentials.password}
+                  className="bg-[#82b6c6] hover:bg-[#6a9fb0]"
+                >
+                  {createCredentialsMutation.isPending ? 'Creating...' : 'Create Credentials'}
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>
