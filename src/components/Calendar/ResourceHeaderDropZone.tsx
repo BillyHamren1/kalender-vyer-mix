@@ -96,12 +96,12 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
 
   // Enhanced drop zone styling with smoother transitions
   const getDropZoneClass = () => {
-    let baseClass = `resource-header-drop-zone p-2 h-full w-full flex flex-col justify-between relative transition-all duration-150 border-r-2 border-gray-300`;
+    let baseClass = `resource-header-drop-zone p-2 h-full w-full flex flex-col justify-between relative transition-all duration-150`;
     
     if (isOver && canDrop) {
-      return `${baseClass} bg-green-100 border-green-400 shadow-lg transform scale-105`;
+      return `${baseClass} bg-green-100 border-2 border-green-400 shadow-lg transform scale-105`;
     } else if (isOver && !canDrop) {
-      return `${baseClass} bg-red-100 border-red-400 transform scale-105`;
+      return `${baseClass} bg-red-100 border-2 border-red-400 transform scale-105`;
     } else {
       return `${baseClass} bg-gray-50 hover:bg-gray-100`;
     }
@@ -109,9 +109,9 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
 
   // Calculate dynamic height based on number of staff members
   const calculateHeight = () => {
-    const baseHeight = 30; // Reduced base height
-    const staffItemHeight = 24; // Reduced staff item height
-    const padding = 2; // Minimal padding
+    const baseHeight = 35; // Further reduced for tighter layout
+    const staffItemHeight = 32; // Height per staff item
+    const padding = 4; // Reduced padding for tighter spacing
     const calculatedHeight = baseHeight + (assignedStaff.length * staffItemHeight) + padding;
     return Math.max(minHeight, calculatedHeight);
   };
@@ -133,24 +133,24 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         zIndex: 10
       }}
     >
-      {/* Team Header Section with stronger border and improved layout */}
-      <div className="flex flex-col border-b-2 border-gray-300 pb-1 mb-1 relative">
-        {/* Team Title with better positioning for icon */}
+      {/* Team Header Section with border and relative positioning */}
+      <div className="flex flex-col border-b border-gray-200 pb-1 mb-1 relative">
+        {/* Full-width Clickable Team Title */}
         <div 
-          className="w-full text-xs font-medium text-center cursor-pointer hover:bg-blue-100 hover:text-blue-800 transition-colors duration-200 p-1 rounded border border-transparent hover:border-blue-200 relative min-h-[20px] flex items-center justify-center" 
+          className="w-full text-xs font-medium text-center cursor-pointer hover:bg-blue-100 hover:text-blue-800 transition-colors duration-200 p-1 rounded border border-transparent hover:border-blue-200 relative" 
           title={`Click to assign staff to ${resource.title} on ${format(effectiveDate, 'MMM d')}`}
           onClick={handleSelectStaff}
         >
-          <span className="block text-center leading-tight">{resource.title}</span>
-          {/* Plus icon positioned with better spacing from text */}
-          <Plus className="h-2.5 w-2.5 absolute top-0.5 right-0.5 opacity-60" />
+          <span className="block">{resource.title}</span>
+          {/* Plus icon positioned as overlay in top-right */}
+          <Plus className="h-3 w-3 absolute top-1 right-1" />
         </div>
       </div>
       
-      {/* Staff Section - tighter spacing and compact layout */}
+      {/* Staff Section - closer to events with reduced spacing */}
       <div className="staff-section flex-1 min-h-0">
         {assignedStaff.length > 0 ? (
-          <div className="space-y-0">
+          <div className="space-y-0.5">
             {assignedStaff.map((staff) => (
               <DraggableStaffItem
                 key={staff.id}
