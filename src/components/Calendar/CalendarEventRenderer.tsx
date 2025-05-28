@@ -1,6 +1,8 @@
+
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
 import { Copy, Trash2 } from 'lucide-react';
+import EventHoverCard from './EventHoverCard';
 
 export const renderEventContent = (eventInfo: any) => {
   // Get the event details
@@ -24,9 +26,35 @@ export const renderEventContent = (eventInfo: any) => {
   const addressParts = deliveryAddress.split(',');
   const city = addressParts.length > 1 ? addressParts[1].trim() : '';
 
-  // Different rendering based on view type
-  if (eventInfo.view.type === 'resourceTimelineWeek') {
-    // More compact display for timeline view
+  // Create event object for hover card
+  const eventForHover: CalendarEvent = {
+    id: eventInfo.event.id,
+    title: eventTitle,
+    start: eventInfo.event.start,
+    end: eventInfo.event.end,
+    resourceId: eventInfo.event.getResources()[0]?.id || '',
+    extendedProps: eventInfo.event.extendedProps || {}
+  };
+
+  // Event content component
+  const EventContent = () => {
+    if (eventInfo.view.type === 'resourceTimelineWeek') {
+      // More compact display for timeline view
+      return (
+        <div className="event-content-wrapper" style={{ color: '#000000' }}>
+          <div className="event-booking-id text-xs opacity-80 truncate" style={{ color: '#000000' }}>#{displayId}</div>
+          <div className="event-client-name text-sm break-words whitespace-normal" 
+               style={{ lineHeight: '1.2', maxHeight: '2.4em', overflow: 'hidden', color: '#000000' }}>
+            {clientName}
+          </div>
+          {city && (
+            <div className="event-city text-xs opacity-80 truncate" style={{ color: '#000000' }}>{city}</div>
+          )}
+        </div>
+      );
+    }
+    
+    // Default display for other views
     return (
       <div className="event-content-wrapper" style={{ color: '#000000' }}>
         <div className="event-booking-id text-xs opacity-80 truncate" style={{ color: '#000000' }}>#{displayId}</div>
@@ -39,20 +67,15 @@ export const renderEventContent = (eventInfo: any) => {
         )}
       </div>
     );
-  }
-  
-  // Default display for other views
+  };
+
+  // Wrap the event content with hover card
   return (
-    <div className="event-content-wrapper" style={{ color: '#000000' }}>
-      <div className="event-booking-id text-xs opacity-80 truncate" style={{ color: '#000000' }}>#{displayId}</div>
-      <div className="event-client-name text-sm break-words whitespace-normal" 
-           style={{ lineHeight: '1.2', maxHeight: '2.4em', overflow: 'hidden', color: '#000000' }}>
-        {clientName}
+    <EventHoverCard event={eventForHover}>
+      <div className="w-full h-full cursor-pointer">
+        <EventContent />
       </div>
-      {city && (
-        <div className="event-city text-xs opacity-80 truncate" style={{ color: '#000000' }}>{city}</div>
-      )}
-    </div>
+    </EventHoverCard>
   );
 };
 
