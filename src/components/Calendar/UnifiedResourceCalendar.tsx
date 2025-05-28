@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
@@ -203,13 +204,6 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 
   return (
     <div className={getContainerClass()}>
-      {/* Display day width information for weekly view */}
-      {viewMode === 'weekly' && (
-        <div className="mb-2 text-sm text-gray-600 text-center">
-          Day width: {getDayWidth()}px (Container: {containerRef.current?.offsetWidth || 0}px ÷ 7 days)
-        </div>
-      )}
-      
       <div className={getCalendarContainerClass()} ref={containerRef}>
         {days.map((date, index) => {
           // Get only the events for this specific day
@@ -229,16 +223,13 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
               ref={isToday ? todayRef : null}
               style={viewMode === 'weekly' ? { width: `${getDayWidth()}px` } : {}}
             >
-              {/* Clickable day header with width info for weekly view */}
+              {/* Clickable day header */}
               <div 
                 className={`day-header ${isToday ? 'today' : ''} ${!isCurrentMonth ? 'other-month' : ''} cursor-pointer hover:bg-blue-50 transition-colors`}
                 onClick={() => handleDayHeaderClick(date)}
                 title="Click to view resource schedule"
               >
                 <div>{format(date, 'EEE d')}</div>
-                {viewMode === 'weekly' && (
-                  <div className="text-xs text-gray-500">{getDayWidth()}px</div>
-                )}
               </div>
               <div className={viewMode === 'weekly' ? 'weekly-view-calendar' : 'monthly-view-calendar'}>
                 <ResourceCalendar
@@ -267,3 +258,4 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 };
 
 export default React.memo(UnifiedResourceCalendar);
+
