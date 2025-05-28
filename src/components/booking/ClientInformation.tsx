@@ -10,17 +10,17 @@ interface ClientInformationProps {
 
 export const ClientInformation = ({ client }: ClientInformationProps) => {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <User className="h-5 w-5" />
+    <Card className="shadow-sm">
+      <CardHeader className="py-3 px-4">
+        <CardTitle className="flex items-center gap-1.5 text-base">
+          <User className="h-4 w-4" />
           <span>Client Information</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-4">
+      <CardContent className="pt-0 px-4 pb-3">
         <div>
-          <p className="font-medium">Client:</p>
-          <p className="text-lg">{client}</p>
+          <p className="text-xs font-medium text-gray-500">Client Name:</p>
+          <p className="text-sm font-medium">{client}</p>
         </div>
       </CardContent>
     </Card>

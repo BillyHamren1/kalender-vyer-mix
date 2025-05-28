@@ -6,8 +6,6 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription } from '@/components/ui/form';
-import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 
 interface DeliveryAddressFormProps {
@@ -81,73 +79,74 @@ export const DeliveryAddressForm = ({
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <MapPin className="h-5 w-5" />
+    <Card className="shadow-sm">
+      <CardHeader className="py-3 px-4">
+        <CardTitle className="flex items-center gap-1.5 text-base">
+          <MapPin className="h-4 w-4" />
           <span>Delivery Address</span>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <div className="grid gap-4">
+      <CardContent className="pt-0 px-4 pb-3">
+        <div className="space-y-2">
+          <div className="grid gap-2">
             <div>
-              <Label htmlFor="delivery-address">Address</Label>
+              <Label htmlFor="delivery-address" className="text-xs">Address</Label>
               <Textarea 
                 id="delivery-address"
                 value={deliveryAddress}
                 onChange={(e) => setDeliveryAddress(e.target.value)}
                 placeholder="Street address"
-                className="mt-1"
+                className="mt-1 min-h-[60px] text-sm"
               />
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div>
-                <Label htmlFor="delivery-city">City</Label>
+                <Label htmlFor="delivery-city" className="text-xs">City</Label>
                 <Input 
                   id="delivery-city"
                   value={deliveryCity}
                   onChange={(e) => setDeliveryCity(e.target.value)}
                   placeholder="City"
-                  className="mt-1"
+                  className="mt-1 h-8 text-sm"
                 />
               </div>
               
               <div>
-                <Label htmlFor="delivery-postal-code">Postal Code</Label>
+                <Label htmlFor="delivery-postal-code" className="text-xs">Postal Code</Label>
                 <Input 
                   id="delivery-postal-code"
                   value={deliveryPostalCode}
                   onChange={(e) => setDeliveryPostalCode(e.target.value)}
                   placeholder="Postal code"
-                  className="mt-1"
+                  className="mt-1 h-8 text-sm"
                 />
               </div>
             </div>
           </div>
           
-          <div className="flex justify-between items-center mt-2">
+          <div className="flex justify-between items-center mt-1">
             <Button 
               type="button" 
               variant="outline" 
               onClick={handleToggleCoordinates}
               size="sm"
+              className="h-7 text-xs"
             >
-              {showCoordinates ? "Hide Coordinates" : "Set Coordinates Manually"}
+              {showCoordinates ? "Hide Coordinates" : "Set Coordinates"}
             </Button>
           
             {(latitude && longitude) && !showCoordinates && (
-              <p className="text-sm text-gray-500">
-                Location coordinates: {latitude}, {longitude}
+              <p className="text-xs text-gray-500">
+                Location: {latitude}, {longitude}
               </p>
             )}
           </div>
           
           {showCoordinates && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 border p-3 rounded-md">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-1 border p-2 rounded-md">
               <div>
-                <Label htmlFor="latitude">Latitude (-90 to 90)</Label>
+                <Label htmlFor="latitude" className="text-xs">Latitude (-90 to 90)</Label>
                 <Input 
                   id="latitude"
                   type="number"
@@ -156,13 +155,13 @@ export const DeliveryAddressForm = ({
                   max="90"
                   value={latitude || ''}
                   onChange={handleLatitudeChange}
-                  placeholder="Latitude (e.g. 52.520008)"
-                  className="mt-1"
+                  placeholder="Latitude"
+                  className="mt-1 h-7 text-xs"
                 />
               </div>
                 
               <div>
-                <Label htmlFor="longitude">Longitude (-180 to 180)</Label>
+                <Label htmlFor="longitude" className="text-xs">Longitude (-180 to 180)</Label>
                 <Input 
                   id="longitude"
                   type="number"
@@ -171,8 +170,8 @@ export const DeliveryAddressForm = ({
                   max="180"
                   value={longitude || ''}
                   onChange={handleLongitudeChange}
-                  placeholder="Longitude (e.g. 13.404954)"
-                  className="mt-1"
+                  placeholder="Longitude"
+                  className="mt-1 h-7 text-xs"
                 />
               </div>
             </div>
@@ -181,9 +180,10 @@ export const DeliveryAddressForm = ({
           <Button
             onClick={handleSave}
             disabled={isSaving}
-            className="mt-4 w-full"
+            className="mt-2 h-8 text-sm w-full"
+            size="sm"
           >
-            {isSaving ? 'Saving...' : 'Save Delivery Details'}
+            {isSaving ? 'Saving...' : 'Save Address'}
           </Button>
         </div>
       </CardContent>

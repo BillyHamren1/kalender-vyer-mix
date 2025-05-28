@@ -11,15 +11,15 @@ export const InternalNotes = ({ notes }: InternalNotesProps) => {
   if (!notes) return null;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="h-5 w-5" />
+    <Card className="shadow-sm">
+      <CardHeader className="py-3 px-4">
+        <CardTitle className="flex items-center gap-1.5 text-base">
+          <FileText className="h-4 w-4" />
           <span>Internal Notes</span>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <p className="text-gray-700 whitespace-pre-wrap">{notes}</p>
+      <CardContent className="pt-0 px-4 pb-3">
+        <p className="text-sm text-gray-700 whitespace-pre-wrap">{notes}</p>
       </CardContent>
     </Card>
   );

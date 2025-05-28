@@ -134,23 +134,23 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
 
   return (
     <>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         {/* Status Selector with colored background */}
         <Select
           value={selectedStatus}
           onValueChange={handleStatusSelect}
           disabled={disabled || isUpdating}
         >
-          <SelectTrigger className={`w-32 ${currentStatusColors}`}>
-            <div className="flex items-center gap-2">
+          <SelectTrigger className={`w-28 h-8 text-xs ${currentStatusColors}`}>
+            <div className="flex items-center gap-1.5">
               {currentOption?.icon}
-              <SelectValue placeholder="Change status" />
+              <SelectValue placeholder="Status" />
             </div>
           </SelectTrigger>
           <SelectContent>
             {statusOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                <div className="flex items-center gap-2">
+              <SelectItem key={option.value} value={option.value} className="text-sm">
+                <div className="flex items-center gap-1.5">
                   {option.icon}
                   {option.label}
                 </div>
@@ -160,16 +160,16 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
         </Select>
 
         {isUpdating && (
-          <div className="text-sm text-gray-500">Updating...</div>
+          <div className="text-xs text-gray-500">Updating...</div>
         )}
       </div>
 
       {/* Confirmation Dialog */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Confirm Status Change</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-sm pt-2">
               {pendingStatus && getConfirmationMessage(pendingStatus)}
             </DialogDescription>
           </DialogHeader>
@@ -178,6 +178,7 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
               variant="outline" 
               onClick={handleCancelStatusChange}
               disabled={isUpdating}
+              size="sm"
             >
               Cancel
             </Button>
@@ -185,6 +186,7 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
               onClick={handleConfirmStatusChange}
               disabled={isUpdating}
               variant={pendingStatus === 'CANCELLED' ? 'destructive' : 'default'}
+              size="sm"
             >
               {isUpdating ? 'Updating...' : 'Confirm'}
             </Button>

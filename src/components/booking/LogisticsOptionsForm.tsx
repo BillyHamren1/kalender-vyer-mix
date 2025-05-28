@@ -45,66 +45,71 @@ export const LogisticsOptionsForm = ({
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Truck className="h-5 w-5" />
+    <Card className="shadow-sm">
+      <CardHeader className="py-3 px-4">
+        <CardTitle className="flex items-center gap-1.5 text-base">
+          <Truck className="h-4 w-4" />
           <span>Logistics Options</span>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="carry-more-than-10m"
-              checked={carryMoreThan10m}
-              onCheckedChange={setCarryMoreThan10m}
-            />
-            <Label
-              htmlFor="carry-more-than-10m"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-            >
-              Items need to be carried more than 10 meters
-            </Label>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="ground-nails-allowed"
-              checked={groundNailsAllowed}
-              onCheckedChange={setGroundNailsAllowed}
-            />
-            <Label
-              htmlFor="ground-nails-allowed"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-            >
-              Ground nails are allowed at the venue
-            </Label>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="exact-time-needed"
-              checked={exactTimeNeeded}
-              onCheckedChange={setExactTimeNeeded}
-            />
-            <Label
-              htmlFor="exact-time-needed"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-            >
-              Exact delivery time is required
-            </Label>
+      <CardContent className="pt-0 px-4 pb-3">
+        <div className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="carry-more-than-10m"
+                checked={carryMoreThan10m}
+                onCheckedChange={setCarryMoreThan10m}
+                className="h-4 w-7"
+              />
+              <Label
+                htmlFor="carry-more-than-10m"
+                className="text-xs font-medium"
+              >
+                Carry distance >10m
+              </Label>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="ground-nails-allowed"
+                checked={groundNailsAllowed}
+                onCheckedChange={setGroundNailsAllowed}
+                className="h-4 w-7"
+              />
+              <Label
+                htmlFor="ground-nails-allowed"
+                className="text-xs font-medium"
+              >
+                Ground nails allowed
+              </Label>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="exact-time-needed"
+                checked={exactTimeNeeded}
+                onCheckedChange={setExactTimeNeeded}
+                className="h-4 w-7"
+              />
+              <Label
+                htmlFor="exact-time-needed"
+                className="text-xs font-medium"
+              >
+                Exact time required
+              </Label>
+            </div>
           </div>
           
           {exactTimeNeeded && (
             <div>
-              <Label htmlFor="exact-time-info">Time Details</Label>
+              <Label htmlFor="exact-time-info" className="text-xs">Time Details</Label>
               <Textarea 
                 id="exact-time-info"
                 value={exactTimeInfo}
                 onChange={(e) => setExactTimeInfo(e.target.value)}
-                placeholder="Specify the exact time requirements"
-                className="mt-1"
+                placeholder="Specify the time requirements"
+                className="mt-1 min-h-[60px] text-sm"
               />
             </div>
           )}
@@ -112,9 +117,10 @@ export const LogisticsOptionsForm = ({
           <Button
             onClick={handleSave}
             disabled={isSaving}
-            className="mt-2"
+            className="mt-1 h-8 text-sm"
+            size="sm"
           >
-            Save Logistics Options
+            Save Options
           </Button>
         </div>
       </CardContent>

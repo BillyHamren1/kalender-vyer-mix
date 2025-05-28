@@ -11,26 +11,26 @@ interface EventInformationCardProps {
 
 export const EventInformationCard = ({ rigDates, eventDates, rigDownDates }: EventInformationCardProps) => {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Calendar className="h-5 w-5" />
+    <Card className="shadow-sm">
+      <CardHeader className="py-3 px-4">
+        <CardTitle className="flex items-center gap-1.5 text-base">
+          <Calendar className="h-4 w-4" />
           <span>Event Information</span>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
+      <CardContent className="pt-0 px-4 pb-3">
+        <div className="space-y-2">
           <div>
-            <label className="text-sm font-medium text-gray-700">Event Type</label>
-            <p className="text-sm text-gray-600 mt-1">Corporate Event</p>
+            <p className="text-xs font-medium text-gray-500">Event Type</p>
+            <p className="text-sm">Corporate Event</p>
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-700">Event Dates</label>
-            <div className="grid grid-cols-3 gap-4 mt-3">
+            <p className="text-xs font-medium text-gray-500 mb-1">Event Dates</p>
+            <div className="grid grid-cols-3 gap-2">
               <div className="text-center">
-                <div className="text-xs text-gray-500 mb-1">Rig Up</div>
+                <div className="text-xs text-gray-500 mb-0.5">Rig Up</div>
                 {rigDates.length > 0 ? (
-                  <div className="text-sm font-medium bg-green-100 border border-green-200 px-2 py-1 rounded text-black">
+                  <div className="text-xs font-medium bg-green-100 border border-green-200 px-1.5 py-0.5 rounded text-black">
                     {new Date(rigDates[0]).toLocaleDateString()}
                   </div>
                 ) : (
@@ -38,9 +38,9 @@ export const EventInformationCard = ({ rigDates, eventDates, rigDownDates }: Eve
                 )}
               </div>
               <div className="text-center">
-                <div className="text-xs text-gray-500 mb-1">Event</div>
+                <div className="text-xs text-gray-500 mb-0.5">Event</div>
                 {eventDates.length > 0 ? (
-                  <div className="text-sm font-medium bg-yellow-100 border border-yellow-200 px-2 py-1 rounded text-black">
+                  <div className="text-xs font-medium bg-yellow-100 border border-yellow-200 px-1.5 py-0.5 rounded text-black">
                     {new Date(eventDates[0]).toLocaleDateString()}
                   </div>
                 ) : (
@@ -48,9 +48,9 @@ export const EventInformationCard = ({ rigDates, eventDates, rigDownDates }: Eve
                 )}
               </div>
               <div className="text-center">
-                <div className="text-xs text-gray-500 mb-1">Rig Down</div>
+                <div className="text-xs text-gray-500 mb-0.5">Rig Down</div>
                 {rigDownDates.length > 0 ? (
-                  <div className="text-sm font-medium bg-red-100 border border-red-200 px-2 py-1 rounded text-black">
+                  <div className="text-xs font-medium bg-red-100 border border-red-200 px-1.5 py-0.5 rounded text-black">
                     {new Date(rigDownDates[0]).toLocaleDateString()}
                   </div>
                 ) : (

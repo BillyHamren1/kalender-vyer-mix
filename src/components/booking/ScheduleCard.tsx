@@ -35,10 +35,10 @@ export const ScheduleCard = ({
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="flex items-center gap-2">
-          <CalendarIcon className="h-5 w-5" />
+    <Card className="shadow-sm">
+      <CardHeader className="py-3 px-4 flex flex-row items-center justify-between space-y-0">
+        <CardTitle className="flex items-center gap-1.5 text-base">
+          <CalendarIcon className="h-4 w-4" />
           <span>Schedule</span>
         </CardTitle>
         <div className="flex items-center space-x-2">
@@ -46,16 +46,17 @@ export const ScheduleCard = ({
             id="auto-sync"
             checked={autoSync}
             onCheckedChange={onAutoSyncChange}
+            className="h-4 w-7"
           />
           <Label
             htmlFor="auto-sync"
-            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
           >
-            Auto sync to calendar
+            Auto sync
           </Label>
         </div>
       </CardHeader>
-      <CardContent className="grid grid-cols-1 gap-6 pt-4">
+      <CardContent className="grid grid-cols-1 gap-3 pt-1 px-4 pb-3">
         <DatesSection 
           title="Rig Days" 
           dates={rigDates} 
@@ -84,13 +85,13 @@ export const ScheduleCard = ({
         />
       </CardContent>
       {!autoSync && (
-        <div className="px-6 pb-4 flex justify-between items-center">
-          <span className="text-sm text-muted-foreground">
-            Changes to dates will not appear in the calendar until you sync
+        <div className="px-4 pb-3 flex justify-between items-center">
+          <span className="text-xs text-muted-foreground">
+            Changes won't appear in calendar until synced
           </span>
-          <Button size="sm" variant="outline" onClick={handleManualResync} className="gap-1">
-            <RefreshCcw className="h-3.5 w-3.5" />
-            Sync to Calendar
+          <Button size="sm" variant="outline" onClick={handleManualResync} className="gap-1 h-7 text-xs">
+            <RefreshCcw className="h-3 w-3" />
+            Sync Calendar
           </Button>
         </div>
       )}

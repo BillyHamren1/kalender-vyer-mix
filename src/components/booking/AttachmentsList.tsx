@@ -12,26 +12,26 @@ export const AttachmentsList = ({ attachments }: AttachmentsListProps) => {
   if (!attachments || attachments.length === 0) return null;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Paperclip className="h-5 w-5" />
+    <Card className="shadow-sm">
+      <CardHeader className="py-3 px-4">
+        <CardTitle className="flex items-center gap-1.5 text-base">
+          <Paperclip className="h-4 w-4" />
           <span>Attachments</span>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <ul className="divide-y">
+      <CardContent className="pt-0 px-4 pb-3">
+        <ul className="divide-y divide-gray-100">
           {attachments.map(attachment => (
-            <li key={attachment.id} className="py-3">
+            <li key={attachment.id} className="py-2">
               <a 
                 href={attachment.url} 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="flex items-center text-blue-600 hover:underline"
+                className="flex items-center text-blue-600 hover:underline text-sm"
               >
-                <FileImage className="h-4 w-4 mr-2" />
+                <FileImage className="h-3.5 w-3.5 mr-1.5" />
                 {attachment.fileName}
-                <span className="text-xs text-gray-500 ml-2">
+                <span className="text-xs text-gray-500 ml-1.5">
                   ({attachment.fileType})
                 </span>
               </a>

@@ -91,17 +91,17 @@ const BookingDetail = () => {
   if (!actualBookingId) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="border-b bg-white px-6 py-4">
+        <div className="border-b bg-white px-4 py-3 shadow-sm">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" onClick={handleBack}>
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              <h1 className="text-xl font-semibold text-red-500">No Booking ID</h1>
+              <h1 className="text-lg font-semibold text-red-500">No Booking ID</h1>
             </div>
           </div>
         </div>
-        <div className="p-6">
+        <div className="p-3">
           <p className="text-gray-700">No booking ID was provided in the URL.</p>
           <p className="mt-2 text-sm text-gray-500">Expected URL format: /booking/[booking-id]</p>
         </div>
@@ -112,18 +112,18 @@ const BookingDetail = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="border-b bg-white px-6 py-4">
+        <div className="border-b bg-white px-4 py-3 shadow-sm">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" onClick={handleBack}>
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              <h1 className="text-xl font-semibold">Loading booking details...</h1>
+              <h1 className="text-lg font-semibold">Loading booking details...</h1>
             </div>
           </div>
         </div>
-        <div className="p-6">
-          <div className="animate-pulse space-y-4">
+        <div className="p-3">
+          <div className="animate-pulse space-y-2">
             <div className="h-4 bg-gray-200 rounded w-3/4"></div>
             <div className="h-4 bg-gray-200 rounded w-1/2"></div>
             <div className="h-4 bg-gray-200 rounded w-2/3"></div>
@@ -136,23 +136,24 @@ const BookingDetail = () => {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="border-b bg-white px-6 py-4">
+        <div className="border-b bg-white px-4 py-3 shadow-sm">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" onClick={handleBack}>
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              <h1 className="text-xl font-semibold text-red-500">Error Loading Booking</h1>
+              <h1 className="text-lg font-semibold text-red-500">Error Loading Booking</h1>
             </div>
           </div>
         </div>
-        <div className="p-6">
+        <div className="p-3">
           <p className="text-gray-700">{error}</p>
-          <p className="mt-4">Booking ID: {actualBookingId}</p>
+          <p className="mt-2">Booking ID: {actualBookingId}</p>
           <Button 
             onClick={() => loadBookingData()} 
-            className="mt-4"
+            className="mt-3"
             variant="outline"
+            size="sm"
           >
             Try Again
           </Button>
@@ -163,27 +164,27 @@ const BookingDetail = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="border-b bg-white px-6 py-4 shadow-sm">
+      {/* Header - more compact */}
+      <div className="border-b bg-white px-4 py-2 shadow-sm">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={handleBack}>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={handleBack} className="h-8 w-8 p-0">
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
-              <h1 className="text-2xl font-semibold text-gray-900">Booking Details</h1>
+              <h1 className="text-lg font-semibold text-gray-900">Booking Details</h1>
               {booking && (
-                <div className="flex items-center gap-4 mt-1">
-                  <p className="text-sm text-gray-600">
+                <div className="flex items-center gap-2 mt-0">
+                  <p className="text-xs text-gray-600">
                     #{booking.bookingNumber || 'No booking number'}
                   </p>
                   <span className="text-gray-400">•</span>
-                  <p className="text-sm font-medium text-gray-700">{booking.client}</p>
+                  <p className="text-xs font-medium text-gray-700">{booking.client}</p>
                 </div>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {booking && (
               <StatusChangeForm
                 currentStatus={booking.status}
@@ -196,22 +197,25 @@ const BookingDetail = () => {
         </div>
       </div>
 
-      {/* Content */}
+      {/* Content - tighter spacing */}
       {booking ? (
-        <div className="p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="p-2 md:p-3">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
             {/* Left Column */}
-            <div className="space-y-3">
+            <div className="space-y-2">
               <ClientInformation client={booking.client} />
               
               {/* Display Products */}
               {booking.products && booking.products.length > 0 && (
                 <ProductsList products={booking.products} />
               )}
+
+              {/* Delivery Contact */}
+              <DeliveryContactCard />
             </div>
 
             {/* Right Column */}
-            <div className="space-y-3">
+            <div className="space-y-2">
               {/* Event Information - moved above Delivery Address */}
               <EventInformationCard
                 rigDates={rigDates}
@@ -228,14 +232,11 @@ const BookingDetail = () => {
                 isSaving={isSaving}
                 onSave={handleDeliveryDetailsChange}
               />
-              
-              {/* Delivery Contact */}
-              <DeliveryContactCard />
             </div>
           </div>
 
           {/* Full width sections */}
-          <div className="mt-6 space-y-3">
+          <div className="mt-2 space-y-2">
             <LogisticsOptionsForm
               initialCarryMoreThan10m={booking.carryMoreThan10m || false}
               initialGroundNailsAllowed={booking.groundNailsAllowed || false}
@@ -264,8 +265,8 @@ const BookingDetail = () => {
             <InternalNotes notes={booking.internalNotes || ''} />
 
             {lastViewedDate && (
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-700">
+              <div className="p-2 bg-blue-50 border border-blue-200 rounded-lg text-xs">
+                <p className="text-blue-700">
                   You came from calendar view on: {lastViewedDate.toLocaleDateString()}
                 </p>
               </div>
@@ -273,13 +274,14 @@ const BookingDetail = () => {
           </div>
         </div>
       ) : (
-        <div className="p-6">
-          <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">No booking data available.</p>
+        <div className="p-3">
+          <div className="text-center py-8">
+            <p className="text-gray-500 text-sm">No booking data available.</p>
             <Button 
               onClick={() => loadBookingData()} 
-              className="mt-4"
+              className="mt-2"
               variant="outline"
+              size="sm"
             >
               Reload Booking Data
             </Button>

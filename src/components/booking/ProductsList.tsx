@@ -17,15 +17,15 @@ export const ProductsList = ({ products }: ProductsListProps) => {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Package className="h-5 w-5" />
+    <Card className="shadow-sm">
+      <CardHeader className="py-3 px-4">
+        <CardTitle className="flex items-center gap-1.5 text-base">
+          <Package className="h-4 w-4" />
           <span>Products ({products.length})</span>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <ul className="divide-y">
+      <CardContent className="pt-0 px-4 pb-3">
+        <ul className="divide-y divide-gray-100">
           {products.map(product => {
             console.log('Rendering product:', product);
             
@@ -35,13 +35,13 @@ export const ProductsList = ({ products }: ProductsListProps) => {
                             product.notes.trim().length > 0;
             
             return (
-              <li key={product.id} className="py-3">
+              <li key={product.id} className="py-2">
                 <div className="flex justify-between">
-                  <span className="font-medium">{product.name}</span>
-                  <span className="text-gray-600">Qty: {product.quantity}</span>
+                  <span className="text-sm font-medium">{product.name}</span>
+                  <span className="text-xs text-gray-600">Qty: {product.quantity}</span>
                 </div>
                 {hasNotes && (
-                  <p className="text-sm text-gray-500 mt-1">{product.notes}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{product.notes}</p>
                 )}
               </li>
             );
