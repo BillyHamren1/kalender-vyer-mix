@@ -6,12 +6,19 @@ import { Grid2X2, Calendar, ShoppingCart, Users } from "lucide-react";
 const Index = () => {
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <Grid2X2 className="h-8 w-8 text-[#82b6c6]" />
+            <h1 className="text-3xl font-bold text-gray-900">EventFlow</h1>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
       <div className="container mx-auto px-4 py-16">
         <div className="max-w-4xl mx-auto text-center mb-16">
-          <div className="bg-[#82b6c6] p-4 rounded-lg inline-flex mb-8">
-            <Grid2X2 className="text-white h-10 w-10" />
-          </div>
-          <h1 className="text-4xl font-bold text-[#2d3748] mb-6">EventFlow</h1>
           <p className="text-xl text-gray-600 mb-10">
             Välkommen till ditt kompletta event management system
           </p>
