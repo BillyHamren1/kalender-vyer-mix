@@ -1,16 +1,26 @@
 
 import { CalendarEvent, Resource } from './ResourceData';
+import { mapDatabaseToAppResourceId } from '@/services/eventService';
 
 export const processEvents = (events: CalendarEvent[], resources: Resource[]): CalendarEvent[] => {
   console.log('Processing events:', events.length);
   
   return events.map(event => {
-    // Ensure the event has a valid resource
-    let targetResourceId = event.resourceId;
-    const validResource = resources.find(r => r.id === event.resourceId);
+    // Normalize resource ID - convert database format (single letters) to app format (team-X)
+    let normalizedResourceId = event.resourceId;
+    
+    // If the resourceId is a single letter, convert it to team-X format
+    if (event.resourceId && event.resourceId.length === 1) {
+      normalizedResourceId = mapDatabaseToAppResourceId(event.resourceId);
+      console.log(`Converted resource ID from "${event.resourceId}" to "${normalizedResourceId}"`);
+    }
+    
+    // Ensure the normalized resource ID is valid
+    let targetResourceId = normalizedResourceId;
+    const validResource = resources.find(r => r.id === normalizedResourceId);
     
     if (!validResource) {
-      console.warn(`Event ${event.id} has invalid resourceId: ${event.resourceId}`);
+      console.warn(`Event ${event.id} has invalid resourceId: ${normalizedResourceId}, falling back to first resource`);
       targetResourceId = resources[0]?.id || 'team-1'; // Fallback to first resource
     }
 
@@ -46,7 +56,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
           deliveryAddress: event.extendedProps?.deliveryAddress,
           bookingNumber: event.extendedProps?.bookingNumber,
           eventType: eventType,
-          originalResourceId: event.resourceId // Keep track of original assignment
+          originalResourceId: normalizedResourceId // Keep track of original assignment
         }
       };
 
@@ -83,7 +93,8 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
       resourceId: processedEvent.resourceId,
       eventType: eventType,
       editable: processedEvent.editable,
-      durationEditable: processedEvent.durationEditable
+      durationEditable: processedEvent.durationEditable,
+      originalResourceId: normalizedResourceId
     });
 
     return processedEvent;
