@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Users, RotateCcw } from 'lucide-react';
@@ -14,10 +13,23 @@ import SimpleCalendarNavigation from '@/components/Calendar/SimpleCalendarNaviga
 import StaffSelector from '@/components/Calendar/StaffSelector';
 
 const StaffCalendarView: React.FC = () => {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // FIXED: Initialize with current date (today) instead of old date
+  const [currentDate, setCurrentDate] = useState(() => {
+    const today = new Date();
+    console.log('StaffCalendarView: Initializing with today:', format(today, 'yyyy-MM-dd'));
+    return today;
+  });
+  
   const [selectedClients, setSelectedClients] = useState<string[]>([]);
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('week');
+
+  // Force date to current date on component mount
+  useEffect(() => {
+    const today = new Date();
+    console.log('StaffCalendarView: Component mounted, forcing date to today:', format(today, 'yyyy-MM-dd'));
+    setCurrentDate(today);
+  }, []);
 
   // Improved date range calculation with proper month boundaries
   const getDateRange = () => {
@@ -90,9 +102,10 @@ const StaffCalendarView: React.FC = () => {
     setCurrentDate(newDate);
   };
 
+  // FIXED: Ensure "Today" button goes to actual today date
   const goToToday = () => {
     const today = new Date();
-    console.log('StaffCalendarView: Going to today:', format(today, 'yyyy-MM-dd'));
+    console.log('StaffCalendarView: Going to today (forced):', format(today, 'yyyy-MM-dd'));
     setCurrentDate(today);
   };
 

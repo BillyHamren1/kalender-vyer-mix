@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceDayGridPlugin from '@fullcalendar/resource-daygrid';
@@ -27,6 +28,17 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
   const [calendarHeight, setCalendarHeight] = useState('auto');
   const [isProgrammaticChange, setIsProgrammaticChange] = useState(false);
   const lastParentDateRef = useRef<Date>(currentDate);
+
+  // FIXED: Force calendar to show correct date on component mount
+  useEffect(() => {
+    if (calendarRef.current) {
+      const calendarApi = calendarRef.current.getApi();
+      console.log('IndividualStaffCalendar: Force updating calendar to current date on mount:', format(currentDate, 'yyyy-MM-dd'));
+      setIsProgrammaticChange(true);
+      calendarApi.gotoDate(currentDate);
+      setTimeout(() => setIsProgrammaticChange(false), 100);
+    }
+  }, []); // Run once on mount
 
   // Calculate calendar height based on view mode
   useEffect(() => {
