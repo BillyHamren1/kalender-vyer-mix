@@ -174,7 +174,9 @@ const BookingDetail = () => {
               <h1 className="text-2xl font-semibold text-gray-900">Booking Details</h1>
               {booking && (
                 <div className="flex items-center gap-4 mt-1">
-                  <p className="text-sm text-gray-600">#{actualBookingId}</p>
+                  <p className="text-sm text-gray-600">
+                    #{booking.bookingNumber || 'No booking number'}
+                  </p>
                   <span className="text-gray-400">•</span>
                   <p className="text-sm font-medium text-gray-700">{booking.client}</p>
                 </div>
