@@ -61,10 +61,8 @@ export const useCalendarEvents = () => {
       // Sync each confirmed booking to calendar
       for (const booking of confirmedBookings) {
         try {
-          const result = await resyncBookingToCalendar(booking.id);
-          if (result) {
-            syncedCount++;
-          }
+          await resyncBookingToCalendar(booking.id);
+          syncedCount++;
         } catch (error) {
           console.error(`Error syncing booking ${booking.id}:`, error);
         }
@@ -178,15 +176,13 @@ export const useCalendarEvents = () => {
       console.log('Manually refreshing calendar events...');
       await loadEvents(true);
       toast.success("Calendar events refreshed");
-      return events;
     } catch (error) {
       console.error('Error refreshing calendar events:', error);
       toast.error('Could not refresh calendar events');
-      return [];
     } finally {
       setIsLoading(false);
     }
-  }, [loadEvents, events]);
+  }, [loadEvents]);
 
   return {
     events,

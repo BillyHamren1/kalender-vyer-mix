@@ -405,15 +405,10 @@ export const resyncBookingCalendarEvents = async (bookingId: string): Promise<bo
     
     // Import the resync function and call it properly
     const { resyncBookingToCalendar } = await import('./bookingCalendarService');
-    const success = await resyncBookingToCalendar(bookingId, true); // Force resync
+    await resyncBookingToCalendar(bookingId); // Remove the force parameter
     
-    if (success) {
-      toast.success(`Successfully resynced booking ${bookingId} calendar events`);
-    } else {
-      toast.error(`Failed to resync booking ${bookingId}`);
-    }
-    
-    return success;
+    toast.success(`Successfully resynced booking ${bookingId} calendar events`);
+    return true;
   } catch (error) {
     console.error(`Error resyncing booking ${bookingId}:`, error);
     toast.error(`Error resyncing booking: ${error instanceof Error ? error.message : 'Unknown error'}`);

@@ -26,7 +26,7 @@ export const useBookingFetch = (id: string | undefined) => {
         fetchBookingDatesByType(bookingId, 'rigDown')
       ]);
       
-      // Set state with all dates
+      // Set state with all dates (now arrays)
       setRigDates(fetchedRigDates);
       setEventDates(fetchedEventDates);
       setRigDownDates(fetchedRigDownDates);

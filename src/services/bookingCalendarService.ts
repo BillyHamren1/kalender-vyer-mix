@@ -250,14 +250,23 @@ export const deleteAllBookingEvents = async (bookingId: string): Promise<void> =
   }
 };
 
-// Fetch booking dates by type
-export const fetchBookingDatesByType = async (bookingId: string, dateType: string): Promise<string | null> => {
-  console.log(`Fetching ${dateType} date for booking ${bookingId}`);
+// Fetch booking dates by type - returns array of dates for a booking
+export const fetchBookingDatesByType = async (bookingId: string, dateType: string): Promise<string[]> => {
+  console.log(`Fetching ${dateType} dates for booking ${bookingId}`);
   
   try {
+    // Map dateType to actual database columns
+    const columnMap: { [key: string]: string } = {
+      'rig': 'rigdaydate',
+      'event': 'eventdate',
+      'rigDown': 'rigdowndate'
+    };
+
+    const column = columnMap[dateType] || dateType;
+
     const { data: booking, error } = await supabase
       .from('bookings')
-      .select(dateType)
+      .select(column)
       .eq('id', bookingId)
       .single();
 
@@ -266,7 +275,9 @@ export const fetchBookingDatesByType = async (bookingId: string, dateType: strin
       throw error;
     }
 
-    return booking ? booking[dateType] : null;
+    // Return array of dates (currently single date, but prepared for multiple dates)
+    const dateValue = booking ? booking[column] : null;
+    return dateValue ? [dateValue] : [];
   } catch (error) {
     console.error('Error in fetchBookingDatesByType:', error);
     throw error;

@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Booking } from '@/types/booking';
@@ -35,8 +36,8 @@ export const useBookingDates = (
     setIsSyncingToCalendar(true);
     
     try {
-      // Use the enhanced resync function that handles all dates
-      await resyncBookingToCalendar(id, true); // Force resync
+      // Use the resync function without the force parameter
+      await resyncBookingToCalendar(id);
       
       toast.success('Booking synced to calendar successfully');
     } catch (err) {
@@ -168,7 +169,7 @@ export const useBookingDates = (
       
       // Resync the remaining dates to calendar
       if (booking.status === 'CONFIRMED') {
-        await resyncBookingToCalendar(id, true);
+        await resyncBookingToCalendar(id);
       }
       
       toast.success(`${dateType === 'rig' ? 'Rig day' : dateType === 'event' ? 'Event day' : 'Rig down day'} removed successfully`);
