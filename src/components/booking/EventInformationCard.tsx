@@ -1,15 +1,142 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Calendar } from 'lucide-react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
 
 interface EventInformationCardProps {
   rigDates: string[];
   eventDates: string[];
   rigDownDates: string[];
+  onAddDate: (date: Date, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
+  onRemoveDate: (date: string, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
+  autoSync?: boolean;
 }
 
-export const EventInformationCard = ({ rigDates, eventDates, rigDownDates }: EventInformationCardProps) => {
+export const EventInformationCard = ({ 
+  rigDates, 
+  eventDates, 
+  rigDownDates, 
+  onAddDate, 
+  onRemoveDate,
+  autoSync = true 
+}: EventInformationCardProps) => {
+  const [openPopover, setOpenPopover] = useState<string | null>(null);
+
+  const handleDateSelect = (date: Date | undefined, eventType: 'rig' | 'event' | 'rigDown') => {
+    if (date) {
+      onAddDate(date, eventType, autoSync);
+      setOpenPopover(null);
+    }
+  };
+
+  const handleDateRemove = (dateStr: string, eventType: 'rig' | 'event' | 'rigDown') => {
+    onRemoveDate(dateStr, eventType, autoSync);
+  };
+
+  const DateSection = ({ 
+    title, 
+    dates, 
+    eventType, 
+    bgColor 
+  }: { 
+    title: string; 
+    dates: string[]; 
+    eventType: 'rig' | 'event' | 'rigDown';
+    bgColor: string;
+  }) => (
+    <div className="text-center">
+      <div className="text-xs text-gray-500 mb-1">{title}</div>
+      {dates.length > 0 ? (
+        <div className="space-y-1">
+          {dates.map((date, index) => (
+            <div key={index} className="flex items-center justify-center gap-1">
+              <Popover open={openPopover === `${eventType}-${index}`} onOpenChange={(open) => setOpenPopover(open ? `${eventType}-${index}` : null)}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className={cn(
+                      "text-xs font-medium border px-1.5 py-0.5 rounded text-black h-auto",
+                      bgColor
+                    )}
+                  >
+                    {new Date(date).toLocaleDateString()}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="center">
+                  <CalendarComponent
+                    mode="single"
+                    selected={new Date(date)}
+                    onSelect={(newDate) => {
+                      if (newDate) {
+                        // Remove old date and add new one
+                        handleDateRemove(date, eventType);
+                        handleDateSelect(newDate, eventType);
+                      }
+                    }}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+              {dates.length > 1 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-4 w-4 p-0 text-red-500 hover:text-red-700"
+                  onClick={() => handleDateRemove(date, eventType)}
+                >
+                  ×
+                </Button>
+              )}
+            </div>
+          ))}
+          <Popover open={openPopover === `${eventType}-add`} onOpenChange={(open) => setOpenPopover(open ? `${eventType}-add` : null)}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-gray-500 hover:text-gray-700 h-auto px-1 py-0.5"
+              >
+                + Add
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="center">
+              <CalendarComponent
+                mode="single"
+                onSelect={(date) => handleDateSelect(date, eventType)}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+      ) : (
+        <Popover open={openPopover === `${eventType}-empty`} onOpenChange={(open) => setOpenPopover(open ? `${eventType}-empty` : null)}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              className="text-xs text-gray-400 hover:text-gray-600 h-auto px-1 py-0.5"
+            >
+              + Add date
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="center">
+            <CalendarComponent
+              mode="single"
+              onSelect={(date) => handleDateSelect(date, eventType)}
+              initialFocus
+              className={cn("p-3 pointer-events-auto")}
+            />
+          </PopoverContent>
+        </Popover>
+      )}
+    </div>
+  );
+
   return (
     <Card className="shadow-sm">
       <CardHeader className="py-3 px-4">
@@ -27,36 +154,24 @@ export const EventInformationCard = ({ rigDates, eventDates, rigDownDates }: Eve
           <div>
             <p className="text-xs font-medium text-gray-500 mb-1">Event Dates</p>
             <div className="grid grid-cols-3 gap-2">
-              <div className="text-center">
-                <div className="text-xs text-gray-500 mb-0.5">Rig Up</div>
-                {rigDates.length > 0 ? (
-                  <div className="text-xs font-medium bg-green-100 border border-green-200 px-1.5 py-0.5 rounded text-black">
-                    {new Date(rigDates[0]).toLocaleDateString()}
-                  </div>
-                ) : (
-                  <div className="text-xs text-gray-400">Not set</div>
-                )}
-              </div>
-              <div className="text-center">
-                <div className="text-xs text-gray-500 mb-0.5">Event</div>
-                {eventDates.length > 0 ? (
-                  <div className="text-xs font-medium bg-yellow-100 border border-yellow-200 px-1.5 py-0.5 rounded text-black">
-                    {new Date(eventDates[0]).toLocaleDateString()}
-                  </div>
-                ) : (
-                  <div className="text-xs text-gray-400">Not set</div>
-                )}
-              </div>
-              <div className="text-center">
-                <div className="text-xs text-gray-500 mb-0.5">Rig Down</div>
-                {rigDownDates.length > 0 ? (
-                  <div className="text-xs font-medium bg-red-100 border border-red-200 px-1.5 py-0.5 rounded text-black">
-                    {new Date(rigDownDates[0]).toLocaleDateString()}
-                  </div>
-                ) : (
-                  <div className="text-xs text-gray-400">Not set</div>
-                )}
-              </div>
+              <DateSection 
+                title="Rig Up" 
+                dates={rigDates} 
+                eventType="rig" 
+                bgColor="bg-green-100 border-green-200"
+              />
+              <DateSection 
+                title="Event" 
+                dates={eventDates} 
+                eventType="event" 
+                bgColor="bg-yellow-100 border-yellow-200"
+              />
+              <DateSection 
+                title="Rig Down" 
+                dates={rigDownDates} 
+                eventType="rigDown" 
+                bgColor="bg-red-100 border-red-200"
+              />
             </div>
           </div>
         </div>

@@ -1,5 +1,3 @@
-
-
 import React, { useEffect, useContext, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -228,6 +226,9 @@ const BookingDetail = () => {
                 rigDates={rigDates}
                 eventDates={eventDates}
                 rigDownDates={rigDownDates}
+                onAddDate={addDate}
+                onRemoveDate={removeDate}
+                autoSync={autoSync}
               />
               
               {/* Combined Delivery Information Card */}
@@ -248,17 +249,6 @@ const BookingDetail = () => {
 
           {/* Full width sections */}
           <div className="mt-2 space-y-2">
-            <ScheduleCard
-              bookingId={actualBookingId || ''}
-              rigDates={rigDates}
-              eventDates={eventDates}
-              rigDownDates={rigDownDates}
-              autoSync={autoSync}
-              onAutoSyncChange={setAutoSync}
-              onAddDate={addDate}
-              onRemoveDate={removeDate}
-            />
-
             {/* Display Attachments */}
             {booking.attachments && booking.attachments.length > 0 && (
               <AttachmentsList attachments={booking.attachments} />
