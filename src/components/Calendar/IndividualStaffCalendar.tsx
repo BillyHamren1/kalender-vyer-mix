@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -127,7 +128,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
           dayMaxEvents={3}
           moreLinkClick="popover"
           fixedWeekCount={false}
-          showNonCurrentDates={true}
+          showNonCurrentDates={false}
           firstDay={1}
           eventDisplay="block"
           displayEventTime={false}
@@ -180,6 +181,14 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
         
         .fc-event-main {
           padding: 1px 2px;
+        }
+        
+        .fc-daygrid-day-top {
+          text-align: center;
+        }
+        
+        .fc-day-other {
+          display: none !important;
         }
       `}</style>
     </div>
