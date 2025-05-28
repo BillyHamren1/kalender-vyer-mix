@@ -93,14 +93,14 @@ const WeeklyResourceView = () => {
     setStaffSelectionDialogOpen(true);
   }, [hookCurrentDate]);
 
-  // Handle successful staff assignment with reliable operations
+  // Handle successful staff assignment with reliable operations and target date
   const handleStaffAssigned = useCallback(async (staffId: string, staffName: string) => {
     console.log(`WeeklyResourceView: Staff ${staffName} (${staffId}) assigned successfully to team ${selectedResourceId} for date:`, format(selectedDate, 'yyyy-MM-dd'));
     
     try {
-      // Use the reliable staff drop handler with direct database access
-      await reliableStaffOps.handleStaffDrop(staffId, selectedResourceId);
-      console.log('WeeklyResourceView: Reliable staff assignment completed successfully');
+      // Use the reliable staff drop handler with the specific target date
+      await reliableStaffOps.handleStaffDrop(staffId, selectedResourceId, selectedDate);
+      console.log('WeeklyResourceView: Reliable staff assignment completed successfully for date:', format(selectedDate, 'yyyy-MM-dd'));
     } catch (error) {
       console.error('WeeklyResourceView: Error in reliable staff assignment:', error);
       // Fallback to the original method only if reliable fails
@@ -113,7 +113,7 @@ const WeeklyResourceView = () => {
     setShowStaffDisplay(prev => !prev);
   }, []);
 
-  // Enhanced staff drop handler with reliable operations
+  // Enhanced staff drop handler with reliable operations and proper target date handling
   const handleWeeklyStaffDrop = useCallback(async (staffId: string, resourceId: string | null, targetDate?: Date) => {
     if (!targetDate) {
       console.error('WeeklyResourceView: No target date provided for staff drop');
@@ -127,8 +127,8 @@ const WeeklyResourceView = () => {
     });
     
     try {
-      // Use reliable staff operations for direct database access
-      await reliableStaffOps.handleStaffDrop(staffId, resourceId);
+      // Use reliable staff operations for direct database access with target date
+      await reliableStaffOps.handleStaffDrop(staffId, resourceId, targetDate);
       console.log('WeeklyResourceView: Reliable staff drop completed successfully for date:', format(targetDate, 'yyyy-MM-dd'));
     } catch (error) {
       console.error('WeeklyResourceView: Error in reliable staff drop, falling back:', error);

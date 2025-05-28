@@ -109,14 +109,18 @@ export const useReliableStaffOperations = (currentDate: Date) => {
     };
   }, [dateStr, fetchAssignments, addDebugLog]);
 
-  // Reliable staff drop handler with proper conflict handling
-  const handleStaffDrop = useCallback(async (staffId: string, resourceId: string | null) => {
+  // Enhanced staff drop handler with target date support
+  const handleStaffDrop = useCallback(async (staffId: string, resourceId: string | null, targetDate?: Date) => {
     if (!staffId) {
       console.warn('No staffId provided to handleStaffDrop');
       return;
     }
 
-    console.log(`🎯 Reliable staff drop: ${staffId} to ${resourceId || 'unassigned'} on ${dateStr}`);
+    // Use the provided target date or fall back to current date
+    const effectiveDate = targetDate || currentDate;
+    const effectiveDateStr = format(effectiveDate, 'yyyy-MM-dd');
+
+    console.log(`🎯 Reliable staff drop: ${staffId} to ${resourceId || 'unassigned'} on ${effectiveDateStr}`);
     
     setIsLoading(true);
     
@@ -124,11 +128,11 @@ export const useReliableStaffOperations = (currentDate: Date) => {
       let result;
       
       if (resourceId) {
-        // Assign staff to team - this will now properly check for conflicts
-        result = await createAssignmentDirectly(staffId, resourceId, currentDate);
+        // Assign staff to team - this will now properly handle moves
+        result = await createAssignmentDirectly(staffId, resourceId, effectiveDate);
       } else {
         // Remove assignment
-        result = await removeAssignmentDirectly(staffId, currentDate);
+        result = await removeAssignmentDirectly(staffId, effectiveDate);
       }
       
       if (!result.success) {
@@ -137,16 +141,16 @@ export const useReliableStaffOperations = (currentDate: Date) => {
         return;
       }
       
-      // Verify the operation was successful
+      // Verify the operation was successful and refresh data
       setTimeout(async () => {
         if (resourceId) {
-          const verification = await verifyAssignmentInDatabase(staffId, currentDate, resourceId);
+          const verification = await verifyAssignmentInDatabase(staffId, effectiveDate, resourceId);
           if (!verification.exists) {
             console.error('⚠️ Assignment verification failed - not found in database');
             toast.error('Assignment may not have been saved properly');
           } else {
             console.log('✅ Assignment verified in database');
-            toast.success(`Staff assigned successfully`);
+            // Success message is already shown by createAssignmentDirectly
           }
         } else {
           toast.success(`Staff assignment removed successfully`);
@@ -162,7 +166,7 @@ export const useReliableStaffOperations = (currentDate: Date) => {
     } finally {
       setIsLoading(false);
     }
-  }, [currentDate, dateStr, createAssignmentDirectly, removeAssignmentDirectly, verifyAssignmentInDatabase, fetchAssignments]);
+  }, [currentDate, createAssignmentDirectly, removeAssignmentDirectly, verifyAssignmentInDatabase, fetchAssignments]);
 
   // Get staff for a specific team
   const getStaffForTeam = useCallback((teamId: string) => {

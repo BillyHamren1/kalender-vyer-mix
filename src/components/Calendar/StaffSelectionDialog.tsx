@@ -139,7 +139,7 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
     }
   }, [allStaff, searchQuery, resourceId, resourceTitle, dateStr, reliableStaffOperations]);
   
-  // Handle staff assignment with proper conflict detection
+  // Handle staff assignment - now allows moves automatically
   const handleAssignStaff = async (staffId: string, staffName: string) => {
     if (assigning) return; // Prevent double-clicks
     
@@ -147,18 +147,7 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
       setAssigning(staffId);
       console.log(`StaffSelectionDialog: Assigning staff ${staffName} (${staffId}) to team ${resourceId} on ${dateStr}`);
       
-      // Check if staff is already assigned to a different team
-      const existingAssignment = reliableStaffOperations?.assignments.find(
-        a => a.staffId === staffId && a.date === dateStr && a.teamId !== resourceId
-      );
-      
-      if (existingAssignment) {
-        const errorMessage = `${staffName} is already assigned to Team ${existingAssignment.teamId} on ${format(currentDate, 'MMM d, yyyy')}. Remove them from that team first.`;
-        toast.error(errorMessage);
-        return;
-      }
-      
-      // Call the callback which will use reliable operations
+      // No need to check for conflicts - the reliable operations will handle moves automatically
       await onStaffAssigned(staffId, staffName);
       
       console.log('StaffSelectionDialog: Assignment completed successfully');
@@ -219,25 +208,22 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
             <ul className="divide-y">
               {filteredStaff.map(staff => {
                 const isCurrentlyAssigning = assigning === staff.id;
-                const canAssign = !staff.assignedTeamId;
                 const isAssignedToCurrentTeam = staff.isAssignedToCurrentTeam;
                 const isAssignedToOtherTeam = staff.isAssignedToOtherTeam;
                 
                 return (
                   <li 
                     key={staff.id} 
-                    className={`flex items-center justify-between p-3 hover:bg-gray-50 transition-opacity ${
-                      !canAssign ? 'opacity-50' : 'opacity-100'
-                    }`}
+                    className="flex items-center justify-between p-3 hover:bg-gray-50 transition-opacity"
                   >
                     <div className="flex items-center gap-2">
-                      <Avatar className={`h-8 w-8 ${canAssign ? 'bg-purple-100' : 'bg-gray-100'}`}>
-                        <AvatarFallback className={`text-xs ${canAssign ? 'text-purple-700' : 'text-gray-500'}`}>
+                      <Avatar className="h-8 w-8 bg-purple-100">
+                        <AvatarFallback className="text-xs text-purple-700">
                           {getInitials(staff.name)}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className={`text-sm font-medium ${!canAssign ? 'text-gray-500' : 'text-gray-900'}`}>
+                        <p className="text-sm font-medium text-gray-900">
                           {staff.name}
                         </p>
                         {isAssignedToCurrentTeam && (
@@ -246,34 +232,32 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
                           </p>
                         )}
                         {isAssignedToOtherTeam && (
-                          <p className="text-xs text-red-500">
-                            Assigned to {getTeamName(staff.assignedTeamId!)} - remove first
+                          <p className="text-xs text-orange-500">
+                            Currently on {getTeamName(staff.assignedTeamId!)} - will be moved
                           </p>
                         )}
                       </div>
                     </div>
                     
-                    {canAssign ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleAssignStaff(staff.id, staff.name)}
-                        disabled={isCurrentlyAssigning}
-                        title={`Assign to ${resourceTitle}`}
-                      >
-                        {isCurrentlyAssigning ? (
-                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600"></div>
-                        ) : (
-                          <UserPlus className="h-4 w-4" />
-                        )}
-                      </Button>
-                    ) : (
-                      <div className="w-9 h-9 flex items-center justify-center">
-                        <div className="h-4 w-4 text-gray-300">
-                          <UserPlus className="h-4 w-4" />
-                        </div>
-                      </div>
-                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleAssignStaff(staff.id, staff.name)}
+                      disabled={isCurrentlyAssigning}
+                      title={
+                        isAssignedToCurrentTeam 
+                          ? `Already assigned to ${resourceTitle}`
+                          : isAssignedToOtherTeam 
+                            ? `Move to ${resourceTitle}`
+                            : `Assign to ${resourceTitle}`
+                      }
+                    >
+                      {isCurrentlyAssigning ? (
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600"></div>
+                      ) : (
+                        <UserPlus className="h-4 w-4" />
+                      )}
+                    </Button>
                   </li>
                 );
               })}

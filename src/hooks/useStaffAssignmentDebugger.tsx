@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -86,7 +85,7 @@ export const useStaffAssignmentDebugger = () => {
     try {
       console.log(`🔧 Creating assignment directly: Staff ${staffId} → Team ${teamId} on ${dateStr}`);
       
-      // First check if staff is already assigned to a different team on this date
+      // First check if staff is already assigned to ANY team on this date
       const { data: existingAssignment, error: checkError } = await supabase
         .from('staff_assignments')
         .select('team_id, staff_members(name)')
@@ -106,23 +105,6 @@ export const useStaffAssignmentDebugger = () => {
         return { success: false, error: checkError.message };
       }
       
-      if (existingAssignment && existingAssignment.team_id !== teamId) {
-        const staffName = existingAssignment.staff_members?.name || `Staff ${staffId}`;
-        const errorMessage = `${staffName} is already assigned to Team ${existingAssignment.team_id} on ${dateStr}. Remove them from that team first.`;
-        
-        addDebugLog({
-          operation: 'create_assignment_direct',
-          staffId,
-          teamId,
-          date: dateStr,
-          success: false,
-          error: errorMessage
-        });
-        
-        toast.error(errorMessage);
-        return { success: false, error: errorMessage };
-      }
-      
       // If staff is already assigned to the same team, no need to do anything
       if (existingAssignment && existingAssignment.team_id === teamId) {
         addDebugLog({
@@ -134,6 +116,39 @@ export const useStaffAssignmentDebugger = () => {
           dbResult: { message: 'Already assigned to this team' }
         });
         return { success: true, data: existingAssignment };
+      }
+      
+      let operationType = 'assign';
+      let staffName = 'Staff';
+      
+      // If staff is assigned to a different team, this is a MOVE operation
+      if (existingAssignment && existingAssignment.team_id !== teamId) {
+        operationType = 'move';
+        staffName = existingAssignment.staff_members?.name || `Staff ${staffId}`;
+        
+        console.log(`🔄 Moving staff ${staffName} from Team ${existingAssignment.team_id} to Team ${teamId} on ${dateStr}`);
+        
+        // Remove the old assignment first
+        const { error: deleteError } = await supabase
+          .from('staff_assignments')
+          .delete()
+          .eq('staff_id', staffId)
+          .eq('assignment_date', dateStr);
+        
+        if (deleteError) {
+          addDebugLog({
+            operation: 'create_assignment_direct',
+            staffId,
+            teamId,
+            date: dateStr,
+            success: false,
+            error: `Failed to remove old assignment: ${deleteError.message}`
+          });
+          toast.error(`Failed to move staff: ${deleteError.message}`);
+          return { success: false, error: deleteError.message };
+        }
+        
+        console.log(`✅ Removed old assignment from Team ${existingAssignment.team_id}`);
       }
       
       // Create new assignment
@@ -155,7 +170,7 @@ export const useStaffAssignmentDebugger = () => {
           success: false,
           error: error.message
         });
-        toast.error(`Failed to create assignment: ${error.message}`);
+        toast.error(`Failed to ${operationType} staff: ${error.message}`);
         return { success: false, error: error.message };
       }
       
@@ -165,10 +180,17 @@ export const useStaffAssignmentDebugger = () => {
         teamId,
         date: dateStr,
         success: true,
-        dbResult: data
+        dbResult: { operationType, data }
       });
       
-      return { success: true, data };
+      // Show appropriate success message
+      if (operationType === 'move') {
+        toast.success(`${staffName} moved to Team ${teamId}`);
+      } else {
+        toast.success(`${staffName} assigned to Team ${teamId}`);
+      }
+      
+      return { success: true, data, operationType };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       addDebugLog({
