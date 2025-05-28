@@ -117,16 +117,30 @@ serve(async (req) => {
       updated_bookings: [],
       status_changed_bookings: [],
       cancelled_bookings_skipped: [],
+      duplicates_skipped: [],
       errors: [],
       sync_mode: syncMode
     }
 
-    // Get existing bookings for comparison
+    // Get existing bookings for comparison - CREATE A COMPREHENSIVE MAP
     const { data: existingBookings } = await supabase
       .from('bookings')
       .select('id, status, version, booking_number')
 
+    // Create multiple maps to check for duplicates by different identifiers
     const existingBookingMap = new Map(existingBookings?.map(b => [b.id, b]) || [])
+    const existingBookingNumberMap = new Map()
+    
+    // Build booking number map (only if booking_number exists and is not empty)
+    existingBookings?.forEach(booking => {
+      if (booking.booking_number && booking.booking_number.trim() !== '') {
+        existingBookingNumberMap.set(booking.booking_number.trim(), booking)
+      }
+    })
+
+    console.log(`Found ${existingBookings?.length || 0} existing bookings in database`)
+    console.log(`Existing booking IDs: ${Array.from(existingBookingMap.keys()).slice(0, 5)}...`) // Show first 5
+    console.log(`Existing booking numbers: ${Array.from(existingBookingNumberMap.keys()).slice(0, 5)}...`) // Show first 5
 
     for (const externalBooking of externalData.data) {
       try {
@@ -137,6 +151,24 @@ serve(async (req) => {
         if (bookingStatus === 'CANCELLED') {
           console.log(`Skipping CANCELLED booking: ${externalBooking.id}`)
           results.cancelled_bookings_skipped.push(externalBooking.id)
+          continue
+        }
+
+        // COMPREHENSIVE DUPLICATE CHECK - Check by ID AND booking number
+        const existingById = existingBookingMap.get(externalBooking.id)
+        let existingByNumber = null
+        
+        if (externalBooking.booking_number && externalBooking.booking_number.trim() !== '') {
+          existingByNumber = existingBookingNumberMap.get(externalBooking.booking_number.trim())
+        }
+
+        // If booking exists by either ID or booking number, treat as existing
+        const existingBooking = existingById || existingByNumber
+
+        if (existingBooking && !existingById && existingByNumber) {
+          // This is a duplicate by booking number but different ID - SKIP IT COMPLETELY
+          console.log(`DUPLICATE DETECTED: Booking number ${externalBooking.booking_number} already exists with different ID. Skipping import of ${externalBooking.id}`)
+          results.duplicates_skipped.push(externalBooking.id)
           continue
         }
 
@@ -185,68 +217,35 @@ serve(async (req) => {
 
         console.log(`Processing booking ${bookingData.id} with status: ${bookingData.status}`)
 
-        const existingBooking = existingBookingMap.get(bookingData.id)
-
         if (existingBooking) {
-          // If existing booking becomes CANCELLED, delete it from our database
-          if (bookingData.status === 'CANCELLED' && existingBooking.status !== 'CANCELLED') {
-            console.log(`Deleting booking ${bookingData.id} as it became CANCELLED`)
-            
-            // Remove calendar events first
-            await supabase
-              .from('calendar_events')
-              .delete()
-              .eq('booking_id', bookingData.id)
-            
-            // Remove staff assignments
-            await supabase
-              .from('booking_staff_assignments')
-              .delete()
-              .eq('booking_id', bookingData.id)
-            
-            // Remove products and attachments
-            await supabase
-              .from('booking_products')
-              .delete()
-              .eq('booking_id', bookingData.id)
-            
-            await supabase
-              .from('booking_attachments')
-              .delete()
-              .eq('booking_id', bookingData.id)
-            
-            // Delete the booking
-            await supabase
-              .from('bookings')
-              .delete()
-              .eq('id', bookingData.id)
-            
-            results.cancelled_bookings_skipped.push(bookingData.id)
-            continue
-          }
-
+          // EXISTING BOOKING - UPDATE ONLY IF ACTUALLY DIFFERENT
+          console.log(`Found existing booking ${existingBooking.id}, checking for changes...`)
+          
           // Check if status changed
           const statusChanged = existingBooking.status !== bookingData.status
           
           if (statusChanged) {
+            console.log(`Status changed for ${bookingData.id}: ${existingBooking.status} -> ${bookingData.status}`)
             results.status_changed_bookings.push(bookingData.id)
           } else {
+            console.log(`No significant changes for ${bookingData.id}, marking as updated`)
             results.updated_bookings.push(bookingData.id)
           }
 
-          // Update existing booking
+          // Update existing booking with the correct ID (use existing booking's ID)
           const { error: updateError } = await supabase
             .from('bookings')
             .update({
               ...bookingData,
+              id: existingBooking.id, // Use the existing booking's ID
               version: (existingBooking.version || 1) + 1,
               updated_at: new Date().toISOString()
             })
-            .eq('id', bookingData.id)
+            .eq('id', existingBooking.id) // Update by the existing booking's ID
 
           if (updateError) {
-            console.error(`Error updating booking ${bookingData.id}:`, updateError)
-            results.errors.push(`Failed to update ${bookingData.id}: ${updateError.message}`)
+            console.error(`Error updating booking ${existingBooking.id}:`, updateError)
+            results.errors.push({ booking_id: existingBooking.id, error: updateError.message })
             results.failed++
             continue
           }
@@ -255,22 +254,34 @@ serve(async (req) => {
           await supabase
             .from('booking_products')
             .delete()
-            .eq('booking_id', bookingData.id)
+            .eq('booking_id', existingBooking.id)
           
           await supabase
             .from('booking_attachments')
             .delete()
-            .eq('booking_id', bookingData.id)
+            .eq('booking_id', existingBooking.id)
+
+          // Update booking data reference for subsequent operations
+          bookingData.id = existingBooking.id
 
         } else {
-          // Insert new booking (only if not CANCELLED)
+          // NEW BOOKING - Insert only if truly new
+          console.log(`Inserting new booking ${bookingData.id}`)
+          
           const { error: insertError } = await supabase
             .from('bookings')
             .insert(bookingData)
 
           if (insertError) {
+            // Check if this is a duplicate key error
+            if (insertError.message.includes('duplicate key') || insertError.message.includes('already exists')) {
+              console.log(`Duplicate booking detected during insert: ${bookingData.id}, skipping...`)
+              results.duplicates_skipped.push(bookingData.id)
+              continue
+            }
+            
             console.error(`Error inserting booking ${bookingData.id}:`, insertError)
-            results.errors.push(`Failed to insert ${bookingData.id}: ${insertError.message}`)
+            results.errors.push({ booking_id: bookingData.id, error: insertError.message })
             results.failed++
             continue
           }
@@ -385,10 +396,29 @@ serve(async (req) => {
             })
           }
 
-          // Assign calendar events to teams automatically
+          // Check for existing calendar events to prevent duplicates
           if (calendarEvents.length > 0) {
-            // Get existing calendar events to find available teams
             const { data: existingEvents } = await supabase
+              .from('calendar_events')
+              .select('id, booking_id, event_type, start_time')
+              .eq('booking_id', bookingData.id)
+
+            const existingEventMap = new Map()
+            existingEvents?.forEach(event => {
+              const key = `${event.booking_id}-${event.event_type}-${event.start_time}`
+              existingEventMap.set(key, event)
+            })
+
+            // Filter out events that already exist
+            const newEvents = calendarEvents.filter(event => {
+              const key = `${event.booking_id}-${event.event_type}-${event.start_time}`
+              return !existingEventMap.has(key)
+            })
+
+            console.log(`Found ${existingEvents?.length || 0} existing calendar events, creating ${newEvents.length} new events`)
+
+            // Get available teams for new events only
+            const { data: allExistingEvents } = await supabase
               .from('calendar_events')
               .select('resource_id, start_time, end_time')
 
@@ -399,9 +429,9 @@ serve(async (req) => {
             teams.forEach(team => teamAvailability.set(team, 0))
 
             // Count existing events per team for the dates we're scheduling
-            existingEvents?.forEach(event => {
+            allExistingEvents?.forEach(event => {
               const eventDate = new Date(event.start_time).toISOString().split('T')[0]
-              calendarEvents.forEach(newEvent => {
+              newEvents.forEach(newEvent => {
                 const newEventDate = new Date(newEvent.start_time).toISOString().split('T')[0]
                 if (eventDate === newEventDate) {
                   const currentCount = teamAvailability.get(event.resource_id) || 0
@@ -410,8 +440,8 @@ serve(async (req) => {
               })
             })
 
-            // Assign events to teams with least conflicts
-            for (const event of calendarEvents) {
+            // Assign NEW events to teams with least conflicts
+            for (const event of newEvents) {
               let selectedTeam = 'team-1'
               let minConflicts = teamAvailability.get('team-1') || 0
 
@@ -447,10 +477,20 @@ serve(async (req) => {
 
       } catch (error) {
         console.error(`Error processing booking ${externalBooking.id}:`, error)
-        results.errors.push(`Failed to process ${externalBooking.id}: ${error.message}`)
+        results.errors.push({ booking_id: externalBooking.id, error: error.message })
         results.failed++
       }
     }
+
+    // Log final results
+    console.log('Import results:', {
+      total: results.total,
+      imported: results.imported,
+      new_bookings: results.new_bookings.length,
+      updated_bookings: results.updated_bookings.length,
+      duplicates_skipped: results.duplicates_skipped.length,
+      cancelled_skipped: results.cancelled_bookings_skipped.length
+    })
 
     // Update sync state
     await supabase
@@ -488,6 +528,7 @@ serve(async (req) => {
           updated_bookings: [],
           status_changed_bookings: [],
           cancelled_bookings_skipped: [],
+          duplicates_skipped: [],
           errors: [error.message],
           sync_mode: 'failed'
         }
