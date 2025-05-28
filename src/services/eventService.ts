@@ -1,7 +1,5 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { CalendarEvent } from "@/components/Calendar/ResourceData";
-import { getEventColor } from "@/components/Calendar/ResourceData";
 
 // Resource ID mapping - converts between database IDs and application format
 const resourceIdMap: Record<string, string> = {
@@ -59,80 +57,92 @@ export const mapAppToDatabaseResourceId = (appResourceId: string): string => {
 
 // Fetch all calendar events
 export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
-  console.log('Fetching all calendar events from the database...');
+  console.log('Fetching calendar events with booking details...');
   
-  // First, fetch all the events
-  const { data, error } = await supabase
-    .from('calendar_events')
-    .select('*');
+  try {
+    // Fetch calendar events with associated booking data and products
+    const { data: events, error } = await supabase
+      .from('calendar_events')
+      .select(`
+        *,
+        bookings!calendar_events_booking_id_fkey (
+          id,
+          client,
+          booking_number,
+          deliveryaddress,
+          delivery_city,
+          delivery_postal_code,
+          internalnotes,
+          carry_more_than_10m,
+          ground_nails_allowed,
+          exact_time_needed,
+          exact_time_info,
+          booking_products (
+            id,
+            name,
+            quantity,
+            notes
+          )
+        )
+      `)
+      .order('start_time', { ascending: true });
 
-  if (error) {
-    console.error('Error fetching calendar events:', error);
+    if (error) {
+      console.error('Error fetching calendar events:', error);
+      throw error;
+    }
+
+    if (!events) {
+      console.log('No calendar events found');
+      return [];
+    }
+
+    console.log(`Fetched ${events.length} calendar events from database`);
+
+    // Transform the data to match CalendarEvent interface
+    const calendarEvents: CalendarEvent[] = events.map((event: any) => {
+      const booking = event.bookings;
+      
+      // Transform products data if available
+      const products = booking?.booking_products?.map((product: any) => ({
+        id: product.id,
+        name: product.name,
+        quantity: product.quantity,
+        notes: product.notes || undefined
+      })) || [];
+
+      console.log(`Event ${event.id} - Products:`, products, 'Internal notes:', booking?.internalnotes);
+
+      return {
+        id: event.id,
+        title: event.title,
+        start: new Date(event.start_time),
+        end: new Date(event.end_time),
+        resourceId: event.resource_id,
+        extendedProps: {
+          bookingId: event.booking_id,
+          bookingNumber: event.booking_number || booking?.booking_number,
+          eventType: event.event_type,
+          deliveryAddress: event.delivery_address || booking?.deliveryaddress,
+          deliveryCity: booking?.delivery_city,
+          deliveryPostalCode: booking?.delivery_postal_code,
+          internalNotes: booking?.internalnotes,
+          products: products, // Include products array
+          carryMoreThan10m: booking?.carry_more_than_10m,
+          groundNailsAllowed: booking?.ground_nails_allowed,
+          exactTimeNeeded: booking?.exact_time_needed,
+          exactTimeInfo: booking?.exact_time_info
+        }
+      };
+    });
+
+    console.log('Transformed calendar events:', calendarEvents.length, 'events with extended props');
+    return calendarEvents;
+
+  } catch (error) {
+    console.error('Error in fetchCalendarEvents:', error);
     throw error;
   }
-
-  console.log('Raw calendar events from database:', data);
-
-  // Get all unique booking IDs to fetch their delivery addresses
-  const bookingIds = data
-    .filter(event => event.booking_id)
-    .map(event => event.booking_id)
-    .filter((id, index, self) => id && self.indexOf(id) === index); // Only unique, non-null booking IDs
-
-  // Fetch delivery addresses for all bookings in one request
-  const { data: bookingData, error: bookingError } = await supabase
-    .from('bookings')
-    .select('id, deliveryaddress, delivery_city')
-    .in('id', bookingIds);
-
-  if (bookingError) {
-    console.error('Error fetching booking addresses:', bookingError);
-    // Continue with the events even if we couldn't get the addresses
-  }
-
-  // Create a map of booking IDs to delivery addresses
-  const bookingAddresses: Record<string, string> = {};
-  if (bookingData) {
-    bookingData.forEach(booking => {
-      const address = booking.deliveryaddress || '';
-      const city = booking.delivery_city || '';
-      
-      // Format the address to only include street address and city, not postal code
-      const formattedAddress = [
-        address,
-        city
-      ].filter(Boolean).join(', ');
-      
-      bookingAddresses[booking.id] = formattedAddress || 'No address provided';
-    });
-  }
-
-  // Map data to CalendarEvent format and convert resource IDs
-  const mappedEvents = data.map(event => {
-    const mappedResourceId = mapDatabaseToAppResourceId(event.resource_id);
-    const eventType = event.event_type as 'rig' | 'event' | 'rigDown';
-    const bookingId = event.booking_id || '';
-    
-    // Get the delivery address for this event's booking
-    const deliveryAddress = bookingAddresses[bookingId] || event.delivery_address || 'No address provided';
-    
-    const calendarEvent: CalendarEvent = {
-      id: event.id,
-      resourceId: mappedResourceId,
-      title: event.title,
-      start: event.start_time,
-      end: event.end_time,
-      eventType: eventType,
-      bookingId: bookingId,
-      bookingNumber: event.booking_number || bookingId || 'No ID',
-      deliveryAddress: deliveryAddress
-    };
-    
-    return calendarEvent;
-  });
-
-  console.log('Mapped calendar events with app resource IDs and addresses:', mappedEvents);
-  return mappedEvents;
 };
 
 // Add a calendar event
