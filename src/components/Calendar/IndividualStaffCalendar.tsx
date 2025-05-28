@@ -29,18 +29,11 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
 
   // Calculate calendar height based on number of staff and view mode
   useEffect(() => {
-    if (viewMode === 'month') {
-      const baseHeight = 800;
-      const staffCount = Math.max(1, staffResources.length);
-      const calculatedHeight = Math.min(baseHeight + (staffCount * 40), 1200);
-      setCalendarHeight(`${calculatedHeight}px`);
-    } else {
-      const baseHeight = 600;
-      const staffCount = Math.max(1, staffResources.length);
-      const calculatedHeight = Math.min(baseHeight + (staffCount * 60), 1000);
-      setCalendarHeight(`${calculatedHeight}px`);
-    }
-  }, [staffResources.length, viewMode]);
+    const baseHeight = 700;
+    const staffCount = Math.max(1, staffResources.length);
+    const calculatedHeight = Math.min(baseHeight + (staffCount * 80), 1200);
+    setCalendarHeight(`${calculatedHeight}px`);
+  }, [staffResources.length]);
 
   // Handle navigation
   const handleDatesSet = (dateInfo: any) => {
@@ -62,30 +55,31 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
     });
   };
 
-  // Get calendar view based on mode
-  const getCalendarView = () => {
-    if (viewMode === 'month') {
-      return staffResources.length > 0 ? 'resourceDayGridMonth' : 'dayGridMonth';
-    }
-    return 'dayGridMonth'; // Default to month view for this calendar
-  };
+  // Format events for FullCalendar with proper resource assignment
+  const formattedEvents = events.map(event => {
+    console.log('Formatting event:', event.title, 'for resource:', event.resourceId);
+    
+    return {
+      id: event.id,
+      title: event.title,
+      start: event.start,
+      end: event.end,
+      resourceId: staffResources.length > 0 ? event.resourceId : undefined,
+      backgroundColor: event.backgroundColor,
+      borderColor: event.borderColor,
+      textColor: '#000',
+      extendedProps: {
+        teamId: event.teamId,
+        teamName: event.teamName,
+        bookingId: event.bookingId,
+        eventType: event.eventType,
+        staffName: event.staffName
+      }
+    };
+  });
 
-  // Format events for FullCalendar
-  const formattedEvents = events.map(event => ({
-    id: event.id,
-    title: event.title,
-    start: event.start,
-    end: event.end,
-    resourceId: event.resourceId,
-    backgroundColor: event.backgroundColor,
-    borderColor: event.borderColor,
-    extendedProps: {
-      teamId: event.teamId,
-      teamName: event.teamName,
-      bookingId: event.bookingId,
-      eventType: event.eventType
-    }
-  }));
+  console.log('Formatted events for calendar:', formattedEvents);
+  console.log('Staff resources:', staffResources);
 
   return (
     <div className="staff-calendar-container relative">
@@ -102,18 +96,20 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
         <FullCalendar
           ref={calendarRef}
           plugins={[resourceDayGridPlugin, dayGridPlugin, interactionPlugin]}
-          initialView={getCalendarView()}
+          initialView={staffResources.length > 0 ? 'resourceDayGridMonth' : 'dayGridMonth'}
           headerToolbar={{
             left: 'prev,next today',
             center: 'title',
-            right: 'dayGridMonth'
+            right: ''
           }}
           height={calendarHeight}
-          resources={staffResources.length > 0 ? staffResources : []}
+          resources={staffResources.length > 0 ? staffResources.map(staff => ({
+            id: staff.id,
+            title: staff.name
+          })) : undefined}
           events={formattedEvents}
-          resourceAreaWidth="150px"
+          resourceAreaWidth="180px"
           resourceAreaHeaderContent="Staff Members"
-          resourceLabelContent="Staff"
           nowIndicator={true}
           weekends={true}
           initialDate={currentDate}
@@ -125,31 +121,38 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
               field: 'title',
               headerContent: 'Staff Member'
             }
-          ] : []}
+          ] : undefined}
           eventContent={(renderInfo) => {
             const { event } = renderInfo;
             const props = event.extendedProps;
             
             return (
-              <div className="fc-event-main-frame">
+              <div className="fc-event-main-frame p-1">
                 <div className="fc-event-title-container">
-                  <div className="fc-event-title fc-sticky text-xs">
+                  <div className="fc-event-title text-xs font-medium">
                     {event.title}
                   </div>
-                  {props.eventType === 'booking_event' && (
-                    <div className="text-xs opacity-75">
-                      {props.teamName ? `Team: ${props.teamName}` : ''}
+                  {props.eventType === 'booking_event' && props.teamName && (
+                    <div className="text-xs opacity-75 mt-1">
+                      {props.teamName}
+                    </div>
+                  )}
+                  {props.eventType === 'assignment' && (
+                    <div className="text-xs opacity-75 mt-1">
+                      Team Assignment
                     </div>
                   )}
                 </div>
               </div>
             );
           }}
-          dayMaxEvents={3}
+          dayMaxEvents={false}
           moreLinkClick="popover"
           fixedWeekCount={false}
           showNonCurrentDates={true}
-          firstDay={1} // Start week on Monday
+          firstDay={1}
+          eventDisplay="block"
+          displayEventTime={false}
         />
       </div>
       
@@ -160,24 +163,27 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
         
         .fc-daygrid-event {
           margin: 1px;
-          padding: 1px 3px;
+          padding: 2px 4px;
           border-radius: 3px;
           font-size: 11px;
+          line-height: 1.2;
         }
         
         .fc-event-title {
           font-weight: 500;
-          line-height: 1.2;
         }
         
         .fc-resource-area-header {
           background-color: #f1f5f9;
           font-weight: 600;
+          font-size: 13px;
         }
         
         .fc-resource-cell {
           border-right: 1px solid #e2e8f0;
           background-color: #fafafa;
+          padding: 8px;
+          font-size: 12px;
         }
         
         .fc-day-today {
@@ -186,15 +192,29 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
         
         .fc-daygrid-day-number {
           font-weight: 600;
+          padding: 4px;
         }
         
         .fc-col-header-cell {
           background-color: #f8fafc;
+          font-weight: 600;
         }
         
         .fc-more-link {
           color: #3b82f6;
           font-size: 10px;
+        }
+        
+        .fc-daygrid-day-frame {
+          min-height: 100px;
+        }
+        
+        .fc-daygrid-day-events {
+          margin-top: 2px;
+        }
+        
+        .fc-event-main {
+          padding: 1px 2px;
         }
       `}</style>
     </div>
