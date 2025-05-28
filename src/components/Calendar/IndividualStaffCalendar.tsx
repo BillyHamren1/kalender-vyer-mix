@@ -53,7 +53,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
     });
   };
 
-  // Format events for FullCalendar - Show only booking events, not team assignments
+  // Format events for FullCalendar - Show only booking events with client name and event type
   const formattedEvents = events
     .filter(event => event.eventType === 'booking_event') // Only show actual booking events
     .map(event => {
@@ -61,7 +61,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
       
       return {
         id: event.id,
-        title: `${event.staffName}: ${event.title}`,
+        title: event.title, // Already formatted as "Client Name - event type"
         start: event.start,
         end: event.end,
         backgroundColor: event.backgroundColor,
@@ -71,7 +71,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
           teamId: event.teamId,
           teamName: event.teamName,
           bookingId: event.bookingId,
-          eventType: event.eventType,
+          eventType: event.extendedProps?.eventType,
           staffName: event.staffName,
           client: event.client
         }
@@ -110,16 +110,11 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
             const props = event.extendedProps;
             
             return (
-              <div className="fc-event-main-frame p-1">
+              <div className="fc-event-main-frame p-1" title={`Staff: ${props.staffName}`}>
                 <div className="fc-event-title-container">
                   <div className="fc-event-title text-xs font-medium">
                     {event.title}
                   </div>
-                  {props.client && (
-                    <div className="text-xs opacity-75 mt-1">
-                      Client: {props.client}
-                    </div>
-                  )}
                 </div>
               </div>
             );

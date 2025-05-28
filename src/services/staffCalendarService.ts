@@ -148,6 +148,18 @@ export const getStaffCalendarEvents = async (
     for (const bookingAssignment of filteredBookingAssignments) {
       const staffName = staffMap.get(bookingAssignment.staff_id) || `Staff ${bookingAssignment.staff_id}`;
       
+      // Get the booking details to get proper client name
+      const { data: booking, error: bookingError } = await supabase
+        .from('bookings')
+        .select('client')
+        .eq('id', bookingAssignment.booking_id)
+        .single();
+
+      if (bookingError) {
+        console.error(`Error fetching booking ${bookingAssignment.booking_id}:`, bookingError);
+        continue;
+      }
+
       // Get the calendar events for this booking
       const { data: calendarEvents, error } = await supabase
         .from('calendar_events')
@@ -164,29 +176,32 @@ export const getStaffCalendarEvents = async (
 
       if (calendarEvents && calendarEvents.length > 0) {
         for (const calendarEvent of calendarEvents) {
-          console.log(`Adding booking event: ${calendarEvent.title} for staff ${staffName} with booking ID: ${bookingAssignment.booking_id}`);
+          const clientName = booking?.client || 'Unknown Client';
+          const eventType = calendarEvent.event_type || 'event';
+          
+          console.log(`Adding booking event: ${clientName} - ${eventType} for staff ${staffName} with booking ID: ${bookingAssignment.booking_id}`);
           
           events.push({
             id: `staff-${bookingAssignment.staff_id}-booking-${calendarEvent.id}`,
-            title: calendarEvent.title,
+            title: `${clientName} - ${eventType}`,
             start: calendarEvent.start_time,
             end: calendarEvent.end_time,
             resourceId: bookingAssignment.staff_id,
             teamId: bookingAssignment.team_id,
             bookingId: bookingAssignment.booking_id,
             staffName: staffName,
-            client: extractClientFromTitle(calendarEvent.title),
+            client: clientName,
             eventType: 'booking_event',
-            backgroundColor: getEventColor(calendarEvent.event_type || 'event'),
-            borderColor: getEventBorderColor(calendarEvent.event_type || 'event'),
+            backgroundColor: getEventColor(eventType),
+            borderColor: getEventBorderColor(eventType),
             extendedProps: {
               bookingId: bookingAssignment.booking_id,
               booking_id: bookingAssignment.booking_id,
               deliveryAddress: calendarEvent.delivery_address,
               bookingNumber: calendarEvent.booking_number,
-              eventType: 'booking_event',
+              eventType: eventType,
               staffName: staffName,
-              client: extractClientFromTitle(calendarEvent.title),
+              client: clientName,
               teamName: `Team ${bookingAssignment.team_id}`
             }
           });
@@ -196,7 +211,7 @@ export const getStaffCalendarEvents = async (
 
     console.log(`Generated ${events.length} booking calendar events for staff view:`);
     events.forEach(event => {
-      console.log(`- Event: ${event.title}, Date: ${event.start}, Type: ${event.eventType}, Staff: ${event.staffName}, Booking ID: ${event.bookingId || 'N/A'}`);
+      console.log(`- Event: ${event.title}, Date: ${event.start}, Type: ${event.extendedProps?.eventType}, Staff: ${event.staffName}, Booking ID: ${event.bookingId || 'N/A'}`);
     });
     
     return events;
@@ -350,26 +365,26 @@ const extractClientFromTitle = (title: string): string | undefined => {
 const getEventColor = (eventType: string): string => {
   switch (eventType) {
     case 'rig':
-      return '#fff3e0'; // Orange
+      return '#fff3e0'; // Light orange
     case 'event':
-      return '#fff9c4'; // Yellow
+      return '#fff9c4'; // Light yellow
     case 'rigDown':
-      return '#f3e5f5'; // Purple
+      return '#f3e5f5'; // Light purple
     default:
-      return '#e8f5e8'; // Green
+      return '#e8f5e8'; // Light green
   }
 };
 
 const getEventBorderColor = (eventType: string): string => {
   switch (eventType) {
     case 'rig':
-      return '#ff9800';
+      return '#ff9800'; // Orange
     case 'event':
-      return '#ffeb3b';
+      return '#ffeb3b'; // Yellow
     case 'rigDown':
-      return '#9c27b0';
+      return '#9c27b0'; // Purple
     default:
-      return '#4caf50';
+      return '#4caf50'; // Green
   }
 };
 
