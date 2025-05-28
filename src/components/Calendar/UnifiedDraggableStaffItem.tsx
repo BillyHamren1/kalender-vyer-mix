@@ -2,15 +2,7 @@
 import React, { useState } from 'react';
 import { useDrag } from 'react-dnd';
 import { StaffMember } from './StaffTypes';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import ConfirmationDialog from '@/components/ConfirmationDialog';
-
-// Helper function to get initials for avatar
-const getInitials = (name: string): string => {
-  const nameParts = name.trim().split(' ');
-  if (nameParts.length === 1) return nameParts[0].substring(0, 2).toUpperCase();
-  return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
-};
 
 // Helper function to get first name only
 const getFirstName = (fullName: string): string => {
@@ -128,12 +120,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
         onDoubleClick={handleDoubleClick}
         draggable="true"
       >
-        <div className="flex items-center gap-1 w-full pointer-events-none">
-          <Avatar className={`h-4 w-4 flex-shrink-0 bg-purple-100 ${isDragging ? 'bg-blue-200' : ''}`}>
-            <AvatarFallback className={`text-[10px] text-purple-700 ${isDragging ? 'text-blue-700' : ''}`}>
-              {getInitials(staff.name)}
-            </AvatarFallback>
-          </Avatar>
+        <div className="flex items-center w-full pointer-events-none">
           <span className={`text-xs font-medium whitespace-nowrap overflow-hidden text-ellipsis ${
             isDragging ? 'text-blue-700 font-semibold' : ''
           }`}>
