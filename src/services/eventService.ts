@@ -40,18 +40,18 @@ export const mapAppToDatabaseResourceId = (appResourceId: string): string => {
   const result = reverseResourceIdMap[appResourceId];
   
   if (result) {
-    console.log(`Mapped app ID ${appResourceId} to database ID ${result}`);
+    console.log(`✅ Mapped app ID ${appResourceId} to database ID ${result}`);
     return result;
   }
   
   // If the ID has format "team-X" but isn't in our map, extract the X
   if (appResourceId.startsWith('team-')) {
     const teamNumber = appResourceId.split('-')[1];
-    console.log(`Team ID ${appResourceId} not in mapping, using extracted value ${teamNumber}`);
+    console.log(`⚠️ Team ID ${appResourceId} not in mapping, using extracted value ${teamNumber}`);
     return teamNumber;
   }
   
-  console.log(`No mapping found for ${appResourceId}, using as is`);
+  console.log(`❌ No mapping found for ${appResourceId}, using as is`);
   return appResourceId;
 };
 
@@ -171,38 +171,50 @@ export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promis
   return data.id;
 };
 
-// Update a calendar event
+// Update a calendar event with enhanced logging and error handling
 export const updateCalendarEvent = async (
   id: string,
   updates: Partial<Omit<CalendarEvent, 'id'>>
 ): Promise<void> => {
-  console.log(`Updating calendar event ${id} with:`, updates);
+  console.log(`🔄 Starting update for event ${id} with updates:`, updates);
   
-  const updateData: any = {};
-  
-  if (updates.resourceId) {
-    // Convert resourceId to database format
-    updateData.resource_id = mapAppToDatabaseResourceId(updates.resourceId);
-    console.log(`Converted resource ID ${updates.resourceId} to ${updateData.resource_id} for database update`);
+  try {
+    const updateData: any = {};
+    
+    if (updates.resourceId) {
+      // Convert resourceId to database format
+      const dbResourceId = mapAppToDatabaseResourceId(updates.resourceId);
+      updateData.resource_id = dbResourceId;
+      console.log(`📋 Converting resource ID ${updates.resourceId} -> ${dbResourceId}`);
+    }
+    if (updates.title) updateData.title = updates.title;
+    if (updates.start) updateData.start_time = updates.start;
+    if (updates.end) updateData.end_time = updates.end;
+    if (updates.eventType) updateData.event_type = updates.eventType;
+
+    console.log('💾 Final update data for database:', updateData);
+
+    const { data, error } = await supabase
+      .from('calendar_events')
+      .update(updateData)
+      .eq('id', id)
+      .select(); // Add select to get updated data back
+
+    if (error) {
+      console.error('❌ Database error during update:', error);
+      throw new Error(`Database update failed: ${error.message}`);
+    }
+
+    if (!data || data.length === 0) {
+      console.error('❌ No rows updated - event may not exist');
+      throw new Error('Event not found or no changes made');
+    }
+    
+    console.log(`✅ Successfully updated event ${id} in database:`, data[0]);
+  } catch (error) {
+    console.error('❌ Error in updateCalendarEvent:', error);
+    throw error; // Re-throw to be handled by calling code
   }
-  if (updates.title) updateData.title = updates.title;
-  if (updates.start) updateData.start_time = updates.start;
-  if (updates.end) updateData.end_time = updates.end;
-  if (updates.eventType) updateData.event_type = updates.eventType;
-
-  console.log('Final update data for database:', updateData);
-
-  const { error } = await supabase
-    .from('calendar_events')
-    .update(updateData)
-    .eq('id', id);
-
-  if (error) {
-    console.error('Error updating calendar event:', error);
-    throw error;
-  }
-  
-  console.log(`Successfully updated event ${id} in database`);
 };
 
 // Delete a calendar event

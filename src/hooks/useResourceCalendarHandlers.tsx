@@ -31,13 +31,13 @@ export const useResourceCalendarHandlers = (
     duplicateEvent
   );
 
-  // Use event operations for handling event changes
-  const { handleEventChange, handleEventReceive } = useEventOperations({
+  // Use enhanced event operations for handling event changes with better logging
+  const { handleEventChange, handleEventReceive, isUpdating } = useEventOperations({
     resources,
     refreshEvents
   });
 
-  // Get event handlers
+  // Get event handlers - using our enhanced handleEventChange
   const { handleEventDrop } = getEventHandlers(handleEventChange, handleEventClick, handleEventReceive);
 
   // Handler for duplicate button click
@@ -96,7 +96,7 @@ export const useResourceCalendarHandlers = (
     deleteDialogOpen,
     setDeleteDialogOpen,
     eventToDelete,
-    isDeleting,
+    isDeleting: isDeleting || isUpdating, // Include update loading state
     DuplicateEventDialog
   };
 };
