@@ -26,24 +26,10 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
 }) => {
   const calendarRef = useRef<FullCalendar>(null);
   const [calendarHeight, setCalendarHeight] = useState('auto');
-  const [isProgrammaticChange, setIsProgrammaticChange] = useState(false);
-  const lastParentDateRef = useRef<Date>(currentDate);
-
-  // FIXED: Force calendar to show correct date on component mount
-  useEffect(() => {
-    if (calendarRef.current) {
-      const calendarApi = calendarRef.current.getApi();
-      console.log('IndividualStaffCalendar: Force updating calendar to current date on mount:', format(currentDate, 'yyyy-MM-dd'));
-      setIsProgrammaticChange(true);
-      calendarApi.gotoDate(currentDate);
-      setTimeout(() => setIsProgrammaticChange(false), 100);
-    }
-  }, []); // Run once on mount
 
   // Calculate calendar height based on view mode
   useEffect(() => {
     if (viewMode === 'month') {
-      // For monthly view, use a height that accommodates the full month grid
       setCalendarHeight('600px');
     } else {
       const baseHeight = 700;
@@ -53,44 +39,24 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
     }
   }, [staffResources.length, viewMode]);
 
-  // Update FullCalendar when currentDate changes from parent
+  // Update FullCalendar when currentDate changes from parent - SIMPLIFIED
   useEffect(() => {
     if (calendarRef.current) {
       const calendarApi = calendarRef.current.getApi();
-      const currentCalendarDate = calendarApi.getDate();
-      
-      // Only update calendar if the month is different
-      const currentMonth = format(currentDate, 'yyyy-MM');
-      const calendarMonth = format(currentCalendarDate, 'yyyy-MM');
-      
-      if (currentMonth !== calendarMonth) {
-        console.log('IndividualStaffCalendar: Programmatically updating calendar to month:', currentMonth);
-        setIsProgrammaticChange(true);
-        calendarApi.gotoDate(currentDate);
-        lastParentDateRef.current = currentDate;
-        
-        // Reset flag after a short delay
-        setTimeout(() => setIsProgrammaticChange(false), 100);
-      }
+      console.log('IndividualStaffCalendar: Updating calendar to date:', format(currentDate, 'yyyy-MM-dd'));
+      calendarApi.gotoDate(currentDate);
     }
   }, [currentDate]);
 
-  // Improved handleDatesSet to prevent circular updates
+  // Handle user navigation in the calendar
   const handleDatesSet = (dateInfo: any) => {
-    // Skip if this is a programmatic change we initiated
-    if (isProgrammaticChange) {
-      console.log('IndividualStaffCalendar: Skipping datesSet - programmatic change');
-      return;
-    }
-    
     const newDate = dateInfo.start;
     const newMonth = format(newDate, 'yyyy-MM');
     const currentMonth = format(currentDate, 'yyyy-MM');
     
-    // Only trigger onDateChange if the user actually navigated to a different month
+    // Only trigger onDateChange if the user navigated to a different month
     if (newMonth !== currentMonth) {
       console.log('IndividualStaffCalendar: User navigated to month:', newMonth);
-      lastParentDateRef.current = newDate;
       onDateChange(newDate);
     }
   };
@@ -136,16 +102,13 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
   console.log('Current date prop:', format(currentDate, 'yyyy-MM-dd'));
   console.log('View mode:', viewMode);
 
-  // Determine the correct view based on view mode - FIXED FOR PROPER MONTHLY VIEW
+  // Determine the correct view based on view mode
   const getCalendarView = () => {
     if (viewMode === 'month') {
-      // For monthly view, ALWAYS use dayGridMonth (standard month grid)
       return 'dayGridMonth';
     } else if (viewMode === 'week') {
-      // For weekly view, use resource view if staff are selected
       return staffResources.length > 0 ? 'resourceDayGridWeek' : 'dayGridWeek';
     } else {
-      // For day view, use resource view if staff are selected
       return staffResources.length > 0 ? 'resourceDayGridDay' : 'dayGridDay';
     }
   };
