@@ -2,7 +2,6 @@
 import React from 'react';
 import { Plus, Users } from 'lucide-react';
 import AddTaskButton from './AddTaskButton';
-import ClearCalendarButton from './ClearCalendarButton';
 import { Resource } from './ResourceData';
 
 interface ResourceToolbarProps {
@@ -28,10 +27,6 @@ const ResourceToolbar: React.FC<ResourceToolbarProps> = ({
         currentDate={currentDate}
         resources={resources}
         onAddTask={onAddTask}
-      />
-      
-      <ClearCalendarButton
-        onRefresh={onRefresh}
       />
       
       {onShowStaffCurtain && (
