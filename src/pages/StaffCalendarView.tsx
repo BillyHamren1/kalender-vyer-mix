@@ -4,10 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { Users, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { unifiedStaffService } from '@/services/unifiedStaffService';
+import { getStaffCalendarEvents, getStaffResources } from '@/services/staffCalendarService';
 import { startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
 import { toast } from 'sonner';
-import CleanCalendarGrid from '@/components/Calendar/CleanCalendarGrid';
+import IndividualStaffCalendar from '@/components/Calendar/IndividualStaffCalendar';
 import ClientSelector from '@/components/Calendar/ClientSelector';
 import JobSummaryList from '@/components/Calendar/JobSummaryList';
 import SimpleCalendarNavigation from '@/components/Calendar/SimpleCalendarNavigation';
@@ -17,7 +17,7 @@ const StaffCalendarView: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedClients, setSelectedClients] = useState<string[]>([]);
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
-  const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('month');
+  const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('week');
 
   const getDateRange = () => {
     return {
@@ -28,15 +28,27 @@ const StaffCalendarView: React.FC = () => {
 
   const { start: startDate, end: endDate } = getDateRange();
 
-  // Fetch calendar events using unified service
+  // Fetch staff resources for the calendar
+  const { 
+    data: staffResources = [], 
+    isLoading: isLoadingStaff,
+    refetch: refetchStaff 
+  } = useQuery({
+    queryKey: ['staffResources'],
+    queryFn: getStaffResources,
+    staleTime: 60000,
+    refetchOnWindowFocus: false,
+  });
+
+  // Fetch calendar events using the correct staffCalendarService
   const { 
     data: calendarEvents = [], 
     isLoading: isLoadingEvents, 
     error,
-    refetch 
+    refetch: refetchEvents 
   } = useQuery({
-    queryKey: ['unifiedStaffCalendarEvents', selectedStaffIds, startDate, endDate],
-    queryFn: () => unifiedStaffService.getStaffCalendarEvents(selectedStaffIds, startDate, endDate),
+    queryKey: ['staffCalendarEvents', selectedStaffIds, startDate, endDate],
+    queryFn: () => getStaffCalendarEvents(selectedStaffIds, startDate, endDate),
     enabled: selectedStaffIds.length > 0,
     staleTime: 30000,
     refetchOnWindowFocus: false,
@@ -47,7 +59,8 @@ const StaffCalendarView: React.FC = () => {
   };
 
   const handleRefresh = () => {
-    refetch();
+    refetchEvents();
+    refetchStaff();
     toast.success('Calendar refreshed');
   };
 
@@ -66,6 +79,11 @@ const StaffCalendarView: React.FC = () => {
   const handleDateClick = (date: Date) => {
     console.log('Date clicked:', date);
   };
+
+  // Filter staff resources to only show selected staff
+  const filteredStaffResources = staffResources.filter(staff => 
+    selectedStaffIds.includes(staff.id)
+  );
 
   if (error) {
     return (
@@ -101,7 +119,7 @@ const StaffCalendarView: React.FC = () => {
               onClick={handleRefresh} 
               variant="outline" 
               size="sm"
-              disabled={isLoadingEvents}
+              disabled={isLoadingEvents || isLoadingStaff}
             >
               <RotateCcw className="h-4 w-4 mr-2" />
               Refresh
@@ -126,7 +144,7 @@ const StaffCalendarView: React.FC = () => {
             <CardContent className="p-8 text-center">
               <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Select Staff Members</h3>
-              <p className="text-gray-600">Please select one or more staff members to view their calendar and assigned bookings.</p>
+              <p className="text-gray-600">Please select one or more staff members to view their calendar with assignments and bookings.</p>
             </CardContent>
           </Card>
         ) : (
@@ -135,20 +153,22 @@ const StaffCalendarView: React.FC = () => {
             <div className="xl:col-span-2">
               <Card>
                 <CardContent className="p-0 relative">
-                  {isLoadingEvents && (
+                  {(isLoadingEvents || isLoadingStaff) && (
                     <div className="absolute top-4 right-4 z-10">
                       <div className="flex items-center space-x-2 bg-white px-3 py-2 rounded-lg shadow-sm border">
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                        <span className="text-sm text-gray-600">Loading events...</span>
+                        <span className="text-sm text-gray-600">Loading calendar...</span>
                       </div>
                     </div>
                   )}
                   
-                  <CleanCalendarGrid
-                    currentDate={currentDate}
+                  <IndividualStaffCalendar
                     events={calendarEvents}
-                    selectedClients={selectedClients}
-                    onDateClick={handleDateClick}
+                    staffResources={filteredStaffResources}
+                    currentDate={currentDate}
+                    viewMode={viewMode}
+                    onDateChange={handleDateChange}
+                    isLoading={isLoadingEvents || isLoadingStaff}
                   />
                 </CardContent>
               </Card>
@@ -158,7 +178,7 @@ const StaffCalendarView: React.FC = () => {
             <div className="xl:col-span-1">
               <JobSummaryList
                 events={calendarEvents}
-                staffResources={[]}
+                staffResources={filteredStaffResources}
                 selectedClients={selectedClients}
                 currentDate={currentDate}
                 viewMode={viewMode}
