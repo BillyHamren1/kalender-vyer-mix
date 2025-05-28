@@ -53,9 +53,9 @@ export const LogisticsOptionsForm = ({
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0 px-4 pb-3 space-y-4">
-        {/* Logistics Options Section */}
+        {/* Logistics Options Section - arranged side by side */}
         <div className="space-y-2">
-          <div className="grid grid-cols-1 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="flex items-center space-x-2">
               <Switch
                 id="carry-more-than-10m"

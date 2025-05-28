@@ -17,14 +17,14 @@ export const ProductsList = ({ products }: ProductsListProps) => {
   }
 
   return (
-    <Card className="shadow-sm">
+    <Card className="shadow-sm h-full flex flex-col">
       <CardHeader className="py-3 px-4">
         <CardTitle className="flex items-center gap-1.5 text-base">
           <Package className="h-4 w-4" />
           <span>Products ({products.length})</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-0 px-4 pb-3">
+      <CardContent className="pt-0 px-4 pb-3 flex-1">
         <ul className="divide-y divide-gray-100">
           {products.map(product => {
             console.log('Rendering product:', product);
