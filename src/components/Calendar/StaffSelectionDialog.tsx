@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { fetchStaffMembers, fetchStaffAssignments, assignStaffToTeam } from '@/services/staffService';
 import { StaffMember } from './StaffAssignmentRow';
@@ -21,7 +20,7 @@ interface StaffSelectionDialogProps {
   currentDate: Date;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onStaffAssigned: (staffId: string, staffName: string) => Promise<void>; // Changed to return Promise
+  onStaffAssigned: (staffId: string, staffName: string) => Promise<void>;
 }
 
 const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
@@ -67,45 +66,42 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
     }
   }, [open, currentDate]);
   
-  // Filter staff based on search query and current assignments
+  // Filter and sort staff - show ALL staff but with different visual states
   useEffect(() => {
     if (allStaff.length) {
-      // Get IDs of staff already assigned to any team on this date
-      const assignedStaffIds = new Set(assignments.map(a => a.staff_id));
+      // Get assignment information for each staff member
+      const assignedStaffMap = new Map();
+      assignments.forEach(assignment => {
+        assignedStaffMap.set(assignment.staff_id, assignment.team_id);
+      });
       
-      // Filter out staff already assigned to the current resource
-      const alreadyAssignedToThisTeam = new Set(
-        assignments
-          .filter(a => a.team_id === resourceId)
-          .map(a => a.staff_id)
-      );
-      
-      // Filter staff by search query and assignment status
-      const filtered = allStaff.filter(staff => {
-        // If already assigned to this team, don't show
-        if (alreadyAssignedToThisTeam.has(staff.id)) {
-          return false;
-        }
-        
-        // Filter by name if search query exists
+      // Filter by search query but keep all staff
+      const searchFiltered = allStaff.filter(staff => {
         if (searchQuery) {
           return staff.name.toLowerCase().includes(searchQuery.toLowerCase());
         }
-        
         return true;
       });
       
-      // Sort: unassigned staff first, then alphabetically
-      const sorted = filtered.sort((a, b) => {
-        const aAssigned = assignedStaffIds.has(a.id);
-        const bAssigned = assignedStaffIds.has(b.id);
+      // Add assignment status to each staff member
+      const staffWithStatus = searchFiltered.map(staff => ({
+        ...staff,
+        assignedTeamId: assignedStaffMap.get(staff.id) || null,
+        isAssignedToCurrentTeam: assignedStaffMap.get(staff.id) === resourceId,
+        isAssignedToOtherTeam: assignedStaffMap.has(staff.id) && assignedStaffMap.get(staff.id) !== resourceId
+      }));
+      
+      // Sort: unassigned first, then assigned to current team, then assigned to other teams
+      const sorted = staffWithStatus.sort((a, b) => {
+        // Unassigned staff first
+        if (!a.assignedTeamId && b.assignedTeamId) return -1;
+        if (a.assignedTeamId && !b.assignedTeamId) return 1;
         
-        // If one is assigned and the other isn't, put unassigned first
-        if (aAssigned !== bAssigned) {
-          return aAssigned ? 1 : -1;
-        }
+        // Among assigned staff, current team assignments next
+        if (a.isAssignedToCurrentTeam && !b.isAssignedToCurrentTeam) return -1;
+        if (!a.isAssignedToCurrentTeam && b.isAssignedToCurrentTeam) return 1;
         
-        // Otherwise sort alphabetically
+        // Finally alphabetical
         return a.name.localeCompare(b.name);
       });
       
@@ -148,16 +144,9 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
     return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
   };
   
-  // Check if staff is already assigned to another team
-  const isAssignedElsewhere = (staffId: string): boolean => {
-    return assignments.some(a => a.staff_id === staffId && a.team_id !== resourceId);
-  };
-  
-  // Get team name for a staff member if assigned elsewhere
-  const getAssignedTeamName = (staffId: string): string => {
-    const assignment = assignments.find(a => a.staff_id === staffId);
-    if (!assignment) return '';
-    return `Team ${assignment.team_id.split('-')[1]}`;
+  // Get team name for display
+  const getTeamName = (teamId: string): string => {
+    return `Team ${teamId.split('-')[1] || teamId}`;
   };
 
   return (
@@ -186,48 +175,67 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
             </div>
           ) : filteredStaff.length === 0 ? (
             <div className="flex justify-center items-center h-16">
-              <p className="text-sm text-muted-foreground">No available staff found</p>
+              <p className="text-sm text-muted-foreground">No staff found</p>
             </div>
           ) : (
             <ul className="divide-y">
               {filteredStaff.map(staff => {
-                const alreadyAssigned = isAssignedElsewhere(staff.id);
-                const assignedTeam = alreadyAssigned ? getAssignedTeamName(staff.id) : null;
                 const isCurrentlyAssigning = assigning === staff.id;
+                const canAssign = !staff.assignedTeamId;
+                const isAssignedToCurrentTeam = staff.isAssignedToCurrentTeam;
+                const isAssignedToOtherTeam = staff.isAssignedToOtherTeam;
                 
                 return (
                   <li 
                     key={staff.id} 
-                    className={`flex items-center justify-between p-3 hover:bg-gray-50 ${alreadyAssigned ? 'opacity-60' : ''}`}
+                    className={`flex items-center justify-between p-3 hover:bg-gray-50 transition-opacity ${
+                      !canAssign ? 'opacity-40' : 'opacity-100'
+                    }`}
                   >
                     <div className="flex items-center gap-2">
-                      <Avatar className="h-8 w-8 bg-purple-100">
-                        <AvatarFallback className="text-xs text-purple-700">
+                      <Avatar className={`h-8 w-8 ${canAssign ? 'bg-purple-100' : 'bg-gray-100'}`}>
+                        <AvatarFallback className={`text-xs ${canAssign ? 'text-purple-700' : 'text-gray-500'}`}>
                           {getInitials(staff.name)}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="text-sm font-medium">{staff.name}</p>
-                        {alreadyAssigned && (
-                          <p className="text-xs text-muted-foreground">
-                            Assigned to {assignedTeam}
+                        <p className={`text-sm font-medium ${!canAssign ? 'text-gray-500' : 'text-gray-900'}`}>
+                          {staff.name}
+                        </p>
+                        {isAssignedToCurrentTeam && (
+                          <p className="text-xs text-blue-600 font-medium">
+                            Already assigned to {resourceTitle}
+                          </p>
+                        )}
+                        {isAssignedToOtherTeam && (
+                          <p className="text-xs text-gray-500">
+                            Assigned to {getTeamName(staff.assignedTeamId)}
                           </p>
                         )}
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleAssignStaff(staff.id, staff.name)}
-                      disabled={alreadyAssigned || isCurrentlyAssigning}
-                      title={alreadyAssigned ? `Already assigned to ${assignedTeam}` : `Assign to ${resourceTitle}`}
-                    >
-                      {isCurrentlyAssigning ? (
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600"></div>
-                      ) : (
-                        <UserPlus className="h-4 w-4" />
-                      )}
-                    </Button>
+                    
+                    {canAssign ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleAssignStaff(staff.id, staff.name)}
+                        disabled={isCurrentlyAssigning}
+                        title={`Assign to ${resourceTitle}`}
+                      >
+                        {isCurrentlyAssigning ? (
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600"></div>
+                        ) : (
+                          <UserPlus className="h-4 w-4" />
+                        )}
+                      </Button>
+                    ) : (
+                      <div className="w-9 h-9 flex items-center justify-center">
+                        <div className="h-4 w-4 text-gray-300">
+                          <UserPlus className="h-4 w-4" />
+                        </div>
+                      </div>
+                    )}
                   </li>
                 );
               })}
