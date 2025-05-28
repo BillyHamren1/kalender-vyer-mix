@@ -141,7 +141,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
           title={`Click to assign staff to ${resource.title} on ${format(effectiveDate, 'MMM d')}`}
           onClick={handleSelectStaff}
         >
-          <span className="truncate block pr-4">{resource.title}</span>
+          <span className="block">{resource.title}</span>
           {/* Plus icon positioned as overlay in top-right */}
           <Plus className="h-3 w-3 absolute top-1 right-1" />
         </div>
