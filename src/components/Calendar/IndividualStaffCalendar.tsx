@@ -127,16 +127,12 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
           }}
           dayMaxEvents={3}
           moreLinkClick="popover"
-          fixedWeekCount={false}
+          fixedWeekCount={true}
           showNonCurrentDates={true}
           firstDay={1}
           eventDisplay="block"
           displayEventTime={false}
           aspectRatio={1.6}
-          validRange={{
-            start: '1900-01-01',
-            end: '2100-12-31'
-          }}
         />
       </div>
       
