@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { resyncBookingToCalendar, deleteAllBookingEvents } from "./bookingCalendarService";
@@ -18,6 +17,8 @@ export interface ImportResults {
     imported: number;
     failed: number;
     calendar_events_created: number;
+    products_imported?: number;
+    attachments_imported?: number;
     new_bookings?: string[];
     updated_bookings?: string[];
     status_changed_bookings?: string[];
@@ -256,6 +257,8 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
     const updatedCount = results.updated_bookings?.length || 0;
     const statusChangedCount = results.status_changed_bookings?.length || 0;
     const cancelledSkippedCount = results.cancelled_bookings_skipped?.length || 0;
+    const productsCount = results.products_imported || 0;
+    const attachmentsCount = results.attachments_imported || 0;
     
     if (newCount > 0 || updatedCount > 0 || statusChangedCount > 0) {
       const messages = [];
@@ -264,6 +267,9 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
       if (statusChangedCount > 0) messages.push(`${statusChangedCount} status changed`);
       
       let description = `${messages.join(', ')} • ${(syncDurationMs / 1000).toFixed(1)}s`;
+      if (productsCount > 0 || attachmentsCount > 0) {
+        description += ` • ${productsCount} products, ${attachmentsCount} attachments`;
+      }
       if (cancelledSkippedCount > 0) {
         description += ` • ${cancelledSkippedCount} CANCELLED booking${cancelledSkippedCount > 1 ? 's' : ''} skipped`;
       }
@@ -355,6 +361,8 @@ export const quietImportBookings = async (filters: ImportFilters = {}): Promise<
       const updatedCount = resultData.results.updated_bookings?.length || 0;
       const statusChangedCount = resultData.results.status_changed_bookings?.length || 0;
       const cancelledSkippedCount = resultData.results.cancelled_bookings_skipped?.length || 0;
+      const productsCount = resultData.results.products_imported || 0;
+      const attachmentsCount = resultData.results.attachments_imported || 0;
       
       if (newCount > 0 || updatedCount > 0) {
         const message = [];
@@ -362,6 +370,9 @@ export const quietImportBookings = async (filters: ImportFilters = {}): Promise<
         if (updatedCount > 0) message.push(`${updatedCount} updated booking${updatedCount > 1 ? 's' : ''}`);
         
         let description = `${message.join(' and ')} found`;
+        if (productsCount > 0 || attachmentsCount > 0) {
+          description += ` • ${productsCount} products, ${attachmentsCount} attachments imported`;
+        }
         if (cancelledSkippedCount > 0) {
           description += ` • ${cancelledSkippedCount} CANCELLED skipped`;
         }

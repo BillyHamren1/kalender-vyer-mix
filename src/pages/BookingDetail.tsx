@@ -13,6 +13,8 @@ import { DeliveryAddressForm } from '@/components/booking/DeliveryAddressForm';
 import { LogisticsOptionsForm } from '@/components/booking/LogisticsOptionsForm';
 import { ScheduleCard } from '@/components/booking/ScheduleCard';
 import { InternalNotes } from '@/components/booking/InternalNotes';
+import { ProductsList } from '@/components/booking/ProductsList';
+import { AttachmentsList } from '@/components/booking/AttachmentsList';
 import StatusChangeForm from '@/components/booking/StatusChangeForm';
 
 const BookingDetail = () => {
@@ -321,6 +323,16 @@ const BookingDetail = () => {
               onAddDate={addDate}
               onRemoveDate={removeDate}
             />
+
+            {/* Display Products */}
+            {booking.products && booking.products.length > 0 && (
+              <ProductsList products={booking.products} />
+            )}
+
+            {/* Display Attachments */}
+            {booking.attachments && booking.attachments.length > 0 && (
+              <AttachmentsList attachments={booking.attachments} />
+            )}
 
             <InternalNotes notes={booking.internalNotes || ''} />
 

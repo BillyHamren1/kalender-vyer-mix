@@ -28,6 +28,20 @@ interface BookingData {
   version?: number;
 }
 
+interface ProductData {
+  booking_id: string;
+  name: string;
+  quantity: number;
+  notes?: string;
+}
+
+interface AttachmentData {
+  booking_id: string;
+  url: string;
+  file_name: string;
+  file_type: string;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -73,6 +87,8 @@ serve(async (req) => {
       imported: 0,
       failed: 0,
       calendar_events_created: 0,
+      products_imported: 0,
+      attachments_imported: 0,
       new_bookings: [],
       updated_bookings: [],
       status_changed_bookings: [],
@@ -164,6 +180,17 @@ serve(async (req) => {
               .delete()
               .eq('booking_id', bookingData.id)
             
+            // Remove products and attachments
+            await supabase
+              .from('booking_products')
+              .delete()
+              .eq('booking_id', bookingData.id)
+            
+            await supabase
+              .from('booking_attachments')
+              .delete()
+              .eq('booking_id', bookingData.id)
+            
             // Delete the booking
             await supabase
               .from('bookings')
@@ -199,6 +226,18 @@ serve(async (req) => {
             results.failed++
             continue
           }
+
+          // Clear existing products and attachments for updated bookings
+          await supabase
+            .from('booking_products')
+            .delete()
+            .eq('booking_id', bookingData.id)
+          
+          await supabase
+            .from('booking_attachments')
+            .delete()
+            .eq('booking_id', bookingData.id)
+
         } else {
           // Insert new booking (only if not CANCELLED)
           const { error: insertError } = await supabase
@@ -213,6 +252,62 @@ serve(async (req) => {
           }
 
           results.new_bookings.push(bookingData.id)
+        }
+
+        // Process products for the booking
+        if (externalBooking.products && Array.isArray(externalBooking.products)) {
+          console.log(`Processing ${externalBooking.products.length} products for booking ${bookingData.id}`)
+          
+          for (const product of externalBooking.products) {
+            try {
+              const productData: ProductData = {
+                booking_id: bookingData.id,
+                name: product.name || product.product_name || 'Unknown Product',
+                quantity: product.quantity || 1,
+                notes: product.notes || product.description || null
+              }
+
+              const { error: productError } = await supabase
+                .from('booking_products')
+                .insert(productData)
+
+              if (productError) {
+                console.error(`Error inserting product for booking ${bookingData.id}:`, productError)
+              } else {
+                results.products_imported++
+              }
+            } catch (productErr) {
+              console.error(`Error processing product for booking ${bookingData.id}:`, productErr)
+            }
+          }
+        }
+
+        // Process attachments for the booking
+        if (externalBooking.attachments && Array.isArray(externalBooking.attachments)) {
+          console.log(`Processing ${externalBooking.attachments.length} attachments for booking ${bookingData.id}`)
+          
+          for (const attachment of externalBooking.attachments) {
+            try {
+              const attachmentData: AttachmentData = {
+                booking_id: bookingData.id,
+                url: attachment.url || attachment.file_url,
+                file_name: attachment.file_name || attachment.name || 'Unknown File',
+                file_type: attachment.file_type || attachment.type || 'unknown'
+              }
+
+              const { error: attachmentError } = await supabase
+                .from('booking_attachments')
+                .insert(attachmentData)
+
+              if (attachmentError) {
+                console.error(`Error inserting attachment for booking ${bookingData.id}:`, attachmentError)
+              } else {
+                results.attachments_imported++
+              }
+            } catch (attachmentErr) {
+              console.error(`Error processing attachment for booking ${bookingData.id}:`, attachmentErr)
+            }
+          }
         }
 
         results.imported++
@@ -354,6 +449,8 @@ serve(async (req) => {
           imported: 0,
           failed: 0,
           calendar_events_created: 0,
+          products_imported: 0,
+          attachments_imported: 0,
           new_bookings: [],
           updated_bookings: [],
           status_changed_bookings: [],
