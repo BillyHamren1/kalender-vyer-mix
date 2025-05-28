@@ -25,6 +25,9 @@ export interface Booking {
   deliveryPostalCode?: string;
   deliveryLatitude?: number;
   deliveryLongitude?: number;
+  contactName?: string;
+  contactPhone?: string;
+  contactEmail?: string;
   carryMoreThan10m?: boolean;
   groundNailsAllowed?: boolean;
   exactTimeNeeded?: boolean;
