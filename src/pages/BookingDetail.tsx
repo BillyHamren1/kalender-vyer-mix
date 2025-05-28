@@ -1,4 +1,3 @@
-
 import React, { useEffect, useContext, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -191,27 +190,17 @@ const BookingDetail = () => {
       {/* Content */}
       {booking ? (
         <div className="p-6">
-          {/* Debug section - temporarily show raw data */}
-          <div className="mb-4 p-4 bg-yellow-50 rounded-lg">
-            <h3 className="font-medium text-yellow-800">Debug Information</h3>
-            <p className="text-sm text-yellow-700">
-              Products count: {booking.products?.length || 0}
-            </p>
-            <pre className="text-xs text-yellow-600 mt-2 max-h-32 overflow-y-auto">
-              {JSON.stringify(booking.products, null, 2)}
-            </pre>
-          </div>
-
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left Column */}
             <div className="space-y-6">
               <ClientInformation client={booking.client} />
               
-              {/* Display Products - moved to left column for better visibility */}
+              {/* Display Products */}
               {booking.products && booking.products.length > 0 && (
                 <ProductsList products={booking.products} />
               )}
               
+              {/* Event Information */}
               <div className="bg-white border border-gray-200 rounded-lg p-6">
                 <h3 className="text-sm font-medium text-gray-900 mb-4">Event Information</h3>
                 <div className="space-y-3">

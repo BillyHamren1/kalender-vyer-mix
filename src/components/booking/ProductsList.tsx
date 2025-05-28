@@ -28,13 +28,19 @@ export const ProductsList = ({ products }: ProductsListProps) => {
         <ul className="divide-y">
           {products.map(product => {
             console.log('Rendering product:', product);
+            
+            // Handle notes more robustly - check if it's a string or actually undefined/null
+            const hasNotes = product.notes && 
+                            typeof product.notes === 'string' && 
+                            product.notes.trim().length > 0;
+            
             return (
               <li key={product.id} className="py-3">
                 <div className="flex justify-between">
                   <span className="font-medium">{product.name}</span>
                   <span className="text-gray-600">Qty: {product.quantity}</span>
                 </div>
-                {product.notes && (
+                {hasNotes && (
                   <p className="text-sm text-gray-500 mt-1">{product.notes}</p>
                 )}
               </li>

@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { Booking } from "@/types/booking";
 
@@ -7,15 +8,20 @@ const transformBookingData = (data: any): Booking => {
   
   const transformedProducts = data.booking_products?.map((product: any) => {
     console.log('Transforming product:', product);
-    return {
+    
+    // Fix the notes field transformation - properly handle null/undefined
+    const transformedProduct = {
       id: product.id,
       name: product.name,
       quantity: product.quantity,
-      notes: product.notes || undefined,
+      notes: product.notes || undefined, // This should be undefined if null, not an object
     };
+    
+    console.log('Transformed individual product:', transformedProduct);
+    return transformedProduct;
   }) || [];
   
-  console.log('Transformed products:', transformedProducts);
+  console.log('Final transformed products:', transformedProducts);
   
   return {
     id: data.id,
