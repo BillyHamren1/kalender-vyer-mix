@@ -21,6 +21,7 @@ export interface ImportResults {
     new_bookings?: string[];
     updated_bookings?: string[];
     status_changed_bookings?: string[];
+    cancelled_bookings_skipped?: string[];
     errors?: { booking_id: string; error: string }[];
     sync_mode?: SyncMode;
     sync_duration_ms?: number;
@@ -64,8 +65,8 @@ const handleImportStatusChange = async (bookingId: string, newStatus: string, pr
         break;
 
       case 'CANCELLED':
-        // When status becomes cancelled, remove from calendar
-        console.log(`Removing booking ${bookingId} from calendar (status: CANCELLED)`);
+        // When status becomes cancelled, remove from calendar and database
+        console.log(`Removing booking ${bookingId} from calendar and system (status: CANCELLED)`);
         await deleteAllBookingEvents(bookingId);
         break;
 
@@ -254,6 +255,7 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
     const newCount = results.new_bookings?.length || 0;
     const updatedCount = results.updated_bookings?.length || 0;
     const statusChangedCount = results.status_changed_bookings?.length || 0;
+    const cancelledSkippedCount = results.cancelled_bookings_skipped?.length || 0;
     
     if (newCount > 0 || updatedCount > 0 || statusChangedCount > 0) {
       const messages = [];
@@ -261,12 +263,22 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
       if (updatedCount > 0) messages.push(`${updatedCount} updated`);
       if (statusChangedCount > 0) messages.push(`${statusChangedCount} status changed`);
       
+      let description = `${messages.join(', ')} • ${(syncDurationMs / 1000).toFixed(1)}s`;
+      if (cancelledSkippedCount > 0) {
+        description += ` • ${cancelledSkippedCount} CANCELLED booking${cancelledSkippedCount > 1 ? 's' : ''} skipped`;
+      }
+      
       toast.success(`${syncMode.charAt(0).toUpperCase() + syncMode.slice(1)} sync completed`, {
-        description: `${messages.join(', ')} • ${(syncDurationMs / 1000).toFixed(1)}s`
+        description
       });
     } else {
+      let description = `No changes found • ${(syncDurationMs / 1000).toFixed(1)}s`;
+      if (cancelledSkippedCount > 0) {
+        description += ` • ${cancelledSkippedCount} CANCELLED booking${cancelledSkippedCount > 1 ? 's' : ''} skipped`;
+      }
+      
       toast.success(`${syncMode.charAt(0).toUpperCase() + syncMode.slice(1)} sync completed`, {
-        description: `No changes found • ${(syncDurationMs / 1000).toFixed(1)}s`
+        description
       });
     }
 
@@ -342,14 +354,20 @@ export const quietImportBookings = async (filters: ImportFilters = {}): Promise<
       const newCount = resultData.results.new_bookings?.length || 0;
       const updatedCount = resultData.results.updated_bookings?.length || 0;
       const statusChangedCount = resultData.results.status_changed_bookings?.length || 0;
+      const cancelledSkippedCount = resultData.results.cancelled_bookings_skipped?.length || 0;
       
       if (newCount > 0 || updatedCount > 0) {
         const message = [];
         if (newCount > 0) message.push(`${newCount} new booking${newCount > 1 ? 's' : ''}`);
         if (updatedCount > 0) message.push(`${updatedCount} updated booking${updatedCount > 1 ? 's' : ''}`);
         
+        let description = `${message.join(' and ')} found`;
+        if (cancelledSkippedCount > 0) {
+          description += ` • ${cancelledSkippedCount} CANCELLED skipped`;
+        }
+        
         toast.success(`${syncMode.charAt(0).toUpperCase() + syncMode.slice(1)} sync completed`, {
-          description: `${message.join(' and ')} found`
+          description
         });
       }
       
@@ -357,6 +375,13 @@ export const quietImportBookings = async (filters: ImportFilters = {}): Promise<
       if (statusChangedCount > 0) {
         toast.warning('Booking status changes detected', {
           description: `${statusChangedCount} booking${statusChangedCount > 1 ? 's' : ''} changed status in external system`
+        });
+      }
+      
+      // Show info about cancelled bookings if any were skipped
+      if (cancelledSkippedCount > 0 && newCount === 0 && updatedCount === 0) {
+        toast.info('CANCELLED bookings filtered out', {
+          description: `${cancelledSkippedCount} CANCELLED booking${cancelledSkippedCount > 1 ? 's' : ''} were not imported`
         });
       }
     }

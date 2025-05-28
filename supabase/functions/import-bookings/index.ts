@@ -76,6 +76,7 @@ serve(async (req) => {
       new_bookings: [],
       updated_bookings: [],
       status_changed_bookings: [],
+      cancelled_bookings_skipped: [],
       errors: [],
       sync_mode: syncMode
     }
@@ -90,6 +91,14 @@ serve(async (req) => {
     for (const externalBooking of externalData.data) {
       try {
         results.total++
+
+        // FILTER OUT CANCELLED BOOKINGS - DO NOT IMPORT THEM AT ALL
+        const bookingStatus = (externalBooking.status || 'PENDING').toUpperCase()
+        if (bookingStatus === 'CANCELLED') {
+          console.log(`Skipping CANCELLED booking: ${externalBooking.id}`)
+          results.cancelled_bookings_skipped.push(externalBooking.id)
+          continue
+        }
 
         // Extract client name - try clientName first, then fallback to nested client object
         let clientName = externalBooking.clientName
@@ -129,16 +138,42 @@ serve(async (req) => {
           exact_time_needed: externalBooking.exact_time_needed || false,
           exact_time_info: externalBooking.exact_time_info,
           internalnotes: externalBooking.internal_notes,
-          status: externalBooking.status || 'PENDING',
+          status: bookingStatus,
           booking_number: externalBooking.booking_number,
           version: 1
         }
 
-        console.log(`Processing booking ${bookingData.id} with booking number: ${bookingData.booking_number}`)
+        console.log(`Processing booking ${bookingData.id} with status: ${bookingData.status}`)
 
         const existingBooking = existingBookingMap.get(bookingData.id)
 
         if (existingBooking) {
+          // If existing booking becomes CANCELLED, delete it from our database
+          if (bookingData.status === 'CANCELLED' && existingBooking.status !== 'CANCELLED') {
+            console.log(`Deleting booking ${bookingData.id} as it became CANCELLED`)
+            
+            // Remove calendar events first
+            await supabase
+              .from('calendar_events')
+              .delete()
+              .eq('booking_id', bookingData.id)
+            
+            // Remove staff assignments
+            await supabase
+              .from('booking_staff_assignments')
+              .delete()
+              .eq('booking_id', bookingData.id)
+            
+            // Delete the booking
+            await supabase
+              .from('bookings')
+              .delete()
+              .eq('id', bookingData.id)
+            
+            results.cancelled_bookings_skipped.push(bookingData.id)
+            continue
+          }
+
           // Check if status changed
           const statusChanged = existingBooking.status !== bookingData.status
           
@@ -165,7 +200,7 @@ serve(async (req) => {
             continue
           }
         } else {
-          // Insert new booking
+          // Insert new booking (only if not CANCELLED)
           const { error: insertError } = await supabase
             .from('bookings')
             .insert(bookingData)
@@ -182,100 +217,102 @@ serve(async (req) => {
 
         results.imported++
 
-        // Create calendar events for the booking
-        const calendarEvents = []
-        
-        if (bookingData.rigdaydate) {
-          calendarEvents.push({
-            booking_id: bookingData.id,
-            booking_number: bookingData.booking_number,
-            title: `${bookingData.id}: ${bookingData.client}`,
-            start_time: `${bookingData.rigdaydate}T08:00:00`,
-            end_time: `${bookingData.rigdaydate}T17:00:00`,
-            event_type: 'rig',
-            delivery_address: bookingData.deliveryaddress
-          })
-        }
-
-        if (bookingData.eventdate) {
-          calendarEvents.push({
-            booking_id: bookingData.id,
-            booking_number: bookingData.booking_number,
-            title: `${bookingData.id}: ${bookingData.client}`,
-            start_time: `${bookingData.eventdate}T08:00:00`,
-            end_time: `${bookingData.eventdate}T17:00:00`,
-            event_type: 'event',
-            delivery_address: bookingData.deliveryaddress
-          })
-        }
-
-        if (bookingData.rigdowndate) {
-          calendarEvents.push({
-            booking_id: bookingData.id,
-            booking_number: bookingData.booking_number,
-            title: `${bookingData.id}: ${bookingData.client}`,
-            start_time: `${bookingData.rigdowndate}T08:00:00`,
-            end_time: `${bookingData.rigdowndate}T17:00:00`,
-            event_type: 'rigDown',
-            delivery_address: bookingData.deliveryaddress
-          })
-        }
-
-        // Assign calendar events to teams automatically
-        if (calendarEvents.length > 0) {
-          // Get existing calendar events to find available teams
-          const { data: existingEvents } = await supabase
-            .from('calendar_events')
-            .select('resource_id, start_time, end_time')
-
-          const teamAvailability = new Map()
-          const teams = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5', 'team-6']
-
-          // Initialize team availability
-          teams.forEach(team => teamAvailability.set(team, 0))
-
-          // Count existing events per team for the dates we're scheduling
-          existingEvents?.forEach(event => {
-            const eventDate = new Date(event.start_time).toISOString().split('T')[0]
-            calendarEvents.forEach(newEvent => {
-              const newEventDate = new Date(newEvent.start_time).toISOString().split('T')[0]
-              if (eventDate === newEventDate) {
-                const currentCount = teamAvailability.get(event.resource_id) || 0
-                teamAvailability.set(event.resource_id, currentCount + 1)
-              }
+        // Only create calendar events for CONFIRMED bookings (not CANCELLED)
+        if (bookingData.status === 'CONFIRMED') {
+          const calendarEvents = []
+          
+          if (bookingData.rigdaydate) {
+            calendarEvents.push({
+              booking_id: bookingData.id,
+              booking_number: bookingData.booking_number,
+              title: `${bookingData.id}: ${bookingData.client}`,
+              start_time: `${bookingData.rigdaydate}T08:00:00`,
+              end_time: `${bookingData.rigdaydate}T17:00:00`,
+              event_type: 'rig',
+              delivery_address: bookingData.deliveryaddress
             })
-          })
+          }
 
-          // Assign events to teams with least conflicts
-          for (const event of calendarEvents) {
-            let selectedTeam = 'team-1'
-            let minConflicts = teamAvailability.get('team-1') || 0
-
-            teams.forEach(team => {
-              const conflicts = teamAvailability.get(team) || 0
-              if (conflicts < minConflicts) {
-                selectedTeam = team
-                minConflicts = conflicts
-              }
+          if (bookingData.eventdate) {
+            calendarEvents.push({
+              booking_id: bookingData.id,
+              booking_number: bookingData.booking_number,
+              title: `${bookingData.id}: ${bookingData.client}`,
+              start_time: `${bookingData.eventdate}T08:00:00`,
+              end_time: `${bookingData.eventdate}T17:00:00`,
+              event_type: 'event',
+              delivery_address: bookingData.deliveryaddress
             })
+          }
 
-            console.log(`Selected ${selectedTeam} with ${minConflicts} events for new event`)
+          if (bookingData.rigdowndate) {
+            calendarEvents.push({
+              booking_id: bookingData.id,
+              booking_number: bookingData.booking_number,
+              title: `${bookingData.id}: ${bookingData.client}`,
+              start_time: `${bookingData.rigdowndate}T08:00:00`,
+              end_time: `${bookingData.rigdowndate}T17:00:00`,
+              event_type: 'rigDown',
+              delivery_address: bookingData.deliveryaddress
+            })
+          }
 
-            // Update the team availability for next event
-            teamAvailability.set(selectedTeam, minConflicts + 1)
-
-            // Insert calendar event with assigned team
-            const { error: eventError } = await supabase
+          // Assign calendar events to teams automatically
+          if (calendarEvents.length > 0) {
+            // Get existing calendar events to find available teams
+            const { data: existingEvents } = await supabase
               .from('calendar_events')
-              .insert({
-                ...event,
-                resource_id: selectedTeam
+              .select('resource_id, start_time, end_time')
+
+            const teamAvailability = new Map()
+            const teams = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5', 'team-6']
+
+            // Initialize team availability
+            teams.forEach(team => teamAvailability.set(team, 0))
+
+            // Count existing events per team for the dates we're scheduling
+            existingEvents?.forEach(event => {
+              const eventDate = new Date(event.start_time).toISOString().split('T')[0]
+              calendarEvents.forEach(newEvent => {
+                const newEventDate = new Date(newEvent.start_time).toISOString().split('T')[0]
+                if (eventDate === newEventDate) {
+                  const currentCount = teamAvailability.get(event.resource_id) || 0
+                  teamAvailability.set(event.resource_id, currentCount + 1)
+                }
+              })
+            })
+
+            // Assign events to teams with least conflicts
+            for (const event of calendarEvents) {
+              let selectedTeam = 'team-1'
+              let minConflicts = teamAvailability.get('team-1') || 0
+
+              teams.forEach(team => {
+                const conflicts = teamAvailability.get(team) || 0
+                if (conflicts < minConflicts) {
+                  selectedTeam = team
+                  minConflicts = conflicts
+                }
               })
 
-            if (eventError) {
-              console.error(`Error creating calendar event:`, eventError)
-            } else {
-              results.calendar_events_created++
+              console.log(`Selected ${selectedTeam} with ${minConflicts} events for new event`)
+
+              // Update the team availability for next event
+              teamAvailability.set(selectedTeam, minConflicts + 1)
+
+              // Insert calendar event with assigned team
+              const { error: eventError } = await supabase
+                .from('calendar_events')
+                .insert({
+                  ...event,
+                  resource_id: selectedTeam
+                })
+
+              if (eventError) {
+                console.error(`Error creating calendar event:`, eventError)
+              } else {
+                results.calendar_events_created++
+              }
             }
           }
         }
@@ -320,6 +357,7 @@ serve(async (req) => {
           new_bookings: [],
           updated_bookings: [],
           status_changed_bookings: [],
+          cancelled_bookings_skipped: [],
           errors: [error.message],
           sync_mode: 'failed'
         }
