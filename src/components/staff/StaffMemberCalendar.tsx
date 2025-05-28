@@ -53,18 +53,25 @@ const StaffMemberCalendar: React.FC<StaffMemberCalendarProps> = ({ staffId, staf
   };
 
   return (
-    <Card className="max-w-5xl mx-auto">
-      <CardHeader>
+    <div className="max-w-6xl mx-auto bg-white">
+      {/* Header */}
+      <div className="border-b border-gray-200 p-6">
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center">
-            <Calendar className="h-5 w-5 mr-2" />
-            {staffName}'s Calendar - {format(currentDate, 'MMMM yyyy')}
-          </CardTitle>
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center">
+              <Calendar className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">{staffName}'s Calendar</h2>
+              <p className="text-sm text-gray-500">{format(currentDate, 'MMMM yyyy')}</p>
+            </div>
+          </div>
           <div className="flex items-center space-x-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigateMonth('prev')}
+              className="border-gray-300 text-gray-700 hover:bg-gray-50"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -72,6 +79,7 @@ const StaffMemberCalendar: React.FC<StaffMemberCalendarProps> = ({ staffId, staf
               variant="outline"
               size="sm"
               onClick={goToToday}
+              className="border-gray-300 text-gray-700 hover:bg-gray-50"
             >
               Today
             </Button>
@@ -79,17 +87,20 @@ const StaffMemberCalendar: React.FC<StaffMemberCalendarProps> = ({ staffId, staf
               variant="outline"
               size="sm"
               onClick={() => navigateMonth('next')}
+              className="border-gray-300 text-gray-700 hover:bg-gray-50"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
-      </CardHeader>
-      <CardContent className="p-0">
+      </div>
+
+      {/* Calendar Content */}
+      <div className="p-6">
         {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <span className="ml-2 text-gray-600">Loading calendar...</span>
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <span className="ml-3 text-gray-600">Loading calendar...</span>
           </div>
         ) : (
           <IndividualStaffCalendar
@@ -101,8 +112,8 @@ const StaffMemberCalendar: React.FC<StaffMemberCalendarProps> = ({ staffId, staf
             isLoading={isLoading}
           />
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 
