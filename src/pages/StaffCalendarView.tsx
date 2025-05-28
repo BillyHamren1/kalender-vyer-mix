@@ -1,13 +1,13 @@
+
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Users, RotateCcw } from 'lucide-react';
+import { Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getStaffCalendarEvents, getStaffResources } from '@/services/staffCalendarService';
 import { startOfMonth, endOfMonth, addMonths, subMonths, format } from 'date-fns';
 import { toast } from 'sonner';
 import IndividualStaffCalendar from '@/components/Calendar/IndividualStaffCalendar';
-import ClientSelector from '@/components/Calendar/ClientSelector';
 import JobSummaryList from '@/components/Calendar/JobSummaryList';
 import SimpleCalendarNavigation from '@/components/Calendar/SimpleCalendarNavigation';
 import StaffSelectorPanel from '@/components/Calendar/StaffSelectorPanel';
@@ -88,12 +88,6 @@ const StaffCalendarView: React.FC = () => {
     }
   };
 
-  const handleRefresh = () => {
-    refetchEvents();
-    refetchStaff();
-    toast.success('Calendar refreshed');
-  };
-
   // Improved navigation with better month handling
   const navigateDate = (direction: 'prev' | 'next') => {
     const newDate = direction === 'prev' 
@@ -125,7 +119,10 @@ const StaffCalendarView: React.FC = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-600 mb-4">Error loading staff calendar: {error.message}</p>
-          <Button onClick={handleRefresh}>Retry</Button>
+          <Button onClick={() => {
+            refetchEvents();
+            refetchStaff();
+          }}>Retry</Button>
         </div>
       </div>
     );
@@ -139,22 +136,6 @@ const StaffCalendarView: React.FC = () => {
           <div className="flex items-center space-x-3">
             <Users className="h-8 w-8 text-[#82b6c6]" />
             <h1 className="text-3xl font-bold text-gray-900">Staff Calendar</h1>
-          </div>
-          <div className="flex items-center space-x-4">
-            <ClientSelector
-              events={calendarEvents}
-              selectedClients={selectedClients}
-              onSelectionChange={setSelectedClients}
-            />
-            <Button 
-              onClick={handleRefresh} 
-              variant="outline" 
-              size="sm"
-              disabled={isLoadingEvents || isLoadingStaff}
-            >
-              <RotateCcw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
           </div>
         </div>
       </div>
