@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -177,35 +176,6 @@ const JobSummaryList: React.FC<JobSummaryListProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Summary Statistics */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{totalJobs}</div>
-              <div className="text-sm text-gray-600">Total Jobs</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{totalStaffHours}h</div>
-              <div className="text-sm text-gray-600">Staff Hours</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">{uniqueStaff.size}</div>
-              <div className="text-sm text-gray-600">Staff Members</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">
-                {totalStaffHours > 0 && uniqueStaff.size > 0 ? Math.round(totalStaffHours / uniqueStaff.size) : 0}h
-              </div>
-              <div className="text-sm text-gray-600">Avg Hours/Staff</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Job List */}
       <Card>
         <CardHeader>
