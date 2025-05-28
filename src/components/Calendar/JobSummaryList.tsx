@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -53,6 +54,7 @@ interface JobSummary {
   totalHours: number;
   events: StaffCalendarEvent[];
   bookingId?: string;
+  bookingNumber?: string;
 }
 
 const JobSummaryList: React.FC<JobSummaryListProps> = ({
@@ -93,6 +95,22 @@ const JobSummaryList: React.FC<JobSummaryListProps> = ({
     
     // Final fallback
     return `Staff Member`;
+  };
+
+  // Helper function to get booking number from event
+  const getBookingNumber = (event: StaffCalendarEvent): string | undefined => {
+    // Try extendedProps.bookingNumber first
+    if (event.extendedProps?.bookingNumber) {
+      return event.extendedProps.bookingNumber;
+    }
+    
+    // Extract from title if it has a booking number pattern
+    const bookingNumberMatch = event.title.match(/^#?(\d{4}-\d+)/);
+    if (bookingNumberMatch) {
+      return bookingNumberMatch[1];
+    }
+    
+    return undefined;
   };
 
   // Helper function to get event type display name
@@ -141,6 +159,7 @@ const JobSummaryList: React.FC<JobSummaryListProps> = ({
     const firstEvent = eventGroup[0];
     const client = extractClientName(firstEvent.title);
     const bookingId = firstEvent.bookingId || firstEvent.extendedProps?.bookingId || firstEvent.extendedProps?.booking_id;
+    const bookingNumber = getBookingNumber(firstEvent);
     
     // Create a clean job title
     const jobTitle = client;
@@ -162,7 +181,8 @@ const JobSummaryList: React.FC<JobSummaryListProps> = ({
       staffMembers: staffNames,
       totalHours,
       events: eventGroup,
-      bookingId
+      bookingId,
+      bookingNumber
     });
   });
 
@@ -193,9 +213,11 @@ const JobSummaryList: React.FC<JobSummaryListProps> = ({
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <h3 className="font-semibold text-gray-900">{job.client}</h3>
-                      {job.bookingId && (
+                      {job.bookingNumber ? (
+                        <p className="text-xs text-gray-500">Booking: #{job.bookingNumber}</p>
+                      ) : job.bookingId ? (
                         <p className="text-xs text-gray-500">Booking ID: {job.bookingId}</p>
-                      )}
+                      ) : null}
                     </div>
                     <Badge variant="outline" className="ml-2">
                       {job.totalHours}h total
