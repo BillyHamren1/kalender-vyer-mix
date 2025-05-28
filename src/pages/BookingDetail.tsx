@@ -1,4 +1,3 @@
-
 import React, { useEffect, useContext, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -9,8 +8,7 @@ import { ArrowLeft } from 'lucide-react';
 
 // Import refactored components
 import { ClientInformation } from '@/components/booking/ClientInformation';
-import { DeliveryAddressForm } from '@/components/booking/DeliveryAddressForm';
-import { DeliveryContactCard } from '@/components/booking/DeliveryContactCard';
+import { DeliveryInformationCard } from '@/components/booking/DeliveryInformationCard';
 import { EventInformationCard } from '@/components/booking/EventInformationCard';
 import { LogisticsOptionsForm } from '@/components/booking/LogisticsOptionsForm';
 import { ScheduleCard } from '@/components/booking/ScheduleCard';
@@ -209,9 +207,6 @@ const BookingDetail = () => {
               {booking.products && booking.products.length > 0 && (
                 <ProductsList products={booking.products} />
               )}
-
-              {/* Delivery Contact */}
-              <DeliveryContactCard />
             </div>
 
             {/* Right Column */}
@@ -223,7 +218,11 @@ const BookingDetail = () => {
                 rigDownDates={rigDownDates}
               />
               
-              <DeliveryAddressForm
+              {/* Combined Delivery Information Card */}
+              <DeliveryInformationCard
+                contactName={booking.contactName}
+                contactPhone={booking.contactPhone}
+                contactEmail={booking.contactEmail}
                 initialAddress={booking.deliveryAddress || ''}
                 initialCity={booking.deliveryCity || ''}
                 initialPostalCode={booking.deliveryPostalCode || ''}

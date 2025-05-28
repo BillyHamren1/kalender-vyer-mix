@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { MapPin } from 'lucide-react';
+import { Truck, User, Phone, Mail, MapPin } from 'lucide-react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
-interface DeliveryAddressFormProps {
+interface DeliveryInformationCardProps {
+  // Contact props
+  contactName?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  // Address props
   initialAddress: string;
   initialCity: string;
   initialPostalCode: string;
@@ -24,7 +29,10 @@ interface DeliveryAddressFormProps {
   }) => Promise<void>;
 }
 
-export const DeliveryAddressForm = ({
+export const DeliveryInformationCard = ({
+  contactName,
+  contactPhone,
+  contactEmail,
   initialAddress,
   initialCity,
   initialPostalCode,
@@ -32,7 +40,7 @@ export const DeliveryAddressForm = ({
   deliveryLongitude,
   isSaving,
   onSave
-}: DeliveryAddressFormProps) => {
+}: DeliveryInformationCardProps) => {
   const [deliveryAddress, setDeliveryAddress] = useState(initialAddress);
   const [deliveryCity, setDeliveryCity] = useState(initialCity);
   const [deliveryPostalCode, setDeliveryPostalCode] = useState(initialPostalCode);
@@ -78,17 +86,58 @@ export const DeliveryAddressForm = ({
     setLongitude(val);
   };
 
+  const hasContactInfo = contactName || contactPhone || contactEmail;
+
   return (
     <Card className="shadow-sm">
       <CardHeader className="py-3 px-4">
         <CardTitle className="flex items-center gap-1.5 text-base">
-          <MapPin className="h-4 w-4" />
-          <span>Delivery Address</span>
+          <Truck className="h-4 w-4" />
+          <span>Delivery Information</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-0 px-4 pb-3">
+      <CardContent className="pt-0 px-4 pb-3 space-y-4">
+        {/* Contact Information Section */}
+        {hasContactInfo && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5 mb-2">
+              <User className="h-3.5 w-3.5 text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">Contact Details</span>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 bg-gray-50 p-3 rounded-md">
+              {contactName && (
+                <div>
+                  <label className="text-xs text-gray-500">Contact Name</label>
+                  <p className="text-sm font-medium">{contactName}</p>
+                </div>
+              )}
+              
+              {contactPhone && (
+                <div>
+                  <label className="text-xs text-gray-500">Phone</label>
+                  <p className="text-sm font-medium">{contactPhone}</p>
+                </div>
+              )}
+              
+              {contactEmail && (
+                <div>
+                  <label className="text-xs text-gray-500">Email</label>
+                  <p className="text-sm font-medium">{contactEmail}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Delivery Address Section */}
         <div className="space-y-2">
-          <div className="grid gap-2">
+          <div className="flex items-center gap-1.5 mb-2">
+            <MapPin className="h-3.5 w-3.5 text-gray-500" />
+            <span className="text-sm font-medium text-gray-700">Delivery Address</span>
+          </div>
+          
+          <div className="space-y-2">
             <div>
               <Label htmlFor="delivery-address" className="text-xs">Address</Label>
               <Textarea 
@@ -183,7 +232,7 @@ export const DeliveryAddressForm = ({
             className="mt-2 h-8 text-sm w-full"
             size="sm"
           >
-            {isSaving ? 'Saving...' : 'Save Address'}
+            {isSaving ? 'Saving...' : 'Save Delivery Information'}
           </Button>
         </div>
       </CardContent>
