@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -12,8 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { format, startOfMonth, endOfMonth } from 'date-fns';
-import { getStaffCalendarEvents } from '@/services/staffCalendarService';
+import StaffMemberCalendar from '@/components/staff/StaffMemberCalendar';
 
 interface ExtendedStaffMember {
   id: string;
@@ -58,18 +56,6 @@ const StaffDetail: React.FC = () => {
       if (error) throw error;
       return data as ExtendedStaffMember;
     },
-    enabled: !!staffId,
-  });
-
-  // Fetch staff calendar events for current month
-  const currentDate = new Date();
-  const { data: calendarEvents = [] } = useQuery({
-    queryKey: ['staffCalendarEvents', staffId, format(currentDate, 'yyyy-MM')],
-    queryFn: () => getStaffCalendarEvents(
-      staffId ? [staffId] : [],
-      startOfMonth(currentDate),
-      endOfMonth(currentDate)
-    ),
     enabled: !!staffId,
   });
 
@@ -485,52 +471,10 @@ const StaffDetail: React.FC = () => {
 
           {/* Calendar & Assignments Tab */}
           <TabsContent value="calendar" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Calendar className="h-5 w-5 mr-2" />
-                  Current Month Assignments
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {calendarEvents.length > 0 ? (
-                  <div className="space-y-3">
-                    {calendarEvents.map((event) => (
-                      <div key={event.id} className="border rounded-lg p-4 hover:bg-gray-50">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-medium">{event.title}</h4>
-                            <p className="text-sm text-gray-600">
-                              {format(new Date(event.start), 'MMM dd, yyyy HH:mm')} - 
-                              {format(new Date(event.end), 'HH:mm')}
-                            </p>
-                            {event.extendedProps?.teamName && (
-                              <p className="text-xs text-gray-500">
-                                Team: {event.extendedProps.teamName}
-                              </p>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            <span 
-                              className="inline-block w-3 h-3 rounded-full"
-                              style={{ backgroundColor: event.backgroundColor }}
-                            ></span>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {event.extendedProps?.eventType || 'Assignment'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500">No assignments found for this month</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <StaffMemberCalendar 
+              staffId={staffMember.id} 
+              staffName={staffMember.name} 
+            />
           </TabsContent>
         </Tabs>
       </div>
