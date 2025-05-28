@@ -117,7 +117,7 @@ const getCachedStaffMembers = async (): Promise<StaffMember[]> => {
   return staffMembers;
 };
 
-// Get calendar events for selected staff members within a date range
+// Get calendar events for selected staff members within a date range - FOCUS ON BOOKINGS ONLY
 export const getStaffCalendarEvents = async (
   staffIds: string[], 
   startDate: Date, 
@@ -128,7 +128,7 @@ export const getStaffCalendarEvents = async (
       return [];
     }
 
-    console.log(`Fetching calendar events for staff: ${staffIds.join(', ')} from ${format(startDate, 'yyyy-MM-dd')} to ${format(endDate, 'yyyy-MM-dd')}`);
+    console.log(`Fetching booking events only for staff: ${staffIds.join(', ')} from ${format(startDate, 'yyyy-MM-dd')} to ${format(endDate, 'yyyy-MM-dd')}`);
 
     const events: StaffCalendarEvent[] = [];
 
@@ -136,39 +136,7 @@ export const getStaffCalendarEvents = async (
     const allStaff = await getCachedStaffMembers();
     const staffMap = new Map(allStaff.map(staff => [staff.id, staff.name]));
 
-    // 1. Get staff assignments (team assignments) - these show which team each staff member is assigned to
-    const staffAssignments = await fetchStaffAssignmentsForDateRange(startDate, endDate);
-    const filteredStaffAssignments = staffAssignments.filter(assignment =>
-      staffIds.includes(assignment.staffId)
-    );
-
-    console.log(`Found ${filteredStaffAssignments.length} staff assignments`);
-
-    // Add staff assignment events (background blocks showing team assignments)
-    for (const assignment of filteredStaffAssignments) {
-      const staffName = staffMap.get(assignment.staffId) || `Staff ${assignment.staffId}`;
-      
-      events.push({
-        id: `staff-assignment-${assignment.staffId}-${assignment.date}`,
-        title: `Assigned to ${assignment.teamName || assignment.teamId}`,
-        start: `${assignment.date}T00:00:00`,
-        end: `${assignment.date}T23:59:59`,
-        resourceId: assignment.staffId,
-        teamId: assignment.teamId,
-        teamName: assignment.teamName,
-        staffName: staffName,
-        eventType: 'assignment',
-        backgroundColor: '#e3f2fd', // Light blue background for assignments
-        borderColor: '#1976d2',
-        extendedProps: {
-          eventType: 'assignment',
-          staffName: staffName,
-          teamName: assignment.teamName || assignment.teamId
-        }
-      });
-    }
-
-    // 2. Get booking-staff assignments for the date range and selected staff
+    // Get booking-staff assignments for the date range and selected staff
     const bookingStaffAssignments = await getBookingStaffAssignments(startDate, endDate);
     const filteredBookingAssignments = bookingStaffAssignments.filter(assignment =>
       staffIds.includes(assignment.staff_id)
@@ -176,7 +144,7 @@ export const getStaffCalendarEvents = async (
 
     console.log(`Found ${filteredBookingAssignments.length} booking-staff assignments`);
 
-    // 3. Process booking assignments (these are the actual work assignments)
+    // Process booking assignments (these are the actual work assignments)
     for (const bookingAssignment of filteredBookingAssignments) {
       const staffName = staffMap.get(bookingAssignment.staff_id) || `Staff ${bookingAssignment.staff_id}`;
       
@@ -226,7 +194,7 @@ export const getStaffCalendarEvents = async (
       }
     }
 
-    console.log(`Generated ${events.length} calendar events for staff view:`);
+    console.log(`Generated ${events.length} booking calendar events for staff view:`);
     events.forEach(event => {
       console.log(`- Event: ${event.title}, Date: ${event.start}, Type: ${event.eventType}, Staff: ${event.staffName}, Booking ID: ${event.bookingId || 'N/A'}`);
     });

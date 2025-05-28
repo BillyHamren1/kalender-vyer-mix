@@ -41,9 +41,6 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
     }
   }, [currentDate, lastProcessedDate]);
 
-  // REMOVED: handleDatesSet to prevent navigation conflicts
-  // The parent SimpleCalendarNavigation will handle all navigation
-
   // Event click handler
   const handleEventClick = (clickInfo: any) => {
     const event = clickInfo.event;
@@ -56,29 +53,32 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
     });
   };
 
-  // Format events for FullCalendar - SIMPLE monthly view with staff info in title
-  const formattedEvents = events.map(event => {
-    console.log('Formatting event:', event.title, 'for staff:', event.staffName);
-    
-    return {
-      id: event.id,
-      title: `${event.staffName}: ${event.title}`,
-      start: event.start,
-      end: event.end,
-      backgroundColor: event.backgroundColor,
-      borderColor: event.borderColor,
-      textColor: '#000',
-      extendedProps: {
-        teamId: event.teamId,
-        teamName: event.teamName,
-        bookingId: event.bookingId,
-        eventType: event.eventType,
-        staffName: event.staffName
-      }
-    };
-  });
+  // Format events for FullCalendar - Show only booking events, not team assignments
+  const formattedEvents = events
+    .filter(event => event.eventType === 'booking_event') // Only show actual booking events
+    .map(event => {
+      console.log('Formatting booking event:', event.title, 'for staff:', event.staffName);
+      
+      return {
+        id: event.id,
+        title: `${event.staffName}: ${event.title}`,
+        start: event.start,
+        end: event.end,
+        backgroundColor: event.backgroundColor,
+        borderColor: event.borderColor,
+        textColor: '#000',
+        extendedProps: {
+          teamId: event.teamId,
+          teamName: event.teamName,
+          bookingId: event.bookingId,
+          eventType: event.eventType,
+          staffName: event.staffName,
+          client: event.client
+        }
+      };
+    });
 
-  console.log('Formatted events for calendar:', formattedEvents);
+  console.log('Formatted booking events for calendar:', formattedEvents);
   console.log('Staff resources:', staffResources);
   console.log('Current date prop:', format(currentDate, 'yyyy-MM-dd'));
 
@@ -115,9 +115,9 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
                   <div className="fc-event-title text-xs font-medium">
                     {event.title}
                   </div>
-                  {props.eventType === 'booking_event' && props.teamName && (
+                  {props.client && (
                     <div className="text-xs opacity-75 mt-1">
-                      Team: {props.teamName}
+                      Client: {props.client}
                     </div>
                   )}
                 </div>
