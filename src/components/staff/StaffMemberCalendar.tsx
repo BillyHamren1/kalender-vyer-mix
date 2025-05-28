@@ -5,7 +5,7 @@ import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getStaffCalendarEvents } from '@/services/staffCalendarService';
-import { startOfMonth, endOfMonth, addMonths, subMonths, format, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay } from 'date-fns';
+import { startOfMonth, endOfMonth, addMonths, subMonths, format } from 'date-fns';
 import IndividualStaffCalendar from '@/components/Calendar/IndividualStaffCalendar';
 
 interface StaffMemberCalendarProps {
@@ -27,10 +27,10 @@ const StaffMemberCalendar: React.FC<StaffMemberCalendarProps> = ({ staffId, staf
     staleTime: 30000,
   });
 
-  // Create a staff resource for the calendar
+  // Create a staff resource for the calendar - fix the property structure
   const staffResource = {
     id: staffId,
-    title: staffName,
+    name: staffName, // Changed from 'title' to 'name'
     extendedProps: {
       type: 'staff'
     }
