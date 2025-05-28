@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -56,9 +55,9 @@ serve(async (req) => {
       )
     }
 
-    console.log('Starting staff assignments export...')
+    console.log('Starting staff assignments export (confirmed bookings only)...')
 
-    // Get all staff assignments with booking information
+    // Get all staff assignments with booking information - ONLY for confirmed bookings
     const { data: assignments, error: assignmentsError } = await supabase
       .from('booking_staff_assignments')
       .select(`
@@ -69,7 +68,7 @@ serve(async (req) => {
           email,
           phone
         ),
-        bookings (
+        bookings!inner (
           id,
           client,
           booking_number,
@@ -91,7 +90,10 @@ serve(async (req) => {
           contact_email,
           internalnotes,
           created_at,
-          updated_at
+          updated_at,
+          confirmed_bookings!inner (
+            id
+          )
         )
       `)
       .order('assignment_date', { ascending: false })
@@ -101,9 +103,9 @@ serve(async (req) => {
       throw assignmentsError
     }
 
-    console.log(`Found ${assignments?.length || 0} staff assignments`)
+    console.log(`Found ${assignments?.length || 0} staff assignments for confirmed bookings`)
 
-    // Get booking products for all bookings
+    // Get booking products for all confirmed bookings
     const bookingIds = [...new Set(assignments?.map(a => a.booking_id) || [])]
     
     const { data: products, error: productsError } = await supabase
@@ -282,7 +284,7 @@ serve(async (req) => {
       assignments: enrichedAssignments
     }
 
-    console.log(`Export completed successfully: ${enrichedAssignments.length} assignments exported`)
+    console.log(`Export completed successfully: ${enrichedAssignments.length} assignments exported (confirmed bookings only)`)
 
     // Return the enriched data
     return new Response(
