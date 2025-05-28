@@ -79,11 +79,22 @@ export const useReliableStaffOperations = (currentDate: Date) => {
           filter: `assignment_date=eq.${dateStr}`
         },
         (payload) => {
-          const staffId = payload.new?.staff_id || payload.old?.staff_id || 'unknown';
-          console.log(`🔔 Real-time change: ${payload.eventType} for staff ${staffId}`);
+          // Type-safe payload handling
+          const getStaffIdFromPayload = (payload: any): string => {
+            if (payload.new && typeof payload.new === 'object' && payload.new.staff_id) {
+              return payload.new.staff_id;
+            }
+            if (payload.old && typeof payload.old === 'object' && payload.old.staff_id) {
+              return payload.old.staff_id;
+            }
+            return 'unknown';
+          };
+          
+          const staffIdFromPayload = getStaffIdFromPayload(payload);
+          console.log(`🔔 Real-time change: ${payload.eventType} for staff ${staffIdFromPayload}`);
           addDebugLog({
             operation: 'realtime_change',
-            staffId,
+            staffId: staffIdFromPayload,
             date: dateStr,
             success: true,
             dbResult: payload
@@ -148,7 +159,7 @@ export const useReliableStaffOperations = (currentDate: Date) => {
     } finally {
       setIsLoading(false);
     }
-  }, [staffId, currentDate, dateStr, createAssignmentDirectly, removeAssignmentDirectly, verifyAssignmentInDatabase, fetchAssignments]);
+  }, [currentDate, dateStr, createAssignmentDirectly, removeAssignmentDirectly, verifyAssignmentInDatabase, fetchAssignments]);
 
   // Get staff for a specific team
   const getStaffForTeam = useCallback((teamId: string) => {

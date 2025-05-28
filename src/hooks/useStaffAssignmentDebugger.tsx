@@ -28,8 +28,8 @@ export const useStaffAssignmentDebugger = () => {
   }, []);
 
   const verifyAssignmentInDatabase = useCallback(async (staffId: string, date: Date, teamId?: string) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
     try {
-      const dateStr = format(date, 'yyyy-MM-dd');
       console.log(`🔍 Verifying assignment in DB: Staff ${staffId}, Date ${dateStr}, Team ${teamId || 'any'}`);
       
       let query = supabase
@@ -82,8 +82,8 @@ export const useStaffAssignmentDebugger = () => {
   }, [addDebugLog]);
 
   const createAssignmentDirectly = useCallback(async (staffId: string, teamId: string, date: Date) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
     try {
-      const dateStr = format(date, 'yyyy-MM-dd');
       console.log(`🔧 Creating assignment directly: Staff ${staffId} → Team ${teamId} on ${dateStr}`);
       
       const { data, error } = await supabase
@@ -136,8 +136,8 @@ export const useStaffAssignmentDebugger = () => {
   }, [addDebugLog]);
 
   const removeAssignmentDirectly = useCallback(async (staffId: string, date: Date) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
     try {
-      const dateStr = format(date, 'yyyy-MM-dd');
       console.log(`🗑️ Removing assignment directly: Staff ${staffId} on ${dateStr}`);
       
       const { error } = await supabase
@@ -181,8 +181,8 @@ export const useStaffAssignmentDebugger = () => {
   }, [addDebugLog]);
 
   const getAllAssignmentsForDate = useCallback(async (date: Date) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
     try {
-      const dateStr = format(date, 'yyyy-MM-dd');
       console.log(`📋 Getting all assignments for ${dateStr}`);
       
       const { data, error } = await supabase
