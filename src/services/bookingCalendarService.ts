@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { format } from 'date-fns';
@@ -65,8 +64,8 @@ export const syncBookingEvents = async (): Promise<CalendarEvent[]> => {
         const calendarEvent: CalendarEvent = {
           id: eventId,
           title: eventTitle,
-          start: new Date(`${date}T08:00:00`),
-          end: new Date(`${date}T18:00:00`),
+          start: `${date}T08:00:00`,
+          end: `${date}T18:00:00`,
           resourceId: resourceId,
           extendedProps: {
             bookingId: booking.id,

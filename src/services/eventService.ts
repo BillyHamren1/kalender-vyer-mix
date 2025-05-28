@@ -116,8 +116,8 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
       return {
         id: event.id,
         title: event.title,
-        start: new Date(event.start_time),
-        end: new Date(event.end_time),
+        start: new Date(event.start_time).toISOString(),
+        end: new Date(event.end_time).toISOString(),
         resourceId: event.resource_id,
         extendedProps: {
           bookingId: event.booking_id,
