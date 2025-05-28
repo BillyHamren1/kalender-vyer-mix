@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -16,11 +17,9 @@ import UnifiedResourceCalendar from '@/components/Calendar/UnifiedResourceCalend
 import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
 import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
 import TeamEditDialog from '@/components/Calendar/TeamEditDialog';
-import StaffConnectionValidator from '@/components/Calendar/StaffConnectionValidator';
 import { startOfWeek, subDays, format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import StaffAssignmentDebugPanel from '@/components/Calendar/StaffAssignmentDebugPanel';
 import { useReliableStaffOperations } from '@/hooks/useReliableStaffOperations';
 
 const WeeklyResourceView = () => {
@@ -61,7 +60,6 @@ const WeeklyResourceView = () => {
 
   // State for showing staff display panel
   const [showStaffDisplay, setShowStaffDisplay] = useState(false);
-  const [showConnectionValidator, setShowConnectionValidator] = useState(true);
 
   // Add state for staff selection dialog
   const [staffSelectionDialogOpen, setStaffSelectionDialogOpen] = useState(false);
@@ -213,13 +211,6 @@ const WeeklyResourceView = () => {
     reliableStaffOps.forceRefresh();
   };
 
-  // Handle validation completion
-  const handleValidationComplete = useCallback((isValid: boolean) => {
-    if (!isValid) {
-      console.warn('Staff-booking connections validation failed');
-    }
-  }, []);
-
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="weekly-resource-view-container">
@@ -280,19 +271,6 @@ const WeeklyResourceView = () => {
                 onAddTask={addEventToCalendar}
                 onShowStaffCurtain={handleToggleStaffDisplay}
               />
-            </div>
-            
-            {/* Staff-Booking Connection Validator and Debug Panel */}
-            <div className="flex flex-col items-center gap-2 w-full max-w-2xl">
-              {showConnectionValidator && (
-                <StaffConnectionValidator
-                  currentDate={hookCurrentDate}
-                  onValidationComplete={handleValidationComplete}
-                />
-              )}
-              
-              {/* Debug Panel for Staff Assignments */}
-              <StaffAssignmentDebugPanel currentDate={hookCurrentDate} />
             </div>
           </div>
           
