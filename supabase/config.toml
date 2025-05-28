@@ -74,3 +74,6 @@ verify_jwt = false
 
 [functions.mapbox-token]
 verify_jwt = false
+
+[functions.export-staff-assignments]
+verify_jwt = false
