@@ -89,7 +89,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
   console.log('Current date prop:', format(currentDate, 'yyyy-MM-dd'));
 
   return (
-    <div className="staff-calendar-container relative bg-white rounded-xl shadow-lg overflow-hidden max-w-4xl mx-auto">
+    <div className="staff-calendar-container relative bg-white rounded-xl shadow-lg overflow-hidden max-w-3xl mx-auto">
       {isLoading && (
         <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center z-20 backdrop-blur-sm">
           <div className="text-center">
@@ -128,11 +128,15 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
           dayMaxEvents={3}
           moreLinkClick="popover"
           fixedWeekCount={false}
-          showNonCurrentDates={false}
+          showNonCurrentDates={true}
           firstDay={1}
           eventDisplay="block"
           displayEventTime={false}
-          aspectRatio={1.8}
+          aspectRatio={1.6}
+          validRange={{
+            start: '1900-01-01',
+            end: '2100-12-31'
+          }}
         />
       </div>
       
@@ -140,7 +144,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
         .staff-calendar-container {
           position: relative;
           border: 1px solid #e2e8f0;
-          max-width: 900px;
+          max-width: 800px;
         }
         
         /* Modern calendar grid styling */
@@ -281,9 +285,14 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
           padding: 0 !important;
         }
         
-        /* Hide other month days completely */
+        /* Show all month days properly */
         .fc-day-other {
-          display: none !important;
+          background: #f9fafb !important;
+          opacity: 0.6 !important;
+        }
+        
+        .fc-day-other .fc-daygrid-day-number {
+          color: #9ca3af !important;
         }
         
         /* Weekend styling */
