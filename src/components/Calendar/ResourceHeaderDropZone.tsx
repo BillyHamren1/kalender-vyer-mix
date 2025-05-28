@@ -1,10 +1,7 @@
 
-
 import React from 'react';
 import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
-import { Button } from '@/components/ui/button';
-import { Users } from 'lucide-react';
 import DraggableStaffItem from './DraggableStaffItem';
 import { format } from 'date-fns';
 
@@ -111,7 +108,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
 
   // Calculate dynamic height based on number of staff members
   const calculateHeight = () => {
-    const baseHeight = 60; // Base height for team name and button
+    const baseHeight = 40; // Reduced base height since we removed the button
     const staffItemHeight = 32; // Height per staff item
     const padding = 8; // Extra padding
     const calculatedHeight = baseHeight + (assignedStaff.length * staffItemHeight) + padding;
@@ -135,23 +132,16 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         zIndex: 10
       }}
     >
-      {/* Team Header with Title and Staff Button */}
+      {/* Clickable Team Header */}
       <div className="flex flex-col">
-        {/* Team Title */}
-        <div className="text-xs font-medium text-center mb-1 truncate" title={resource.title}>
+        {/* Clickable Team Title */}
+        <div 
+          className="text-xs font-medium text-center mb-2 truncate cursor-pointer hover:bg-blue-100 hover:text-blue-800 transition-colors duration-200 p-1 rounded border border-transparent hover:border-blue-200" 
+          title={`Click to assign staff to ${resource.title} on ${format(effectiveDate, 'MMM d')}`}
+          onClick={handleSelectStaff}
+        >
           {resource.title}
         </div>
-        
-        {/* Select Staff Button - Always visible */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleSelectStaff}
-          className="h-6 w-full text-xs p-1 mb-1"
-          title={`Select staff for this team on ${format(effectiveDate, 'MMM d')}`}
-        >
-          <Users className="h-3 w-3" />
-        </Button>
       </div>
       
       {/* Staff Section - shows ALL assigned staff using DraggableStaffItem */}
@@ -188,4 +178,3 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
 };
 
 export default ResourceHeaderDropZone;
-
