@@ -188,6 +188,7 @@ export type Database = {
           ground_nails_allowed: boolean | null
           id: string
           internalnotes: string | null
+          last_calendar_sync: string | null
           rigdaydate: string | null
           rigdowndate: string | null
           status: string | null
@@ -211,6 +212,7 @@ export type Database = {
           ground_nails_allowed?: boolean | null
           id: string
           internalnotes?: string | null
+          last_calendar_sync?: string | null
           rigdaydate?: string | null
           rigdowndate?: string | null
           status?: string | null
@@ -234,6 +236,7 @@ export type Database = {
           ground_nails_allowed?: boolean | null
           id?: string
           internalnotes?: string | null
+          last_calendar_sync?: string | null
           rigdaydate?: string | null
           rigdowndate?: string | null
           status?: string | null
@@ -441,6 +444,14 @@ export type Database = {
       }
     }
     Functions: {
+      cleanup_duplicate_calendar_events: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          booking_id_result: string
+          event_type_result: string
+          duplicates_removed: number
+        }[]
+      }
       handle_booking_move: {
         Args: {
           p_booking_id: string
