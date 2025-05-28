@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useContext, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -208,6 +209,16 @@ const BookingDetail = () => {
               {booking.products && booking.products.length > 0 && (
                 <ProductsList products={booking.products} />
               )}
+
+              {/* Logistics Options moved to left column */}
+              <LogisticsOptionsForm
+                initialCarryMoreThan10m={booking.carryMoreThan10m || false}
+                initialGroundNailsAllowed={booking.groundNailsAllowed || false}
+                initialExactTimeNeeded={booking.exactTimeNeeded || false}
+                initialExactTimeInfo={booking.exactTimeInfo || ''}
+                isSaving={isSaving}
+                onSave={handleLogisticsChange}
+              />
             </div>
 
             {/* Right Column */}
@@ -231,16 +242,6 @@ const BookingDetail = () => {
                 deliveryLongitude={booking.deliveryLongitude}
                 isSaving={isSaving}
                 onSave={handleDeliveryDetailsChange}
-              />
-
-              {/* Logistics Options moved to right column */}
-              <LogisticsOptionsForm
-                initialCarryMoreThan10m={booking.carryMoreThan10m || false}
-                initialGroundNailsAllowed={booking.groundNailsAllowed || false}
-                initialExactTimeNeeded={booking.exactTimeNeeded || false}
-                initialExactTimeInfo={booking.exactTimeInfo || ''}
-                isSaving={isSaving}
-                onSave={handleLogisticsChange}
               />
             </div>
           </div>
