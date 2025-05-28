@@ -196,9 +196,9 @@ const BookingDetail = () => {
       {/* Content */}
       {booking ? (
         <div className="p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {/* Left Column */}
-            <div className="space-y-6">
+            <div className="space-y-3">
               <ClientInformation client={booking.client} />
               
               {/* Display Products */}
@@ -208,7 +208,7 @@ const BookingDetail = () => {
             </div>
 
             {/* Right Column */}
-            <div className="space-y-6">
+            <div className="space-y-3">
               <DeliveryAddressForm
                 initialAddress={booking.deliveryAddress || ''}
                 initialCity={booking.deliveryCity || ''}
@@ -219,20 +219,20 @@ const BookingDetail = () => {
                 onSave={handleDeliveryDetailsChange}
               />
               
-              {/* Delivery Contact - placeholder for now */}
-              <DeliveryContactCard />
-              
-              {/* Event Information moved to right column */}
+              {/* Event Information - moved above Delivery Contact */}
               <EventInformationCard
                 rigDates={rigDates}
                 eventDates={eventDates}
                 rigDownDates={rigDownDates}
               />
+              
+              {/* Delivery Contact */}
+              <DeliveryContactCard />
             </div>
           </div>
 
           {/* Full width sections */}
-          <div className="mt-8 space-y-6">
+          <div className="mt-6 space-y-3">
             <LogisticsOptionsForm
               initialCarryMoreThan10m={booking.carryMoreThan10m || false}
               initialGroundNailsAllowed={booking.groundNailsAllowed || false}
