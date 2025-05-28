@@ -3,8 +3,8 @@ import { toast } from 'sonner';
 import { Booking } from '@/types/booking';
 import { updateBookingDates } from '@/services/bookingService';
 import { 
-  syncBookingEvents, 
-  deleteBookingEvent 
+  resyncBookingToCalendar, 
+  deleteAllBookingEvents 
 } from '@/services/bookingCalendarService';
 
 export const useBookingDates = (
@@ -35,34 +35,8 @@ export const useBookingDates = (
     setIsSyncingToCalendar(true);
     
     try {
-      // Sync all dates
-      const syncPromises = [];
-      
-      // Sync rig dates
-      if (rigDates.length > 0) {
-        syncPromises.push(syncBookingEvents(id, 'rig', rigDates, 'auto', booking.client));
-      } else if (booking.rigDayDate) {
-        // For backwards compatibility
-        syncPromises.push(syncBookingEvents(id, 'rig', booking.rigDayDate, 'auto', booking.client));
-      }
-      
-      // Sync event dates
-      if (eventDates.length > 0) {
-        syncPromises.push(syncBookingEvents(id, 'event', eventDates, 'auto', booking.client));
-      } else if (booking.eventDate) {
-        // For backwards compatibility
-        syncPromises.push(syncBookingEvents(id, 'event', booking.eventDate, 'auto', booking.client));
-      }
-      
-      // Sync rig down dates
-      if (rigDownDates.length > 0) {
-        syncPromises.push(syncBookingEvents(id, 'rigDown', rigDownDates, 'auto', booking.client));
-      } else if (booking.rigDownDate) {
-        // For backwards compatibility
-        syncPromises.push(syncBookingEvents(id, 'rigDown', booking.rigDownDate, 'auto', booking.client));
-      }
-      
-      await Promise.all(syncPromises);
+      // Use the enhanced resync function that handles all dates
+      await resyncBookingToCalendar(id, true); // Force resync
       
       toast.success('Booking synced to calendar successfully');
     } catch (err) {
@@ -129,9 +103,6 @@ export const useBookingDates = (
         });
       }
       
-      // Create calendar event for this new date
-      await syncBookingEvents(id, dateType, formattedDate, 'auto', booking.client);
-      
       toast.success(`${dateType === 'rig' ? 'Rig day' : dateType === 'event' ? 'Event day' : 'Rig down day'} added successfully`);
       
       // If autoSync is enabled, automatically sync all dates to calendar
@@ -192,8 +163,13 @@ export const useBookingDates = (
         });
       }
       
-      // Delete the calendar event for this date
-      await deleteBookingEvent(id, dateType, date);
+      // Delete all calendar events for this booking and recreate them without this date
+      await deleteAllBookingEvents(id);
+      
+      // Resync the remaining dates to calendar
+      if (booking.status === 'CONFIRMED') {
+        await resyncBookingToCalendar(id, true);
+      }
       
       toast.success(`${dateType === 'rig' ? 'Rig day' : dateType === 'event' ? 'Event day' : 'Rig down day'} removed successfully`);
       
