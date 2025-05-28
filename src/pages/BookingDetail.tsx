@@ -205,13 +205,6 @@ const BookingDetail = () => {
               {booking.products && booking.products.length > 0 && (
                 <ProductsList products={booking.products} />
               )}
-              
-              {/* Event Information */}
-              <EventInformationCard
-                rigDates={rigDates}
-                eventDates={eventDates}
-                rigDownDates={rigDownDates}
-              />
             </div>
 
             {/* Right Column */}
@@ -228,6 +221,13 @@ const BookingDetail = () => {
               
               {/* Delivery Contact - placeholder for now */}
               <DeliveryContactCard />
+              
+              {/* Event Information moved to right column */}
+              <EventInformationCard
+                rigDates={rigDates}
+                eventDates={eventDates}
+                rigDownDates={rigDownDates}
+              />
             </div>
           </div>
 
