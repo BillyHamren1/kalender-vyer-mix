@@ -2,6 +2,7 @@
 import React from 'react';
 import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
+import { Plus } from 'lucide-react';
 import DraggableStaffItem from './DraggableStaffItem';
 import { format } from 'date-fns';
 
@@ -108,9 +109,9 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
 
   // Calculate dynamic height based on number of staff members
   const calculateHeight = () => {
-    const baseHeight = 40; // Reduced base height since we removed the button
+    const baseHeight = 35; // Further reduced for tighter layout
     const staffItemHeight = 32; // Height per staff item
-    const padding = 8; // Extra padding
+    const padding = 4; // Reduced padding for tighter spacing
     const calculatedHeight = baseHeight + (assignedStaff.length * staffItemHeight) + padding;
     return Math.max(minHeight, calculatedHeight);
   };
@@ -132,22 +133,23 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         zIndex: 10
       }}
     >
-      {/* Clickable Team Header */}
-      <div className="flex flex-col">
-        {/* Clickable Team Title */}
+      {/* Team Header Section with border */}
+      <div className="flex flex-col border-b border-gray-200 pb-1 mb-1">
+        {/* Clickable Team Title with Plus Icon */}
         <div 
-          className="text-xs font-medium text-center mb-2 truncate cursor-pointer hover:bg-blue-100 hover:text-blue-800 transition-colors duration-200 p-1 rounded border border-transparent hover:border-blue-200" 
+          className="flex items-center justify-center gap-1 text-xs font-medium text-center cursor-pointer hover:bg-blue-100 hover:text-blue-800 transition-colors duration-200 p-1 rounded border border-transparent hover:border-blue-200" 
           title={`Click to assign staff to ${resource.title} on ${format(effectiveDate, 'MMM d')}`}
           onClick={handleSelectStaff}
         >
-          {resource.title}
+          <span className="truncate flex-1">{resource.title}</span>
+          <Plus className="h-3 w-3 flex-shrink-0" />
         </div>
       </div>
       
-      {/* Staff Section - shows ALL assigned staff using DraggableStaffItem */}
+      {/* Staff Section - closer to events with reduced spacing */}
       <div className="staff-section flex-1 min-h-0">
         {assignedStaff.length > 0 ? (
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             {assignedStaff.map((staff) => (
               <DraggableStaffItem
                 key={staff.id}
