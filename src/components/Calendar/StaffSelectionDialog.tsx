@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { fetchStaffMembers, fetchStaffAssignments, assignStaffToTeam } from '@/services/staffService';
 import { StaffMember } from './StaffAssignmentRow';
@@ -23,6 +24,13 @@ interface StaffSelectionDialogProps {
   onStaffAssigned: (staffId: string, staffName: string) => Promise<void>;
 }
 
+// Extended interface for staff with assignment status
+interface StaffWithAssignmentStatus extends StaffMember {
+  assignedTeamId: string | null;
+  isAssignedToCurrentTeam: boolean;
+  isAssignedToOtherTeam: boolean;
+}
+
 const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
   resourceId,
   resourceTitle,
@@ -32,7 +40,7 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
   onStaffAssigned
 }) => {
   const [allStaff, setAllStaff] = useState<StaffMember[]>([]);
-  const [filteredStaff, setFilteredStaff] = useState<StaffMember[]>([]);
+  const [filteredStaff, setFilteredStaff] = useState<StaffWithAssignmentStatus[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [assignments, setAssignments] = useState<any[]>([]);
@@ -84,7 +92,7 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
       });
       
       // Add assignment status to each staff member
-      const staffWithStatus = searchFiltered.map(staff => ({
+      const staffWithStatus: StaffWithAssignmentStatus[] = searchFiltered.map(staff => ({
         ...staff,
         assignedTeamId: assignedStaffMap.get(staff.id) || null,
         isAssignedToCurrentTeam: assignedStaffMap.get(staff.id) === resourceId,
@@ -189,7 +197,7 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
                   <li 
                     key={staff.id} 
                     className={`flex items-center justify-between p-3 hover:bg-gray-50 transition-opacity ${
-                      !canAssign ? 'opacity-40' : 'opacity-100'
+                      !canAssign ? 'opacity-50' : 'opacity-100'
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -209,7 +217,7 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
                         )}
                         {isAssignedToOtherTeam && (
                           <p className="text-xs text-gray-500">
-                            Assigned to {getTeamName(staff.assignedTeamId)}
+                            Assigned to {getTeamName(staff.assignedTeamId!)}
                           </p>
                         )}
                       </div>
