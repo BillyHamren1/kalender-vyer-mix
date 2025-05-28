@@ -3,7 +3,6 @@ import React, { useState, createContext } from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
-import Navbar from './components/Navigation/Navbar';
 import Index from './pages/Index';
 import ResourceView from './pages/ResourceView';
 import WeeklyResourceView from './pages/WeeklyResourceView';
@@ -49,7 +48,6 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <div className="min-h-screen bg-gray-50">
           <Router>
-            <Navbar />
             <Toaster />
             <Routes>
               <Route path="/" element={<Index />} />
