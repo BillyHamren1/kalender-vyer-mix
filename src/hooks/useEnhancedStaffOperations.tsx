@@ -13,6 +13,18 @@ export interface StaffAssignment {
   date: string;
 }
 
+interface RealtimePayload {
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE';
+  new?: {
+    staff_id?: string;
+    [key: string]: any;
+  };
+  old?: {
+    staff_id?: string;
+    [key: string]: any;
+  };
+}
+
 export const useEnhancedStaffOperations = (currentDate: Date) => {
   const [assignments, setAssignments] = useState<StaffAssignment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -80,8 +92,9 @@ export const useEnhancedStaffOperations = (currentDate: Date) => {
           table: 'staff_assignments',
           filter: `assignment_date=eq.${dateStr}`
         },
-        (payload) => {
-          addLog(`Real-time change detected: ${payload.eventType} for staff ${payload.new?.staff_id || payload.old?.staff_id}`);
+        (payload: RealtimePayload) => {
+          const staffId = payload.new?.staff_id || payload.old?.staff_id || 'unknown';
+          addLog(`Real-time change detected: ${payload.eventType} for staff ${staffId}`);
           fetchAssignments();
         }
       )
