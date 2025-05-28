@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import resourceDayGridPlugin from '@fullcalendar/resource-daygrid';
@@ -34,10 +35,24 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
     setCalendarHeight(`${calculatedHeight}px`);
   }, [staffResources.length]);
 
-  // Handle navigation
+  // Update FullCalendar when currentDate changes
+  useEffect(() => {
+    if (calendarRef.current) {
+      const calendarApi = calendarRef.current.getApi();
+      calendarApi.gotoDate(currentDate);
+    }
+  }, [currentDate]);
+
+  // Handle FullCalendar date changes and prevent circular updates
   const handleDatesSet = (dateInfo: any) => {
-    if (Math.abs(dateInfo.start.getTime() - currentDate.getTime()) > 3600000) {
-      onDateChange(dateInfo.start);
+    const newDate = dateInfo.start;
+    const timeDiff = Math.abs(newDate.getTime() - currentDate.getTime());
+    
+    // Only trigger onDateChange if the difference is significant (more than 1 hour)
+    // This prevents circular updates while allowing legitimate navigation
+    if (timeDiff > 3600000) {
+      console.log('Calendar view changed, updating parent date:', format(newDate, 'yyyy-MM-dd'));
+      onDateChange(newDate);
     }
   };
 
@@ -79,6 +94,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
 
   console.log('Formatted events for calendar:', formattedEvents);
   console.log('Staff resources:', staffResources);
+  console.log('Current date prop:', format(currentDate, 'yyyy-MM-dd'));
 
   return (
     <div className="staff-calendar-container relative">
@@ -97,11 +113,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
           plugins={[resourceDayGridPlugin, dayGridPlugin, interactionPlugin]}
           schedulerLicenseKey={import.meta.env.VITE_FULLCALENDAR_LICENSE_KEY || "GPL-My-Project-Is-Open-Source"}
           initialView={staffResources.length > 0 ? 'resourceDayGridMonth' : 'dayGridMonth'}
-          headerToolbar={{
-            left: 'prev,next today',
-            center: 'title',
-            right: ''
-          }}
+          headerToolbar={false}
           height={calendarHeight}
           resources={staffResources.length > 0 ? staffResources.map(staff => ({
             id: staff.id,
