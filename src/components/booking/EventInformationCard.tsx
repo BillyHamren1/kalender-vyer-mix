@@ -30,7 +30,7 @@ export const EventInformationCard = ({ rigDates, eventDates, rigDownDates }: Eve
               <div className="text-center">
                 <div className="text-xs text-gray-500 mb-1">Rig Up</div>
                 {rigDates.length > 0 ? (
-                  <div className="text-sm font-medium bg-blue-50 px-2 py-1 rounded">
+                  <div className="text-sm font-medium bg-green-100 border border-green-200 px-2 py-1 rounded text-black">
                     {new Date(rigDates[0]).toLocaleDateString()}
                   </div>
                 ) : (
@@ -40,7 +40,7 @@ export const EventInformationCard = ({ rigDates, eventDates, rigDownDates }: Eve
               <div className="text-center">
                 <div className="text-xs text-gray-500 mb-1">Event</div>
                 {eventDates.length > 0 ? (
-                  <div className="text-sm font-medium bg-green-50 px-2 py-1 rounded">
+                  <div className="text-sm font-medium bg-yellow-100 border border-yellow-200 px-2 py-1 rounded text-black">
                     {new Date(eventDates[0]).toLocaleDateString()}
                   </div>
                 ) : (
@@ -50,7 +50,7 @@ export const EventInformationCard = ({ rigDates, eventDates, rigDownDates }: Eve
               <div className="text-center">
                 <div className="text-xs text-gray-500 mb-1">Rig Down</div>
                 {rigDownDates.length > 0 ? (
-                  <div className="text-sm font-medium bg-orange-50 px-2 py-1 rounded">
+                  <div className="text-sm font-medium bg-red-100 border border-red-200 px-2 py-1 rounded text-black">
                     {new Date(rigDownDates[0]).toLocaleDateString()}
                   </div>
                 ) : (
