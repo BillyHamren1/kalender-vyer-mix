@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
@@ -108,6 +109,17 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     }
   };
 
+  // Calculate dynamic height based on number of staff members
+  const calculateHeight = () => {
+    const baseHeight = 60; // Base height for team name and button
+    const staffItemHeight = 32; // Height per staff item
+    const padding = 8; // Extra padding
+    const calculatedHeight = baseHeight + (assignedStaff.length * staffItemHeight) + padding;
+    return Math.max(minHeight, calculatedHeight);
+  };
+
+  const dynamicHeight = calculateHeight();
+
   return (
     <div
       ref={drop}
@@ -116,8 +128,8 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         width: '80px',
         minWidth: '80px', 
         maxWidth: '80px',
-        minHeight: `${minHeight}px`,
-        height: `${minHeight}px`,
+        minHeight: `${dynamicHeight}px`,
+        height: 'auto',
         overflow: 'visible',
         position: 'relative',
         zIndex: 10
@@ -142,7 +154,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         </Button>
       </div>
       
-      {/* Staff Section - shows assigned staff using DraggableStaffItem */}
+      {/* Staff Section - shows ALL assigned staff using DraggableStaffItem */}
       <div className="staff-section flex-1 min-h-0">
         {assignedStaff.length > 0 ? (
           <div className="space-y-1">
@@ -176,3 +188,4 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
 };
 
 export default ResourceHeaderDropZone;
+
