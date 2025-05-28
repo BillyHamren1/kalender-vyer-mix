@@ -1,11 +1,10 @@
-
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { StaffMember } from '@/services/staffService';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { User, Mail, Phone, Edit, Trash2 } from 'lucide-react';
-import EditStaffDialog from './EditStaffDialog';
 import DeleteStaffDialog from './DeleteStaffDialog';
 
 interface StaffListProps {
@@ -15,11 +14,11 @@ interface StaffListProps {
 }
 
 const StaffList: React.FC<StaffListProps> = ({ staffMembers, isLoading, onRefresh }) => {
-  const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
+  const navigate = useNavigate();
   const [deletingStaff, setDeletingStaff] = useState<StaffMember | null>(null);
 
   const handleCardClick = (staff: StaffMember) => {
-    setEditingStaff(staff);
+    navigate(`/staff/${staff.id}`);
   };
 
   const handleDeleteClick = (e: React.MouseEvent, staff: StaffMember) => {
@@ -104,7 +103,7 @@ const StaffList: React.FC<StaffListProps> = ({ staffMembers, isLoading, onRefres
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation(); // Prevent card click
-                      setEditingStaff(staff);
+                      navigate(`/staff/${staff.id}`);
                     }}
                   >
                     <Edit className="h-4 w-4" />
@@ -123,19 +122,6 @@ const StaffList: React.FC<StaffListProps> = ({ staffMembers, isLoading, onRefres
           </Card>
         ))}
       </div>
-
-      {/* Edit Dialog */}
-      {editingStaff && (
-        <EditStaffDialog
-          staff={editingStaff}
-          isOpen={!!editingStaff}
-          onClose={() => setEditingStaff(null)}
-          onStaffUpdated={() => {
-            setEditingStaff(null);
-            onRefresh();
-          }}
-        />
-      )}
 
       {/* Delete Dialog */}
       {deletingStaff && (

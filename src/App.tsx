@@ -17,6 +17,7 @@ import LogisticsMap from './pages/LogisticsMap';
 import APITester from './pages/APITester';
 import StaffEndpoint from './pages/StaffEndpoint';
 import StaffManagement from './pages/StaffManagement';
+import StaffDetail from './pages/StaffDetail';
 import NotFound from './pages/NotFound';
 import StaffCalendarView from './pages/StaffCalendarView';
 
@@ -57,6 +58,7 @@ function App() {
               <Route path="/monthly-view" element={<MonthlyResourceView />} />
               <Route path="/staff-calendar" element={<StaffCalendarView />} />
               <Route path="/staff-management" element={<StaffManagement />} />
+              <Route path="/staff/:staffId" element={<StaffDetail />} />
               <Route path="/test-monthly-view" element={<TestMonthlyView />} />
               <Route path="/day-view" element={<DayView />} />
               <Route path="/booking-list" element={<BookingList />} />
