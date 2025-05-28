@@ -5,6 +5,8 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { Booking } from '@/types/booking';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { Button } from '@/components/ui/button';
+import { Ruler, Mountain, RotateCcw } from 'lucide-react';
 
 interface MapComponentProps {
   bookings: Booking[];
@@ -24,6 +26,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const popups = useRef<{[key: string]: mapboxgl.Popup}>({});
   const [mapboxToken, setMapboxToken] = useState<string | null>(null);
   const [isLoadingToken, setIsLoadingToken] = useState(true);
+  const [is3DEnabled, setIs3DEnabled] = useState(false);
+  const [isMeasuring, setIsMeasuring] = useState(false);
+  const measurePoints = useRef<number[][]>([]);
+  const measureSource = useRef<mapboxgl.GeoJSONSource | null>(null);
 
   // Fetch Mapbox token from edge function
   useEffect(() => {
@@ -57,15 +63,82 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/satellite-v9', // Changed to satellite view
-      center: [18, 60], // Centered on Europe/Scandinavia for better overview
-      zoom: 4 // More zoomed out for overview
+      style: 'mapbox://styles/mapbox/satellite-streets-v12', // High-resolution satellite with streets
+      center: [18, 60], // Centered on Europe/Scandinavia
+      zoom: 4,
+      maxZoom: 22, // Maximum zoom for highest resolution
+      minZoom: 1,
+      pitch: 0, // Start flat
+      bearing: 0,
+      antialias: true, // Better rendering quality
+      projection: 'globe' // Globe projection for better visualization
     });
 
-    map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
-    
+    // Add enhanced navigation controls
+    map.current.addControl(new mapboxgl.NavigationControl({
+      visualizePitch: true,
+      showZoom: true,
+      showCompass: true
+    }), 'top-right');
+
+    // Add scale control
+    map.current.addControl(new mapboxgl.ScaleControl({
+      maxWidth: 80,
+      unit: 'metric'
+    }), 'bottom-left');
+
+    // Add fullscreen control
+    map.current.addControl(new mapboxgl.FullscreenControl(), 'top-right');
+
     map.current.on('load', () => {
       setMapInitialized(true);
+      
+      // Add 3D terrain source
+      map.current?.addSource('mapbox-dem', {
+        'type': 'raster-dem',
+        'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
+        'tileSize': 512,
+        'maxzoom': 14
+      });
+
+      // Add measuring source
+      map.current?.addSource('measure-points', {
+        'type': 'geojson',
+        'data': {
+          'type': 'FeatureCollection',
+          'features': []
+        }
+      });
+
+      measureSource.current = map.current?.getSource('measure-points') as mapboxgl.GeoJSONSource;
+
+      // Add measuring line layer
+      map.current?.addLayer({
+        'id': 'measure-lines',
+        'type': 'line',
+        'source': 'measure-points',
+        'layout': {
+          'line-cap': 'round',
+          'line-join': 'round'
+        },
+        'paint': {
+          'line-color': '#ff0000',
+          'line-width': 3
+        }
+      });
+
+      // Add measuring points layer
+      map.current?.addLayer({
+        'id': 'measure-points-layer',
+        'type': 'circle',
+        'source': 'measure-points',
+        'paint': {
+          'circle-radius': 6,
+          'circle-color': '#ff0000',
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2
+        }
+      });
     });
 
     return () => {
@@ -74,12 +147,159 @@ const MapComponent: React.FC<MapComponentProps> = ({
     };
   }, [mapboxToken, isLoadingToken]);
 
+  // Toggle 3D terrain
+  const toggle3D = () => {
+    if (!map.current || !mapInitialized) return;
+
+    if (!is3DEnabled) {
+      // Enable 3D terrain
+      map.current.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.5 });
+      map.current.easeTo({
+        pitch: 60,
+        bearing: 45,
+        duration: 1000
+      });
+      setIs3DEnabled(true);
+      toast.success('3D terrain enabled');
+    } else {
+      // Disable 3D terrain
+      map.current.setTerrain(null);
+      map.current.easeTo({
+        pitch: 0,
+        bearing: 0,
+        duration: 1000
+      });
+      setIs3DEnabled(false);
+      toast.success('3D terrain disabled');
+    }
+  };
+
+  // Calculate distance between two points
+  const calculateDistance = (point1: number[], point2: number[]): number => {
+    const [lon1, lat1] = point1;
+    const [lon2, lat2] = point2;
+    
+    const R = 6371000; // Earth's radius in meters
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in meters
+  };
+
+  // Format distance for display
+  const formatDistance = (distance: number): string => {
+    if (distance < 1000) {
+      return `${Math.round(distance)} m`;
+    } else {
+      return `${(distance / 1000).toFixed(2)} km`;
+    }
+  };
+
+  // Toggle measuring tool
+  const toggleMeasuring = () => {
+    if (!map.current || !mapInitialized) return;
+
+    if (!isMeasuring) {
+      setIsMeasuring(true);
+      map.current.getCanvas().style.cursor = 'crosshair';
+      toast.info('Click on the map to start measuring. Click again to add points.');
+      
+      // Add click handler for measuring
+      map.current.on('click', handleMeasureClick);
+    } else {
+      setIsMeasuring(false);
+      map.current.getCanvas().style.cursor = '';
+      map.current.off('click', handleMeasureClick);
+      
+      // Clear measurements
+      measurePoints.current = [];
+      updateMeasureDisplay();
+      toast.info('Measuring disabled');
+    }
+  };
+
+  // Handle measure click
+  const handleMeasureClick = (e: mapboxgl.MapMouseEvent) => {
+    const coords = [e.lngLat.lng, e.lngLat.lat];
+    measurePoints.current.push(coords);
+    
+    if (measurePoints.current.length > 1) {
+      const totalDistance = measurePoints.current.reduce((total, point, index) => {
+        if (index === 0) return 0;
+        return total + calculateDistance(measurePoints.current[index - 1], point);
+      }, 0);
+      
+      toast.success(`Distance: ${formatDistance(totalDistance)}`);
+    }
+    
+    updateMeasureDisplay();
+  };
+
+  // Update measure display
+  const updateMeasureDisplay = () => {
+    if (!measureSource.current) return;
+
+    const features = [];
+    
+    // Add points
+    measurePoints.current.forEach((point, index) => {
+      features.push({
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: point
+        },
+        properties: {
+          id: index
+        }
+      });
+    });
+
+    // Add line if more than one point
+    if (measurePoints.current.length > 1) {
+      features.push({
+        type: 'Feature',
+        geometry: {
+          type: 'LineString',
+          coordinates: measurePoints.current
+        },
+        properties: {}
+      });
+    }
+
+    measureSource.current.setData({
+      type: 'FeatureCollection',
+      features: features
+    });
+  };
+
+  // Reset view
+  const resetView = () => {
+    if (!map.current || !mapInitialized) return;
+
+    map.current.flyTo({
+      center: [18, 60],
+      zoom: 4,
+      pitch: 0,
+      bearing: 0,
+      duration: 2000
+    });
+
+    // Clear measurements
+    measurePoints.current = [];
+    updateMeasureDisplay();
+    setIsMeasuring(false);
+    map.current.getCanvas().style.cursor = '';
+    map.current.off('click', handleMeasureClick);
+  };
+
   const getDisplayBookingNumber = (booking: Booking) => {
-    // Use booking number if available, otherwise show a shortened version of the ID
     if (booking.bookingNumber) {
       return `Booking #${booking.bookingNumber}`;
     }
-    // Show first 8 characters of ID if no booking number
     return `Booking #${booking.id.substring(0, 8)}...`;
   };
 
@@ -144,11 +364,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
       bounds.extend([booking.deliveryLongitude, booking.deliveryLatitude]);
     });
 
-    // Fit bounds if there are markers, but with more padding for overview
+    // Fit bounds if there are markers
     if (!bounds.isEmpty()) {
       map.current.fitBounds(bounds, {
-        padding: 100, // Increased padding for better overview
-        maxZoom: 10, // Limit max zoom to maintain overview
+        padding: 100,
+        maxZoom: 15,
         duration: 1000
       });
     }
@@ -177,7 +397,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     if (selectedBooking.deliveryLatitude && selectedBooking.deliveryLongitude) {
       map.current.flyTo({
         center: [selectedBooking.deliveryLongitude, selectedBooking.deliveryLatitude],
-        zoom: 15,
+        zoom: 18, // Higher zoom for better detail
         duration: 1000
       });
       
@@ -212,7 +432,40 @@ const MapComponent: React.FC<MapComponentProps> = ({
   }
 
   return (
-    <div className="h-full w-full rounded-lg overflow-hidden">
+    <div className="h-full w-full rounded-lg overflow-hidden relative">
+      {/* Map Controls */}
+      <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
+        <Button
+          onClick={toggle3D}
+          size="sm"
+          variant={is3DEnabled ? "default" : "outline"}
+          className="bg-white/90 backdrop-blur-sm shadow-md"
+        >
+          <Mountain className="h-4 w-4 mr-1" />
+          3D Terrain
+        </Button>
+        
+        <Button
+          onClick={toggleMeasuring}
+          size="sm"
+          variant={isMeasuring ? "default" : "outline"}
+          className="bg-white/90 backdrop-blur-sm shadow-md"
+        >
+          <Ruler className="h-4 w-4 mr-1" />
+          Measure
+        </Button>
+        
+        <Button
+          onClick={resetView}
+          size="sm"
+          variant="outline"
+          className="bg-white/90 backdrop-blur-sm shadow-md"
+        >
+          <RotateCcw className="h-4 w-4 mr-1" />
+          Reset
+        </Button>
+      </div>
+
       <div ref={mapContainer} className="h-full w-full" />
     </div>
   );
