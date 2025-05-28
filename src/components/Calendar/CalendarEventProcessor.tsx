@@ -30,12 +30,14 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
         ...event,
         resourceId: targetResourceId,
         end: endTime.toISOString(),
-        // Keep all properties that make events draggable
+        // Make events FULLY interactive - draggable AND time-editable
         editable: true,
         startEditable: true,
         durationEditable: true,
         resourceEditable: true,
         constraint: undefined, // Remove any constraints that might prevent dragging
+        overlap: true, // Allow overlapping events
+        allow: () => true, // Allow all interactions
         extendedProps: {
           ...event.extendedProps,
           bookingId: event.extendedProps?.bookingId || event.bookingId,
@@ -48,20 +50,22 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
         }
       };
 
-      console.log(`Processed EVENT type event ${event.id}: moved to team-6 with 2.5hr duration and FULLY DRAGGABLE`);
+      console.log(`Processed EVENT type event ${event.id}: moved to team-6 with 2.5hr duration and FULLY EDITABLE (drag + time)`);
       return processedEvent;
     }
 
-    // For non-EVENT types, process normally and ensure they remain draggable
+    // For non-EVENT types, process normally and ensure they remain fully interactive
     const processedEvent = {
       ...event,
       resourceId: targetResourceId,
-      // Ensure all events are draggable
+      // Ensure ALL events are fully interactive - draggable AND time-editable
       editable: true,
       startEditable: true,
       durationEditable: true,
       resourceEditable: true,
       constraint: undefined, // Remove any constraints that might prevent dragging
+      overlap: true, // Allow overlapping events
+      allow: () => true, // Allow all interactions
       extendedProps: {
         ...event.extendedProps,
         bookingId: event.extendedProps?.bookingId || event.bookingId,
@@ -78,7 +82,8 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
       bookingId: processedEvent.extendedProps.bookingId,
       resourceId: processedEvent.resourceId,
       eventType: eventType,
-      editable: processedEvent.editable
+      editable: processedEvent.editable,
+      durationEditable: processedEvent.durationEditable
     });
 
     return processedEvent;

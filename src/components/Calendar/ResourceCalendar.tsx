@@ -133,9 +133,15 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     ...getBaseCalendarProps(),
     events: processedEvents,
     eventDrop: handleEventDrop,
-    eventResize: handleEventChange,
+    eventResize: handleEventChange, // Enable event resizing for time changes
     eventClick: handleEventClick,
     eventReceive: handleEventReceive,
+    // Enable event interaction
+    editable: true,
+    selectable: true,
+    selectMirror: true,
+    dayMaxEvents: false,
+    weekends: true,
     datesSet: (dateInfo: any) => {
       setSelectedDate(dateInfo.start);
       onDateSet(dateInfo);
