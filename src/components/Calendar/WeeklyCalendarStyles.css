@@ -27,12 +27,12 @@
 .monthly-day-wrapper {
   min-width: 550px;
   flex: 1;
-  border-right: 1px solid #e5e7eb;
+  border-right: 2px solid #d1d5db;
 }
 
 .monthly-day-wrapper {
   min-width: unset;
-  border: 1px solid #e5e7eb;
+  border: 2px solid #d1d5db;
   border-radius: 8px;
   overflow: hidden;
   min-height: 200px;
@@ -45,8 +45,8 @@
 /* Unified simple day header styling - matching monthly view exactly */
 .day-header {
   background: #f0f9f9;
-  border: 1px solid #d1d5db;
-  border-bottom: 1px solid #d1d5db;
+  border: 2px solid #d1d5db;
+  border-bottom: 2px solid #d1d5db;
   text-align: center;
   padding: 8px;
   font-weight: 600;
@@ -94,8 +94,8 @@
 
 /* Make resource timeline work properly */
 .fc-resource-timeline-divider {
-  width: 1px !important;
-  background-color: #e5e7eb;
+  width: 2px !important;
+  background-color: #d1d5db;
 }
 
 /* Ensure scrolling works properly */
@@ -109,11 +109,11 @@
   font-size: 1rem;
   padding: 12px 8px;
   background-color: #fafafa;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 2px solid #d1d5db;
   border-radius: 6px 6px 0 0;
 }
 
-/* Enforce fixed width for ALL resource columns - REDUCED WIDTH */
+/* Enforce fixed width for ALL resource columns - REDUCED WIDTH with stronger borders */
 .fc-resource-area td,
 .fc-resource-area th,
 .fc-resource-lane,
@@ -123,17 +123,17 @@
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
-  border-right: 1px solid #f0f0f0 !important;
+  border-right: 2px solid #d1d5db !important;
   border-left: none !important;
 }
 
-/* Fix for resource header hierarchical nesting - softer styling */
+/* Fix for resource header hierarchical nesting - stronger borders */
 .fc-datagrid-cell-cushion {
   font-weight: 500;
-  padding: 8px 6px;
+  padding: 6px 4px;
   background-color: #fafafa;
   border-radius: 4px;
-  margin: 2px;
+  margin: 1px;
   transition: background-color 0.2s ease;
 }
 
@@ -141,15 +141,15 @@
   background-color: #f3f4f6;
 }
 
-/* Day header cells - softer styling */
+/* Day header cells - stronger borders */
 .fc-datagrid-group-cushion {
   font-weight: 600;
   color: #374151;
   text-transform: capitalize;
-  padding: 10px 8px;
+  padding: 8px 6px;
   background-color: #f8fafc;
   border-radius: 6px;
-  margin: 2px;
+  margin: 1px;
 }
 
 /* Improve event rendering */
@@ -160,7 +160,7 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-/* Critical fix for team-6 (Today's events) column */
+/* Critical fix for team-6 (Today's events) column with stronger borders */
 [data-resource-id="team-6"] .fc-datagrid-cell,
 [data-resource-id="team-6"].fc-datagrid-cell,
 [data-resource-id="team-6"] .fc-datagrid-cell-frame,
@@ -170,14 +170,14 @@
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
-  border-right: 1px solid #f0f0f0 !important;
+  border-right: 2px solid #d1d5db !important;
 }
 
-/* Ensure timeline slot width with softer borders */
+/* Ensure timeline slot width with stronger borders */
 .fc-timeline-slot {
   min-width: 80px !important;
   width: 80px !important;
-  border-right: 1px solid #f8f9fa !important;
+  border-right: 2px solid #d1d5db !important;
 }
 
 /* Optimize event content */
@@ -225,24 +225,24 @@
   max-height: 600px !important;
 }
 
-/* Make weekly calendars more compact but with softer styling */
+/* Make weekly calendars more compact with stronger borders */
 .weekly-view-calendar .fc-timegrid-slot,
 .monthly-view-calendar .fc-timegrid-slot {
   height: 35px !important;
-  border-bottom: 1px solid #f8f9fa !important;
+  border-bottom: 1px solid #e5e7eb !important;
 }
 
-/* Soften time grid borders */
+/* Stronger time grid borders */
 .weekly-view-calendar .fc-timegrid-axis,
 .monthly-view-calendar .fc-timegrid-axis {
-  border-right: 1px solid #f0f0f0 !important;
+  border-right: 2px solid #d1d5db !important;
 }
 
-/* Critical fix - enforce resource column width in both views */
+/* Critical fix - enforce resource column width in both views with stronger borders */
 .weekly-view-calendar .fc-resource-timeline-divider,
 .monthly-view-calendar .fc-resource-timeline-divider {
-  width: 1px !important;
-  background-color: #f0f0f0;
+  width: 2px !important;
+  background-color: #d1d5db;
 }
 
 .weekly-view-calendar .fc-timegrid-col,
@@ -250,7 +250,7 @@
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
-  border-right: 1px solid #f8f9fa !important;
+  border-right: 2px solid #d1d5db !important;
 }
 
 /* Make sure day columns have adequate space */
@@ -259,14 +259,14 @@
   min-width: 450px !important;
 }
 
-/* Critical fix - ensure ALL resource column headers have consistent width and soft borders */
+/* Critical fix - ensure ALL resource column headers have consistent width and stronger borders */
 .weekly-view-calendar .fc-col-header-cell,
 .monthly-view-calendar .fc-col-header-cell {
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
-  border-right: 1px solid #f0f0f0 !important;
-  border-bottom: 1px solid #e5e7eb !important;
+  border-right: 2px solid #d1d5db !important;
+  border-bottom: 2px solid #d1d5db !important;
   background-color: #fafafa !important;
 }
 
@@ -276,7 +276,7 @@
   min-width: 450px !important;
 }
 
-/* Critical fix - ensure ALL resource cells have exact same width with soft borders */
+/* Critical fix - ensure ALL resource cells have exact same width with stronger borders */
 .weekly-view-calendar .fc-resource-group,
 .weekly-view-calendar .fc-datagrid-cell,
 .monthly-view-calendar .fc-resource-group,
@@ -284,20 +284,20 @@
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
-  border-right: 1px solid #f0f0f0 !important;
-  border-bottom: 1px solid #f8f9fa !important;
+  border-right: 2px solid #d1d5db !important;
+  border-bottom: 1px solid #e5e7eb !important;
 }
 
-/* Ensure time labels have enough room with soft styling */
+/* Ensure time labels have enough room with stronger borders */
 .weekly-view-calendar .fc-timegrid-axis,
 .monthly-view-calendar .fc-timegrid-axis {
   width: 60px !important;
   min-width: 60px !important;
   background-color: #fafafa;
-  border-right: 1px solid #f0f0f0 !important;
+  border-right: 2px solid #d1d5db !important;
 }
 
-/* Force consistent column widths for team-6 (Today's events) */
+/* Force consistent column widths for team-6 (Today's events) with stronger borders */
 .weekly-view-calendar [data-resource-id="team-6"] td,
 .weekly-view-calendar [data-resource-id="team-6"] th,
 .weekly-view-calendar [data-resource-id="team-6"].fc-datagrid-cell,
@@ -311,10 +311,10 @@
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
-  border-right: 1px solid #f0f0f0 !important;
+  border-right: 2px solid #d1d5db !important;
 }
 
-/* Ensure ALL columns are exactly the same width with soft borders */
+/* Ensure ALL columns are exactly the same width with stronger borders */
 .weekly-view-calendar .fc-datagrid-cell,
 .weekly-view-calendar .fc-datagrid-cell-frame,
 .weekly-view-calendar .fc-timegrid-col,
@@ -326,24 +326,24 @@
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
-  border-right: 1px solid #f0f0f0 !important;
+  border-right: 2px solid #d1d5db !important;
 }
 
-/* Soften the main grid borders */
+/* Stronger main grid borders */
 .weekly-view-calendar .fc-scrollgrid-section table,
 .weekly-view-calendar .fc-datagrid-body,
 .weekly-view-calendar .fc-datagrid-header,
 .monthly-view-calendar .fc-scrollgrid-section table,
 .monthly-view-calendar .fc-datagrid-body,
 .monthly-view-calendar .fc-datagrid-header {
-  border: 1px solid #f0f0f0 !important;
+  border: 2px solid #d1d5db !important;
 }
 
-/* Remove harsh grid lines and add soft ones */
+/* Stronger grid lines */
 .weekly-view-calendar .fc-scrollgrid-section-liquid > td,
 .monthly-view-calendar .fc-scrollgrid-section-liquid > td {
-  border-top: 1px solid #f8f9fa !important;
-  border-bottom: 1px solid #f8f9fa !important;
+  border-top: 1px solid #d1d5db !important;
+  border-bottom: 1px solid #d1d5db !important;
 }
 
 /* Icon-only assign button styling - keep existing */
