@@ -5,6 +5,7 @@ import { useTeamResources } from '@/hooks/useTeamResources';
 import { useEventActions } from '@/hooks/useEventActions';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useDateAwareStaffOperations } from '@/hooks/useDateAwareStaffOperations';
+import { useEnhancedStaffOperations } from '@/hooks/useEnhancedStaffOperations';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import ResourceHeader from '@/components/Calendar/ResourceHeader';
@@ -16,6 +17,7 @@ import UnifiedResourceCalendar from '@/components/Calendar/UnifiedResourceCalend
 import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
 import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
 import TeamEditDialog from '@/components/Calendar/TeamEditDialog';
+import StaffConnectionValidator from '@/components/Calendar/StaffConnectionValidator';
 import { startOfWeek, subDays, format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -47,6 +49,9 @@ const WeeklyResourceView = () => {
   const { addEventToCalendar, duplicateEvent } = useEventActions(events, setEvents, resources);
   const isMobile = useIsMobile();
   
+  // Use enhanced staff operations with validation and logging
+  const enhancedStaffOps = useEnhancedStaffOperations(hookCurrentDate);
+  
   // Week navigation - managed independently from calendar's currentDate
   // Set to the start of the current week (Monday)
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
@@ -55,6 +60,7 @@ const WeeklyResourceView = () => {
 
   // State for showing staff display panel
   const [showStaffDisplay, setShowStaffDisplay] = useState(false);
+  const [showConnectionValidator, setShowConnectionValidator] = useState(true);
 
   // Add state for staff selection dialog
   const [staffSelectionDialogOpen, setStaffSelectionDialogOpen] = useState(false);
@@ -62,8 +68,8 @@ const WeeklyResourceView = () => {
   const [selectedResourceTitle, setSelectedResourceTitle] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date>(hookCurrentDate);
 
-  // Use date-aware staff operations
-  const { handleStaffDrop, processingStaffIds } = useDateAwareStaffOperations();
+  // Use date-aware staff operations as fallback
+  const { handleStaffDrop: fallbackStaffDrop, processingStaffIds } = useDateAwareStaffOperations();
 
   // Only update when hookCurrentDate changes, not on every render
   useEffect(() => {
@@ -88,46 +94,49 @@ const WeeklyResourceView = () => {
     setStaffSelectionDialogOpen(true);
   }, [hookCurrentDate]);
 
-  // Handle successful staff assignment with the date-aware system
+  // Handle successful staff assignment with enhanced operations
   const handleStaffAssigned = useCallback(async (staffId: string, staffName: string) => {
     console.log(`WeeklyResourceView: Staff ${staffName} (${staffId}) assigned successfully to team ${selectedResourceId} for date:`, selectedDate);
     
     try {
-      // Use the date-aware staff drop handler with the specific date
-      await handleStaffDrop(staffId, selectedResourceId, selectedDate);
-      console.log('WeeklyResourceView: Staff assignment completed successfully');
+      // Use the enhanced staff drop handler with validation
+      await enhancedStaffOps.handleStaffDrop(staffId, selectedResourceId);
+      console.log('WeeklyResourceView: Enhanced staff assignment completed successfully');
     } catch (error) {
-      console.error('WeeklyResourceView: Error in staff assignment:', error);
+      console.error('WeeklyResourceView: Error in enhanced staff assignment:', error);
+      // Fallback to the original method
+      await fallbackStaffDrop(staffId, selectedResourceId, selectedDate);
     }
-  }, [selectedResourceId, selectedDate, handleStaffDrop]);
+  }, [selectedResourceId, selectedDate, enhancedStaffOps, fallbackStaffDrop]);
 
   // Toggle staff display panel
   const handleToggleStaffDisplay = useCallback(() => {
     setShowStaffDisplay(prev => !prev);
   }, []);
 
-  // Staff drop handler with date awareness - properly handles target dates
+  // Enhanced staff drop handler with validation and logging
   const handleWeeklyStaffDrop = useCallback(async (staffId: string, resourceId: string | null, targetDate?: Date) => {
     if (!targetDate) {
       console.error('WeeklyResourceView: No target date provided for staff drop');
       return;
     }
 
-    console.log('WeeklyResourceView.handleWeeklyStaffDrop:', {
+    console.log('WeeklyResourceView.handleWeeklyStaffDrop (Enhanced):', {
       staffId,
       resourceId,
       targetDate: format(targetDate, 'yyyy-MM-dd')
     });
     
     try {
-      // Use the date-aware staff drop handler with the exact target date
-      await handleStaffDrop(staffId, resourceId, targetDate);
-      console.log('WeeklyResourceView: Staff drop completed successfully for date:', format(targetDate, 'yyyy-MM-dd'));
+      // Use enhanced staff operations for better validation and logging
+      await enhancedStaffOps.handleStaffDrop(staffId, resourceId);
+      console.log('WeeklyResourceView: Enhanced staff drop completed successfully for date:', format(targetDate, 'yyyy-MM-dd'));
     } catch (error) {
-      console.error('WeeklyResourceView: Error in staff drop:', error);
-      toast.error('Failed to update staff assignment');
+      console.error('WeeklyResourceView: Error in enhanced staff drop, falling back:', error);
+      // Fallback to the original method
+      await fallbackStaffDrop(staffId, resourceId, targetDate);
     }
-  }, [handleStaffDrop]);
+  }, [enhancedStaffOps, fallbackStaffDrop]);
 
   // Copy staff assignments from previous week
   const handleCopyFromPreviousWeek = useCallback(async () => {
@@ -188,21 +197,27 @@ const WeeklyResourceView = () => {
 
       toast.success('Staff assignments copied successfully');
       
-      // Trigger refresh
-      window.dispatchEvent(new CustomEvent("staff-assignment-updated", { 
-        detail: { date: format(currentWeekStart, 'yyyy-MM-dd') } 
-      }));
+      // Force refresh the enhanced operations
+      enhancedStaffOps.forceRefresh();
       
     } catch (error) {
       console.error('Error copying assignments from previous week:', error);
       toast.error('Failed to copy staff assignments from previous week');
     }
-  }, [currentWeekStart]);
+  }, [currentWeekStart, enhancedStaffOps]);
 
   // Wrapper function to ensure Promise<void> return type
   const handleRefresh = async (): Promise<void> => {
     await refreshEvents();
+    enhancedStaffOps.forceRefresh();
   };
+
+  // Handle validation completion
+  const handleValidationComplete = useCallback((isValid: boolean) => {
+    if (!isValid) {
+      console.warn('Staff-booking connections validation failed');
+    }
+  }, []);
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -257,7 +272,7 @@ const WeeklyResourceView = () => {
               />
               
               <ResourceToolbar
-                isLoading={isLoading || processingStaffIds.length > 0}
+                isLoading={isLoading || processingStaffIds.length > 0 || enhancedStaffOps.isLoading}
                 currentDate={hookCurrentDate}
                 resources={resources}
                 onRefresh={handleRefresh}
@@ -265,9 +280,19 @@ const WeeklyResourceView = () => {
                 onShowStaffCurtain={handleToggleStaffDisplay}
               />
             </div>
+            
+            {/* Staff-Booking Connection Validator */}
+            {showConnectionValidator && (
+              <div className="w-full max-w-md">
+                <StaffConnectionValidator
+                  currentDate={hookCurrentDate}
+                  onValidationComplete={handleValidationComplete}
+                />
+              </div>
+            )}
           </div>
           
-          {/* Unified Calendar View with date-aware staff handling */}
+          {/* Unified Calendar View with enhanced staff handling */}
           <div className="weekly-view-container overflow-x-auto">
             <UnifiedResourceCalendar
               events={events}
