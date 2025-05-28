@@ -1,8 +1,22 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { Booking } from "@/types/booking";
 
 const transformBookingData = (data: any): Booking => {
+  console.log('Raw booking data for transformation:', data);
+  console.log('Raw booking_products:', data.booking_products);
+  
+  const transformedProducts = data.booking_products?.map((product: any) => {
+    console.log('Transforming product:', product);
+    return {
+      id: product.id,
+      name: product.name,
+      quantity: product.quantity,
+      notes: product.notes || undefined,
+    };
+  }) || [];
+  
+  console.log('Transformed products:', transformedProducts);
+  
   return {
     id: data.id,
     bookingNumber: data.booking_number,
@@ -19,12 +33,7 @@ const transformBookingData = (data: any): Booking => {
     groundNailsAllowed: data.ground_nails_allowed,
     exactTimeNeeded: data.exact_time_needed,
     exactTimeInfo: data.exact_time_info,
-    products: data.booking_products?.map((product: any) => ({
-      id: product.id,
-      name: product.name,
-      quantity: product.quantity,
-      notes: product.notes || undefined,
-    })) || [],
+    products: transformedProducts,
     internalNotes: data.internalnotes,
     attachments: data.booking_attachments?.map((attachment: any) => ({
       id: attachment.id,
@@ -66,6 +75,8 @@ export const fetchBookings = async (): Promise<Booking[]> => {
 };
 
 export const fetchBookingById = async (id: string): Promise<Booking> => {
+  console.log('Fetching booking by ID:', id);
+  
   const { data, error } = await supabase
     .from('bookings')
     .select(`
@@ -91,7 +102,11 @@ export const fetchBookingById = async (id: string): Promise<Booking> => {
     throw error;
   }
 
-  return transformBookingData(data);
+  console.log('Raw booking data from database:', data);
+  const transformedBooking = transformBookingData(data);
+  console.log('Final transformed booking:', transformedBooking);
+  
+  return transformedBooking;
 };
 
 export const fetchUpcomingBookings = async (): Promise<Booking[]> => {
