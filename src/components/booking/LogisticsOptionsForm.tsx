@@ -52,9 +52,10 @@ export const LogisticsOptionsForm = ({
           <span>Logistics Options</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-0 px-4 pb-3">
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <CardContent className="pt-0 px-4 pb-3 space-y-4">
+        {/* Logistics Options Section */}
+        <div className="space-y-2">
+          <div className="grid grid-cols-1 gap-3">
             <div className="flex items-center space-x-2">
               <Switch
                 id="carry-more-than-10m"
@@ -97,8 +98,11 @@ export const LogisticsOptionsForm = ({
               </Label>
             </div>
           </div>
-          
-          {exactTimeNeeded && (
+        </div>
+        
+        {/* Time Details Section */}
+        {exactTimeNeeded && (
+          <div className="space-y-2">
             <div>
               <Label htmlFor="exact-time-info" className="text-sm font-medium text-gray-500">
                 Time Details
@@ -111,15 +115,18 @@ export const LogisticsOptionsForm = ({
                 className="mt-1"
               />
             </div>
-          )}
-          
+          </div>
+        )}
+        
+        {/* Save Button */}
+        <div>
           <Button
             onClick={handleSave}
             disabled={isSaving}
-            className="w-full"
-            size="default"
+            className="w-full h-8 text-sm"
+            size="sm"
           >
-            Save Options
+            {isSaving ? 'Saving...' : 'Save Options'}
           </Button>
         </div>
       </CardContent>
