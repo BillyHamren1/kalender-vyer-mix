@@ -11,18 +11,12 @@ interface ClientInformationProps {
 export const ClientInformation = ({ client }: ClientInformationProps) => {
   return (
     <Card className="shadow-sm">
-      <CardHeader className="py-3 px-4">
-        <CardTitle className="flex items-center gap-1.5 text-base">
-          <User className="h-4 w-4" />
-          <span>Client Information</span>
+      <CardHeader className="py-2 px-3">
+        <CardTitle className="flex items-center gap-1.5 text-sm">
+          <User className="h-3.5 w-3.5" />
+          <span>Client: {client}</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-0 px-4 pb-3">
-        <div>
-          <p className="text-xs font-medium text-gray-500">Client Name:</p>
-          <p className="text-sm font-medium">{client}</p>
-        </div>
-      </CardContent>
     </Card>
   );
 };
