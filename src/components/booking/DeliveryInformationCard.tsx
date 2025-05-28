@@ -26,6 +26,9 @@ interface DeliveryInformationCardProps {
     deliveryPostalCode: string;
     deliveryLatitude?: number;
     deliveryLongitude?: number;
+    contactName: string;
+    contactPhone: string;
+    contactEmail: string;
   }) => Promise<void>;
 }
 
@@ -47,6 +50,11 @@ export const DeliveryInformationCard = ({
   const [latitude, setLatitude] = useState<number | undefined>(deliveryLatitude);
   const [longitude, setLongitude] = useState<number | undefined>(deliveryLongitude);
   const [showCoordinates, setShowCoordinates] = useState(false);
+  
+  // Contact information state
+  const [contactNameValue, setContactNameValue] = useState(contactName || '');
+  const [contactPhoneValue, setContactPhoneValue] = useState(contactPhone || '');
+  const [contactEmailValue, setContactEmailValue] = useState(contactEmail || '');
 
   const handleSave = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -55,7 +63,10 @@ export const DeliveryInformationCard = ({
       deliveryCity,
       deliveryPostalCode,
       deliveryLatitude: latitude,
-      deliveryLongitude: longitude
+      deliveryLongitude: longitude,
+      contactName: contactNameValue,
+      contactPhone: contactPhoneValue,
+      contactEmail: contactEmailValue
     });
   };
 
@@ -86,8 +97,6 @@ export const DeliveryInformationCard = ({
     setLongitude(val);
   };
 
-  const hasContactInfo = contactName || contactPhone || contactEmail;
-
   return (
     <Card className="shadow-sm">
       <CardHeader className="py-3 px-4">
@@ -97,38 +106,51 @@ export const DeliveryInformationCard = ({
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0 px-4 pb-3 space-y-4">
-        {/* Contact Information Section */}
-        {hasContactInfo && (
+        {/* Contact Information Section - Always Visible */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5 mb-2">
+            <User className="h-3.5 w-3.5 text-gray-500" />
+            <span className="text-sm font-medium text-gray-700">Contact Details</span>
+          </div>
+          
           <div className="space-y-2">
-            <div className="flex items-center gap-1.5 mb-2">
-              <User className="h-3.5 w-3.5 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">Contact Details</span>
+            <div>
+              <Label htmlFor="contact-name" className="text-xs">Contact Name</Label>
+              <Input 
+                id="contact-name"
+                value={contactNameValue}
+                onChange={(e) => setContactNameValue(e.target.value)}
+                placeholder="Contact person name"
+                className="mt-1 h-8 text-sm"
+              />
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 bg-gray-50 p-3 rounded-md">
-              {contactName && (
-                <div>
-                  <label className="text-xs text-gray-500">Contact Name</label>
-                  <p className="text-sm font-medium">{contactName}</p>
-                </div>
-              )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="contact-phone" className="text-xs">Phone</Label>
+                <Input 
+                  id="contact-phone"
+                  value={contactPhoneValue}
+                  onChange={(e) => setContactPhoneValue(e.target.value)}
+                  placeholder="Phone number"
+                  className="mt-1 h-8 text-sm"
+                />
+              </div>
               
-              {contactPhone && (
-                <div>
-                  <label className="text-xs text-gray-500">Phone</label>
-                  <p className="text-sm font-medium">{contactPhone}</p>
-                </div>
-              )}
-              
-              {contactEmail && (
-                <div>
-                  <label className="text-xs text-gray-500">Email</label>
-                  <p className="text-sm font-medium">{contactEmail}</p>
-                </div>
-              )}
+              <div>
+                <Label htmlFor="contact-email" className="text-xs">Email</Label>
+                <Input 
+                  id="contact-email"
+                  type="email"
+                  value={contactEmailValue}
+                  onChange={(e) => setContactEmailValue(e.target.value)}
+                  placeholder="Email address"
+                  className="mt-1 h-8 text-sm"
+                />
+              </div>
             </div>
           </div>
-        )}
+        </div>
 
         {/* Delivery Address Section */}
         <div className="space-y-2">

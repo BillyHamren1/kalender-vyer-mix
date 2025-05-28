@@ -80,6 +80,9 @@ export const updateDeliveryDetails = async (
     deliveryPostalCode: string;
     deliveryLatitude?: number;
     deliveryLongitude?: number;
+    contactName: string;
+    contactPhone: string;
+    contactEmail: string;
   }
 ): Promise<void> => {
   const { error } = await supabase
@@ -89,7 +92,10 @@ export const updateDeliveryDetails = async (
       delivery_city: deliveryData.deliveryCity,
       delivery_postal_code: deliveryData.deliveryPostalCode,
       delivery_latitude: deliveryData.deliveryLatitude,
-      delivery_longitude: deliveryData.deliveryLongitude
+      delivery_longitude: deliveryData.deliveryLongitude,
+      contact_name: deliveryData.contactName,
+      contact_phone: deliveryData.contactPhone,
+      contact_email: deliveryData.contactEmail
     })
     .eq('id', id);
 

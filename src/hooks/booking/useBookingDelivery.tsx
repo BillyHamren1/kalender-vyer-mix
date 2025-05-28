@@ -17,6 +17,9 @@ export const useBookingDelivery = (
     deliveryPostalCode: string;
     deliveryLatitude?: number;
     deliveryLongitude?: number;
+    contactName: string;
+    contactPhone: string;
+    contactEmail: string;
   }) => {
     if (!booking || !id) return;
     
@@ -34,7 +37,10 @@ export const useBookingDelivery = (
         deliveryCity: deliveryData.deliveryCity,
         deliveryPostalCode: deliveryData.deliveryPostalCode,
         deliveryLatitude: deliveryData.deliveryLatitude,
-        deliveryLongitude: deliveryData.deliveryLongitude
+        deliveryLongitude: deliveryData.deliveryLongitude,
+        contactName: deliveryData.contactName,
+        contactPhone: deliveryData.contactPhone,
+        contactEmail: deliveryData.contactEmail
       });
       
       toast.success('Delivery details updated successfully');

@@ -176,6 +176,9 @@ export type Database = {
           booking_number: string | null
           carry_more_than_10m: boolean | null
           client: string
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
           created_at: string
           delivery_city: string | null
           delivery_latitude: number | null
@@ -200,6 +203,9 @@ export type Database = {
           booking_number?: string | null
           carry_more_than_10m?: boolean | null
           client: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
           created_at?: string
           delivery_city?: string | null
           delivery_latitude?: number | null
@@ -224,6 +230,9 @@ export type Database = {
           booking_number?: string | null
           carry_more_than_10m?: boolean | null
           client?: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
           created_at?: string
           delivery_city?: string | null
           delivery_latitude?: number | null
