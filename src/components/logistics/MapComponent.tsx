@@ -57,9 +57,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: [0, 0], // Default to world view
-      zoom: 1
+      style: 'mapbox://styles/mapbox/satellite-v9', // Changed to satellite view
+      center: [18, 60], // Centered on Europe/Scandinavia for better overview
+      zoom: 4 // More zoomed out for overview
     });
 
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
@@ -76,7 +76,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   // Add or update markers when bookings change
   useEffect(() => {
-    if (!map.current || !mapInitialized || !bookings.length) return;
+    if (!map.current || !mapInitialized) return;
 
     // Clear existing markers
     markers.current.forEach(marker => marker.remove());
@@ -85,6 +85,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
     // Clear existing popups
     Object.values(popups.current).forEach(popup => popup.remove());
     popups.current = {};
+
+    if (!bookings.length) return;
 
     // Bounds to fit all markers
     const bounds = new mapboxgl.LngLatBounds();
@@ -133,10 +135,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
       bounds.extend([booking.deliveryLongitude, booking.deliveryLatitude]);
     });
 
-    // Fit bounds if there are markers
+    // Fit bounds if there are markers, but with more padding for overview
     if (!bounds.isEmpty()) {
       map.current.fitBounds(bounds, {
-        padding: 50,
+        padding: 100, // Increased padding for better overview
+        maxZoom: 10, // Limit max zoom to maintain overview
         duration: 1000
       });
     }
