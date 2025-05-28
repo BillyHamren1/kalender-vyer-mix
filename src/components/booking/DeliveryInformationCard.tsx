@@ -1,12 +1,13 @@
 
 import React, { useState } from 'react';
-import { Truck, User, Phone, Mail, MapPin } from 'lucide-react';
+import { Truck, User, Phone, Mail, MapPin, Map } from 'lucide-react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import MapPopup from '@/components/logistics/MapPopup';
 
 interface DeliveryInformationCardProps {
   // Contact props
@@ -97,6 +98,12 @@ export const DeliveryInformationCard = ({
     setLongitude(val);
   };
 
+  // Create full address string for map popup
+  const getFullAddress = () => {
+    const parts = [deliveryAddress, deliveryCity, deliveryPostalCode].filter(Boolean);
+    return parts.join(', ') || 'Delivery Location';
+  };
+
   return (
     <Card className="shadow-sm">
       <CardHeader className="py-3 px-4">
@@ -154,9 +161,29 @@ export const DeliveryInformationCard = ({
 
         {/* Delivery Address Section */}
         <div className="space-y-2">
-          <div className="flex items-center gap-1.5 mb-2">
-            <MapPin className="h-3.5 w-3.5 text-gray-500" />
-            <span className="text-sm font-medium text-gray-700">Delivery Address</span>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5">
+              <MapPin className="h-3.5 w-3.5 text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">Delivery Address</span>
+            </div>
+            
+            {/* Map popup button - only show if coordinates exist */}
+            {latitude && longitude && (
+              <MapPopup
+                latitude={latitude}
+                longitude={longitude}
+                address={getFullAddress()}
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                >
+                  <Map className="h-3 w-3 mr-1" />
+                  View Map
+                </Button>
+              </MapPopup>
+            )}
           </div>
           
           <div className="space-y-2">
