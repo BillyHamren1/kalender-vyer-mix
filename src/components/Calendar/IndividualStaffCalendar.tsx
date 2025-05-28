@@ -28,10 +28,10 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
   const [isProgrammaticChange, setIsProgrammaticChange] = useState(false);
   const lastParentDateRef = useRef<Date>(currentDate);
 
-  // Calculate calendar height based on number of staff and view mode
+  // Calculate calendar height based on view mode
   useEffect(() => {
     if (viewMode === 'month') {
-      // For monthly view, use a fixed height that shows the full month grid
+      // For monthly view, use a height that accommodates the full month grid
       setCalendarHeight('600px');
     } else {
       const baseHeight = 700;
@@ -47,11 +47,12 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
       const calendarApi = calendarRef.current.getApi();
       const currentCalendarDate = calendarApi.getDate();
       
-      // Only update calendar if the date difference is significant
-      const timeDiff = Math.abs(currentDate.getTime() - currentCalendarDate.getTime());
+      // Only update calendar if the month is different
+      const currentMonth = format(currentDate, 'yyyy-MM');
+      const calendarMonth = format(currentCalendarDate, 'yyyy-MM');
       
-      if (timeDiff > 86400000) { // More than 1 day difference
-        console.log('IndividualStaffCalendar: Programmatically updating calendar date to:', format(currentDate, 'yyyy-MM-dd'));
+      if (currentMonth !== calendarMonth) {
+        console.log('IndividualStaffCalendar: Programmatically updating calendar to month:', currentMonth);
         setIsProgrammaticChange(true);
         calendarApi.gotoDate(currentDate);
         lastParentDateRef.current = currentDate;
@@ -64,21 +65,19 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
 
   // Improved handleDatesSet to prevent circular updates
   const handleDatesSet = (dateInfo: any) => {
-    const newDate = dateInfo.start;
-    
     // Skip if this is a programmatic change we initiated
     if (isProgrammaticChange) {
       console.log('IndividualStaffCalendar: Skipping datesSet - programmatic change');
       return;
     }
     
-    // Only trigger onDateChange if the date difference is significant and different from last parent date
-    const timeDiffFromParent = Math.abs(newDate.getTime() - lastParentDateRef.current.getTime());
-    const timeDiffFromCurrent = Math.abs(newDate.getTime() - currentDate.getTime());
+    const newDate = dateInfo.start;
+    const newMonth = format(newDate, 'yyyy-MM');
+    const currentMonth = format(currentDate, 'yyyy-MM');
     
-    // Only update parent if user actually navigated and it's a significant change
-    if (timeDiffFromParent > 86400000 && timeDiffFromCurrent > 86400000) {
-      console.log('IndividualStaffCalendar: User navigated calendar, updating parent date:', format(newDate, 'yyyy-MM-dd'));
+    // Only trigger onDateChange if the user actually navigated to a different month
+    if (newMonth !== currentMonth) {
+      console.log('IndividualStaffCalendar: User navigated to month:', newMonth);
       lastParentDateRef.current = newDate;
       onDateChange(newDate);
     }
@@ -106,7 +105,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
       title: event.title,
       start: event.start,
       end: event.end,
-      resourceId: staffResources.length > 0 ? event.resourceId : undefined,
+      resourceId: staffResources.length > 0 && viewMode !== 'month' ? event.resourceId : undefined,
       backgroundColor: event.backgroundColor,
       borderColor: event.borderColor,
       textColor: '#000',
@@ -123,15 +122,19 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
   console.log('Formatted events for calendar:', formattedEvents);
   console.log('Staff resources:', staffResources);
   console.log('Current date prop:', format(currentDate, 'yyyy-MM-dd'));
+  console.log('View mode:', viewMode);
 
-  // Determine the correct view based on staff resources and view mode
+  // Determine the correct view based on view mode - FIXED FOR PROPER MONTHLY VIEW
   const getCalendarView = () => {
     if (viewMode === 'month') {
-      // For monthly view, use standard dayGridMonth regardless of staff resources
+      // For monthly view, ALWAYS use dayGridMonth (standard month grid)
       return 'dayGridMonth';
+    } else if (viewMode === 'week') {
+      // For weekly view, use resource view if staff are selected
+      return staffResources.length > 0 ? 'resourceDayGridWeek' : 'dayGridWeek';
     } else {
-      // For other views, use resource views if staff are selected
-      return staffResources.length > 0 ? 'resourceDayGridMonth' : 'dayGridMonth';
+      // For day view, use resource view if staff are selected
+      return staffResources.length > 0 ? 'resourceDayGridDay' : 'dayGridDay';
     }
   };
 
