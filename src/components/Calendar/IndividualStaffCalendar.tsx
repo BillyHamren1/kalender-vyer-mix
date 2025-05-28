@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -89,23 +90,23 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
   console.log('Current date prop:', format(currentDate, 'yyyy-MM-dd'));
 
   return (
-    <div className="staff-calendar-container relative">
+    <div className="staff-calendar-container relative bg-white rounded-xl shadow-lg overflow-hidden">
       {isLoading && (
-        <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10">
+        <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center z-20 backdrop-blur-sm">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-            <p className="text-sm text-gray-600">Loading staff schedules...</p>
+            <div className="animate-spin rounded-full h-10 w-10 border-b-3 border-[#82b6c6] mx-auto mb-3"></div>
+            <p className="text-sm text-gray-700 font-medium">Loading staff schedules...</p>
           </div>
         </div>
       )}
       
-      <div className="relative">
+      <div className="relative p-6">
         <FullCalendar
           ref={calendarRef}
           plugins={[dayGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
           headerToolbar={false}
-          height="600px"
+          height="650px"
           events={formattedEvents}
           nowIndicator={true}
           weekends={true}
@@ -116,9 +117,9 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
             const props = event.extendedProps;
             
             return (
-              <div className="fc-event-main-frame p-1" title={`Staff: ${props.staffName}`}>
+              <div className="fc-event-main-frame p-2 rounded-md" title={`Staff: ${props.staffName}`}>
                 <div className="fc-event-title-container">
-                  <div className="fc-event-title text-xs font-medium">
+                  <div className="fc-event-title text-sm font-semibold leading-tight">
                     {event.title}
                   </div>
                 </div>
@@ -138,57 +139,195 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
       <style>{`
         .staff-calendar-container {
           position: relative;
+          border: 1px solid #e2e8f0;
         }
         
+        /* Modern calendar grid styling */
+        .fc-theme-standard .fc-scrollgrid {
+          border: none !important;
+        }
+        
+        .fc-scrollgrid-section table {
+          border: none !important;
+        }
+        
+        /* Beautiful day grid cells */
+        .fc-daygrid-day {
+          border: 1px solid #f1f5f9 !important;
+          background: #ffffff;
+          transition: all 0.2s ease;
+          min-height: 100px !important;
+        }
+        
+        .fc-daygrid-day:hover {
+          background: #f8fafc !important;
+        }
+        
+        /* Stunning day numbers */
+        .fc-daygrid-day-number {
+          font-weight: 600 !important;
+          font-size: 16px !important;
+          color: #374151 !important;
+          padding: 12px !important;
+          text-decoration: none !important;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          margin: 8px;
+          transition: all 0.2s ease;
+        }
+        
+        .fc-daygrid-day-number:hover {
+          background: #e2e8f0 !important;
+          color: #1e293b !important;
+        }
+        
+        /* Today's styling - stunning highlight */
+        .fc-day-today {
+          background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%) !important;
+          border: 2px solid #0ea5e9 !important;
+          box-shadow: 0 4px 12px rgba(14, 165, 233, 0.15) !important;
+        }
+        
+        .fc-day-today .fc-daygrid-day-number {
+          background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%) !important;
+          color: white !important;
+          font-weight: 700 !important;
+          box-shadow: 0 3px 8px rgba(14, 165, 233, 0.3) !important;
+          transform: scale(1.1);
+        }
+        
+        /* Beautiful column headers */
+        .fc-col-header-cell {
+          background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%) !important;
+          border: 1px solid #e2e8f0 !important;
+          font-weight: 700 !important;
+          font-size: 14px !important;
+          color: #475569 !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.5px !important;
+          padding: 16px 8px !important;
+          text-align: center !important;
+        }
+        
+        .fc-col-header-cell-cushion {
+          color: #475569 !important;
+          text-decoration: none !important;
+          font-weight: 700 !important;
+        }
+        
+        /* Stunning event styling */
         .fc-daygrid-event {
-          margin: 1px;
-          padding: 2px 4px;
-          border-radius: 3px;
-          font-size: 11px;
-          line-height: 1.2;
+          margin: 3px 6px !important;
+          padding: 6px 10px !important;
+          border-radius: 8px !important;
+          font-size: 12px !important;
+          line-height: 1.4 !important;
+          border: none !important;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1) !important;
+          transition: all 0.2s ease !important;
+          cursor: pointer !important;
+        }
+        
+        .fc-daygrid-event:hover {
+          transform: translateY(-1px) !important;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
         }
         
         .fc-event-title {
-          font-weight: 500;
+          font-weight: 600 !important;
+          color: #000000 !important;
         }
         
-        .fc-day-today {
-          background-color: #fef3c7 !important;
-        }
-        
-        .fc-daygrid-day-number {
-          font-weight: 600;
-          padding: 4px;
-        }
-        
-        .fc-col-header-cell {
-          background-color: #f8fafc;
-          font-weight: 600;
-        }
-        
+        /* More link styling */
         .fc-more-link {
-          color: #3b82f6;
-          font-size: 10px;
+          color: #0ea5e9 !important;
+          font-size: 11px !important;
+          font-weight: 600 !important;
+          text-decoration: none !important;
+          padding: 4px 8px !important;
+          border-radius: 4px !important;
+          background: #f0f9ff !important;
+          margin: 2px 6px !important;
+          transition: all 0.2s ease !important;
         }
         
+        .fc-more-link:hover {
+          background: #e0f2fe !important;
+          color: #0284c7 !important;
+        }
+        
+        /* Day frame styling */
         .fc-daygrid-day-frame {
-          min-height: 100px;
+          min-height: 100px !important;
+          position: relative !important;
         }
         
         .fc-daygrid-day-events {
-          margin-top: 2px;
+          margin-top: 50px !important;
+          padding: 0 4px !important;
         }
         
         .fc-event-main {
-          padding: 1px 2px;
+          padding: 2px 4px !important;
         }
         
         .fc-daygrid-day-top {
-          text-align: center;
+          text-align: left !important;
+          padding: 0 !important;
         }
         
+        /* Hide other month days completely */
         .fc-day-other {
           display: none !important;
+        }
+        
+        /* Weekend styling */
+        .fc-day-sat, .fc-day-sun {
+          background: #fafafa !important;
+        }
+        
+        .fc-day-sat .fc-daygrid-day-number,
+        .fc-day-sun .fc-daygrid-day-number {
+          color: #6b7280 !important;
+        }
+        
+        /* Event color overrides for better visibility */
+        .fc-daygrid-event[style*="background-color: rgb(242, 252, 226)"] {
+          background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%) !important;
+          border-left: 4px solid #22c55e !important;
+        }
+        
+        .fc-daygrid-event[style*="background-color: rgb(254, 247, 205)"] {
+          background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%) !important;
+          border-left: 4px solid #f59e0b !important;
+        }
+        
+        .fc-daygrid-event[style*="background-color: rgb(254, 198, 161)"] {
+          background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%) !important;
+          border-left: 4px solid #ef4444 !important;
+        }
+        
+        /* Smooth scrolling */
+        .fc-scroller {
+          overflow: visible !important;
+        }
+        
+        /* Remove any unwanted borders */
+        .fc-daygrid-body {
+          border: none !important;
+        }
+        
+        .fc-scrollgrid-sync-table {
+          border: none !important;
+        }
+        
+        /* Perfect spacing */
+        .fc-daygrid-day-events {
+          min-height: 50px !important;
         }
       `}</style>
     </div>
@@ -196,3 +335,4 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
 };
 
 export default IndividualStaffCalendar;
+
