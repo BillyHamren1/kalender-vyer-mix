@@ -40,29 +40,26 @@ export const useResourceCalendarHandlers = (
   // Get event handlers - using our enhanced handleEventChange
   const { handleEventDrop } = getEventHandlers(handleEventChange, handleEventClick, handleEventReceive);
 
-  // Handler for duplicate button click
+  // Handler for duplicate button click - FIXED to pass full event data
   const handleDuplicateButtonClick = (eventId: string) => {
     console.log('Duplicate button clicked for event:', eventId);
     // Find the event in the events array
     const event = events.find(event => event.id === eventId);
     if (event) {
-      // Store the selected event for the duplicate dialog
-      const dialogEvent = {
-        id: event.id,
-        title: event.title,
-        resourceId: event.resourceId
-      };
+      console.log('Found event for duplication:', event);
       
-      // Trigger the duplicate dialog via the event handlers
-      if (typeof window !== 'undefined') {
-        // Set the selected event in the window object for the dialog to use
-        // @ts-ignore
-        window._selectedEventForDuplicate = dialogEvent;
-        
-        // Create and dispatch a custom event to trigger the dialog
-        const customEvent = new CustomEvent('openDuplicateDialog', { detail: dialogEvent });
-        document.dispatchEvent(customEvent);
-      }
+      // Create and dispatch a custom event with the FULL event data
+      const customEvent = new CustomEvent('openDuplicateDialog', { 
+        detail: { 
+          id: event.id,
+          title: event.title,
+          resourceId: event.resourceId,
+          fullEvent: event // Pass the complete event object
+        } 
+      });
+      document.dispatchEvent(customEvent);
+    } else {
+      console.error('Event not found for duplication:', eventId);
     }
   };
 
@@ -96,7 +93,7 @@ export const useResourceCalendarHandlers = (
     deleteDialogOpen,
     setDeleteDialogOpen,
     eventToDelete,
-    isDeleting: isDeleting || isUpdating, // Include update loading state
+    isDeleting: isDeleting || isUpdating,
     DuplicateEventDialog
   };
 };

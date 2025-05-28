@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Resource } from '@/components/Calendar/ResourceData';
+import { Resource, CalendarEvent } from '@/components/Calendar/ResourceData';
 import {
   Dialog,
   DialogContent,
@@ -26,7 +26,7 @@ export const useEventDuplicateDialog = ({
   refreshEvents
 }: UseEventDuplicateDialogProps) => {
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [targetTeam, setTargetTeam] = useState<string>("");
 
   // Effect to listen for custom duplicate dialog event
@@ -34,29 +34,20 @@ export const useEventDuplicateDialog = ({
     const handleOpenDuplicateDialog = (event: CustomEvent) => {
       const eventData = event.detail;
       console.log('Received duplicate dialog event with data:', eventData);
-      setSelectedEvent(eventData);
-      setShowDuplicateDialog(true);
+      
+      // Set the full event object, not just the basic data
+      if (eventData && eventData.fullEvent) {
+        setSelectedEvent(eventData.fullEvent);
+        setShowDuplicateDialog(true);
+      } else {
+        console.error('Invalid event data received:', eventData);
+        toast.error('Unable to duplicate event: missing event data');
+      }
     };
 
     // Add event listener for the custom event
     document.addEventListener('openDuplicateDialog', handleOpenDuplicateDialog as EventListener);
 
-    // Check for window selected event (alternative method)
-    const checkWindowSelectedEvent = () => {
-      // @ts-ignore
-      if (window._selectedEventForDuplicate) {
-        // @ts-ignore
-        setSelectedEvent(window._selectedEventForDuplicate);
-        setShowDuplicateDialog(true);
-        // @ts-ignore
-        delete window._selectedEventForDuplicate;
-      }
-    };
-
-    // Check once on mount
-    checkWindowSelectedEvent();
-
-    // Cleanup
     return () => {
       document.removeEventListener('openDuplicateDialog', handleOpenDuplicateDialog as EventListener);
     };
@@ -73,16 +64,20 @@ export const useEventDuplicateDialog = ({
       return;
     }
 
-    await duplicateEvent(selectedEvent.id, targetTeam);
-    handleCloseDialog();
-    
-    // Refresh the events to show the duplicated event
-    if (refreshEvents) {
-      await refreshEvents();
+    try {
+      await duplicateEvent(selectedEvent.id, targetTeam);
+      handleCloseDialog();
+      
+      // Refresh the events to show the duplicated event
+      if (refreshEvents) {
+        await refreshEvents();
+      }
+    } catch (error) {
+      console.error('Error in handleDuplicateEvent:', error);
+      // Error is already handled in duplicateEvent function
     }
   };
 
-  // Fixed: Create a proper close function that resets all state
   const handleCloseDialog = () => {
     setShowDuplicateDialog(false);
     setSelectedEvent(null);

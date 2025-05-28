@@ -1,6 +1,6 @@
 
 import { useState } from 'react';
-import { CalendarEvent, generateEventId } from '@/components/Calendar/ResourceData';
+import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { createCalendarEvent } from '@/services/eventService';
 import { toast } from 'sonner';
 
@@ -10,9 +10,11 @@ export const useDuplicateEvent = (onEventDuplicated: () => void) => {
 
   const duplicateEvent = async (eventId: string, targetResourceId: string): Promise<string> => {
     try {
-      // Find the original event (in a real app, you'd fetch this from your state or API)
-      // For now, we'll use the selectedEvent
+      console.log('duplicateEvent called with:', eventId, targetResourceId);
+      
       if (!selectedEvent) {
+        console.error('No event selected for duplication');
+        toast.error("No event selected for duplication");
         throw new Error('No event selected for duplication');
       }
 
@@ -28,6 +30,8 @@ export const useDuplicateEvent = (onEventDuplicated: () => void) => {
         bookingNumber: selectedEvent.bookingNumber,
       };
 
+      console.log('Creating duplicated event:', duplicatedEvent);
+
       // Save to database
       const savedEvent = await createCalendarEvent(duplicatedEvent);
       
@@ -35,6 +39,7 @@ export const useDuplicateEvent = (onEventDuplicated: () => void) => {
         toast.success('Event duplicated successfully');
         onEventDuplicated();
         setIsDialogOpen(false);
+        setSelectedEvent(null);
         return savedEvent.id;
       }
       
@@ -47,6 +52,7 @@ export const useDuplicateEvent = (onEventDuplicated: () => void) => {
   };
 
   const openDuplicateDialog = (event: CalendarEvent) => {
+    console.log('Opening duplicate dialog for event:', event);
     setSelectedEvent(event);
     setIsDialogOpen(true);
   };
@@ -56,6 +62,7 @@ export const useDuplicateEvent = (onEventDuplicated: () => void) => {
     setIsDialogOpen,
     selectedEvent,
     duplicateEvent,
-    openDuplicateDialog
+    openDuplicateDialog,
+    setSelectedEvent
   };
 };
