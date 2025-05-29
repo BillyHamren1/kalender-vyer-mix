@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { X, MapPin, User, Calendar, ArrowLeft } from 'lucide-react';
+import { X, MapPin, User, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Booking } from '@/types/booking';
 import { getDisplayBookingNumber } from './MapUtils';
@@ -22,15 +22,6 @@ export const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
   const navigate = useNavigate();
   
   if (!booking) return null;
-
-  const handleBackToBooking = () => {
-    if (onViewDetails) {
-      onViewDetails(booking);
-    } else {
-      // Navigate to the booking detail page
-      navigate(`/booking/${booking.id}`);
-    }
-  };
 
   return (
     <div className="absolute top-4 left-4 z-20 w-64 mt-80">
@@ -96,16 +87,6 @@ export const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
               Coordinates: {booking.deliveryLatitude.toFixed(6)}, {booking.deliveryLongitude.toFixed(6)}
             </div>
           )}
-
-          {/* Back to Booking Button */}
-          <Button 
-            onClick={handleBackToBooking}
-            className="w-full"
-            size="sm"
-          >
-            <ArrowLeft className="h-3 w-3 mr-2" />
-            Back to Booking
-          </Button>
         </CardContent>
       </Card>
     </div>

@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Map, Filter, Loader } from 'lucide-react';
+import { Map, Filter, Loader, ArrowLeft } from 'lucide-react';
 import MapComponent from '@/components/logistics/MapComponent';
 import BookingListSidebar from '@/components/logistics/BookingListSidebar';
 import FilterControls from '@/components/logistics/FilterControls';
@@ -11,6 +11,7 @@ import { useLogisticsMap } from '@/hooks/useLogisticsMap';
 
 const LogisticsMap = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const bookingId = searchParams.get('bookingId');
   const hideControls = searchParams.get('hideControls') === 'true';
   const lat = searchParams.get('lat');
@@ -50,6 +51,12 @@ const LogisticsMap = () => {
     console.log('Map snapshot saved:', attachment);
   };
 
+  const handleBackToBooking = () => {
+    if (selectedBooking) {
+      navigate(`/booking/${selectedBooking.id}`);
+    }
+  };
+
   // In iframe mode, show only the map without any headers or padding
   if (hideControls) {
     return (
@@ -83,6 +90,19 @@ const LogisticsMap = () => {
             <Map className="h-8 w-8 text-[#82b6c6]" />
             <h1 className="text-3xl font-bold text-gray-900">Logistics Map</h1>
           </div>
+          
+          {/* Back to Booking button - only show when a booking is selected */}
+          {selectedBooking && (
+            <Button 
+              onClick={handleBackToBooking}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Booking
+            </Button>
+          )}
         </div>
       </div>
 
