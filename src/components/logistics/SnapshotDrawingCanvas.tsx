@@ -31,46 +31,79 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
   const [brushSize, setBrushSize] = useState(3);
   const [canvasHistory, setCanvasHistory] = useState<string[]>([]);
   const [historyStep, setHistoryStep] = useState(-1);
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   // Initialize canvas
   useEffect(() => {
     if (!canvasRef.current || !imageData) return;
 
+    console.log('🎨 Initializing drawing canvas with image data...');
+
+    // Create a larger canvas to accommodate different image sizes
     const canvas = new FabricCanvas(canvasRef.current, {
-      width: 800,
-      height: 600,
-      backgroundColor: '#ffffff',
+      width: 1000,
+      height: 700,
+      backgroundColor: '#f0f0f0',
     });
 
+    console.log('📸 Loading map image into drawing canvas...');
+
     // Load the map image as background
-    FabricImage.fromURL(imageData).then((img) => {
-      // Scale image to fit canvas
-      const canvasAspect = canvas.width! / canvas.height!;
-      const imageAspect = img.width! / img.height!;
+    FabricImage.fromURL(imageData, {
+      crossOrigin: 'anonymous'
+    }).then((img) => {
+      console.log('✅ Image loaded successfully:', {
+        originalWidth: img.width,
+        originalHeight: img.height
+      });
+
+      // Calculate scale to fit image within canvas while maintaining aspect ratio
+      const maxWidth = canvas.width! - 40; // Leave some padding
+      const maxHeight = canvas.height! - 40;
       
-      let scale;
-      if (imageAspect > canvasAspect) {
-        scale = canvas.width! / img.width!;
-      } else {
-        scale = canvas.height! / img.height!;
-      }
-      
+      const scaleX = maxWidth / img.width!;
+      const scaleY = maxHeight / img.height!;
+      const scale = Math.min(scaleX, scaleY, 1); // Don't scale up, only down if needed
+
+      console.log('📐 Calculated scale:', scale);
+
+      // Apply scaling
       img.scale(scale);
+      
+      // Center the image on the canvas
+      const scaledWidth = img.width! * scale;
+      const scaledHeight = img.height! * scale;
+      
       img.set({
-        left: (canvas.width! - img.width! * scale) / 2,
-        top: (canvas.height! - img.height! * scale) / 2,
+        left: (canvas.width! - scaledWidth) / 2,
+        top: (canvas.height! - scaledHeight) / 2,
         selectable: false,
         evented: false,
         lockMovementX: true,
         lockMovementY: true,
+        hoverCursor: 'default',
+        moveCursor: 'default'
       });
       
+      // Add image to canvas and send to back
       canvas.add(img);
       canvas.sendObjectToBack(img);
       canvas.renderAll();
       
+      console.log('🖼️ Image added to canvas at position:', {
+        left: img.left,
+        top: img.top,
+        scaledWidth,
+        scaledHeight
+      });
+
+      setImageLoaded(true);
+      
       // Save initial state to history
       saveCanvasState();
+    }).catch((error) => {
+      console.error('❌ Error loading image into canvas:', error);
+      setImageLoaded(false);
     });
 
     setFabricCanvas(canvas);
@@ -192,13 +225,16 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
   const handleSave = () => {
     if (!fabricCanvas) return;
     
-    // Export canvas as image
+    console.log('💾 Exporting annotated image...');
+    
+    // Export canvas as image with high quality
     const dataURL = fabricCanvas.toDataURL({
       format: 'png',
       quality: 1,
       multiplier: 1,
     });
     
+    console.log('✅ Annotated image exported, size:', Math.round(dataURL.length / 1024), 'KB');
     onSave(dataURL);
   };
 
@@ -296,7 +332,7 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={handleSave}>
+          <Button onClick={handleSave} disabled={!imageLoaded}>
             Save Annotated Image
           </Button>
         </div>
@@ -325,6 +361,14 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
 
       {/* Canvas */}
       <div className="flex-1 flex items-center justify-center bg-gray-100 p-4">
+        {!imageLoaded && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-100/90 z-10">
+            <div className="text-center">
+              <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+              <span className="text-gray-600">Loading image for editing...</span>
+            </div>
+          </div>
+        )}
         <canvas ref={canvasRef} className="border border-gray-300 shadow-lg bg-white" />
       </div>
     </div>
