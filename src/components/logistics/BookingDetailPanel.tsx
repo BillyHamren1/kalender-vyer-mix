@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { X, MapPin, User, Calendar, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Booking } from '@/types/booking';
 import { getDisplayBookingNumber } from './MapUtils';
 
@@ -18,14 +19,16 @@ export const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
   onClose,
   onViewDetails
 }) => {
+  const navigate = useNavigate();
+  
   if (!booking) return null;
 
   const handleBackToBooking = () => {
     if (onViewDetails) {
       onViewDetails(booking);
     } else {
-      // Default behavior - navigate to booking detail page
-      window.open(`/booking/${booking.id}`, '_blank');
+      // Navigate to the booking detail page
+      navigate(`/booking/${booking.id}`);
     }
   };
 
