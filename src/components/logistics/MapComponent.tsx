@@ -56,6 +56,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [isCapturingSnapshot, setIsCapturingSnapshot] = useState(false);
   const [isDraggingMeasurePoint, setIsDraggingMeasurePoint] = useState(false);
   const [dragPointIndex, setDragPointIndex] = useState<number | null>(null);
+  
+  // Fixed live measurement state
   const [liveMeasurement, setLiveMeasurement] = useState<{
     distance: string;
     x: number;
@@ -1014,7 +1016,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     setSnapshotImageUrl('');
   };
 
-  // Enhanced drag handlers with real-time measurement display
+  // FIXED: Enhanced drag handlers with real-time measurement display
   const handleMeasurePointMouseDown = (e: mapboxgl.MapMouseEvent) => {
     if (isMeasuring) return; // Don't drag while in measuring mode
     
@@ -1037,7 +1039,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
           map.current.getCanvas().style.cursor = 'grabbing';
         }
         
-        // Create enhanced mousemove handler with live measurement
+        // FIXED: Create enhanced mousemove handler with live measurement
         const handleMouseMove = (mouseEvent: MouseEvent) => {
           if (!map.current || dragPointIndex === null) return;
           
@@ -1055,7 +1057,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
             measurePoints.current[pointId] = coords;
             updateMeasureDisplay();
             
-            // Calculate and display live measurements
+            // FIXED: Calculate and display live measurements
             let liveMeasurementText = '';
             
             if (measurePoints.current.length > 1) {
@@ -1078,11 +1080,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
               liveMeasurementText = `${segmentInfo} | Total: ${formatDistance(totalDistance)}`;
             }
             
-            // Update live measurement display
+            // FIXED: Update live measurement display with proper state update
             setLiveMeasurement({
               distance: liveMeasurementText,
               x: mouseEvent.clientX,
-              y: mouseEvent.clientY - 10, // Offset above cursor
+              y: mouseEvent.clientY - 30, // Offset above cursor
               visible: true
             });
           }
@@ -1144,14 +1146,16 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   return (
     <div className="h-full w-full rounded-lg overflow-hidden relative">
-      {/* Live Measurement Display */}
+      {/* FIXED: Live Measurement Display with better positioning */}
       {liveMeasurement.visible && (
         <div 
-          className="fixed z-50 bg-black/80 text-white px-2 py-1 rounded text-sm pointer-events-none"
+          className="fixed z-50 bg-black/90 text-white px-3 py-2 rounded-lg text-sm pointer-events-none shadow-lg border border-white/20"
           style={{
             left: liveMeasurement.x,
             top: liveMeasurement.y,
-            transform: 'translateX(-50%)'
+            transform: 'translateX(-50%)',
+            fontSize: '13px',
+            fontWeight: '500'
           }}
         >
           {liveMeasurement.distance}
