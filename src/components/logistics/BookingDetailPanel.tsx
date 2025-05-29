@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { X, MapPin, User, Calendar } from 'lucide-react';
+import { X, MapPin, User, Calendar, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Booking } from '@/types/booking';
 import { getDisplayBookingNumber } from './MapUtils';
@@ -23,12 +23,24 @@ export const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
   
   if (!booking) return null;
 
+  const handleBackToBooking = () => {
+    navigate(`/booking/${booking.id}`);
+  };
+
   return (
     <div className="absolute top-4 left-4 z-20 w-64 mt-80">
       <Card className="shadow-lg bg-white/95 backdrop-blur-sm">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleBackToBooking}
+                className="h-6 w-6 p-0"
+              >
+                <ArrowLeft className="h-3 w-3" />
+              </Button>
               <MapPin className="h-4 w-4 text-blue-500" />
               Booking Details
             </CardTitle>
