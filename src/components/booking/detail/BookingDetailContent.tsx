@@ -115,12 +115,10 @@ export const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
           onSave={onLogisticsChange}
         />
 
-        {/* Display Attachments */}
-        {booking.attachments && booking.attachments.length > 0 && (
-          <AttachmentsList attachments={booking.attachments} />
-        )}
+        {/* Always display Attachments - even if empty */}
+        <AttachmentsList attachments={booking.attachments || []} />
 
-        {/* Internal Notes - now always displayed */}
+        {/* Internal Notes - always displayed */}
         <InternalNotes 
           notes={booking.internalNotes || ''} 
           bookingId={bookingId}
