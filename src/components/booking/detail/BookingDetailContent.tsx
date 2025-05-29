@@ -46,7 +46,11 @@ export const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
 }) => {
   const handleAttachmentDeleted = (attachmentId: string) => {
     console.log('📎 Attachment deleted, reloading booking data...');
-    // Reload the booking data to update the attachments list
+    onReloadData();
+  };
+
+  const handleAttachmentRenamed = (attachmentId: string, newName: string) => {
+    console.log('✏️ Attachment renamed, reloading booking data...');
     onReloadData();
   };
 
@@ -125,6 +129,7 @@ export const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
         <AttachmentsList 
           attachments={booking.attachments || []} 
           onAttachmentDeleted={handleAttachmentDeleted}
+          onAttachmentRenamed={handleAttachmentRenamed}
         />
 
         {/* Internal Notes - always displayed */}
