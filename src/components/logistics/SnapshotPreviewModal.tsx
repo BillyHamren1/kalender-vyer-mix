@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import { Canvas as FabricCanvas, FabricText, Circle, Rect, PencilBrush, FabricImage } from 'fabric';
 import { Button } from '@/components/ui/button';
@@ -25,7 +26,7 @@ import { toast } from 'sonner';
 interface SnapshotPreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
-  imageData: string;
+  imageData: string; // Now expects an image URL instead of base64
   onSave: (annotatedImageData: string) => void;
   bookingNumber?: string;
 }
@@ -57,13 +58,15 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
   const [history, setHistory] = useState<string[]>([]);
   const [historyStep, setHistoryStep] = useState(-1);
   const [isImageLoaded, setIsImageLoaded] = useState(false);
+  const [imageLoadError, setImageLoadError] = useState(false);
 
   // Initialize Fabric.js canvas
   useEffect(() => {
     if (!canvasRef.current || !isOpen || !imageData) return;
 
-    console.log('Initializing canvas with image data:', imageData.substring(0, 50) + '...');
+    console.log('Initializing canvas with image URL:', imageData);
     setIsImageLoaded(false);
+    setImageLoadError(false);
 
     // Create fabric canvas with initial dimensions
     const canvas = new FabricCanvas(canvasRef.current, {
@@ -72,7 +75,7 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
       backgroundColor: '#ffffff',
     });
 
-    // Load the captured map image as background using Fabric.js v6 API
+    // Load the image from URL (much faster than base64)
     FabricImage.fromURL(imageData, {
       crossOrigin: 'anonymous'
     }).then((img) => {
@@ -80,27 +83,28 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
       
       // Set canvas dimensions to match the image
       if (img.width && img.height) {
-        canvas.setDimensions({
-          width: img.width,
-          height: img.height
-        });
+        // Scale the image to fit a reasonable viewport
+        const maxWidth = 1200;
+        const maxHeight = 800;
         
-        // Scale the image to fit the canvas if needed
-        const maxWidth = 1000;
-        const maxHeight = 700;
+        let canvasWidth = img.width;
+        let canvasHeight = img.height;
         
         if (img.width > maxWidth || img.height > maxHeight) {
           const scaleX = maxWidth / img.width;
           const scaleY = maxHeight / img.height;
           const scale = Math.min(scaleX, scaleY);
           
-          canvas.setDimensions({
-            width: img.width * scale,
-            height: img.height * scale
-          });
+          canvasWidth = img.width * scale;
+          canvasHeight = img.height * scale;
           
-          img.scaleToWidth(img.width * scale);
+          img.scaleToWidth(canvasWidth);
         }
+        
+        canvas.setDimensions({
+          width: canvasWidth,
+          height: canvasHeight
+        });
       }
       
       // Set the loaded image as background using v6 API
@@ -111,6 +115,7 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
       console.log('Canvas background image set and rendered');
     }).catch((error) => {
       console.error('Error loading image:', error);
+      setImageLoadError(true);
       toast.error('Failed to load captured image');
     });
 
@@ -121,16 +126,19 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
 
     setFabricCanvas(canvas);
     
-    // Save initial state to history
+    // Save initial state to history after image loads
     setTimeout(() => {
-      const initialState = JSON.stringify(canvas.toJSON());
-      setHistory([initialState]);
-      setHistoryStep(0);
-    }, 100);
+      if (canvas.backgroundImage) {
+        const initialState = JSON.stringify(canvas.toJSON());
+        setHistory([initialState]);
+        setHistoryStep(0);
+      }
+    }, 500);
 
     return () => {
       canvas.dispose();
       setIsImageLoaded(false);
+      setImageLoadError(false);
     };
   }, [isOpen, imageData]);
 
@@ -423,11 +431,27 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
 
           {/* Canvas Container */}
           <div className="flex-1 flex items-center justify-center bg-gray-100 rounded-lg overflow-auto">
-            {!isImageLoaded && (
+            {!isImageLoaded && !imageLoadError && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
                 <div className="text-center">
                   <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
                   <span className="text-gray-600">Loading image...</span>
+                </div>
+              </div>
+            )}
+            {imageLoadError && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
+                <div className="text-center">
+                  <div className="text-red-500 mb-2">⚠️</div>
+                  <span className="text-gray-600">Failed to load image</span>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-2 block mx-auto"
+                    onClick={() => window.location.reload()}
+                  >
+                    Retry
+                  </Button>
                 </div>
               </div>
             )}

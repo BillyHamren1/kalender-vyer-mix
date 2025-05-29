@@ -59,7 +59,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
   
   // New states for snapshot preview modal
   const [showSnapshotPreview, setShowSnapshotPreview] = useState(false);
-  const [capturedImageData, setCapturedImageData] = useState<string>('');
+  const [capturedImageUrl, setCapturedImageUrl] = useState<string>('');
+  const [draftSnapshotPath, setDraftSnapshotPath] = useState<string>('');
 
   // Refs for dynamic event listeners
   const dragHandlers = useRef<{
@@ -660,7 +661,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     map.current.off('click', handleMeasureClick);
   };
 
-  // Updated takeMapSnapshot function - now captures and shows preview modal
+  // Updated takeMapSnapshot function - now saves draft first
   const takeMapSnapshot = async () => {
     if (!map.current || !selectedBooking) {
       toast.error('No booking selected for snapshot');
@@ -678,10 +679,29 @@ const MapComponent: React.FC<MapComponentProps> = ({
       const canvas = map.current.getCanvas();
       const dataURL = canvas.toDataURL('image/png');
 
-      console.log('Map snapshot captured, showing preview...');
+      console.log('Map snapshot captured, saving as draft...');
       
-      // Set captured image data and show preview modal
-      setCapturedImageData(dataURL);
+      // Save as draft first to get a URL
+      const { data, error } = await supabase.functions.invoke('save-map-snapshot', {
+        body: {
+          bookingId: selectedBooking.id,
+          bookingNumber: selectedBooking.bookingNumber,
+          imageData: dataURL,
+          isDraft: true
+        }
+      });
+
+      if (error) {
+        console.error('Error saving draft snapshot:', error);
+        toast.error('Failed to capture map snapshot');
+        return;
+      }
+
+      console.log('Draft snapshot saved, showing preview with URL:', data.imageUrl);
+      
+      // Set the image URL and show preview modal
+      setCapturedImageUrl(data.imageUrl);
+      setDraftSnapshotPath(data.filePath);
       setShowSnapshotPreview(true);
 
     } catch (error) {
@@ -692,7 +712,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   };
 
-  // New function to save annotated snapshot to backend
+  // Updated function to save annotated snapshot to backend
   const saveAnnotatedSnapshot = async (annotatedImageData: string) => {
     if (!selectedBooking) {
       toast.error('No booking selected');
@@ -700,25 +720,38 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
 
     try {
-      console.log('Saving annotated snapshot to backend...');
+      console.log('Saving final annotated snapshot to backend...');
 
-      // Call edge function to save the annotated snapshot
+      // Save the final annotated version
       const { data, error } = await supabase.functions.invoke('save-map-snapshot', {
         body: {
           bookingId: selectedBooking.id,
           bookingNumber: selectedBooking.bookingNumber,
-          imageData: annotatedImageData
+          imageData: annotatedImageData,
+          isDraft: false
         }
       });
 
       if (error) {
-        console.error('Error saving snapshot:', error);
-        toast.error('Failed to save map snapshot');
+        console.error('Error saving final snapshot:', error);
+        toast.error('Failed to save annotated map snapshot');
         return;
       }
 
-      console.log('Annotated snapshot saved successfully:', data);
+      console.log('Final annotated snapshot saved successfully:', data);
       toast.success('Annotated map snapshot saved to booking attachments');
+
+      // Clean up draft if we have one
+      if (draftSnapshotPath) {
+        try {
+          await supabase.storage
+            .from('map-snapshots')
+            .remove([draftSnapshotPath]);
+          console.log('Draft snapshot cleaned up');
+        } catch (cleanupError) {
+          console.warn('Failed to cleanup draft:', cleanupError);
+        }
+      }
 
       // Notify parent component if callback is provided
       if (onSnapshotSaved && data.attachment) {
@@ -726,8 +759,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       }
 
       // Close the preview modal
-      setShowSnapshotPreview(false);
-      setCapturedImageData('');
+      closeSnapshotPreview();
 
     } catch (error) {
       console.error('Error saving annotated snapshot:', error);
@@ -735,10 +767,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   };
 
-  // Close preview modal
+  // Close preview modal and cleanup
   const closeSnapshotPreview = () => {
     setShowSnapshotPreview(false);
-    setCapturedImageData('');
+    setCapturedImageUrl('');
+    setDraftSnapshotPath('');
   };
 
   // Improved drag handlers for measure points
@@ -905,7 +938,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       <SnapshotPreviewModal
         isOpen={showSnapshotPreview}
         onClose={closeSnapshotPreview}
-        imageData={capturedImageData}
+        imageData={capturedImageUrl}
         onSave={saveAnnotatedSnapshot}
         bookingNumber={selectedBooking?.bookingNumber}
       />
