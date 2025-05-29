@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { X, MapPin, User, Calendar, ExternalLink } from 'lucide-react';
+import { X, MapPin, User, Calendar, ArrowLeft } from 'lucide-react';
 import { Booking } from '@/types/booking';
 import { getDisplayBookingNumber } from './MapUtils';
 
@@ -20,7 +20,7 @@ export const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
 }) => {
   if (!booking) return null;
 
-  const handleViewDetails = () => {
+  const handleBackToBooking = () => {
     if (onViewDetails) {
       onViewDetails(booking);
     } else {
@@ -30,41 +30,41 @@ export const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
   };
 
   return (
-    <div className="absolute top-4 right-4 z-20 w-80">
+    <div className="absolute top-4 left-4 z-20 w-64 mt-80">
       <Card className="shadow-lg bg-white/95 backdrop-blur-sm">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <MapPin className="h-5 w-5 text-blue-500" />
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-blue-500" />
               Booking Details
             </CardTitle>
             <Button
               variant="ghost"
               size="sm"
               onClick={onClose}
-              className="h-8 w-8 p-0"
+              className="h-6 w-6 p-0"
             >
-              <X className="h-4 w-4" />
+              <X className="h-3 w-3" />
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3 pt-0">
           {/* Client Information */}
-          <div className="space-y-2">
+          <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <User className="h-4 w-4 text-gray-500" />
-              <span className="font-medium text-gray-900">{booking.client}</span>
+              <User className="h-3 w-3 text-gray-500" />
+              <span className="font-medium text-gray-900 text-sm">{booking.client}</span>
             </div>
-            <div className="text-sm text-gray-600">
+            <div className="text-xs text-gray-600">
               <strong>Booking:</strong> {getDisplayBookingNumber(booking)}
             </div>
           </div>
 
           {/* Address */}
-          <div className="space-y-2">
+          <div className="space-y-1">
             <div className="flex items-start gap-2">
-              <MapPin className="h-4 w-4 text-gray-500 mt-0.5" />
-              <div className="text-sm text-gray-600">
+              <MapPin className="h-3 w-3 text-gray-500 mt-0.5" />
+              <div className="text-xs text-gray-600">
                 {booking.deliveryAddress || 'No address specified'}
               </div>
             </div>
@@ -73,8 +73,8 @@ export const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
           {/* Event Date */}
           {booking.eventDate && (
             <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-gray-500" />
-              <span className="text-sm text-gray-600">
+              <Calendar className="h-3 w-3 text-gray-500" />
+              <span className="text-xs text-gray-600">
                 Event: {new Date(booking.eventDate).toLocaleDateString()}
               </span>
             </div>
@@ -82,7 +82,7 @@ export const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
 
           {/* Status */}
           <div className="flex items-center gap-2">
-            <Badge variant={booking.status === 'confirmed' ? 'default' : 'secondary'}>
+            <Badge variant={booking.status === 'confirmed' ? 'default' : 'secondary'} className="text-xs">
               {booking.status}
             </Badge>
           </div>
@@ -94,14 +94,14 @@ export const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
             </div>
           )}
 
-          {/* View Details Button */}
+          {/* Back to Booking Button */}
           <Button 
-            onClick={handleViewDetails}
+            onClick={handleBackToBooking}
             className="w-full"
             size="sm"
           >
-            <ExternalLink className="h-4 w-4 mr-2" />
-            View Full Details
+            <ArrowLeft className="h-3 w-3 mr-2" />
+            Back to Booking
           </Button>
         </CardContent>
       </Card>
