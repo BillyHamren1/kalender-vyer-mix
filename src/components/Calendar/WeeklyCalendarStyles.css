@@ -152,12 +152,13 @@
   margin: 2px;
 }
 
-/* Improve event rendering */
+/* Improve event rendering with increased padding */
 .fc-timeline-event {
   min-height: 25px;
-  padding: 2px 4px;
+  padding: 6px 8px !important;
   border-radius: 4px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  margin: 2px 1px !important;
 }
 
 /* Critical fix for team-6 (Today's events) column */
@@ -180,12 +181,13 @@
   border-right: 1px solid #f8f9fa !important;
 }
 
-/* Optimize event content */
+/* Optimize event content with increased spacing */
 .event-content-wrapper {
   display: flex;
   flex-direction: column;
   min-height: 100%;
-  padding: 4px;
+  padding: 6px !important;
+  gap: 2px;
 }
 
 .event-delivery-address {
@@ -195,27 +197,46 @@
   max-height: none !important;
   white-space: normal !important;
   font-size: 11px;
+  line-height: 1.3;
+  margin-top: 2px;
 }
 
 .fc-event-title {
   white-space: normal !important;
   overflow: visible !important;
+  line-height: 1.3;
+  margin-bottom: 2px;
 }
 
 .fc-event-time {
   white-space: nowrap;
   font-size: 11px;
   font-weight: 500;
+  margin-bottom: 2px;
 }
 
 .event-client-name {
   font-size: 12px;
   font-weight: 500;
+  margin-bottom: 1px;
 }
 
 .event-booking-id {
   font-size: 11px;
   opacity: 0.8;
+  margin-bottom: 1px;
+}
+
+/* Increased spacing for main event element */
+.fc-timegrid-event .fc-event-main {
+  padding: 6px 8px !important;
+}
+
+/* Enhanced event hover state */
+.fc-event:hover {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
+  transform: translateY(-1px);
+  transition: all 0.2s ease;
 }
 
 /* Reduced height for weekly view calendars */
@@ -225,10 +246,10 @@
   max-height: 600px !important;
 }
 
-/* Make weekly calendars more compact but with softer styling */
+/* Make weekly calendars more compact but with softer styling and increased slot height */
 .weekly-view-calendar .fc-timegrid-slot,
 .monthly-view-calendar .fc-timegrid-slot {
-  height: 35px !important;
+  height: 40px !important;
   border-bottom: 1px solid #f8f9fa !important;
 }
 
