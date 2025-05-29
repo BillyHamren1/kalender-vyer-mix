@@ -195,8 +195,6 @@ const WeeklyResourceView = () => {
         throw insertError;
       }
 
-      toast.success('Staff assignments copied successfully');
-      
       // Force refresh the enhanced operations
       reliableStaffOps.forceRefresh();
       

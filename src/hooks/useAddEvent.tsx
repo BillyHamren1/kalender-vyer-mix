@@ -13,7 +13,7 @@ export const useAddEvent = (resources: Resource[], onEventAdded: () => void) => 
       const savedEvent = await createCalendarEvent(eventData);
       
       if (savedEvent) {
-        toast.success('Event added successfully');
+        // Removed success toast - only show errors
         onEventAdded();
         setIsDialogOpen(false);
         return savedEvent.id;

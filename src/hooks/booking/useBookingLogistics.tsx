@@ -30,7 +30,7 @@ export const useBookingLogistics = (
         ...logisticsData
       });
       
-      toast.success('Logistics information updated successfully');
+      // Removed success toast - only show errors
     } catch (err) {
       console.error('Error updating logistics information:', err);
       toast.error('Failed to update logistics information');

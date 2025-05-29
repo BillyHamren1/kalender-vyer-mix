@@ -14,9 +14,7 @@ export const useEventDeletion = (refreshEvents: () => Promise<void>) => {
     try {
       await deleteCalendarEvent(eventId);
       
-      toast.success('Event deleted successfully', {
-        description: `"${eventTitle}" has been removed from the calendar`
-      });
+      // Removed success toast - only show errors
       
       // Refresh the calendar events
       await refreshEvents();

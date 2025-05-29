@@ -39,7 +39,7 @@ export const useBookingDates = (
       // Use the resync function without the force parameter
       await resyncBookingToCalendar(id);
       
-      toast.success('Booking synced to calendar successfully');
+      // Removed success toast - only show errors
     } catch (err) {
       console.error('Error syncing with calendar:', err);
       toast.error('Failed to sync booking with calendar');
@@ -104,7 +104,7 @@ export const useBookingDates = (
         });
       }
       
-      toast.success(`${dateType === 'rig' ? 'Rig day' : dateType === 'event' ? 'Event day' : 'Rig down day'} added successfully`);
+      // Removed success toast - only show errors
       
       // If autoSync is enabled, automatically sync all dates to calendar
       if (autoSync) {
@@ -172,7 +172,7 @@ export const useBookingDates = (
         await resyncBookingToCalendar(id);
       }
       
-      toast.success(`${dateType === 'rig' ? 'Rig day' : dateType === 'event' ? 'Event day' : 'Rig down day'} removed successfully`);
+      // Removed success toast - only show errors
       
       // If autoSync is enabled, automatically sync all dates to calendar
       if (autoSync) {
@@ -221,7 +221,7 @@ export const useBookingDates = (
         }
       }
       
-      toast.success(`${dateType === 'rigDayDate' ? 'Rig day' : dateType === 'eventDate' ? 'Event day' : 'Rig down day'} updated successfully`);
+      // Removed success toast - only show errors
       
       // If autoSync is enabled, automatically sync to calendar
       if (autoSync) {

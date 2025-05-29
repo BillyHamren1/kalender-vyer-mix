@@ -85,7 +85,7 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
         setAssignments(assignmentData);
       }
       
-      toast.success(`Added ${name} to staff`);
+      // Removed success toast - only show errors
       setStaffDialogOpen(false);
     } catch (error) {
       console.error('Error adding staff:', error);
@@ -113,7 +113,7 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
           // Assign staff to team
           try {
             await assignStaffToTeam(staffId, resourceId, currentDate);
-            toast.success('Staff assigned to team');
+            // Removed success toast - only show errors
           } catch (error) {
             console.error('Error assigning staff to team:', error);
             toast.error('Failed to assign staff to team');
@@ -123,7 +123,7 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
           // Remove assignment
           try {
             await removeStaffAssignment(staffId, currentDate);
-            toast.success('Staff assignment removed');
+            // Removed success toast - only show errors
           } catch (error) {
             console.error('Error removing staff assignment:', error);
             toast.error('Failed to remove staff assignment');

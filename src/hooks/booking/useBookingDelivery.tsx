@@ -43,7 +43,7 @@ export const useBookingDelivery = (
         contactEmail: deliveryData.contactEmail
       });
       
-      toast.success('Delivery details updated successfully');
+      // Removed success toast - only show errors
     } catch (err) {
       console.error('Error updating delivery details:', err);
       toast.error('Failed to update delivery details');
