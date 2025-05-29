@@ -1,22 +1,7 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { 
-  Mountain, 
-  Ruler, 
-  Camera, 
-  RotateCcw, 
-  Palette, 
-  Square, 
-  CircleDot, 
-  Pencil, 
-  Trash2,
-  Map,
-  Layers,
-  RulerIcon
-} from 'lucide-react';
+import { Mountain, Ruler, RotateCcw, Camera, Satellite, Map } from 'lucide-react';
 import { MapDrawingControls } from './MapDrawingControls';
 
 interface MapControlsProps {
@@ -39,8 +24,6 @@ interface MapControlsProps {
   clearAllDrawings: () => void;
   currentMapStyle: string;
   toggleMapStyle: () => void;
-  showPolygonMeasurements: boolean;
-  togglePolygonMeasurements: () => void;
 }
 
 export const MapControls: React.FC<MapControlsProps> = ({
@@ -62,137 +45,93 @@ export const MapControls: React.FC<MapControlsProps> = ({
   toggleFreehandDrawing,
   clearAllDrawings,
   currentMapStyle,
-  toggleMapStyle,
-  showPolygonMeasurements,
-  togglePolygonMeasurements
+  toggleMapStyle
 }) => {
+  const isSatelliteView = currentMapStyle.includes('satellite');
+
   return (
-    <>
-      {/* Main Controls */}
-      <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
-        <Card className="p-2 shadow-lg">
-          <CardContent className="p-0 flex flex-col gap-1">
-            {/* Map Style Toggle */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={toggleMapStyle}
-              className="w-full justify-start gap-2"
-            >
-              <Layers className="h-4 w-4" />
-              {currentMapStyle.includes('satellite') ? 'Satellite' : 'Streets'}
-            </Button>
+    <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
+      {/* Basic Controls (always visible) */}
+      <div className="flex flex-col gap-1">
+        <Button
+          onClick={toggle3D}
+          size="sm"
+          variant={is3DEnabled ? "default" : "outline"}
+          className="bg-white/90 backdrop-blur-sm shadow-md"
+        >
+          <Mountain className="h-4 w-4 mr-1" />
+          3D Terrain
+        </Button>
 
-            {/* 3D Toggle */}
-            <Button
-              variant={is3DEnabled ? "default" : "outline"}
-              size="sm"
-              onClick={toggle3D}
-              className="w-full justify-start gap-2"
-            >
-              <Mountain className="h-4 w-4" />
-              3D Terrain
-            </Button>
-
-            {/* Measuring Tool */}
-            <Button
-              variant={isMeasuring ? "default" : "outline"}
-              size="sm"
-              onClick={toggleMeasuring}
-              className="w-full justify-start gap-2"
-            >
-              <Ruler className="h-4 w-4" />
-              Measure
-            </Button>
-
-            {/* Polygon Measurements Toggle */}
-            <Button
-              variant={showPolygonMeasurements ? "default" : "outline"}
-              size="sm"
-              onClick={togglePolygonMeasurements}
-              className="w-full justify-start gap-2"
-            >
-              <Square className="h-4 w-4" />
-              Polygon Measure
-            </Button>
-
-            {/* Drawing Controls Toggle */}
-            <Button
-              variant={isDrawingOpen ? "default" : "outline"}
-              size="sm"
-              onClick={() => setIsDrawingOpen(!isDrawingOpen)}
-              className="w-full justify-start gap-2"
-            >
-              <Pencil className="h-4 w-4" />
-              Drawing Tools
-            </Button>
-
-            {/* Map Snapshot */}
-            {selectedBooking && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={takeMapSnapshot}
-                disabled={isCapturingSnapshot}
-                className="w-full justify-start gap-2"
-              >
-                <Camera className="h-4 w-4" />
-                {isCapturingSnapshot ? 'Capturing...' : 'Snapshot'}
-              </Button>
-            )}
-
-            {/* Reset View */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={resetView}
-              className="w-full justify-start gap-2"
-            >
-              <RotateCcw className="h-4 w-4" />
-              Reset View
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Status Indicators */}
-        <div className="flex flex-col gap-1">
-          {isMeasuring && (
-            <Badge variant="default" className="bg-red-500">
-              Measuring Active
-            </Badge>
+        <Button
+          onClick={toggleMapStyle}
+          size="sm"
+          variant="outline"
+          className="bg-white/90 backdrop-blur-sm shadow-md"
+        >
+          {isSatelliteView ? (
+            <>
+              <Map className="h-4 w-4 mr-1" />
+              Streets
+            </>
+          ) : (
+            <>
+              <Satellite className="h-4 w-4 mr-1" />
+              Satellite
+            </>
           )}
-          {isFreehandDrawing && (
-            <Badge variant="default" className="bg-green-500">
-              Freehand Drawing
-            </Badge>
-          )}
-          {showPolygonMeasurements && (
-            <Badge variant="default" className="bg-blue-500">
-              Polygon Measurements
-            </Badge>
-          )}
-          {drawMode !== 'simple_select' && (
-            <Badge variant="default" className="bg-purple-500">
-              Drawing: {drawMode.replace('draw_', '').replace('_', ' ')}
-            </Badge>
-          )}
-        </div>
+        </Button>
+        
+        <Button
+          onClick={toggleMeasuring}
+          size="sm"
+          variant={isMeasuring ? "default" : "outline"}
+          className={`bg-white/90 backdrop-blur-sm shadow-md ${
+            isMeasuring ? 'bg-teal-500 text-white hover:bg-teal-600' : ''
+          }`}
+        >
+          <Ruler className="h-4 w-4 mr-1" />
+          Measure
+        </Button>
+
+        {/* Snapshot Button - Only show when a booking is selected */}
+        {selectedBooking && (
+          <Button
+            onClick={takeMapSnapshot}
+            size="sm"
+            variant="outline"
+            disabled={isCapturingSnapshot}
+            className="bg-white/90 backdrop-blur-sm shadow-md"
+          >
+            <Camera className="h-4 w-4 mr-1" />
+            {isCapturingSnapshot ? 'Capturing...' : 'Snapshot'}
+          </Button>
+        )}
       </div>
 
-      {/* Drawing Controls Panel */}
-      {isDrawingOpen && (
-        <MapDrawingControls
-          selectedColor={selectedColor}
-          setSelectedColor={setSelectedColor}
-          drawMode={drawMode}
-          setDrawingMode={setDrawingMode}
-          isFreehandDrawing={isFreehandDrawing}
-          toggleFreehandDrawing={toggleFreehandDrawing}
-          clearAllDrawings={clearAllDrawings}
-          isDrawingOpen={isDrawingOpen}
-          setIsDrawingOpen={setIsDrawingOpen}
-        />
-      )}
-    </>
+      {/* Collapsible Drawing Controls */}
+      <MapDrawingControls
+        isDrawingOpen={isDrawingOpen}
+        setIsDrawingOpen={setIsDrawingOpen}
+        selectedColor={selectedColor}
+        setSelectedColor={setSelectedColor}
+        drawMode={drawMode}
+        setDrawingMode={setDrawingMode}
+        isFreehandDrawing={isFreehandDrawing}
+        toggleFreehandDrawing={toggleFreehandDrawing}
+        clearAllDrawings={clearAllDrawings}
+      />
+
+      {/* Reset Control */}
+      <Button
+        onClick={resetView}
+        size="sm"
+        variant="outline"
+        className="bg-white/90 backdrop-blur-sm shadow-md"
+      >
+        <RotateCcw className="h-4 w-4 mr-1" />
+        Reset
+      </Button>
+    </div>
   );
 };
