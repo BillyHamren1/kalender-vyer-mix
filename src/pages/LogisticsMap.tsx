@@ -28,6 +28,11 @@ const LogisticsMap = () => {
   
   const [showSidebar, setShowSidebar] = useState(!hideControls);
 
+  // Determine map style based on context
+  const mapStyle = hideControls && lat && lng 
+    ? 'mapbox://styles/mapbox/streets-v12'  // Use streets for booking detail context
+    : 'mapbox://styles/mapbox/satellite-streets-v12';  // Use satellite for general logistics
+
   useEffect(() => {
     loadBookings();
   }, []);
@@ -48,8 +53,6 @@ const LogisticsMap = () => {
 
   const handleSnapshotSaved = (attachment: any) => {
     console.log('Map snapshot saved:', attachment);
-    // Optionally refresh booking data or show additional feedback
-    // The toast notification is already shown in the MapComponent
   };
 
   // In iframe mode, show only the map without any headers or padding
@@ -69,6 +72,7 @@ const LogisticsMap = () => {
             centerLat={lat ? parseFloat(lat) : undefined}
             centerLng={lng ? parseFloat(lng) : undefined}
             onSnapshotSaved={handleSnapshotSaved}
+            mapStyle={mapStyle}
           />
         )}
       </div>
@@ -139,6 +143,7 @@ const LogisticsMap = () => {
                         selectedBooking={selectedBooking}
                         onBookingSelect={setSelectedBooking}
                         onSnapshotSaved={handleSnapshotSaved}
+                        mapStyle={mapStyle}
                       />
                     </div>
                   </div>

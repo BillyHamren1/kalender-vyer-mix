@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
@@ -18,6 +17,7 @@ interface MapComponentProps {
   centerLat?: number;
   centerLng?: number;
   onSnapshotSaved?: (attachment: any) => void;
+  mapStyle?: string;
 }
 
 // Define proper types for Mapbox Draw events
@@ -32,7 +32,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
   onBookingSelect,
   centerLat,
   centerLng,
-  onSnapshotSaved
+  onSnapshotSaved,
+  mapStyle = 'mapbox://styles/mapbox/satellite-streets-v12'
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -113,7 +114,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/satellite-streets-v12',
+      style: mapStyle, // Use the mapStyle prop instead of hardcoded satellite style
       center: initialCenter,
       zoom: initialZoom,
       maxZoom: 22,
@@ -258,7 +259,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       map.current?.remove();
       map.current = null;
     };
-  }, [mapboxToken, isLoadingToken, centerLat, centerLng, selectedColor]);
+  }, [mapboxToken, isLoadingToken, centerLat, centerLng, selectedColor, mapStyle]);
 
   // Force resize when component mounts or container changes
   useEffect(() => {
