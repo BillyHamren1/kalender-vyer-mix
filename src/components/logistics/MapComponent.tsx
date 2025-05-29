@@ -56,7 +56,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [isCapturingSnapshot, setIsCapturingSnapshot] = useState(false);
   const [isDraggingMeasurePoint, setIsDraggingMeasurePoint] = useState(false);
   const [dragPointIndex, setDragPointIndex] = useState<number | null>(null);
-  
+  const [liveMeasurement, setLiveMeasurement] = useState<{
+    distance: string;
+    x: number;
+    y: number;
+    visible: boolean;
+  }>({ distance: '', x: 0, y: 0, visible: false });
+
   // Fixed states for snapshot preview modal
   const [showSnapshotModal, setShowSnapshotModal] = useState(false);
   const [snapshotImageUrl, setSnapshotImageUrl] = useState<string>('');
@@ -204,7 +210,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       measureSource.current = map.current?.getSource('measure-points') as mapboxgl.GeoJSONSource;
       freehandSource.current = map.current?.getSource('freehand-lines') as mapboxgl.GeoJSONSource;
 
-      // Add measuring layers
+      // Add measuring layers with improved styling
       map.current?.addLayer({
         'id': 'measure-lines',
         'type': 'line',
@@ -231,17 +237,20 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
-      // Add layer for distance labels
+      // Enhanced layer for distance labels positioned ON the lines
       map.current?.addLayer({
         'id': 'measure-labels',
         'type': 'symbol',
         'source': 'measure-points',
+        'filter': ['has', 'distance'], // Only show labels for line segments, not points
         'layout': {
           'text-field': ['get', 'distance'],
           'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
           'text-size': 12,
           'text-anchor': 'center',
-          'text-offset': [0, -1.5]
+          'symbol-placement': 'line', // Place labels along the line
+          'text-rotation-alignment': 'map',
+          'text-pitch-alignment': 'viewport'
         },
         'paint': {
           'text-color': '#ff0000',
@@ -453,7 +462,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     const features = [];
     
-    // Add points
+    // Add points (keeping the draggable points)
     measurePoints.current.forEach((point, index) => {
       features.push({
         type: 'Feature',
@@ -467,16 +476,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
       });
     });
 
-    // Add line segments with distance labels
+    // Add line segments with distance labels positioned ON the lines (no midpoint dots)
     if (measurePoints.current.length > 1) {
       for (let i = 1; i < measurePoints.current.length; i++) {
         const startPoint = measurePoints.current[i - 1];
         const endPoint = measurePoints.current[i];
         const distance = calculateDistance(startPoint, endPoint);
-        const midPoint = [
-          (startPoint[0] + endPoint[0]) / 2,
-          (startPoint[1] + endPoint[1]) / 2
-        ];
 
         // Add line segment
         features.push({
@@ -486,20 +491,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
             coordinates: [startPoint, endPoint]
           },
           properties: {
-            segmentId: i
-          }
-        });
-
-        // Add distance label at midpoint
-        features.push({
-          type: 'Feature',
-          geometry: {
-            type: 'Point',
-            coordinates: midPoint
-          },
-          properties: {
-            distance: formatDistance(distance),
-            isLabel: true
+            segmentId: i,
+            distance: formatDistance(distance)
           }
         });
       }
@@ -782,7 +775,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       console.log('👁️ Snapshot modal opened in loading state');
       
       toast.info('Preparing map for snapshot...');
-
+      
       // Step 1: Wait for map to be fully ready
       console.log('⏳ Step 1: Waiting for map to be fully ready...');
       const isMapReady = await waitForMapReady();
@@ -1021,7 +1014,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     setSnapshotImageUrl('');
   };
 
-  // Improved drag handlers for measure points
+  // Enhanced drag handlers with real-time measurement display
   const handleMeasurePointMouseDown = (e: mapboxgl.MapMouseEvent) => {
     if (isMeasuring) return; // Don't drag while in measuring mode
     
@@ -1044,7 +1037,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
           map.current.getCanvas().style.cursor = 'grabbing';
         }
         
-        // Create mousemove handler
+        // Create enhanced mousemove handler with live measurement
         const handleMouseMove = (mouseEvent: MouseEvent) => {
           if (!map.current || dragPointIndex === null) return;
           
@@ -1062,7 +1055,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
             measurePoints.current[pointId] = coords;
             updateMeasureDisplay();
             
-            // Update toast with new distances
+            // Calculate and display live measurements
+            let liveMeasurementText = '';
+            
             if (measurePoints.current.length > 1) {
               const totalDistance = measurePoints.current.reduce((total, point, index) => {
                 if (index === 0) return 0;
@@ -1073,18 +1068,23 @@ const MapComponent: React.FC<MapComponentProps> = ({
               let segmentInfo = '';
               if (pointId > 0) {
                 const prevDistance = calculateDistance(measurePoints.current[pointId - 1], coords);
-                segmentInfo += `Prev: ${formatDistance(prevDistance)}`;
+                segmentInfo += `${formatDistance(prevDistance)}`;
               }
               if (pointId < measurePoints.current.length - 1) {
                 const nextDistance = calculateDistance(coords, measurePoints.current[pointId + 1]);
-                segmentInfo += segmentInfo ? ` | Next: ${formatDistance(nextDistance)}` : `Next: ${formatDistance(nextDistance)}`;
+                segmentInfo += segmentInfo ? ` | ${formatDistance(nextDistance)}` : `${formatDistance(nextDistance)}`;
               }
               
-              toast.success(`${segmentInfo} | Total: ${formatDistance(totalDistance)}`, {
-                id: 'drag-update',
-                duration: 1000
-              });
+              liveMeasurementText = `${segmentInfo} | Total: ${formatDistance(totalDistance)}`;
             }
+            
+            // Update live measurement display
+            setLiveMeasurement({
+              distance: liveMeasurementText,
+              x: mouseEvent.clientX,
+              y: mouseEvent.clientY - 10, // Offset above cursor
+              visible: true
+            });
           }
         };
         
@@ -1093,6 +1093,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
           console.log('Ending drag for point:', pointId);
           setIsDraggingMeasurePoint(false);
           setDragPointIndex(null);
+          
+          // Hide live measurement
+          setLiveMeasurement(prev => ({ ...prev, visible: false }));
           
           if (map.current) {
             // Re-enable map interactions
@@ -1141,6 +1144,20 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   return (
     <div className="h-full w-full rounded-lg overflow-hidden relative">
+      {/* Live Measurement Display */}
+      {liveMeasurement.visible && (
+        <div 
+          className="fixed z-50 bg-black/80 text-white px-2 py-1 rounded text-sm pointer-events-none"
+          style={{
+            left: liveMeasurement.x,
+            top: liveMeasurement.y,
+            transform: 'translateX(-50%)'
+          }}
+        >
+          {liveMeasurement.distance}
+        </div>
+      )}
+
       {/* Enhanced Map Controls */}
       <MapControls
         is3DEnabled={is3DEnabled}
