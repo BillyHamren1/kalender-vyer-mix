@@ -53,7 +53,7 @@ const getEndTimeForEventType = (startTime: string, eventType: 'rig' | 'event' | 
       hoursToAdd = 4; // 4 hours for rig events
       break;
     case 'event':
-      hoursToAdd = 3; // 3 hours for event days
+      hoursToAdd = 2.5; // 2.5 hours for event days
       break;
     case 'rigDown':
       hoursToAdd = 4; // 4 hours for rig down events
@@ -78,6 +78,7 @@ serve(async (req) => {
     )
 
     const { quiet = false, syncMode = 'incremental' } = await req.json()
+    console.log(`Starting import with sync mode: ${syncMode}`)
 
     // Get API key from secrets
     const importApiKey = Deno.env.get('IMPORT_API_KEY')
@@ -85,8 +86,29 @@ serve(async (req) => {
       throw new Error('IMPORT_API_KEY not configured')
     }
 
-    // Fetch bookings from export-bookings function with both auth headers
-    const externalResponse = await fetch('https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings', {
+    // Get the last sync timestamp for incremental sync
+    let lastSyncTimestamp = null;
+    if (syncMode === 'incremental') {
+      const { data: syncState } = await supabase
+        .from('sync_state')
+        .select('last_sync_timestamp')
+        .eq('sync_type', 'booking_import')
+        .single()
+      
+      lastSyncTimestamp = syncState?.last_sync_timestamp;
+      console.log(`Last sync timestamp: ${lastSyncTimestamp}`);
+    }
+
+    // Build API URL with timestamp filter for incremental sync
+    let apiUrl = 'https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings';
+    if (syncMode === 'incremental' && lastSyncTimestamp) {
+      const sinceDate = new Date(lastSyncTimestamp).toISOString();
+      apiUrl += `?since=${encodeURIComponent(sinceDate)}`;
+      console.log(`Fetching bookings modified since: ${sinceDate}`);
+    }
+
+    // Fetch bookings from export-bookings function with timestamp filter
+    const externalResponse = await fetch(apiUrl, {
       headers: {
         'Authorization': `Bearer ${importApiKey}`,
         'x-api-key': importApiKey,
@@ -99,9 +121,9 @@ serve(async (req) => {
     }
 
     const externalData = await externalResponse.json()
-    console.log('External bookings data:', JSON.stringify(externalData, null, 2))
+    console.log(`Fetched ${externalData.data?.length || 0} bookings from external API`)
 
-    // Handle the response format from export-bookings function - it returns { data: [...], metadata: {...} }
+    // Handle the response format from export-bookings function
     if (!externalData.data || !Array.isArray(externalData.data)) {
       throw new Error('Invalid external API response format - expected data array')
     }
@@ -122,16 +144,15 @@ serve(async (req) => {
       sync_mode: syncMode
     }
 
-    // Get existing bookings for comparison - CREATE A COMPREHENSIVE MAP
+    // Get existing bookings for comparison
     const { data: existingBookings } = await supabase
       .from('bookings')
       .select('id, status, version, booking_number')
 
-    // Create multiple maps to check for duplicates by different identifiers
     const existingBookingMap = new Map(existingBookings?.map(b => [b.id, b]) || [])
     const existingBookingNumberMap = new Map()
     
-    // Build booking number map (only if booking_number exists and is not empty)
+    // Build booking number map
     existingBookings?.forEach(booking => {
       if (booking.booking_number && booking.booking_number.trim() !== '') {
         existingBookingNumberMap.set(booking.booking_number.trim(), booking)
@@ -139,8 +160,6 @@ serve(async (req) => {
     })
 
     console.log(`Found ${existingBookings?.length || 0} existing bookings in database`)
-    console.log(`Existing booking IDs: ${Array.from(existingBookingMap.keys()).slice(0, 5)}...`) // Show first 5
-    console.log(`Existing booking numbers: ${Array.from(existingBookingNumberMap.keys()).slice(0, 5)}...`) // Show first 5
 
     for (const externalBooking of externalData.data) {
       try {
@@ -154,7 +173,7 @@ serve(async (req) => {
           continue
         }
 
-        // COMPREHENSIVE DUPLICATE CHECK - Check by ID AND booking number
+        // Check for existing booking
         const existingById = existingBookingMap.get(externalBooking.id)
         let existingByNumber = null
         
@@ -162,17 +181,15 @@ serve(async (req) => {
           existingByNumber = existingBookingNumberMap.get(externalBooking.booking_number.trim())
         }
 
-        // If booking exists by either ID or booking number, treat as existing
         const existingBooking = existingById || existingByNumber
 
         if (existingBooking && !existingById && existingByNumber) {
-          // This is a duplicate by booking number but different ID - SKIP IT COMPLETELY
           console.log(`DUPLICATE DETECTED: Booking number ${externalBooking.booking_number} already exists with different ID. Skipping import of ${externalBooking.id}`)
           results.duplicates_skipped.push(externalBooking.id)
           continue
         }
 
-        // Extract client name - try clientName first, then fallback to nested client object
+        // Extract client name
         let clientName = externalBooking.clientName
         if (!clientName && externalBooking.client?.name) {
           clientName = externalBooking.client.name
@@ -221,7 +238,6 @@ serve(async (req) => {
           // EXISTING BOOKING - UPDATE ONLY IF ACTUALLY DIFFERENT
           console.log(`Found existing booking ${existingBooking.id}, checking for changes...`)
           
-          // Check if status changed
           const statusChanged = existingBooking.status !== bookingData.status
           
           if (statusChanged) {
@@ -232,16 +248,16 @@ serve(async (req) => {
             results.updated_bookings.push(bookingData.id)
           }
 
-          // Update existing booking with the correct ID (use existing booking's ID)
+          // Update existing booking
           const { error: updateError } = await supabase
             .from('bookings')
             .update({
               ...bookingData,
-              id: existingBooking.id, // Use the existing booking's ID
+              id: existingBooking.id,
               version: (existingBooking.version || 1) + 1,
               updated_at: new Date().toISOString()
             })
-            .eq('id', existingBooking.id) // Update by the existing booking's ID
+            .eq('id', existingBooking.id)
 
           if (updateError) {
             console.error(`Error updating booking ${existingBooking.id}:`, updateError)
@@ -251,17 +267,9 @@ serve(async (req) => {
           }
 
           // Clear existing products and attachments for updated bookings
-          await supabase
-            .from('booking_products')
-            .delete()
-            .eq('booking_id', existingBooking.id)
-          
-          await supabase
-            .from('booking_attachments')
-            .delete()
-            .eq('booking_id', existingBooking.id)
+          await supabase.from('booking_products').delete().eq('booking_id', existingBooking.id)
+          await supabase.from('booking_attachments').delete().eq('booking_id', existingBooking.id)
 
-          // Update booking data reference for subsequent operations
           bookingData.id = existingBooking.id
 
         } else {
@@ -273,7 +281,6 @@ serve(async (req) => {
             .insert(bookingData)
 
           if (insertError) {
-            // Check if this is a duplicate key error
             if (insertError.message.includes('duplicate key') || insertError.message.includes('already exists')) {
               console.log(`Duplicate booking detected during insert: ${bookingData.id}, skipping...`)
               results.duplicates_skipped.push(bookingData.id)
@@ -289,7 +296,7 @@ serve(async (req) => {
           results.new_bookings.push(bookingData.id)
         }
 
-        // Process products for the booking
+        // Process products
         if (externalBooking.products && Array.isArray(externalBooking.products)) {
           console.log(`Processing ${externalBooking.products.length} products for booking ${bookingData.id}`)
           
@@ -317,7 +324,7 @@ serve(async (req) => {
           }
         }
 
-        // Process attachments for the booking
+        // Process attachments
         if (externalBooking.attachments && Array.isArray(externalBooking.attachments)) {
           console.log(`Processing ${externalBooking.attachments.length} attachments for booking ${bookingData.id}`)
           
@@ -347,18 +354,28 @@ serve(async (req) => {
 
         results.imported++
 
-        // Only create calendar events for CONFIRMED bookings (not CANCELLED)
+        // IMPROVED CALENDAR EVENT HANDLING
         if (bookingData.status === 'CONFIRMED') {
+          // Check if calendar events already exist for this booking
+          const { data: existingEvents } = await supabase
+            .from('calendar_events')
+            .select('id, event_type, start_time, booking_id')
+            .eq('booking_id', bookingData.id)
+
+          const existingEventTypes = new Set(existingEvents?.map(e => e.event_type) || [])
+          console.log(`Found ${existingEvents?.length || 0} existing calendar events for booking ${bookingData.id}`)
+
           const calendarEvents = []
           
-          if (bookingData.rigdaydate) {
+          // Only create events that don't already exist
+          if (bookingData.rigdaydate && !existingEventTypes.has('rig')) {
             const startTime = `${bookingData.rigdaydate}T08:00:00`
             const endTime = getEndTimeForEventType(startTime, 'rig')
             
             calendarEvents.push({
               booking_id: bookingData.id,
               booking_number: bookingData.booking_number,
-              title: `${bookingData.id}: ${bookingData.client}`,
+              title: `${bookingData.client}`,
               start_time: startTime,
               end_time: endTime,
               event_type: 'rig',
@@ -366,14 +383,14 @@ serve(async (req) => {
             })
           }
 
-          if (bookingData.eventdate) {
+          if (bookingData.eventdate && !existingEventTypes.has('event')) {
             const startTime = `${bookingData.eventdate}T08:00:00`
             const endTime = getEndTimeForEventType(startTime, 'event')
             
             calendarEvents.push({
               booking_id: bookingData.id,
               booking_number: bookingData.booking_number,
-              title: `${bookingData.id}: ${bookingData.client}`,
+              title: `${bookingData.client}`,
               start_time: startTime,
               end_time: endTime,
               event_type: 'event',
@@ -381,14 +398,14 @@ serve(async (req) => {
             })
           }
 
-          if (bookingData.rigdowndate) {
+          if (bookingData.rigdowndate && !existingEventTypes.has('rigDown')) {
             const startTime = `${bookingData.rigdowndate}T08:00:00`
             const endTime = getEndTimeForEventType(startTime, 'rigDown')
             
             calendarEvents.push({
               booking_id: bookingData.id,
               booking_number: bookingData.booking_number,
-              title: `${bookingData.id}: ${bookingData.client}`,
+              title: `${bookingData.client}`,
               start_time: startTime,
               end_time: endTime,
               event_type: 'rigDown',
@@ -396,74 +413,32 @@ serve(async (req) => {
             })
           }
 
-          // Check for existing calendar events to prevent duplicates
           if (calendarEvents.length > 0) {
-            const { data: existingEvents } = await supabase
-              .from('calendar_events')
-              .select('id, booking_id, event_type, start_time')
-              .eq('booking_id', bookingData.id)
+            console.log(`Creating ${calendarEvents.length} new calendar events for booking ${bookingData.id}`)
 
-            const existingEventMap = new Map()
-            existingEvents?.forEach(event => {
-              const key = `${event.booking_id}-${event.event_type}-${event.start_time}`
-              existingEventMap.set(key, event)
-            })
+            // Smart team assignment based on booking ID consistency
+            const bookingHash = bookingData.id.split('-')[0] // Use first part of UUID for consistency
+            const teams = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5']
+            const baseTeamIndex = parseInt(bookingHash, 16) % teams.length
+            
+            for (let i = 0; i < calendarEvents.length; i++) {
+              const event = calendarEvents[i]
+              let assignedTeam = teams[baseTeamIndex]
+              
+              // Special handling: EVENT type events go to team-6
+              if (event.event_type === 'event') {
+                assignedTeam = 'team-6'
+              }
 
-            // Filter out events that already exist
-            const newEvents = calendarEvents.filter(event => {
-              const key = `${event.booking_id}-${event.event_type}-${event.start_time}`
-              return !existingEventMap.has(key)
-            })
+              console.log(`Assigning ${event.event_type} event to ${assignedTeam} for booking ${bookingData.id}`)
 
-            console.log(`Found ${existingEvents?.length || 0} existing calendar events, creating ${newEvents.length} new events`)
-
-            // Get available teams for new events only
-            const { data: allExistingEvents } = await supabase
-              .from('calendar_events')
-              .select('resource_id, start_time, end_time')
-
-            const teamAvailability = new Map()
-            const teams = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5', 'team-6']
-
-            // Initialize team availability
-            teams.forEach(team => teamAvailability.set(team, 0))
-
-            // Count existing events per team for the dates we're scheduling
-            allExistingEvents?.forEach(event => {
-              const eventDate = new Date(event.start_time).toISOString().split('T')[0]
-              newEvents.forEach(newEvent => {
-                const newEventDate = new Date(newEvent.start_time).toISOString().split('T')[0]
-                if (eventDate === newEventDate) {
-                  const currentCount = teamAvailability.get(event.resource_id) || 0
-                  teamAvailability.set(event.resource_id, currentCount + 1)
-                }
-              })
-            })
-
-            // Assign NEW events to teams with least conflicts
-            for (const event of newEvents) {
-              let selectedTeam = 'team-1'
-              let minConflicts = teamAvailability.get('team-1') || 0
-
-              teams.forEach(team => {
-                const conflicts = teamAvailability.get(team) || 0
-                if (conflicts < minConflicts) {
-                  selectedTeam = team
-                  minConflicts = conflicts
-                }
-              })
-
-              console.log(`Selected ${selectedTeam} with ${minConflicts} events for new event`)
-
-              // Update the team availability for next event
-              teamAvailability.set(selectedTeam, minConflicts + 1)
-
-              // Insert calendar event with assigned team
               const { error: eventError } = await supabase
                 .from('calendar_events')
-                .insert({
+                .upsert({
                   ...event,
-                  resource_id: selectedTeam
+                  resource_id: assignedTeam
+                }, {
+                  onConflict: 'booking_id,event_type,start_time'
                 })
 
               if (eventError) {
@@ -472,6 +447,8 @@ serve(async (req) => {
                 results.calendar_events_created++
               }
             }
+          } else {
+            console.log(`No new calendar events needed for booking ${bookingData.id}`)
           }
         }
 
@@ -482,26 +459,35 @@ serve(async (req) => {
       }
     }
 
-    // Log final results
+    // SAVE SYNC TIMESTAMP - This is crucial for incremental sync
+    const currentTimestamp = new Date().toISOString()
+    console.log(`Saving sync timestamp: ${currentTimestamp}`)
+    
+    const { error: syncError } = await supabase
+      .from('sync_state')
+      .upsert({
+        sync_type: 'booking_import',
+        last_sync_timestamp: currentTimestamp,
+        last_sync_mode: syncMode,
+        last_sync_status: results.failed > 0 ? 'partial_success' : 'success',
+        metadata: { results }
+      })
+
+    if (syncError) {
+      console.error('Error saving sync state:', syncError)
+    } else {
+      console.log('Sync timestamp saved successfully')
+    }
+
     console.log('Import results:', {
       total: results.total,
       imported: results.imported,
       new_bookings: results.new_bookings.length,
       updated_bookings: results.updated_bookings.length,
       duplicates_skipped: results.duplicates_skipped.length,
-      cancelled_skipped: results.cancelled_bookings_skipped.length
+      cancelled_skipped: results.cancelled_bookings_skipped.length,
+      calendar_events_created: results.calendar_events_created
     })
-
-    // Update sync state
-    await supabase
-      .from('sync_state')
-      .upsert({
-        sync_type: 'booking_import',
-        last_sync_timestamp: new Date().toISOString(),
-        last_sync_mode: syncMode,
-        last_sync_status: results.failed > 0 ? 'partial_success' : 'success',
-        metadata: { results }
-      })
 
     return new Response(
       JSON.stringify({ success: true, results }),

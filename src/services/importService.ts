@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { smartUpdateBookingCalendar } from "./bookingCalendarService";
+import { cleanupDuplicateCalendarEvents } from "./duplicateCleanupService";
 import { 
   getSyncState, 
   updateSyncState, 
@@ -23,6 +24,7 @@ export interface ImportResults {
     updated_bookings?: string[];
     status_changed_bookings?: string[];
     cancelled_bookings_skipped?: string[];
+    duplicates_skipped?: string[];
     errors?: { booking_id: string; error: string }[];
     sync_mode?: SyncMode;
     sync_duration_ms?: number;
@@ -41,7 +43,7 @@ export interface ImportFilters {
 }
 
 /**
- * Enhanced import bookings with intelligent sync modes and smart calendar updates
+ * Enhanced import bookings with duplicate cleanup and proper timestamp handling
  */
 export const importBookings = async (filters: ImportFilters = {}): Promise<ImportResults> => {
   const syncType = 'booking_import';
@@ -49,6 +51,10 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
   let syncMode: SyncMode;
   
   try {
+    // Clean up duplicates before starting import
+    console.log('Cleaning up existing duplicates before import...');
+    await cleanupDuplicateCalendarEvents();
+    
     toast.info('Initializing booking synchronization...', {
       duration: 3000,
     });
@@ -98,7 +104,7 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
       duration: 2000,
     });
     
-    // Call the Supabase Edge Function with smart calendar handling
+    // Call the Supabase Edge Function with improved duplicate handling
     const { data: resultData, error: functionError } = await supabase.functions.invoke(
       'import-bookings',
       {
@@ -107,7 +113,8 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
           ...enhancedFilters, 
           syncMode, 
           handleStatusChanges: true,
-          preventDuplicateEvents: true // New flag to prevent duplicate events
+          preventDuplicateEvents: true,
+          useTimestampFiltering: true
         }
       }
     );
@@ -164,31 +171,7 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
       sync_duration_ms: syncDurationMs
     };
     
-    // Handle smart calendar updates for status changes
-    if (results.status_changed_bookings && results.status_changed_bookings.length > 0) {
-      console.log(`Processing ${results.status_changed_bookings.length} status changes with smart calendar updates`);
-      
-      for (const bookingId of results.status_changed_bookings) {
-        try {
-          // Fetch current and previous booking data to determine if calendar sync is needed
-          const { data: currentBooking } = await supabase
-            .from('bookings')
-            .select('*')
-            .eq('id', bookingId)
-            .single();
-          
-          if (currentBooking) {
-            // For imported bookings, we assume the previous state was different
-            // The edge function should have already handled the calendar events appropriately
-            console.log(`Status change processed for booking ${bookingId}: ${currentBooking.status}`);
-          }
-        } catch (error) {
-          console.error(`Error processing status change for booking ${bookingId}:`, error);
-        }
-      }
-    }
-    
-    // Update sync state to success
+    // Update sync state to success - this saves the timestamp for next incremental sync
     await updateSyncState(syncType, {
       last_sync_timestamp: new Date().toISOString(),
       last_sync_status: 'success',
@@ -204,8 +187,8 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
     const updatedCount = results.updated_bookings?.length || 0;
     const statusChangedCount = results.status_changed_bookings?.length || 0;
     const cancelledSkippedCount = results.cancelled_bookings_skipped?.length || 0;
-    const productsCount = results.products_imported || 0;
-    const attachmentsCount = results.attachments_imported || 0;
+    const duplicatesSkippedCount = results.duplicates_skipped?.length || 0;
+    const eventsCreated = results.calendar_events_created || 0;
     
     if (newCount > 0 || updatedCount > 0 || statusChangedCount > 0) {
       const messages = [];
@@ -214,11 +197,14 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
       if (statusChangedCount > 0) messages.push(`${statusChangedCount} status changed`);
       
       let description = `${messages.join(', ')} • ${(syncDurationMs / 1000).toFixed(1)}s`;
-      if (productsCount > 0 || attachmentsCount > 0) {
-        description += ` • ${productsCount} products, ${attachmentsCount} attachments`;
+      if (eventsCreated > 0) {
+        description += ` • ${eventsCreated} calendar events created`;
+      }
+      if (duplicatesSkippedCount > 0) {
+        description += ` • ${duplicatesSkippedCount} duplicates skipped`;
       }
       if (cancelledSkippedCount > 0) {
-        description += ` • ${cancelledSkippedCount} CANCELLED booking${cancelledSkippedCount > 1 ? 's' : ''} skipped`;
+        description += ` • ${cancelledSkippedCount} CANCELLED skipped`;
       }
       
       toast.success(`${syncMode.charAt(0).toUpperCase() + syncMode.slice(1)} sync completed`, {
@@ -226,8 +212,11 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
       });
     } else {
       let description = `No changes found • ${(syncDurationMs / 1000).toFixed(1)}s`;
+      if (duplicatesSkippedCount > 0) {
+        description += ` • ${duplicatesSkippedCount} duplicates prevented`;
+      }
       if (cancelledSkippedCount > 0) {
-        description += ` • ${cancelledSkippedCount} CANCELLED booking${cancelledSkippedCount > 1 ? 's' : ''} skipped`;
+        description += ` • ${cancelledSkippedCount} CANCELLED skipped`;
       }
       
       toast.success(`${syncMode.charAt(0).toUpperCase() + syncMode.slice(1)} sync completed`, {

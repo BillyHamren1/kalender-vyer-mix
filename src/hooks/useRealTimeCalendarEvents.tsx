@@ -22,7 +22,7 @@ export const useRealTimeCalendarEvents = () => {
     return stored ? new Date(stored) : new Date();
   });
 
-  // Load initial events and fix titles if needed
+  // Enhanced event loading with better data mapping
   const loadEvents = useCallback(async () => {
     try {
       console.log('Loading calendar events...');
@@ -31,16 +31,61 @@ export const useRealTimeCalendarEvents = () => {
       const calendarEvents = await fetchCalendarEvents();
       
       if (activeRef.current) {
-        setEvents(calendarEvents);
-        console.log(`Loaded ${calendarEvents.length} calendar events`);
+        // Enhance events with booking data for better hover information
+        const enhancedEvents = await Promise.all(
+          calendarEvents.map(async (event) => {
+            if (event.bookingId) {
+              try {
+                // Fetch booking details for enhanced hover data
+                const { data: booking } = await supabase
+                  .from('bookings')
+                  .select(`
+                    *,
+                    booking_products (
+                      name,
+                      quantity,
+                      notes
+                    )
+                  `)
+                  .eq('id', event.bookingId)
+                  .single();
+
+                if (booking) {
+                  return {
+                    ...event,
+                    extendedProps: {
+                      ...event.extendedProps,
+                      client: booking.client,
+                      deliveryAddress: booking.deliveryaddress,
+                      deliveryCity: booking.delivery_city,
+                      deliveryPostalCode: booking.delivery_postal_code,
+                      exactTimeNeeded: booking.exact_time_needed,
+                      exactTimeInfo: booking.exact_time_info,
+                      internalNotes: booking.internalnotes,
+                      carryMoreThan10m: booking.carry_more_than_10m,
+                      groundNailsAllowed: booking.ground_nails_allowed,
+                      products: booking.booking_products || [],
+                      bookingNumber: booking.booking_number
+                    }
+                  };
+                }
+              } catch (error) {
+                console.warn(`Failed to fetch booking details for event ${event.id}:`, error);
+              }
+            }
+            return event;
+          })
+        );
+
+        setEvents(enhancedEvents);
+        console.log(`Loaded ${enhancedEvents.length} calendar events with enhanced data`);
         
         // Check if we need to fix any titles (only run once per session)
         const titleFixKey = 'title-fix-attempted';
         if (!sessionStorage.getItem(titleFixKey)) {
           console.log('Checking if event titles need fixing...');
           
-          // Check if any events have UUID-style titles
-          const hasUuidTitles = calendarEvents.some(event => 
+          const hasUuidTitles = enhancedEvents.some(event => 
             event.title && event.title.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)
           );
           
@@ -48,7 +93,6 @@ export const useRealTimeCalendarEvents = () => {
             console.log('Found events with UUID titles, attempting to fix...');
             try {
               await fixAllEventTitles();
-              // Reload events after fixing titles
               const updatedEvents = await fetchCalendarEvents();
               if (activeRef.current) {
                 setEvents(updatedEvents);
@@ -74,7 +118,7 @@ export const useRealTimeCalendarEvents = () => {
     }
   }, []);
 
-  // Handle real-time calendar event changes
+  // Enhanced real-time calendar event handler
   const handleCalendarEventChange = useCallback((payload: any) => {
     console.log('Real-time calendar event change:', payload.eventType);
     
@@ -90,14 +134,22 @@ export const useRealTimeCalendarEvents = () => {
           if (newRecord && !updatedEvents.find(e => e.id === newRecord.id)) {
             const newEvent: CalendarEvent = {
               id: newRecord.id,
-              resourceId: mapDatabaseToAppResourceId(newRecord.resource_id), // Convert DB format to app format
+              resourceId: mapDatabaseToAppResourceId(newRecord.resource_id),
               title: newRecord.title,
               start: newRecord.start_time,
               end: newRecord.end_time,
               eventType: newRecord.event_type as 'rig' | 'event' | 'rigDown',
               bookingId: newRecord.booking_id || '',
               bookingNumber: newRecord.booking_number || newRecord.booking_id || 'No ID',
-              deliveryAddress: newRecord.delivery_address || 'No address provided'
+              deliveryAddress: newRecord.delivery_address || 'No address provided',
+              extendedProps: {
+                bookingId: newRecord.booking_id,
+                booking_id: newRecord.booking_id,
+                resourceId: mapDatabaseToAppResourceId(newRecord.resource_id),
+                deliveryAddress: newRecord.delivery_address,
+                bookingNumber: newRecord.booking_number,
+                eventType: newRecord.event_type
+              }
             };
             updatedEvents.push(newEvent);
             console.log('Added new event:', newEvent.title, 'to team:', newEvent.resourceId);
@@ -109,15 +161,25 @@ export const useRealTimeCalendarEvents = () => {
             const index = updatedEvents.findIndex(e => e.id === newRecord.id);
             if (index !== -1) {
               updatedEvents[index] = {
+                ...updatedEvents[index],
                 id: newRecord.id,
-                resourceId: mapDatabaseToAppResourceId(newRecord.resource_id), // Convert DB format to app format
+                resourceId: mapDatabaseToAppResourceId(newRecord.resource_id),
                 title: newRecord.title,
                 start: newRecord.start_time,
                 end: newRecord.end_time,
                 eventType: newRecord.event_type as 'rig' | 'event' | 'rigDown',
                 bookingId: newRecord.booking_id || '',
                 bookingNumber: newRecord.booking_number || newRecord.booking_id || 'No ID',
-                deliveryAddress: newRecord.delivery_address || 'No address provided'
+                deliveryAddress: newRecord.delivery_address || 'No address provided',
+                extendedProps: {
+                  ...updatedEvents[index].extendedProps,
+                  bookingId: newRecord.booking_id,
+                  booking_id: newRecord.booking_id,
+                  resourceId: mapDatabaseToAppResourceId(newRecord.resource_id),
+                  deliveryAddress: newRecord.delivery_address,
+                  bookingNumber: newRecord.booking_number,
+                  eventType: newRecord.event_type
+                }
               };
               console.log('Updated event:', newRecord.title, 'moved to team:', updatedEvents[index].resourceId);
             }
@@ -180,7 +242,7 @@ export const useRealTimeCalendarEvents = () => {
   useEffect(() => {
     activeRef.current = true;
 
-    // Load initial events (no automatic sync)
+    // Load initial events
     loadEvents();
 
     // Set up real-time subscription for calendar events
