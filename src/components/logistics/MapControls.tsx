@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,7 +18,6 @@ import {
   RulerIcon
 } from 'lucide-react';
 import { MapDrawingControls } from './MapDrawingControls';
-import { colorOptions } from './MapUtils';
 
 interface MapControlsProps {
   is3DEnabled: boolean;
@@ -189,6 +189,8 @@ export const MapControls: React.FC<MapControlsProps> = ({
           isFreehandDrawing={isFreehandDrawing}
           toggleFreehandDrawing={toggleFreehandDrawing}
           clearAllDrawings={clearAllDrawings}
+          isDrawingOpen={isDrawingOpen}
+          setIsDrawingOpen={setIsDrawingOpen}
         />
       )}
     </>

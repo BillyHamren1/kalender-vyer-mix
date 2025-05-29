@@ -721,6 +721,65 @@ const MapComponent: React.FC<MapComponentProps> = ({
     map.current.off('click', handleMeasureClick);
   };
 
+  // Add polygon measurement functions
+  const addPolygonMeasurements = (feature: any) => {
+    if (!polygonMeasurementsSource.current || feature.geometry.type !== 'Polygon') return;
+
+    const coordinates = feature.geometry.coordinates[0]; // Get outer ring
+    const measurements = [];
+
+    // Calculate measurements for each side of the polygon
+    for (let i = 0; i < coordinates.length - 1; i++) {
+      const start = coordinates[i];
+      const end = coordinates[i + 1];
+      const distance = calculateDistance(start, end);
+      
+      // Calculate midpoint for label placement
+      const midpoint = [
+        (start[0] + end[0]) / 2,
+        (start[1] + end[1]) / 2
+      ];
+
+      measurements.push({
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: midpoint
+        },
+        properties: {
+          distance: formatDistance(distance),
+          polygonId: feature.id
+        }
+      });
+    }
+
+    // Update the measurements source
+    polygonMeasurementsSource.current.setData({
+      type: 'FeatureCollection',
+      features: measurements
+    });
+  };
+
+  const clearPolygonMeasurements = () => {
+    if (!polygonMeasurementsSource.current) return;
+    
+    polygonMeasurementsSource.current.setData({
+      type: 'FeatureCollection',
+      features: []
+    });
+  };
+
+  const togglePolygonMeasurements = () => {
+    setShowPolygonMeasurements(!showPolygonMeasurements);
+    
+    if (!showPolygonMeasurements) {
+      toast.success('Polygon measurements enabled');
+    } else {
+      toast.success('Polygon measurements disabled');
+      clearPolygonMeasurements();
+    }
+  };
+
   // Validate canvas has actual map content (not just transparent pixels)
   const validateCanvasContent = (canvas: HTMLCanvasElement): boolean => {
     console.log('🔍 Validating canvas content with improved logic...');
@@ -1250,62 +1309,3 @@ const MapComponent: React.FC<MapComponentProps> = ({
 };
 
 export default MapComponent;
-
-// Add polygon measurement functions
-const addPolygonMeasurements = (feature: any) => {
-  if (!polygonMeasurementsSource.current || feature.geometry.type !== 'Polygon') return;
-
-  const coordinates = feature.geometry.coordinates[0]; // Get outer ring
-  const measurements = [];
-
-  // Calculate measurements for each side of the polygon
-  for (let i = 0; i < coordinates.length - 1; i++) {
-    const start = coordinates[i];
-    const end = coordinates[i + 1];
-    const distance = calculateDistance(start, end);
-    
-    // Calculate midpoint for label placement
-    const midpoint = [
-      (start[0] + end[0]) / 2,
-      (start[1] + end[1]) / 2
-    ];
-
-    measurements.push({
-      type: 'Feature',
-      geometry: {
-        type: 'Point',
-        coordinates: midpoint
-      },
-      properties: {
-        distance: formatDistance(distance),
-        polygonId: feature.id
-      }
-    });
-  }
-
-  // Update the measurements source
-  polygonMeasurementsSource.current.setData({
-    type: 'FeatureCollection',
-    features: measurements
-  });
-};
-
-const clearPolygonMeasurements = () => {
-  if (!polygonMeasurementsSource.current) return;
-  
-  polygonMeasurementsSource.current.setData({
-    type: 'FeatureCollection',
-    features: []
-  });
-};
-
-const togglePolygonMeasurements = () => {
-  setShowPolygonMeasurements(!showPolygonMeasurements);
-  
-  if (!showPolygonMeasurements) {
-    toast.success('Polygon measurements enabled');
-  } else {
-    toast.success('Polygon measurements disabled');
-    clearPolygonMeasurements();
-  }
-};
