@@ -68,7 +68,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
     const initialCenter: [number, number] = centerLng && centerLat 
       ? [centerLng, centerLat] 
       : [18, 60];
-    const initialZoom = centerLng && centerLat ? 15 : 4;
+    // Use higher zoom (18) when specific coordinates are provided, similar to booking selection
+    const initialZoom = centerLng && centerLat ? 18 : 4;
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
@@ -373,15 +374,15 @@ const MapComponent: React.FC<MapComponentProps> = ({
       bounds.extend([booking.deliveryLongitude, booking.deliveryLatitude]);
     });
 
-    // Fit bounds if there are markers
-    if (!bounds.isEmpty()) {
+    // Only fit bounds if there are multiple markers and no specific center was provided
+    if (!bounds.isEmpty() && !centerLat && !centerLng) {
       map.current.fitBounds(bounds, {
         padding: 100,
         maxZoom: 15,
         duration: 1000
       });
     }
-  }, [bookings, selectedBooking, mapInitialized]);
+  }, [bookings, selectedBooking, mapInitialized, centerLat, centerLng]);
 
   // Handle event delegation for popup button clicks
   useEffect(() => {
