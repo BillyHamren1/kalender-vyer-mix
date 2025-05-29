@@ -7,7 +7,7 @@ import { Booking } from '@/types/booking';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Ruler, Mountain, RotateCcw, Edit3, Square, Circle, Minus, Trash2 } from 'lucide-react';
+import { Ruler, Mountain, RotateCcw, Edit3, Square, Circle, Minus, Trash2, Palette } from 'lucide-react';
 
 interface MapComponentProps {
   bookings: Booking[];
@@ -41,8 +41,23 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [is3DEnabled, setIs3DEnabled] = useState(false);
   const [isMeasuring, setIsMeasuring] = useState(false);
   const [drawMode, setDrawMode] = useState<string>('simple_select');
+  const [selectedColor, setSelectedColor] = useState<string>('#3bb2d0');
   const measurePoints = useRef<number[][]>([]);
   const measureSource = useRef<mapboxgl.GeoJSONSource | null>(null);
+
+  // Color options for drawing
+  const colorOptions = [
+    '#3bb2d0', // Default blue
+    '#ff0000', // Red
+    '#00ff00', // Green
+    '#fbb03b', // Orange
+    '#8b5cf6', // Purple
+    '#06b6d4', // Cyan
+    '#f59e0b', // Amber
+    '#ef4444', // Red variant
+    '#10b981', // Emerald
+    '#6366f1', // Indigo
+  ];
 
   // Fetch Mapbox token from edge function
   useEffect(() => {
@@ -94,123 +109,125 @@ const MapComponent: React.FC<MapComponentProps> = ({
       projection: 'globe'
     });
 
-    // Initialize Mapbox Draw with proper configuration
+    // Initialize Mapbox Draw with dynamic styles
+    const createDrawStyles = (color: string) => [
+      // Polygon fill
+      {
+        'id': 'gl-draw-polygon-fill-inactive',
+        'type': 'fill',
+        'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+        'paint': {
+          'fill-color': color,
+          'fill-outline-color': color,
+          'fill-opacity': 0.1
+        }
+      },
+      {
+        'id': 'gl-draw-polygon-fill-active',
+        'type': 'fill',
+        'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+        'paint': {
+          'fill-color': color,
+          'fill-outline-color': color,
+          'fill-opacity': 0.2
+        }
+      },
+      // Polygon stroke
+      {
+        'id': 'gl-draw-polygon-stroke-inactive',
+        'type': 'line',
+        'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+        'layout': {
+          'line-cap': 'round',
+          'line-join': 'round'
+        },
+        'paint': {
+          'line-color': color,
+          'line-width': 2
+        }
+      },
+      {
+        'id': 'gl-draw-polygon-stroke-active',
+        'type': 'line',
+        'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+        'layout': {
+          'line-cap': 'round',
+          'line-join': 'round'
+        },
+        'paint': {
+          'line-color': color,
+          'line-width': 3
+        }
+      },
+      // Line
+      {
+        'id': 'gl-draw-line-inactive',
+        'type': 'line',
+        'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'LineString'], ['!=', 'mode', 'static']],
+        'layout': {
+          'line-cap': 'round',
+          'line-join': 'round'
+        },
+        'paint': {
+          'line-color': color,
+          'line-width': 2
+        }
+      },
+      {
+        'id': 'gl-draw-line-active',
+        'type': 'line',
+        'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'LineString'], ['!=', 'mode', 'static']],
+        'layout': {
+          'line-cap': 'round',
+          'line-join': 'round'
+        },
+        'paint': {
+          'line-color': color,
+          'line-width': 3
+        }
+      },
+      // Point
+      {
+        'id': 'gl-draw-point-inactive',
+        'type': 'circle',
+        'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
+        'paint': {
+          'circle-radius': 5,
+          'circle-color': color,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2
+        }
+      },
+      {
+        'id': 'gl-draw-point-active',
+        'type': 'circle',
+        'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
+        'paint': {
+          'circle-radius': 7,
+          'circle-color': color,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2
+        }
+      },
+      // Vertices
+      {
+        'id': 'gl-draw-polygon-and-line-vertex-stroke-inactive',
+        'type': 'circle',
+        'filter': ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
+        'paint': {
+          'circle-radius': 5,
+          'circle-color': '#fff',
+          'circle-stroke-color': color,
+          'circle-stroke-width': 2
+        }
+      }
+    ];
+
     draw.current = new MapboxDraw({
       displayControlsDefault: false,
       controls: {},
       defaultMode: 'simple_select',
-      styles: [
-        // Polygon fill
-        {
-          'id': 'gl-draw-polygon-fill-inactive',
-          'type': 'fill',
-          'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
-          'paint': {
-            'fill-color': '#3bb2d0',
-            'fill-outline-color': '#3bb2d0',
-            'fill-opacity': 0.1
-          }
-        },
-        {
-          'id': 'gl-draw-polygon-fill-active',
-          'type': 'fill',
-          'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
-          'paint': {
-            'fill-color': '#fbb03b',
-            'fill-outline-color': '#fbb03b',
-            'fill-opacity': 0.1
-          }
-        },
-        // Polygon stroke
-        {
-          'id': 'gl-draw-polygon-stroke-inactive',
-          'type': 'line',
-          'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
-          'layout': {
-            'line-cap': 'round',
-            'line-join': 'round'
-          },
-          'paint': {
-            'line-color': '#3bb2d0',
-            'line-width': 2
-          }
-        },
-        {
-          'id': 'gl-draw-polygon-stroke-active',
-          'type': 'line',
-          'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
-          'layout': {
-            'line-cap': 'round',
-            'line-join': 'round'
-          },
-          'paint': {
-            'line-color': '#fbb03b',
-            'line-width': 2
-          }
-        },
-        // Line
-        {
-          'id': 'gl-draw-line-inactive',
-          'type': 'line',
-          'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'LineString'], ['!=', 'mode', 'static']],
-          'layout': {
-            'line-cap': 'round',
-            'line-join': 'round'
-          },
-          'paint': {
-            'line-color': '#3bb2d0',
-            'line-width': 2
-          }
-        },
-        {
-          'id': 'gl-draw-line-active',
-          'type': 'line',
-          'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'LineString'], ['!=', 'mode', 'static']],
-          'layout': {
-            'line-cap': 'round',
-            'line-join': 'round'
-          },
-          'paint': {
-            'line-color': '#fbb03b',
-            'line-width': 2
-          }
-        },
-        // Point
-        {
-          'id': 'gl-draw-point-inactive',
-          'type': 'circle',
-          'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
-          'paint': {
-            'circle-radius': 5,
-            'circle-color': '#3bb2d0',
-            'circle-stroke-color': '#ffffff',
-            'circle-stroke-width': 2
-          }
-        },
-        {
-          'id': 'gl-draw-point-active',
-          'type': 'circle',
-          'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
-          'paint': {
-            'circle-radius': 7,
-            'circle-color': '#fbb03b',
-            'circle-stroke-color': '#ffffff',
-            'circle-stroke-width': 2
-          }
-        },
-        // Vertices
-        {
-          'id': 'gl-draw-polygon-and-line-vertex-stroke-inactive',
-          'type': 'circle',
-          'filter': ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
-          'paint': {
-            'circle-radius': 5,
-            'circle-color': '#fff',
-            'circle-stroke-color': '#3bb2d0',
-            'circle-stroke-width': 2
-          }
-        }
-      ]
+      styles: createDrawStyles(selectedColor)
     });
 
     // Add controls
@@ -300,9 +317,134 @@ const MapComponent: React.FC<MapComponentProps> = ({
       map.current?.remove();
       map.current = null;
     };
-  }, [mapboxToken, isLoadingToken, centerLat, centerLng]);
+  }, [mapboxToken, isLoadingToken, centerLat, centerLng, selectedColor]);
 
-  // Toggle 3D terrain
+  // Update draw styles when color changes
+  useEffect(() => {
+    if (!draw.current || !map.current || !mapInitialized) return;
+
+    // Remove existing draw control and re-add with new styles
+    map.current.removeControl(draw.current);
+    
+    const createDrawStyles = (color: string) => [
+      {
+        'id': 'gl-draw-polygon-fill-inactive',
+        'type': 'fill',
+        'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+        'paint': {
+          'fill-color': color,
+          'fill-outline-color': color,
+          'fill-opacity': 0.1
+        }
+      },
+      {
+        'id': 'gl-draw-polygon-fill-active',
+        'type': 'fill',
+        'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+        'paint': {
+          'fill-color': color,
+          'fill-outline-color': color,
+          'fill-opacity': 0.2
+        }
+      },
+      {
+        'id': 'gl-draw-polygon-stroke-inactive',
+        'type': 'line',
+        'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+        'layout': {
+          'line-cap': 'round',
+          'line-join': 'round'
+        },
+        'paint': {
+          'line-color': color,
+          'line-width': 2
+        }
+      },
+      {
+        'id': 'gl-draw-polygon-stroke-active',
+        'type': 'line',
+        'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+        'layout': {
+          'line-cap': 'round',
+          'line-join': 'round'
+        },
+        'paint': {
+          'line-color': color,
+          'line-width': 3
+        }
+      },
+      {
+        'id': 'gl-draw-line-inactive',
+        'type': 'line',
+        'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'LineString'], ['!=', 'mode', 'static']],
+        'layout': {
+          'line-cap': 'round',
+          'line-join': 'round'
+        },
+        'paint': {
+          'line-color': color,
+          'line-width': 2
+        }
+      },
+      {
+        'id': 'gl-draw-line-active',
+        'type': 'line',
+        'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'LineString'], ['!=', 'mode', 'static']],
+        'layout': {
+          'line-cap': 'round',
+          'line-join': 'round'
+        },
+        'paint': {
+          'line-color': color,
+          'line-width': 3
+        }
+      },
+      {
+        'id': 'gl-draw-point-inactive',
+        'type': 'circle',
+        'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
+        'paint': {
+          'circle-radius': 5,
+          'circle-color': color,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2
+        }
+      },
+      {
+        'id': 'gl-draw-point-active',
+        'type': 'circle',
+        'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
+        'paint': {
+          'circle-radius': 7,
+          'circle-color': color,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2
+        }
+      },
+      {
+        'id': 'gl-draw-polygon-and-line-vertex-stroke-inactive',
+        'type': 'circle',
+        'filter': ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
+        'paint': {
+          'circle-radius': 5,
+          'circle-color': '#fff',
+          'circle-stroke-color': color,
+          'circle-stroke-width': 2
+        }
+      }
+    ];
+
+    draw.current = new MapboxDraw({
+      displayControlsDefault: false,
+      controls: {},
+      defaultMode: drawMode,
+      styles: createDrawStyles(selectedColor)
+    });
+
+    map.current.addControl(draw.current, 'top-right');
+    draw.current.changeMode(drawMode);
+  }, [selectedColor, mapInitialized, drawMode]);
+
   const toggle3D = () => {
     if (!map.current || !mapInitialized) return;
 
@@ -619,6 +761,27 @@ const MapComponent: React.FC<MapComponentProps> = ({
             <Ruler className="h-4 w-4 mr-1" />
             Measure
           </Button>
+        </div>
+
+        {/* Color Picker */}
+        <div className="flex flex-col gap-1 border-t border-white/20 pt-2">
+          <div className="flex items-center gap-1 mb-1">
+            <Palette className="h-4 w-4" />
+            <span className="text-xs font-medium">Color:</span>
+          </div>
+          <div className="grid grid-cols-5 gap-1 p-2 bg-white/90 backdrop-blur-sm rounded-md shadow-md">
+            {colorOptions.map((color) => (
+              <button
+                key={color}
+                onClick={() => setSelectedColor(color)}
+                className={`w-6 h-6 rounded-sm border-2 ${
+                  selectedColor === color ? 'border-gray-800' : 'border-white'
+                } hover:scale-110 transition-transform`}
+                style={{ backgroundColor: color }}
+                title={`Select ${color}`}
+              />
+            ))}
+          </div>
         </div>
 
         {/* Drawing Controls */}
