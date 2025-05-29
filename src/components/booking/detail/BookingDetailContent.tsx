@@ -44,6 +44,12 @@ export const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
   onReloadData,
   isSavingInternalNotes
 }) => {
+  const handleAttachmentDeleted = (attachmentId: string) => {
+    console.log('📎 Attachment deleted, reloading booking data...');
+    // Reload the booking data to update the attachments list
+    onReloadData();
+  };
+
   if (!booking) {
     return (
       <div className="p-3">
@@ -116,7 +122,10 @@ export const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
         />
 
         {/* Always display Attachments - even if empty */}
-        <AttachmentsList attachments={booking.attachments || []} />
+        <AttachmentsList 
+          attachments={booking.attachments || []} 
+          onAttachmentDeleted={handleAttachmentDeleted}
+        />
 
         {/* Internal Notes - always displayed */}
         <InternalNotes 
