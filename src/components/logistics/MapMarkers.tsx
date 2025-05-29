@@ -1,7 +1,7 @@
+
 import React, { useEffect, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { Booking } from '@/types/booking';
-import { getDisplayBookingNumber } from './MapUtils';
 
 interface MapMarkersProps {
   map: React.MutableRefObject<mapboxgl.Map | null>;
@@ -23,17 +23,14 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({
   centerLng
 }) => {
   const markers = useRef<mapboxgl.Marker[]>([]);
-  const popups = useRef<{[key: string]: mapboxgl.Popup}>({});
 
   // Add or update markers when bookings change
   useEffect(() => {
     if (!map.current || !mapInitialized) return;
 
+    // Remove existing markers
     markers.current.forEach(marker => marker.remove());
     markers.current = [];
-    
-    Object.values(popups.current).forEach(popup => popup.remove());
-    popups.current = {};
 
     if (!bookings.length) return;
 
@@ -42,22 +39,7 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({
     bookings.forEach(booking => {
       if (!booking.deliveryLatitude || !booking.deliveryLongitude) return;
       
-      const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
-        <div>
-          <h3 class="font-bold">${booking.client}</h3>
-          <p>${getDisplayBookingNumber(booking)}</p>
-          <p>${booking.deliveryAddress || 'No address'}</p>
-          <button 
-            class="px-2 py-1 mt-2 text-xs bg-blue-500 text-white rounded"
-            onclick="document.dispatchEvent(new CustomEvent('selectBooking', {detail: '${booking.id}'}));"
-          >
-            View Details
-          </button>
-        </div>
-      `);
-      
-      popups.current[booking.id] = popup;
-
+      // Create marker element
       const el = document.createElement('div');
       el.className = 'marker';
       el.style.width = '25px';
@@ -67,16 +49,31 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({
       el.style.cursor = 'pointer';
       el.style.border = '2px solid white';
       el.style.boxShadow = '0 0 0 2px rgba(0, 0, 0, 0.1)';
+      el.style.transition = 'all 0.2s ease';
+      
+      // Add hover effect
+      el.addEventListener('mouseenter', () => {
+        el.style.transform = 'scale(1.1)';
+      });
+      
+      el.addEventListener('mouseleave', () => {
+        el.style.transform = 'scale(1)';
+      });
+      
+      // Add click handler directly to marker element
+      el.addEventListener('click', () => {
+        onBookingSelect(booking);
+      });
       
       const marker = new mapboxgl.Marker(el)
         .setLngLat([booking.deliveryLongitude, booking.deliveryLatitude])
-        .setPopup(popup)
         .addTo(map.current!);
       
       markers.current.push(marker);
       bounds.extend([booking.deliveryLongitude, booking.deliveryLatitude]);
     });
 
+    // Fit bounds only if no specific center coordinates are provided
     if (!bounds.isEmpty() && !centerLat && !centerLng) {
       map.current.fitBounds(bounds, {
         padding: 100,
@@ -84,37 +81,18 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({
         duration: 1000
       });
     }
-  }, [bookings, selectedBooking, mapInitialized, centerLat, centerLng]);
+  }, [bookings, selectedBooking, mapInitialized, centerLat, centerLng, onBookingSelect]);
 
-  useEffect(() => {
-    const handleSelectBooking = (e: Event) => {
-      const bookingId = (e as CustomEvent).detail;
-      const booking = bookings.find(b => b.id === bookingId);
-      if (booking) {
-        onBookingSelect(booking);
-      }
-    };
-
-    document.addEventListener('selectBooking', handleSelectBooking);
-    return () => {
-      document.removeEventListener('selectBooking', handleSelectBooking);
-    };
-  }, [bookings, onBookingSelect]);
-
+  // Fly to selected booking location
   useEffect(() => {
     if (!map.current || !selectedBooking || !mapInitialized) return;
     
     if (selectedBooking.deliveryLatitude && selectedBooking.deliveryLongitude) {
       map.current.flyTo({
         center: [selectedBooking.deliveryLongitude, selectedBooking.deliveryLatitude],
-        zoom: 15, // Changed to 15 for proper 20m detail
+        zoom: 12, // Use the same zoom level as the initial zoom
         duration: 1000
       });
-      
-      const popup = popups.current[selectedBooking.id];
-      if (popup) {
-        popup.addTo(map.current);
-      }
     }
   }, [selectedBooking, mapInitialized]);
 

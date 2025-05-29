@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { MapControls } from './MapControls';
 import { MapMarkers } from './MapMarkers';
 import { calculateDistance, formatDistance, createDrawStyles } from './MapUtils';
+import { BookingDetailPanel } from './BookingDetailPanel';
 
 interface MapComponentProps {
   bookings: Booking[];
@@ -656,6 +657,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
         clearAllDrawings={clearAllDrawings}
         currentMapStyle={currentMapStyle}
         toggleMapStyle={toggleMapStyle}
+      />
+
+      {/* Booking Detail Panel */}
+      <BookingDetailPanel
+        booking={selectedBooking}
+        onClose={() => onBookingSelect(null)}
       />
 
       {/* Map Markers */}
