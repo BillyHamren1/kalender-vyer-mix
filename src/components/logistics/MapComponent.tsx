@@ -56,7 +56,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [isCapturingSnapshot, setIsCapturingSnapshot] = useState(false);
   const [isDraggingMeasurePoint, setIsDraggingMeasurePoint] = useState(false);
   const [dragPointIndex, setDragPointIndex] = useState<number | null>(null);
-  
+  const [showPolygonMeasurements, setShowPolygonMeasurements] = useState(false);
+  const polygonMeasurementsSource = useRef<mapboxgl.GeoJSONSource | null>(null);
+
   // Fixed states for snapshot preview modal
   const [showSnapshotModal, setShowSnapshotModal] = useState(false);
   const [snapshotImageUrl, setSnapshotImageUrl] = useState<string>('');
@@ -201,8 +203,18 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
+      // Add polygon measurements source
+      map.current?.addSource('polygon-measurements', {
+        'type': 'geojson',
+        'data': {
+          'type': 'FeatureCollection',
+          'features': []
+        }
+      });
+
       measureSource.current = map.current?.getSource('measure-points') as mapboxgl.GeoJSONSource;
       freehandSource.current = map.current?.getSource('freehand-lines') as mapboxgl.GeoJSONSource;
+      polygonMeasurementsSource.current = map.current?.getSource('polygon-measurements') as mapboxgl.GeoJSONSource;
 
       // Add measuring layers
       map.current?.addLayer({
@@ -265,6 +277,25 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
+      // Add polygon measurements layer
+      map.current?.addLayer({
+        'id': 'polygon-measurements-labels',
+        'type': 'symbol',
+        'source': 'polygon-measurements',
+        'layout': {
+          'text-field': ['get', 'distance'],
+          'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+          'text-size': 11,
+          'text-anchor': 'center',
+          'text-offset': [0, 0]
+        },
+        'paint': {
+          'text-color': selectedColor,
+          'text-halo-color': '#ffffff',
+          'text-halo-width': 2
+        }
+      });
+
       // Add ONLY mousedown event listener for measure points (not persistent mousemove/mouseup)
       map.current?.on('mousedown', 'measure-points-layer', handleMeasurePointMouseDown);
 
@@ -299,16 +330,36 @@ const MapComponent: React.FC<MapComponentProps> = ({
     // Drawing event listeners with proper typing
     map.current.on('draw.create', (e: DrawEvent) => {
       console.log('Created feature:', e.features[0]);
-      toast.success(`${e.features[0].geometry.type} created`);
+      const feature = e.features[0];
+      
+      // If polygon measurements are enabled and this is a polygon, add measurements
+      if (showPolygonMeasurements && feature.geometry.type === 'Polygon') {
+        addPolygonMeasurements(feature);
+      }
+      
+      toast.success(`${feature.geometry.type} created`);
     });
 
     map.current.on('draw.update', (e: DrawEvent) => {
       console.log('Updated feature:', e.features[0]);
-      toast.success(`${e.features[0].geometry.type} updated`);
+      const feature = e.features[0];
+      
+      // If polygon measurements are enabled and this is a polygon, update measurements
+      if (showPolygonMeasurements && feature.geometry.type === 'Polygon') {
+        addPolygonMeasurements(feature);
+      }
+      
+      toast.success(`${feature.geometry.type} updated`);
     });
 
     map.current.on('draw.delete', (e: DrawEvent) => {
       console.log('Deleted features:', e.features);
+      
+      // Clear polygon measurements when features are deleted
+      if (showPolygonMeasurements) {
+        clearPolygonMeasurements();
+      }
+      
       toast.success(`${e.features.length} feature(s) deleted`);
     });
 
@@ -318,7 +369,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       map.current?.remove();
       map.current = null;
     };
-  }, [mapboxToken, isLoadingToken, centerLat, centerLng, selectedColor, currentMapStyle]);
+  }, [mapboxToken, isLoadingToken, centerLat, centerLng, selectedColor, currentMapStyle, showPolygonMeasurements]);
 
   // Clean up drag event listeners
   const cleanupDragListeners = () => {
@@ -649,6 +700,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     draw.current.deleteAll();
     measurePoints.current = [];
     updateMeasureDisplay();
+    clearPolygonMeasurements();
     toast.success('All drawings cleared');
   };
 
@@ -782,7 +834,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       console.log('👁️ Snapshot modal opened in loading state');
       
       toast.info('Preparing map for snapshot...');
-
+      
       // Step 1: Wait for map to be fully ready
       console.log('⏳ Step 1: Waiting for map to be fully ready...');
       const isMapReady = await waitForMapReady();
@@ -1162,6 +1214,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
         clearAllDrawings={clearAllDrawings}
         currentMapStyle={currentMapStyle}
         toggleMapStyle={toggleMapStyle}
+        showPolygonMeasurements={showPolygonMeasurements}
+        togglePolygonMeasurements={togglePolygonMeasurements}
       />
 
       {/* Booking Detail Panel */}
@@ -1196,3 +1250,51 @@ const MapComponent: React.FC<MapComponentProps> = ({
 };
 
 export default MapComponent;
+
+// Add polygon measurement functions
+const addPolygonMeasurements = (feature: any) => {
+  if (!polygonMeasurementsSource.current || feature.geometry.type !== 'Polygon') return;
+
+  const coordinates = feature.geometry.coordinates[0]; // Get outer ring
+  const measurements = [];
+
+  // Calculate measurements for each side of the polygon
+  for (let i = 0; i < coordinates.length - 1; i++) {
+    const start = coordinates[i];
+    const end = coordinates[i + 1];
+    const distance = calculateDistance(start, end);
+    
+    // Calculate midpoint for label placement
+    const midpoint = [
+      (start[0] + end[0]) / 2,
+      (start[1] + end[1]) / 2
+    ];
+
+    measurements.push({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: midpoint
+      },
+      properties: {
+        distance: formatDistance(distance),
+        polygonId: feature.id
+      }
+    });
+  }
+
+  // Update the measurements source
+  polygonMeasurementsSource.current.setData({
+    type: 'FeatureCollection',
+    features: measurements
+  });
+};
+
+const clearPolygonMeasurements = () => {
+  if (!polygonMeasurementsSource.current) return;
+  
+  polygonMeasurementsSource.current.setData({
+    type: 'FeatureCollection',
+    features: []
+  });
+};
