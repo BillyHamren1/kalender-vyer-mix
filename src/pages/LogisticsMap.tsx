@@ -25,7 +25,7 @@ const LogisticsMap = () => {
     setFilterDate,
     setSelectedBooking,
     loadBookings
-  } = useLogisticsMap();
+  } = useLogisticsMap(bookingId);
   
   const [showSidebar, setShowSidebar] = useState(!hideControls);
 
@@ -99,7 +99,9 @@ const LogisticsMap = () => {
               </Button>
             )}
             <Map className="h-8 w-8 text-[#82b6c6]" />
-            <h1 className="text-3xl font-bold text-gray-900">Logistics Map</h1>
+            <h1 className="text-3xl font-bold text-gray-900">
+              {bookingId ? `Booking Location` : 'Logistics Map'}
+            </h1>
           </div>
         </div>
       </div>
@@ -109,29 +111,36 @@ const LogisticsMap = () => {
         <div className="w-full">
           <Card className="flex-grow">
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Booking Locations</CardTitle>
+              <CardTitle>
+                {bookingId ? `Location for ${selectedBooking?.bookingNumber || 'Booking'}` : 'Booking Locations'}
+              </CardTitle>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={toggleSidebar}>
-                  {showSidebar ? 'Hide List' : 'Show List'}
-                </Button>
+                {/* Only show sidebar toggle if not filtering by specific booking */}
+                {!bookingId && (
+                  <Button variant="outline" size="sm" onClick={toggleSidebar}>
+                    {showSidebar ? 'Hide List' : 'Show List'}
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent className="p-0 relative">
-              {/* Filter Controls at the top of the map */}
-              <div className="p-4 border-b bg-gray-50">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <Filter className="h-5 w-5" />
-                    <span className="font-medium">Filters:</span>
-                  </div>
-                  <div className="flex-1 max-w-56">
-                    <FilterControls 
-                      onDateChange={setFilterDate} 
-                      filterDate={filterDate}
-                    />
+              {/* Filter Controls at the top of the map - only show if not filtering by specific booking */}
+              {!bookingId && (
+                <div className="p-4 border-b bg-gray-50">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Filter className="h-5 w-5" />
+                      <span className="font-medium">Filters:</span>
+                    </div>
+                    <div className="flex-1 max-w-56">
+                      <FilterControls 
+                        onDateChange={setFilterDate} 
+                        filterDate={filterDate}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Map Area */}
               <div className="h-[70vh]">
@@ -142,14 +151,15 @@ const LogisticsMap = () => {
                   </div>
                 ) : (
                   <div className="flex h-full">
-                    {showSidebar && (
+                    {/* Only show sidebar if not filtering by specific booking and sidebar is enabled */}
+                    {showSidebar && !bookingId && (
                       <BookingListSidebar 
                         bookings={filteredBookings} 
                         selectedBooking={selectedBooking}
                         onBookingSelect={setSelectedBooking}
                       />
                     )}
-                    <div className={`${showSidebar ? 'w-2/3' : 'w-full'} h-full`}>
+                    <div className={`${showSidebar && !bookingId ? 'w-2/3' : 'w-full'} h-full`}>
                       <MapComponent 
                         bookings={filteredBookings} 
                         selectedBooking={selectedBooking}

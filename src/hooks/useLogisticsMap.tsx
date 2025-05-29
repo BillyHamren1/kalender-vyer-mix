@@ -4,7 +4,7 @@ import { Booking } from '@/types/booking';
 import { fetchConfirmedBookings } from '@/services/bookingService';
 import { toast } from 'sonner';
 
-export const useLogisticsMap = () => {
+export const useLogisticsMap = (bookingId?: string | null) => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -26,7 +26,6 @@ export const useLogisticsMap = () => {
       );
       
       setBookings(bookingsWithCoordinates);
-      setFilteredBookings(bookingsWithCoordinates);
       
       if (bookingsWithCoordinates.length === 0) {
         toast.warning('No bookings with coordinates found');
@@ -50,8 +49,17 @@ export const useLogisticsMap = () => {
 
     let filtered = [...bookings];
 
-    // Apply date filter if selected
-    if (filterDate) {
+    // Apply booking ID filter first if provided
+    if (bookingId) {
+      filtered = filtered.filter(booking => booking.id === bookingId);
+      if (filtered.length === 0) {
+        console.warn(`No booking found with ID: ${bookingId}`);
+        toast.warning('Booking not found or has no coordinates');
+      }
+    }
+
+    // Apply date filter if selected (only if not filtering by specific booking)
+    if (filterDate && !bookingId) {
       const dateString = filterDate.toISOString().split('T')[0];
       filtered = filtered.filter(booking => 
         booking.rigDayDate === dateString || 
@@ -61,7 +69,7 @@ export const useLogisticsMap = () => {
     }
 
     setFilteredBookings(filtered);
-  }, [bookings, filterDate]);
+  }, [bookings, filterDate, bookingId]);
 
   return {
     bookings,
