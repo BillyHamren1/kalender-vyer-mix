@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
@@ -512,7 +511,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
       const canvas = map.current?.getCanvas();
       if (canvas && map.current) {
         const rect = canvas.getBoundingClientRect();
-        const midpoint = map.current.project(measurePoints.current[lastIndex]);
+        // Fix: properly type the coordinates as [number, number]
+        const lastPoint = measurePoints.current[lastIndex];
+        const midpoint = map.current.project([lastPoint[0], lastPoint[1]] as [number, number]);
 
         setLiveMeasurement({
           visible: true,
