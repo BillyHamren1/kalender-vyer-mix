@@ -31,12 +31,10 @@ export const BookingDetailHeader: React.FC<BookingDetailHeaderProps> = ({
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-lg font-semibold text-gray-900">Booking Details</h1>
+            <h1 className="text-lg font-semibold text-gray-900">
+              {bookingNumber || 'No booking number'}
+            </h1>
             <div className="flex items-center gap-2 mt-0">
-              <p className="text-xs text-gray-600">
-                #{bookingNumber || 'No booking number'}
-              </p>
-              <span className="text-gray-400">•</span>
               <p className="text-sm font-bold text-gray-900">{client}</p>
             </div>
           </div>
