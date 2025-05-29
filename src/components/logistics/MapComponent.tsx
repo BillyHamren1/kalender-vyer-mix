@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
@@ -6,9 +7,9 @@ import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
 import { Booking } from '@/types/booking';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Ruler, Mountain, RotateCcw, Edit3, Square, Circle, Minus, Trash2, Palette, ChevronDown, Pen, Camera } from 'lucide-react';
+import { MapControls } from './MapControls';
+import { MapMarkers } from './MapMarkers';
+import { calculateDistance, formatDistance, createDrawStyles } from './MapUtils';
 
 interface MapComponentProps {
   bookings: Booking[];
@@ -37,8 +38,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const map = useRef<mapboxgl.Map | null>(null);
   const draw = useRef<MapboxDraw | null>(null);
   const [mapInitialized, setMapInitialized] = useState(false);
-  const markers = useRef<mapboxgl.Marker[]>([]);
-  const popups = useRef<{[key: string]: mapboxgl.Popup}>({});
   const [mapboxToken, setMapboxToken] = useState<string | null>(null);
   const [isLoadingToken, setIsLoadingToken] = useState(true);
   const [is3DEnabled, setIs3DEnabled] = useState(false);
@@ -53,20 +52,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const measureSource = useRef<mapboxgl.GeoJSONSource | null>(null);
   const freehandSource = useRef<mapboxgl.GeoJSONSource | null>(null);
   const [isCapturingSnapshot, setIsCapturingSnapshot] = useState(false);
-
-  // Color options for drawing
-  const colorOptions = [
-    '#3bb2d0', // Default blue
-    '#ff0000', // Red
-    '#00ff00', // Green
-    '#fbb03b', // Orange
-    '#8b5cf6', // Purple
-    '#06b6d4', // Cyan
-    '#f59e0b', // Amber
-    '#ef4444', // Red variant
-    '#10b981', // Emerald
-    '#6366f1', // Indigo
-  ];
 
   // Fetch Mapbox token from edge function
   useEffect(() => {
@@ -119,119 +104,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
     });
 
     // Initialize Mapbox Draw with dynamic styles
-    const createDrawStyles = (color: string) => [
-      // Polygon fill
-      {
-        'id': 'gl-draw-polygon-fill-inactive',
-        'type': 'fill',
-        'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
-        'paint': {
-          'fill-color': color,
-          'fill-outline-color': color,
-          'fill-opacity': 0.1
-        }
-      },
-      {
-        'id': 'gl-draw-polygon-fill-active',
-        'type': 'fill',
-        'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
-        'paint': {
-          'fill-color': color,
-          'fill-outline-color': color,
-          'fill-opacity': 0.2
-        }
-      },
-      // Polygon stroke
-      {
-        'id': 'gl-draw-polygon-stroke-inactive',
-        'type': 'line',
-        'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
-        'layout': {
-          'line-cap': 'round',
-          'line-join': 'round'
-        },
-        'paint': {
-          'line-color': color,
-          'line-width': 2
-        }
-      },
-      {
-        'id': 'gl-draw-polygon-stroke-active',
-        'type': 'line',
-        'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
-        'layout': {
-          'line-cap': 'round',
-          'line-join': 'round'
-        },
-        'paint': {
-          'line-color': color,
-          'line-width': 3
-        }
-      },
-      // Line
-      {
-        'id': 'gl-draw-line-inactive',
-        'type': 'line',
-        'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'LineString'], ['!=', 'mode', 'static']],
-        'layout': {
-          'line-cap': 'round',
-          'line-join': 'round'
-        },
-        'paint': {
-          'line-color': color,
-          'line-width': 2
-        }
-      },
-      {
-        'id': 'gl-draw-line-active',
-        'type': 'line',
-        'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'LineString'], ['!=', 'mode', 'static']],
-        'layout': {
-          'line-cap': 'round',
-          'line-join': 'round'
-        },
-        'paint': {
-          'line-color': color,
-          'line-width': 3
-        }
-      },
-      // Point
-      {
-        'id': 'gl-draw-point-inactive',
-        'type': 'circle',
-        'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
-        'paint': {
-          'circle-radius': 5,
-          'circle-color': color,
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 2
-        }
-      },
-      {
-        'id': 'gl-draw-point-active',
-        'type': 'circle',
-        'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
-        'paint': {
-          'circle-radius': 7,
-          'circle-color': color,
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 2
-        }
-      },
-      // Vertices
-      {
-        'id': 'gl-draw-polygon-and-line-vertex-stroke-inactive',
-        'type': 'circle',
-        'filter': ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
-        'paint': {
-          'circle-radius': 5,
-          'circle-color': '#fff',
-          'circle-stroke-color': color,
-          'circle-stroke-width': 2
-        }
-      }
-    ];
-
     draw.current = new MapboxDraw({
       displayControlsDefault: false,
       controls: {},
@@ -378,114 +250,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
     // Remove existing draw control and re-add with new styles
     map.current.removeControl(draw.current);
     
-    const createDrawStyles = (color: string) => [
-      {
-        'id': 'gl-draw-polygon-fill-inactive',
-        'type': 'fill',
-        'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
-        'paint': {
-          'fill-color': color,
-          'fill-outline-color': color,
-          'fill-opacity': 0.1
-        }
-      },
-      {
-        'id': 'gl-draw-polygon-fill-active',
-        'type': 'fill',
-        'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
-        'paint': {
-          'fill-color': color,
-          'fill-outline-color': color,
-          'fill-opacity': 0.2
-        }
-      },
-      {
-        'id': 'gl-draw-polygon-stroke-inactive',
-        'type': 'line',
-        'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
-        'layout': {
-          'line-cap': 'round',
-          'line-join': 'round'
-        },
-        'paint': {
-          'line-color': color,
-          'line-width': 2
-        }
-      },
-      {
-        'id': 'gl-draw-polygon-stroke-active',
-        'type': 'line',
-        'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
-        'layout': {
-          'line-cap': 'round',
-          'line-join': 'round'
-        },
-        'paint': {
-          'line-color': color,
-          'line-width': 3
-        }
-      },
-      {
-        'id': 'gl-draw-line-inactive',
-        'type': 'line',
-        'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'LineString'], ['!=', 'mode', 'static']],
-        'layout': {
-          'line-cap': 'round',
-          'line-join': 'round'
-        },
-        'paint': {
-          'line-color': color,
-          'line-width': 2
-        }
-      },
-      {
-        'id': 'gl-draw-line-active',
-        'type': 'line',
-        'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'LineString'], ['!=', 'mode', 'static']],
-        'layout': {
-          'line-cap': 'round',
-          'line-join': 'round'
-        },
-        'paint': {
-          'line-color': color,
-          'line-width': 3
-        }
-      },
-      {
-        'id': 'gl-draw-point-inactive',
-        'type': 'circle',
-        'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
-        'paint': {
-          'circle-radius': 5,
-          'circle-color': color,
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 2
-        }
-      },
-      {
-        'id': 'gl-draw-point-active',
-        'type': 'circle',
-        'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
-        'paint': {
-          'circle-radius': 7,
-          'circle-color': color,
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 2
-        }
-      },
-      {
-        'id': 'gl-draw-polygon-and-line-vertex-stroke-inactive',
-        'type': 'circle',
-        'filter': ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
-        'paint': {
-          'circle-radius': 5,
-          'circle-color': '#fff',
-          'circle-stroke-color': color,
-          'circle-stroke-width': 2
-        }
-      }
-    ];
-
     draw.current = new MapboxDraw({
       displayControlsDefault: false,
       controls: {},
@@ -518,28 +282,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
       });
       setIs3DEnabled(false);
       toast.success('3D terrain disabled');
-    }
-  };
-
-  const calculateDistance = (point1: number[], point2: number[]): number => {
-    const [lon1, lat1] = point1;
-    const [lon2, lat2] = point2;
-    
-    const R = 6371000;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
-
-  const formatDistance = (distance: number): string => {
-    if (distance < 1000) {
-      return `${Math.round(distance)} m`;
-    } else {
-      return `${(distance / 1000).toFixed(2)} km`;
     }
   };
 
@@ -776,106 +518,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
     map.current.off('click', handleMeasureClick);
   };
 
-  const getDisplayBookingNumber = (booking: Booking) => {
-    if (booking.bookingNumber) {
-      return `Booking #${booking.bookingNumber}`;
-    }
-    return `Booking #${booking.id.substring(0, 8)}...`;
-  };
-
-  // Add or update markers when bookings change
-  useEffect(() => {
-    if (!map.current || !mapInitialized) return;
-
-    markers.current.forEach(marker => marker.remove());
-    markers.current = [];
-    
-    Object.values(popups.current).forEach(popup => popup.remove());
-    popups.current = {};
-
-    if (!bookings.length) return;
-
-    const bounds = new mapboxgl.LngLatBounds();
-    
-    bookings.forEach(booking => {
-      if (!booking.deliveryLatitude || !booking.deliveryLongitude) return;
-      
-      const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
-        <div>
-          <h3 class="font-bold">${booking.client}</h3>
-          <p>${getDisplayBookingNumber(booking)}</p>
-          <p>${booking.deliveryAddress || 'No address'}</p>
-          <button 
-            class="px-2 py-1 mt-2 text-xs bg-blue-500 text-white rounded"
-            onclick="document.dispatchEvent(new CustomEvent('selectBooking', {detail: '${booking.id}'}));"
-          >
-            View Details
-          </button>
-        </div>
-      `);
-      
-      popups.current[booking.id] = popup;
-
-      const el = document.createElement('div');
-      el.className = 'marker';
-      el.style.width = '25px';
-      el.style.height = '25px';
-      el.style.borderRadius = '50%';
-      el.style.backgroundColor = selectedBooking?.id === booking.id ? '#3b82f6' : '#ef4444';
-      el.style.cursor = 'pointer';
-      el.style.border = '2px solid white';
-      el.style.boxShadow = '0 0 0 2px rgba(0, 0, 0, 0.1)';
-      
-      const marker = new mapboxgl.Marker(el)
-        .setLngLat([booking.deliveryLongitude, booking.deliveryLatitude])
-        .setPopup(popup)
-        .addTo(map.current!);
-      
-      markers.current.push(marker);
-      bounds.extend([booking.deliveryLongitude, booking.deliveryLatitude]);
-    });
-
-    if (!bounds.isEmpty() && !centerLat && !centerLng) {
-      map.current.fitBounds(bounds, {
-        padding: 100,
-        maxZoom: 15,
-        duration: 1000
-      });
-    }
-  }, [bookings, selectedBooking, mapInitialized, centerLat, centerLng]);
-
-  useEffect(() => {
-    const handleSelectBooking = (e: Event) => {
-      const bookingId = (e as CustomEvent).detail;
-      const booking = bookings.find(b => b.id === bookingId);
-      if (booking) {
-        onBookingSelect(booking);
-      }
-    };
-
-    document.addEventListener('selectBooking', handleSelectBooking);
-    return () => {
-      document.removeEventListener('selectBooking', handleSelectBooking);
-    };
-  }, [bookings, onBookingSelect]);
-
-  useEffect(() => {
-    if (!map.current || !selectedBooking || !mapInitialized) return;
-    
-    if (selectedBooking.deliveryLatitude && selectedBooking.deliveryLongitude) {
-      map.current.flyTo({
-        center: [selectedBooking.deliveryLongitude, selectedBooking.deliveryLatitude],
-        zoom: 18, // Changed to 18 for proper 20m detail
-        duration: 1000
-      });
-      
-      const popup = popups.current[selectedBooking.id];
-      if (popup) {
-        popup.addTo(map.current);
-      }
-    }
-  }, [selectedBooking, mapInitialized]);
-
   const takeMapSnapshot = async () => {
     if (!map.current || !selectedBooking) {
       toast.error('No booking selected for snapshot');
@@ -950,173 +592,37 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   return (
     <div className="h-full w-full rounded-lg overflow-hidden relative">
-      {/* Enhanced Map Controls - Now Collapsible */}
-      <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
-        {/* Basic Controls (always visible) */}
-        <div className="flex flex-col gap-1">
-          <Button
-            onClick={toggle3D}
-            size="sm"
-            variant={is3DEnabled ? "default" : "outline"}
-            className="bg-white/90 backdrop-blur-sm shadow-md"
-          >
-            <Mountain className="h-4 w-4 mr-1" />
-            3D Terrain
-          </Button>
-          
-          <Button
-            onClick={toggleMeasuring}
-            size="sm"
-            variant={isMeasuring ? "default" : "outline"}
-            className={`bg-white/90 backdrop-blur-sm shadow-md ${
-              isMeasuring ? 'bg-teal-500 text-white hover:bg-teal-600' : ''
-            }`}
-          >
-            <Ruler className="h-4 w-4 mr-1" />
-            Measure
-          </Button>
+      {/* Enhanced Map Controls */}
+      <MapControls
+        is3DEnabled={is3DEnabled}
+        toggle3D={toggle3D}
+        isMeasuring={isMeasuring}
+        toggleMeasuring={toggleMeasuring}
+        selectedBooking={selectedBooking}
+        takeMapSnapshot={takeMapSnapshot}
+        isCapturingSnapshot={isCapturingSnapshot}
+        resetView={resetView}
+        isDrawingOpen={isDrawingOpen}
+        setIsDrawingOpen={setIsDrawingOpen}
+        selectedColor={selectedColor}
+        setSelectedColor={setSelectedColor}
+        drawMode={drawMode}
+        setDrawingMode={setDrawingMode}
+        isFreehandDrawing={isFreehandDrawing}
+        toggleFreehandDrawing={toggleFreehandDrawing}
+        clearAllDrawings={clearAllDrawings}
+      />
 
-          {/* Snapshot Button - Only show when a booking is selected */}
-          {selectedBooking && (
-            <Button
-              onClick={takeMapSnapshot}
-              size="sm"
-              variant="outline"
-              disabled={isCapturingSnapshot}
-              className="bg-white/90 backdrop-blur-sm shadow-md"
-            >
-              <Camera className="h-4 w-4 mr-1" />
-              {isCapturingSnapshot ? 'Capturing...' : 'Snapshot'}
-            </Button>
-          )}
-        </div>
-
-        {/* Collapsible Drawing Controls */}
-        <Collapsible open={isDrawingOpen} onOpenChange={setIsDrawingOpen}>
-          <CollapsibleTrigger asChild>
-            <Button
-              size="sm"
-              variant="outline"
-              className="bg-white/90 backdrop-blur-sm shadow-md w-full justify-between"
-            >
-              <div className="flex items-center">
-                <Edit3 className="h-4 w-4 mr-1" />
-                Drawing Tools
-              </div>
-              <ChevronDown className={`h-4 w-4 transition-transform ${isDrawingOpen ? 'rotate-180' : ''}`} />
-            </Button>
-          </CollapsibleTrigger>
-          
-          <CollapsibleContent className="space-y-2 mt-2">
-            {/* Color Picker */}
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-1 mb-1">
-                <Palette className="h-4 w-4" />
-                <span className="text-xs font-medium">Color:</span>
-              </div>
-              <div className="grid grid-cols-5 gap-1 p-2 bg-white/90 backdrop-blur-sm rounded-md shadow-md">
-                {colorOptions.map((color) => (
-                  <button
-                    key={color}
-                    onClick={() => setSelectedColor(color)}
-                    className={`w-6 h-6 rounded-sm border-2 ${
-                      selectedColor === color ? 'border-gray-800' : 'border-white'
-                    } hover:scale-110 transition-transform`}
-                    style={{ backgroundColor: color }}
-                    title={`Select ${color}`}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Drawing Mode Controls */}
-            <div className="flex flex-col gap-1">
-              <Button
-                onClick={() => setDrawingMode('simple_select')}
-                size="sm"
-                variant={drawMode === 'simple_select' ? "default" : "outline"}
-                className={`bg-white/90 backdrop-blur-sm shadow-md ${
-                  drawMode === 'simple_select' ? 'bg-teal-500 text-white hover:bg-teal-600' : ''
-                }`}
-              >
-                <Edit3 className="h-4 w-4 mr-1" />
-                Select
-              </Button>
-              
-              <Button
-                onClick={toggleFreehandDrawing}
-                size="sm"
-                variant={isFreehandDrawing ? "default" : "outline"}
-                className={`bg-white/90 backdrop-blur-sm shadow-md ${
-                  isFreehandDrawing ? 'bg-teal-500 text-white hover:bg-teal-600' : ''
-                }`}
-              >
-                <Pen className="h-4 w-4 mr-1" />
-                Freehand
-              </Button>
-              
-              <Button
-                onClick={() => setDrawingMode('draw_polygon')}
-                size="sm"
-                variant={drawMode === 'draw_polygon' ? "default" : "outline"}
-                className={`bg-white/90 backdrop-blur-sm shadow-md ${
-                  drawMode === 'draw_polygon' ? 'bg-teal-500 text-white hover:bg-teal-600' : ''
-                }`}
-              >
-                <Square className="h-4 w-4 mr-1" />
-                Polygon
-              </Button>
-              
-              <Button
-                onClick={() => setDrawingMode('draw_line_string')}
-                size="sm"
-                variant={drawMode === 'draw_line_string' ? "default" : "outline"}
-                className={`bg-white/90 backdrop-blur-sm shadow-md ${
-                  drawMode === 'draw_line_string' ? 'bg-teal-500 text-white hover:bg-teal-600' : ''
-                }`}
-              >
-                <Minus className="h-4 w-4 mr-1" />
-                Line
-              </Button>
-              
-              <Button
-                onClick={() => setDrawingMode('draw_point')}
-                size="sm"
-                variant={drawMode === 'draw_point' ? "default" : "outline"}
-                className={`bg-white/90 backdrop-blur-sm shadow-md ${
-                  drawMode === 'draw_point' ? 'bg-teal-500 text-white hover:bg-teal-600' : ''
-                }`}
-              >
-                <Circle className="h-4 w-4 mr-1" />
-                Point
-              </Button>
-            </div>
-
-            {/* Clear and Reset Controls */}
-            <div className="flex flex-col gap-1 border-t border-white/20 pt-2">
-              <Button
-                onClick={clearAllDrawings}
-                size="sm"
-                variant="outline"
-                className="bg-white/90 backdrop-blur-sm shadow-md text-red-600 hover:text-red-700"
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                Clear All
-              </Button>
-              
-              <Button
-                onClick={resetView}
-                size="sm"
-                variant="outline"
-                className="bg-white/90 backdrop-blur-sm shadow-md"
-              >
-                <RotateCcw className="h-4 w-4 mr-1" />
-                Reset
-              </Button>
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </div>
+      {/* Map Markers */}
+      <MapMarkers
+        map={map}
+        bookings={bookings}
+        selectedBooking={selectedBooking}
+        onBookingSelect={onBookingSelect}
+        mapInitialized={mapInitialized}
+        centerLat={centerLat}
+        centerLng={centerLng}
+      />
 
       <div ref={mapContainer} className="absolute inset-0" />
     </div>
