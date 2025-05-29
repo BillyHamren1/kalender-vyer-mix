@@ -34,6 +34,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [snapshotImageUrl, setSnapshotImageUrl] = useState<string>('');
   const [showSnapshotModal, setShowSnapshotModal] = useState(false);
   const [isCapturingSnapshot, setIsCapturingSnapshot] = useState(false);
+  const [loadingError, setLoadingError] = useState<string>('');
 
   // Initialize map
   useEffect(() => {
@@ -41,24 +42,38 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     const initializeMap = async () => {
       try {
+        console.log('Starting map initialization...');
+        
         // Get Mapbox token from Supabase function
         const { data: tokenData, error: tokenError } = await supabase.functions.invoke('mapbox-token');
         
-        if (tokenError || !tokenData?.token) {
-          console.error('Failed to get Mapbox token:', tokenError);
-          toast.error('Failed to load map: Missing Mapbox token');
+        console.log('Token response:', { tokenData, tokenError });
+        
+        if (tokenError) {
+          console.error('Token error:', tokenError);
+          setLoadingError(`Failed to get Mapbox token: ${tokenError.message || 'Unknown error'}`);
+          toast.error('Failed to load map: Token error');
+          return;
+        }
+        
+        if (!tokenData?.token) {
+          console.error('No token in response:', tokenData);
+          setLoadingError('No Mapbox token received from server');
+          toast.error('Failed to load map: Missing token');
           return;
         }
 
+        console.log('Setting Mapbox access token...');
         // Set the access token
         mapboxgl.accessToken = tokenData.token;
 
+        console.log('Creating map instance...');
         // Initialize the map
         map.current = new mapboxgl.Map({
           container: mapContainer.current!,
           style: 'mapbox://styles/mapbox/streets-v12',
-          center: [18.0686, 59.3293], // Stockholm coordinates as default
-          zoom: 10,
+          center: [centerLng || 18.0686, centerLat || 59.3293], // Use provided coordinates or Stockholm as default
+          zoom: centerLat && centerLng ? 12 : 10,
           attributionControl: false
         });
 
@@ -73,11 +88,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
         map.current.on('error', (e) => {
           console.error('Map error:', e);
+          setLoadingError(`Map error: ${e.error?.message || 'Unknown map error'}`);
           toast.error('Map failed to load');
         });
 
       } catch (error) {
         console.error('Map initialization error:', error);
+        setLoadingError(`Initialization error: ${error instanceof Error ? error.message : 'Unknown error'}`);
         toast.error('Failed to initialize map');
       }
     };
@@ -91,7 +108,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         setMapInitialized(false);
       }
     };
-  }, []);
+  }, [centerLat, centerLng]);
 
   const takeMapSnapshot = async () => {
     if (!map.current || !selectedBooking) {
@@ -101,7 +118,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     try {
       setIsCapturingSnapshot(true);
-      setShowSnapshotModal(true); // Open modal immediately
+      setShowSnapshotModal(true);
       toast.info('Capturing map snapshot...');
       
       const canvas = map.current.getCanvas();
@@ -138,13 +155,23 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   };
 
-  // If map is not initialized, show loading
+  // Show loading or error state
   if (!mapInitialized) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-gray-100">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
-          <p className="text-gray-600">Loading map...</p>
+          {loadingError ? (
+            <>
+              <div className="text-red-500 mb-2">⚠️</div>
+              <p className="text-red-600 font-medium">Map Loading Error</p>
+              <p className="text-gray-600 text-sm mt-1">{loadingError}</p>
+            </>
+          ) : (
+            <>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
+              <p className="text-gray-600">Loading map...</p>
+            </>
+          )}
         </div>
       </div>
     );
