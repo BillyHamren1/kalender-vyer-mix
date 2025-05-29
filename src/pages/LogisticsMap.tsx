@@ -46,30 +46,24 @@ const LogisticsMap = () => {
     setShowSidebar(!showSidebar);
   };
 
-  // In iframe mode, show simplified header
+  // In iframe mode, show only the map without any headers or padding
   if (hideControls) {
     return (
-      <div className="h-screen bg-gray-50">
-        <Card className="h-full rounded-none border-none">
-          <CardContent className="p-0 h-full">
-            {isLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <Loader className="h-8 w-8 animate-spin text-gray-400" />
-                <span className="ml-2 text-gray-500">Loading map...</span>
-              </div>
-            ) : (
-              <div className="h-full">
-                <MapComponent 
-                  bookings={filteredBookings} 
-                  selectedBooking={selectedBooking}
-                  onBookingSelect={setSelectedBooking}
-                  centerLat={lat ? parseFloat(lat) : undefined}
-                  centerLng={lng ? parseFloat(lng) : undefined}
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      <div className="h-screen w-full">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader className="h-8 w-8 animate-spin text-gray-400" />
+            <span className="ml-2 text-gray-500">Loading map...</span>
+          </div>
+        ) : (
+          <MapComponent 
+            bookings={filteredBookings} 
+            selectedBooking={selectedBooking}
+            onBookingSelect={setSelectedBooking}
+            centerLat={lat ? parseFloat(lat) : undefined}
+            centerLng={lng ? parseFloat(lng) : undefined}
+          />
+        )}
       </div>
     );
   }
