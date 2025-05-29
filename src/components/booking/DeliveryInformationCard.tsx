@@ -20,6 +20,8 @@ interface DeliveryInformationCardProps {
   initialPostalCode: string;
   deliveryLatitude?: number;
   deliveryLongitude?: number;
+  // Booking ID for map integration
+  bookingId?: string;
   isSaving: boolean;
   onSave: (deliveryData: {
     deliveryAddress: string;
@@ -42,6 +44,7 @@ export const DeliveryInformationCard = ({
   initialPostalCode,
   deliveryLatitude,
   deliveryLongitude,
+  bookingId,
   isSaving,
   onSave
 }: DeliveryInformationCardProps) => {
@@ -108,6 +111,11 @@ export const DeliveryInformationCard = ({
     if (latitude && longitude) {
       params.append('lat', latitude.toString());
       params.append('lng', longitude.toString());
+    }
+    
+    // Add booking ID to automatically select the booking in the map
+    if (bookingId) {
+      params.append('bookingId', bookingId);
     }
     
     return `/logistics-map?${params.toString()}`;

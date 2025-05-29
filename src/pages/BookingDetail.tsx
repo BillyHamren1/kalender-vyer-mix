@@ -1,4 +1,3 @@
-
 import React, { useEffect, useContext, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -230,6 +229,7 @@ const BookingDetail = () => {
                 initialPostalCode={booking.deliveryPostalCode || ''}
                 deliveryLatitude={booking.deliveryLatitude}
                 deliveryLongitude={booking.deliveryLongitude}
+                bookingId={actualBookingId}
                 isSaving={isSaving}
                 onSave={handleDeliveryDetailsChange}
               />

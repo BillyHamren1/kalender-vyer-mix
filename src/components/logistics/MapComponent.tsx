@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
@@ -103,8 +102,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
     const initialCenter: [number, number] = centerLng && centerLat 
       ? [centerLng, centerLat] 
       : [18, 60];
-    // Use zoom level 17 when specific coordinates are provided (good street level detail)
-    const initialZoom = centerLng && centerLat ? 17 : 4;
+    // Use zoom level 18 when specific coordinates are provided (good 20m detail)
+    const initialZoom = centerLng && centerLat ? 18 : 4;
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
@@ -866,7 +865,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     if (selectedBooking.deliveryLatitude && selectedBooking.deliveryLongitude) {
       map.current.flyTo({
         center: [selectedBooking.deliveryLongitude, selectedBooking.deliveryLatitude],
-        zoom: 17, // Changed from 22 to 17 for street-level view (about 20m)
+        zoom: 18, // Changed to 18 for proper 20m detail
         duration: 1000
       });
       
