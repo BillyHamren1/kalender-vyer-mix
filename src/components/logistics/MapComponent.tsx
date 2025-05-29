@@ -660,7 +660,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     map.current.off('click', handleMeasureClick);
   };
 
-  // Enhanced takeMapSnapshot function with 5-second delay
+  // Enhanced takeMapSnapshot function with comprehensive improvements
   const takeMapSnapshot = async () => {
     if (!map.current || !selectedBooking) {
       console.error('❌ Cannot take snapshot: missing map or booking');
@@ -670,33 +670,83 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     try {
       setIsCapturingSnapshot(true);
-      console.log('📸 Starting map snapshot capture for booking:', selectedBooking.bookingNumber);
+      console.log('📸 Starting enhanced map snapshot capture for booking:', selectedBooking.bookingNumber);
       
       // Show modal immediately with loading state
-      setSnapshotImageUrl(''); // Clear previous image
+      setSnapshotImageUrl('');
       setShowSnapshotModal(true);
       console.log('👁️ Snapshot modal opened in loading state');
       
-      toast.info('Capturing map snapshot...');
+      toast.info('Preparing map for snapshot...');
 
-      // Wait a moment for any animations to complete
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Step 1: Wait for map to be fully ready
+      console.log('⏳ Step 1: Waiting for map to be fully ready...');
+      const isMapReady = await waitForMapReady();
+      
+      if (!isMapReady) {
+        console.warn('⚠️ Map may not be fully ready, but proceeding...');
+        toast.info('Map may still be loading, but capturing anyway...');
+      }
 
-      // Get the map canvas and convert to base64
-      console.log('🎨 Getting map canvas...');
+      // Step 2: Additional delay to ensure all tiles are rendered
+      console.log('⏳ Step 2: Additional 3-second delay for tile rendering...');
+      toast.info('Ensuring all map tiles are loaded...');
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Step 3: Get and validate canvas
+      console.log('🎨 Step 3: Getting map canvas...');
       const canvas = map.current.getCanvas();
       console.log('📏 Canvas dimensions:', {
         width: canvas.width,
-        height: canvas.height
+        height: canvas.height,
+        clientWidth: canvas.clientWidth,
+        clientHeight: canvas.clientHeight
       });
 
-      const dataURL = canvas.toDataURL('image/png');
-      console.log('🔗 Canvas converted to data URL:', {
-        length: dataURL.length,
-        prefix: dataURL.substring(0, 50)
-      });
+      // Step 4: Force a map refresh and wait
+      console.log('🔄 Step 4: Forcing map refresh...');
+      map.current.resize();
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      console.log('☁️ Uploading snapshot to server...');
+      // Step 5: Capture with validation and retry
+      let dataURL = '';
+      let attempts = 0;
+      const maxAttempts = 3;
+
+      while (attempts < maxAttempts) {
+        attempts++;
+        console.log(`📸 Step 5: Canvas capture attempt ${attempts}/${maxAttempts}...`);
+        
+        try {
+          dataURL = canvas.toDataURL('image/png', 1.0); // Maximum quality
+          
+          if (validateCanvasData(canvas, dataURL)) {
+            console.log('✅ Canvas capture successful on attempt', attempts);
+            break;
+          } else {
+            console.warn(`⚠️ Canvas validation failed on attempt ${attempts}`);
+            if (attempts < maxAttempts) {
+              console.log('⏳ Waiting 2 seconds before retry...');
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+          }
+        } catch (error) {
+          console.error(`❌ Canvas capture error on attempt ${attempts}:`, error);
+          if (attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        }
+      }
+
+      if (!dataURL || dataURL.length < 1000) {
+        console.error('❌ Failed to capture valid canvas data after all attempts');
+        toast.error('Failed to capture map image - canvas appears empty');
+        setShowSnapshotModal(false);
+        return;
+      }
+
+      console.log('☁️ Step 6: Uploading snapshot to server...');
+      toast.info('Uploading map snapshot...');
       
       // Upload to the save-map-snapshot endpoint
       const { data, error } = await supabase.functions.invoke('save-map-snapshot', {
@@ -710,18 +760,18 @@ const MapComponent: React.FC<MapComponentProps> = ({
       if (error) {
         console.error('❌ Error saving snapshot:', error);
         toast.error('Failed to save map snapshot');
-        setShowSnapshotModal(false); // Close modal on error
+        setShowSnapshotModal(false);
         return;
       }
 
-      console.log('✅ Snapshot saved successfully:', {
+      console.log('✅ Snapshot uploaded successfully:', {
         hasUrl: !!data?.url,
         hasAttachment: !!data?.attachment,
         url: data?.url
       });
 
-      // Wait 5 seconds before trying to fetch the image
-      console.log('⏳ Waiting 5 seconds before fetching image...');
+      // Step 7: Wait 5 seconds before trying to fetch the image
+      console.log('⏳ Step 7: Waiting 5 seconds before fetching image...');
       toast.info('Processing snapshot... please wait 5 seconds');
       
       await new Promise(resolve => setTimeout(resolve, 5000));
@@ -729,6 +779,27 @@ const MapComponent: React.FC<MapComponentProps> = ({
       // Set the snapshot URL to display in modal
       if (data?.url) {
         console.log('🖼️ Setting snapshot URL for display after delay:', data.url);
+        
+        // Test if the image is actually accessible
+        try {
+          const testResponse = await fetch(data.url, { method: 'HEAD' });
+          console.log('🌐 Image accessibility test:', {
+            status: testResponse.status,
+            contentLength: testResponse.headers.get('content-length'),
+            contentType: testResponse.headers.get('content-type')
+          });
+          
+          const contentLength = testResponse.headers.get('content-length');
+          if (contentLength && parseInt(contentLength) === 0) {
+            console.error('❌ Image file is 0 bytes on server');
+            toast.error('Snapshot file is empty on server');
+            setShowSnapshotModal(false);
+            return;
+          }
+        } catch (fetchError) {
+          console.warn('⚠️ Could not test image accessibility:', fetchError);
+        }
+        
         setSnapshotImageUrl(data.url);
         toast.success('Map snapshot captured successfully');
         
@@ -740,17 +811,107 @@ const MapComponent: React.FC<MapComponentProps> = ({
       } else {
         console.error('❌ No URL returned from server');
         toast.error('Failed to get snapshot URL');
-        setShowSnapshotModal(false); // Close modal if no URL
+        setShowSnapshotModal(false);
       }
 
     } catch (error) {
       console.error('💥 Fatal error taking snapshot:', error);
       toast.error('Failed to capture map snapshot');
-      setShowSnapshotModal(false); // Close modal on error
+      setShowSnapshotModal(false);
     } finally {
       setIsCapturingSnapshot(false);
-      console.log('🏁 Snapshot capture process completed');
+      console.log('🏁 Enhanced snapshot capture process completed');
     }
+  };
+
+  // Improved map readiness check function
+  const waitForMapReady = async (): Promise<boolean> => {
+    if (!map.current) return false;
+
+    return new Promise((resolve) => {
+      let attempts = 0;
+      const maxAttempts = 10;
+      const checkInterval = 500;
+
+      const checkMapReady = () => {
+        attempts++;
+        console.log(`🔍 Map readiness check attempt ${attempts}/${maxAttempts}`);
+        
+        if (!map.current) {
+          console.log('❌ Map instance not available');
+          resolve(false);
+          return;
+        }
+
+        // Check if map style is loaded
+        const isStyleLoaded = map.current.isStyleLoaded();
+        console.log('🎨 Style loaded:', isStyleLoaded);
+
+        // Check if map is idle (all sources loaded)
+        const isMapIdle = map.current.loaded();
+        console.log('⏸️ Map idle/loaded:', isMapIdle);
+
+        // Get canvas dimensions
+        const canvas = map.current.getCanvas();
+        const canvasValid = canvas && canvas.width > 0 && canvas.height > 0;
+        console.log('🖼️ Canvas valid:', canvasValid, {
+          width: canvas?.width || 0,
+          height: canvas?.height || 0
+        });
+
+        if (isStyleLoaded && isMapIdle && canvasValid) {
+          console.log('✅ Map is fully ready for snapshot');
+          resolve(true);
+          return;
+        }
+
+        if (attempts >= maxAttempts) {
+          console.log('⚠️ Max attempts reached, proceeding anyway');
+          resolve(false);
+          return;
+        }
+
+        setTimeout(checkMapReady, checkInterval);
+      };
+
+      checkMapReady();
+    });
+  };
+
+  // Validate canvas data
+  const validateCanvasData = (canvas: HTMLCanvasElement, dataURL: string): boolean => {
+    console.log('🔍 Validating canvas data...');
+    
+    // Check canvas dimensions
+    if (canvas.width === 0 || canvas.height === 0) {
+      console.error('❌ Canvas has zero dimensions:', {
+        width: canvas.width,
+        height: canvas.height
+      });
+      return false;
+    }
+
+    // Check data URL length (empty canvas produces very small base64)
+    if (dataURL.length < 1000) {
+      console.error('❌ Data URL too short, likely empty canvas:', {
+        length: dataURL.length,
+        preview: dataURL.substring(0, 100)
+      });
+      return false;
+    }
+
+    // Calculate approximate file size
+    const base64Length = dataURL.split(',')[1]?.length || 0;
+    const fileSizeKB = Math.round((base64Length * 3/4) / 1024);
+    
+    console.log('📊 Canvas validation passed:', {
+      canvasWidth: canvas.width,
+      canvasHeight: canvas.height,
+      dataURLLength: dataURL.length,
+      estimatedSizeKB: fileSizeKB
+    });
+
+    return fileSizeKB > 1; // Must be at least 1KB
   };
 
   // Function to close snapshot modal
