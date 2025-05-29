@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { Booking } from '@/types/booking';
@@ -108,7 +107,7 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({
     if (selectedBooking.deliveryLatitude && selectedBooking.deliveryLongitude) {
       map.current.flyTo({
         center: [selectedBooking.deliveryLongitude, selectedBooking.deliveryLatitude],
-        zoom: 18, // Changed to 18 for proper 20m detail
+        zoom: 15, // Changed to 15 for proper 20m detail
         duration: 1000
       });
       
