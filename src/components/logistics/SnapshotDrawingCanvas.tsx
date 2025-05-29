@@ -1,16 +1,15 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Canvas as FabricCanvas, FabricImage } from 'fabric';
+import { Canvas as FabricCanvas, FabricImage, Rect, Circle } from 'fabric';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { 
   Pen, 
   Square, 
-  Circle, 
-  Undo2, 
-  Redo2, 
-  Eraser,
-  MousePointer,
-  Trash2
+  Circle as CircleIcon, 
+  undo as Undo2, 
+  trash as Trash2,
+  MousePointer
 } from 'lucide-react';
 
 interface SnapshotDrawingCanvasProps {
@@ -29,8 +28,8 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
   const [drawingMode, setDrawingMode] = useState<'select' | 'draw' | 'rectangle' | 'circle'>('select');
   const [brushColor, setBrushColor] = useState('#ff0000');
   const [brushSize, setBrushSize] = useState(3);
-  const [canvasHistory, setCanvasHistory] = useState<string[]>([]);
-  const [historyStep, setHistoryStep] = useState(-1);
+  const [selectedObject, setSelectedObject] = useState<any>(null);
+  const [objectName, setObjectName] = useState('');
 
   // Initialize canvas
   useEffect(() => {
@@ -66,11 +65,30 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
       });
       
       canvas.add(img);
-      canvas.sendToBack(img);
+      canvas.sendObjectToBack(img);
       canvas.renderAll();
-      
-      // Save initial state to history
-      saveCanvasState();
+    });
+
+    // Handle object selection
+    canvas.on('selection:created', (e) => {
+      if (e.selected && e.selected[0]) {
+        const obj = e.selected[0];
+        setSelectedObject(obj);
+        setObjectName(obj.name || '');
+      }
+    });
+
+    canvas.on('selection:updated', (e) => {
+      if (e.selected && e.selected[0]) {
+        const obj = e.selected[0];
+        setSelectedObject(obj);
+        setObjectName(obj.name || '');
+      }
+    });
+
+    canvas.on('selection:cleared', () => {
+      setSelectedObject(null);
+      setObjectName('');
     });
 
     setFabricCanvas(canvas);
@@ -90,23 +108,7 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
       fabricCanvas.freeDrawingBrush.color = brushColor;
       fabricCanvas.freeDrawingBrush.width = brushSize;
     }
-
-    // Handle shape creation
-    if (drawingMode === 'rectangle' || drawingMode === 'circle') {
-      fabricCanvas.isDrawingMode = false;
-    }
   }, [drawingMode, brushColor, brushSize, fabricCanvas]);
-
-  // Save canvas state for undo/redo
-  const saveCanvasState = () => {
-    if (!fabricCanvas) return;
-    
-    const canvasJson = JSON.stringify(fabricCanvas.toJSON());
-    const newHistory = canvasHistory.slice(0, historyStep + 1);
-    newHistory.push(canvasJson);
-    setCanvasHistory(newHistory);
-    setHistoryStep(newHistory.length - 1);
-  };
 
   // Handle shape creation on canvas
   useEffect(() => {
@@ -118,7 +120,7 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
       const pointer = fabricCanvas.getPointer(e.e);
       
       if (drawingMode === 'rectangle') {
-        const rect = new fabric.Rect({
+        const rect = new Rect({
           left: pointer.x,
           top: pointer.y,
           width: 50,
@@ -126,67 +128,47 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
           fill: 'transparent',
           stroke: brushColor,
           strokeWidth: brushSize,
+          name: 'Rectangle'
         });
         fabricCanvas.add(rect);
       } else if (drawingMode === 'circle') {
-        const circle = new fabric.Circle({
+        const circle = new Circle({
           left: pointer.x,
           top: pointer.y,
           radius: 25,
           fill: 'transparent',
           stroke: brushColor,
           strokeWidth: brushSize,
+          name: 'Circle'
         });
         fabricCanvas.add(circle);
       }
       
-      saveCanvasState();
       setDrawingMode('select');
     };
 
     fabricCanvas.on('mouse:down', handleMouseDown);
-    
-    // Save state after drawing
-    fabricCanvas.on('path:created', saveCanvasState);
 
     return () => {
       fabricCanvas.off('mouse:down', handleMouseDown);
-      fabricCanvas.off('path:created', saveCanvasState);
     };
   }, [fabricCanvas, drawingMode, brushColor, brushSize]);
 
-  const handleUndo = () => {
-    if (historyStep > 0) {
-      setHistoryStep(historyStep - 1);
-      fabricCanvas?.loadFromJSON(canvasHistory[historyStep - 1], () => {
-        fabricCanvas.renderAll();
-      });
-    }
-  };
-
-  const handleRedo = () => {
-    if (historyStep < canvasHistory.length - 1) {
-      setHistoryStep(historyStep + 1);
-      fabricCanvas?.loadFromJSON(canvasHistory[historyStep + 1], () => {
-        fabricCanvas.renderAll();
-      });
-    }
-  };
-
-  const handleClear = () => {
-    if (!fabricCanvas) return;
+  const handleDeleteSelected = () => {
+    if (!fabricCanvas || !selectedObject) return;
     
-    // Remove all objects except the background image
-    const objects = fabricCanvas.getObjects();
-    const backgroundImage = objects[0]; // First object should be the map image
-    
-    fabricCanvas.clear();
-    if (backgroundImage) {
-      fabricCanvas.add(backgroundImage);
-      fabricCanvas.sendToBack(backgroundImage);
-    }
+    fabricCanvas.remove(selectedObject);
+    setSelectedObject(null);
+    setObjectName('');
     fabricCanvas.renderAll();
-    saveCanvasState();
+  };
+
+  const handleNameChange = (newName: string) => {
+    setObjectName(newName);
+    if (selectedObject) {
+      selectedObject.set('name', newName);
+      fabricCanvas?.renderAll();
+    }
   };
 
   const handleSave = () => {
@@ -243,7 +225,7 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
             size="sm"
             onClick={() => setDrawingMode('circle')}
           >
-            <Circle className="h-4 w-4" />
+            <CircleIcon className="h-4 w-4" />
           </Button>
 
           <div className="w-px h-6 bg-gray-300 mx-2" />
@@ -264,32 +246,24 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Undo/Redo */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleUndo}
-            disabled={historyStep <= 0}
-          >
-            <Undo2 className="h-4 w-4" />
-          </Button>
-          
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRedo}
-            disabled={historyStep >= canvasHistory.length - 1}
-          >
-            <Redo2 className="h-4 w-4" />
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleClear}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          {/* Object Controls */}
+          {selectedObject && (
+            <div className="flex items-center gap-2 bg-white p-2 rounded border">
+              <Input
+                value={objectName}
+                onChange={(e) => handleNameChange(e.target.value)}
+                placeholder="Object name"
+                className="w-32 h-8"
+              />
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteSelected}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
