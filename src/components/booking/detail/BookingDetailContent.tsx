@@ -18,8 +18,8 @@ interface BookingDetailContentProps {
   isSaving: boolean;
   autoSync: boolean;
   lastViewedDate?: Date;
-  onAddDate: (type: string, date: string) => void;
-  onRemoveDate: (type: string, date: string) => void;
+  onAddDate: (date: Date, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
+  onRemoveDate: (date: string, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
   onDeliveryDetailsChange: (deliveryData: any) => Promise<void>;
   onLogisticsChange: (logisticsData: any) => Promise<void>;
   onReloadData: () => void;

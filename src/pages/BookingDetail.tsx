@@ -78,6 +78,15 @@ const BookingDetail = () => {
     }
   };
 
+  // Wrapper functions to match the expected signatures
+  const handleAddDate = (date: Date, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => {
+    addDate(date, eventType, autoSync);
+  };
+
+  const handleRemoveDate = (date: string, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => {
+    removeDate(date, eventType, autoSync);
+  };
+
   // Show error if no booking ID
   if (!actualBookingId) {
     return <BookingDetailMissingId onBack={handleBack} />;
@@ -123,8 +132,8 @@ const BookingDetail = () => {
         isSaving={isSaving}
         autoSync={autoSync}
         lastViewedDate={lastViewedDate}
-        onAddDate={addDate}
-        onRemoveDate={removeDate}
+        onAddDate={handleAddDate}
+        onRemoveDate={handleRemoveDate}
         onDeliveryDetailsChange={handleDeliveryDetailsChange}
         onLogisticsChange={handleLogisticsChange}
         onReloadData={loadBookingData}
