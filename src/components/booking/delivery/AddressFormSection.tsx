@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { MapPin } from 'lucide-react';
 import { Label } from '@/components/ui/label';
@@ -23,6 +24,20 @@ export const AddressFormSection: React.FC<AddressFormSectionProps> = ({
   isMapOpen,
   onMapOpenChange
 }) => {
+  const [showCoordinates, setShowCoordinates] = React.useState(false);
+
+  const handleToggleCoordinates = () => {
+    setShowCoordinates(!showCoordinates);
+  };
+
+  const handleLatitudeChange = (value: number | undefined) => {
+    onDeliveryDetailsChange('latitude', value);
+  };
+
+  const handleLongitudeChange = (value: number | undefined) => {
+    onDeliveryDetailsChange('longitude', value);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-1.5 mb-2">
@@ -35,7 +50,7 @@ export const AddressFormSection: React.FC<AddressFormSectionProps> = ({
           <Label htmlFor="delivery-address" className="text-xs">Address</Label>
           <Textarea 
             id="delivery-address"
-            value={deliveryDetails?.address}
+            value={deliveryDetails?.address || ''}
             onChange={(e) => onDeliveryDetailsChange('address', e.target.value)}
             placeholder="Street address"
             className="mt-1 min-h-[60px] text-sm"
@@ -47,7 +62,7 @@ export const AddressFormSection: React.FC<AddressFormSectionProps> = ({
             <Label htmlFor="delivery-city" className="text-xs">City</Label>
             <Input 
               id="delivery-city"
-              value={deliveryDetails?.city}
+              value={deliveryDetails?.city || ''}
               onChange={(e) => onDeliveryDetailsChange('city', e.target.value)}
               placeholder="City"
               className="mt-1 h-8 text-sm"
@@ -58,7 +73,7 @@ export const AddressFormSection: React.FC<AddressFormSectionProps> = ({
             <Label htmlFor="delivery-postal-code" className="text-xs">Postal Code</Label>
             <Input 
               id="delivery-postal-code"
-              value={deliveryDetails?.postalCode}
+              value={deliveryDetails?.postalCode || ''}
               onChange={(e) => onDeliveryDetailsChange('postalCode', e.target.value)}
               placeholder="Postal code"
               className="mt-1 h-8 text-sm"
@@ -72,10 +87,10 @@ export const AddressFormSection: React.FC<AddressFormSectionProps> = ({
         <CoordinateControls
           latitude={deliveryDetails?.latitude}
           longitude={deliveryDetails?.longitude}
-          onCoordinateChange={(lat, lng) => {
-            onDeliveryDetailsChange('latitude', lat);
-            onDeliveryDetailsChange('longitude', lng);
-          }}
+          showCoordinates={showCoordinates}
+          onLatitudeChange={handleLatitudeChange}
+          onLongitudeChange={handleLongitudeChange}
+          onToggleCoordinates={handleToggleCoordinates}
         />
         
         <MapViewButton

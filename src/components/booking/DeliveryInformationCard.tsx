@@ -5,8 +5,6 @@ import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ContactDetailsSection } from './delivery/ContactDetailsSection';
 import { AddressFormSection } from './delivery/AddressFormSection';
-import { CoordinateControls } from './delivery/CoordinateControls';
-import { MapViewButton } from './delivery/MapViewButton';
 
 interface DeliveryInformationCardProps {
   // Contact props
@@ -52,7 +50,6 @@ export const DeliveryInformationCard = ({
   const [deliveryPostalCode, setDeliveryPostalCode] = useState(initialPostalCode);
   const [latitude, setLatitude] = useState<number | undefined>(deliveryLatitude);
   const [longitude, setLongitude] = useState<number | undefined>(deliveryLongitude);
-  const [showCoordinates, setShowCoordinates] = useState(false);
   const [isMapOpen, setIsMapOpen] = useState(false);
   
   // Contact information state
@@ -74,8 +71,38 @@ export const DeliveryInformationCard = ({
     });
   };
 
-  const handleToggleCoordinates = () => {
-    setShowCoordinates(!showCoordinates);
+  const handleDeliveryDetailsChange = (field: string, value: any) => {
+    switch (field) {
+      case 'address':
+        setDeliveryAddress(value);
+        break;
+      case 'city':
+        setDeliveryCity(value);
+        break;
+      case 'postalCode':
+        setDeliveryPostalCode(value);
+        break;
+      case 'latitude':
+        setLatitude(value);
+        break;
+      case 'longitude':
+        setLongitude(value);
+        break;
+    }
+  };
+
+  // Create deliveryDetails object for AddressFormSection
+  const deliveryDetails = {
+    address: deliveryAddress,
+    city: deliveryCity,
+    postalCode: deliveryPostalCode,
+    latitude,
+    longitude
+  };
+
+  // Create booking object for AddressFormSection
+  const booking = {
+    bookingNumber: `Booking ${bookingId?.slice(-8) || 'Unknown'}`
   };
 
   return (
@@ -86,14 +113,6 @@ export const DeliveryInformationCard = ({
             <Truck className="h-4 w-4" />
             <span>Delivery Information</span>
           </div>
-          
-          <MapViewButton
-            latitude={latitude}
-            longitude={longitude}
-            bookingId={bookingId}
-            isMapOpen={isMapOpen}
-            onMapOpenChange={setIsMapOpen}
-          />
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0 px-4 pb-3 space-y-4">
@@ -110,21 +129,12 @@ export const DeliveryInformationCard = ({
         {/* Delivery Address Section */}
         <div className="space-y-2">
           <AddressFormSection
-            deliveryAddress={deliveryAddress}
-            deliveryCity={deliveryCity}
-            deliveryPostalCode={deliveryPostalCode}
-            onAddressChange={setDeliveryAddress}
-            onCityChange={setDeliveryCity}
-            onPostalCodeChange={setDeliveryPostalCode}
-          />
-          
-          <CoordinateControls
-            latitude={latitude}
-            longitude={longitude}
-            showCoordinates={showCoordinates}
-            onLatitudeChange={setLatitude}
-            onLongitudeChange={setLongitude}
-            onToggleCoordinates={handleToggleCoordinates}
+            deliveryDetails={deliveryDetails}
+            onDeliveryDetailsChange={handleDeliveryDetailsChange}
+            booking={booking}
+            bookingId={bookingId || ''}
+            isMapOpen={isMapOpen}
+            onMapOpenChange={setIsMapOpen}
           />
           
           <Button
