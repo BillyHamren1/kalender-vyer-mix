@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -21,6 +20,7 @@ import { startOfWeek, subDays, format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useReliableStaffOperations } from '@/hooks/useReliableStaffOperations';
+import StaffPlanningHeader from '@/components/Calendar/StaffPlanningHeader';
 
 const WeeklyResourceView = () => {
   // Use the new real-time calendar events hook
@@ -238,6 +238,11 @@ const WeeklyResourceView = () => {
           ) : <></>}
           isMobile={isMobile}
         >
+          {/* Add the Staff Planning Header */}
+          <div className="px-6 pt-6">
+            <StaffPlanningHeader />
+          </div>
+
           {/* ResourceHeader component with team management controls */}
           <ResourceHeader
             teamResources={teamResources}
