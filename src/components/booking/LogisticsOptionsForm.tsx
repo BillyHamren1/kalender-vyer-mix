@@ -5,7 +5,6 @@ import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
 
 interface LogisticsOptionsFormProps {
   initialCarryMoreThan10m: boolean;
@@ -34,14 +33,38 @@ export const LogisticsOptionsForm = ({
   const [exactTimeNeeded, setExactTimeNeeded] = useState(initialExactTimeNeeded);
   const [exactTimeInfo, setExactTimeInfo] = useState(initialExactTimeInfo);
 
-  const handleSave = (e: React.MouseEvent) => {
-    e.preventDefault();
+  const autoSave = (updatedData: Partial<{
+    carryMoreThan10m: boolean;
+    groundNailsAllowed: boolean;
+    exactTimeNeeded: boolean;
+    exactTimeInfo: string;
+  }>) => {
     onSave({
-      carryMoreThan10m,
-      groundNailsAllowed,
-      exactTimeNeeded,
-      exactTimeInfo
+      carryMoreThan10m: updatedData.carryMoreThan10m ?? carryMoreThan10m,
+      groundNailsAllowed: updatedData.groundNailsAllowed ?? groundNailsAllowed,
+      exactTimeNeeded: updatedData.exactTimeNeeded ?? exactTimeNeeded,
+      exactTimeInfo: updatedData.exactTimeInfo ?? exactTimeInfo
     });
+  };
+
+  const handleCarryMoreThan10mChange = (checked: boolean) => {
+    setCarryMoreThan10m(checked);
+    autoSave({ carryMoreThan10m: checked });
+  };
+
+  const handleGroundNailsAllowedChange = (checked: boolean) => {
+    setGroundNailsAllowed(checked);
+    autoSave({ groundNailsAllowed: checked });
+  };
+
+  const handleExactTimeNeededChange = (checked: boolean) => {
+    setExactTimeNeeded(checked);
+    autoSave({ exactTimeNeeded: checked });
+  };
+
+  const handleExactTimeInfoChange = (value: string) => {
+    setExactTimeInfo(value);
+    autoSave({ exactTimeInfo: value });
   };
 
   return (
@@ -60,7 +83,7 @@ export const LogisticsOptionsForm = ({
               <Switch
                 id="carry-more-than-10m"
                 checked={carryMoreThan10m}
-                onCheckedChange={setCarryMoreThan10m}
+                onCheckedChange={handleCarryMoreThan10mChange}
               />
               <Label
                 htmlFor="carry-more-than-10m"
@@ -74,7 +97,7 @@ export const LogisticsOptionsForm = ({
               <Switch
                 id="ground-nails-allowed"
                 checked={groundNailsAllowed}
-                onCheckedChange={setGroundNailsAllowed}
+                onCheckedChange={handleGroundNailsAllowedChange}
               />
               <Label
                 htmlFor="ground-nails-allowed"
@@ -88,7 +111,7 @@ export const LogisticsOptionsForm = ({
               <Switch
                 id="exact-time-needed"
                 checked={exactTimeNeeded}
-                onCheckedChange={setExactTimeNeeded}
+                onCheckedChange={handleExactTimeNeededChange}
               />
               <Label
                 htmlFor="exact-time-needed"
@@ -110,25 +133,13 @@ export const LogisticsOptionsForm = ({
               <Textarea 
                 id="exact-time-info"
                 value={exactTimeInfo}
-                onChange={(e) => setExactTimeInfo(e.target.value)}
+                onChange={(e) => handleExactTimeInfoChange(e.target.value)}
                 placeholder="Specify the time requirements"
                 className="mt-1"
               />
             </div>
           </div>
         )}
-        
-        {/* Save Button */}
-        <div>
-          <Button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="w-full h-8 text-sm"
-            size="sm"
-          >
-            {isSaving ? 'Saving...' : 'Save Options'}
-          </Button>
-        </div>
       </CardContent>
     </Card>
   );
