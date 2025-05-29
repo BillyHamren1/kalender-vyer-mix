@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Canvas as FabricCanvas, FabricText, Circle, Rect, PencilBrush } from 'fabric';
+import { Canvas as FabricCanvas, FabricText, Circle, Rect, PencilBrush, FabricImage } from 'fabric';
 import { Button } from '@/components/ui/button';
 import { 
   Sheet, 
@@ -69,19 +69,19 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
       backgroundColor: '#ffffff',
     });
 
-    // Load the captured map image as background
-    FabricCanvas.loadFromURL(imageData).then((loadedCanvas) => {
+    // Load the captured map image as background using Fabric.js v6 API
+    FabricImage.fromURL(imageData).then((img) => {
       // Set canvas dimensions to match the image
-      const bgImage = loadedCanvas.backgroundImage;
-      if (bgImage) {
+      if (img.width && img.height) {
         canvas.setDimensions({
-          width: bgImage.width || 800,
-          height: bgImage.height || 600
+          width: img.width,
+          height: img.height
         });
       }
       
-      // Set the loaded image as background
-      canvas.setBackgroundImage(loadedCanvas.backgroundImage, canvas.renderAll.bind(canvas));
+      // Set the loaded image as background using v6 API
+      canvas.backgroundImage = img;
+      canvas.renderAll();
     });
 
     // Configure drawing brush
