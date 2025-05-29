@@ -209,6 +209,25 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
+      // Add layer for distance labels
+      map.current?.addLayer({
+        'id': 'measure-labels',
+        'type': 'symbol',
+        'source': 'measure-points',
+        'layout': {
+          'text-field': ['get', 'distance'],
+          'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+          'text-size': 12,
+          'text-anchor': 'center',
+          'text-offset': [0, -1.5]
+        },
+        'paint': {
+          'text-color': '#ff0000',
+          'text-halo-color': '#ffffff',
+          'text-halo-width': 2
+        }
+      });
+
       // Add freehand drawing layer
       map.current?.addLayer({
         'id': 'freehand-lines-layer',
@@ -358,12 +377,17 @@ const MapComponent: React.FC<MapComponentProps> = ({
     measurePoints.current.push(coords);
     
     if (measurePoints.current.length > 1) {
+      const segmentDistance = calculateDistance(
+        measurePoints.current[measurePoints.current.length - 2], 
+        measurePoints.current[measurePoints.current.length - 1]
+      );
+      
       const totalDistance = measurePoints.current.reduce((total, point, index) => {
         if (index === 0) return 0;
         return total + calculateDistance(measurePoints.current[index - 1], point);
       }, 0);
       
-      toast.success(`Distance: ${formatDistance(totalDistance)}`);
+      toast.success(`Segment: ${formatDistance(segmentDistance)} | Total: ${formatDistance(totalDistance)}`);
     }
     
     updateMeasureDisplay();
@@ -374,6 +398,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     const features = [];
     
+    // Add points
     measurePoints.current.forEach((point, index) => {
       features.push({
         type: 'Feature',
@@ -387,15 +412,42 @@ const MapComponent: React.FC<MapComponentProps> = ({
       });
     });
 
+    // Add line segments with distance labels
     if (measurePoints.current.length > 1) {
-      features.push({
-        type: 'Feature',
-        geometry: {
-          type: 'LineString',
-          coordinates: measurePoints.current
-        },
-        properties: {}
-      });
+      for (let i = 1; i < measurePoints.current.length; i++) {
+        const startPoint = measurePoints.current[i - 1];
+        const endPoint = measurePoints.current[i];
+        const distance = calculateDistance(startPoint, endPoint);
+        const midPoint = [
+          (startPoint[0] + endPoint[0]) / 2,
+          (startPoint[1] + endPoint[1]) / 2
+        ];
+
+        // Add line segment
+        features.push({
+          type: 'Feature',
+          geometry: {
+            type: 'LineString',
+            coordinates: [startPoint, endPoint]
+          },
+          properties: {
+            segmentId: i
+          }
+        });
+
+        // Add distance label at midpoint
+        features.push({
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: midPoint
+          },
+          properties: {
+            distance: formatDistance(distance),
+            isLabel: true
+          }
+        });
+      }
     }
 
     measureSource.current.setData({
