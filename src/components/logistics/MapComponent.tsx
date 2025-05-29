@@ -712,6 +712,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
       toggleMeasuring();
     }
     
+    if (isFreehandDrawing) {
+      toggleFreehandDrawing();
+    }
+    
     setDrawMode(mode);
     draw.current.changeMode(mode);
     
@@ -893,7 +897,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
             onClick={toggleMeasuring}
             size="sm"
             variant={isMeasuring ? "default" : "outline"}
-            className="bg-white/90 backdrop-blur-sm shadow-md"
+            className={`bg-white/90 backdrop-blur-sm shadow-md ${
+              isMeasuring ? 'bg-teal-500 text-white hover:bg-teal-600' : ''
+            }`}
           >
             <Ruler className="h-4 w-4 mr-1" />
             Measure
@@ -944,7 +950,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
                 onClick={() => setDrawingMode('simple_select')}
                 size="sm"
                 variant={drawMode === 'simple_select' ? "default" : "outline"}
-                className="bg-white/90 backdrop-blur-sm shadow-md"
+                className={`bg-white/90 backdrop-blur-sm shadow-md ${
+                  drawMode === 'simple_select' ? 'bg-teal-500 text-white hover:bg-teal-600' : ''
+                }`}
               >
                 <Edit3 className="h-4 w-4 mr-1" />
                 Select
@@ -954,7 +962,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
                 onClick={toggleFreehandDrawing}
                 size="sm"
                 variant={isFreehandDrawing ? "default" : "outline"}
-                className="bg-white/90 backdrop-blur-sm shadow-md"
+                className={`bg-white/90 backdrop-blur-sm shadow-md ${
+                  isFreehandDrawing ? 'bg-teal-500 text-white hover:bg-teal-600' : ''
+                }`}
               >
                 <Pen className="h-4 w-4 mr-1" />
                 Freehand
@@ -964,7 +974,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
                 onClick={() => setDrawingMode('draw_polygon')}
                 size="sm"
                 variant={drawMode === 'draw_polygon' ? "default" : "outline"}
-                className="bg-white/90 backdrop-blur-sm shadow-md"
+                className={`bg-white/90 backdrop-blur-sm shadow-md ${
+                  drawMode === 'draw_polygon' ? 'bg-teal-500 text-white hover:bg-teal-600' : ''
+                }`}
               >
                 <Square className="h-4 w-4 mr-1" />
                 Polygon
@@ -974,7 +986,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
                 onClick={() => setDrawingMode('draw_line_string')}
                 size="sm"
                 variant={drawMode === 'draw_line_string' ? "default" : "outline"}
-                className="bg-white/90 backdrop-blur-sm shadow-md"
+                className={`bg-white/90 backdrop-blur-sm shadow-md ${
+                  drawMode === 'draw_line_string' ? 'bg-teal-500 text-white hover:bg-teal-600' : ''
+                }`}
               >
                 <Minus className="h-4 w-4 mr-1" />
                 Line
@@ -984,7 +998,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
                 onClick={() => setDrawingMode('draw_point')}
                 size="sm"
                 variant={drawMode === 'draw_point' ? "default" : "outline"}
-                className="bg-white/90 backdrop-blur-sm shadow-md"
+                className={`bg-white/90 backdrop-blur-sm shadow-md ${
+                  drawMode === 'draw_point' ? 'bg-teal-500 text-white hover:bg-teal-600' : ''
+                }`}
               >
                 <Circle className="h-4 w-4 mr-1" />
                 Point
