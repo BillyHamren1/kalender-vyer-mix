@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
@@ -16,6 +15,12 @@ interface MapComponentProps {
   onBookingSelect: (booking: Booking) => void;
   centerLat?: number;
   centerLng?: number;
+}
+
+// Define proper types for Mapbox Draw events
+interface DrawEvent {
+  features: any[];
+  type: string;
 }
 
 const MapComponent: React.FC<MapComponentProps> = ({ 
@@ -89,15 +94,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
       projection: 'globe'
     });
 
-    // Initialize Mapbox Draw
+    // Initialize Mapbox Draw with proper configuration
     draw.current = new MapboxDraw({
       displayControlsDefault: false,
-      controls: {
-        polygon: true,
-        line_string: true,
-        point: true,
-        trash: true
-      },
+      controls: {},
       defaultMode: 'simple_select',
       styles: [
         // Polygon fill
@@ -108,6 +108,16 @@ const MapComponent: React.FC<MapComponentProps> = ({
           'paint': {
             'fill-color': '#3bb2d0',
             'fill-outline-color': '#3bb2d0',
+            'fill-opacity': 0.1
+          }
+        },
+        {
+          'id': 'gl-draw-polygon-fill-active',
+          'type': 'fill',
+          'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+          'paint': {
+            'fill-color': '#fbb03b',
+            'fill-outline-color': '#fbb03b',
             'fill-opacity': 0.1
           }
         },
@@ -125,6 +135,19 @@ const MapComponent: React.FC<MapComponentProps> = ({
             'line-width': 2
           }
         },
+        {
+          'id': 'gl-draw-polygon-stroke-active',
+          'type': 'line',
+          'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+          'layout': {
+            'line-cap': 'round',
+            'line-join': 'round'
+          },
+          'paint': {
+            'line-color': '#fbb03b',
+            'line-width': 2
+          }
+        },
         // Line
         {
           'id': 'gl-draw-line-inactive',
@@ -139,6 +162,19 @@ const MapComponent: React.FC<MapComponentProps> = ({
             'line-width': 2
           }
         },
+        {
+          'id': 'gl-draw-line-active',
+          'type': 'line',
+          'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'LineString'], ['!=', 'mode', 'static']],
+          'layout': {
+            'line-cap': 'round',
+            'line-join': 'round'
+          },
+          'paint': {
+            'line-color': '#fbb03b',
+            'line-width': 2
+          }
+        },
         // Point
         {
           'id': 'gl-draw-point-inactive',
@@ -148,6 +184,29 @@ const MapComponent: React.FC<MapComponentProps> = ({
             'circle-radius': 5,
             'circle-color': '#3bb2d0',
             'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 2
+          }
+        },
+        {
+          'id': 'gl-draw-point-active',
+          'type': 'circle',
+          'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
+          'paint': {
+            'circle-radius': 7,
+            'circle-color': '#fbb03b',
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 2
+          }
+        },
+        // Vertices
+        {
+          'id': 'gl-draw-polygon-and-line-vertex-stroke-inactive',
+          'type': 'circle',
+          'filter': ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
+          'paint': {
+            'circle-radius': 5,
+            'circle-color': '#fff',
+            'circle-stroke-color': '#3bb2d0',
             'circle-stroke-width': 2
           }
         }
@@ -168,7 +227,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     map.current.addControl(new mapboxgl.FullscreenControl(), 'top-right');
 
-    // Add drawing control
+    // Add drawing control to the map
     map.current.addControl(draw.current, 'top-right');
 
     map.current.on('load', () => {
@@ -221,18 +280,18 @@ const MapComponent: React.FC<MapComponentProps> = ({
       });
     });
 
-    // Drawing event listeners
-    map.current.on('draw.create', (e) => {
+    // Drawing event listeners with proper typing
+    map.current.on('draw.create', (e: DrawEvent) => {
       console.log('Created feature:', e.features[0]);
       toast.success(`${e.features[0].geometry.type} created`);
     });
 
-    map.current.on('draw.update', (e) => {
+    map.current.on('draw.update', (e: DrawEvent) => {
       console.log('Updated feature:', e.features[0]);
       toast.success(`${e.features[0].geometry.type} updated`);
     });
 
-    map.current.on('draw.delete', (e) => {
+    map.current.on('draw.delete', (e: DrawEvent) => {
       console.log('Deleted features:', e.features);
       toast.success(`${e.features.length} feature(s) deleted`);
     });
@@ -294,6 +353,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
     if (!map.current || !mapInitialized) return;
 
     if (!isMeasuring) {
+      // Disable drawing mode when measuring
+      if (draw.current) {
+        draw.current.changeMode('simple_select');
+        setDrawMode('simple_select');
+      }
+      
       setIsMeasuring(true);
       map.current.getCanvas().style.cursor = 'crosshair';
       toast.info('Click on the map to start measuring. Click again to add points.');
@@ -379,6 +444,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     };
     
     toast.success(`${modeNames[mode]} mode activated`);
+    console.log(`Drawing mode changed to: ${mode}`);
   };
 
   const clearAllDrawings = () => {
