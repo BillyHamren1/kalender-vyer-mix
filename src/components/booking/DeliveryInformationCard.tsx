@@ -189,14 +189,14 @@ export const DeliveryInformationCard = ({
                     View Map
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-5xl h-[80vh]">
-                  <DialogHeader>
+                <DialogContent className="w-[95vw] h-[95vh] max-w-none p-0">
+                  <DialogHeader className="p-4 pb-0">
                     <DialogTitle className="flex items-center gap-2">
                       <MapPin className="h-5 w-5" />
                       Delivery Location Map
                     </DialogTitle>
                   </DialogHeader>
-                  <div className="flex-1 h-full">
+                  <div className="flex-1 h-full p-4 pt-2">
                     <iframe
                       src={getMapIframeUrl()}
                       className="w-full h-full border-0 rounded-lg"
