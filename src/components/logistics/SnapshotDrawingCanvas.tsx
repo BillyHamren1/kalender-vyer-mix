@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { Canvas as FabricCanvas, FabricImage, Rect, Circle } from 'fabric';
 import { Button } from '@/components/ui/button';
@@ -127,15 +126,25 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
     };
   }, [imageData]);
 
-  // Update drawing mode
+  // FIXED: Update drawing mode AND brush properties when either changes
   useEffect(() => {
     if (!fabricCanvas) return;
 
+    console.log('🎨 Updating drawing mode and brush properties:', {
+      drawingMode,
+      brushColor,
+      brushSize
+    });
+
     fabricCanvas.isDrawingMode = drawingMode === 'draw';
     
-    if (drawingMode === 'draw' && fabricCanvas.freeDrawingBrush) {
+    if (fabricCanvas.freeDrawingBrush) {
       fabricCanvas.freeDrawingBrush.color = brushColor;
       fabricCanvas.freeDrawingBrush.width = brushSize;
+      console.log('✅ Updated free drawing brush:', {
+        color: fabricCanvas.freeDrawingBrush.color,
+        width: fabricCanvas.freeDrawingBrush.width
+      });
     }
 
     // Handle shape creation
@@ -164,6 +173,8 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
       
       const pointer = fabricCanvas.getPointer(e.e);
       
+      console.log('🔲 Creating shape with color:', brushColor);
+      
       if (drawingMode === 'rectangle') {
         const rect = new Rect({
           left: pointer.x,
@@ -180,6 +191,7 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
           transparentCorners: false,
         });
         fabricCanvas.add(rect);
+        console.log('✅ Rectangle created with stroke color:', rect.stroke);
       } else if (drawingMode === 'circle') {
         const circle = new Circle({
           left: pointer.x,
@@ -195,6 +207,7 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
           transparentCorners: false,
         });
         fabricCanvas.add(circle);
+        console.log('✅ Circle created with stroke color:', circle.stroke);
       }
       
       saveCanvasState();
@@ -211,6 +224,12 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
       fabricCanvas.off('path:created', saveCanvasState);
     };
   }, [fabricCanvas, drawingMode, brushColor, brushSize]);
+
+  // FIXED: Add color change handler with logging
+  const handleColorChange = (color: string) => {
+    console.log('🎨 Color changed from', brushColor, 'to', color);
+    setBrushColor(color);
+  };
 
   const handleUndo = () => {
     if (historyStep > 0) {
@@ -370,15 +389,15 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
             key={color}
             className={`w-6 h-6 rounded border-2 ${
               brushColor === color ? 'border-gray-800' : 'border-gray-300'
-            }`}
+            } hover:scale-110 transition-transform`}
             style={{ backgroundColor: color }}
-            onClick={() => setBrushColor(color)}
+            onClick={() => handleColorChange(color)}
           />
         ))}
         <input
           type="color"
           value={brushColor}
-          onChange={(e) => setBrushColor(e.target.value)}
+          onChange={(e) => handleColorChange(e.target.value)}
           className="w-6 h-6 rounded border border-gray-300 ml-2"
         />
       </div>
