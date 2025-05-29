@@ -125,9 +125,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
     // Use zoom level 12 when specific coordinates are provided (better scale accuracy for satellite imagery)
     const initialZoom = centerLng && centerLat ? 12 : 4;
 
+    console.log('🗺️ Initializing map with WebGL canvas capture enabled...');
+
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: currentMapStyle, // Always use satellite as default
+      style: currentMapStyle,
       center: initialCenter,
       zoom: initialZoom,
       maxZoom: 22,
@@ -135,8 +137,14 @@ const MapComponent: React.FC<MapComponentProps> = ({
       pitch: 0,
       bearing: 0,
       antialias: true,
-      projection: 'globe'
+      projection: 'globe',
+      // CRITICAL: Enable canvas capture for WebGL
+      preserveDrawingBuffer: true,
+      // Additional WebGL options for better capture
+      failIfMajorPerformanceCaveat: false
     });
+
+    console.log('🎨 Map canvas configured for capture with preserveDrawingBuffer: true');
 
     // Initialize Mapbox Draw with dynamic styles
     draw.current = new MapboxDraw({
@@ -164,6 +172,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     map.current.addControl(draw.current, 'top-right');
 
     map.current.on('load', () => {
+      console.log('✅ Map loaded successfully with canvas capture enabled');
       setMapInitialized(true);
       
       // Add 3D terrain source
@@ -660,6 +669,61 @@ const MapComponent: React.FC<MapComponentProps> = ({
     map.current.off('click', handleMeasureClick);
   };
 
+  // Validate canvas has actual map content (not just transparent pixels)
+  const validateCanvasContent = (canvas: HTMLCanvasElement): boolean => {
+    console.log('🔍 Validating canvas content...');
+    
+    try {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        console.error('❌ Cannot get 2D context from canvas');
+        return false;
+      }
+
+      // Sample pixels from different areas of the canvas
+      const width = canvas.width;
+      const height = canvas.height;
+      const samplePoints = [
+        [width * 0.25, height * 0.25],
+        [width * 0.5, height * 0.5],
+        [width * 0.75, height * 0.25],
+        [width * 0.75, height * 0.75],
+        [width * 0.25, height * 0.75]
+      ];
+
+      let nonTransparentPixels = 0;
+      let totalAlpha = 0;
+
+      for (const [x, y] of samplePoints) {
+        const imageData = ctx.getImageData(Math.floor(x), Math.floor(y), 1, 1);
+        const [r, g, b, a] = imageData.data;
+        
+        totalAlpha += a;
+        if (a > 0) {
+          nonTransparentPixels++;
+        }
+        
+        console.log(`📍 Pixel at (${Math.floor(x)}, ${Math.floor(y)}): rgba(${r}, ${g}, ${b}, ${a})`);
+      }
+
+      const averageAlpha = totalAlpha / samplePoints.length;
+      const hasContent = nonTransparentPixels >= 3 && averageAlpha > 50; // At least 3 non-transparent pixels with reasonable opacity
+
+      console.log(`📊 Canvas validation result:`, {
+        nonTransparentPixels,
+        totalSamplePoints: samplePoints.length,
+        averageAlpha,
+        hasContent,
+        canvasDimensions: { width, height }
+      });
+
+      return hasContent;
+    } catch (error) {
+      console.error('❌ Error validating canvas content:', error);
+      return false;
+    }
+  };
+
   // Enhanced takeMapSnapshot function with comprehensive improvements
   const takeMapSnapshot = async () => {
     if (!map.current || !selectedBooking) {
@@ -688,10 +752,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
         toast.info('Map may still be loading, but capturing anyway...');
       }
 
-      // Step 2: Additional delay to ensure all tiles are rendered
-      console.log('⏳ Step 2: Additional 3-second delay for tile rendering...');
-      toast.info('Ensuring all map tiles are loaded...');
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Step 2: Force a render cycle to ensure WebGL buffer is updated
+      console.log('🔄 Step 2: Forcing map render cycle...');
+      map.current.resize();
+      map.current.triggerRepaint();
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       // Step 3: Get and validate canvas
       console.log('🎨 Step 3: Getting map canvas...');
@@ -703,10 +768,16 @@ const MapComponent: React.FC<MapComponentProps> = ({
         clientHeight: canvas.clientHeight
       });
 
-      // Step 4: Force a map refresh and wait
-      console.log('🔄 Step 4: Forcing map refresh...');
-      map.current.resize();
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Step 4: Validate canvas has actual content
+      console.log('🔍 Step 4: Validating canvas content...');
+      const hasValidContent = validateCanvasContent(canvas);
+      
+      if (!hasValidContent) {
+        console.error('❌ Canvas appears to be empty or transparent');
+        toast.error('Map canvas appears empty - cannot capture snapshot');
+        setShowSnapshotModal(false);
+        return;
+      }
 
       // Step 5: Capture with validation and retry
       let dataURL = '';
@@ -718,6 +789,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
         console.log(`📸 Step 5: Canvas capture attempt ${attempts}/${maxAttempts}...`);
         
         try {
+          // Force another render before capture
+          map.current.triggerRepaint();
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
           dataURL = canvas.toDataURL('image/png', 1.0); // Maximum quality
           
           if (validateCanvasData(canvas, dataURL)) {
@@ -745,7 +820,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
         return;
       }
 
-      console.log('☁️ Step 6: Uploading snapshot to server...');
+      // Step 6: Debug - Show a preview of captured data (first 100 chars)
+      console.log('🖼️ Captured image data preview:', dataURL.substring(0, 100) + '...');
+      console.log('📏 Captured image size:', Math.round(dataURL.length / 1024), 'KB');
+
+      console.log('☁️ Step 7: Uploading snapshot to server...');
       toast.info('Uploading map snapshot...');
       
       // Upload to the save-map-snapshot endpoint
@@ -770,36 +849,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
         url: data?.url
       });
 
-      // Step 7: Wait 5 seconds before trying to fetch the image
-      console.log('⏳ Step 7: Waiting 5 seconds before fetching image...');
-      toast.info('Processing snapshot... please wait 5 seconds');
-      
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      
-      // Set the snapshot URL to display in modal
+      // Step 8: Set the snapshot URL to display in modal
       if (data?.url) {
-        console.log('🖼️ Setting snapshot URL for display after delay:', data.url);
-        
-        // Test if the image is actually accessible
-        try {
-          const testResponse = await fetch(data.url, { method: 'HEAD' });
-          console.log('🌐 Image accessibility test:', {
-            status: testResponse.status,
-            contentLength: testResponse.headers.get('content-length'),
-            contentType: testResponse.headers.get('content-type')
-          });
-          
-          const contentLength = testResponse.headers.get('content-length');
-          if (contentLength && parseInt(contentLength) === 0) {
-            console.error('❌ Image file is 0 bytes on server');
-            toast.error('Snapshot file is empty on server');
-            setShowSnapshotModal(false);
-            return;
-          }
-        } catch (fetchError) {
-          console.warn('⚠️ Could not test image accessibility:', fetchError);
-        }
-        
+        console.log('🖼️ Setting snapshot URL for display:', data.url);
         setSnapshotImageUrl(data.url);
         toast.success('Map snapshot captured successfully');
         
