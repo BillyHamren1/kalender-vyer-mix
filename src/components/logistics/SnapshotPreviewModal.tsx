@@ -21,7 +21,7 @@ import { SnapshotDrawingCanvas } from './SnapshotDrawingCanvas';
 interface SnapshotPreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
-  imageData: string;
+  imageData: string; // Can be empty while loading
   onSave: (annotatedImageData: string) => void;
   bookingNumber?: string;
 }
@@ -42,7 +42,7 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
     if (isOpen && imageData) {
       console.log('📸 SnapshotPreviewModal: Image data received:', imageData.substring(0, 50) + '...');
       setImageLoadError(false);
-      setIsDrawingMode(false);
+      setIsDrawingMode(false); // Reset to view mode when new image loads
     }
   }, [isOpen, imageData]);
 
@@ -92,6 +92,7 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
     setIsRetrying(true);
     setImageLoadError(false);
     
+    // Force re-render of image by creating a new URL with timestamp
     setTimeout(() => {
       setIsRetrying(false);
     }, 1000);
@@ -107,6 +108,7 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
     onSave(imageData);
   };
 
+  // Reset error state when modal closes
   const handleClose = () => {
     console.log('🚪 Closing snapshot modal');
     setImageLoadError(false);
@@ -115,6 +117,19 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
     onClose();
   };
 
+  // Debug logging for modal state
+  useEffect(() => {
+    console.log('🔍 SnapshotPreviewModal state:', {
+      isOpen,
+      hasImageData: !!imageData,
+      imageDataLength: imageData?.length || 0,
+      imageLoadError,
+      bookingNumber,
+      isDrawingMode
+    });
+  }, [isOpen, imageData, imageLoadError, bookingNumber, isDrawingMode]);
+
+  // Always show modal when open is true
   return (
     <Sheet open={isOpen} onOpenChange={handleClose}>
       <SheetContent side="bottom" className="h-[95vh] w-full p-0">
@@ -129,6 +144,7 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
 
         <div className="flex flex-col h-full">
           {!isDrawingMode && (
+            // Action Bar - Only show in view mode
             <div className="flex items-center justify-between p-3 bg-gray-50 border-b">
               <div className="text-sm text-gray-600">
                 Bokning: {bookingNumber || 'Okänd'}
@@ -175,8 +191,10 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
             </div>
           )}
 
+          {/* Content Area */}
           <div className="flex-1 min-h-0">
             {!imageData ? (
+              // Loading state
               <div className="flex flex-col items-center justify-center h-full gap-3 p-8">
                 <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
                 <span className="text-gray-600">Laddar kartbild...</span>
@@ -185,12 +203,14 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
                 </span>
               </div>
             ) : isDrawingMode ? (
+              // Drawing mode
               <SnapshotDrawingCanvas
                 imageData={imageData}
                 onSave={handleSaveFromDrawing}
                 onClose={() => setIsDrawingMode(false)}
               />
             ) : imageLoadError ? (
+              // Error state
               <div className="flex flex-col items-center justify-center h-full gap-3 p-8 text-center">
                 <div className="text-red-500 text-lg">⚠️</div>
                 <span className="text-gray-600">Misslyckades att ladda bilden</span>
@@ -203,6 +223,7 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
                 </Button>
               </div>
             ) : (
+              // Image display (view mode)
               <div className="flex items-center justify-center h-full bg-gray-100 p-4">
                 <div className="max-w-full max-h-full">
                   <img 
@@ -215,6 +236,7 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
                       border: imageLoadError ? '2px solid red' : 'none'
                     }}
                   />
+                  {/* Debug info */}
                   <div className="mt-2 text-xs text-gray-400 text-center">
                     Bildstorlek: {Math.round(imageData.length / 1024)} KB
                   </div>
