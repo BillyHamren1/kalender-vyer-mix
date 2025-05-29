@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
@@ -55,6 +56,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [isCapturingSnapshot, setIsCapturingSnapshot] = useState(false);
   const [isDraggingMeasurePoint, setIsDraggingMeasurePoint] = useState(false);
   const [dragPointIndex, setDragPointIndex] = useState<number | null>(null);
+
+  // Refs for dynamic event listeners
+  const dragHandlers = useRef<{
+    mousemove?: (e: MouseEvent) => void;
+    mouseup?: (e: MouseEvent) => void;
+  }>({});
 
   // Handle window messages for iframe resize
   useEffect(() => {
@@ -245,15 +252,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
-      // Add drag event listeners for measure points
+      // Add ONLY mousedown event listener for measure points (not persistent mousemove/mouseup)
       map.current?.on('mousedown', 'measure-points-layer', handleMeasurePointMouseDown);
-      map.current?.on('mousemove', handleMeasurePointMouseMove);
-      map.current?.on('mouseup', handleMeasurePointMouseUp);
 
       // Change cursor to pointer when hovering over measure points
       map.current?.on('mouseenter', 'measure-points-layer', () => {
         if (map.current && !isMeasuring) {
-          map.current.getCanvas().style.cursor = 'pointer';
+          map.current.getCanvas().style.cursor = 'grab';
         }
       });
 
@@ -295,10 +300,24 @@ const MapComponent: React.FC<MapComponentProps> = ({
     });
 
     return () => {
+      // Clean up any active drag listeners
+      cleanupDragListeners();
       map.current?.remove();
       map.current = null;
     };
   }, [mapboxToken, isLoadingToken, centerLat, centerLng, selectedColor, currentMapStyle]);
+
+  // Clean up drag event listeners
+  const cleanupDragListeners = () => {
+    if (dragHandlers.current.mousemove) {
+      document.removeEventListener('mousemove', dragHandlers.current.mousemove);
+      dragHandlers.current.mousemove = undefined;
+    }
+    if (dragHandlers.current.mouseup) {
+      document.removeEventListener('mouseup', dragHandlers.current.mouseup);
+      dragHandlers.current.mouseup = undefined;
+    }
+  };
 
   // Force resize when component mounts or container changes
   useEffect(() => {
@@ -687,7 +706,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   };
 
-  // Drag handlers for measure points
+  // Improved drag handlers for measure points
   const handleMeasurePointMouseDown = (e: mapboxgl.MapMouseEvent) => {
     if (isMeasuring) return; // Don't drag while in measuring mode
     
@@ -700,59 +719,86 @@ const MapComponent: React.FC<MapComponentProps> = ({
     if (features && features.length > 0) {
       const pointId = features[0].properties?.id;
       if (typeof pointId === 'number') {
+        console.log('Starting drag for point:', pointId);
         setIsDraggingMeasurePoint(true);
         setDragPointIndex(pointId);
+        
         if (map.current) {
+          // Disable map interactions during dragging
+          map.current.dragPan.disable();
           map.current.getCanvas().style.cursor = 'grabbing';
         }
-      }
-    }
-  };
-
-  const handleMeasurePointMouseMove = (e: mapboxgl.MapMouseEvent) => {
-    if (!isDraggingMeasurePoint || dragPointIndex === null) return;
-    
-    const coords = [e.lngLat.lng, e.lngLat.lat];
-    
-    // Update the point position
-    if (dragPointIndex < measurePoints.current.length) {
-      measurePoints.current[dragPointIndex] = coords;
-      updateMeasureDisplay();
-      
-      // Update toast with new distances
-      if (measurePoints.current.length > 1) {
-        const totalDistance = measurePoints.current.reduce((total, point, index) => {
-          if (index === 0) return 0;
-          return total + calculateDistance(measurePoints.current[index - 1], point);
-        }, 0);
         
-        // Show distance of connected segments
-        let segmentInfo = '';
-        if (dragPointIndex > 0) {
-          const prevDistance = calculateDistance(measurePoints.current[dragPointIndex - 1], coords);
-          segmentInfo += `Prev: ${formatDistance(prevDistance)}`;
-        }
-        if (dragPointIndex < measurePoints.current.length - 1) {
-          const nextDistance = calculateDistance(coords, measurePoints.current[dragPointIndex + 1]);
-          segmentInfo += segmentInfo ? ` | Next: ${formatDistance(nextDistance)}` : `Next: ${formatDistance(nextDistance)}`;
-        }
+        // Create mousemove handler
+        const handleMouseMove = (mouseEvent: MouseEvent) => {
+          if (!map.current || dragPointIndex === null) return;
+          
+          // Convert screen coordinates to map coordinates
+          const rect = map.current.getContainer().getBoundingClientRect();
+          const point = new mapboxgl.Point(
+            mouseEvent.clientX - rect.left,
+            mouseEvent.clientY - rect.top
+          );
+          const lngLat = map.current.unproject(point);
+          const coords = [lngLat.lng, lngLat.lat];
+          
+          // Update the point position
+          if (pointId < measurePoints.current.length) {
+            measurePoints.current[pointId] = coords;
+            updateMeasureDisplay();
+            
+            // Update toast with new distances
+            if (measurePoints.current.length > 1) {
+              const totalDistance = measurePoints.current.reduce((total, point, index) => {
+                if (index === 0) return 0;
+                return total + calculateDistance(measurePoints.current[index - 1], point);
+              }, 0);
+              
+              // Show distance of connected segments
+              let segmentInfo = '';
+              if (pointId > 0) {
+                const prevDistance = calculateDistance(measurePoints.current[pointId - 1], coords);
+                segmentInfo += `Prev: ${formatDistance(prevDistance)}`;
+              }
+              if (pointId < measurePoints.current.length - 1) {
+                const nextDistance = calculateDistance(coords, measurePoints.current[pointId + 1]);
+                segmentInfo += segmentInfo ? ` | Next: ${formatDistance(nextDistance)}` : `Next: ${formatDistance(nextDistance)}`;
+              }
+              
+              toast.success(`${segmentInfo} | Total: ${formatDistance(totalDistance)}`, {
+                id: 'drag-update',
+                duration: 1000
+              });
+            }
+          }
+        };
         
-        toast.success(`${segmentInfo} | Total: ${formatDistance(totalDistance)}`, {
-          id: 'drag-update',
-          duration: 1000
-        });
+        // Create mouseup handler
+        const handleMouseUp = () => {
+          console.log('Ending drag for point:', pointId);
+          setIsDraggingMeasurePoint(false);
+          setDragPointIndex(null);
+          
+          if (map.current) {
+            // Re-enable map interactions
+            map.current.dragPan.enable();
+            map.current.getCanvas().style.cursor = '';
+          }
+          
+          // Clean up event listeners
+          cleanupDragListeners();
+          
+          toast.success('Point position updated');
+        };
+        
+        // Store handlers for cleanup
+        dragHandlers.current.mousemove = handleMouseMove;
+        dragHandlers.current.mouseup = handleMouseUp;
+        
+        // Add event listeners to document to catch events outside the map
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
       }
-    }
-  };
-
-  const handleMeasurePointMouseUp = () => {
-    if (isDraggingMeasurePoint) {
-      setIsDraggingMeasurePoint(false);
-      setDragPointIndex(null);
-      if (map.current) {
-        map.current.getCanvas().style.cursor = '';
-      }
-      toast.success('Point position updated');
     }
   };
 
