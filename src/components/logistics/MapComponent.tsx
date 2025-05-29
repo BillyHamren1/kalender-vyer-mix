@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -12,12 +11,16 @@ interface MapComponentProps {
   bookings: Booking[];
   selectedBooking: Booking | null;
   onBookingSelect: (booking: Booking) => void;
+  centerLat?: number;
+  centerLng?: number;
 }
 
 const MapComponent: React.FC<MapComponentProps> = ({ 
   bookings, 
   selectedBooking,
-  onBookingSelect 
+  onBookingSelect,
+  centerLat,
+  centerLng
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -61,11 +64,17 @@ const MapComponent: React.FC<MapComponentProps> = ({
   useEffect(() => {
     if (!mapContainer.current || map.current || !mapboxToken || isLoadingToken) return;
 
+    // Use provided center coordinates or default
+    const initialCenter: [number, number] = centerLng && centerLat 
+      ? [centerLng, centerLat] 
+      : [18, 60];
+    const initialZoom = centerLng && centerLat ? 15 : 4;
+
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/satellite-streets-v12', // High-resolution satellite with streets
-      center: [18, 60], // Centered on Europe/Scandinavia
-      zoom: 4,
+      center: initialCenter,
+      zoom: initialZoom,
       maxZoom: 22, // Maximum zoom for highest resolution
       minZoom: 1,
       pitch: 0, // Start flat
@@ -145,7 +154,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       map.current?.remove();
       map.current = null;
     };
-  }, [mapboxToken, isLoadingToken]);
+  }, [mapboxToken, isLoadingToken, centerLat, centerLng]);
 
   // Toggle 3D terrain
   const toggle3D = () => {

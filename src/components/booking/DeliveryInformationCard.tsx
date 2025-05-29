@@ -6,8 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import MapPopup from '@/components/logistics/MapPopup';
 
 interface DeliveryInformationCardProps {
   // Contact props
@@ -51,6 +51,7 @@ export const DeliveryInformationCard = ({
   const [latitude, setLatitude] = useState<number | undefined>(deliveryLatitude);
   const [longitude, setLongitude] = useState<number | undefined>(deliveryLongitude);
   const [showCoordinates, setShowCoordinates] = useState(false);
+  const [isMapOpen, setIsMapOpen] = useState(false);
   
   // Contact information state
   const [contactNameValue, setContactNameValue] = useState(contactName || '');
@@ -98,10 +99,18 @@ export const DeliveryInformationCard = ({
     setLongitude(val);
   };
 
-  // Create full address string for map popup
-  const getFullAddress = () => {
-    const parts = [deliveryAddress, deliveryCity, deliveryPostalCode].filter(Boolean);
-    return parts.join(', ') || 'Delivery Location';
+  // Create iframe URL for the map
+  const getMapIframeUrl = () => {
+    const params = new URLSearchParams({
+      hideControls: 'true'
+    });
+    
+    if (latitude && longitude) {
+      params.append('lat', latitude.toString());
+      params.append('lng', longitude.toString());
+    }
+    
+    return `/logistics-map?${params.toString()}`;
   };
 
   return (
@@ -167,22 +176,35 @@ export const DeliveryInformationCard = ({
               <span className="text-sm font-medium text-gray-700">Delivery Address</span>
             </div>
             
-            {/* Map popup button - only show if coordinates exist */}
+            {/* Map iframe button - only show if coordinates exist */}
             {latitude && longitude && (
-              <MapPopup
-                latitude={latitude}
-                longitude={longitude}
-                address={getFullAddress()}
-              >
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-6 px-2 text-xs"
-                >
-                  <Map className="h-3 w-3 mr-1" />
-                  View Map
-                </Button>
-              </MapPopup>
+              <Dialog open={isMapOpen} onOpenChange={setIsMapOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                  >
+                    <Map className="h-3 w-3 mr-1" />
+                    View Map
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-5xl h-[80vh]">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <MapPin className="h-5 w-5" />
+                      Delivery Location Map
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="flex-1 h-full">
+                    <iframe
+                      src={getMapIframeUrl()}
+                      className="w-full h-full border-0 rounded-lg"
+                      title="Delivery Location Map"
+                    />
+                  </div>
+                </DialogContent>
+              </Dialog>
             )}
           </div>
           

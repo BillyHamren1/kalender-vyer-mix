@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Map, Filter, Loader } from 'lucide-react';
@@ -9,6 +10,12 @@ import FilterControls from '@/components/logistics/FilterControls';
 import { useLogisticsMap } from '@/hooks/useLogisticsMap';
 
 const LogisticsMap = () => {
+  const [searchParams] = useSearchParams();
+  const bookingId = searchParams.get('bookingId');
+  const hideControls = searchParams.get('hideControls') === 'true';
+  const lat = searchParams.get('lat');
+  const lng = searchParams.get('lng');
+  
   const {
     filteredBookings,
     isLoading,
@@ -19,16 +26,55 @@ const LogisticsMap = () => {
     loadBookings
   } = useLogisticsMap();
   
-  const [showSidebar, setShowSidebar] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(!hideControls);
 
   useEffect(() => {
     loadBookings();
   }, []);
 
+  // Auto-select booking if bookingId is provided in URL
+  useEffect(() => {
+    if (bookingId && filteredBookings.length > 0) {
+      const booking = filteredBookings.find(b => b.id === bookingId);
+      if (booking) {
+        setSelectedBooking(booking);
+      }
+    }
+  }, [bookingId, filteredBookings, setSelectedBooking]);
+
   const toggleSidebar = () => {
     setShowSidebar(!showSidebar);
   };
 
+  // In iframe mode, show simplified header
+  if (hideControls) {
+    return (
+      <div className="h-screen bg-gray-50">
+        <Card className="h-full rounded-none border-none">
+          <CardContent className="p-0 h-full">
+            {isLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <Loader className="h-8 w-8 animate-spin text-gray-400" />
+                <span className="ml-2 text-gray-500">Loading map...</span>
+              </div>
+            ) : (
+              <div className="h-full">
+                <MapComponent 
+                  bookings={filteredBookings} 
+                  selectedBooking={selectedBooking}
+                  onBookingSelect={setSelectedBooking}
+                  centerLat={lat ? parseFloat(lat) : undefined}
+                  centerLng={lng ? parseFloat(lng) : undefined}
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Regular full page mode
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
