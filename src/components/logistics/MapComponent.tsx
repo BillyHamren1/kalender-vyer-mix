@@ -108,8 +108,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
     const initialCenter: [number, number] = centerLng && centerLat 
       ? [centerLng, centerLat] 
       : [18, 60];
-    // Use zoom level 15 when specific coordinates are provided (good 20m detail)
-    const initialZoom = centerLng && centerLat ? 15 : 4;
+    // Use zoom level 12 when specific coordinates are provided (better scale accuracy for satellite imagery)
+    const initialZoom = centerLng && centerLat ? 12 : 4;
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
