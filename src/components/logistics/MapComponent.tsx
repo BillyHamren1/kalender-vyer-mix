@@ -44,7 +44,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [isMeasuring, setIsMeasuring] = useState(false);
   const [drawMode, setDrawMode] = useState<string>('simple_select');
   const [selectedColor, setSelectedColor] = useState<string>('#3bb2d0');
-  const [isDrawingOpen, setIsDrawingOpen] = useState(false);
+  const [isDrawingOpen, setIsDrawingOpen] = useState(true); // Changed to true by default
   const [isFreehandDrawing, setIsFreehandDrawing] = useState(false);
   const [freehandPoints, setFreehandPoints] = useState<number[][]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -700,7 +700,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     map.current.off('click', handleMeasureClick);
   };
 
-  // Validate canvas has actual map content (not just transparent pixels)
+  // Validate canvas data
   const validateCanvasContent = (canvas: HTMLCanvasElement): boolean => {
     console.log('🔍 Validating canvas content with improved logic...');
     
