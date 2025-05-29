@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -68,8 +69,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
     const initialCenter: [number, number] = centerLng && centerLat 
       ? [centerLng, centerLat] 
       : [18, 60];
-    // Use higher zoom (20) when specific coordinates are provided for maximum detail
-    const initialZoom = centerLng && centerLat ? 20 : 4;
+    // Use maximum zoom (22) when specific coordinates are provided for ultimate detail
+    const initialZoom = centerLng && centerLat ? 22 : 4;
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
@@ -407,7 +408,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     if (selectedBooking.deliveryLatitude && selectedBooking.deliveryLongitude) {
       map.current.flyTo({
         center: [selectedBooking.deliveryLongitude, selectedBooking.deliveryLatitude],
-        zoom: 20, // Maximum detail for selected booking
+        zoom: 22, // Maximum zoom level for ultimate detail
         duration: 1000
       });
       
