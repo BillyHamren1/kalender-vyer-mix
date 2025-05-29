@@ -1298,3 +1298,14 @@ const clearPolygonMeasurements = () => {
     features: []
   });
 };
+
+const togglePolygonMeasurements = () => {
+  setShowPolygonMeasurements(!showPolygonMeasurements);
+  
+  if (!showPolygonMeasurements) {
+    toast.success('Polygon measurements enabled');
+  } else {
+    toast.success('Polygon measurements disabled');
+    clearPolygonMeasurements();
+  }
+};

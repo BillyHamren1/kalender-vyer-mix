@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,7 +14,6 @@ import {
   Trash2,
   Map,
   Layers,
-  Polygon,
   RulerIcon
 } from 'lucide-react';
 import { MapDrawingControls } from './MapDrawingControls';
@@ -114,7 +112,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
               onClick={togglePolygonMeasurements}
               className="w-full justify-start gap-2"
             >
-              <RulerIcon className="h-4 w-4" />
+              <Square className="h-4 w-4" />
               Polygon Measure
             </Button>
 
@@ -191,7 +189,6 @@ export const MapControls: React.FC<MapControlsProps> = ({
           isFreehandDrawing={isFreehandDrawing}
           toggleFreehandDrawing={toggleFreehandDrawing}
           clearAllDrawings={clearAllDrawings}
-          colorOptions={colorOptions}
         />
       )}
     </>
