@@ -60,6 +60,116 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
   const [isImageLoaded, setIsImageLoaded] = useState(false);
   const [imageLoadError, setImageLoadError] = useState<string>('');
   const [isRetrying, setIsRetrying] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState<string>('');
+
+  // Improved image loading function
+  const loadImageToCanvas = async (canvas: FabricCanvas, imageUrl: string) => {
+    console.log('Starting image load process for URL:', imageUrl);
+    setLoadingProgress('Checking image URL...');
+    
+    try {
+      // Step 1: Test URL accessibility
+      console.log('Step 1: Testing URL accessibility...');
+      const response = await fetch(imageUrl, { method: 'HEAD' });
+      if (!response.ok) {
+        throw new Error(`URL not accessible: ${response.status} ${response.statusText}`);
+      }
+      console.log('✓ URL is accessible');
+      
+      setLoadingProgress('Loading image...');
+      
+      // Step 2: Load image using HTML Image element first
+      console.log('Step 2: Loading with HTML Image element...');
+      const htmlImg = new Image();
+      
+      // Set up image load promise
+      const imageLoadPromise = new Promise<HTMLImageElement>((resolve, reject) => {
+        htmlImg.onload = () => {
+          console.log('✓ HTML Image loaded successfully:', htmlImg.width, 'x', htmlImg.height);
+          resolve(htmlImg);
+        };
+        
+        htmlImg.onerror = (error) => {
+          console.error('✗ HTML Image failed to load:', error);
+          reject(new Error('Failed to load image with HTML Image element'));
+        };
+        
+        // Add timeout
+        setTimeout(() => {
+          reject(new Error('Image loading timeout (10 seconds)'));
+        }, 10000);
+      });
+      
+      // Start loading
+      htmlImg.crossOrigin = 'anonymous';
+      htmlImg.src = imageUrl;
+      
+      // Wait for image to load
+      const loadedHtmlImg = await imageLoadPromise;
+      
+      setLoadingProgress('Converting to Fabric.js...');
+      
+      // Step 3: Convert HTML Image to Fabric Image
+      console.log('Step 3: Converting to Fabric.js...');
+      const fabricImg = new FabricImage(loadedHtmlImg);
+      
+      console.log('✓ Fabric Image created successfully');
+      
+      // Step 4: Configure canvas dimensions
+      console.log('Step 4: Setting up canvas...');
+      const maxWidth = 1200;
+      const maxHeight = 800;
+      
+      let canvasWidth = fabricImg.width || 800;
+      let canvasHeight = fabricImg.height || 600;
+      
+      // Scale if needed
+      if (canvasWidth > maxWidth || canvasHeight > maxHeight) {
+        const scaleX = maxWidth / canvasWidth;
+        const scaleY = maxHeight / canvasHeight;
+        const scale = Math.min(scaleX, scaleY);
+        
+        canvasWidth = canvasWidth * scale;
+        canvasHeight = canvasHeight * scale;
+        
+        fabricImg.scaleToWidth(canvasWidth);
+      }
+      
+      // Set canvas dimensions
+      canvas.setDimensions({
+        width: canvasWidth,
+        height: canvasHeight
+      });
+      
+      console.log('✓ Canvas dimensions set:', canvasWidth, 'x', canvasHeight);
+      
+      // Step 5: Set as background
+      setLoadingProgress('Finalizing...');
+      console.log('Step 5: Setting background image...');
+      canvas.backgroundImage = fabricImg;
+      canvas.renderAll();
+      
+      console.log('✓ Background image set successfully');
+      setIsImageLoaded(true);
+      setImageLoadError('');
+      setLoadingProgress('');
+      toast.success('Image loaded successfully');
+      
+      // Save initial state after a short delay
+      setTimeout(() => {
+        const initialState = JSON.stringify(canvas.toJSON());
+        setHistory([initialState]);
+        setHistoryStep(0);
+      }, 500);
+      
+    } catch (error) {
+      console.error('✗ Image loading failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setImageLoadError(`Failed to load image: ${errorMessage}`);
+      setLoadingProgress('');
+      toast.error('Failed to load captured image');
+    }
+  };
 
   // Initialize Fabric.js canvas
   useEffect(() => {
@@ -68,6 +178,7 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
     console.log('Initializing canvas with image URL:', imageData);
     setIsImageLoaded(false);
     setImageLoadError('');
+    setLoadingProgress('Initializing canvas...');
 
     // Create fabric canvas with initial dimensions
     const canvas = new FabricCanvas(canvasRef.current, {
@@ -76,68 +187,6 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
       backgroundColor: '#ffffff',
     });
 
-    // Load the image from URL with improved error handling
-    const loadImage = async () => {
-      try {
-        console.log('Attempting to load image from URL:', imageData);
-        
-        // Test if URL is accessible first
-        const response = await fetch(imageData, { method: 'HEAD' });
-        if (!response.ok) {
-          throw new Error(`Image URL not accessible: ${response.status} ${response.statusText}`);
-        }
-        
-        console.log('Image URL is accessible, loading with Fabric.js...');
-        
-        // Load with Fabric.js (removed crossOrigin parameter that might cause issues)
-        const img = await FabricImage.fromURL(imageData);
-        
-        console.log('Image loaded successfully:', img.width, 'x', img.height);
-        
-        // Set canvas dimensions to match the image
-        if (img.width && img.height) {
-          // Scale the image to fit a reasonable viewport
-          const maxWidth = 1200;
-          const maxHeight = 800;
-          
-          let canvasWidth = img.width;
-          let canvasHeight = img.height;
-          
-          if (img.width > maxWidth || img.height > maxHeight) {
-            const scaleX = maxWidth / img.width;
-            const scaleY = maxHeight / img.height;
-            const scale = Math.min(scaleX, scaleY);
-            
-            canvasWidth = img.width * scale;
-            canvasHeight = img.height * scale;
-            
-            img.scaleToWidth(canvasWidth);
-          }
-          
-          canvas.setDimensions({
-            width: canvasWidth,
-            height: canvasHeight
-          });
-        }
-        
-        // Set the loaded image as background
-        canvas.backgroundImage = img;
-        canvas.renderAll();
-        setIsImageLoaded(true);
-        
-        console.log('Canvas background image set and rendered successfully');
-        toast.success('Image loaded successfully');
-        
-      } catch (error) {
-        console.error('Error loading image:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-        setImageLoadError(`Failed to load image: ${errorMessage}`);
-        toast.error('Failed to load captured image');
-      }
-    };
-
-    loadImage();
-
     // Configure drawing brush
     canvas.freeDrawingBrush = new PencilBrush(canvas);
     canvas.freeDrawingBrush.color = activeColor;
@@ -145,19 +194,14 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
 
     setFabricCanvas(canvas);
     
-    // Save initial state to history after image loads
-    setTimeout(() => {
-      if (canvas.backgroundImage && isImageLoaded) {
-        const initialState = JSON.stringify(canvas.toJSON());
-        setHistory([initialState]);
-        setHistoryStep(0);
-      }
-    }, 1000);
+    // Load the image
+    loadImageToCanvas(canvas, imageData);
 
     return () => {
       canvas.dispose();
       setIsImageLoaded(false);
       setImageLoadError('');
+      setLoadingProgress('');
     };
   }, [isOpen, imageData]);
 
@@ -165,17 +209,13 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
   const retryImageLoad = async () => {
     setIsRetrying(true);
     setImageLoadError('');
+    setLoadingProgress('');
     
-    // Force re-initialization by clearing and recreating the canvas
-    if (fabricCanvas) {
-      fabricCanvas.dispose();
-      setFabricCanvas(null);
+    if (fabricCanvas && imageData) {
+      await loadImageToCanvas(fabricCanvas, imageData);
     }
     
-    // Wait a moment then re-trigger the effect
-    setTimeout(() => {
-      setIsRetrying(false);
-    }, 500);
+    setIsRetrying(false);
   };
 
   // Test image URL accessibility
@@ -487,13 +527,15 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
             </div>
           </div>
 
-          {/* Canvas Container with improved error handling */}
+          {/* Canvas Container with improved loading states */}
           <div className="flex-1 flex items-center justify-center bg-gray-100 rounded-lg overflow-auto relative">
             {!isImageLoaded && !imageLoadError && !isRetrying && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
                 <div className="text-center">
                   <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
-                  <span className="text-gray-600">Loading image...</span>
+                  <span className="text-gray-600">
+                    {loadingProgress || 'Loading image...'}
+                  </span>
                   <p className="text-xs text-gray-500 mt-1">URL: {imageData?.substring(0, 50)}...</p>
                 </div>
               </div>
