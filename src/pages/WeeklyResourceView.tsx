@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useEventActions } from '@/hooks/useEventActions';
@@ -22,6 +22,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useReliableStaffOperations } from '@/hooks/useReliableStaffOperations';
 import StaffPlanningHeader from '@/components/Calendar/StaffPlanningHeader';
+import { quietImportBookings } from '@/services/importService';
 
 const WeeklyResourceView = () => {
   // Use the new real-time calendar events hook
@@ -53,6 +54,11 @@ const WeeklyResourceView = () => {
   // Use reliable staff operations with direct database access
   const reliableStaffOps = useReliableStaffOperations(hookCurrentDate);
   
+  // Add state for tracking import status
+  const [isImporting, setIsImporting] = useState(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const mountedRef = useRef(true);
+  
   // Week navigation - managed independently from calendar's currentDate
   // Set to the start of the current week (Monday)
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
@@ -70,6 +76,80 @@ const WeeklyResourceView = () => {
 
   // Use date-aware staff operations as fallback
   const { handleStaffDrop: fallbackStaffDrop, processingStaffIds } = useDateAwareStaffOperations();
+
+  // Background import function
+  const performBackgroundImport = useCallback(async (showToasts = false) => {
+    if (!mountedRef.current) return;
+    
+    try {
+      setIsImporting(true);
+      console.log('Weekly Calendar: Performing background import...');
+      
+      const result = await quietImportBookings();
+      
+      if (result.success && result.results) {
+        const newCount = result.results.new_bookings?.length || 0;
+        const updatedCount = result.results.updated_bookings?.length || 0;
+        
+        if (showToasts && (newCount > 0 || updatedCount > 0)) {
+          const messages = [];
+          if (newCount > 0) messages.push(`${newCount} new booking${newCount > 1 ? 's' : ''}`);
+          if (updatedCount > 0) messages.push(`${updatedCount} updated`);
+          
+          toast.success('Bookings refreshed', {
+            description: messages.join(' and ') + ' found'
+          });
+        }
+        
+        console.log(`Weekly Calendar: Import completed - ${newCount} new, ${updatedCount} updated`);
+      }
+    } catch (error) {
+      console.error('Weekly Calendar: Error during background import:', error);
+      if (showToasts) {
+        toast.error('Failed to refresh bookings');
+      }
+    } finally {
+      if (mountedRef.current) {
+        setIsImporting(false);
+      }
+    }
+  }, []);
+
+  // Initialize calendar with background import
+  const initializeCalendar = useCallback(async () => {
+    console.log('Weekly Calendar: Initializing with background import...');
+    await performBackgroundImport(false); // Don't show toasts on initial load
+  }, [performBackgroundImport]);
+
+  // Set up periodic background imports (every 2 minutes like BookingList)
+  useEffect(() => {
+    // Initial import on mount
+    initializeCalendar();
+    
+    // Set up periodic refresh
+    intervalRef.current = setInterval(() => {
+      if (mountedRef.current) {
+        performBackgroundImport(false); // Silent periodic imports
+      }
+    }, 2 * 60 * 1000); // 2 minutes
+    
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [initializeCalendar, performBackgroundImport]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
 
   // Only update when hookCurrentDate changes, not on every render
   useEffect(() => {
@@ -205,10 +285,18 @@ const WeeklyResourceView = () => {
     }
   }, [currentWeekStart, reliableStaffOps]);
 
-  // Wrapper function to ensure Promise<void> return type
+  // Enhanced refresh function that includes booking import
   const handleRefresh = async (): Promise<void> => {
+    console.log('Weekly Calendar: Manual refresh triggered');
+    
+    // Refresh calendar events
     await refreshEvents();
+    
+    // Force refresh staff operations
     reliableStaffOps.forceRefresh();
+    
+    // Perform background import with toast notifications
+    await performBackgroundImport(true);
   };
 
   return (
@@ -272,7 +360,7 @@ const WeeklyResourceView = () => {
               />
               
               <ResourceToolbar
-                isLoading={isLoading || processingStaffIds.length > 0 || reliableStaffOps.isLoading}
+                isLoading={isLoading || processingStaffIds.length > 0 || reliableStaffOps.isLoading || isImporting}
                 currentDate={hookCurrentDate}
                 resources={resources}
                 onRefresh={handleRefresh}
@@ -288,7 +376,7 @@ const WeeklyResourceView = () => {
               <UnifiedResourceCalendar
                 events={events}
                 resources={resources}
-                isLoading={isLoading}
+                isLoading={isLoading || isImporting}
                 isMounted={isMounted}
                 currentDate={currentWeekStart}
                 onDateSet={handleCalendarDateSet}
