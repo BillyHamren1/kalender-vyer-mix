@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
@@ -57,20 +58,15 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [isDraggingMeasurePoint, setIsDraggingMeasurePoint] = useState(false);
   const [dragPointIndex, setDragPointIndex] = useState<number | null>(null);
   
-  // New states for snapshot preview modal
-  const [showSnapshotPreview, setShowSnapshotPreview] = useState(false);
-  const [capturedImageUrl, setCapturedImageUrl] = useState<string>('');
-  const [draftSnapshotPath, setDraftSnapshotPath] = useState<string>('');
+  // Fixed states for snapshot preview modal
+  const [showSnapshotModal, setShowSnapshotModal] = useState(false);
+  const [snapshotImageUrl, setSnapshotImageUrl] = useState<string>('');
 
   // Refs for dynamic event listeners
   const dragHandlers = useRef<{
     mousemove?: (e: MouseEvent) => void;
     mouseup?: (e: MouseEvent) => void;
   }>({});
-
-  // New states for improved snapshot handling
-  const [snapshotUrl, setSnapshotUrl] = useState<string>('');
-  const [showSnapshotModal, setShowSnapshotModal] = useState(false);
 
   // Handle window messages for iframe resize
   useEffect(() => {
@@ -665,7 +661,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     map.current.off('click', handleMeasureClick);
   };
 
-  // Updated takeMapSnapshot function - now saves to correct endpoint
+  // Updated takeMapSnapshot function - fixed to properly handle the snapshot URL
   const takeMapSnapshot = async () => {
     if (!map.current || !selectedBooking) {
       toast.error('No booking selected for snapshot');
@@ -685,7 +681,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
       console.log('Map snapshot captured, uploading...');
       
-      // Upload to the correct endpoint
+      // Upload to the save-map-snapshot endpoint
       const { data, error } = await supabase.functions.invoke('save-map-snapshot', {
         body: {
           image: dataURL,
@@ -702,9 +698,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
       console.log('Snapshot saved successfully:', data);
       
-      // Set the snapshot URL and show modal
+      // Set the snapshot URL correctly and show modal
       if (data?.url) {
-        setSnapshotUrl(data.url);
+        setSnapshotImageUrl(data.url);
         setShowSnapshotModal(true);
         toast.success('Map snapshot captured successfully');
         
@@ -727,7 +723,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   // Function to close snapshot modal
   const closeSnapshotModal = () => {
     setShowSnapshotModal(false);
-    setSnapshotUrl('');
+    setSnapshotImageUrl('');
   };
 
   // Improved drag handlers for measure points
@@ -890,11 +886,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
         centerLng={centerLng}
       />
 
-      {/* Simplified Snapshot Preview Modal */}
+      {/* Fixed Snapshot Preview Modal */}
       <SnapshotPreviewModal
         isOpen={showSnapshotModal}
         onClose={closeSnapshotModal}
-        imageData={snapshotUrl}
+        imageData={snapshotImageUrl}
         onSave={() => {}} // Not needed since we save immediately
         bookingNumber={selectedBooking?.bookingNumber}
       />
