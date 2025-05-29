@@ -19,11 +19,11 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { bookingId, imageData, bookingNumber, isDraft = false } = await req.json();
+    const { image, bookingId, bookingNumber } = await req.json();
 
-    if (!bookingId || !imageData) {
+    if (!image) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields: bookingId and imageData' }),
+        JSON.stringify({ error: 'No image provided' }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -31,28 +31,27 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Processing ${isDraft ? 'draft' : 'final'} map snapshot for booking ${bookingId}`);
+    console.log('Processing map snapshot upload...');
 
-    // Convert base64 to blob
-    const base64Data = imageData.replace(/^data:image\/png;base64,/, '');
+    // Convert base64 to buffer
+    const base64Data = image.replace(/^data:image\/png;base64,/, '');
     const imageBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
 
     // Generate filename with timestamp
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const displayBookingNumber = bookingNumber || bookingId.substring(0, 8);
-    const draftPrefix = isDraft ? 'draft-' : '';
-    const fileName = `booking-${displayBookingNumber}-map-${draftPrefix}${timestamp}.png`;
-    const filePath = `${bookingId}/${fileName}`;
+    const displayBookingNumber = bookingNumber || (bookingId ? bookingId.substring(0, 8) : 'unknown');
+    const fileName = `map-snapshot-${displayBookingNumber}-${timestamp}.png`;
+    const filePath = bookingId ? `${bookingId}/${fileName}` : `general/${fileName}`;
 
     console.log(`Uploading to storage: ${filePath}`);
 
     // Upload to Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('map-snapshots')
+      .from('snapshots')
       .upload(filePath, imageBuffer, {
         contentType: 'image/png',
         cacheControl: '3600',
-        upsert: true // Allow overwriting drafts
+        upsert: false
       });
 
     if (uploadError) {
@@ -70,15 +69,14 @@ serve(async (req) => {
 
     // Get public URL
     const { data: urlData } = supabase.storage
-      .from('map-snapshots')
+      .from('snapshots')
       .getPublicUrl(filePath);
 
     console.log('Public URL generated:', urlData.publicUrl);
 
-    // Only save to database if it's not a draft
+    // Save attachment record to database if bookingId is provided
     let attachmentData = null;
-    if (!isDraft) {
-      // Save attachment record to database
+    if (bookingId) {
       const { data: dbData, error: dbError } = await supabase
         .from('booking_attachments')
         .insert({
@@ -93,7 +91,7 @@ serve(async (req) => {
       if (dbError) {
         console.error('Database error:', dbError);
         // Try to clean up uploaded file
-        await supabase.storage.from('map-snapshots').remove([filePath]);
+        await supabase.storage.from('snapshots').remove([filePath]);
         
         return new Response(
           JSON.stringify({ error: 'Failed to save attachment record', details: dbError }),
@@ -111,11 +109,10 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        imageUrl: urlData.publicUrl,
+        url: urlData.publicUrl,
         filePath: filePath,
         attachment: attachmentData,
-        isDraft: isDraft,
-        message: isDraft ? 'Draft snapshot saved successfully' : 'Map snapshot saved successfully'
+        message: 'Map snapshot saved successfully'
       }),
       { 
         status: 200, 
