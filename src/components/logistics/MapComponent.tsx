@@ -7,7 +7,8 @@ import { Booking } from '@/types/booking';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Ruler, Mountain, RotateCcw, Edit3, Square, Circle, Minus, Trash2, Palette } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Ruler, Mountain, RotateCcw, Edit3, Square, Circle, Minus, Trash2, Palette, ChevronDown, Pen } from 'lucide-react';
 
 interface MapComponentProps {
   bookings: Booking[];
@@ -42,8 +43,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [isMeasuring, setIsMeasuring] = useState(false);
   const [drawMode, setDrawMode] = useState<string>('simple_select');
   const [selectedColor, setSelectedColor] = useState<string>('#3bb2d0');
+  const [isDrawingOpen, setIsDrawingOpen] = useState(false);
+  const [isFreehandDrawing, setIsFreehandDrawing] = useState(false);
+  const [freehandPoints, setFreehandPoints] = useState<number[][]>([]);
+  const [isDrawing, setIsDrawing] = useState(false);
   const measurePoints = useRef<number[][]>([]);
   const measureSource = useRef<mapboxgl.GeoJSONSource | null>(null);
+  const freehandSource = useRef<mapboxgl.GeoJSONSource | null>(null);
 
   // Color options for drawing
   const colorOptions = [
@@ -267,7 +273,17 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
+      // Add freehand drawing source
+      map.current?.addSource('freehand-lines', {
+        'type': 'geojson',
+        'data': {
+          'type': 'FeatureCollection',
+          'features': []
+        }
+      });
+
       measureSource.current = map.current?.getSource('measure-points') as mapboxgl.GeoJSONSource;
+      freehandSource.current = map.current?.getSource('freehand-lines') as mapboxgl.GeoJSONSource;
 
       // Add measuring layers
       map.current?.addLayer({
@@ -293,6 +309,21 @@ const MapComponent: React.FC<MapComponentProps> = ({
           'circle-color': '#ff0000',
           'circle-stroke-color': '#ffffff',
           'circle-stroke-width': 2
+        }
+      });
+
+      // Add freehand drawing layer
+      map.current?.addLayer({
+        'id': 'freehand-lines-layer',
+        'type': 'line',
+        'source': 'freehand-lines',
+        'layout': {
+          'line-cap': 'round',
+          'line-join': 'round'
+        },
+        'paint': {
+          'line-color': selectedColor,
+          'line-width': 3
         }
       });
     });
@@ -566,6 +597,112 @@ const MapComponent: React.FC<MapComponentProps> = ({
     });
   };
 
+  // Freehand drawing functions
+  const toggleFreehandDrawing = () => {
+    if (!map.current || !mapInitialized) return;
+
+    if (!isFreehandDrawing) {
+      // Disable other drawing modes
+      if (draw.current) {
+        draw.current.changeMode('simple_select');
+        setDrawMode('simple_select');
+      }
+      
+      // Disable measuring
+      if (isMeasuring) {
+        toggleMeasuring();
+      }
+      
+      setIsFreehandDrawing(true);
+      map.current.getCanvas().style.cursor = 'crosshair';
+      toast.info('Freehand drawing enabled. Click and drag to draw.');
+      
+      // Add freehand event listeners
+      map.current.on('mousedown', handleFreehandStart);
+      map.current.on('mousemove', handleFreehandMove);
+      map.current.on('mouseup', handleFreehandEnd);
+    } else {
+      setIsFreehandDrawing(false);
+      setIsDrawing(false);
+      map.current.getCanvas().style.cursor = '';
+      
+      // Remove freehand event listeners
+      map.current.off('mousedown', handleFreehandStart);
+      map.current.off('mousemove', handleFreehandMove);
+      map.current.off('mouseup', handleFreehandEnd);
+      
+      toast.info('Freehand drawing disabled');
+    }
+  };
+
+  const handleFreehandStart = (e: mapboxgl.MapMouseEvent) => {
+    if (!isFreehandDrawing) return;
+    setIsDrawing(true);
+    const coords = [e.lngLat.lng, e.lngLat.lat];
+    setFreehandPoints([coords]);
+  };
+
+  const handleFreehandMove = (e: mapboxgl.MapMouseEvent) => {
+    if (!isFreehandDrawing || !isDrawing) return;
+    const coords = [e.lngLat.lng, e.lngLat.lat];
+    setFreehandPoints(prev => [...prev, coords]);
+    updateFreehandDisplay([...freehandPoints, coords]);
+  };
+
+  const handleFreehandEnd = () => {
+    if (!isFreehandDrawing || !isDrawing) return;
+    setIsDrawing(false);
+    
+    if (freehandPoints.length > 1) {
+      // Create a permanent line feature
+      const lineFeature = {
+        type: 'Feature',
+        geometry: {
+          type: 'LineString',
+          coordinates: freehandPoints
+        },
+        properties: {
+          color: selectedColor,
+          id: Date.now()
+        }
+      };
+      
+      // Add to draw control as well for consistency
+      if (draw.current) {
+        draw.current.add(lineFeature);
+      }
+      
+      toast.success('Freehand line created');
+    }
+    
+    setFreehandPoints([]);
+  };
+
+  const updateFreehandDisplay = (points: number[][]) => {
+    if (!freehandSource.current || points.length < 2) return;
+
+    const lineFeature = {
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: points
+      },
+      properties: {}
+    };
+
+    freehandSource.current.setData({
+      type: 'FeatureCollection',
+      features: [lineFeature]
+    });
+  };
+
+  // Update freehand layer color when selected color changes
+  useEffect(() => {
+    if (!map.current || !mapInitialized) return;
+    
+    map.current.setPaintProperty('freehand-lines-layer', 'line-color', selectedColor);
+  }, [selectedColor, mapInitialized]);
+
   // Drawing mode functions
   const setDrawingMode = (mode: string) => {
     if (!draw.current) return;
@@ -738,9 +875,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   return (
     <div className="h-full w-full rounded-lg overflow-hidden relative">
-      {/* Enhanced Map Controls */}
+      {/* Enhanced Map Controls - Now Collapsible */}
       <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
-        {/* 3D and Utility Controls */}
+        {/* Basic Controls (always visible) */}
         <div className="flex flex-col gap-1">
           <Button
             onClick={toggle3D}
@@ -763,92 +900,121 @@ const MapComponent: React.FC<MapComponentProps> = ({
           </Button>
         </div>
 
-        {/* Color Picker */}
-        <div className="flex flex-col gap-1 border-t border-white/20 pt-2">
-          <div className="flex items-center gap-1 mb-1">
-            <Palette className="h-4 w-4" />
-            <span className="text-xs font-medium">Color:</span>
-          </div>
-          <div className="grid grid-cols-5 gap-1 p-2 bg-white/90 backdrop-blur-sm rounded-md shadow-md">
-            {colorOptions.map((color) => (
-              <button
-                key={color}
-                onClick={() => setSelectedColor(color)}
-                className={`w-6 h-6 rounded-sm border-2 ${
-                  selectedColor === color ? 'border-gray-800' : 'border-white'
-                } hover:scale-110 transition-transform`}
-                style={{ backgroundColor: color }}
-                title={`Select ${color}`}
-              />
-            ))}
-          </div>
-        </div>
+        {/* Collapsible Drawing Controls */}
+        <Collapsible open={isDrawingOpen} onOpenChange={setIsDrawingOpen}>
+          <CollapsibleTrigger asChild>
+            <Button
+              size="sm"
+              variant="outline"
+              className="bg-white/90 backdrop-blur-sm shadow-md w-full justify-between"
+            >
+              <div className="flex items-center">
+                <Edit3 className="h-4 w-4 mr-1" />
+                Drawing Tools
+              </div>
+              <ChevronDown className={`h-4 w-4 transition-transform ${isDrawingOpen ? 'rotate-180' : ''}`} />
+            </Button>
+          </CollapsibleTrigger>
+          
+          <CollapsibleContent className="space-y-2 mt-2">
+            {/* Color Picker */}
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-1 mb-1">
+                <Palette className="h-4 w-4" />
+                <span className="text-xs font-medium">Color:</span>
+              </div>
+              <div className="grid grid-cols-5 gap-1 p-2 bg-white/90 backdrop-blur-sm rounded-md shadow-md">
+                {colorOptions.map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => setSelectedColor(color)}
+                    className={`w-6 h-6 rounded-sm border-2 ${
+                      selectedColor === color ? 'border-gray-800' : 'border-white'
+                    } hover:scale-110 transition-transform`}
+                    style={{ backgroundColor: color }}
+                    title={`Select ${color}`}
+                  />
+                ))}
+              </div>
+            </div>
 
-        {/* Drawing Controls */}
-        <div className="flex flex-col gap-1 border-t border-white/20 pt-2">
-          <Button
-            onClick={() => setDrawingMode('simple_select')}
-            size="sm"
-            variant={drawMode === 'simple_select' ? "default" : "outline"}
-            className="bg-white/90 backdrop-blur-sm shadow-md"
-          >
-            <Edit3 className="h-4 w-4 mr-1" />
-            Select
-          </Button>
-          
-          <Button
-            onClick={() => setDrawingMode('draw_polygon')}
-            size="sm"
-            variant={drawMode === 'draw_polygon' ? "default" : "outline"}
-            className="bg-white/90 backdrop-blur-sm shadow-md"
-          >
-            <Square className="h-4 w-4 mr-1" />
-            Polygon
-          </Button>
-          
-          <Button
-            onClick={() => setDrawingMode('draw_line_string')}
-            size="sm"
-            variant={drawMode === 'draw_line_string' ? "default" : "outline"}
-            className="bg-white/90 backdrop-blur-sm shadow-md"
-          >
-            <Minus className="h-4 w-4 mr-1" />
-            Line
-          </Button>
-          
-          <Button
-            onClick={() => setDrawingMode('draw_point')}
-            size="sm"
-            variant={drawMode === 'draw_point' ? "default" : "outline"}
-            className="bg-white/90 backdrop-blur-sm shadow-md"
-          >
-            <Circle className="h-4 w-4 mr-1" />
-            Point
-          </Button>
-        </div>
+            {/* Drawing Mode Controls */}
+            <div className="flex flex-col gap-1">
+              <Button
+                onClick={() => setDrawingMode('simple_select')}
+                size="sm"
+                variant={drawMode === 'simple_select' ? "default" : "outline"}
+                className="bg-white/90 backdrop-blur-sm shadow-md"
+              >
+                <Edit3 className="h-4 w-4 mr-1" />
+                Select
+              </Button>
+              
+              <Button
+                onClick={toggleFreehandDrawing}
+                size="sm"
+                variant={isFreehandDrawing ? "default" : "outline"}
+                className="bg-white/90 backdrop-blur-sm shadow-md"
+              >
+                <Pen className="h-4 w-4 mr-1" />
+                Freehand
+              </Button>
+              
+              <Button
+                onClick={() => setDrawingMode('draw_polygon')}
+                size="sm"
+                variant={drawMode === 'draw_polygon' ? "default" : "outline"}
+                className="bg-white/90 backdrop-blur-sm shadow-md"
+              >
+                <Square className="h-4 w-4 mr-1" />
+                Polygon
+              </Button>
+              
+              <Button
+                onClick={() => setDrawingMode('draw_line_string')}
+                size="sm"
+                variant={drawMode === 'draw_line_string' ? "default" : "outline"}
+                className="bg-white/90 backdrop-blur-sm shadow-md"
+              >
+                <Minus className="h-4 w-4 mr-1" />
+                Line
+              </Button>
+              
+              <Button
+                onClick={() => setDrawingMode('draw_point')}
+                size="sm"
+                variant={drawMode === 'draw_point' ? "default" : "outline"}
+                className="bg-white/90 backdrop-blur-sm shadow-md"
+              >
+                <Circle className="h-4 w-4 mr-1" />
+                Point
+              </Button>
+            </div>
 
-        {/* Clear and Reset Controls */}
-        <div className="flex flex-col gap-1 border-t border-white/20 pt-2">
-          <Button
-            onClick={clearAllDrawings}
-            size="sm"
-            variant="outline"
-            className="bg-white/90 backdrop-blur-sm shadow-md text-red-600 hover:text-red-700"
-          >
-            <Trash2 className="h-4 w-4 mr-1" />
-            Clear All
-          </Button>
-          
-          <Button
-            onClick={resetView}
-            size="sm"
-            variant="outline"
-            className="bg-white/90 backdrop-blur-sm shadow-md"
-          >
-            <RotateCcw className="h-4 w-4 mr-1" />
-            Reset
-          </Button>
-        </div>
+            {/* Clear and Reset Controls */}
+            <div className="flex flex-col gap-1 border-t border-white/20 pt-2">
+              <Button
+                onClick={clearAllDrawings}
+                size="sm"
+                variant="outline"
+                className="bg-white/90 backdrop-blur-sm shadow-md text-red-600 hover:text-red-700"
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Clear All
+              </Button>
+              
+              <Button
+                onClick={resetView}
+                size="sm"
+                variant="outline"
+                className="bg-white/90 backdrop-blur-sm shadow-md"
+              >
+                <RotateCcw className="h-4 w-4 mr-1" />
+                Reset
+              </Button>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
 
       <div ref={mapContainer} className="h-full w-full" />
