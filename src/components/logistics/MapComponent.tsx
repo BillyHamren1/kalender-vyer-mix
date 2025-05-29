@@ -331,6 +331,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
       });
     });
 
+    // Force map resize to ensure it fills the container properly
+    setTimeout(() => {
+      if (map.current) {
+        map.current.resize();
+      }
+    }, 100);
+
     // Drawing event listeners with proper typing
     map.current.on('draw.create', (e: DrawEvent) => {
       console.log('Created feature:', e.features[0]);
@@ -352,6 +359,17 @@ const MapComponent: React.FC<MapComponentProps> = ({
       map.current = null;
     };
   }, [mapboxToken, isLoadingToken, centerLat, centerLng, selectedColor]);
+
+  // Force resize when component mounts or container changes
+  useEffect(() => {
+    if (map.current && mapInitialized) {
+      const resizeTimer = setTimeout(() => {
+        map.current?.resize();
+      }, 100);
+      
+      return () => clearTimeout(resizeTimer);
+    }
+  }, [mapInitialized]);
 
   // Update draw styles when color changes
   useEffect(() => {
@@ -910,7 +928,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   if (isLoadingToken) {
     return (
-      <div className="flex items-center justify-center h-full bg-gray-100 rounded-lg">
+      <div className="flex items-center justify-center h-full w-full bg-gray-100 rounded-lg">
         <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
         <span className="ml-2">Loading map...</span>
       </div>
@@ -919,7 +937,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   if (!mapboxToken) {
     return (
-      <div className="flex items-center justify-center h-full bg-gray-100 rounded-lg">
+      <div className="flex items-center justify-center h-full w-full bg-gray-100 rounded-lg">
         <div className="text-center p-6">
           <h3 className="text-lg font-medium text-gray-900">Mapbox API Key Required</h3>
           <p className="mt-2 text-sm text-gray-500">
