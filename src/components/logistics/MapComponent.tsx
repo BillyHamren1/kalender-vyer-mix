@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
@@ -35,6 +34,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [showSnapshotModal, setShowSnapshotModal] = useState(false);
   const [isCapturingSnapshot, setIsCapturingSnapshot] = useState(false);
   const [loadingError, setLoadingError] = useState<string>('');
+  const [loadingStatus, setLoadingStatus] = useState<string>('Initializing...');
 
   // Initialize map
   useEffect(() => {
@@ -43,40 +43,41 @@ const MapComponent: React.FC<MapComponentProps> = ({
     const initializeMap = async () => {
       try {
         console.log('🗺️ Starting map initialization...');
+        setLoadingStatus('Fetching Mapbox token...');
         
-        // Try to get Mapbox token from environment or use a fallback
-        let mapboxToken = '';
+        // Add timeout to token fetch
+        const tokenPromise = supabase.functions.invoke('mapbox-token');
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Token fetch timeout')), 10000)
+        );
         
-        try {
-          console.log('📡 Fetching Mapbox token from Supabase...');
-          const { data: tokenData, error: tokenError } = await supabase.functions.invoke('mapbox-token');
-          
-          console.log('📨 Token response:', { tokenData, tokenError });
-          
-          if (tokenError) {
-            console.error('❌ Token error:', tokenError);
-            throw new Error(`Token fetch failed: ${tokenError.message}`);
-          }
-          
-          if (!tokenData?.token) {
-            console.error('❌ No token in response:', tokenData);
-            throw new Error('No Mapbox token received from server');
-          }
-          
-          mapboxToken = tokenData.token;
-          console.log('✅ Mapbox token received successfully');
-          
-        } catch (tokenError) {
-          console.error('❌ Failed to fetch token from Supabase:', tokenError);
-          setLoadingError(`Failed to get Mapbox token: ${tokenError instanceof Error ? tokenError.message : 'Unknown error'}`);
-          toast.error('Failed to load map: Token error');
-          return;
+        console.log('📡 Fetching Mapbox token with timeout...');
+        
+        const { data: tokenData, error: tokenError } = await Promise.race([
+          tokenPromise,
+          timeoutPromise
+        ]) as any;
+        
+        console.log('📨 Token response received:', { tokenData, tokenError });
+        
+        if (tokenError) {
+          console.error('❌ Token error:', tokenError);
+          throw new Error(`Token fetch failed: ${tokenError.message}`);
         }
+        
+        if (!tokenData?.token) {
+          console.error('❌ No token in response:', tokenData);
+          throw new Error('No Mapbox token received from server');
+        }
+        
+        console.log('✅ Mapbox token received, initializing map...');
+        setLoadingStatus('Initializing map...');
 
-        console.log('🔧 Setting Mapbox access token...');
-        mapboxgl.accessToken = mapboxToken;
+        // Set the access token
+        mapboxgl.accessToken = tokenData.token;
 
         console.log('🌍 Creating map instance...');
+        
         // Initialize the map
         map.current = new mapboxgl.Map({
           container: mapContainer.current!,
@@ -89,39 +90,48 @@ const MapComponent: React.FC<MapComponentProps> = ({
         // Add navigation controls
         map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
-        // Wait for map to load
+        // Set up event handlers
         map.current.on('load', () => {
           console.log('✅ Map loaded successfully');
           setMapInitialized(true);
+          setLoadingStatus('');
         });
 
         map.current.on('error', (e) => {
           console.error('❌ Map error:', e);
-          setLoadingError(`Map error: ${e.error?.message || 'Unknown map error'}`);
+          const errorMsg = e.error?.message || 'Unknown map error';
+          setLoadingError(`Map error: ${errorMsg}`);
           toast.error('Map failed to load');
         });
 
+        // Add a timeout for map loading
+        setTimeout(() => {
+          if (!mapInitialized) {
+            console.error('❌ Map loading timeout');
+            setLoadingError('Map loading timeout - please try refreshing the page');
+          }
+        }, 15000);
+
       } catch (error) {
         console.error('❌ Map initialization error:', error);
-        setLoadingError(`Initialization error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        setLoadingError(`Initialization error: ${errorMsg}`);
         toast.error('Failed to initialize map');
       }
     };
 
-    // Add a small delay to ensure DOM is ready
-    const timer = setTimeout(() => {
-      initializeMap();
-    }, 100);
+    // Start initialization immediately
+    initializeMap();
 
     return () => {
-      clearTimeout(timer);
       if (map.current) {
+        console.log('🧹 Cleaning up map...');
         map.current.remove();
         map.current = null;
         setMapInitialized(false);
       }
     };
-  }, [centerLat, centerLng]);
+  }, [centerLat, centerLng, mapInitialized]);
 
   const takeMapSnapshot = async () => {
     if (!map.current || !selectedBooking) {
@@ -177,10 +187,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
             <>
               <div className="text-red-500 mb-2 text-2xl">⚠️</div>
               <p className="text-red-600 font-medium mb-2">Map Loading Failed</p>
-              <p className="text-gray-600 text-sm">{loadingError}</p>
+              <p className="text-gray-600 text-sm mb-3">{loadingError}</p>
               <button 
                 onClick={() => window.location.reload()} 
-                className="mt-3 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
               >
                 Retry
               </button>
@@ -189,7 +199,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
             <>
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
               <p className="text-gray-600">Loading map...</p>
-              <p className="text-gray-400 text-xs mt-1">Fetching Mapbox token...</p>
+              <p className="text-gray-400 text-xs mt-1">{loadingStatus}</p>
             </>
           )}
         </div>
