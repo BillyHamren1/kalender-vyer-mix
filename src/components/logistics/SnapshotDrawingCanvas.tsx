@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import { Canvas as FabricCanvas, FabricImage, Rect, Circle } from 'fabric';
 import { Button } from '@/components/ui/button';
@@ -27,7 +28,7 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
   const [fabricCanvas, setFabricCanvas] = useState<FabricCanvas | null>(null);
   const [drawingMode, setDrawingMode] = useState<'select' | 'draw' | 'rectangle' | 'circle'>('select');
   const [brushColor, setBrushColor] = useState('#ff0000');
-  const [brushSize, setBrushSize] = useState(2); // Reduced from 3 to 2
+  const [brushSize, setBrushSize] = useState(2);
   const [canvasHistory, setCanvasHistory] = useState<string[]>([]);
   const [historyStep, setHistoryStep] = useState(-1);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -38,18 +39,27 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
 
     console.log('🎨 Initializing drawing canvas with image data...');
 
-    // Create a larger canvas to accommodate different image sizes
     const canvas = new FabricCanvas(canvasRef.current, {
       width: 1000,
       height: 700,
       backgroundColor: '#f0f0f0',
     });
 
+    // FIXED: Initialize the free drawing brush immediately with current settings
+    if (canvas.freeDrawingBrush) {
+      canvas.freeDrawingBrush.color = brushColor;
+      canvas.freeDrawingBrush.width = brushSize;
+      console.log('🖌️ Initial brush setup:', {
+        color: canvas.freeDrawingBrush.color,
+        width: canvas.freeDrawingBrush.width
+      });
+    }
+
     // Set smaller control sizes for all objects
     canvas.on('object:added', (e) => {
       if (e.target) {
         e.target.set({
-          cornerSize: 8, // Reduced from default 13
+          cornerSize: 8,
           cornerStrokeColor: '#0066cc',
           cornerColor: '#ffffff',
           borderColor: '#0066cc',
@@ -61,7 +71,6 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
 
     console.log('📸 Loading map image into drawing canvas...');
 
-    // Load the map image as background
     FabricImage.fromURL(imageData, {
       crossOrigin: 'anonymous'
     }).then((img) => {
@@ -70,20 +79,17 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
         originalHeight: img.height
       });
 
-      // Calculate scale to fit image within canvas while maintaining aspect ratio
-      const maxWidth = canvas.width! - 40; // Leave some padding
+      const maxWidth = canvas.width! - 40;
       const maxHeight = canvas.height! - 40;
       
       const scaleX = maxWidth / img.width!;
       const scaleY = maxHeight / img.height!;
-      const scale = Math.min(scaleX, scaleY, 1); // Don't scale up, only down if needed
+      const scale = Math.min(scaleX, scaleY, 1);
 
       console.log('📐 Calculated scale:', scale);
 
-      // Apply scaling
       img.scale(scale);
       
-      // Center the image on the canvas
       const scaledWidth = img.width! * scale;
       const scaledHeight = img.height! * scale;
       
@@ -98,7 +104,6 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
         moveCursor: 'default'
       });
       
-      // Add image to canvas and send to back
       canvas.add(img);
       canvas.sendObjectToBack(img);
       canvas.renderAll();
@@ -111,8 +116,6 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
       });
 
       setImageLoaded(true);
-      
-      // Save initial state to history
       saveCanvasState();
     }).catch((error) => {
       console.error('❌ Error loading image into canvas:', error);
@@ -126,22 +129,48 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
     };
   }, [imageData]);
 
-  // FIXED: Update drawing mode AND brush properties when either changes
+  // FIXED: Separate useEffect for brush properties with immediate application
   useEffect(() => {
     if (!fabricCanvas) return;
 
-    console.log('🎨 Updating drawing mode and brush properties:', {
-      drawingMode,
+    console.log('🎨 Applying brush color and size changes:', {
       brushColor,
-      brushSize
+      brushSize,
+      isDrawingMode: fabricCanvas.isDrawingMode
     });
 
-    fabricCanvas.isDrawingMode = drawingMode === 'draw';
-    
+    // Always update brush properties regardless of drawing mode
     if (fabricCanvas.freeDrawingBrush) {
       fabricCanvas.freeDrawingBrush.color = brushColor;
       fabricCanvas.freeDrawingBrush.width = brushSize;
-      console.log('✅ Updated free drawing brush:', {
+      
+      // FIXED: Force the canvas to acknowledge the brush changes
+      if (fabricCanvas.isDrawingMode) {
+        // Temporarily disable and re-enable drawing mode to refresh brush
+        fabricCanvas.isDrawingMode = false;
+        fabricCanvas.isDrawingMode = true;
+      }
+      
+      console.log('✅ Brush properties updated and applied:', {
+        color: fabricCanvas.freeDrawingBrush.color,
+        width: fabricCanvas.freeDrawingBrush.width
+      });
+    }
+  }, [brushColor, brushSize, fabricCanvas]);
+
+  // Separate useEffect for drawing mode changes
+  useEffect(() => {
+    if (!fabricCanvas) return;
+
+    console.log('🔧 Updating drawing mode:', drawingMode);
+
+    fabricCanvas.isDrawingMode = drawingMode === 'draw';
+    
+    // Ensure brush properties are maintained when switching to draw mode
+    if (drawingMode === 'draw' && fabricCanvas.freeDrawingBrush) {
+      fabricCanvas.freeDrawingBrush.color = brushColor;
+      fabricCanvas.freeDrawingBrush.width = brushSize;
+      console.log('🖌️ Brush reapplied for draw mode:', {
         color: fabricCanvas.freeDrawingBrush.color,
         width: fabricCanvas.freeDrawingBrush.width
       });
@@ -151,7 +180,7 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
     if (drawingMode === 'rectangle' || drawingMode === 'circle') {
       fabricCanvas.isDrawingMode = false;
     }
-  }, [drawingMode, brushColor, brushSize, fabricCanvas]);
+  }, [drawingMode, fabricCanvas]);
 
   // Save canvas state for undo/redo
   const saveCanvasState = () => {
@@ -179,12 +208,12 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
         const rect = new Rect({
           left: pointer.x,
           top: pointer.y,
-          width: 20, // Reduced from 50 to 20
-          height: 20, // Reduced from 50 to 20
+          width: 20,
+          height: 20,
           fill: 'transparent',
           stroke: brushColor,
           strokeWidth: brushSize,
-          cornerSize: 8, // Smaller control handles
+          cornerSize: 8,
           cornerStrokeColor: '#0066cc',
           cornerColor: '#ffffff',
           borderColor: '#0066cc',
@@ -196,11 +225,11 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
         const circle = new Circle({
           left: pointer.x,
           top: pointer.y,
-          radius: 10, // Reduced from 25 to 10
+          radius: 10,
           fill: 'transparent',
           stroke: brushColor,
           strokeWidth: brushSize,
-          cornerSize: 8, // Smaller control handles
+          cornerSize: 8,
           cornerStrokeColor: '#0066cc',
           cornerColor: '#ffffff',
           borderColor: '#0066cc',
@@ -215,8 +244,6 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
     };
 
     fabricCanvas.on('mouse:down', handleMouseDown);
-    
-    // Save state after drawing
     fabricCanvas.on('path:created', saveCanvasState);
 
     return () => {
@@ -225,10 +252,28 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
     };
   }, [fabricCanvas, drawingMode, brushColor, brushSize]);
 
-  // FIXED: Add color change handler with logging
+  // FIXED: Enhanced color change handler with forced brush update
   const handleColorChange = (color: string) => {
-    console.log('🎨 Color changed from', brushColor, 'to', color);
+    console.log('🎨 Color change requested from', brushColor, 'to', color);
     setBrushColor(color);
+    
+    // FIXED: Immediately apply color change if canvas is ready
+    if (fabricCanvas && fabricCanvas.freeDrawingBrush) {
+      fabricCanvas.freeDrawingBrush.color = color;
+      
+      // If in drawing mode, refresh it to apply the color
+      if (fabricCanvas.isDrawingMode) {
+        fabricCanvas.isDrawingMode = false;
+        setTimeout(() => {
+          if (fabricCanvas) {
+            fabricCanvas.isDrawingMode = true;
+            console.log('🔄 Drawing mode refreshed with new color:', color);
+          }
+        }, 10);
+      }
+      
+      console.log('⚡ Color applied immediately:', color);
+    }
   };
 
   const handleUndo = () => {
@@ -252,9 +297,8 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
   const handleClear = () => {
     if (!fabricCanvas) return;
     
-    // Remove all objects except the background image
     const objects = fabricCanvas.getObjects();
-    const backgroundImage = objects[0]; // First object should be the map image
+    const backgroundImage = objects[0];
     
     fabricCanvas.clear();
     if (backgroundImage) {
@@ -270,7 +314,6 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
     
     console.log('💾 Exporting annotated image...');
     
-    // Export canvas as image with high quality
     const dataURL = fabricCanvas.toDataURL({
       format: 'png',
       quality: 1,
@@ -333,7 +376,7 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
             <input
               type="range"
               min="1"
-              max="15" // Reduced from 20 to 15
+              max="15"
               value={brushSize}
               onChange={(e) => setBrushSize(parseInt(e.target.value))}
               className="w-16"
