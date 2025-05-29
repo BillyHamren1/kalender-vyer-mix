@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
@@ -496,6 +497,28 @@ const MapComponent: React.FC<MapComponentProps> = ({
             segmentId: i,
             distance: formatDistance(distance)
           }
+        });
+      }
+    }
+
+    // Add real-time measurement display when there are 2 or more points
+    if (measurePoints.current.length >= 2) {
+      const lastIndex = measurePoints.current.length - 1;
+      const lastDistance = calculateDistance(
+        measurePoints.current[lastIndex - 1], 
+        measurePoints.current[lastIndex]
+      );
+
+      const canvas = map.current?.getCanvas();
+      if (canvas && map.current) {
+        const rect = canvas.getBoundingClientRect();
+        const midpoint = map.current.project(measurePoints.current[lastIndex]);
+
+        setLiveMeasurement({
+          visible: true,
+          distance: formatDistance(lastDistance),
+          x: midpoint.x + rect.left,
+          y: midpoint.y + rect.top - 30
         });
       }
     }
