@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { Canvas as FabricCanvas, FabricText, Circle, Rect, PencilBrush, FabricImage } from 'fabric';
 import { Button } from '@/components/ui/button';
@@ -19,7 +18,8 @@ import {
   Trash2, 
   Save, 
   X,
-  Download
+  Download,
+  RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -58,7 +58,8 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
   const [history, setHistory] = useState<string[]>([]);
   const [historyStep, setHistoryStep] = useState(-1);
   const [isImageLoaded, setIsImageLoaded] = useState(false);
-  const [imageLoadError, setImageLoadError] = useState(false);
+  const [imageLoadError, setImageLoadError] = useState<string>('');
+  const [isRetrying, setIsRetrying] = useState(false);
 
   // Initialize Fabric.js canvas
   useEffect(() => {
@@ -66,7 +67,7 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
 
     console.log('Initializing canvas with image URL:', imageData);
     setIsImageLoaded(false);
-    setImageLoadError(false);
+    setImageLoadError('');
 
     // Create fabric canvas with initial dimensions
     const canvas = new FabricCanvas(canvasRef.current, {
@@ -75,49 +76,67 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
       backgroundColor: '#ffffff',
     });
 
-    // Load the image from URL (much faster than base64)
-    FabricImage.fromURL(imageData, {
-      crossOrigin: 'anonymous'
-    }).then((img) => {
-      console.log('Image loaded successfully:', img.width, 'x', img.height);
-      
-      // Set canvas dimensions to match the image
-      if (img.width && img.height) {
-        // Scale the image to fit a reasonable viewport
-        const maxWidth = 1200;
-        const maxHeight = 800;
+    // Load the image from URL with improved error handling
+    const loadImage = async () => {
+      try {
+        console.log('Attempting to load image from URL:', imageData);
         
-        let canvasWidth = img.width;
-        let canvasHeight = img.height;
-        
-        if (img.width > maxWidth || img.height > maxHeight) {
-          const scaleX = maxWidth / img.width;
-          const scaleY = maxHeight / img.height;
-          const scale = Math.min(scaleX, scaleY);
-          
-          canvasWidth = img.width * scale;
-          canvasHeight = img.height * scale;
-          
-          img.scaleToWidth(canvasWidth);
+        // Test if URL is accessible first
+        const response = await fetch(imageData, { method: 'HEAD' });
+        if (!response.ok) {
+          throw new Error(`Image URL not accessible: ${response.status} ${response.statusText}`);
         }
         
-        canvas.setDimensions({
-          width: canvasWidth,
-          height: canvasHeight
-        });
+        console.log('Image URL is accessible, loading with Fabric.js...');
+        
+        // Load with Fabric.js (removed crossOrigin parameter that might cause issues)
+        const img = await FabricImage.fromURL(imageData);
+        
+        console.log('Image loaded successfully:', img.width, 'x', img.height);
+        
+        // Set canvas dimensions to match the image
+        if (img.width && img.height) {
+          // Scale the image to fit a reasonable viewport
+          const maxWidth = 1200;
+          const maxHeight = 800;
+          
+          let canvasWidth = img.width;
+          let canvasHeight = img.height;
+          
+          if (img.width > maxWidth || img.height > maxHeight) {
+            const scaleX = maxWidth / img.width;
+            const scaleY = maxHeight / img.height;
+            const scale = Math.min(scaleX, scaleY);
+            
+            canvasWidth = img.width * scale;
+            canvasHeight = img.height * scale;
+            
+            img.scaleToWidth(canvasWidth);
+          }
+          
+          canvas.setDimensions({
+            width: canvasWidth,
+            height: canvasHeight
+          });
+        }
+        
+        // Set the loaded image as background
+        canvas.backgroundImage = img;
+        canvas.renderAll();
+        setIsImageLoaded(true);
+        
+        console.log('Canvas background image set and rendered successfully');
+        toast.success('Image loaded successfully');
+        
+      } catch (error) {
+        console.error('Error loading image:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        setImageLoadError(`Failed to load image: ${errorMessage}`);
+        toast.error('Failed to load captured image');
       }
-      
-      // Set the loaded image as background using v6 API
-      canvas.backgroundImage = img;
-      canvas.renderAll();
-      setIsImageLoaded(true);
-      
-      console.log('Canvas background image set and rendered');
-    }).catch((error) => {
-      console.error('Error loading image:', error);
-      setImageLoadError(true);
-      toast.error('Failed to load captured image');
-    });
+    };
+
+    loadImage();
 
     // Configure drawing brush
     canvas.freeDrawingBrush = new PencilBrush(canvas);
@@ -128,19 +147,58 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
     
     // Save initial state to history after image loads
     setTimeout(() => {
-      if (canvas.backgroundImage) {
+      if (canvas.backgroundImage && isImageLoaded) {
         const initialState = JSON.stringify(canvas.toJSON());
         setHistory([initialState]);
         setHistoryStep(0);
       }
-    }, 500);
+    }, 1000);
 
     return () => {
       canvas.dispose();
       setIsImageLoaded(false);
-      setImageLoadError(false);
+      setImageLoadError('');
     };
   }, [isOpen, imageData]);
+
+  // Retry loading the image
+  const retryImageLoad = async () => {
+    setIsRetrying(true);
+    setImageLoadError('');
+    
+    // Force re-initialization by clearing and recreating the canvas
+    if (fabricCanvas) {
+      fabricCanvas.dispose();
+      setFabricCanvas(null);
+    }
+    
+    // Wait a moment then re-trigger the effect
+    setTimeout(() => {
+      setIsRetrying(false);
+    }, 500);
+  };
+
+  // Test image URL accessibility
+  const testImageUrl = async () => {
+    if (!imageData) return;
+    
+    try {
+      console.log('Testing image URL accessibility:', imageData);
+      const response = await fetch(imageData, { method: 'HEAD' });
+      console.log('URL test response:', response.status, response.statusText);
+      
+      if (response.ok) {
+        toast.success('Image URL is accessible');
+        // Try opening in new tab
+        window.open(imageData, '_blank');
+      } else {
+        toast.error(`Image URL returned ${response.status}: ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Error testing image URL:', error);
+      toast.error('Failed to access image URL');
+    }
+  };
 
   // Update canvas settings when tool/color changes
   useEffect(() => {
@@ -422,39 +480,63 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
                 <Download className="h-4 w-4 mr-1" />
                 Download
               </Button>
-              <Button onClick={handleSave}>
+              <Button onClick={handleSave} disabled={!isImageLoaded}>
                 <Save className="h-4 w-4 mr-1" />
                 Save to Booking
               </Button>
             </div>
           </div>
 
-          {/* Canvas Container */}
-          <div className="flex-1 flex items-center justify-center bg-gray-100 rounded-lg overflow-auto">
-            {!isImageLoaded && !imageLoadError && (
+          {/* Canvas Container with improved error handling */}
+          <div className="flex-1 flex items-center justify-center bg-gray-100 rounded-lg overflow-auto relative">
+            {!isImageLoaded && !imageLoadError && !isRetrying && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
                 <div className="text-center">
                   <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
                   <span className="text-gray-600">Loading image...</span>
+                  <p className="text-xs text-gray-500 mt-1">URL: {imageData?.substring(0, 50)}...</p>
                 </div>
               </div>
             )}
-            {imageLoadError && (
+            
+            {isRetrying && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
                 <div className="text-center">
-                  <div className="text-red-500 mb-2">⚠️</div>
-                  <span className="text-gray-600">Failed to load image</span>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="mt-2 block mx-auto"
-                    onClick={() => window.location.reload()}
-                  >
-                    Retry
-                  </Button>
+                  <div className="animate-spin h-8 w-8 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+                  <span className="text-gray-600">Retrying...</span>
                 </div>
               </div>
             )}
+            
+            {imageLoadError && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
+                <div className="text-center max-w-md p-4">
+                  <div className="text-red-500 mb-2">⚠️</div>
+                  <h3 className="font-medium text-gray-900 mb-2">Failed to Load Image</h3>
+                  <p className="text-sm text-gray-600 mb-4">{imageLoadError}</p>
+                  <div className="flex gap-2 justify-center">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={retryImageLoad}
+                      disabled={isRetrying}
+                    >
+                      <RefreshCw className={`h-4 w-4 mr-1 ${isRetrying ? 'animate-spin' : ''}`} />
+                      Retry
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={testImageUrl}
+                    >
+                      Test URL
+                    </Button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2 break-all">URL: {imageData}</p>
+                </div>
+              </div>
+            )}
+            
             <div className="max-w-full max-h-full">
               <canvas ref={canvasRef} className="border border-gray-300 rounded shadow-lg" />
             </div>
