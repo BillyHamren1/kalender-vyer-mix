@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { 
   Sheet, 
@@ -10,7 +10,8 @@ import {
 import { 
   X,
   Download,
-  Loader2
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -30,6 +31,15 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
   bookingNumber
 }) => {
   const [imageLoadError, setImageLoadError] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  // Reset error state when modal opens or imageData changes
+  useEffect(() => {
+    if (isOpen && imageData) {
+      console.log('📸 SnapshotPreviewModal: Image data received:', imageData.substring(0, 50) + '...');
+      setImageLoadError(false);
+    }
+  }, [isOpen, imageData]);
 
   // Download image locally
   const handleDownload = () => {
@@ -38,35 +48,69 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
       return;
     }
     
+    console.log('💾 Starting image download...');
+    
     try {
       const link = document.createElement('a');
       link.download = `map-snapshot-${bookingNumber || 'image'}-${new Date().toISOString().slice(0, 10)}.png`;
       link.href = imageData;
       link.click();
       
+      console.log('✅ Image download successful');
       toast.success('Bild nedladdad');
     } catch (error) {
-      console.error('Error downloading image:', error);
+      console.error('❌ Error downloading image:', error);
       toast.error('Misslyckades att ladda ner bilden');
     }
   };
 
-  const handleImageError = () => {
-    console.error('Failed to load snapshot image:', imageData);
+  const handleImageError = (event: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    console.error('❌ Failed to load snapshot image:');
+    console.error('  - Image src:', imageData?.substring(0, 100) + '...');
+    console.error('  - Error event:', event);
+    
     setImageLoadError(true);
     toast.error('Misslyckades att ladda bilden');
   };
 
-  const handleImageLoad = () => {
-    console.log('Snapshot image loaded successfully');
+  const handleImageLoad = (event: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    console.log('✅ Snapshot image loaded successfully');
+    console.log('  - Image dimensions:', {
+      width: event.currentTarget.naturalWidth,
+      height: event.currentTarget.naturalHeight
+    });
     setImageLoadError(false);
+  };
+
+  const handleRetry = () => {
+    console.log('🔄 Retrying image load...');
+    setIsRetrying(true);
+    setImageLoadError(false);
+    
+    // Force re-render of image by creating a new URL with timestamp
+    setTimeout(() => {
+      setIsRetrying(false);
+    }, 1000);
   };
 
   // Reset error state when modal closes
   const handleClose = () => {
+    console.log('🚪 Closing snapshot modal');
     setImageLoadError(false);
+    setIsRetrying(false);
     onClose();
   };
+
+  // Debug logging for modal state
+  useEffect(() => {
+    console.log('🔍 SnapshotPreviewModal state:', {
+      isOpen,
+      hasImageData: !!imageData,
+      imageDataLength: imageData?.length || 0,
+      imageLoadError,
+      bookingNumber
+    });
+  }, [isOpen, imageData, imageLoadError, bookingNumber]);
 
   // Always show modal when open is true
   return (
@@ -89,10 +133,22 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
             </div>
             
             <div className="flex items-center gap-2">
+              {imageLoadError && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleRetry}
+                  disabled={isRetrying}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-1 ${isRetrying ? 'animate-spin' : ''}`} />
+                  Försök igen
+                </Button>
+              )}
+              
               <Button 
                 variant="outline" 
                 onClick={handleDownload}
-                disabled={!imageData}
+                disabled={!imageData || imageLoadError}
               >
                 <Download className="h-4 w-4 mr-1" />
                 Ladda ner
@@ -110,13 +166,20 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
               <div className="flex flex-col items-center gap-3 p-8">
                 <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
                 <span className="text-gray-600">Laddar kartbild...</span>
+                <span className="text-xs text-gray-400">
+                  Väntar på bildinformation från servern
+                </span>
               </div>
             ) : imageLoadError ? (
               // Error state
               <div className="flex flex-col items-center gap-3 p-8 text-center">
                 <div className="text-red-500 text-lg">⚠️</div>
                 <span className="text-gray-600">Misslyckades att ladda bilden</span>
-                <Button variant="outline" size="sm" onClick={() => setImageLoadError(false)}>
+                <span className="text-xs text-gray-400">
+                  Bilddata: {imageData.length} tecken
+                </span>
+                <Button variant="outline" size="sm" onClick={handleRetry} disabled={isRetrying}>
+                  <RefreshCw className={`h-4 w-4 mr-1 ${isRetrying ? 'animate-spin' : ''}`} />
                   Försök igen
                 </Button>
               </div>
@@ -124,12 +187,19 @@ export const SnapshotPreviewModal: React.FC<SnapshotPreviewModalProps> = ({
               // Image display
               <div className="max-w-full max-h-full p-4">
                 <img 
-                  src={imageData} 
+                  src={isRetrying ? `${imageData}?t=${Date.now()}` : imageData}
                   alt="Kartbild" 
                   className="max-w-full max-h-full object-contain rounded shadow-lg"
                   onError={handleImageError}
                   onLoad={handleImageLoad}
+                  style={{ 
+                    border: imageLoadError ? '2px solid red' : 'none'
+                  }}
                 />
+                {/* Debug info */}
+                <div className="mt-2 text-xs text-gray-400 text-center">
+                  Bildstorlek: {Math.round(imageData.length / 1024)} KB
+                </div>
               </div>
             )}
           </div>

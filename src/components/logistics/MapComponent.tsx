@@ -660,19 +660,22 @@ const MapComponent: React.FC<MapComponentProps> = ({
     map.current.off('click', handleMeasureClick);
   };
 
-  // Updated takeMapSnapshot function - show modal immediately and handle async loading
+  // Enhanced takeMapSnapshot function with better error handling and logging
   const takeMapSnapshot = async () => {
     if (!map.current || !selectedBooking) {
+      console.error('❌ Cannot take snapshot: missing map or booking');
       toast.error('No booking selected for snapshot');
       return;
     }
 
     try {
       setIsCapturingSnapshot(true);
+      console.log('📸 Starting map snapshot capture for booking:', selectedBooking.bookingNumber);
       
       // Show modal immediately with loading state
       setSnapshotImageUrl(''); // Clear previous image
       setShowSnapshotModal(true);
+      console.log('👁️ Snapshot modal opened in loading state');
       
       toast.info('Capturing map snapshot...');
 
@@ -680,10 +683,20 @@ const MapComponent: React.FC<MapComponentProps> = ({
       await new Promise(resolve => setTimeout(resolve, 500));
 
       // Get the map canvas and convert to base64
+      console.log('🎨 Getting map canvas...');
       const canvas = map.current.getCanvas();
-      const dataURL = canvas.toDataURL('image/png');
+      console.log('📏 Canvas dimensions:', {
+        width: canvas.width,
+        height: canvas.height
+      });
 
-      console.log('Map snapshot captured, uploading...');
+      const dataURL = canvas.toDataURL('image/png');
+      console.log('🔗 Canvas converted to data URL:', {
+        length: dataURL.length,
+        prefix: dataURL.substring(0, 50)
+      });
+
+      console.log('☁️ Uploading snapshot to server...');
       
       // Upload to the save-map-snapshot endpoint
       const { data, error } = await supabase.functions.invoke('save-map-snapshot', {
@@ -695,39 +708,48 @@ const MapComponent: React.FC<MapComponentProps> = ({
       });
 
       if (error) {
-        console.error('Error saving snapshot:', error);
+        console.error('❌ Error saving snapshot:', error);
         toast.error('Failed to save map snapshot');
         setShowSnapshotModal(false); // Close modal on error
         return;
       }
 
-      console.log('Snapshot saved successfully:', data);
+      console.log('✅ Snapshot saved successfully:', {
+        hasUrl: !!data?.url,
+        hasAttachment: !!data?.attachment,
+        url: data?.url
+      });
       
       // Set the snapshot URL to display in modal
       if (data?.url) {
+        console.log('🖼️ Setting snapshot URL for display:', data.url);
         setSnapshotImageUrl(data.url);
         toast.success('Map snapshot captured successfully');
         
         // Notify parent component if callback is provided
         if (onSnapshotSaved && data.attachment) {
+          console.log('📋 Notifying parent component of snapshot save');
           onSnapshotSaved(data.attachment);
         }
       } else {
+        console.error('❌ No URL returned from server');
         toast.error('Failed to get snapshot URL');
         setShowSnapshotModal(false); // Close modal if no URL
       }
 
     } catch (error) {
-      console.error('Error taking snapshot:', error);
+      console.error('💥 Fatal error taking snapshot:', error);
       toast.error('Failed to capture map snapshot');
       setShowSnapshotModal(false); // Close modal on error
     } finally {
       setIsCapturingSnapshot(false);
+      console.log('🏁 Snapshot capture process completed');
     }
   };
 
   // Function to close snapshot modal
   const closeSnapshotModal = () => {
+    console.log('🚪 Closing snapshot modal and clearing state');
     setShowSnapshotModal(false);
     setSnapshotImageUrl('');
   };
@@ -892,7 +914,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         centerLng={centerLng}
       />
 
-      {/* Fixed Snapshot Preview Modal */}
+      {/* Enhanced Snapshot Preview Modal with better error handling */}
       <SnapshotPreviewModal
         isOpen={showSnapshotModal}
         onClose={closeSnapshotModal}
