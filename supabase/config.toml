@@ -77,3 +77,6 @@ verify_jwt = false
 
 [functions.export-staff-assignments]
 verify_jwt = false
+
+[functions.save-map-snapshot]
+verify_jwt = false

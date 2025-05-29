@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Ruler, Mountain, RotateCcw, Edit3, Square, Circle, Minus, Trash2, Palette, ChevronDown, Pen } from 'lucide-react';
+import { Ruler, Mountain, RotateCcw, Edit3, Square, Circle, Minus, Trash2, Palette, ChevronDown, Pen, Camera } from 'lucide-react';
 
 interface MapComponentProps {
   bookings: Booking[];
@@ -16,6 +16,7 @@ interface MapComponentProps {
   onBookingSelect: (booking: Booking) => void;
   centerLat?: number;
   centerLng?: number;
+  onSnapshotSaved?: (attachment: any) => void;
 }
 
 // Define proper types for Mapbox Draw events
@@ -29,7 +30,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
   selectedBooking,
   onBookingSelect,
   centerLat,
-  centerLng
+  centerLng,
+  onSnapshotSaved
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -50,6 +52,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const measurePoints = useRef<number[][]>([]);
   const measureSource = useRef<mapboxgl.GeoJSONSource | null>(null);
   const freehandSource = useRef<mapboxgl.GeoJSONSource | null>(null);
+  const [isCapturingSnapshot, setIsCapturingSnapshot] = useState(false);
 
   // Color options for drawing
   const colorOptions = [
@@ -855,6 +858,56 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   }, [selectedBooking, mapInitialized]);
 
+  const takeMapSnapshot = async () => {
+    if (!map.current || !selectedBooking) {
+      toast.error('No booking selected for snapshot');
+      return;
+    }
+
+    try {
+      setIsCapturingSnapshot(true);
+      toast.info('Capturing map snapshot...');
+
+      // Wait a moment for any animations to complete
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Get the map canvas and convert to base64
+      const canvas = map.current.getCanvas();
+      const dataURL = canvas.toDataURL('image/png');
+
+      console.log('Map snapshot captured, saving to backend...');
+
+      // Call edge function to save the snapshot
+      const { data, error } = await supabase.functions.invoke('save-map-snapshot', {
+        body: {
+          bookingId: selectedBooking.id,
+          bookingNumber: selectedBooking.bookingNumber,
+          imageData: dataURL
+        }
+      });
+
+      if (error) {
+        console.error('Error saving snapshot:', error);
+        toast.error('Failed to save map snapshot');
+        return;
+      }
+
+      console.log('Snapshot saved successfully:', data);
+      toast.success('Map snapshot saved to booking attachments');
+
+      // Notify parent component if callback is provided
+      if (onSnapshotSaved && data.attachment) {
+        onSnapshotSaved(data.attachment);
+      }
+
+    } catch (error) {
+      console.error('Error taking snapshot:', error);
+      toast.error('Failed to capture map snapshot');
+    } finally {
+      setIsCapturingSnapshot(false);
+    }
+  };
+
   if (isLoadingToken) {
     return (
       <div className="flex items-center justify-center h-full bg-gray-100 rounded-lg">
@@ -904,6 +957,20 @@ const MapComponent: React.FC<MapComponentProps> = ({
             <Ruler className="h-4 w-4 mr-1" />
             Measure
           </Button>
+
+          {/* Snapshot Button - Only show when a booking is selected */}
+          {selectedBooking && (
+            <Button
+              onClick={takeMapSnapshot}
+              size="sm"
+              variant="outline"
+              disabled={isCapturingSnapshot}
+              className="bg-white/90 backdrop-blur-sm shadow-md"
+            >
+              <Camera className="h-4 w-4 mr-1" />
+              {isCapturingSnapshot ? 'Capturing...' : 'Snapshot'}
+            </Button>
+          )}
         </div>
 
         {/* Collapsible Drawing Controls */}

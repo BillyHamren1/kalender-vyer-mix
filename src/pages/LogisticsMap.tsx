@@ -46,6 +46,12 @@ const LogisticsMap = () => {
     setShowSidebar(!showSidebar);
   };
 
+  const handleSnapshotSaved = (attachment: any) => {
+    console.log('Map snapshot saved:', attachment);
+    // Optionally refresh booking data or show additional feedback
+    // The toast notification is already shown in the MapComponent
+  };
+
   // In iframe mode, show only the map without any headers or padding
   if (hideControls) {
     return (
@@ -62,6 +68,7 @@ const LogisticsMap = () => {
             onBookingSelect={setSelectedBooking}
             centerLat={lat ? parseFloat(lat) : undefined}
             centerLng={lng ? parseFloat(lng) : undefined}
+            onSnapshotSaved={handleSnapshotSaved}
           />
         )}
       </div>
@@ -131,6 +138,7 @@ const LogisticsMap = () => {
                         bookings={filteredBookings} 
                         selectedBooking={selectedBooking}
                         onBookingSelect={setSelectedBooking}
+                        onSnapshotSaved={handleSnapshotSaved}
                       />
                     </div>
                   </div>
