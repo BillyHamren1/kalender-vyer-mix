@@ -8,6 +8,7 @@ interface MapViewButtonProps {
   latitude?: number;
   longitude?: number;
   bookingId?: string;
+  bookingNumber?: string;
   isMapOpen: boolean;
   onMapOpenChange: (open: boolean) => void;
 }
@@ -16,6 +17,7 @@ export const MapViewButton: React.FC<MapViewButtonProps> = ({
   latitude,
   longitude,
   bookingId,
+  bookingNumber,
   isMapOpen,
   onMapOpenChange
 }) => {
@@ -79,7 +81,7 @@ export const MapViewButton: React.FC<MapViewButtonProps> = ({
         <DialogHeader className="p-4 pb-0 flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <MapPin className="h-5 w-5" />
-            Delivery Location Map
+            {bookingNumber || 'No booking number'}
           </DialogTitle>
         </DialogHeader>
         <div className="flex-1 p-4 pt-2 min-h-0">
