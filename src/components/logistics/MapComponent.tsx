@@ -17,6 +17,7 @@ interface MapComponentProps {
   centerLat?: number;
   centerLng?: number;
   onSnapshotSaved?: (attachment: any) => void;
+  isFromBooking?: boolean;
 }
 
 // Define proper types for Mapbox Draw events
@@ -31,7 +32,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
   onBookingSelect,
   centerLat,
   centerLng,
-  onSnapshotSaved
+  onSnapshotSaved,
+  isFromBooking = false
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -1065,6 +1067,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         clearAllDrawings={clearAllDrawings}
         currentMapStyle={currentMapStyle}
         toggleMapStyle={toggleMapStyle}
+        isFromBooking={isFromBooking}
       />
 
       {/* Map Markers */}

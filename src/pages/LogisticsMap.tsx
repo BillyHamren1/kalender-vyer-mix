@@ -29,6 +29,9 @@ const LogisticsMap = () => {
   
   const [showSidebar, setShowSidebar] = useState(!hideControls);
 
+  // Determine if user is coming from a booking context
+  const isFromBooking = !!bookingId;
+
   useEffect(() => {
     loadBookings();
   }, []);
@@ -74,6 +77,7 @@ const LogisticsMap = () => {
             centerLat={lat ? parseFloat(lat) : undefined}
             centerLng={lng ? parseFloat(lng) : undefined}
             onSnapshotSaved={handleSnapshotSaved}
+            isFromBooking={isFromBooking}
           />
         )}
       </div>
@@ -167,6 +171,7 @@ const LogisticsMap = () => {
                         centerLat={lat ? parseFloat(lat) : undefined}
                         centerLng={lng ? parseFloat(lng) : undefined}
                         onSnapshotSaved={handleSnapshotSaved}
+                        isFromBooking={isFromBooking}
                       />
                     </div>
                   </div>

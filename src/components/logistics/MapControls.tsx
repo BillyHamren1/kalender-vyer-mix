@@ -24,6 +24,7 @@ interface MapControlsProps {
   clearAllDrawings: () => void;
   currentMapStyle: string;
   toggleMapStyle: () => void;
+  isFromBooking?: boolean;
 }
 
 export const MapControls: React.FC<MapControlsProps> = ({
@@ -45,7 +46,8 @@ export const MapControls: React.FC<MapControlsProps> = ({
   toggleFreehandDrawing,
   clearAllDrawings,
   currentMapStyle,
-  toggleMapStyle
+  toggleMapStyle,
+  isFromBooking = false
 }) => {
   const isSatelliteView = currentMapStyle.includes('satellite');
 
@@ -93,34 +95,39 @@ export const MapControls: React.FC<MapControlsProps> = ({
           <Ruler className="h-4 w-4 mr-1" />
           Measure
         </Button>
-
-        {/* Snapshot Button - Only show when a booking is selected */}
-        {selectedBooking && (
-          <Button
-            onClick={takeMapSnapshot}
-            size="sm"
-            variant="outline"
-            disabled={isCapturingSnapshot}
-            className="bg-white/90 backdrop-blur-sm shadow-md"
-          >
-            <Camera className="h-4 w-4 mr-1" />
-            {isCapturingSnapshot ? 'Capturing...' : 'Snapshot'}
-          </Button>
-        )}
       </div>
 
-      {/* Collapsible Drawing Controls */}
-      <MapDrawingControls
-        isDrawingOpen={isDrawingOpen}
-        setIsDrawingOpen={setIsDrawingOpen}
-        selectedColor={selectedColor}
-        setSelectedColor={setSelectedColor}
-        drawMode={drawMode}
-        setDrawingMode={setDrawingMode}
-        isFreehandDrawing={isFreehandDrawing}
-        toggleFreehandDrawing={toggleFreehandDrawing}
-        clearAllDrawings={clearAllDrawings}
-      />
+      {/* Booking-specific Controls - Only show when user comes from a booking */}
+      {isFromBooking && (
+        <div className="flex flex-col gap-1 border-t border-white/20 pt-2">
+          {/* Snapshot Button - Only show when a booking is selected and from booking context */}
+          {selectedBooking && (
+            <Button
+              onClick={takeMapSnapshot}
+              size="sm"
+              variant="outline"
+              disabled={isCapturingSnapshot}
+              className="bg-white/90 backdrop-blur-sm shadow-md"
+            >
+              <Camera className="h-4 w-4 mr-1" />
+              {isCapturingSnapshot ? 'Capturing...' : 'Snapshot'}
+            </Button>
+          )}
+
+          {/* Drawing Controls - Only in booking context */}
+          <MapDrawingControls
+            isDrawingOpen={isDrawingOpen}
+            setIsDrawingOpen={setIsDrawingOpen}
+            selectedColor={selectedColor}
+            setSelectedColor={setSelectedColor}
+            drawMode={drawMode}
+            setDrawingMode={setDrawingMode}
+            isFreehandDrawing={isFreehandDrawing}
+            toggleFreehandDrawing={toggleFreehandDrawing}
+            clearAllDrawings={clearAllDrawings}
+          />
+        </div>
+      )}
 
       {/* Reset Control */}
       <Button
