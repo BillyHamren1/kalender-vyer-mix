@@ -45,9 +45,9 @@ serve(async (req) => {
 
     console.log(`Uploading to storage: ${filePath}`);
 
-    // Upload to Supabase Storage
+    // Upload to Supabase Storage - use 'map-snapshots' bucket
     const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('snapshots')
+      .from('map-snapshots')
       .upload(filePath, imageBuffer, {
         contentType: 'image/png',
         cacheControl: '3600',
@@ -69,7 +69,7 @@ serve(async (req) => {
 
     // Get public URL
     const { data: urlData } = supabase.storage
-      .from('snapshots')
+      .from('map-snapshots')
       .getPublicUrl(filePath);
 
     console.log('Public URL generated:', urlData.publicUrl);
@@ -91,7 +91,7 @@ serve(async (req) => {
       if (dbError) {
         console.error('Database error:', dbError);
         // Try to clean up uploaded file
-        await supabase.storage.from('snapshots').remove([filePath]);
+        await supabase.storage.from('map-snapshots').remove([filePath]);
         
         return new Response(
           JSON.stringify({ error: 'Failed to save attachment record', details: dbError }),
