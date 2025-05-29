@@ -9,7 +9,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { MapControls } from './MapControls';
 import { MapMarkers } from './MapMarkers';
 import { calculateDistance, formatDistance, createDrawStyles } from './MapUtils';
-import { SnapshotPreviewModal } from './SnapshotPreviewModal';
 
 interface MapComponentProps {
   bookings: Booking[];
@@ -44,7 +43,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [isMeasuring, setIsMeasuring] = useState(false);
   const [drawMode, setDrawMode] = useState<string>('simple_select');
   const [selectedColor, setSelectedColor] = useState<string>('#3bb2d0');
-  const [isDrawingOpen, setIsDrawingOpen] = useState(true); // Changed to true by default
+  const [isDrawingOpen, setIsDrawingOpen] = useState(true);
   const [isFreehandDrawing, setIsFreehandDrawing] = useState(false);
   const [freehandPoints, setFreehandPoints] = useState<number[][]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -64,10 +63,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
     visible: boolean;
   }>({ distance: '', x: 0, y: 0, visible: false });
 
-  // Fixed states for snapshot preview modal
-  const [showSnapshotModal, setShowSnapshotModal] = useState(false);
-  const [snapshotImageUrl, setSnapshotImageUrl] = useState<string>('');
-
   // Refs for dynamic event listeners
   const dragHandlers = useRef<{
     mousemove?: (e: MouseEvent) => void;
@@ -81,7 +76,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
       
       if (event.data.type === 'RESIZE_MAP' && map.current && mapInitialized) {
         console.log('Received resize message, resizing map...');
-        // Small delay to ensure container is properly sized
         setTimeout(() => {
           if (map.current) {
             map.current.resize();
@@ -125,11 +119,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
   useEffect(() => {
     if (!mapContainer.current || map.current || !mapboxToken || isLoadingToken) return;
 
-    // Use provided center coordinates or default
     const initialCenter: [number, number] = centerLng && centerLat 
       ? [centerLng, centerLat] 
       : [18, 60];
-    // Use zoom level 12 when specific coordinates are provided (better scale accuracy for satellite imagery)
     const initialZoom = centerLng && centerLat ? 12 : 4;
 
     console.log('🗺️ Initializing map with WebGL canvas capture enabled...');
@@ -145,15 +137,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
       bearing: 0,
       antialias: true,
       projection: 'globe',
-      // CRITICAL: Enable canvas capture for WebGL
       preserveDrawingBuffer: true,
-      // Additional WebGL options for better capture
       failIfMajorPerformanceCaveat: false
     });
 
     console.log('🎨 Map canvas configured for capture with preserveDrawingBuffer: true');
 
-    // Initialize Mapbox Draw with dynamic styles
     draw.current = new MapboxDraw({
       displayControlsDefault: false,
       controls: {},
@@ -161,7 +150,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
       styles: createDrawStyles(selectedColor)
     });
 
-    // Add controls
     map.current.addControl(new mapboxgl.NavigationControl({
       visualizePitch: true,
       showZoom: true,
@@ -174,15 +162,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }), 'bottom-left');
 
     map.current.addControl(new mapboxgl.FullscreenControl(), 'top-right');
-
-    // Add drawing control to the map
     map.current.addControl(draw.current, 'top-right');
 
     map.current.on('load', () => {
       console.log('✅ Map loaded successfully with canvas capture enabled');
       setMapInitialized(true);
       
-      // Add 3D terrain source
       map.current?.addSource('mapbox-dem', {
         'type': 'raster-dem',
         'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
@@ -190,7 +175,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
         'maxzoom': 14
       });
 
-      // Add measuring source
       map.current?.addSource('measure-points', {
         'type': 'geojson',
         'data': {
@@ -199,7 +183,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
-      // Add freehand drawing source
       map.current?.addSource('freehand-lines', {
         'type': 'geojson',
         'data': {
@@ -211,7 +194,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
       measureSource.current = map.current?.getSource('measure-points') as mapboxgl.GeoJSONSource;
       freehandSource.current = map.current?.getSource('freehand-lines') as mapboxgl.GeoJSONSource;
 
-      // Add measuring layers with improved styling
       map.current?.addLayer({
         'id': 'measure-lines',
         'type': 'line',
@@ -238,18 +220,17 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
-      // Enhanced layer for distance labels positioned ON the lines
       map.current?.addLayer({
         'id': 'measure-labels',
         'type': 'symbol',
         'source': 'measure-points',
-        'filter': ['has', 'distance'], // Only show labels for line segments, not points
+        'filter': ['has', 'distance'],
         'layout': {
           'text-field': ['get', 'distance'],
           'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
           'text-size': 12,
           'text-anchor': 'center',
-          'symbol-placement': 'line', // Place labels along the line
+          'symbol-placement': 'line',
           'text-rotation-alignment': 'map',
           'text-pitch-alignment': 'viewport'
         },
@@ -260,7 +241,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
-      // Add freehand drawing layer
       map.current?.addLayer({
         'id': 'freehand-lines-layer',
         'type': 'line',
@@ -275,10 +255,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
-      // Add ONLY mousedown event listener for measure points (not persistent mousemove/mouseup)
       map.current?.on('mousedown', 'measure-points-layer', handleMeasurePointMouseDown);
 
-      // Change cursor to pointer when hovering over measure points
       map.current?.on('mouseenter', 'measure-points-layer', () => {
         if (map.current && !isMeasuring) {
           map.current.getCanvas().style.cursor = 'grab';
@@ -291,7 +269,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
-      // Trigger initial resize in case we're in an iframe
       setTimeout(() => {
         if (map.current) {
           map.current.resize();
@@ -299,14 +276,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
       }, 200);
     });
 
-    // Force map resize to ensure it fills the container properly
     setTimeout(() => {
       if (map.current) {
         map.current.resize();
       }
     }, 100);
 
-    // Drawing event listeners with proper typing
     map.current.on('draw.create', (e: DrawEvent) => {
       console.log('Created feature:', e.features[0]);
       toast.success(`${e.features[0].geometry.type} created`);
@@ -323,14 +298,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
     });
 
     return () => {
-      // Clean up any active drag listeners
       cleanupDragListeners();
       map.current?.remove();
       map.current = null;
     };
   }, [mapboxToken, isLoadingToken, centerLat, centerLng, currentMapStyle]);
 
-  // Clean up drag event listeners
   const cleanupDragListeners = () => {
     if (dragHandlers.current.mousemove) {
       document.removeEventListener('mousemove', dragHandlers.current.mousemove);
@@ -342,7 +315,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   };
 
-  // Force resize when component mounts or container changes
   useEffect(() => {
     if (map.current && mapInitialized) {
       const resizeTimer = setTimeout(() => {
@@ -353,27 +325,21 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   }, [mapInitialized]);
 
-  // FIXED: Update draw styles when color changes without removing/re-adding control
   useEffect(() => {
     if (!draw.current || !map.current || !mapInitialized) return;
 
     console.log('🎨 Updating draw styles for color:', selectedColor);
     
     try {
-      // Update the draw control's styles directly without removing it
       const newStyles = createDrawStyles(selectedColor);
       
-      // Clear existing drawings to apply new color
       const currentFeatures = draw.current.getAll();
       
-      // Update the internal styles of the draw control
       if (draw.current.options) {
         draw.current.options.styles = newStyles;
       }
       
-      // Force a refresh of the draw control's rendering
       if (currentFeatures.features.length > 0) {
-        // Re-add features to apply new styles
         draw.current.deleteAll();
         draw.current.add(currentFeatures);
       }
@@ -384,7 +350,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   }, [selectedColor, mapInitialized]);
 
-  // Toggle map style function
   const toggleMapStyle = () => {
     if (!map.current || !mapInitialized) return;
 
@@ -427,7 +392,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
     if (!map.current || !mapInitialized) return;
 
     if (!isMeasuring) {
-      // Disable drawing mode when measuring
       if (draw.current) {
         draw.current.changeMode('simple_select');
         setDrawMode('simple_select');
@@ -448,7 +412,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
   };
 
   const handleMeasureClick = (e: mapboxgl.MapMouseEvent) => {
-    // Don't add points while dragging
     if (isDraggingMeasurePoint) return;
     
     const coords = [e.lngLat.lng, e.lngLat.lat];
@@ -476,7 +439,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     const features = [];
     
-    // Add points (keeping the draggable points)
     measurePoints.current.forEach((point, index) => {
       features.push({
         type: 'Feature',
@@ -490,14 +452,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
       });
     });
 
-    // Add line segments with distance labels positioned ON the lines (no midpoint dots)
     if (measurePoints.current.length > 1) {
       for (let i = 1; i < measurePoints.current.length; i++) {
         const startPoint = measurePoints.current[i - 1];
         const endPoint = measurePoints.current[i];
         const distance = calculateDistance(startPoint, endPoint);
 
-        // Add line segment
         features.push({
           type: 'Feature',
           geometry: {
@@ -512,7 +472,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
       }
     }
 
-    // Add real-time measurement display when there are 2 or more points
     if (measurePoints.current.length >= 2) {
       const lastIndex = measurePoints.current.length - 1;
       const lastDistance = calculateDistance(
@@ -523,7 +482,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
       const canvas = map.current?.getCanvas();
       if (canvas && map.current) {
         const rect = canvas.getBoundingClientRect();
-        // Fix: properly type the coordinates as [number, number]
         const lastPoint = measurePoints.current[lastIndex];
         const midpoint = map.current.project([lastPoint[0], lastPoint[1]] as [number, number]);
 
@@ -542,18 +500,15 @@ const MapComponent: React.FC<MapComponentProps> = ({
     });
   };
 
-  // Freehand drawing functions
   const toggleFreehandDrawing = () => {
     if (!map.current || !mapInitialized) return;
 
     if (!isFreehandDrawing) {
-      // Disable other drawing modes
       if (draw.current) {
         draw.current.changeMode('simple_select');
         setDrawMode('simple_select');
       }
       
-      // Disable measuring
       if (isMeasuring) {
         toggleMeasuring();
       }
@@ -562,7 +517,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
       map.current.getCanvas().style.cursor = 'crosshair';
       toast.info('Freehand drawing enabled. Click and drag to draw.');
       
-      // Add freehand event listeners
       map.current.on('mousedown', handleFreehandStart);
       map.current.on('mousemove', handleFreehandMove);
       map.current.on('mouseup', handleFreehandEnd);
@@ -571,7 +525,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
       setIsDrawing(false);
       map.current.getCanvas().style.cursor = '';
       
-      // Remove freehand event listeners
       map.current.off('mousedown', handleFreehandStart);
       map.current.off('mousemove', handleFreehandMove);
       map.current.off('mouseup', handleFreehandEnd);
@@ -599,7 +552,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
     setIsDrawing(false);
     
     if (freehandPoints.length > 1) {
-      // Create a permanent line feature with proper typing
       const lineFeature = {
         type: "Feature" as const,
         geometry: {
@@ -612,7 +564,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       };
       
-      // Add to draw control as well for consistency
       if (draw.current) {
         draw.current.add(lineFeature);
       }
@@ -641,18 +592,15 @@ const MapComponent: React.FC<MapComponentProps> = ({
     });
   };
 
-  // Update freehand layer color when selected color changes
   useEffect(() => {
     if (!map.current || !mapInitialized) return;
     
     map.current.setPaintProperty('freehand-lines-layer', 'line-color', selectedColor);
   }, [selectedColor, mapInitialized]);
 
-  // Drawing mode functions
   const setDrawingMode = (mode: string) => {
     if (!draw.current) return;
     
-    // Disable measuring when entering drawing mode
     if (isMeasuring) {
       toggleMeasuring();
     }
@@ -700,7 +648,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
     map.current.off('click', handleMeasureClick);
   };
 
-  // Validate canvas data
   const validateCanvasContent = (canvas: HTMLCanvasElement): boolean => {
     console.log('🔍 Validating canvas content with improved logic...');
     
@@ -716,17 +663,14 @@ const MapComponent: React.FC<MapComponentProps> = ({
       
       console.log('📏 Canvas dimensions:', { width, height });
 
-      // Sample more points across the canvas for better coverage
       const sampleSize = 20;
       const samplePoints: [number, number][] = [];
       
-      // Create a grid of sample points
       for (let i = 0; i < sampleSize; i++) {
         const x = (width / sampleSize) * i + (width / (sampleSize * 2));
         const y = (height / sampleSize) * i + (height / (sampleSize * 2));
         samplePoints.push([x, y]);
         
-        // Add some diagonal samples
         const diagX = (width / sampleSize) * i;
         const diagY = (height / sampleSize) * (sampleSize - 1 - i);
         samplePoints.push([diagX, diagY]);
@@ -746,7 +690,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       }
 
-      // Calculate color variation to detect if there's actual map content
       if (colors.length > 1) {
         for (let i = 1; i < colors.length; i++) {
           const [r1, g1, b1] = colors[i - 1];
@@ -759,11 +702,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
       const transparencyRatio = nonTransparentPixels / samplePoints.length;
       
-      // Much more lenient validation criteria
       const hasContent = (
-        nonTransparentPixels >= 5 || // At least 5 non-transparent pixels
-        transparencyRatio > 0.1 ||   // Or 10% non-transparent
-        colorVariation > 10          // Or some color variation indicating content
+        nonTransparentPixels >= 5 ||
+        transparencyRatio > 0.1 ||
+        colorVariation > 10
       );
 
       console.log(`📊 Improved canvas validation result:`, {
@@ -775,7 +717,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
         canvasDimensions: { width, height }
       });
 
-      // If validation still fails, log a sample of pixel data for debugging
       if (!hasContent) {
         console.log('🔍 Detailed pixel analysis (first 10 samples):');
         for (let i = 0; i < Math.min(10, samplePoints.length); i++) {
@@ -789,13 +730,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
       return hasContent;
     } catch (error) {
       console.error('❌ Error validating canvas content:', error);
-      // If validation fails, assume the canvas has content and proceed
       console.log('⚠️ Validation error occurred, proceeding with snapshot anyway');
       return true;
     }
   };
 
-  // Enhanced takeMapSnapshot function with improved validation
   const takeMapSnapshot = async () => {
     if (!map.current || !selectedBooking) {
       console.error('❌ Cannot take snapshot: missing map or booking');
@@ -805,17 +744,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     try {
       setIsCapturingSnapshot(true);
-      console.log('📸 Starting enhanced map snapshot capture for booking:', selectedBooking.bookingNumber);
+      console.log('📸 Starting direct map snapshot capture for booking:', selectedBooking.bookingNumber);
       
-      // Show modal immediately with loading state
-      setSnapshotImageUrl('');
-      setShowSnapshotModal(true);
-      console.log('👁️ Snapshot modal opened in loading state');
+      toast.info('Capturing map snapshot...');
       
-      toast.info('Preparing map for snapshot...');
-      
-      // Step 1: Wait for map to be fully ready
-      console.log('⏳ Step 1: Waiting for map to be fully ready...');
       const isMapReady = await waitForMapReady();
       
       if (!isMapReady) {
@@ -823,16 +755,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
         toast.info('Map may still be loading, but capturing anyway...');
       }
 
-      // Step 2: Force multiple render cycles to ensure WebGL buffer is updated
-      console.log('🔄 Step 2: Forcing map render cycles...');
       for (let i = 0; i < 3; i++) {
         map.current.resize();
         map.current.triggerRepaint();
         await new Promise(resolve => setTimeout(resolve, 800));
       }
 
-      // Step 3: Get and validate canvas
-      console.log('🎨 Step 3: Getting map canvas...');
       const canvas = map.current.getCanvas();
       console.log('📏 Canvas dimensions:', {
         width: canvas.width,
@@ -841,8 +769,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
         clientHeight: canvas.clientHeight
       });
 
-      // Step 4: Validate canvas with improved logic
-      console.log('🔍 Step 4: Validating canvas content...');
       const hasValidContent = validateCanvasContent(canvas);
       
       if (!hasValidContent) {
@@ -853,7 +779,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
         toast.info('Canvas content validated, capturing...');
       }
 
-      // Step 5: Capture with multiple attempts and improved error handling
       let dataURL = '';
       let attempts = 0;
       const maxAttempts = 3;
@@ -863,14 +788,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
         console.log(`📸 Step 5: Canvas capture attempt ${attempts}/${maxAttempts}...`);
         
         try {
-          // Force another render before capture
           map.current.triggerRepaint();
           await new Promise(resolve => setTimeout(resolve, 500));
           
-          dataURL = canvas.toDataURL('image/png', 1.0); // Maximum quality
+          dataURL = canvas.toDataURL('image/png', 1.0);
           
-          // More lenient data validation
-          if (dataURL && dataURL.length > 100) { // Just check if we got some data
+          if (dataURL && dataURL.length > 100) {
             console.log('✅ Canvas capture successful on attempt', attempts);
             break;
           } else {
@@ -891,22 +814,18 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       }
 
-      // Proceed even with small data - let the server handle it
       if (!dataURL || dataURL.length < 50) {
         console.error('❌ Failed to capture any canvas data after all attempts');
         toast.error('Failed to capture map image - no data available');
-        setShowSnapshotModal(false);
         return;
       }
 
-      // Step 6: Debug info about captured data
       console.log('🖼️ Captured image data preview:', dataURL.substring(0, 100) + '...');
       console.log('📏 Captured image size:', Math.round(dataURL.length / 1024), 'KB');
 
-      console.log('☁️ Step 7: Uploading snapshot to server...');
-      toast.info('Uploading map snapshot...');
+      console.log('☁️ Step 7: Uploading snapshot directly to server...');
+      toast.info('Saving map snapshot...');
       
-      // Upload to the save-map-snapshot endpoint
       const { data, error } = await supabase.functions.invoke('save-map-snapshot', {
         body: {
           image: dataURL,
@@ -918,86 +837,31 @@ const MapComponent: React.FC<MapComponentProps> = ({
       if (error) {
         console.error('❌ Error saving snapshot:', error);
         toast.error('Failed to save map snapshot');
-        setShowSnapshotModal(false);
         return;
       }
 
-      console.log('✅ Snapshot uploaded successfully:', {
+      console.log('✅ Snapshot saved successfully:', {
         hasUrl: !!data?.url,
         hasAttachment: !!data?.attachment,
         url: data?.url
       });
 
-      // Step 8: Set the snapshot URL to display in modal
-      if (data?.url) {
-        console.log('🖼️ Setting snapshot URL for display:', data.url);
-        setSnapshotImageUrl(data.url);
-        toast.success('Map snapshot captured successfully');
-        
-        // Notify parent component if callback is provided
-        if (onSnapshotSaved && data.attachment) {
-          console.log('📋 Notifying parent component of snapshot save');
-          onSnapshotSaved(data.attachment);
-        }
-      } else {
-        console.error('❌ No URL returned from server');
-        toast.error('Failed to get snapshot URL');
-        setShowSnapshotModal(false);
+      toast.success('Map snapshot saved successfully!');
+      
+      if (onSnapshotSaved && data.attachment) {
+        console.log('📋 Notifying parent component of snapshot save');
+        onSnapshotSaved(data.attachment);
       }
 
     } catch (error) {
       console.error('💥 Fatal error taking snapshot:', error);
       toast.error('Failed to capture map snapshot');
-      setShowSnapshotModal(false);
     } finally {
       setIsCapturingSnapshot(false);
-      console.log('🏁 Enhanced snapshot capture process completed');
+      console.log('🏁 Direct snapshot capture process completed');
     }
   };
 
-  // NEW: Save original snapshot handler
-  const handleSaveOriginalSnapshot = async (imageData: string) => {
-    if (!selectedBooking) {
-      toast.error('No booking selected');
-      return;
-    }
-
-    try {
-      console.log('💾 Saving original snapshot for booking:', selectedBooking.bookingNumber);
-      toast.info('Saving snapshot...');
-
-      const { data, error } = await supabase.functions.invoke('save-map-snapshot', {
-        body: {
-          image: imageData,
-          bookingId: selectedBooking.id,
-          bookingNumber: selectedBooking.bookingNumber
-        }
-      });
-
-      if (error) {
-        console.error('❌ Error saving original snapshot:', error);
-        toast.error('Failed to save snapshot');
-        return;
-      }
-
-      console.log('✅ Original snapshot saved successfully');
-      toast.success('Snapshot saved successfully');
-      
-      // Notify parent component if callback is provided
-      if (onSnapshotSaved && data?.attachment) {
-        console.log('📋 Notifying parent component of original snapshot save');
-        onSnapshotSaved(data.attachment);
-      }
-
-      // Close modal after successful save
-      closeSnapshotModal();
-    } catch (error) {
-      console.error('💥 Fatal error saving original snapshot:', error);
-      toast.error('Failed to save snapshot');
-    }
-  };
-
-  // Improved map readiness check function
   const waitForMapReady = async (): Promise<boolean> => {
     if (!map.current) return false;
 
@@ -1016,15 +880,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
           return;
         }
 
-        // Check if map style is loaded
         const isStyleLoaded = map.current.isStyleLoaded();
         console.log('🎨 Style loaded:', isStyleLoaded);
 
-        // Check if map is idle (all sources loaded)
         const isMapIdle = map.current.loaded();
         console.log('⏸️ Map idle/loaded:', isMapIdle);
 
-        // Get canvas dimensions
         const canvas = map.current.getCanvas();
         const canvasValid = canvas && canvas.width > 0 && canvas.height > 0;
         console.log('🖼️ Canvas valid:', canvasValid, {
@@ -1051,52 +912,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
     });
   };
 
-  // Validate canvas data
-  const validateCanvasData = (canvas: HTMLCanvasElement, dataURL: string): boolean => {
-    console.log('🔍 Validating canvas data...');
-    
-    // Check canvas dimensions
-    if (canvas.width === 0 || canvas.height === 0) {
-      console.error('❌ Canvas has zero dimensions:', {
-        width: canvas.width,
-        height: canvas.height
-      });
-      return false;
-    }
-
-    // Check data URL length (empty canvas produces very small base64)
-    if (dataURL.length < 1000) {
-      console.error('❌ Data URL too short, likely empty canvas:', {
-        length: dataURL.length,
-        preview: dataURL.substring(0, 100)
-      });
-      return false;
-    }
-
-    // Calculate approximate file size
-    const base64Length = dataURL.split(',')[1]?.length || 0;
-    const fileSizeKB = Math.round((base64Length * 3/4) / 1024);
-    
-    console.log('📊 Canvas validation passed:', {
-      canvasWidth: canvas.width,
-      canvasHeight: canvas.height,
-      dataURLLength: dataURL.length,
-      estimatedSizeKB: fileSizeKB
-    });
-
-    return fileSizeKB > 1; // Must be at least 1KB
-  };
-
-  // Function to close snapshot modal
-  const closeSnapshotModal = () => {
-    console.log('🚪 Closing snapshot modal and clearing state');
-    setShowSnapshotModal(false);
-    setSnapshotImageUrl('');
-  };
-
-  // FIXED: Enhanced drag handlers with real-time measurement display
   const handleMeasurePointMouseDown = (e: mapboxgl.MapMouseEvent) => {
-    if (isMeasuring) return; // Don't drag while in measuring mode
+    if (isMeasuring) return;
     
     e.preventDefault();
     
@@ -1112,16 +929,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
         setDragPointIndex(pointId);
         
         if (map.current) {
-          // Disable map interactions during dragging
           map.current.dragPan.disable();
           map.current.getCanvas().style.cursor = 'grabbing';
         }
         
-        // FIXED: Create enhanced mousemove handler with live measurement
         const handleMouseMove = (mouseEvent: MouseEvent) => {
           if (!map.current || dragPointIndex === null) return;
           
-          // Convert screen coordinates to map coordinates
           const rect = map.current.getContainer().getBoundingClientRect();
           const point = new mapboxgl.Point(
             mouseEvent.clientX - rect.left,
@@ -1130,12 +944,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
           const lngLat = map.current.unproject(point);
           const coords = [lngLat.lng, lngLat.lat];
           
-          // Update the point position
           if (pointId < measurePoints.current.length) {
             measurePoints.current[pointId] = coords;
             updateMeasureDisplay();
             
-            // FIXED: Calculate and display live measurements
             let liveMeasurementText = '';
             
             if (measurePoints.current.length > 1) {
@@ -1144,7 +956,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
                 return total + calculateDistance(measurePoints.current[index - 1], point);
               }, 0);
               
-              // Show distance of connected segments
               let segmentInfo = '';
               if (pointId > 0) {
                 const prevDistance = calculateDistance(measurePoints.current[pointId - 1], coords);
@@ -1158,42 +969,35 @@ const MapComponent: React.FC<MapComponentProps> = ({
               liveMeasurementText = `${segmentInfo} | Total: ${formatDistance(totalDistance)}`;
             }
             
-            // FIXED: Update live measurement display with proper state update
             setLiveMeasurement({
               distance: liveMeasurementText,
               x: mouseEvent.clientX,
-              y: mouseEvent.clientY - 30, // Offset above cursor
+              y: mouseEvent.clientY - 30,
               visible: true
             });
           }
         };
         
-        // Create mouseup handler
         const handleMouseUp = () => {
           console.log('Ending drag for point:', pointId);
           setIsDraggingMeasurePoint(false);
           setDragPointIndex(null);
           
-          // Hide live measurement
           setLiveMeasurement(prev => ({ ...prev, visible: false }));
           
           if (map.current) {
-            // Re-enable map interactions
             map.current.dragPan.enable();
             map.current.getCanvas().style.cursor = '';
           }
           
-          // Clean up event listeners
           cleanupDragListeners();
           
           toast.success('Point position updated');
         };
         
-        // Store handlers for cleanup
         dragHandlers.current.mousemove = handleMouseMove;
         dragHandlers.current.mouseup = handleMouseUp;
         
-        // Add event listeners to document to catch events outside the map
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
       }
@@ -1224,7 +1028,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   return (
     <div className="h-full w-full rounded-lg overflow-hidden relative">
-      {/* FIXED: Live Measurement Display with better positioning */}
+      {/* Live Measurement Display */}
       {liveMeasurement.visible && (
         <div 
           className="fixed z-50 bg-black/90 text-white px-3 py-2 rounded-lg text-sm pointer-events-none shadow-lg border border-white/20"
@@ -1272,15 +1076,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
         mapInitialized={mapInitialized}
         centerLat={centerLat}
         centerLng={centerLng}
-      />
-
-      {/* FIXED: Enhanced Snapshot Preview Modal with working save handler */}
-      <SnapshotPreviewModal
-        isOpen={showSnapshotModal}
-        onClose={closeSnapshotModal}
-        imageData={snapshotImageUrl}
-        onSave={handleSaveOriginalSnapshot}
-        bookingNumber={selectedBooking?.bookingNumber}
       />
 
       <div ref={mapContainer} className="absolute inset-0" />
