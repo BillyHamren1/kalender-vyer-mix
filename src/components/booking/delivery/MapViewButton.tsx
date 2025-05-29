@@ -69,9 +69,9 @@ export const MapViewButton: React.FC<MapViewButtonProps> = ({
     <Dialog open={isMapOpen} onOpenChange={onMapOpenChange}>
       <DialogTrigger asChild>
         <Button
-          variant="outline"
+          variant="default"
           size="sm"
-          className="h-6 px-2 text-xs bg-teal-500 hover:bg-teal-600 text-white border-teal-500 hover:border-teal-600"
+          className="h-6 px-2 text-xs"
         >
           <Map className="h-3 w-3 mr-1" />
           View Map
