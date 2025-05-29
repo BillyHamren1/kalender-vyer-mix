@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Map, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -19,6 +19,8 @@ export const MapViewButton: React.FC<MapViewButtonProps> = ({
   isMapOpen,
   onMapOpenChange
 }) => {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
   // Create iframe URL for the map
   const getMapIframeUrl = () => {
     const params = new URLSearchParams({
@@ -38,6 +40,24 @@ export const MapViewButton: React.FC<MapViewButtonProps> = ({
     return `/logistics-map?${params.toString()}`;
   };
 
+  // Handle map resize when dialog opens
+  useEffect(() => {
+    if (isMapOpen && iframeRef.current) {
+      // Small delay to ensure dialog animation is complete
+      const timer = setTimeout(() => {
+        if (iframeRef.current?.contentWindow) {
+          // Send resize message to iframe
+          iframeRef.current.contentWindow.postMessage(
+            { type: 'RESIZE_MAP' }, 
+            window.location.origin
+          );
+        }
+      }, 300);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isMapOpen]);
+
   // Only show if coordinates exist
   if (!latitude || !longitude) {
     return null;
@@ -55,18 +75,30 @@ export const MapViewButton: React.FC<MapViewButtonProps> = ({
           View Map
         </Button>
       </DialogTrigger>
-      <DialogContent className="w-[95vw] h-[95vh] max-w-none p-0">
-        <DialogHeader className="p-4 pb-0">
+      <DialogContent className="w-[95vw] h-[95vh] max-w-none p-0 flex flex-col">
+        <DialogHeader className="p-4 pb-0 flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <MapPin className="h-5 w-5" />
             Delivery Location Map
           </DialogTitle>
         </DialogHeader>
-        <div className="flex-1 h-full p-4 pt-2">
+        <div className="flex-1 p-4 pt-2 min-h-0">
           <iframe
+            ref={iframeRef}
             src={getMapIframeUrl()}
             className="w-full h-full border-0 rounded-lg"
             title="Delivery Location Map"
+            onLoad={() => {
+              // Trigger resize after iframe loads
+              setTimeout(() => {
+                if (iframeRef.current?.contentWindow) {
+                  iframeRef.current.contentWindow.postMessage(
+                    { type: 'RESIZE_MAP' }, 
+                    window.location.origin
+                  );
+                }
+              }, 100);
+            }}
           />
         </div>
       </DialogContent>

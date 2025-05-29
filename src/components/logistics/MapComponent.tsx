@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
@@ -52,6 +51,27 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const measureSource = useRef<mapboxgl.GeoJSONSource | null>(null);
   const freehandSource = useRef<mapboxgl.GeoJSONSource | null>(null);
   const [isCapturingSnapshot, setIsCapturingSnapshot] = useState(false);
+
+  // Handle window messages for iframe resize
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      
+      if (event.data.type === 'RESIZE_MAP' && map.current && mapInitialized) {
+        console.log('Received resize message, resizing map...');
+        // Small delay to ensure container is properly sized
+        setTimeout(() => {
+          if (map.current) {
+            map.current.resize();
+            console.log('Map resized successfully');
+          }
+        }, 100);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [mapInitialized]);
 
   // Fetch Mapbox token from edge function
   useEffect(() => {
@@ -201,6 +221,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
           'line-width': 3
         }
       });
+
+      // Trigger initial resize in case we're in an iframe
+      setTimeout(() => {
+        if (map.current) {
+          map.current.resize();
+        }
+      }, 200);
     });
 
     // Force map resize to ensure it fills the container properly
