@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
@@ -661,7 +660,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     map.current.off('click', handleMeasureClick);
   };
 
-  // Updated takeMapSnapshot function - fixed to properly handle the snapshot URL
+  // Updated takeMapSnapshot function - show modal immediately and handle async loading
   const takeMapSnapshot = async () => {
     if (!map.current || !selectedBooking) {
       toast.error('No booking selected for snapshot');
@@ -670,6 +669,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     try {
       setIsCapturingSnapshot(true);
+      
+      // Show modal immediately with loading state
+      setSnapshotImageUrl(''); // Clear previous image
+      setShowSnapshotModal(true);
+      
       toast.info('Capturing map snapshot...');
 
       // Wait a moment for any animations to complete
@@ -693,15 +697,15 @@ const MapComponent: React.FC<MapComponentProps> = ({
       if (error) {
         console.error('Error saving snapshot:', error);
         toast.error('Failed to save map snapshot');
+        setShowSnapshotModal(false); // Close modal on error
         return;
       }
 
       console.log('Snapshot saved successfully:', data);
       
-      // Set the snapshot URL correctly and show modal
+      // Set the snapshot URL to display in modal
       if (data?.url) {
         setSnapshotImageUrl(data.url);
-        setShowSnapshotModal(true);
         toast.success('Map snapshot captured successfully');
         
         // Notify parent component if callback is provided
@@ -710,11 +714,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       } else {
         toast.error('Failed to get snapshot URL');
+        setShowSnapshotModal(false); // Close modal if no URL
       }
 
     } catch (error) {
       console.error('Error taking snapshot:', error);
       toast.error('Failed to capture map snapshot');
+      setShowSnapshotModal(false); // Close modal on error
     } finally {
       setIsCapturingSnapshot(false);
     }
