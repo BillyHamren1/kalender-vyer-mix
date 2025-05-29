@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
@@ -11,6 +10,7 @@ import { MapControls } from './MapControls';
 import { MapMarkers } from './MapMarkers';
 import { calculateDistance, formatDistance, createDrawStyles } from './MapUtils';
 import { BookingDetailPanel } from './BookingDetailPanel';
+import { SnapshotPreviewModal } from './SnapshotPreviewModal';
 
 interface MapComponentProps {
   bookings: Booking[];
@@ -56,6 +56,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [isCapturingSnapshot, setIsCapturingSnapshot] = useState(false);
   const [isDraggingMeasurePoint, setIsDraggingMeasurePoint] = useState(false);
   const [dragPointIndex, setDragPointIndex] = useState<number | null>(null);
+  
+  // New states for snapshot preview modal
+  const [showSnapshotPreview, setShowSnapshotPreview] = useState(false);
+  const [capturedImageData, setCapturedImageData] = useState<string>('');
 
   // Refs for dynamic event listeners
   const dragHandlers = useRef<{
@@ -656,6 +660,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     map.current.off('click', handleMeasureClick);
   };
 
+  // Updated takeMapSnapshot function - now captures and shows preview modal
   const takeMapSnapshot = async () => {
     if (!map.current || !selectedBooking) {
       toast.error('No booking selected for snapshot');
@@ -673,14 +678,36 @@ const MapComponent: React.FC<MapComponentProps> = ({
       const canvas = map.current.getCanvas();
       const dataURL = canvas.toDataURL('image/png');
 
-      console.log('Map snapshot captured, saving to backend...');
+      console.log('Map snapshot captured, showing preview...');
+      
+      // Set captured image data and show preview modal
+      setCapturedImageData(dataURL);
+      setShowSnapshotPreview(true);
 
-      // Call edge function to save the snapshot
+    } catch (error) {
+      console.error('Error taking snapshot:', error);
+      toast.error('Failed to capture map snapshot');
+    } finally {
+      setIsCapturingSnapshot(false);
+    }
+  };
+
+  // New function to save annotated snapshot to backend
+  const saveAnnotatedSnapshot = async (annotatedImageData: string) => {
+    if (!selectedBooking) {
+      toast.error('No booking selected');
+      return;
+    }
+
+    try {
+      console.log('Saving annotated snapshot to backend...');
+
+      // Call edge function to save the annotated snapshot
       const { data, error } = await supabase.functions.invoke('save-map-snapshot', {
         body: {
           bookingId: selectedBooking.id,
           bookingNumber: selectedBooking.bookingNumber,
-          imageData: dataURL
+          imageData: annotatedImageData
         }
       });
 
@@ -690,20 +717,28 @@ const MapComponent: React.FC<MapComponentProps> = ({
         return;
       }
 
-      console.log('Snapshot saved successfully:', data);
-      toast.success('Map snapshot saved to booking attachments');
+      console.log('Annotated snapshot saved successfully:', data);
+      toast.success('Annotated map snapshot saved to booking attachments');
 
       // Notify parent component if callback is provided
       if (onSnapshotSaved && data.attachment) {
         onSnapshotSaved(data.attachment);
       }
 
+      // Close the preview modal
+      setShowSnapshotPreview(false);
+      setCapturedImageData('');
+
     } catch (error) {
-      console.error('Error taking snapshot:', error);
-      toast.error('Failed to capture map snapshot');
-    } finally {
-      setIsCapturingSnapshot(false);
+      console.error('Error saving annotated snapshot:', error);
+      toast.error('Failed to save annotated map snapshot');
     }
+  };
+
+  // Close preview modal
+  const closeSnapshotPreview = () => {
+    setShowSnapshotPreview(false);
+    setCapturedImageData('');
   };
 
   // Improved drag handlers for measure points
@@ -864,6 +899,15 @@ const MapComponent: React.FC<MapComponentProps> = ({
         mapInitialized={mapInitialized}
         centerLat={centerLat}
         centerLng={centerLng}
+      />
+
+      {/* Snapshot Preview Modal */}
+      <SnapshotPreviewModal
+        isOpen={showSnapshotPreview}
+        onClose={closeSnapshotPreview}
+        imageData={capturedImageData}
+        onSave={saveAnnotatedSnapshot}
+        bookingNumber={selectedBooking?.bookingNumber}
       />
 
       <div ref={mapContainer} className="absolute inset-0" />
