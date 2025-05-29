@@ -28,7 +28,7 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
   const [fabricCanvas, setFabricCanvas] = useState<FabricCanvas | null>(null);
   const [drawingMode, setDrawingMode] = useState<'select' | 'draw' | 'rectangle' | 'circle'>('select');
   const [brushColor, setBrushColor] = useState('#ff0000');
-  const [brushSize, setBrushSize] = useState(3);
+  const [brushSize, setBrushSize] = useState(2); // Reduced from 3 to 2
   const [canvasHistory, setCanvasHistory] = useState<string[]>([]);
   const [historyStep, setHistoryStep] = useState(-1);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -44,6 +44,20 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
       width: 1000,
       height: 700,
       backgroundColor: '#f0f0f0',
+    });
+
+    // Set smaller control sizes for all objects
+    canvas.on('object:added', (e) => {
+      if (e.target) {
+        e.target.set({
+          cornerSize: 8, // Reduced from default 13
+          cornerStrokeColor: '#0066cc',
+          cornerColor: '#ffffff',
+          borderColor: '#0066cc',
+          borderOpacityWhenMoving: 0.5,
+          transparentCorners: false,
+        });
+      }
     });
 
     console.log('📸 Loading map image into drawing canvas...');
@@ -154,21 +168,31 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
         const rect = new Rect({
           left: pointer.x,
           top: pointer.y,
-          width: 50,
-          height: 50,
+          width: 20, // Reduced from 50 to 20
+          height: 20, // Reduced from 50 to 20
           fill: 'transparent',
           stroke: brushColor,
           strokeWidth: brushSize,
+          cornerSize: 8, // Smaller control handles
+          cornerStrokeColor: '#0066cc',
+          cornerColor: '#ffffff',
+          borderColor: '#0066cc',
+          transparentCorners: false,
         });
         fabricCanvas.add(rect);
       } else if (drawingMode === 'circle') {
         const circle = new Circle({
           left: pointer.x,
           top: pointer.y,
-          radius: 25,
+          radius: 10, // Reduced from 25 to 10
           fill: 'transparent',
           stroke: brushColor,
           strokeWidth: brushSize,
+          cornerSize: 8, // Smaller control handles
+          cornerStrokeColor: '#0066cc',
+          cornerColor: '#ffffff',
+          borderColor: '#0066cc',
+          transparentCorners: false,
         });
         fabricCanvas.add(circle);
       }
@@ -290,7 +314,7 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
             <input
               type="range"
               min="1"
-              max="20"
+              max="15" // Reduced from 20 to 15
               value={brushSize}
               onChange={(e) => setBrushSize(parseInt(e.target.value))}
               className="w-16"
