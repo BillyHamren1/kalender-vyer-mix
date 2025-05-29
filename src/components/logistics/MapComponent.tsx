@@ -328,7 +328,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       map.current?.remove();
       map.current = null;
     };
-  }, [mapboxToken, isLoadingToken, centerLat, centerLng, selectedColor, currentMapStyle]);
+  }, [mapboxToken, isLoadingToken, centerLat, centerLng, currentMapStyle]);
 
   // Clean up drag event listeners
   const cleanupDragListeners = () => {
@@ -353,23 +353,36 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   }, [mapInitialized]);
 
-  // Update draw styles when color changes
+  // FIXED: Update draw styles when color changes without removing/re-adding control
   useEffect(() => {
     if (!draw.current || !map.current || !mapInitialized) return;
 
-    // Remove existing draw control and re-add with new styles
-    map.current.removeControl(draw.current);
+    console.log('🎨 Updating draw styles for color:', selectedColor);
     
-    draw.current = new MapboxDraw({
-      displayControlsDefault: false,
-      controls: {},
-      defaultMode: drawMode,
-      styles: createDrawStyles(selectedColor)
-    });
-
-    map.current.addControl(draw.current, 'top-right');
-    draw.current.changeMode(drawMode);
-  }, [selectedColor, mapInitialized, drawMode]);
+    try {
+      // Update the draw control's styles directly without removing it
+      const newStyles = createDrawStyles(selectedColor);
+      
+      // Clear existing drawings to apply new color
+      const currentFeatures = draw.current.getAll();
+      
+      // Update the internal styles of the draw control
+      if (draw.current.options) {
+        draw.current.options.styles = newStyles;
+      }
+      
+      // Force a refresh of the draw control's rendering
+      if (currentFeatures.features.length > 0) {
+        // Re-add features to apply new styles
+        draw.current.deleteAll();
+        draw.current.add(currentFeatures);
+      }
+      
+      console.log('✅ Draw styles updated successfully');
+    } catch (error) {
+      console.error('❌ Error updating draw styles:', error);
+    }
+  }, [selectedColor, mapInitialized]);
 
   // Toggle map style function
   const toggleMapStyle = () => {
