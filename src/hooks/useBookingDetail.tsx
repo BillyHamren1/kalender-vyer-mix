@@ -5,6 +5,7 @@ import { useBookingFetch } from './booking/useBookingFetch';
 import { useBookingDates } from './booking/useBookingDates';
 import { useBookingLogistics } from './booking/useBookingLogistics';
 import { useBookingDelivery } from './booking/useBookingDelivery';
+import { useBookingInternalNotes } from './booking/useBookingInternalNotes';
 
 export const useBookingDetail = (id: string | undefined) => {
   // Use our base hook for fetching booking data
@@ -54,8 +55,14 @@ export const useBookingDetail = (id: string | undefined) => {
     handleDeliveryDetailsChange
   } = useBookingDelivery(id, booking, setBooking);
   
+  // Use our internal notes hook
+  const {
+    isSaving: isSavingInternalNotes,
+    handleInternalNotesChange
+  } = useBookingInternalNotes(id, booking, setBooking);
+  
   // Combine isSaving states from different hooks
-  const isSaving = isSavingDates || isSavingLogistics || isSavingDelivery;
+  const isSaving = isSavingDates || isSavingLogistics || isSavingDelivery || isSavingInternalNotes;
 
   return {
     booking,
@@ -70,9 +77,11 @@ export const useBookingDetail = (id: string | undefined) => {
     handleDateChange,
     handleLogisticsChange,
     handleDeliveryDetailsChange,
+    handleInternalNotesChange,
     syncWithCalendar,
     setBooking,
     addDate,
-    removeDate
+    removeDate,
+    isSavingInternalNotes
   };
 };

@@ -37,10 +37,12 @@ const BookingDetail = () => {
     handleDateChange,
     handleLogisticsChange,
     handleDeliveryDetailsChange,
+    handleInternalNotesChange,
     syncWithCalendar,
     setBooking,
     addDate,
-    removeDate
+    removeDate,
+    isSavingInternalNotes
   } = useBookingDetail(actualBookingId);
   
   useEffect(() => {
@@ -136,7 +138,9 @@ const BookingDetail = () => {
         onRemoveDate={handleRemoveDate}
         onDeliveryDetailsChange={handleDeliveryDetailsChange}
         onLogisticsChange={handleLogisticsChange}
+        onInternalNotesChange={handleInternalNotesChange}
         onReloadData={loadBookingData}
+        isSavingInternalNotes={isSavingInternalNotes}
       />
     </div>
   );

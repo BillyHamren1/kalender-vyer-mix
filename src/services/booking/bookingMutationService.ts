@@ -104,3 +104,18 @@ export const updateDeliveryDetails = async (
     throw error;
   }
 };
+
+export const updateInternalNotes = async (
+  id: string, 
+  notes: string
+): Promise<void> => {
+  const { error } = await supabase
+    .from('bookings')
+    .update({ internalnotes: notes })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error updating internal notes:', error);
+    throw error;
+  }
+};

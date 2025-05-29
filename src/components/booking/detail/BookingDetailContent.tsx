@@ -22,7 +22,9 @@ interface BookingDetailContentProps {
   onRemoveDate: (date: string, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
   onDeliveryDetailsChange: (deliveryData: any) => Promise<void>;
   onLogisticsChange: (logisticsData: any) => Promise<void>;
+  onInternalNotesChange: (notes: string) => Promise<void>;
   onReloadData: () => void;
+  isSavingInternalNotes: boolean;
 }
 
 export const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
@@ -38,7 +40,9 @@ export const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
   onRemoveDate,
   onDeliveryDetailsChange,
   onLogisticsChange,
-  onReloadData
+  onInternalNotesChange,
+  onReloadData,
+  isSavingInternalNotes
 }) => {
   if (!booking) {
     return (
@@ -116,7 +120,13 @@ export const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
           <AttachmentsList attachments={booking.attachments} />
         )}
 
-        <InternalNotes notes={booking.internalNotes || ''} />
+        {/* Internal Notes - now always displayed */}
+        <InternalNotes 
+          notes={booking.internalNotes || ''} 
+          bookingId={bookingId}
+          isSaving={isSavingInternalNotes}
+          onSave={onInternalNotesChange}
+        />
 
         {lastViewedDate && (
           <div className="p-2 bg-blue-50 border border-blue-200 rounded-lg text-xs">
