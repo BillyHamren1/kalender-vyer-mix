@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -64,6 +65,63 @@ const getEndTimeForEventType = (startTime: string, eventType: 'rig' | 'event' | 
   
   const end = new Date(start.getTime() + (hoursToAdd * 60 * 60 * 1000));
   return end.toISOString();
+};
+
+/**
+ * Smart team assignment that distributes bookings evenly across teams
+ */
+const getNextTeamAssignment = async (supabase: any, eventType: string, eventDate: string, bookingId: string): Promise<string> => {
+  // EVENT type events always go to team-6
+  if (eventType === 'event') {
+    console.log(`Assigning EVENT type to team-6 for booking ${bookingId}`);
+    return 'team-6';
+  }
+
+  const teams = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5'];
+  
+  try {
+    // Check existing events for this date to find the team with least events
+    const { data: existingEvents } = await supabase
+      .from('calendar_events')
+      .select('resource_id')
+      .eq('event_type', eventType)
+      .gte('start_time', `${eventDate}T00:00:00`)
+      .lt('start_time', `${eventDate}T23:59:59`);
+
+    // Count events per team for this date and event type
+    const teamCounts = new Map<string, number>();
+    teams.forEach(team => teamCounts.set(team, 0));
+    
+    existingEvents?.forEach(event => {
+      if (teams.includes(event.resource_id)) {
+        teamCounts.set(event.resource_id, (teamCounts.get(event.resource_id) || 0) + 1);
+      }
+    });
+
+    // Find the team with the least events
+    let selectedTeam = teams[0];
+    let minCount = teamCounts.get(selectedTeam) || 0;
+    
+    for (const team of teams) {
+      const count = teamCounts.get(team) || 0;
+      if (count < minCount) {
+        minCount = count;
+        selectedTeam = team;
+      }
+    }
+
+    console.log(`Team distribution for ${eventDate} ${eventType}:`, Object.fromEntries(teamCounts));
+    console.log(`Assigning booking ${bookingId} to ${selectedTeam} (has ${minCount} events)`);
+    
+    return selectedTeam;
+  } catch (error) {
+    console.error('Error calculating team assignment, falling back to round-robin:', error);
+    // Fallback to simple round-robin based on booking position
+    const bookingNumber = parseInt(bookingId.replace(/\D/g, ''), 10) || 0;
+    const selectedTeam = teams[bookingNumber % teams.length];
+    console.log(`Fallback assignment: booking ${bookingId} to ${selectedTeam}`);
+    return selectedTeam;
+  }
 };
 
 serve(async (req) => {
@@ -141,7 +199,15 @@ serve(async (req) => {
       cancelled_bookings_skipped: [],
       duplicates_skipped: [],
       errors: [],
-      sync_mode: syncMode
+      sync_mode: syncMode,
+      team_distribution: {
+        'team-1': 0,
+        'team-2': 0,
+        'team-3': 0,
+        'team-4': 0,
+        'team-5': 0,
+        'team-6': 0
+      }
     }
 
     // Get existing bookings for comparison
@@ -354,7 +420,7 @@ serve(async (req) => {
 
         results.imported++
 
-        // IMPROVED CALENDAR EVENT HANDLING
+        // IMPROVED CALENDAR EVENT HANDLING WITH SMART TEAM DISTRIBUTION
         if (bookingData.status === 'CONFIRMED') {
           // Check if calendar events already exist for this booking
           const { data: existingEvents } = await supabase
@@ -379,7 +445,8 @@ serve(async (req) => {
               start_time: startTime,
               end_time: endTime,
               event_type: 'rig',
-              delivery_address: bookingData.deliveryaddress
+              delivery_address: bookingData.deliveryaddress,
+              date: bookingData.rigdaydate
             })
           }
 
@@ -394,7 +461,8 @@ serve(async (req) => {
               start_time: startTime,
               end_time: endTime,
               event_type: 'event',
-              delivery_address: bookingData.deliveryaddress
+              delivery_address: bookingData.deliveryaddress,
+              date: bookingData.eventdate
             })
           }
 
@@ -409,33 +477,35 @@ serve(async (req) => {
               start_time: startTime,
               end_time: endTime,
               event_type: 'rigDown',
-              delivery_address: bookingData.deliveryaddress
+              delivery_address: bookingData.deliveryaddress,
+              date: bookingData.rigdowndate
             })
           }
 
           if (calendarEvents.length > 0) {
             console.log(`Creating ${calendarEvents.length} new calendar events for booking ${bookingData.id}`)
 
-            // Smart team assignment based on booking ID consistency
-            const bookingHash = bookingData.id.split('-')[0] // Use first part of UUID for consistency
-            const teams = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5']
-            const baseTeamIndex = parseInt(bookingHash, 16) % teams.length
-            
-            for (let i = 0; i < calendarEvents.length; i++) {
-              const event = calendarEvents[i]
-              let assignedTeam = teams[baseTeamIndex]
+            // Use smart team assignment for each event
+            for (const event of calendarEvents) {
+              const assignedTeam = await getNextTeamAssignment(supabase, event.event_type, event.date, bookingData.id);
               
-              // Special handling: EVENT type events go to team-6
-              if (event.event_type === 'event') {
-                assignedTeam = 'team-6'
+              // Track team distribution
+              if (results.team_distribution[assignedTeam] !== undefined) {
+                results.team_distribution[assignedTeam]++;
               }
 
-              console.log(`Assigning ${event.event_type} event to ${assignedTeam} for booking ${bookingData.id}`)
+              console.log(`Assigning ${event.event_type} event to ${assignedTeam} for booking ${bookingData.id} on ${event.date}`);
 
               const { error: eventError } = await supabase
                 .from('calendar_events')
                 .upsert({
-                  ...event,
+                  booking_id: event.booking_id,
+                  booking_number: event.booking_number,
+                  title: event.title,
+                  start_time: event.start_time,
+                  end_time: event.end_time,
+                  event_type: event.event_type,
+                  delivery_address: event.delivery_address,
                   resource_id: assignedTeam
                 }, {
                   onConflict: 'booking_id,event_type,start_time'
@@ -462,6 +532,7 @@ serve(async (req) => {
     // SAVE SYNC TIMESTAMP - This is crucial for incremental sync
     const currentTimestamp = new Date().toISOString()
     console.log(`Saving sync timestamp: ${currentTimestamp}`)
+    console.log(`Team distribution summary:`, results.team_distribution)
     
     const { error: syncError } = await supabase
       .from('sync_state')
@@ -486,7 +557,8 @@ serve(async (req) => {
       updated_bookings: results.updated_bookings.length,
       duplicates_skipped: results.duplicates_skipped.length,
       cancelled_skipped: results.cancelled_bookings_skipped.length,
-      calendar_events_created: results.calendar_events_created
+      calendar_events_created: results.calendar_events_created,
+      team_distribution: results.team_distribution
     })
 
     return new Response(
@@ -516,7 +588,8 @@ serve(async (req) => {
           cancelled_bookings_skipped: [],
           duplicates_skipped: [],
           errors: [error.message],
-          sync_mode: 'failed'
+          sync_mode: 'failed',
+          team_distribution: {}
         }
       }),
       {
