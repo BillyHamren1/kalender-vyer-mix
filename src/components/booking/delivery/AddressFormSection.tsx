@@ -40,9 +40,20 @@ export const AddressFormSection: React.FC<AddressFormSectionProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-1.5 mb-2">
-        <MapPin className="h-3.5 w-3.5 text-gray-500" />
-        <span className="text-sm font-medium text-gray-700">Delivery Address</span>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5">
+          <MapPin className="h-3.5 w-3.5 text-gray-500" />
+          <span className="text-sm font-medium text-gray-700">Delivery Address</span>
+        </div>
+        
+        <MapViewButton
+          latitude={deliveryDetails?.latitude}
+          longitude={deliveryDetails?.longitude}
+          bookingId={bookingId}
+          bookingNumber={booking?.bookingNumber}
+          isMapOpen={isMapOpen}
+          onMapOpenChange={onMapOpenChange}
+        />
       </div>
       
       <div className="space-y-2">
@@ -82,8 +93,8 @@ export const AddressFormSection: React.FC<AddressFormSectionProps> = ({
         </div>
       </div>
       
-      {/* Map View Button */}
-      <div className="flex justify-between items-center">
+      {/* Coordinate Controls only */}
+      <div className="flex justify-start">
         <CoordinateControls
           latitude={deliveryDetails?.latitude}
           longitude={deliveryDetails?.longitude}
@@ -91,15 +102,6 @@ export const AddressFormSection: React.FC<AddressFormSectionProps> = ({
           onLatitudeChange={handleLatitudeChange}
           onLongitudeChange={handleLongitudeChange}
           onToggleCoordinates={handleToggleCoordinates}
-        />
-        
-        <MapViewButton
-          latitude={deliveryDetails?.latitude}
-          longitude={deliveryDetails?.longitude}
-          bookingId={bookingId}
-          bookingNumber={booking?.bookingNumber}
-          isMapOpen={isMapOpen}
-          onMapOpenChange={onMapOpenChange}
         />
       </div>
     </div>
