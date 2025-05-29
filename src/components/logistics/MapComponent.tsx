@@ -955,6 +955,48 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   };
 
+  // NEW: Save original snapshot handler
+  const handleSaveOriginalSnapshot = async (imageData: string) => {
+    if (!selectedBooking) {
+      toast.error('No booking selected');
+      return;
+    }
+
+    try {
+      console.log('💾 Saving original snapshot for booking:', selectedBooking.bookingNumber);
+      toast.info('Saving snapshot...');
+
+      const { data, error } = await supabase.functions.invoke('save-map-snapshot', {
+        body: {
+          image: imageData,
+          bookingId: selectedBooking.id,
+          bookingNumber: selectedBooking.bookingNumber
+        }
+      });
+
+      if (error) {
+        console.error('❌ Error saving original snapshot:', error);
+        toast.error('Failed to save snapshot');
+        return;
+      }
+
+      console.log('✅ Original snapshot saved successfully');
+      toast.success('Snapshot saved successfully');
+      
+      // Notify parent component if callback is provided
+      if (onSnapshotSaved && data?.attachment) {
+        console.log('📋 Notifying parent component of original snapshot save');
+        onSnapshotSaved(data.attachment);
+      }
+
+      // Close modal after successful save
+      closeSnapshotModal();
+    } catch (error) {
+      console.error('💥 Fatal error saving original snapshot:', error);
+      toast.error('Failed to save snapshot');
+    }
+  };
+
   // Improved map readiness check function
   const waitForMapReady = async (): Promise<boolean> => {
     if (!map.current) return false;
@@ -1232,12 +1274,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
         centerLng={centerLng}
       />
 
-      {/* Enhanced Snapshot Preview Modal with better error handling */}
+      {/* FIXED: Enhanced Snapshot Preview Modal with working save handler */}
       <SnapshotPreviewModal
         isOpen={showSnapshotModal}
         onClose={closeSnapshotModal}
         imageData={snapshotImageUrl}
-        onSave={() => {}} // Not needed since we save immediately
+        onSave={handleSaveOriginalSnapshot}
         bookingNumber={selectedBooking?.bookingNumber}
       />
 
