@@ -654,11 +654,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
     setIsDrawing(false);
     
     if (freehandPoints.length > 1) {
-      // Create a permanent line feature
+      // Create a permanent line feature with proper typing
       const lineFeature = {
-        type: 'Feature',
+        type: "Feature" as const,
         geometry: {
-          type: 'LineString',
+          type: "LineString" as const,
           coordinates: freehandPoints
         },
         properties: {
@@ -682,9 +682,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
     if (!freehandSource.current || points.length < 2) return;
 
     const lineFeature = {
-      type: 'Feature',
+      type: "Feature" as const,
       geometry: {
-        type: 'LineString',
+        type: "LineString" as const,
         coordinates: points
       },
       properties: {}
