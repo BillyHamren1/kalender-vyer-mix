@@ -1,11 +1,11 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Canvas as FabricCanvas, FabricImage, Rect, Circle } from 'fabric';
+import { Canvas as FabricCanvas, FabricImage } from 'fabric';
 import { Button } from '@/components/ui/button';
 import { 
   Pen, 
   Square, 
-  Circle as CircleIcon, 
+  Circle, 
   Undo2, 
   Redo2, 
   Eraser,
@@ -66,7 +66,7 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
       });
       
       canvas.add(img);
-      canvas.sendObjectToBack(img);
+      canvas.sendToBack(img);
       canvas.renderAll();
       
       // Save initial state to history
@@ -118,7 +118,7 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
       const pointer = fabricCanvas.getPointer(e.e);
       
       if (drawingMode === 'rectangle') {
-        const rect = new Rect({
+        const rect = new fabric.Rect({
           left: pointer.x,
           top: pointer.y,
           width: 50,
@@ -129,7 +129,7 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
         });
         fabricCanvas.add(rect);
       } else if (drawingMode === 'circle') {
-        const circle = new Circle({
+        const circle = new fabric.Circle({
           left: pointer.x,
           top: pointer.y,
           radius: 25,
@@ -183,7 +183,7 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
     fabricCanvas.clear();
     if (backgroundImage) {
       fabricCanvas.add(backgroundImage);
-      fabricCanvas.sendObjectToBack(backgroundImage);
+      fabricCanvas.sendToBack(backgroundImage);
     }
     fabricCanvas.renderAll();
     saveCanvasState();
@@ -243,7 +243,7 @@ export const SnapshotDrawingCanvas: React.FC<SnapshotDrawingCanvasProps> = ({
             size="sm"
             onClick={() => setDrawingMode('circle')}
           >
-            <CircleIcon className="h-4 w-4" />
+            <Circle className="h-4 w-4" />
           </Button>
 
           <div className="w-px h-6 bg-gray-300 mx-2" />
