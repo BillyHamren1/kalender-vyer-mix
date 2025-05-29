@@ -660,7 +660,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     map.current.off('click', handleMeasureClick);
   };
 
-  // Enhanced takeMapSnapshot function with better error handling and logging
+  // Enhanced takeMapSnapshot function with 5-second delay
   const takeMapSnapshot = async () => {
     if (!map.current || !selectedBooking) {
       console.error('❌ Cannot take snapshot: missing map or booking');
@@ -719,10 +719,16 @@ const MapComponent: React.FC<MapComponentProps> = ({
         hasAttachment: !!data?.attachment,
         url: data?.url
       });
+
+      // Wait 5 seconds before trying to fetch the image
+      console.log('⏳ Waiting 5 seconds before fetching image...');
+      toast.info('Processing snapshot... please wait 5 seconds');
+      
+      await new Promise(resolve => setTimeout(resolve, 5000));
       
       // Set the snapshot URL to display in modal
       if (data?.url) {
-        console.log('🖼️ Setting snapshot URL for display:', data.url);
+        console.log('🖼️ Setting snapshot URL for display after delay:', data.url);
         setSnapshotImageUrl(data.url);
         toast.success('Map snapshot captured successfully');
         
