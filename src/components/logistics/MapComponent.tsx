@@ -68,8 +68,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
     const initialCenter: [number, number] = centerLng && centerLat 
       ? [centerLng, centerLat] 
       : [18, 60];
-    // Use higher zoom (18) when specific coordinates are provided, similar to booking selection
-    const initialZoom = centerLng && centerLat ? 18 : 4;
+    // Use higher zoom (20) when specific coordinates are provided for maximum detail
+    const initialZoom = centerLng && centerLat ? 20 : 4;
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
@@ -407,7 +407,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     if (selectedBooking.deliveryLatitude && selectedBooking.deliveryLongitude) {
       map.current.flyTo({
         center: [selectedBooking.deliveryLongitude, selectedBooking.deliveryLatitude],
-        zoom: 18, // Higher zoom for better detail
+        zoom: 20, // Maximum detail for selected booking
         duration: 1000
       });
       
