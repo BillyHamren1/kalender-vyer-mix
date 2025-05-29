@@ -2,7 +2,6 @@
 import React, { useState } from 'react';
 import { Truck } from 'lucide-react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { ContactDetailsSection } from './delivery/ContactDetailsSection';
 import { AddressFormSection } from './delivery/AddressFormSection';
 
@@ -57,20 +56,6 @@ export const DeliveryInformationCard = ({
   const [contactPhoneValue, setContactPhoneValue] = useState(contactPhone || '');
   const [contactEmailValue, setContactEmailValue] = useState(contactEmail || '');
 
-  const handleSave = (e: React.MouseEvent) => {
-    e.preventDefault();
-    onSave({
-      deliveryAddress,
-      deliveryCity,
-      deliveryPostalCode,
-      deliveryLatitude: latitude,
-      deliveryLongitude: longitude,
-      contactName: contactNameValue,
-      contactPhone: contactPhoneValue,
-      contactEmail: contactEmailValue
-    });
-  };
-
   const handleDeliveryDetailsChange = (field: string, value: any) => {
     switch (field) {
       case 'address':
@@ -89,6 +74,20 @@ export const DeliveryInformationCard = ({
         setLongitude(value);
         break;
     }
+
+    // Auto-save on change
+    const updatedData = {
+      deliveryAddress: field === 'address' ? value : deliveryAddress,
+      deliveryCity: field === 'city' ? value : deliveryCity,
+      deliveryPostalCode: field === 'postalCode' ? value : deliveryPostalCode,
+      deliveryLatitude: field === 'latitude' ? value : latitude,
+      deliveryLongitude: field === 'longitude' ? value : longitude,
+      contactName: contactNameValue,
+      contactPhone: contactPhoneValue,
+      contactEmail: contactEmailValue
+    };
+    
+    onSave(updatedData);
   };
 
   // Create deliveryDetails object for AddressFormSection
@@ -121,31 +120,59 @@ export const DeliveryInformationCard = ({
           contactName={contactNameValue}
           contactPhone={contactPhoneValue}
           contactEmail={contactEmailValue}
-          onContactNameChange={setContactNameValue}
-          onContactPhoneChange={setContactPhoneValue}
-          onContactEmailChange={setContactEmailValue}
+          onContactNameChange={(value) => {
+            setContactNameValue(value);
+            // Auto-save contact changes
+            onSave({
+              deliveryAddress,
+              deliveryCity,
+              deliveryPostalCode,
+              deliveryLatitude: latitude,
+              deliveryLongitude: longitude,
+              contactName: value,
+              contactPhone: contactPhoneValue,
+              contactEmail: contactEmailValue
+            });
+          }}
+          onContactPhoneChange={(value) => {
+            setContactPhoneValue(value);
+            // Auto-save contact changes
+            onSave({
+              deliveryAddress,
+              deliveryCity,
+              deliveryPostalCode,
+              deliveryLatitude: latitude,
+              deliveryLongitude: longitude,
+              contactName: contactNameValue,
+              contactPhone: value,
+              contactEmail: contactEmailValue
+            });
+          }}
+          onContactEmailChange={(value) => {
+            setContactEmailValue(value);
+            // Auto-save contact changes
+            onSave({
+              deliveryAddress,
+              deliveryCity,
+              deliveryPostalCode,
+              deliveryLatitude: latitude,
+              deliveryLongitude: longitude,
+              contactName: contactNameValue,
+              contactPhone: contactPhoneValue,
+              contactEmail: value
+            });
+          }}
         />
 
         {/* Delivery Address Section */}
-        <div className="space-y-2">
-          <AddressFormSection
-            deliveryDetails={deliveryDetails}
-            onDeliveryDetailsChange={handleDeliveryDetailsChange}
-            booking={booking}
-            bookingId={bookingId || ''}
-            isMapOpen={isMapOpen}
-            onMapOpenChange={setIsMapOpen}
-          />
-          
-          <Button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="mt-2 h-8 text-sm w-full"
-            size="sm"
-          >
-            {isSaving ? 'Saving...' : 'Save Delivery Information'}
-          </Button>
-        </div>
+        <AddressFormSection
+          deliveryDetails={deliveryDetails}
+          onDeliveryDetailsChange={handleDeliveryDetailsChange}
+          booking={booking}
+          bookingId={bookingId || ''}
+          isMapOpen={isMapOpen}
+          onMapOpenChange={setIsMapOpen}
+        />
       </CardContent>
     </Card>
   );
