@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Mountain, Ruler, RotateCcw, Camera } from 'lucide-react';
+import { Mountain, Ruler, RotateCcw, Camera, Satellite, Map } from 'lucide-react';
 import { MapDrawingControls } from './MapDrawingControls';
 
 interface MapControlsProps {
@@ -22,6 +22,8 @@ interface MapControlsProps {
   isFreehandDrawing: boolean;
   toggleFreehandDrawing: () => void;
   clearAllDrawings: () => void;
+  currentMapStyle: string;
+  toggleMapStyle: () => void;
 }
 
 export const MapControls: React.FC<MapControlsProps> = ({
@@ -41,8 +43,12 @@ export const MapControls: React.FC<MapControlsProps> = ({
   setDrawingMode,
   isFreehandDrawing,
   toggleFreehandDrawing,
-  clearAllDrawings
+  clearAllDrawings,
+  currentMapStyle,
+  toggleMapStyle
 }) => {
+  const isSatelliteView = currentMapStyle.includes('satellite');
+
   return (
     <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
       {/* Basic Controls (always visible) */}
@@ -55,6 +61,25 @@ export const MapControls: React.FC<MapControlsProps> = ({
         >
           <Mountain className="h-4 w-4 mr-1" />
           3D Terrain
+        </Button>
+
+        <Button
+          onClick={toggleMapStyle}
+          size="sm"
+          variant="outline"
+          className="bg-white/90 backdrop-blur-sm shadow-md"
+        >
+          {isSatelliteView ? (
+            <>
+              <Map className="h-4 w-4 mr-1" />
+              Streets
+            </>
+          ) : (
+            <>
+              <Satellite className="h-4 w-4 mr-1" />
+              Satellite
+            </>
+          )}
         </Button>
         
         <Button

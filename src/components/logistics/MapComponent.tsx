@@ -17,7 +17,6 @@ interface MapComponentProps {
   centerLat?: number;
   centerLng?: number;
   onSnapshotSaved?: (attachment: any) => void;
-  mapStyle?: string;
 }
 
 // Define proper types for Mapbox Draw events
@@ -32,8 +31,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   onBookingSelect,
   centerLat,
   centerLng,
-  onSnapshotSaved,
-  mapStyle = 'mapbox://styles/mapbox/satellite-streets-v12'
+  onSnapshotSaved
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -49,6 +47,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [isFreehandDrawing, setIsFreehandDrawing] = useState(false);
   const [freehandPoints, setFreehandPoints] = useState<number[][]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [currentMapStyle, setCurrentMapStyle] = useState<string>('mapbox://styles/mapbox/satellite-streets-v12');
   const measurePoints = useRef<number[][]>([]);
   const measureSource = useRef<mapboxgl.GeoJSONSource | null>(null);
   const freehandSource = useRef<mapboxgl.GeoJSONSource | null>(null);
@@ -114,7 +113,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: mapStyle, // Use the mapStyle prop instead of hardcoded satellite style
+      style: currentMapStyle, // Always use satellite as default
       center: initialCenter,
       zoom: initialZoom,
       maxZoom: 22,
@@ -259,7 +258,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       map.current?.remove();
       map.current = null;
     };
-  }, [mapboxToken, isLoadingToken, centerLat, centerLng, selectedColor, mapStyle]);
+  }, [mapboxToken, isLoadingToken, centerLat, centerLng, selectedColor, currentMapStyle]);
 
   // Force resize when component mounts or container changes
   useEffect(() => {
@@ -289,6 +288,21 @@ const MapComponent: React.FC<MapComponentProps> = ({
     map.current.addControl(draw.current, 'top-right');
     draw.current.changeMode(drawMode);
   }, [selectedColor, mapInitialized, drawMode]);
+
+  // Toggle map style function
+  const toggleMapStyle = () => {
+    if (!map.current || !mapInitialized) return;
+
+    const newStyle = currentMapStyle === 'mapbox://styles/mapbox/satellite-streets-v12' 
+      ? 'mapbox://styles/mapbox/streets-v12'
+      : 'mapbox://styles/mapbox/satellite-streets-v12';
+    
+    setCurrentMapStyle(newStyle);
+    map.current.setStyle(newStyle);
+    
+    const styleType = newStyle.includes('satellite') ? 'Satellite' : 'Streets';
+    toast.success(`Switched to ${styleType} view`);
+  };
 
   const toggle3D = () => {
     if (!map.current || !mapInitialized) return;
@@ -640,6 +654,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
         isFreehandDrawing={isFreehandDrawing}
         toggleFreehandDrawing={toggleFreehandDrawing}
         clearAllDrawings={clearAllDrawings}
+        currentMapStyle={currentMapStyle}
+        toggleMapStyle={toggleMapStyle}
       />
 
       {/* Map Markers */}

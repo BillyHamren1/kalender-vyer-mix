@@ -28,11 +28,6 @@ const LogisticsMap = () => {
   
   const [showSidebar, setShowSidebar] = useState(!hideControls);
 
-  // Determine map style based on context
-  const mapStyle = hideControls && lat && lng 
-    ? 'mapbox://styles/mapbox/streets-v12'  // Use streets for booking detail context
-    : 'mapbox://styles/mapbox/satellite-streets-v12';  // Use satellite for general logistics
-
   useEffect(() => {
     loadBookings();
   }, []);
@@ -72,7 +67,6 @@ const LogisticsMap = () => {
             centerLat={lat ? parseFloat(lat) : undefined}
             centerLng={lng ? parseFloat(lng) : undefined}
             onSnapshotSaved={handleSnapshotSaved}
-            mapStyle={mapStyle}
           />
         )}
       </div>
@@ -142,8 +136,9 @@ const LogisticsMap = () => {
                         bookings={filteredBookings} 
                         selectedBooking={selectedBooking}
                         onBookingSelect={setSelectedBooking}
+                        centerLat={lat ? parseFloat(lat) : undefined}
+                        centerLng={lng ? parseFloat(lng) : undefined}
                         onSnapshotSaved={handleSnapshotSaved}
-                        mapStyle={mapStyle}
                       />
                     </div>
                   </div>
