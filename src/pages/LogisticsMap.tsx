@@ -87,22 +87,20 @@ const LogisticsMap = () => {
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
+            {/* Back to Booking button - only show when a booking is selected */}
+            {selectedBooking && (
+              <Button 
+                onClick={handleBackToBooking}
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            )}
             <Map className="h-8 w-8 text-[#82b6c6]" />
             <h1 className="text-3xl font-bold text-gray-900">Logistics Map</h1>
           </div>
-          
-          {/* Back to Booking button - only show when a booking is selected */}
-          {selectedBooking && (
-            <Button 
-              onClick={handleBackToBooking}
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Booking
-            </Button>
-          )}
         </div>
       </div>
 
