@@ -23,11 +23,11 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   onStaffDrop,
   onSelectStaff,
   assignedStaff = [],
-  minHeight = 120 // ABSOLUTE FIXED height for ALL cells to maintain grid alignment
+  minHeight = 120 // LOCKED height for ALL cells to maintain grid alignment
 }) => {
   const effectiveDate = targetDate || currentDate;
   
-  console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff, target date: ${format(effectiveDate, 'yyyy-MM-dd')}, ABSOLUTE FIXED height: ${minHeight}px`);
+  console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff, target date: ${format(effectiveDate, 'yyyy-MM-dd')}, LOCKED height: ${minHeight}px`);
 
   const [{ isOver, canDrop }, drop] = useDrop({
     accept: 'STAFF',
@@ -90,7 +90,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   };
 
   const getDropZoneClass = () => {
-    let baseClass = `resource-header-drop-zone h-full w-full relative transition-all duration-150`;
+    let baseClass = `transition-all duration-150`;
     
     if (isOver && canDrop) {
       return `${baseClass} bg-green-100 border-2 border-green-400 shadow-lg transform scale-105`;
@@ -106,15 +106,17 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       ref={drop}
       className={getDropZoneClass()}
       style={{ 
-        width: '80px',
-        minWidth: '80px', 
-        maxWidth: '80px',
-        height: `${minHeight}px`, // ABSOLUTE FIXED height - NEVER changes
-        minHeight: `${minHeight}px`, // ABSOLUTE FIXED height - NEVER changes
-        maxHeight: `${minHeight}px`, // ABSOLUTE FIXED height - NEVER changes
-        position: 'relative', // Enable absolute positioning for children
-        overflow: 'hidden', // Critical: prevent content overflow
-        zIndex: 10
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100%',
+        height: '120px', // LOCKED height - CSS will enforce this
+        minHeight: '120px',
+        maxHeight: '120px',
+        overflow: 'hidden', // CRITICAL: prevent content overflow that affects layout
+        zIndex: 15
       }}
     >
       {/* Team Header Section - ABSOLUTELY positioned at top */}
@@ -136,14 +138,15 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         </div>
       </div>
       
-      {/* Staff Section - ABSOLUTELY positioned below header */}
+      {/* Staff Section - ABSOLUTELY positioned below header with FIXED scrollable area */}
       <div 
         className="absolute z-15 bg-gray-50"
         style={{ 
           top: '21px', // Just below the header
           left: '0',
           right: '0',
-          bottom: '0',
+          height: '99px', // FIXED height for staff area (120px - 21px header)
+          maxHeight: '99px',
           overflowY: 'auto',
           overflowX: 'hidden',
           scrollbarWidth: 'none', // Firefox

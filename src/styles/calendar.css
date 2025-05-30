@@ -207,43 +207,90 @@
   border-bottom: 1px solid #f0f0f0;
 }
 
-/* ===== CRITICAL GRID ALIGNMENT FIXES ===== */
-/* FORCE FullCalendar to use fixed table layout and prevent content-based sizing */
+/* ===== CRITICAL GRID ALIGNMENT FIXES - MAXIMUM SPECIFICITY ===== */
 
-/* Force fixed table layout on all FullCalendar tables */
-.fc-scrollgrid-section table,
+/* NUCLEAR OPTION: Force ABSOLUTE fixed height on ALL FullCalendar table structures */
+.fc-resource-timeline .fc-scrollgrid,
+.fc-resource-timeline .fc-scrollgrid table,
+.fc-resource-timeline .fc-scrollgrid tbody,
+.fc-resource-timeline .fc-scrollgrid thead,
+.fc-resource-timeline .fc-scrollgrid-section,
+.fc-resource-timeline .fc-scrollgrid-section-header,
+.fc-resource-timeline .fc-scrollgrid-section-body,
+.fc-datagrid,
 .fc-datagrid table,
-.fc-scrollgrid table {
+.fc-datagrid tbody,
+.fc-datagrid thead {
   table-layout: fixed !important;
-  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
 }
 
-/* ABSOLUTE HEIGHT LOCK for all resource header cells - MAXIMUM SPECIFICITY */
+/* FORCE ALL table rows in resource headers to EXACT same height */
 .fc-resource-timeline .fc-scrollgrid-section-header table tbody tr,
-.fc-resource-timeline .fc-scrollgrid-section-header table tbody tr td,
-.fc-resource-timeline .fc-scrollgrid-section-header table tbody tr th,
+.fc-resource-timeline .fc-scrollgrid-section-header table thead tr,
 .fc-datagrid-header table tbody tr,
-.fc-datagrid-header table tbody tr td,
-.fc-datagrid-header table tbody tr th,
+.fc-datagrid-header table thead tr,
 .fc-datagrid-body table tbody tr,
-.fc-datagrid-body table tbody tr td,
-.fc-datagrid-body table tbody tr th,
+.fc-datagrid-body table thead tr,
 .fc-scrollgrid-section-header table tbody tr,
-.fc-scrollgrid-section-header table tbody tr td,
-.fc-scrollgrid-section-header table tbody tr th {
+.fc-scrollgrid-section-header table thead tr,
+.fc-scrollgrid-section-body table tbody tr,
+.fc-scrollgrid-section-body table thead tr {
   height: 120px !important;
   min-height: 120px !important;
   max-height: 120px !important;
+  line-height: 1 !important;
   vertical-align: top !important;
   box-sizing: border-box !important;
   overflow: hidden !important;
+  display: table-row !important;
 }
 
-/* FORCE all datagrid cells to maintain ABSOLUTE fixed dimensions */
+/* FORCE ALL table cells in resource headers to EXACT same height and width */
+.fc-resource-timeline .fc-scrollgrid-section-header table tbody tr td,
+.fc-resource-timeline .fc-scrollgrid-section-header table tbody tr th,
+.fc-resource-timeline .fc-scrollgrid-section-header table thead tr td,
+.fc-resource-timeline .fc-scrollgrid-section-header table thead tr th,
+.fc-datagrid-header table tbody tr td,
+.fc-datagrid-header table tbody tr th,
+.fc-datagrid-header table thead tr td,
+.fc-datagrid-header table thead tr th,
+.fc-datagrid-body table tbody tr td,
+.fc-datagrid-body table tbody tr th,
+.fc-datagrid-body table thead tr td,
+.fc-datagrid-body table thead tr th,
+.fc-scrollgrid-section-header table tbody tr td,
+.fc-scrollgrid-section-header table tbody tr th,
+.fc-scrollgrid-section-header table thead tr td,
+.fc-scrollgrid-section-header table thead tr th,
+.fc-scrollgrid-section-body table tbody tr td,
+.fc-scrollgrid-section-body table tbody tr th,
+.fc-scrollgrid-section-body table thead tr td,
+.fc-scrollgrid-section-body table thead tr th {
+  height: 120px !important;
+  min-height: 120px !important;
+  max-height: 120px !important;
+  min-width: 80px !important;
+  width: 80px !important;
+  max-width: 80px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  vertical-align: top !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+  position: relative !important;
+  display: table-cell !important;
+}
+
+/* ABSOLUTE NUCLEAR: Target specific FullCalendar cell classes */
 .fc-datagrid-cell,
 .fc-datagrid-cell-frame,
 .fc-datagrid-cell-cushion,
-.fc-datagrid-cell-main {
+.fc-datagrid-cell-main,
+.fc-resource-cell,
+.fc-col-header-cell,
+.fc-col-header-cell-cushion {
   height: 120px !important;
   min-height: 120px !important;
   max-height: 120px !important;
@@ -254,45 +301,75 @@
   overflow: hidden !important;
   vertical-align: top !important;
   position: relative !important;
+  line-height: 1 !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
-/* CRITICAL: Override FullCalendar's automatic height calculation */
+/* OVERRIDE FullCalendar's automatic content-based sizing */
 .fc-datagrid-cell-cushion {
-  padding: 0 !important;
   display: block !important;
   position: relative !important;
+  height: 120px !important;
+  min-height: 120px !important;
+  max-height: 120px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
 }
 
 .fc-datagrid-cell-main {
   position: relative !important;
   z-index: 10 !important;
-}
-
-/* Force all resource header table cells to maintain exact same height */
-.fc-datagrid-header .fc-datagrid-cell,
-.fc-datagrid-header .fc-datagrid-cell-frame,
-.fc-datagrid-header .fc-datagrid-cell-cushion,
-.fc-datagrid-body .fc-datagrid-cell,
-.fc-datagrid-body .fc-datagrid-cell-frame,
-.fc-datagrid-body .fc-datagrid-cell-cushion {
   height: 120px !important;
   min-height: 120px !important;
   max-height: 120px !important;
-  min-width: 80px !important;
-  width: 80px !important;
-  max-width: 80px !important;
-  box-sizing: border-box !important;
   overflow: hidden !important;
-  vertical-align: top !important;
 }
 
-/* CRITICAL: Force column headers to match content width exactly */
+/* CRITICAL: Prevent ANY content from affecting cell dimensions */
+.fc-datagrid-cell-cushion > *,
+.fc-datagrid-cell-main > *,
+.fc-datagrid-cell-frame > * {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 120px !important;
+  max-height: 120px !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+/* FORCE column headers to match content width exactly */
 .fc-col-header-cell,
 .fc-col-header-cell-cushion {
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
+  height: 120px !important;
+  min-height: 120px !important;
+  max-height: 120px !important;
   box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+
+/* CRITICAL: Prevent FullCalendar from adjusting heights based on content */
+.fc-scrollgrid-section-header .fc-scrollgrid-sync-table,
+.fc-scrollgrid-section-body .fc-scrollgrid-sync-table {
+  table-layout: fixed !important;
+  border-collapse: separate !important;
+}
+
+.fc-scrollgrid-section-header .fc-scrollgrid-sync-table tbody tr,
+.fc-scrollgrid-section-body .fc-scrollgrid-sync-table tbody tr,
+.fc-scrollgrid-section-header .fc-scrollgrid-sync-table thead tr,
+.fc-scrollgrid-section-body .fc-scrollgrid-sync-table thead tr {
+  height: 120px !important;
+  min-height: 120px !important;
+  max-height: 120px !important;
+  line-height: 1 !important;
+  display: table-row !important;
 }
 
 /* ABSOLUTE positioning support for resource header content */
@@ -301,22 +378,12 @@
   height: 120px !important;
   max-height: 120px !important;
   min-height: 120px !important;
-  position: relative !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
   overflow: hidden !important;
-  z-index: 5 !important;
-}
-
-/* CRITICAL: Prevent FullCalendar from adjusting row heights based on content */
-.fc-scrollgrid-section-header .fc-scrollgrid-sync-table,
-.fc-scrollgrid-section-body .fc-scrollgrid-sync-table {
-  table-layout: fixed !important;
-}
-
-.fc-scrollgrid-section-header .fc-scrollgrid-sync-table tbody tr,
-.fc-scrollgrid-section-body .fc-scrollgrid-sync-table tbody tr {
-  height: 120px !important;
-  min-height: 120px !important;
-  max-height: 120px !important;
+  z-index: 15 !important;
 }
 
 /* Ensure time slots appear below our header content */
