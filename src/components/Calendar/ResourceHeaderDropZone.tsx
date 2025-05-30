@@ -23,11 +23,11 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   onStaffDrop,
   onSelectStaff,
   assignedStaff = [],
-  minHeight = 120 // LOCKED height for ALL cells to maintain grid alignment
+  minHeight = 120
 }) => {
   const effectiveDate = targetDate || currentDate;
   
-  console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff, target date: ${format(effectiveDate, 'yyyy-MM-dd')}, LOCKED height: ${minHeight}px`);
+  console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff, target date: ${format(effectiveDate, 'yyyy-MM-dd')}`);
 
   const [{ isOver, canDrop }, drop] = useDrop({
     accept: 'STAFF',
@@ -106,30 +106,24 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       ref={drop}
       className={getDropZoneClass()}
       style={{ 
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
         width: '100%',
-        height: '120px', // LOCKED height - CSS will enforce this
-        minHeight: '120px',
-        maxHeight: '120px',
-        overflow: 'hidden', // CRITICAL: prevent content overflow that affects layout
-        zIndex: 15
+        minHeight: `${minHeight}px`,
+        padding: '4px',
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'relative'
       }}
     >
-      {/* Team Header Section - ABSOLUTELY positioned at top */}
+      {/* Team Header Section */}
       <div 
-        className="absolute top-0 left-0 right-0 z-20 bg-gray-50"
+        className="flex-shrink-0 bg-gray-50 border-b border-gray-200"
         style={{
-          height: '20px', // Fixed header height
-          borderBottom: '1px solid #e5e7eb',
-          padding: '1px 2px'
+          height: '24px',
+          padding: '2px 4px'
         }}
       >
         <div 
-          className="w-full text-[9px] font-medium text-center cursor-pointer hover:bg-blue-100 hover:text-blue-800 transition-colors duration-200 rounded border border-transparent hover:border-blue-200 relative h-full flex items-center justify-center" 
+          className="w-full text-[10px] font-medium text-center cursor-pointer hover:bg-blue-100 hover:text-blue-800 transition-colors duration-200 rounded border border-transparent hover:border-blue-200 relative h-full flex items-center justify-center" 
           title={`Click to assign staff to ${resource.title} on ${format(effectiveDate, 'MMM d')}`}
           onClick={handleSelectStaff}
         >
@@ -138,46 +132,30 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         </div>
       </div>
       
-      {/* Staff Section - ABSOLUTELY positioned below header with FIXED scrollable area */}
+      {/* Staff Section */}
       <div 
-        className="absolute z-15 bg-gray-50"
+        className="flex-1 overflow-y-auto"
         style={{ 
-          top: '21px', // Just below the header
-          left: '0',
-          right: '0',
-          height: '99px', // FIXED height for staff area (120px - 21px header)
-          maxHeight: '99px',
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          scrollbarWidth: 'none', // Firefox
-          msOverflowStyle: 'none', // IE/Edge
-          padding: '1px'
+          padding: '2px',
+          maxHeight: `${minHeight - 28}px`
         }}
       >
-        <style>
-          {`
-            .staff-container::-webkit-scrollbar {
-              display: none;
-            }
-          `}
-        </style>
         {assignedStaff.length > 0 ? (
-          <div className="space-y-0.5 staff-container">
-            {assignedStaff.map((staff, index) => (
-              <div key={staff.id} style={{ marginBottom: index < assignedStaff.length - 1 ? '1px' : '0' }}>
-                <DraggableStaffItem
-                  staff={staff}
-                  onRemove={() => handleStaffRemove(staff.id)}
-                  currentDate={effectiveDate}
-                  teamName={resource.title}
-                />
-              </div>
+          <div className="space-y-1">
+            {assignedStaff.map((staff) => (
+              <DraggableStaffItem
+                key={staff.id}
+                staff={staff}
+                onRemove={() => handleStaffRemove(staff.id)}
+                currentDate={effectiveDate}
+                teamName={resource.title}
+              />
             ))}
           </div>
         ) : null}
       </div>
       
-      {/* Enhanced drop feedback overlay - ABSOLUTELY positioned */}
+      {/* Enhanced drop feedback overlay */}
       {isOver && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30">
           <div className={`text-[9px] font-medium px-1 py-0.5 rounded transition-all duration-150 ${
