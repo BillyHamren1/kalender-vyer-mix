@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Users } from 'lucide-react';
@@ -39,7 +38,7 @@ const StaffCalendarView: React.FC = () => {
   // Fetch staff resources for the calendar
   const { 
     data: staffResources = [], 
-    isLoadingStaff,
+    isLoading: isLoadingStaff,
     refetch: refetchStaff 
   } = useQuery({
     queryKey: ['staffResources'],
@@ -123,12 +122,12 @@ const StaffCalendarView: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Modern Header with consistent styling */}
+      {/* Modern Header with teal color scheme */}
       <div className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
-              <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-sm">
+              <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-[#7BAEBF] to-[#6E9DAC] rounded-lg shadow-sm">
                 <Users className="h-5 w-5 text-white" />
               </div>
               <div>
@@ -164,7 +163,7 @@ const StaffCalendarView: React.FC = () => {
                 {(isLoadingEvents || isLoadingStaff) && (
                   <div className="absolute top-4 right-4 z-20">
                     <div className="flex items-center space-x-3 bg-white/95 backdrop-blur-sm px-4 py-2 rounded-lg shadow-lg border border-gray-100">
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-[#7BAEBF] border-t-transparent"></div>
                       <span className="text-sm font-medium text-gray-700">Loading calendar...</span>
                     </div>
                   </div>

@@ -53,7 +53,7 @@ const StaffSelectorPanel: React.FC<StaffSelectorPanelProps> = ({
       <Card className="border-0">
         <CardHeader className="pb-4">
           <CardTitle className="text-lg font-semibold flex items-center gap-3">
-            <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg">
+            <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-[#7BAEBF] to-[#6E9DAC] rounded-lg">
               <Users className="h-4 w-4 text-white" />
             </div>
             Staff Members
@@ -62,7 +62,7 @@ const StaffSelectorPanel: React.FC<StaffSelectorPanelProps> = ({
         <CardContent>
           <div className="flex items-center justify-center py-12">
             <div className="flex items-center space-x-3">
-              <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-600 border-t-transparent"></div>
+              <div className="animate-spin rounded-full h-6 w-6 border-2 border-[#7BAEBF] border-t-transparent"></div>
               <span className="text-gray-600 font-medium">Loading staff...</span>
             </div>
           </div>
@@ -75,7 +75,7 @@ const StaffSelectorPanel: React.FC<StaffSelectorPanelProps> = ({
     <Card className="border-0">
       <CardHeader className="pb-4">
         <CardTitle className="text-lg font-semibold flex items-center gap-3">
-          <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg">
+          <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-[#7BAEBF] to-[#6E9DAC] rounded-lg">
             <Users className="h-4 w-4 text-white" />
           </div>
           <div>
@@ -92,7 +92,7 @@ const StaffSelectorPanel: React.FC<StaffSelectorPanelProps> = ({
             placeholder="Search staff members..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 border-gray-200 focus:border-blue-500 focus:ring-blue-500 transition-colors"
+            className="pl-9 border-gray-200 focus:border-[#7BAEBF] focus:ring-[#7BAEBF] transition-colors"
           />
         </div>
 
@@ -105,7 +105,7 @@ const StaffSelectorPanel: React.FC<StaffSelectorPanelProps> = ({
             className={cn(
               "text-xs font-medium transition-all duration-200",
               selectedStaffIds.length === staffResources.length 
-                ? "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100" 
+                ? "bg-[#7BAEBF]/10 border-[#7BAEBF]/30 text-[#6E9DAC] hover:bg-[#7BAEBF]/20" 
                 : "border-gray-200 text-gray-700 hover:bg-gray-50"
             )}
             disabled={selectedStaffIds.length === staffResources.length}
@@ -158,7 +158,7 @@ const StaffSelectorPanel: React.FC<StaffSelectorPanelProps> = ({
                 className={cn(
                   "flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-all duration-200 group",
                   selectedStaffIds.includes(staff.id) 
-                    ? "bg-blue-50 border border-blue-200 shadow-sm" 
+                    ? "bg-[#7BAEBF]/10 border border-[#7BAEBF]/30 shadow-sm" 
                     : "border border-transparent hover:bg-gray-50 hover:shadow-sm"
                 )}
                 onClick={() => handleStaffToggle(staff.id)}
@@ -166,7 +166,7 @@ const StaffSelectorPanel: React.FC<StaffSelectorPanelProps> = ({
                 <div className={cn(
                   "flex items-center justify-center w-5 h-5 rounded border-2 transition-all duration-200",
                   selectedStaffIds.includes(staff.id)
-                    ? "bg-blue-600 border-blue-600"
+                    ? "bg-[#7BAEBF] border-[#7BAEBF]"
                     : "border-gray-300 group-hover:border-gray-400"
                 )}>
                   <Check

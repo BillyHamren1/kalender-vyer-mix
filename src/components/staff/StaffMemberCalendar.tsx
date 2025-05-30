@@ -54,12 +54,12 @@ const StaffMemberCalendar: React.FC<StaffMemberCalendarProps> = ({ staffId, staf
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Modern Header */}
+      {/* Modern Header with teal color scheme */}
       <div className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
-              <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-sm">
+              <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-[#7BAEBF] to-[#6E9DAC] rounded-lg shadow-sm">
                 <Calendar className="h-5 w-5 text-white" />
               </div>
               <div>
@@ -104,7 +104,7 @@ const StaffMemberCalendar: React.FC<StaffMemberCalendarProps> = ({ staffId, staf
             {isLoading ? (
               <div className="flex items-center justify-center py-16">
                 <div className="flex items-center space-x-3">
-                  <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-600 border-t-transparent"></div>
+                  <div className="animate-spin rounded-full h-6 w-6 border-2 border-[#7BAEBF] border-t-transparent"></div>
                   <span className="text-gray-600 font-medium">Loading calendar...</span>
                 </div>
               </div>
