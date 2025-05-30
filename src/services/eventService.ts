@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 
@@ -84,9 +83,9 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
     title: event.title,
     start: event.start_time,
     end: event.end_time,
-    resourceId: mapDatabaseToAppResourceId(event.resource_id), // Convert database format to app format
+    resourceId: mapDatabaseToAppResourceId(event.resource_id),
     bookingId: event.booking_id,
-    eventType: event.event_type,
+    eventType: event.event_type as 'rig' | 'event' | 'rigDown',
     delivery_address: event.delivery_address,
     booking_number: event.booking_number,
     extendedProps: {
@@ -96,11 +95,16 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
       deliveryAddress: event.delivery_address,
       bookingNumber: event.booking_number,
       eventType: event.event_type,
-      manuallyAssigned: false // Default to false since we don't have this column yet
+      manuallyAssigned: false
     }
   }));
 
   return events;
+};
+
+// Add the missing createCalendarEvent function (alias for addCalendarEvent)
+export const createCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promise<CalendarEvent> => {
+  return addCalendarEvent(event);
 };
 
 export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promise<CalendarEvent> => {
@@ -115,7 +119,7 @@ export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promis
       title: event.title,
       start_time: event.start,
       end_time: event.end,
-      resource_id: dbResourceId, // Store in database format
+      resource_id: dbResourceId,
       booking_id: event.bookingId,
       event_type: event.eventType,
       delivery_address: event.delivery_address,
@@ -139,7 +143,7 @@ export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promis
     end: data.end_time,
     resourceId: mapDatabaseToAppResourceId(data.resource_id),
     bookingId: data.booking_id,
-    eventType: data.event_type,
+    eventType: data.event_type as 'rig' | 'event' | 'rigDown',
     delivery_address: data.delivery_address,
     booking_number: data.booking_number,
     extendedProps: {
@@ -207,7 +211,7 @@ export const updateCalendarEvent = async (
     end: data.end_time,
     resourceId: mapDatabaseToAppResourceId(data.resource_id),
     bookingId: data.booking_id,
-    eventType: data.event_type,
+    eventType: data.event_type as 'rig' | 'event' | 'rigDown',
     delivery_address: data.delivery_address,
     booking_number: data.booking_number,
     extendedProps: {
@@ -272,7 +276,7 @@ export const fetchEventsByBookingId = async (bookingId: string): Promise<Calenda
     end: event.end_time,
     resourceId: mapDatabaseToAppResourceId(event.resource_id),
     bookingId: event.booking_id,
-    eventType: event.event_type,
+    eventType: event.event_type as 'rig' | 'event' | 'rigDown',
     delivery_address: event.delivery_address,
     booking_number: event.booking_number,
     extendedProps: {
