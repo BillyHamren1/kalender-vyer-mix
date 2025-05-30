@@ -87,12 +87,29 @@ export const useResourceCalendarConfig = (
     aspectRatio: getAspectRatio(),
     dropAccept: ".fc-event",
     eventAllow: () => true,
+    // CRITICAL: Add timezone handling for proper time display
+    timeZone: 'local', // Use local timezone for display
+    // Enhanced time configuration for better event display
+    slotMinTime: '05:00:00',
+    slotMaxTime: '24:00:00',
+    scrollTime: '08:00:00',
+    slotDuration: '01:00:00',
+    slotLabelInterval: '01:00:00',
+    snapDuration: '00:15:00', // Allow 15-minute snapping for precise time changes
     // Always include resource config to preserve team columns
     ...getResourceColumnConfig(),
     // Add calendar options
     ...getCalendarOptions(),
-    // Add time formatting
+    // Add time formatting with proper timezone handling
     ...getCalendarTimeFormatting(),
+    // Enhanced event handling for proper time updates
+    eventTimeFormat: {
+      hour: '2-digit' as '2-digit',
+      minute: '2-digit' as '2-digit',
+      meridiem: false,
+      hour12: false,
+      omitZeroMinute: false
+    },
     // Apply any additional calendar props
     ...calendarProps,
     // Enable calendar connection for drag & drop

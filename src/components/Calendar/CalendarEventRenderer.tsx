@@ -1,22 +1,44 @@
+
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
 import { Copy, Trash2 } from 'lucide-react';
 import EventHoverCard from './EventHoverCard';
-import { differenceInHours, parseISO } from 'date-fns';
+import { differenceInHours, parseISO, format } from 'date-fns';
 
 export const renderEventContent = (eventInfo: any) => {
   // Get the event details
   const eventTitle = eventInfo.event.title;
-  const eventTime = eventInfo.timeText;
   
-  // Calculate duration for debugging
+  // FIXED: Get proper time information from the event
   let duration = 0;
+  let startTimeDisplay = '';
+  let endTimeDisplay = '';
+  let timeRangeDisplay = '';
+  
   try {
     const start = new Date(eventInfo.event.start);
     const end = new Date(eventInfo.event.end);
+    
+    // Calculate actual duration
     duration = differenceInHours(end, start);
+    
+    // Format times for display (local time)
+    startTimeDisplay = format(start, 'HH:mm');
+    endTimeDisplay = format(end, 'HH:mm');
+    timeRangeDisplay = `${startTimeDisplay}-${endTimeDisplay}`;
+    
+    console.log(`Event ${eventInfo.event.id} time rendering:`, {
+      start: start.toISOString(),
+      end: end.toISOString(),
+      startLocal: startTimeDisplay,
+      endLocal: endTimeDisplay,
+      duration: duration
+    });
+    
   } catch (error) {
-    console.error('Error calculating event duration:', error);
+    console.error('Error calculating event time display:', error);
+    // Fallback to eventInfo.timeText if available
+    timeRangeDisplay = eventInfo.timeText || 'Time Error';
   }
   
   // Use bookingNumber if available, otherwise fall back to bookingId, or extract from title
@@ -53,14 +75,14 @@ export const renderEventContent = (eventInfo: any) => {
     extendedProps: eventInfo.event.extendedProps || {}
   };
 
-  // Event content component with enhanced duration display
+  // Enhanced event content component with correct duration display
   const EventContent = () => {
     if (eventInfo.view.type === 'resourceTimelineWeek') {
       // More compact display for timeline view
       return (
         <div className="event-content-wrapper w-full h-full px-1" style={{ color: '#000000' }}>
           <div className="event-time text-xs font-medium mb-1" style={{ color: '#000000' }}>
-            {eventTime} ({duration}h)
+            {timeRangeDisplay} ({duration}h)
           </div>
           {displayId && (
             <div className="event-booking-id text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>#{displayId}</div>
@@ -76,11 +98,11 @@ export const renderEventContent = (eventInfo: any) => {
       );
     }
     
-    // Enhanced display for other views with duration information
+    // Enhanced display for other views with correct duration information
     return (
       <div className="event-content-wrapper w-full h-full px-1" style={{ color: '#000000' }}>
         <div className="event-time text-xs font-medium mb-1" style={{ color: '#000000' }}>
-          {eventTime} ({duration}h)
+          {timeRangeDisplay} ({duration}h)
         </div>
         {displayId && (
           <div className="event-booking-id text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>#{displayId}</div>
@@ -95,7 +117,7 @@ export const renderEventContent = (eventInfo: any) => {
         {/* Debug info for development */}
         {process.env.NODE_ENV === 'development' && (
           <div className="event-debug-info">
-            {duration}h
+            {duration}h | {startTimeDisplay}-{endTimeDisplay}
           </div>
         )}
       </div>
@@ -231,7 +253,7 @@ export const addEventAttributes = (info: any) => {
     const end = new Date(info.event.end);
     duration = differenceInHours(end, start);
     
-    // Add duration classes
+    // Add duration classes for improved visual representation
     if (duration >= 6) {
       info.el.setAttribute('data-duration', 'long');
       info.el.classList.add('event-long-duration');
@@ -243,7 +265,7 @@ export const addEventAttributes = (info: any) => {
       info.el.classList.add('event-short-duration');
     }
     
-    console.log(`Event ${info.event.id} duration: ${duration}h, class: ${duration >= 6 ? 'long' : duration >= 3 ? 'medium' : 'short'}`);
+    console.log(`Event ${info.event.id} attributes: duration=${duration}h, class=${duration >= 6 ? 'long' : duration >= 3 ? 'medium' : 'short'}`);
   } catch (error) {
     console.error('Error calculating event duration for attributes:', error);
   }

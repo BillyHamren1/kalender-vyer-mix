@@ -4,6 +4,7 @@ import { updateCalendarEvent } from '@/services/eventService';
 import { updateBookingTimes } from '@/services/booking/bookingTimeService';
 import { CalendarEvent, Resource } from '@/components/Calendar/ResourceData';
 import { toast } from 'sonner';
+import { format, parseISO } from 'date-fns';
 
 export const useEventOperations = ({ 
   resources, 
@@ -14,7 +15,7 @@ export const useEventOperations = ({
 }) => {
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Enhanced event change handler 
+  // Enhanced event change handler with proper time handling
   const handleEventChange = async (info: any) => {
     console.log('🔄 Event change detected:', {
       eventId: info.event.id,
@@ -54,17 +55,31 @@ export const useEventOperations = ({
         });
       }
 
-      // Handle time changes
+      // Handle time changes with proper timezone handling
       if (info.event.start && info.oldEvent?.start?.getTime() !== info.event.start.getTime()) {
-        eventData.start = info.event.start.toISOString();
+        const newStartISO = info.event.start.toISOString();
+        eventData.start = newStartISO;
         shouldUpdateBookingTimes = true;
-        console.log('⏰ Start time change:', { from: info.oldEvent?.start, to: info.event.start });
+        
+        console.log('⏰ Start time change:', { 
+          from: info.oldEvent?.start?.toISOString(), 
+          to: newStartISO,
+          localFrom: info.oldEvent?.start ? format(info.oldEvent.start, 'yyyy-MM-dd HH:mm') : 'N/A',
+          localTo: format(info.event.start, 'yyyy-MM-dd HH:mm')
+        });
       }
 
       if (info.event.end && info.oldEvent?.end?.getTime() !== info.event.end.getTime()) {
-        eventData.end = info.event.end.toISOString();
+        const newEndISO = info.event.end.toISOString();
+        eventData.end = newEndISO;
         shouldUpdateBookingTimes = true;
-        console.log('⏰ End time change:', { from: info.oldEvent?.end, to: info.event.end });
+        
+        console.log('⏰ End time change:', { 
+          from: info.oldEvent?.end?.toISOString(), 
+          to: newEndISO,
+          localFrom: info.oldEvent?.end ? format(info.oldEvent.end, 'yyyy-MM-dd HH:mm') : 'N/A',
+          localTo: format(info.event.end, 'yyyy-MM-dd HH:mm')
+        });
       }
 
       // If no meaningful changes, skip update
@@ -79,7 +94,7 @@ export const useEventOperations = ({
         updates: eventData
       });
 
-      // Update calendar event
+      // Update calendar event with proper time data
       const result = await updateCalendarEvent(info.event.id, eventData);
       console.log('✅ Event updated successfully in database:', result);
 
@@ -106,7 +121,8 @@ export const useEventOperations = ({
       if (changeDescription) {
         toast.success(changeDescription);
       } else if (shouldUpdateBookingTimes) {
-        toast.success('Event time updated successfully');
+        const timeDisplay = `${format(info.event.start, 'HH:mm')} - ${format(info.event.end, 'HH:mm')}`;
+        toast.success(`Event time updated to ${timeDisplay}`);
       } else {
         toast.success('Event updated successfully');
       }
