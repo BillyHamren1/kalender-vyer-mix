@@ -1,4 +1,5 @@
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
+import { format, parseISO, differenceInHours } from 'date-fns';
 
 export const processEvents = (events: CalendarEvent[], resources: Resource[]): CalendarEvent[] => {
   console.log('=== CalendarEventProcessor Debug ===');
@@ -21,6 +22,39 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
     console.log(`  Resource ID valid: ${validResourceIds.has(event.resourceId)}`);
     console.log(`  Event start: ${event.start}`);
     console.log(`  Event end: ${event.end}`);
+    
+    // CRITICAL: Parse and validate event times
+    let startTime: Date;
+    let endTime: Date;
+    
+    try {
+      startTime = typeof event.start === 'string' ? parseISO(event.start) : new Date(event.start);
+      endTime = typeof event.end === 'string' ? parseISO(event.end) : new Date(event.end);
+      
+      // Calculate duration in hours
+      const durationHours = differenceInHours(endTime, startTime);
+      console.log(`  ⏰ Duration: ${durationHours} hours (${format(startTime, 'HH:mm')} - ${format(endTime, 'HH:mm')})`);
+      
+      // Validate duration - warn if unusually short
+      if (durationHours < 1) {
+        console.warn(`  ⚠️ Very short event duration: ${durationHours} hours - this might be the problem!`);
+      }
+      
+      // Validate times are not equal
+      if (startTime.getTime() === endTime.getTime()) {
+        console.error(`  ❌ Start and end times are identical - this will cause zero-height events!`);
+      }
+      
+    } catch (error) {
+      console.error(`  ❌ Error parsing event times:`, error);
+      console.error(`    Start: ${event.start} (type: ${typeof event.start})`);
+      console.error(`    End: ${event.end} (type: ${typeof event.end})`);
+      
+      // Fallback to current time + 1 hour if parsing fails
+      startTime = new Date();
+      endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
+    }
+    
     console.log(`  Extended props:`, event.extendedProps);
     
     // Ensure the event has a valid resource ID
@@ -78,6 +112,9 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
     const processedEvent = {
       ...event,
       title: eventTitle,
+      // CRITICAL: Ensure proper ISO string format for FullCalendar
+      start: startTime.toISOString(),
+      end: endTime.toISOString(),
       resourceId,
       backgroundColor: eventColor,
       borderColor: eventColor,
@@ -90,11 +127,16 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
         bookingId: event.bookingId,
         deliveryAddress: event.deliveryAddress,
         bookingNumber: bookingNumber,
-        client: client
+        client: client,
+        // Add duration info for debugging
+        durationHours: differenceInHours(endTime, startTime),
+        startTime: format(startTime, 'HH:mm'),
+        endTime: format(endTime, 'HH:mm')
       }
     };
     
-    console.log(`  ✅ Processed event with title: "${eventTitle}"`);
+    console.log(`  ✅ Processed event "${eventTitle}" with duration: ${differenceInHours(endTime, startTime)} hours`);
+    console.log(`  📅 Times: ${format(startTime, 'yyyy-MM-dd HH:mm')} → ${format(endTime, 'yyyy-MM-dd HH:mm')}`);
     
     return processedEvent;
   });
@@ -102,7 +144,13 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
   console.log(`=== Processing Complete ===`);
   console.log(`Input events: ${events.length}`);
   console.log(`Output events: ${processedEvents.length}`);
-  console.log('FINAL PROCESSED EVENTS WITH TITLES:', processedEvents.map(e => ({ id: e.id, title: e.title })));
+  console.log('FINAL PROCESSED EVENTS WITH DURATIONS:', processedEvents.map(e => ({ 
+    id: e.id, 
+    title: e.title, 
+    start: e.start, 
+    end: e.end,
+    duration: e.extendedProps?.durationHours + 'h'
+  })));
   
   return processedEvents;
 };

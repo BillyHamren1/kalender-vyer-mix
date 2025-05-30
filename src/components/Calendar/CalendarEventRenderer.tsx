@@ -1,13 +1,23 @@
-
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
 import { Copy, Trash2 } from 'lucide-react';
 import EventHoverCard from './EventHoverCard';
+import { differenceInHours, parseISO } from 'date-fns';
 
 export const renderEventContent = (eventInfo: any) => {
   // Get the event details
   const eventTitle = eventInfo.event.title;
   const eventTime = eventInfo.timeText;
+  
+  // Calculate duration for debugging
+  let duration = 0;
+  try {
+    const start = new Date(eventInfo.event.start);
+    const end = new Date(eventInfo.event.end);
+    duration = differenceInHours(end, start);
+  } catch (error) {
+    console.error('Error calculating event duration:', error);
+  }
   
   // Use bookingNumber if available, otherwise fall back to bookingId, or extract from title
   let displayId = eventInfo.event.extendedProps?.bookingNumber || 
@@ -43,12 +53,15 @@ export const renderEventContent = (eventInfo: any) => {
     extendedProps: eventInfo.event.extendedProps || {}
   };
 
-  // Event content component
+  // Event content component with enhanced duration display
   const EventContent = () => {
     if (eventInfo.view.type === 'resourceTimelineWeek') {
-      // More compact display for timeline view with smaller fonts
+      // More compact display for timeline view
       return (
         <div className="event-content-wrapper w-full h-full px-1" style={{ color: '#000000' }}>
+          <div className="event-time text-xs font-medium mb-1" style={{ color: '#000000' }}>
+            {eventTime} ({duration}h)
+          </div>
           {displayId && (
             <div className="event-booking-id text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>#{displayId}</div>
           )}
@@ -63,18 +76,27 @@ export const renderEventContent = (eventInfo: any) => {
       );
     }
     
-    // Default display for other views with smaller fonts and full width
+    // Enhanced display for other views with duration information
     return (
       <div className="event-content-wrapper w-full h-full px-1" style={{ color: '#000000' }}>
+        <div className="event-time text-xs font-medium mb-1" style={{ color: '#000000' }}>
+          {eventTime} ({duration}h)
+        </div>
         {displayId && (
           <div className="event-booking-id text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>#{displayId}</div>
         )}
         <div className="event-client-name text-xs break-words whitespace-normal" 
-             style={{ lineHeight: '1.1', maxHeight: '2.2em', overflow: 'hidden', color: '#000000', fontSize: '11px' }}>
+             style={{ lineHeight: '1.1', color: '#000000', fontSize: '11px', flexGrow: 1 }}>
           {clientName}
         </div>
         {city && (
           <div className="event-city text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>{city}</div>
+        )}
+        {/* Debug info for development */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="event-debug-info">
+            {duration}h
+          </div>
         )}
       </div>
     );
@@ -196,10 +218,34 @@ export const setupEventActions = (
   }
 };
 
-// Add data event type attribute
+// Enhanced event attributes with duration classes
 export const addEventAttributes = (info: any) => {
   if (info.event.extendedProps.eventType) {
     info.el.setAttribute('data-event-type', info.event.extendedProps.eventType);
+  }
+  
+  // Calculate and add duration class for better styling
+  let duration = 0;
+  try {
+    const start = new Date(info.event.start);
+    const end = new Date(info.event.end);
+    duration = differenceInHours(end, start);
+    
+    // Add duration classes
+    if (duration >= 6) {
+      info.el.setAttribute('data-duration', 'long');
+      info.el.classList.add('event-long-duration');
+    } else if (duration >= 3) {
+      info.el.setAttribute('data-duration', 'medium');
+      info.el.classList.add('event-medium-duration');
+    } else {
+      info.el.setAttribute('data-duration', 'short');
+      info.el.classList.add('event-short-duration');
+    }
+    
+    console.log(`Event ${info.event.id} duration: ${duration}h, class: ${duration >= 6 ? 'long' : duration >= 3 ? 'medium' : 'short'}`);
+  } catch (error) {
+    console.error('Error calculating event duration for attributes:', error);
   }
   
   // Add special class for timeline events to ensure they have proper height
@@ -208,6 +254,7 @@ export const addEventAttributes = (info: any) => {
   }
 };
 
+// ... keep existing code (setupResourceHeaderStyles function)
 export const setupResourceHeaderStyles = (info: any) => {
   // Ensure proper rendering of resource headers
   const headerEl = info.el.querySelector('.fc-datagrid-cell-main');
