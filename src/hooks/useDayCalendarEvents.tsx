@@ -81,8 +81,8 @@ export const useDayCalendarEvents = () => {
               id: event.id,
               resourceId: resourceId, // Direct usage - no conversion needed
               title: event.title,
-              start: event.start_time,
-              end: event.end_time,
+              start: new Date(event.start_time), // Convert string to Date object
+              end: new Date(event.end_time), // Convert string to Date object
               eventType: (event.event_type as 'rig' | 'event' | 'rigDown') || 'event',
               bookingId: event.booking_id || undefined,
               color: getEventColor((event.event_type as 'rig' | 'event' | 'rigDown') || 'event'),
@@ -139,8 +139,8 @@ export const useDayCalendarEvents = () => {
         .from('calendar_events')
         .update({
           title: updatedEvent.title,
-          start_time: updatedEvent.start,
-          end_time: updatedEvent.end,
+          start_time: updatedEvent.start.toISOString(), // Convert Date to string for database
+          end_time: updatedEvent.end.toISOString(), // Convert Date to string for database
           resource_id: resourceId, // Direct usage - no conversion needed
           event_type: updatedEvent.eventType
         })

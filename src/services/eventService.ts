@@ -1,10 +1,9 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 
 export interface CalendarEventUpdate {
-  start?: string;
-  end?: string;
+  start?: string; // Keep as string for database operations
+  end?: string; // Keep as string for database operations
   resourceId?: string;
   title?: string;
   delivery_address?: string;
