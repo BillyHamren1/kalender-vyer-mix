@@ -1,6 +1,4 @@
-
 import { CalendarEvent, Resource } from './ResourceData';
-import { mapDatabaseToAppResourceId } from '@/services/eventService';
 
 export const processEvents = (events: CalendarEvent[], resources: Resource[]): CalendarEvent[] => {
   console.log('Processing events:', events.length);
@@ -71,28 +69,21 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
     
     // For non-manually assigned events, proceed with auto-assignment logic
     
-    // Normalize resource ID - convert database format to app format
-    let normalizedResourceId = event.resourceId;
+    // SIMPLIFIED: No more resource ID mapping needed - everything uses team-X format
+    let targetResourceId = event.resourceId;
     
-    if (event.resourceId && event.resourceId.length === 1) {
-      normalizedResourceId = mapDatabaseToAppResourceId(event.resourceId);
-      console.log(`Converted resource ID from "${event.resourceId}" to "${normalizedResourceId}"`);
-    }
-    
-    // Ensure the normalized resource ID is valid
-    let targetResourceId = normalizedResourceId;
-    const validResource = resources.find(r => r.id === normalizedResourceId);
+    // Ensure the resource ID is valid
+    const validResource = resources.find(r => r.id === event.resourceId);
     
     if (!validResource) {
-      console.warn(`Event ${event.id} has invalid resourceId: ${normalizedResourceId}, falling back to first resource`);
+      console.warn(`Event ${event.id} has invalid resourceId: ${event.resourceId}, falling back to first resource`);
       targetResourceId = resources[0]?.id || 'team-1';
     }
     
     // DEBUG: Log the current event processing
     console.log(`Processing auto-assigned event ${event.id}:`, {
       title: event.title,
-      originalResourceId: event.resourceId,
-      normalizedResourceId,
+      resourceId: event.resourceId,
       targetResourceId,
       eventType
     });
@@ -132,7 +123,6 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
           deliveryAddress: event.extendedProps?.deliveryAddress || event.delivery_address,
           bookingNumber: event.extendedProps?.bookingNumber || event.booking_number,
           eventType: eventType,
-          originalResourceId: normalizedResourceId,
           manuallyAssigned: false, // Mark as auto-assigned
           // Enhanced hover data
           client: event.extendedProps?.client || event.title?.split(':')[1]?.trim() || 'Unknown Client',
@@ -147,7 +137,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
         }
       };
 
-      console.log(`✅ Processed EVENT type event ${event.id}: assigned to ${targetResourceId} (was ${event.resourceId})`);
+      console.log(`✅ Processed EVENT type event ${event.id}: assigned to ${targetResourceId}`);
       return processedEvent;
     }
 
@@ -215,7 +205,6 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
       title: event.title,
       bookingId: processedEvent.extendedProps.bookingId,
       finalResourceId: processedEvent.resourceId,
-      originalResourceId: event.resourceId,
       eventType: eventType,
       client: processedEvent.extendedProps.client,
       manuallyAssigned: false

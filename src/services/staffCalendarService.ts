@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { fetchStaffAssignmentsForDateRange, StaffAssignmentResponse } from "./staffAssignmentService";
 import { fetchStaffMembers, StaffMember } from "./staffService";
@@ -118,7 +117,7 @@ const getCachedStaffMembers = async (): Promise<StaffMember[]> => {
   return staffMembers;
 };
 
-// FIXED: Get calendar events for selected staff members using staff assignments to teams
+// SIMPLIFIED: Get calendar events for selected staff members using staff assignments to teams
 export const getStaffCalendarEvents = async (
   staffIds: string[], 
   startDate: Date, 
@@ -161,11 +160,11 @@ export const getStaffCalendarEvents = async (
     for (const assignment of staffAssignments) {
       const staffName = staffMap.get(assignment.staff_id) || `Staff ${assignment.staff_id}`;
       
-      // Get calendar events for this team on this date
+      // Get calendar events for this team on this date - SIMPLIFIED: direct team_id usage
       const { data: calendarEvents, error: eventsError } = await supabase
         .from('calendar_events')
         .select('*')
-        .eq('resource_id', assignment.team_id)
+        .eq('resource_id', assignment.team_id) // Direct usage - no conversion needed!
         .gte('start_time', `${assignment.assignment_date}T00:00:00`)
         .lt('start_time', `${assignment.assignment_date}T23:59:59`);
 

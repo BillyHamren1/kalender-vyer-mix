@@ -326,7 +326,7 @@ async function getAvailableStaff(supabase: any, date: string): Promise<Operation
   }
 }
 
-// Calendar Operations - FIXED to properly validate staff assignments
+// Calendar Operations - SIMPLIFIED to work with standardized team-X format
 async function getStaffCalendarEvents(supabase: any, staffIds: string[], startDate: string, endDate: string): Promise<OperationResponse> {
   try {
     if (!staffIds || staffIds.length === 0) {
@@ -345,7 +345,7 @@ async function getStaffCalendarEvents(supabase: any, staffIds: string[], startDa
 
     const staffMap = new Map(staffMembers?.map(staff => [staff.id, staff.name]) || [])
 
-    // FIXED: Get staff assignments for the date range
+    // Get staff assignments for the date range
     const { data: staffAssignments, error: assignmentError } = await supabase
       .from('staff_assignments')
       .select('staff_id, team_id, assignment_date')
@@ -366,11 +366,11 @@ async function getStaffCalendarEvents(supabase: any, staffIds: string[], startDa
     for (const assignment of staffAssignments) {
       const staffName = staffMap.get(assignment.staff_id) || `Staff ${assignment.staff_id}`
       
-      // Get calendar events for this team on this date
+      // SIMPLIFIED: Get calendar events for this team on this date - direct team_id usage
       const { data: calendarEvents, error: eventsError } = await supabase
         .from('calendar_events')
         .select('*')
-        .eq('resource_id', assignment.team_id)
+        .eq('resource_id', assignment.team_id) // Direct usage - no conversion needed!
         .gte('start_time', `${assignment.assignment_date}T00:00:00`)
         .lt('start_time', `${assignment.assignment_date}T23:59:59`)
 
@@ -629,7 +629,7 @@ async function autoAssignToBookings(supabase: any, staffId: string, teamId: stri
     const { data: events, error } = await supabase
       .from('calendar_events')
       .select('booking_id')
-      .eq('resource_id', teamId)
+      .eq('resource_id', teamId) // Direct usage - no conversion needed!
       .gte('start_time', `${date}T00:00:00`)
       .lt('start_time', `${date}T23:59:59`)
       .not('booking_id', 'is', null)
