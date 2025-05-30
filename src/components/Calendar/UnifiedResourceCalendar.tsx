@@ -40,36 +40,10 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   const navigate = useNavigate();
   const { setLastViewedDate } = useContext(CalendarContext);
 
-  // Calculate dynamic width based on view mode - OPTIMIZED for team columns
-  const calculateDayWidth = () => {
-    if (viewMode === 'weekly') {
-      // Optimized width calculation for weekly view with team columns
-      const teamCount = resources.length;
-      const timeColumnWidth = 60; // Time column on the left
-      const teamColumnWidth = 100; // Optimized smaller width per team
-      const padding = 20;
-      
-      // Calculate total width needed for all teams plus time column
-      const totalWidth = timeColumnWidth + (teamCount * teamColumnWidth) + padding;
-      return Math.max(totalWidth, 400); // Minimum reasonable width
-    }
-    
-    // For monthly/resource view, use larger width
-    const teamCount = resources.length;
-    const timeColumnWidth = 60;
-    const teamColumnWidth = 120;
-    const padding = 20;
-    
-    const minWidth = timeColumnWidth + (teamCount * teamColumnWidth) + padding;
-    return Math.max(minWidth, 300);
-  };
-
-  const dynamicDayWidth = calculateDayWidth();
-
   // Generate days based on view mode
   const getDaysToRender = () => {
     if (viewMode === 'weekly') {
-      // Generate 7 days starting from currentDate
+      // Generate 7 days starting from currentDate (Monday of the week)
       return Array.from({ length: 7 }, (_, i) => {
         const date = new Date(currentDate);
         date.setDate(currentDate.getDate() + i);
@@ -94,7 +68,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   // Convert forceRefresh to number for consistent handling
   const numericForceRefresh = typeof forceRefresh === 'boolean' ? (forceRefresh ? 1 : 0) : (forceRefresh || 0);
 
-  console.log(`UnifiedResourceCalendar: ${viewMode} view with ${events.length} events, forceRefresh: ${numericForceRefresh}, dynamicDayWidth: ${dynamicDayWidth}px, teams: ${resources.length}`);
+  console.log(`UnifiedResourceCalendar: ${viewMode} view with ${events.length} events, forceRefresh: ${numericForceRefresh}, teams: ${resources.length}`);
 
   // Handle day header click to navigate to resource view
   const handleDayHeaderClick = (date: Date) => {
@@ -138,21 +112,25 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     }
   };
 
-  // Common calendar props - RESTORED team functionality for weekly view
-  const getCommonCalendarProps = (dayIndex: number) => {
+  // Common calendar props for weekly view - optimized for team columns
+  const getWeeklyCalendarProps = () => {
     const teamCount = resources.length;
+    const optimizedTeamWidth = 100; // Optimized width per team column
+    const timeColumnWidth = 60;
+    const totalCalendarWidth = timeColumnWidth + (teamCount * optimizedTeamWidth);
     
     return {
       height: 'auto',
       headerToolbar: false,
       allDaySlot: false,
-      initialView: 'resourceTimeGridDay', // Always use resource view to preserve team columns
-      resourceAreaWidth: viewMode === 'weekly' ? 100 : 120, // Optimized width for weekly
+      initialView: 'resourceTimeGridDay',
+      // Resource configuration with optimized widths
+      resourceAreaWidth: optimizedTeamWidth,
       resourceAreaColumns: [
         {
           field: 'title',
           headerContent: 'Teams',
-          width: viewMode === 'weekly' ? 100 : 120
+          width: optimizedTeamWidth
         }
       ],
       resourceLabelText: 'Teams',
@@ -160,12 +138,40 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
       stickyResourceAreaHeaders: true,
       resourceOrder: 'title',
       resourcesInitiallyExpanded: true,
-      slotMinWidth: viewMode === 'weekly' ? 100 : 120, // Optimized for weekly
-      'data-day-index': dayIndex.toString(),
-      'data-team-count': teamCount,
+      slotMinWidth: optimizedTeamWidth,
       contentHeight: 'auto',
       expandRows: true,
-      aspectRatio: viewMode === 'weekly' ? 1.2 : 1.35,
+      aspectRatio: 1.2,
+      // Ensure proper sizing
+      width: totalCalendarWidth,
+      minWidth: totalCalendarWidth
+    };
+  };
+
+  // Common calendar props for monthly view
+  const getMonthlyCalendarProps = () => {
+    return {
+      height: 'auto',
+      headerToolbar: false,
+      allDaySlot: false,
+      initialView: 'resourceTimeGridDay',
+      resourceAreaWidth: 120,
+      resourceAreaColumns: [
+        {
+          field: 'title',
+          headerContent: 'Teams',
+          width: 120
+        }
+      ],
+      resourceLabelText: 'Teams',
+      resourceAreaHeaderContent: 'Teams',
+      stickyResourceAreaHeaders: true,
+      resourceOrder: 'title',
+      resourcesInitiallyExpanded: true,
+      slotMinWidth: 120,
+      contentHeight: 'auto',
+      expandRows: true,
+      aspectRatio: 1.35,
     };
   };
 
@@ -197,88 +203,119 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     }
   }, [currentDate, viewMode]);
 
-  // Get container class based on view mode
-  const getContainerClass = () => {
-    if (viewMode === 'weekly') {
-      return 'weekly-view-container';
-    } else {
-      return 'monthly-grid-container';
-    }
-  };
-
-  const getCalendarContainerClass = () => {
-    if (viewMode === 'weekly') {
-      return 'weekly-calendar-container';
-    } else {
-      return 'monthly-calendar-grid';
-    }
-  };
-
-  return (
-    <div className={getContainerClass()}>
-      <div 
-        className={getCalendarContainerClass()} 
-        ref={containerRef}
-        style={{
-          // Set total width based on teams and optimized for weekly view
-          minWidth: viewMode === 'weekly' ? `${days.length * dynamicDayWidth}px` : 'auto',
-          width: viewMode === 'weekly' ? 'fit-content' : 'auto'
-        }}
-      >
-        {days.map((date, index) => {
-          // Get only the events for this specific day
-          const dayEvents = getEventsForDay(date);
-          const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
-          const isCurrentMonth = viewMode === 'monthly' ? isSameMonth(date, currentDate) : true;
-          
-          // Convert forceRefresh to boolean for ResourceCalendar
-          const resourceCalendarForceRefresh = numericForceRefresh > 0;
-          
-          console.log(`UnifiedResourceCalendar: Rendering calendar for ${format(date, 'yyyy-MM-dd')} with ${dayEvents.length} events and ${resources.length} teams`);
-          
-          return (
-            <div 
-              key={format(date, 'yyyy-MM-dd')} 
-              className={viewMode === 'weekly' ? 'day-calendar-wrapper' : 'monthly-day-wrapper'}
-              ref={isToday ? todayRef : null}
-              style={{
-                // Set width to accommodate all teams with optimized sizing
-                width: viewMode === 'weekly' ? `${dynamicDayWidth}px` : 'auto',
-                minWidth: viewMode === 'weekly' ? `${dynamicDayWidth}px` : 'auto',
-                maxWidth: viewMode === 'weekly' ? `${dynamicDayWidth}px` : 'auto',
-                flex: viewMode === 'weekly' ? '0 0 auto' : undefined
-              }}
-            >
-              {/* Clickable day header */}
+  // Weekly view - single row with 7 columns
+  if (viewMode === 'weekly') {
+    const teamCount = resources.length;
+    const optimizedTeamWidth = 100;
+    const timeColumnWidth = 60;
+    const totalDayWidth = timeColumnWidth + (teamCount * optimizedTeamWidth);
+    
+    return (
+      <div className="weekly-view-container">
+        <div className="weekly-calendar-container" ref={containerRef}>
+          {days.map((date, index) => {
+            const dayEvents = getEventsForDay(date);
+            const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+            const resourceCalendarForceRefresh = numericForceRefresh > 0;
+            
+            console.log(`UnifiedResourceCalendar: Rendering weekly calendar for ${format(date, 'yyyy-MM-dd')} with ${dayEvents.length} events and ${resources.length} teams`);
+            
+            return (
               <div 
-                className={`day-header ${isToday ? 'today' : ''} ${!isCurrentMonth ? 'other-month' : ''} cursor-pointer hover:bg-blue-50 transition-colors`}
-                onClick={() => handleDayHeaderClick(date)}
-                title="Click to view resource schedule"
+                key={format(date, 'yyyy-MM-dd')} 
+                className="day-calendar-wrapper"
+                ref={isToday ? todayRef : null}
+                style={{
+                  width: `${totalDayWidth}px`,
+                  minWidth: `${totalDayWidth}px`,
+                  maxWidth: `${totalDayWidth}px`,
+                  flex: '0 0 auto'
+                }}
               >
-                <div>{format(date, 'EEE d')}</div>
+                {/* Day header */}
+                <div 
+                  className={`day-header ${isToday ? 'today' : ''} cursor-pointer hover:bg-blue-50 transition-colors`}
+                  onClick={() => handleDayHeaderClick(date)}
+                  title="Click to view resource schedule"
+                >
+                  <div>{format(date, 'EEE d')}</div>
+                </div>
+                
+                {/* Calendar content */}
+                <div className="weekly-view-calendar">
+                  <ResourceCalendar
+                    events={dayEvents}
+                    resources={resources}
+                    isLoading={isLoading}
+                    isMounted={isMounted}
+                    currentDate={date}
+                    onDateSet={handleNestedCalendarDateSet}
+                    refreshEvents={refreshEvents}
+                    onStaffDrop={(staffId: string, resourceId: string | null) => handleStaffDrop(staffId, resourceId, date)}
+                    onSelectStaff={(resourceId: string, resourceTitle: string) => handleSelectStaff(resourceId, resourceTitle, date)}
+                    forceRefresh={resourceCalendarForceRefresh}
+                    key={`calendar-${format(date, 'yyyy-MM-dd')}-${numericForceRefresh}`}
+                    droppableScope="weekly-calendar"
+                    calendarProps={getWeeklyCalendarProps()}
+                    targetDate={date}
+                  />
+                </div>
               </div>
-              <div className={viewMode === 'weekly' ? 'weekly-view-calendar' : 'monthly-view-calendar'}>
-                <ResourceCalendar
-                  events={dayEvents}
-                  resources={resources}
-                  isLoading={isLoading}
-                  isMounted={isMounted}
-                  currentDate={date}
-                  onDateSet={handleNestedCalendarDateSet}
-                  refreshEvents={refreshEvents}
-                  onStaffDrop={(staffId: string, resourceId: string | null) => handleStaffDrop(staffId, resourceId, date)}
-                  onSelectStaff={(resourceId: string, resourceTitle: string) => handleSelectStaff(resourceId, resourceTitle, date)}
-                  forceRefresh={resourceCalendarForceRefresh}
-                  key={`calendar-${format(date, 'yyyy-MM-dd')}-${numericForceRefresh}`}
-                  droppableScope={`${viewMode}-calendar`}
-                  calendarProps={getCommonCalendarProps(index)}
-                  targetDate={date}
-                />
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
+    );
+  }
+
+  // Monthly view - grid layout
+  return (
+    <div className="monthly-grid-container">
+      {days.map((date, index) => {
+        const dayEvents = getEventsForDay(date);
+        const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+        const isCurrentMonth = isSameMonth(date, currentDate);
+        const resourceCalendarForceRefresh = numericForceRefresh > 0;
+        
+        console.log(`UnifiedResourceCalendar: Rendering monthly calendar for ${format(date, 'yyyy-MM-dd')} with ${dayEvents.length} events and ${resources.length} teams`);
+        
+        return (
+          <div 
+            key={format(date, 'yyyy-MM-dd')} 
+            className="monthly-day-wrapper"
+            ref={isToday ? todayRef : null}
+          >
+            {/* Day header */}
+            <div 
+              className={`day-header ${isToday ? 'today' : ''} ${!isCurrentMonth ? 'other-month' : ''} cursor-pointer hover:bg-blue-50 transition-colors`}
+              onClick={() => handleDayHeaderClick(date)}
+              title="Click to view resource schedule"
+            >
+              <div>{format(date, 'EEE d')}</div>
+            </div>
+            
+            {/* Calendar content */}
+            <div className="monthly-view-calendar">
+              <ResourceCalendar
+                events={dayEvents}
+                resources={resources}
+                isLoading={isLoading}
+                isMounted={isMounted}
+                currentDate={date}
+                onDateSet={handleNestedCalendarDateSet}
+                refreshEvents={refreshEvents}
+                onStaffDrop={(staffId: string, resourceId: string | null) => handleStaffDrop(staffId, resourceId, date)}
+                onSelectStaff={(resourceId: string, resourceTitle: string) => handleSelectStaff(resourceId, resourceTitle, date)}
+                forceRefresh={resourceCalendarForceRefresh}
+                key={`calendar-${format(date, 'yyyy-MM-dd')}-${numericForceRefresh}`}
+                droppableScope="monthly-calendar"
+                calendarProps={getMonthlyCalendarProps()}
+                targetDate={date}
+              />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 };
