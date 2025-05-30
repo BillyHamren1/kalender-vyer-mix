@@ -13,7 +13,7 @@ export const useResourceCalendarConfig = (
   resources: Resource[],
   droppableScope: string,
   calendarProps: Record<string, any>,
-  viewMode?: 'weekly' | 'monthly' // Add viewMode parameter
+  viewMode?: 'weekly' | 'monthly'
 ) => {
   const calendarRef = useRef<any>(null);
   const { isMobile, getInitialView, getMobileHeaderToolbar, getAspectRatio } = useCalendarView();
@@ -78,7 +78,7 @@ export const useResourceCalendarConfig = (
     views: getCalendarViews(),
     // Always include resources to preserve team columns
     resources: sortedResources,
-    // CRITICAL: Enable all editing capabilities for drag/drop
+    // CRITICAL: Enable ALL editing capabilities for drag/drop/resize
     editable: true,
     droppable: true,
     selectable: true,
@@ -88,6 +88,10 @@ export const useResourceCalendarConfig = (
     selectMirror: true,
     eventOverlap: true,
     selectOverlap: true,
+    dragRevertDuration: 0, // Instant visual feedback
+    eventDragMinDistance: 5, // Allow small drags
+    longPressDelay: 300, // Mobile touch support
+    // Layout and sizing
     height: "auto",
     aspectRatio: getAspectRatio(),
     dropAccept: ".fc-event",
