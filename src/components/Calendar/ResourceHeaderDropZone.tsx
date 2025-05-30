@@ -23,11 +23,11 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   onStaffDrop,
   onSelectStaff,
   assignedStaff = [],
-  minHeight = 120 // FIXED height for ALL cells to maintain grid alignment
+  minHeight = 120 // ABSOLUTE FIXED height for ALL cells to maintain grid alignment
 }) => {
   const effectiveDate = targetDate || currentDate;
   
-  console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff, target date: ${format(effectiveDate, 'yyyy-MM-dd')}, FIXED height: ${minHeight}px`);
+  console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff, target date: ${format(effectiveDate, 'yyyy-MM-dd')}, ABSOLUTE FIXED height: ${minHeight}px`);
 
   const [{ isOver, canDrop }, drop] = useDrop({
     accept: 'STAFF',
@@ -90,7 +90,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   };
 
   const getDropZoneClass = () => {
-    let baseClass = `resource-header-drop-zone p-1 h-full w-full flex flex-col justify-between relative transition-all duration-150`;
+    let baseClass = `resource-header-drop-zone h-full w-full relative transition-all duration-150`;
     
     if (isOver && canDrop) {
       return `${baseClass} bg-green-100 border-2 border-green-400 shadow-lg transform scale-105`;
@@ -109,37 +109,57 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         width: '80px',
         minWidth: '80px', 
         maxWidth: '80px',
-        height: `${minHeight}px`, // FIXED height - never changes
-        minHeight: `${minHeight}px`, // FIXED height - never changes
-        maxHeight: `${minHeight}px`, // FIXED height - never changes
-        overflow: 'hidden',
-        position: 'relative',
+        height: `${minHeight}px`, // ABSOLUTE FIXED height - NEVER changes
+        minHeight: `${minHeight}px`, // ABSOLUTE FIXED height - NEVER changes
+        maxHeight: `${minHeight}px`, // ABSOLUTE FIXED height - NEVER changes
+        position: 'relative', // Enable absolute positioning for children
+        overflow: 'hidden', // Critical: prevent content overflow
         zIndex: 10
       }}
     >
-      {/* Team Header Section - ultra compact */}
-      <div className="flex flex-col border-b border-gray-200 pb-0.5 mb-0.5 relative">
+      {/* Team Header Section - ABSOLUTELY positioned at top */}
+      <div 
+        className="absolute top-0 left-0 right-0 z-20 bg-gray-50"
+        style={{
+          height: '20px', // Fixed header height
+          borderBottom: '1px solid #e5e7eb',
+          padding: '1px 2px'
+        }}
+      >
         <div 
-          className="w-full text-[10px] font-medium text-center cursor-pointer hover:bg-blue-100 hover:text-blue-800 transition-colors duration-200 p-0.5 rounded border border-transparent hover:border-blue-200 relative" 
+          className="w-full text-[9px] font-medium text-center cursor-pointer hover:bg-blue-100 hover:text-blue-800 transition-colors duration-200 rounded border border-transparent hover:border-blue-200 relative h-full flex items-center justify-center" 
           title={`Click to assign staff to ${resource.title} on ${format(effectiveDate, 'MMM d')}`}
           onClick={handleSelectStaff}
         >
-          <span className="block pr-2">{resource.title}</span>
-          <Plus className="h-2.5 w-2.5 absolute top-0 right-0 text-[#7BAEBF]" />
+          <span className="block pr-3 truncate">{resource.title}</span>
+          <Plus className="h-2 w-2 absolute top-0.5 right-0.5 text-[#7BAEBF]" />
         </div>
       </div>
       
-      {/* Staff Section - FIXED height with scrolling */}
+      {/* Staff Section - ABSOLUTELY positioned below header */}
       <div 
-        className="staff-section flex-1 min-h-0 overflow-y-auto"
+        className="absolute z-15 bg-gray-50"
         style={{ 
-          maxHeight: `${minHeight - 25}px`, // Leave room for header
+          top: '21px', // Just below the header
+          left: '0',
+          right: '0',
+          bottom: '0',
+          overflowY: 'auto',
+          overflowX: 'hidden',
           scrollbarWidth: 'none', // Firefox
-          msOverflowStyle: 'none' // IE/Edge
+          msOverflowStyle: 'none', // IE/Edge
+          padding: '1px'
         }}
       >
+        <style>
+          {`
+            .staff-container::-webkit-scrollbar {
+              display: none;
+            }
+          `}
+        </style>
         {assignedStaff.length > 0 ? (
-          <div className="space-y-0">
+          <div className="space-y-0.5 staff-container">
             {assignedStaff.map((staff, index) => (
               <div key={staff.id} style={{ marginBottom: index < assignedStaff.length - 1 ? '1px' : '0' }}>
                 <DraggableStaffItem
@@ -154,10 +174,10 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         ) : null}
       </div>
       
-      {/* Enhanced drop feedback overlay */}
+      {/* Enhanced drop feedback overlay - ABSOLUTELY positioned */}
       {isOver && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className={`text-[10px] font-medium px-1 py-0.5 rounded transition-all duration-150 ${
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30">
+          <div className={`text-[9px] font-medium px-1 py-0.5 rounded transition-all duration-150 ${
             canDrop 
               ? 'bg-green-200 text-green-800 shadow-lg' 
               : 'bg-red-200 text-red-800 shadow-lg'

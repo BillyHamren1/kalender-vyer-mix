@@ -207,177 +207,86 @@
   border-bottom: 1px solid #f0f0f0;
 }
 
-/* Resource header styling - ENFORCED FIXED HEIGHT for grid alignment */
-.resource-header-wrapper {
-  width: 100%;
-  height: 120px !important; /* ABSOLUTE FIXED HEIGHT */
-  max-height: 120px !important;
+/* ===== CRITICAL GRID ALIGNMENT FIXES ===== */
+/* FORCE FullCalendar to use fixed table layout and prevent content-based sizing */
+
+/* Force fixed table layout on all FullCalendar tables */
+.fc-scrollgrid-section table,
+.fc-datagrid table,
+.fc-scrollgrid table {
+  table-layout: fixed !important;
+  width: 100% !important;
+}
+
+/* ABSOLUTE HEIGHT LOCK for all resource header cells - MAXIMUM SPECIFICITY */
+.fc-resource-timeline .fc-scrollgrid-section-header table tbody tr,
+.fc-resource-timeline .fc-scrollgrid-section-header table tbody tr td,
+.fc-resource-timeline .fc-scrollgrid-section-header table tbody tr th,
+.fc-datagrid-header table tbody tr,
+.fc-datagrid-header table tbody tr td,
+.fc-datagrid-header table tbody tr th,
+.fc-datagrid-body table tbody tr,
+.fc-datagrid-body table tbody tr td,
+.fc-datagrid-body table tbody tr th,
+.fc-scrollgrid-section-header table tbody tr,
+.fc-scrollgrid-section-header table tbody tr td,
+.fc-scrollgrid-section-header table tbody tr th {
+  height: 120px !important;
   min-height: 120px !important;
-  display: flex;
-  flex-direction: column;
-  padding: 2px;
-  position: relative;
-  z-index: 5;
-  overflow: hidden; /* Prevent overflow that breaks grid */
+  max-height: 120px !important;
+  vertical-align: top !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
 }
 
-.resource-title-area {
-  font-size: 10px; /* Smaller text */
-  font-weight: 600;
-  margin-bottom: 2px; /* Reduced margin */
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  height: 16px; /* Fixed title height */
-}
-
-.resource-drop-zone {
-  margin-top: auto;
-  z-index: 10;
-}
-
-/* ULTRA-TIGHT staff stacking with ABSOLUTE fixed dimensions */
-.assigned-staff-area {
-  overflow-y: auto;
-  overflow-x: hidden;
-  z-index: 20;
-  padding: 0; /* Remove padding */
-  height: 100px !important; /* ABSOLUTE fixed height for staff area */
-  max-height: 100px !important;
-  min-height: 100px !important;
-  display: flex;
-  flex-direction: column;
-  gap: 1px; /* Minimal gap */
-  align-items: center;
-  /* Hide scrollbar */
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
-}
-
-.assigned-staff-area::-webkit-scrollbar {
-  display: none; /* Webkit browsers */
-}
-
-.staff-badge {
-  font-size: 10px !important; /* Ultra small text */
-  line-height: 1 !important;
-  white-space: nowrap;
-  max-width: 76px; /* Fit within 80px column */
-  z-index: 15;
-  position: relative;
-  cursor: move;
-  height: 16px !important; /* Ultra-compact height */
-  min-height: 16px !important;
-  max-height: 16px !important;
-  display: flex;
-  align-items: center;
-  padding: 0 2px !important; /* Minimal padding */
-  margin: 0 !important; /* No margins */
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Icon-only assign button styling */
-.assign-button-icon {
-  height: 16px !important; /* Smaller icon */
-  width: 16px !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px dashed #d1d5db;
-  border-radius: 0.25rem;
-  color: #6b7280;
-  transition: all 0.2s ease;
-  z-index: 10;
-  background-color: transparent;
-  padding: 2px; /* Minimal padding */
-  margin-left: auto;
-}
-
-.assign-button-icon:hover {
-  background-color: #f3f4f6;
-}
-
-.assign-button-icon svg {
-  height: 10px !important; /* Smaller icon */
-  width: 10px !important;
-}
-
-/* CRITICAL FIX: ABSOLUTE FIXED HEIGHT for ALL resource headers - NO EXCEPTIONS */
-.fc-resource-timeline .fc-resource-group,
-.fc-resource-timeline .fc-datagrid-cell,
-.fc-resource-timeline .fc-datagrid-cell-cushion,
-.fc-timegrid-axis,
+/* FORCE all datagrid cells to maintain ABSOLUTE fixed dimensions */
 .fc-datagrid-cell,
 .fc-datagrid-cell-frame,
-.fc-datagrid-cell-cushion {
-  height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
-  min-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
-  max-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
+.fc-datagrid-cell-cushion,
+.fc-datagrid-cell-main {
+  height: 120px !important;
+  min-height: 120px !important;
+  max-height: 120px !important;
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
   box-sizing: border-box !important;
-  overflow: hidden !important; /* Force overflow to hidden to prevent grid breaking */
+  overflow: hidden !important;
+  vertical-align: top !important;
+  position: relative !important;
 }
 
-.fc-datagrid-cell-frame {
-  display: flex;
-  flex-direction: column;
-  height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
-  min-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
-  max-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
-  padding: 2px !important; /* Minimal padding */
-  position: relative;
-  overflow: hidden !important; /* Force hidden overflow */
-  min-width: 80px !important;
-  width: 80px !important;
-  max-width: 80px !important;
-}
-
+/* CRITICAL: Override FullCalendar's automatic height calculation */
 .fc-datagrid-cell-cushion {
   padding: 0 !important;
-  overflow: hidden !important; /* Force hidden overflow */
-  position: relative;
-  height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
-  min-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
-  max-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
-  min-width: 80px !important;
-  width: 80px !important;
-  max-width: 80px !important;
+  display: block !important;
+  position: relative !important;
 }
 
-/* CRITICAL: Ensure header content is visible and SAME WIDTH as content */
 .fc-datagrid-cell-main {
-  overflow: hidden !important; /* Force hidden overflow */
-  height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
-  min-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
-  max-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
-  z-index: 10;
-  position: relative;
-  min-width: 80px !important;
-  width: 80px !important;
-  max-width: 80px !important;
+  position: relative !important;
+  z-index: 10 !important;
 }
 
-/* CRITICAL FIX: Ensure ALL datagrid header cells match content cells exactly */
+/* Force all resource header table cells to maintain exact same height */
 .fc-datagrid-header .fc-datagrid-cell,
 .fc-datagrid-header .fc-datagrid-cell-frame,
 .fc-datagrid-header .fc-datagrid-cell-cushion,
 .fc-datagrid-body .fc-datagrid-cell,
 .fc-datagrid-body .fc-datagrid-cell-frame,
 .fc-datagrid-body .fc-datagrid-cell-cushion {
+  height: 120px !important;
+  min-height: 120px !important;
+  max-height: 120px !important;
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
-  height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
-  min-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
-  max-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
   box-sizing: border-box !important;
-  overflow: hidden !important; /* Force hidden overflow to prevent grid breaking */
+  overflow: hidden !important;
+  vertical-align: top !important;
 }
 
-/* CRITICAL: Ensure column headers have exact same width as content */
+/* CRITICAL: Force column headers to match content width exactly */
 .fc-col-header-cell,
 .fc-col-header-cell-cushion {
   min-width: 80px !important;
@@ -386,20 +295,28 @@
   box-sizing: border-box !important;
 }
 
-/* Reset some FC container heights to allow for our content */
-.fc-datagrid-body,
-.fc-datagrid-body-inner,
-.fc-scrollgrid-sync-inner,
-.fc-scrollgrid-sync-table,
-.fc-scrollgrid-section-body,
-.fc-scrollgrid-section-header,
-.fc-scrollgrid-section {
-  overflow: visible !important;
+/* ABSOLUTE positioning support for resource header content */
+.resource-header-wrapper {
+  width: 100% !important;
+  height: 120px !important;
+  max-height: 120px !important;
+  min-height: 120px !important;
+  position: relative !important;
+  overflow: hidden !important;
+  z-index: 5 !important;
 }
 
-/* Ensure FC slat labels don't overlap our content */
-.fc-timegrid-axis-cushion {
-  z-index: 5;
+/* CRITICAL: Prevent FullCalendar from adjusting row heights based on content */
+.fc-scrollgrid-section-header .fc-scrollgrid-sync-table,
+.fc-scrollgrid-section-body .fc-scrollgrid-sync-table {
+  table-layout: fixed !important;
+}
+
+.fc-scrollgrid-section-header .fc-scrollgrid-sync-table tbody tr,
+.fc-scrollgrid-section-body .fc-scrollgrid-sync-table tbody tr {
+  height: 120px !important;
+  min-height: 120px !important;
+  max-height: 120px !important;
 }
 
 /* Ensure time slots appear below our header content */
@@ -407,7 +324,10 @@
   z-index: 1;
 }
 
-/* Make sure slot labels stay in their proper position */
+.fc-timegrid-axis-cushion {
+  z-index: 5;
+}
+
 .fc-timegrid-slot-label {
   position: relative;
   z-index: 5;
@@ -448,19 +368,11 @@
   margin-right: 0 !important;
 }
 
-/* CRITICAL: Force all rows to maintain exact same height regardless of content */
+/* CRITICAL: Force all time grid rows to maintain exact same height regardless of content */
 .fc-timegrid .fc-scrollgrid-section-body .fc-scrollgrid-section-liquid .fc-scrollgrid-sync-table tbody tr {
   height: 30px !important;
   min-height: 30px !important;
   max-height: 30px !important;
-}
-
-/* Force resource area cells to maintain grid alignment */
-.fc-resource-timeline .fc-scrollgrid-section-body .fc-scrollgrid-section-liquid .fc-scrollgrid-sync-table tbody tr,
-.fc-datagrid .fc-scrollgrid-section-body .fc-scrollgrid-section-liquid .fc-scrollgrid-sync-table tbody tr {
-  height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
-  min-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
-  max-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
 }
 
 /* Mobile responsive styles */
@@ -512,7 +424,6 @@
   display: flex;
   align-items: center;
   min-height: 48px;
-  /* CRITICAL: Match content width exactly */
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
