@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 
@@ -13,57 +12,73 @@ export interface CalendarEventUpdate {
 export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
   console.log('📅 Fetching calendar events from database...');
   
-  const { data, error } = await supabase
-    .from('calendar_events')
-    .select(`
-      id,
-      title,
-      start_time,
-      end_time,
-      resource_id,
-      booking_id,
-      event_type,
-      delivery_address,
-      booking_number,
-      bookings!inner(
-        delivery_city,
-        delivery_postal_code
-      )
-    `)
-    .order('start_time', { ascending: true });
+  try {
+    const { data, error } = await supabase
+      .from('calendar_events')
+      .select(`
+        id,
+        title,
+        start_time,
+        end_time,
+        resource_id,
+        booking_id,
+        event_type,
+        delivery_address,
+        booking_number
+      `)
+      .order('start_time', { ascending: true });
 
-  if (error) {
-    console.error('❌ Error fetching calendar events:', error);
+    if (error) {
+      console.error('❌ Error fetching calendar events:', error);
+      throw error;
+    }
+
+    console.log(`✅ Fetched ${data?.length || 0} calendar events from database`);
+
+    if (!data || data.length === 0) {
+      console.warn('⚠️ No calendar events found in database');
+      return [];
+    }
+
+    // Transform the data to match CalendarEvent interface
+    const events: CalendarEvent[] = data.map(event => {
+      console.log(`📋 Processing event: ${event.title} (ID: ${event.id}, Resource: ${event.resource_id})`);
+      
+      return {
+        id: event.id,
+        title: event.title,
+        start: event.start_time,
+        end: event.end_time,
+        resourceId: event.resource_id,
+        bookingId: event.booking_id,
+        eventType: event.event_type as 'rig' | 'event' | 'rigDown',
+        delivery_address: event.delivery_address,
+        booking_number: event.booking_number,
+        extendedProps: {
+          bookingId: event.booking_id,
+          booking_id: event.booking_id,
+          resourceId: event.resource_id,
+          deliveryAddress: event.delivery_address,
+          deliveryCity: null, // Will be populated separately if needed
+          deliveryPostalCode: null, // Will be populated separately if needed
+          bookingNumber: event.booking_number,
+          eventType: event.event_type,
+          manuallyAssigned: false
+        }
+      };
+    });
+
+    console.log(`🎯 Successfully transformed ${events.length} events for calendar`);
+    console.log('📊 Events by resource:', events.reduce((acc, event) => {
+      acc[event.resourceId] = (acc[event.resourceId] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>));
+
+    return events;
+  } catch (error) {
+    console.error('💥 Fatal error in fetchCalendarEvents:', error);
     throw error;
   }
-
-  console.log(`✅ Fetched ${data?.length || 0} calendar events`);
-
-  // Transform the data to match CalendarEvent interface
-  const events: CalendarEvent[] = (data || []).map(event => ({
-    id: event.id,
-    title: event.title,
-    start: event.start_time,
-    end: event.end_time,
-    resourceId: event.resource_id, // Now always in team-X format
-    bookingId: event.booking_id,
-    eventType: event.event_type as 'rig' | 'event' | 'rigDown',
-    delivery_address: event.delivery_address,
-    booking_number: event.booking_number,
-    extendedProps: {
-      bookingId: event.booking_id,
-      booking_id: event.booking_id,
-      resourceId: event.resource_id, // Now always in team-X format
-      deliveryAddress: event.delivery_address,
-      deliveryCity: (event.bookings as any)?.delivery_city || null,
-      deliveryPostalCode: (event.bookings as any)?.delivery_postal_code || null,
-      bookingNumber: event.booking_number,
-      eventType: event.event_type,
-      manuallyAssigned: false
-    }
-  }));
-
-  return events;
 };
 
 export const createCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promise<CalendarEvent> => {
@@ -79,7 +94,7 @@ export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promis
       title: event.title,
       start_time: event.start,
       end_time: event.end,
-      resource_id: event.resourceId, // Direct usage - no conversion needed
+      resource_id: event.resourceId,
       booking_id: event.bookingId,
       event_type: event.eventType,
       delivery_address: event.delivery_address,
@@ -100,7 +115,7 @@ export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promis
     title: data.title,
     start: data.start_time,
     end: data.end_time,
-    resourceId: data.resource_id, // Direct usage - no conversion needed
+    resourceId: data.resource_id,
     bookingId: data.booking_id,
     eventType: data.event_type as 'rig' | 'event' | 'rigDown',
     delivery_address: data.delivery_address,
@@ -108,12 +123,12 @@ export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promis
     extendedProps: {
       bookingId: data.booking_id,
       booking_id: data.booking_id,
-      resourceId: data.resource_id, // Direct usage - no conversion needed
+      resourceId: data.resource_id,
       deliveryAddress: data.delivery_address,
       deliveryCity: null,
       deliveryPostalCode: null,
       bookingNumber: data.booking_number,
-      eventType: data.event_type,
+      eventType: event.eventType,
       manuallyAssigned: false
     }
   };
@@ -137,7 +152,7 @@ export const updateCalendarEvent = async (
   }
   
   if (updates.resourceId) {
-    updateData.resource_id = updates.resourceId; // Direct usage - no conversion needed
+    updateData.resource_id = updates.resourceId;
     console.log(`🔄 Resource change: ${updates.resourceId}`);
   }
   
@@ -168,7 +183,7 @@ export const updateCalendarEvent = async (
     title: data.title,
     start: data.start_time,
     end: data.end_time,
-    resourceId: data.resource_id, // Direct usage - no conversion needed
+    resourceId: data.resource_id,
     bookingId: data.booking_id,
     eventType: data.event_type as 'rig' | 'event' | 'rigDown',
     delivery_address: data.delivery_address,
@@ -176,7 +191,7 @@ export const updateCalendarEvent = async (
     extendedProps: {
       bookingId: data.booking_id,
       booking_id: data.booking_id,
-      resourceId: data.resource_id, // Direct usage - no conversion needed
+      resourceId: data.resource_id,
       deliveryAddress: data.delivery_address,
       deliveryCity: null,
       deliveryPostalCode: null,
@@ -234,7 +249,7 @@ export const fetchEventsByBookingId = async (bookingId: string): Promise<Calenda
     title: event.title,
     start: event.start_time,
     end: event.end_time,
-    resourceId: event.resource_id, // Direct usage - no conversion needed
+    resourceId: event.resource_id,
     bookingId: event.booking_id,
     eventType: event.event_type as 'rig' | 'event' | 'rigDown',
     delivery_address: event.delivery_address,
@@ -242,7 +257,7 @@ export const fetchEventsByBookingId = async (bookingId: string): Promise<Calenda
     extendedProps: {
       bookingId: event.booking_id,
       booking_id: event.booking_id,
-      resourceId: event.resource_id, // Direct usage - no conversion needed
+      resourceId: event.resource_id,
       deliveryAddress: event.delivery_address,
       deliveryCity: null,
       deliveryPostalCode: null,
