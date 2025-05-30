@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -18,7 +17,7 @@ import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
 import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
 import TeamEditDialog from '@/components/Calendar/TeamEditDialog';
 import ActionsDropdown from '@/components/Calendar/ActionsDropdown';
-import { startOfWeek, subDays, format, parseISO } from 'date-fns';
+import { startOfWeek, subDays, format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useReliableStaffOperations } from '@/hooks/useReliableStaffOperations';
@@ -77,26 +76,6 @@ const WeeklyResourceView = () => {
 
   // Use date-aware staff operations as fallback
   const { handleStaffDrop: fallbackStaffDrop, processingStaffIds } = useDateAwareStaffOperations();
-
-  // Find the earliest event date to help with navigation
-  const getEarliestEventDate = useCallback(() => {
-    if (events.length === 0) return null;
-    
-    const eventDates = events.map(event => new Date(event.start));
-    const earliestDate = new Date(Math.min(...eventDates.map(date => date.getTime())));
-    return startOfWeek(earliestDate, { weekStartsOn: 1 });
-  }, [events]);
-
-  // Go to events function
-  const handleGoToEvents = useCallback(() => {
-    const earliestEventDate = getEarliestEventDate();
-    if (earliestEventDate) {
-      setCurrentWeekStart(earliestEventDate);
-      toast.success('Navigated to first week with events');
-    } else {
-      toast.info('No events found to navigate to');
-    }
-  }, [getEarliestEventDate]);
 
   // Background import function
   const performBackgroundImport = useCallback(async (showToasts = false) => {
@@ -321,30 +300,6 @@ const WeeklyResourceView = () => {
     await performBackgroundImport(true);
   };
 
-  // Status display component
-  const StatusDisplay = () => {
-    const earliestEventDate = getEarliestEventDate();
-    
-    return (
-      <div className="px-6 py-2 bg-gray-50 border-b border-gray-200">
-        <div className="flex items-center justify-between text-sm text-gray-600">
-          <div className="flex items-center gap-4">
-            <span>📅 Viewing: {format(currentWeekStart, 'MMM d')} - {format(new Date(currentWeekStart.getTime() + 6 * 24 * 60 * 60 * 1000), 'MMM d, yyyy')}</span>
-            <span>📊 {events.length} events loaded</span>
-            <span>👥 {resources.length} teams</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {earliestEventDate && (
-              <span>🎯 First event: {format(earliestEventDate, 'MMM d, yyyy')}</span>
-            )}
-            {isLoading && <span className="text-blue-600">⏳ Loading...</span>}
-            {isImporting && <span className="text-green-600">📥 Importing...</span>}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="fixed inset-0 flex flex-col bg-white overflow-hidden">
@@ -408,16 +363,11 @@ const WeeklyResourceView = () => {
             />
           </div>
 
-          {/* Status Display */}
-          <StatusDisplay />
-
-          {/* Week Navigation - CENTERED and standalone with Go to Events */}
+          {/* Week Navigation - CENTERED and standalone */}
           <div className="flex justify-center mb-1 flex-shrink-0">
             <WeekNavigation 
               currentWeekStart={currentWeekStart}
               setCurrentWeekStart={setCurrentWeekStart}
-              eventCount={events.length}
-              onGoToEvents={handleGoToEvents}
             />
           </div>
           

@@ -1,6 +1,6 @@
 
 import React, { useCallback, useState } from 'react';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, MapPin } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
 import { format, addDays, startOfWeek } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -14,15 +14,11 @@ import { cn } from '@/lib/utils';
 interface WeekNavigationProps {
   currentWeekStart: Date;
   setCurrentWeekStart: (date: Date) => void;
-  eventCount?: number;
-  onGoToEvents?: () => void;
 }
 
 const WeekNavigation: React.FC<WeekNavigationProps> = ({
   currentWeekStart,
-  setCurrentWeekStart,
-  eventCount = 0,
-  onGoToEvents
+  setCurrentWeekStart
 }) => {
   const [datePickerOpen, setDatePickerOpen] = useState(false);
 
@@ -38,13 +34,6 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
     nextWeek.setDate(nextWeek.getDate() + 7);
     setCurrentWeekStart(nextWeek);
   }, [currentWeekStart, setCurrentWeekStart]);
-
-  // Go to today
-  const goToToday = useCallback(() => {
-    const today = new Date();
-    const weekStart = startOfWeek(today, { weekStartsOn: 1 });
-    setCurrentWeekStart(weekStart);
-  }, [setCurrentWeekStart]);
 
   // Handle date selection from calendar
   const handleDateSelect = useCallback((selectedDate: Date | undefined) => {
@@ -63,40 +52,17 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
   })();
 
   return (
-    <div className="flex items-center justify-center mb-4 w-full">
-      <div className="flex items-center gap-4">
+    <div className="flex items-center justify-center mb-8 w-full">
+      <div className="flex items-center">
         <button
           onClick={goToPreviousWeek}
-          className="bg-[#7BAEBF] hover:bg-[#6E9DAC] transition-colors duration-300 rounded-lg p-2.5"
+          className="bg-[#7BAEBF] hover:bg-[#6E9DAC] transition-colors duration-300 rounded-lg p-2.5 mr-7"
         >
           <ChevronLeft 
-            className="h-6 w-6 text-white"
+            className="h-7 w-7 text-white"
             strokeWidth={3}
           />
         </button>
-        
-        {/* Today Button */}
-        <Button
-          onClick={goToToday}
-          variant="outline"
-          size="sm"
-          className="px-4 py-2 text-sm font-medium hover:bg-blue-50 transition-colors"
-        >
-          Today
-        </Button>
-
-        {/* Go to Events Button */}
-        {onGoToEvents && (
-          <Button
-            onClick={onGoToEvents}
-            variant="outline"
-            size="sm"
-            className="px-4 py-2 text-sm font-medium hover:bg-green-50 transition-colors flex items-center gap-2"
-          >
-            <MapPin className="h-4 w-4" />
-            Go to Events
-          </Button>
-        )}
         
         {/* Clickable date range that opens calendar picker */}
         <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
@@ -104,12 +70,12 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
             <Button
               variant="ghost"
               className={cn(
-                "text-3xl font-bold text-slate-800 px-6 py-3 min-w-[320px] text-center tracking-wider h-auto",
+                "text-4xl font-bold text-slate-800 px-8 py-4 min-w-[360px] text-center tracking-wider h-auto",
                 "hover:bg-slate-100 transition-colors duration-200 cursor-pointer"
               )}
             >
               <div className="flex items-center justify-center gap-3">
-                <CalendarIcon className="h-7 w-7" />
+                <CalendarIcon className="h-8 w-8" />
                 {weekRangeText}
               </div>
             </Button>
@@ -124,18 +90,13 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
             />
           </PopoverContent>
         </Popover>
-
-        {/* Event Count Display */}
-        <div className="text-sm text-gray-600 px-3 py-2 bg-gray-100 rounded-lg">
-          {eventCount} events
-        </div>
         
         <button
           onClick={goToNextWeek}
-          className="bg-[#7BAEBF] hover:bg-[#6E9DAC] transition-colors duration-300 rounded-lg p-2.5"
+          className="bg-[#7BAEBF] hover:bg-[#6E9DAC] transition-colors duration-300 rounded-lg p-2.5 ml-7"
         >
           <ChevronRight 
-            className="h-6 w-6 text-white"
+            className="h-7 w-7 text-white"
             strokeWidth={3}
           />
         </button>

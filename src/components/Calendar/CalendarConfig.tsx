@@ -19,13 +19,13 @@ export const getCalendarViews = () => {
   };
 };
 
-// Calendar options - DEFINITIVE 24-hour configuration
+// Calendar options - FIXED to use full 24-hour range
 export const getCalendarOptions = () => {
-  const options = {
+  return {
     height: "auto",
-    slotMinTime: "00:00:00", // FIXED: Full 24-hour range starts at midnight
-    slotMaxTime: "24:00:00", // FIXED: Full 24-hour range ends at midnight next day
-    scrollTime: "06:00:00", // Start view at 6 AM for convenience (doesn't limit events)
+    slotMinTime: "00:00:00", // Allow events from midnight
+    slotMaxTime: "24:00:00", // Allow events until midnight next day
+    scrollTime: "06:00:00", // Start view at 6 AM for convenience
     slotDuration: "01:00:00", // One hour per slot
     slotLabelInterval: "01:00", // Keep at 1 hour
     allDaySlot: false,
@@ -36,11 +36,6 @@ export const getCalendarOptions = () => {
       omitZeroMinute: false // Always show minutes even if 00
     }
   };
-  
-  // Debug the options being returned
-  console.log('getCalendarOptions() returning:', options);
-  
-  return options;
 };
 
 // Header toolbar configuration

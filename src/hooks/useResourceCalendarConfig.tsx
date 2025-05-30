@@ -59,72 +59,54 @@ export const useResourceCalendarConfig = (
     };
   };
 
-  const getBaseCalendarProps = () => {
-    // Get the clean calendar options FIRST
-    const calendarOptions = getCalendarOptions();
-    
-    // Debug configuration values
-    console.log('=== Calendar Configuration Debug ===');
-    console.log('Calendar options from getCalendarOptions():', calendarOptions);
-    console.log('Additional calendar props:', calendarProps);
-    
-    const baseProps = {
-      ref: calendarRef,
-      plugins: [
-        resourceTimeGridPlugin,
-        timeGridPlugin,
-        interactionPlugin,
-        dayGridPlugin
-      ],
-      schedulerLicenseKey: "0134084325-fcs-1745193612",
-      initialView: 'resourceTimeGridDay',
-      headerToolbar: getMobileHeaderToolbar(),
-      views: getCalendarViews(),
-      resources: sortedResources,
-      // FULLY ENABLE all editing capabilities for drag/drop
-      editable: true,
-      droppable: true,
-      selectable: true,
-      eventDurationEditable: true,
-      eventResizableFromStart: true,
-      eventStartEditable: true,
-      selectMirror: true,
-      eventOverlap: true,
-      selectOverlap: true,
-      dayMaxEvents: false,
-      height: "auto",
-      aspectRatio: getAspectRatio(),
-      dropAccept: ".fc-event",
-      eventAllow: () => true,
-      // Let FullCalendar handle timezone naturally
-      timeZone: 'local',
-      // REMOVED: No duplicate time configurations here - they come from getCalendarOptions()
-      snapDuration: '00:15:00',
-      // Resource config
-      ...getResourceColumnConfig(),
-      // Apply calendar options BEFORE additional props to ensure correct precedence
-      ...calendarOptions,
-      // Simple time formatting
-      ...getCalendarTimeFormatting(),
-      // Apply any additional calendar props LAST (but they shouldn't override time settings)
-      ...calendarProps,
-      // Enable calendar connection for drag & drop
-      eventSourceId: droppableScope,
-      // Force a unique key to ensure calendar refresh when configuration changes
-      key: `calendar-${Date.now()}`
-    };
-
-    // Final debug of what's being passed to FullCalendar
-    console.log('=== Final FullCalendar Props ===');
-    console.log('slotMinTime:', baseProps.slotMinTime);
-    console.log('slotMaxTime:', baseProps.slotMaxTime);
-    console.log('scrollTime:', baseProps.scrollTime);
-    console.log('editable:', baseProps.editable);
-    console.log('eventStartEditable:', baseProps.eventStartEditable);
-    console.log('eventDurationEditable:', baseProps.eventDurationEditable);
-    
-    return baseProps;
-  };
+  const getBaseCalendarProps = () => ({
+    ref: calendarRef,
+    plugins: [
+      resourceTimeGridPlugin,
+      timeGridPlugin,
+      interactionPlugin,
+      dayGridPlugin
+    ],
+    schedulerLicenseKey: "0134084325-fcs-1745193612",
+    initialView: 'resourceTimeGridDay',
+    headerToolbar: getMobileHeaderToolbar(),
+    views: getCalendarViews(),
+    resources: sortedResources,
+    // FULLY ENABLE all editing capabilities for drag/drop
+    editable: true,
+    droppable: true,
+    selectable: true,
+    eventDurationEditable: true,
+    eventResizableFromStart: true,
+    eventStartEditable: true,
+    selectMirror: true,
+    eventOverlap: true,
+    selectOverlap: true,
+    dayMaxEvents: false,
+    height: "auto",
+    aspectRatio: getAspectRatio(),
+    dropAccept: ".fc-event",
+    eventAllow: () => true,
+    // Let FullCalendar handle timezone naturally
+    timeZone: 'local',
+    // FIXED: Use full 24-hour range instead of limiting to 05:00-24:00
+    slotMinTime: '00:00:00',
+    slotMaxTime: '24:00:00',
+    scrollTime: '06:00:00',
+    slotDuration: '01:00:00',
+    slotLabelInterval: '01:00:00',
+    snapDuration: '00:15:00',
+    // Resource config
+    ...getResourceColumnConfig(),
+    // Add calendar options
+    ...getCalendarOptions(),
+    // Simple time formatting
+    ...getCalendarTimeFormatting(),
+    // Apply any additional calendar props
+    ...calendarProps,
+    // Enable calendar connection for drag & drop
+    eventSourceId: droppableScope,
+  });
 
   return {
     calendarRef,
