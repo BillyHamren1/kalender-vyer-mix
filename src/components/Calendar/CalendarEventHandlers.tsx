@@ -15,37 +15,26 @@ export const getEventHandlers = (
   handleEventClick: (info: any) => void,
   handleEventReceive?: (info: any) => void
 ) => {
-  // FIXED: Enhanced handler for event drops with proper logging
+  // Simple event drop handler
   const handleEventDrop = (info: any) => {
-    // Log detailed information about the drop operation
-    console.log('✅ Event drop detected and ENABLED:', {
+    console.log('Event dropped:', {
       eventId: info.event.id,
-      oldResource: info.oldResource?.id,
       newResource: info.newResource?.id,
-      oldStart: info.oldEvent.start?.toISOString(),
       newStart: info.event.start?.toISOString(),
-      oldEnd: info.oldEvent.end?.toISOString(),
-      newEnd: info.event.end?.toISOString(),
-      delta: info.delta,
+      newEnd: info.event.end?.toISOString()
     });
     
-    // FIXED: Allow all events to be dropped - no restrictions
     handleEventChange(info);
   };
 
-  // FIXED: Enhanced handler for event resizing with proper logging
+  // Simple event resize handler
   const handleEventResize = (info: any) => {
-    console.log('✅ Event resize detected and ENABLED:', {
+    console.log('Event resized:', {
       eventId: info.event.id,
-      resourceId: info.event.getResources?.()?.[0]?.id,
-      oldStart: info.oldEvent.start?.toISOString(),
       newStart: info.event.start?.toISOString(),
-      oldEnd: info.oldEvent.end?.toISOString(),
-      newEnd: info.event.end?.toISOString(),
-      delta: info.delta,
+      newEnd: info.event.end?.toISOString()
     });
     
-    // FIXED: Allow all events to be resized - no restrictions
     handleEventChange(info);
   };
 

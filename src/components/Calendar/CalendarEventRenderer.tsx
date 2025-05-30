@@ -5,26 +5,18 @@ import EventHoverCard from './EventHoverCard';
 import { format } from 'date-fns';
 
 export const renderEventContent = (eventInfo: any) => {
-  // Get the event details
   const eventTitle = eventInfo.event.title;
   
-  // FIXED: Use the corrected duration from extendedProps - this should now be accurate
-  const duration = eventInfo.event.extendedProps?.durationHours || 0;
-  const startTimeDisplay = eventInfo.event.extendedProps?.localStartTime || 
-                          format(new Date(eventInfo.event.start), 'HH:mm');
-  const endTimeDisplay = eventInfo.event.extendedProps?.localEndTime || 
-                        format(new Date(eventInfo.event.end), 'HH:mm');
-  const timeRangeDisplay = `${startTimeDisplay}-${endTimeDisplay}`;
+  // Let FullCalendar handle time display naturally
+  const startTime = format(new Date(eventInfo.event.start), 'HH:mm');
+  const endTime = format(new Date(eventInfo.event.end), 'HH:mm');
+  const timeRangeDisplay = `${startTime}-${endTime}`;
   
-  console.log(`Event ${eventInfo.event.id} CORRECTED time rendering:`, {
-    duration: duration,
-    startDisplay: startTimeDisplay,
-    endDisplay: endTimeDisplay,
-    timeRange: timeRangeDisplay,
-    source: 'extendedProps (CORRECTED)'
-  });
+  // Calculate duration in hours for display
+  const durationMs = new Date(eventInfo.event.end).getTime() - new Date(eventInfo.event.start).getTime();
+  const durationHours = Math.round((durationMs / (1000 * 60 * 60)) * 10) / 10; // Round to 1 decimal
   
-  // Use bookingNumber if available, otherwise fall back to bookingId, or extract from title
+  // Use bookingNumber if available, otherwise fall back to bookingId
   let displayId = eventInfo.event.extendedProps?.bookingNumber || 
                   eventInfo.event.extendedProps?.bookingId || 
                   '';
@@ -34,17 +26,16 @@ export const renderEventContent = (eventInfo: any) => {
     displayId = eventTitle.split(':')[0].trim();
   }
   
-  // Get delivery address from event extendedProps or use default message
+  // Get delivery address from event extendedProps
   const deliveryAddress = eventInfo.event.extendedProps?.deliveryAddress || 'No address provided';
   
-  // Extract the client name - handle both "BookingNum: Client" and just "Client" formats
+  // Extract the client name
   let clientName = eventTitle;
   if (eventTitle.includes(':')) {
     clientName = eventTitle.split(':')[1].trim();
   }
 
-  // Get city from the proper field - use deliveryCity from bookings table
-  // Fall back to parsing from address only if no proper city is available
+  // Get city from the proper field
   const city = eventInfo.event.extendedProps?.deliveryCity || 
                (deliveryAddress.split(',').length > 1 ? deliveryAddress.split(',')[1].trim() : '');
 
@@ -58,14 +49,13 @@ export const renderEventContent = (eventInfo: any) => {
     extendedProps: eventInfo.event.extendedProps || {}
   };
 
-  // CORRECTED event content component with accurate duration display
   const EventContent = () => {
     if (eventInfo.view.type === 'resourceTimelineWeek') {
       // More compact display for timeline view
       return (
         <div className="event-content-wrapper w-full h-full px-1" style={{ color: '#000000' }}>
           <div className="event-time text-xs font-medium mb-1" style={{ color: '#000000' }}>
-            {timeRangeDisplay} ({duration}h)
+            {timeRangeDisplay} ({durationHours}h)
           </div>
           {displayId && (
             <div className="event-booking-id text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>#{displayId}</div>
@@ -81,11 +71,11 @@ export const renderEventContent = (eventInfo: any) => {
       );
     }
     
-    // Enhanced display for other views with CORRECTED duration information
+    // Enhanced display for other views
     return (
       <div className="event-content-wrapper w-full h-full px-1" style={{ color: '#000000' }}>
         <div className="event-time text-xs font-medium mb-1" style={{ color: '#000000' }}>
-          {timeRangeDisplay} ({duration}h)
+          {timeRangeDisplay} ({durationHours}h)
         </div>
         {displayId && (
           <div className="event-booking-id text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>#{displayId}</div>
@@ -96,12 +86,6 @@ export const renderEventContent = (eventInfo: any) => {
         </div>
         {city && (
           <div className="event-city text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>{city}</div>
-        )}
-        {/* Debug info shows CORRECTED duration */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="event-debug-info text-xs" style={{ color: '#000000', background: 'rgba(255,255,255,0.8)' }}>
-            CORRECTED: {duration}h | {startTimeDisplay}-{endTimeDisplay}
-          </div>
         )}
       </div>
     );
@@ -223,20 +207,20 @@ export const setupEventActions = (
   }
 };
 
-// Enhanced event attributes with duration classes
 export const addEventAttributes = (info: any) => {
   if (info.event.extendedProps.eventType) {
     info.el.setAttribute('data-event-type', info.event.extendedProps.eventType);
   }
   
-  // Use the CORRECTED duration from extendedProps
-  const duration = info.event.extendedProps?.durationHours || 0;
+  // Calculate duration simply
+  const durationMs = new Date(info.event.end).getTime() - new Date(info.event.start).getTime();
+  const durationHours = durationMs / (1000 * 60 * 60);
   
-  // Add duration classes for better styling - CORRECTED calculation
-  if (duration >= 6) {
+  // Add duration classes for better styling
+  if (durationHours >= 6) {
     info.el.setAttribute('data-duration', 'long');
     info.el.classList.add('event-long-duration');
-  } else if (duration >= 3) {
+  } else if (durationHours >= 3) {
     info.el.setAttribute('data-duration', 'medium');
     info.el.classList.add('event-medium-duration');
   } else {
@@ -244,9 +228,7 @@ export const addEventAttributes = (info: any) => {
     info.el.classList.add('event-short-duration');
   }
   
-  console.log(`Event ${info.event.id} attributes: CORRECTED duration=${duration}h, class=${duration >= 6 ? 'long' : duration >= 3 ? 'medium' : 'short'}`);
-  
-  // Add special class for timeline events to ensure they have proper height
+  // Add special class for timeline events
   if (info.view.type === 'resourceTimelineWeek') {
     info.el.classList.add('timeline-event');
   }

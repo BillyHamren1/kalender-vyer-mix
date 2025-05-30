@@ -4,7 +4,7 @@ import { updateCalendarEvent } from '@/services/eventService';
 import { updateBookingTimes } from '@/services/booking/bookingTimeService';
 import { CalendarEvent, Resource } from '@/components/Calendar/ResourceData';
 import { toast } from 'sonner';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 
 export const useEventOperations = ({ 
   resources, 
@@ -15,24 +15,18 @@ export const useEventOperations = ({
 }) => {
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Enhanced event change handler with proper time handling
+  // Simplified event change handler
   const handleEventChange = async (info: any) => {
-    console.log('🔄 Event change detected:', {
+    console.log('Event change:', {
       eventId: info.event.id,
-      eventTitle: info.event.title,
       oldResource: info.oldResource?.id,
       newResource: info.newResource?.id,
-      oldStart: info.oldEvent?.start?.toISOString(),
       newStart: info.event.start?.toISOString(),
-      oldEnd: info.oldEvent?.end?.toISOString(),
-      newEnd: info.event.end?.toISOString(),
-      changeType: info.oldResource?.id !== info.newResource?.id ? 'TEAM_MOVE' : 'TIME_CHANGE',
-      eventType: info.event.extendedProps?.eventType,
-      bookingId: info.event.extendedProps?.bookingId
+      newEnd: info.event.end?.toISOString()
     });
 
     if (isUpdating) {
-      console.log('⚠️ Update already in progress, skipping');
+      console.log('Update already in progress, skipping');
       return;
     }
 
@@ -49,59 +43,33 @@ export const useEventOperations = ({
         const oldTeam = resources.find(r => r.id === info.oldResource?.id)?.title || info.oldResource?.id;
         const newTeam = resources.find(r => r.id === info.newResource.id)?.title || info.newResource.id;
         changeDescription = `Event moved from ${oldTeam} to ${newTeam}`;
-        console.log('📋 Team change detected:', { 
-          from: info.oldResource?.id, 
-          to: info.newResource.id 
-        });
       }
 
-      // Handle time changes with proper timezone handling
+      // Handle time changes - simple ISO string updates
       if (info.event.start && info.oldEvent?.start?.getTime() !== info.event.start.getTime()) {
-        const newStartISO = info.event.start.toISOString();
-        eventData.start = newStartISO;
+        eventData.start = info.event.start.toISOString();
         shouldUpdateBookingTimes = true;
-        
-        console.log('⏰ Start time change:', { 
-          from: info.oldEvent?.start?.toISOString(), 
-          to: newStartISO,
-          localFrom: info.oldEvent?.start ? format(info.oldEvent.start, 'yyyy-MM-dd HH:mm') : 'N/A',
-          localTo: format(info.event.start, 'yyyy-MM-dd HH:mm')
-        });
       }
 
       if (info.event.end && info.oldEvent?.end?.getTime() !== info.event.end.getTime()) {
-        const newEndISO = info.event.end.toISOString();
-        eventData.end = newEndISO;
+        eventData.end = info.event.end.toISOString();
         shouldUpdateBookingTimes = true;
-        
-        console.log('⏰ End time change:', { 
-          from: info.oldEvent?.end?.toISOString(), 
-          to: newEndISO,
-          localFrom: info.oldEvent?.end ? format(info.oldEvent.end, 'yyyy-MM-dd HH:mm') : 'N/A',
-          localTo: format(info.event.end, 'yyyy-MM-dd HH:mm')
-        });
       }
 
       // If no meaningful changes, skip update
       if (Object.keys(eventData).length === 0) {
-        console.log('ℹ️ No changes detected, skipping database update');
+        console.log('No changes detected, skipping update');
         setIsUpdating(false);
         return;
       }
 
-      console.log('💾 Updating event in database:', {
-        eventId: info.event.id,
-        updates: eventData
-      });
+      console.log('Updating event:', eventData);
 
-      // Update calendar event with proper time data
-      const result = await updateCalendarEvent(info.event.id, eventData);
-      console.log('✅ Event updated successfully in database:', result);
+      // Update calendar event
+      await updateCalendarEvent(info.event.id, eventData);
 
-      // Update booking times if this is a time change and we have booking info
+      // Update booking times if needed
       if (shouldUpdateBookingTimes && info.event.extendedProps?.bookingId && info.event.extendedProps?.eventType) {
-        console.log('📅 Updating booking times for booking:', info.event.extendedProps.bookingId);
-        
         try {
           await updateBookingTimes(
             info.event.extendedProps.bookingId,
@@ -109,10 +77,8 @@ export const useEventOperations = ({
             info.event.start.toISOString(),
             info.event.end.toISOString()
           );
-          console.log('✅ Booking times updated successfully');
         } catch (bookingError) {
-          console.error('❌ Error updating booking times:', bookingError);
-          // Don't revert calendar change if booking update fails, just warn
+          console.error('Error updating booking times:', bookingError);
           toast.error('Event updated but failed to sync booking times');
         }
       }
@@ -127,21 +93,14 @@ export const useEventOperations = ({
         toast.success('Event updated successfully');
       }
 
-      // Force refresh the calendar to show updated data
+      // Refresh the calendar
       if (refreshEvents) {
-        console.log('🔄 Refreshing calendar events...');
         await refreshEvents();
-        console.log('✅ Calendar refreshed');
-      } else {
-        console.error('❌ No refreshEvents function provided!');
       }
 
     } catch (error) {
-      console.error('❌ Error updating event:', error);
-      
-      // Revert the visual change on error
+      console.error('Error updating event:', error);
       info.revert();
-      
       toast.error('Failed to update event. Please try again.');
     } finally {
       setIsUpdating(false);
@@ -150,8 +109,7 @@ export const useEventOperations = ({
 
   // Handle external events being dropped onto the calendar
   const handleEventReceive = async (info: any) => {
-    console.log('📥 External event received:', info);
-    // This would handle new events being added, which we'll keep simple for now
+    console.log('External event received:', info);
     if (refreshEvents) {
       await refreshEvents();
     }
