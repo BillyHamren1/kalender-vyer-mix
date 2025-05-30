@@ -1,5 +1,3 @@
-
-
 /* Enhanced Weekly Calendar Layout Styles - 7 Days with Team Columns */
 
 .weekly-view-container {
@@ -20,7 +18,6 @@
   overflow-y: hidden;
   width: 100%;
   min-width: 100%;
-  /* Force horizontal scrolling when content is wider than container */
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 #f1f5f9;
 }
@@ -50,8 +47,7 @@
   height: 100%;
   border-right: 1px solid #e0e0e0;
   background: white;
-  overflow: hidden;
-  /* Width is set via inline styles based on team count and optimized sizing */
+  overflow: visible !important; /* FIX: allow events to show */
 }
 
 .day-calendar-wrapper:last-child {
@@ -101,197 +97,7 @@
 .weekly-view-calendar {
   flex: 1;
   height: 100%;
-  overflow: hidden;
+  overflow: visible !important; /* FIX: allow events to overflow */
   width: 100%;
   background: white;
 }
-
-.weekly-view-calendar .fc {
-  height: 100% !important;
-  width: 100% !important;
-  background: white !important;
-}
-
-.weekly-view-calendar .fc-view-harness {
-  height: 100% !important;
-  flex: 1 !important;
-  width: 100% !important;
-  background: white !important;
-}
-
-/* CRITICAL: Ensure team columns are visible and properly sized in weekly view */
-.weekly-view-calendar .fc-resource-area,
-.weekly-view-calendar .fc-resource-area td,
-.weekly-view-calendar .fc-resource-area th,
-.weekly-view-calendar .fc-resource-lane,
-.weekly-view-calendar .fc-datagrid-cell,
-.weekly-view-calendar .fc-datagrid-cell-frame,
-.weekly-view-calendar .fc-datagrid-cell-cushion {
-  min-width: 100px !important;
-  width: 100px !important;
-  max-width: 100px !important;
-  box-sizing: border-box !important;
-  display: table-cell !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-}
-
-/* CRITICAL: Force resource areas to be visible */
-.weekly-view-calendar .fc-resource-area {
-  display: table !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  width: auto !important;
-  min-width: fit-content !important;
-}
-
-/* CRITICAL: Ensure time grid columns are properly sized */
-.weekly-view-calendar .fc-timegrid-col {
-  min-width: 100px !important;
-  width: auto !important;
-  display: table-cell !important;
-  visibility: visible !important;
-}
-
-/* CRITICAL: Make sure the time grid takes full width and has proper background */
-.weekly-view-calendar .fc-timegrid {
-  width: 100% !important;
-  min-width: fit-content !important;
-  table-layout: auto !important;
-  display: table !important;
-  background: white !important;
-}
-
-.weekly-view-calendar .fc-timegrid-body {
-  width: 100% !important;
-  background: white !important;
-}
-
-/* CRITICAL: Ensure all teams are visible by making the calendar wide enough */
-.weekly-view-calendar .fc-datagrid {
-  min-width: fit-content !important;
-  width: 100% !important;
-  display: table !important;
-  background: white !important;
-}
-
-/* CRITICAL: Make resource headers visible and properly sized */
-.weekly-view-calendar .fc-col-header-cell {
-  min-width: 100px !important;
-  width: 100px !important;
-  max-width: 100px !important;
-  display: table-cell !important;
-  visibility: visible !important;
-}
-
-/* CRITICAL: Ensure the entire scrollgrid uses table layout */
-.weekly-view-calendar .fc-scrollgrid-liquid {
-  width: 100% !important;
-  table-layout: auto !important;
-  display: table !important;
-}
-
-/* CRITICAL: Force table sections to display properly */
-.weekly-view-calendar .fc-scrollgrid-section {
-  display: table-row-group !important;
-}
-
-.weekly-view-calendar .fc-scrollgrid-section > table {
-  width: 100% !important;
-  table-layout: auto !important;
-  display: table !important;
-}
-
-/* CRITICAL: Fix the grey overlay by ensuring proper backgrounds and removing conflicting overrides */
-.weekly-view-calendar .fc-timegrid-slots,
-.weekly-view-calendar .fc-timegrid-slot,
-.weekly-view-calendar .fc-timegrid-slot-lane {
-  background: white !important;
-}
-
-/* CRITICAL: Ensure events are visible by fixing z-index and backgrounds */
-.weekly-view-calendar .fc-timegrid-event-harness,
-.weekly-view-calendar .fc-event,
-.weekly-view-calendar .fc-event-main {
-  z-index: 3 !important;
-  background: inherit !important;
-}
-
-/* CRITICAL: Fix calendar grid backgrounds */
-.weekly-view-calendar .fc-scrollgrid,
-.weekly-view-calendar .fc-scrollgrid-sync-table {
-  background: white !important;
-}
-
-/* Monthly view styles */
-.monthly-grid-container {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 1px;
-  padding: 1px;
-  background: #e0e0e0;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.monthly-day-wrapper {
-  background: white;
-  min-height: 120px;
-  display: flex;
-  flex-direction: column;
-}
-
-.monthly-view-calendar {
-  flex: 1;
-  overflow: hidden;
-}
-
-.monthly-view-calendar .fc {
-  height: 100% !important;
-}
-
-/* Responsive styles for mobile */
-@media (max-width: 1400px) {
-  .weekly-calendar-container {
-    overflow-x: auto;
-  }
-}
-
-@media (max-width: 768px) {
-  .weekly-calendar-container {
-    flex-direction: column;
-    height: auto;
-    min-height: 500px;
-    overflow-x: auto;
-    overflow-y: auto;
-    width: 100%;
-  }
-  
-  .day-calendar-wrapper {
-    border-right: none;
-    border-bottom: 1px solid #e0e0e0;
-    min-height: 200px;
-    width: 100% !important;
-    min-width: 100% !important;
-    max-width: 100% !important;
-    flex: none;
-  }
-  
-  .day-calendar-wrapper:last-child {
-    border-bottom: none;
-  }
-  
-  /* Smaller team columns on mobile */
-  .weekly-view-calendar .fc-resource-area,
-  .weekly-view-calendar .fc-resource-area td,
-  .weekly-view-calendar .fc-resource-area th,
-  .weekly-view-calendar .fc-resource-lane,
-  .weekly-view-calendar .fc-datagrid-cell,
-  .weekly-view-calendar .fc-datagrid-cell-frame,
-  .weekly-view-calendar .fc-datagrid-cell-cushion {
-    min-width: 80px !important;
-    width: 80px !important;
-    max-width: 80px !important;
-  }
-}
-
