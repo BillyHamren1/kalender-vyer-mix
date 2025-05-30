@@ -17,8 +17,29 @@
   border-radius: 8px;
   overflow-x: auto;
   overflow-y: hidden;
-  width: fit-content;
+  width: 100%;
   min-width: 100%;
+  /* Force horizontal scrolling when content is wider than container */
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+.weekly-calendar-container::-webkit-scrollbar {
+  height: 8px;
+}
+
+.weekly-calendar-container::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.weekly-calendar-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.weekly-calendar-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .day-calendar-wrapper {
