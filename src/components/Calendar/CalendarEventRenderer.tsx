@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
 import { Copy, Trash2 } from 'lucide-react';
@@ -8,18 +9,24 @@ export const renderEventContent = (eventInfo: any) => {
   const eventTitle = eventInfo.event.title;
   const eventTime = eventInfo.timeText;
   
-  // Use bookingNumber if available, otherwise fall back to bookingId
-  const displayId = eventInfo.event.extendedProps?.bookingNumber || 
-                   eventInfo.event.extendedProps?.bookingId || 
-                   '';
+  // Use bookingNumber if available, otherwise fall back to bookingId, or extract from title
+  let displayId = eventInfo.event.extendedProps?.bookingNumber || 
+                  eventInfo.event.extendedProps?.bookingId || 
+                  '';
+  
+  // If no explicit booking number, try to extract from title
+  if (!displayId && eventTitle.includes(':')) {
+    displayId = eventTitle.split(':')[0].trim();
+  }
   
   // Get delivery address from event extendedProps or use default message
   const deliveryAddress = eventInfo.event.extendedProps?.deliveryAddress || 'No address provided';
   
-  // Extract the client name (remove the booking ID if it's in the title)
-  const clientName = eventTitle.includes(':') 
-    ? eventTitle.split(':')[1].trim() 
-    : eventTitle;
+  // Extract the client name - handle both "BookingNum: Client" and just "Client" formats
+  let clientName = eventTitle;
+  if (eventTitle.includes(':')) {
+    clientName = eventTitle.split(':')[1].trim();
+  }
 
   // Get city from the proper field - use deliveryCity from bookings table
   // Fall back to parsing from address only if no proper city is available
@@ -42,7 +49,9 @@ export const renderEventContent = (eventInfo: any) => {
       // More compact display for timeline view with smaller fonts
       return (
         <div className="event-content-wrapper w-full h-full px-1" style={{ color: '#000000' }}>
-          <div className="event-booking-id text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>#{displayId}</div>
+          {displayId && (
+            <div className="event-booking-id text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>#{displayId}</div>
+          )}
           <div className="event-client-name text-xs break-words whitespace-normal" 
                style={{ lineHeight: '1.1', maxHeight: '2.2em', overflow: 'hidden', color: '#000000', fontSize: '11px' }}>
             {clientName}
@@ -57,7 +66,9 @@ export const renderEventContent = (eventInfo: any) => {
     // Default display for other views with smaller fonts and full width
     return (
       <div className="event-content-wrapper w-full h-full px-1" style={{ color: '#000000' }}>
-        <div className="event-booking-id text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>#{displayId}</div>
+        {displayId && (
+          <div className="event-booking-id text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>#{displayId}</div>
+        )}
         <div className="event-client-name text-xs break-words whitespace-normal" 
              style={{ lineHeight: '1.1', maxHeight: '2.2em', overflow: 'hidden', color: '#000000', fontSize: '11px' }}>
           {clientName}

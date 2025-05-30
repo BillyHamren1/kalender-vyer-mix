@@ -1,4 +1,3 @@
-
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
 
 export const processEvents = (events: CalendarEvent[], resources: Resource[]): CalendarEvent[] => {
@@ -22,6 +21,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
     console.log(`  Resource ID valid: ${validResourceIds.has(event.resourceId)}`);
     console.log(`  Event start: ${event.start}`);
     console.log(`  Event end: ${event.end}`);
+    console.log(`  Extended props:`, event.extendedProps);
     
     // Ensure the event has a valid resource ID
     let resourceId = event.resourceId;
@@ -35,37 +35,66 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
     // Get event color based on event type
     const eventColor = getEventColor(event.eventType);
     
-    // Create proper title from booking data - FIXED
+    // CRITICAL FIX: Create proper title from booking data
     let eventTitle = event.title;
-    if (event.extendedProps?.bookingNumber && event.extendedProps?.client) {
-      eventTitle = `${event.extendedProps.bookingNumber}: ${event.extendedProps.client}`;
-    } else if (event.extendedProps?.client) {
-      eventTitle = event.extendedProps.client;
-    } else if (event.extendedProps?.bookingId && event.title !== event.extendedProps.bookingId) {
-      // Use the original title if it's not a UUID
+    
+    // Try to get clean data from extendedProps first
+    const bookingNumber = event.extendedProps?.bookingNumber || event.bookingNumber;
+    const client = event.extendedProps?.client || event.client;
+    
+    console.log(`Title processing for event ${event.id}:`, {
+      originalTitle: event.title,
+      bookingNumber,
+      client,
+      extendedProps: event.extendedProps
+    });
+    
+    // Priority 1: Use booking number + client if both available
+    if (bookingNumber && client) {
+      eventTitle = `${bookingNumber}: ${client}`;
+      console.log(`✅ Using booking + client: "${eventTitle}"`);
+    }
+    // Priority 2: Use just client if available and title looks like UUID
+    else if (client && (event.title.length > 30 || event.title.includes('-'))) {
+      eventTitle = client;
+      console.log(`✅ Using client only: "${eventTitle}"`);
+    }
+    // Priority 3: Use booking number if available and title looks like UUID
+    else if (bookingNumber && (event.title.length > 30 || event.title.includes('-'))) {
+      eventTitle = bookingNumber;
+      console.log(`✅ Using booking number only: "${eventTitle}"`);
+    }
+    // Priority 4: Keep original title if it doesn't look like UUID
+    else if (event.title && event.title.length <= 30 && !event.title.includes('-')) {
       eventTitle = event.title;
+      console.log(`✅ Keeping original title: "${eventTitle}"`);
+    }
+    // Fallback: Use "Event" + short ID
+    else {
+      eventTitle = `Event ${event.id.substring(0, 8)}`;
+      console.log(`⚠️ Using fallback title: "${eventTitle}"`);
     }
     
     const processedEvent = {
       ...event,
-      title: eventTitle, // Use the properly formatted title
+      title: eventTitle,
       resourceId,
       backgroundColor: eventColor,
       borderColor: eventColor,
-      textColor: '#ffffff', // White text for better contrast
+      textColor: '#ffffff',
       classNames: [`event-${event.eventType || 'default'}`, 'calendar-event'],
       extendedProps: {
         ...event.extendedProps,
-        originalResourceId: event.resourceId, // Keep track of original resource ID
+        originalResourceId: event.resourceId,
         eventType: event.eventType,
         bookingId: event.bookingId,
         deliveryAddress: event.deliveryAddress,
-        bookingNumber: event.bookingNumber,
-        client: event.extendedProps?.client || event.client
+        bookingNumber: bookingNumber,
+        client: client
       }
     };
     
-    console.log(`  ✅ Processed event:`, processedEvent);
+    console.log(`  ✅ Processed event with title: "${eventTitle}"`);
     
     return processedEvent;
   });
@@ -73,7 +102,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
   console.log(`=== Processing Complete ===`);
   console.log(`Input events: ${events.length}`);
   console.log(`Output events: ${processedEvents.length}`);
-  console.log('FINAL PROCESSED EVENTS FOR CALENDAR:', processedEvents);
+  console.log('FINAL PROCESSED EVENTS WITH TITLES:', processedEvents.map(e => ({ id: e.id, title: e.title })));
   
   return processedEvents;
 };
@@ -90,4 +119,3 @@ export const validateEventResources = (events: CalendarEvent[], resources: Resou
   
   return invalidEvents;
 };
-
