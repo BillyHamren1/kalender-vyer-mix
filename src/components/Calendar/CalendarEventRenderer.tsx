@@ -1,52 +1,29 @@
+
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
 import { Copy, Trash2 } from 'lucide-react';
 import EventHoverCard from './EventHoverCard';
-import { differenceInHours, parseISO, format, isBefore, addDays } from 'date-fns';
+import { format } from 'date-fns';
 
 export const renderEventContent = (eventInfo: any) => {
   // Get the event details
   const eventTitle = eventInfo.event.title;
   
-  // FIXED: Get proper time information with overnight handling
-  let duration = 0;
-  let startTimeDisplay = '';
-  let endTimeDisplay = '';
-  let timeRangeDisplay = '';
+  // FIXED: Use the corrected duration from extendedProps instead of recalculating
+  const duration = eventInfo.event.extendedProps?.durationHours || 0;
+  const startTimeDisplay = eventInfo.event.extendedProps?.localStartTime || 
+                          format(new Date(eventInfo.event.start), 'HH:mm');
+  const endTimeDisplay = eventInfo.event.extendedProps?.localEndTime || 
+                        format(new Date(eventInfo.event.end), 'HH:mm');
+  const timeRangeDisplay = `${startTimeDisplay}-${endTimeDisplay}`;
   
-  try {
-    const start = new Date(eventInfo.event.start);
-    let end = new Date(eventInfo.event.end);
-    
-    // CRITICAL FIX: Handle overnight events
-    if (isBefore(end, start)) {
-      console.log('Overnight event detected in renderer, adding 1 day to end');
-      end = addDays(end, 1);
-    }
-    
-    // Calculate CORRECT duration
-    duration = differenceInHours(end, start);
-    
-    // Format times for display (local time)
-    startTimeDisplay = format(start, 'HH:mm');
-    endTimeDisplay = format(end, 'HH:mm');
-    timeRangeDisplay = `${startTimeDisplay}-${endTimeDisplay}`;
-    
-    console.log(`Event ${eventInfo.event.id} CORRECTED time rendering:`, {
-      start: start.toISOString(),
-      end: end.toISOString(),
-      startLocal: startTimeDisplay,
-      endLocal: endTimeDisplay,
-      duration: duration,
-      wasOvernight: isBefore(new Date(eventInfo.event.end), start)
-    });
-    
-  } catch (error) {
-    console.error('Error calculating event time display:', error);
-    // Fallback to eventInfo.timeText if available
-    timeRangeDisplay = eventInfo.timeText || 'Time Error';
-    duration = 0;
-  }
+  console.log(`Event ${eventInfo.event.id} FIXED time rendering:`, {
+    duration: duration,
+    startDisplay: startTimeDisplay,
+    endDisplay: endTimeDisplay,
+    timeRange: timeRangeDisplay,
+    source: 'extendedProps (FIXED)'
+  });
   
   // Use bookingNumber if available, otherwise fall back to bookingId, or extract from title
   let displayId = eventInfo.event.extendedProps?.bookingNumber || 
@@ -82,7 +59,7 @@ export const renderEventContent = (eventInfo: any) => {
     extendedProps: eventInfo.event.extendedProps || {}
   };
 
-  // CORRECTED event content component with proper duration display
+  // FIXED event content component with corrected duration display
   const EventContent = () => {
     if (eventInfo.view.type === 'resourceTimelineWeek') {
       // More compact display for timeline view
@@ -105,7 +82,7 @@ export const renderEventContent = (eventInfo: any) => {
       );
     }
     
-    // Enhanced display for other views with CORRECTED duration information
+    // Enhanced display for other views with FIXED duration information
     return (
       <div className="event-content-wrapper w-full h-full px-1" style={{ color: '#000000' }}>
         <div className="event-time text-xs font-medium mb-1" style={{ color: '#000000' }}>
@@ -121,10 +98,10 @@ export const renderEventContent = (eventInfo: any) => {
         {city && (
           <div className="event-city text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>{city}</div>
         )}
-        {/* Debug info shows CORRECTED duration */}
+        {/* Debug info shows FIXED duration */}
         {process.env.NODE_ENV === 'development' && (
-          <div className="event-debug-info">
-            CORRECTED: {duration}h | {startTimeDisplay}-{endTimeDisplay}
+          <div className="event-debug-info text-xs" style={{ color: '#000000', background: 'rgba(255,255,255,0.8)' }}>
+            FIXED: {duration}h | {startTimeDisplay}-{endTimeDisplay}
           </div>
         )}
       </div>
@@ -253,35 +230,22 @@ export const addEventAttributes = (info: any) => {
     info.el.setAttribute('data-event-type', info.event.extendedProps.eventType);
   }
   
-  // Calculate and add duration class for better styling - FIXED calculation
-  let duration = 0;
-  try {
-    const start = new Date(info.event.start);
-    let end = new Date(info.event.end);
-    
-    // Handle overnight events
-    if (isBefore(end, start)) {
-      end = addDays(end, 1);
-    }
-    
-    duration = differenceInHours(end, start);
-    
-    // Add duration classes for improved visual representation
-    if (duration >= 6) {
-      info.el.setAttribute('data-duration', 'long');
-      info.el.classList.add('event-long-duration');
-    } else if (duration >= 3) {
-      info.el.setAttribute('data-duration', 'medium');
-      info.el.classList.add('event-medium-duration');
-    } else {
-      info.el.setAttribute('data-duration', 'short');
-      info.el.classList.add('event-short-duration');
-    }
-    
-    console.log(`Event ${info.event.id} attributes: CORRECTED duration=${duration}h, class=${duration >= 6 ? 'long' : duration >= 3 ? 'medium' : 'short'}`);
-  } catch (error) {
-    console.error('Error calculating event duration for attributes:', error);
+  // Use the FIXED duration from extendedProps instead of recalculating
+  const duration = info.event.extendedProps?.durationHours || 0;
+  
+  // Add duration classes for better styling - FIXED calculation
+  if (duration >= 6) {
+    info.el.setAttribute('data-duration', 'long');
+    info.el.classList.add('event-long-duration');
+  } else if (duration >= 3) {
+    info.el.setAttribute('data-duration', 'medium');
+    info.el.classList.add('event-medium-duration');
+  } else {
+    info.el.setAttribute('data-duration', 'short');
+    info.el.classList.add('event-short-duration');
   }
+  
+  console.log(`Event ${info.event.id} attributes: FIXED duration=${duration}h, class=${duration >= 6 ? 'long' : duration >= 3 ? 'medium' : 'short'}`);
   
   // Add special class for timeline events to ensure they have proper height
   if (info.view.type === 'resourceTimelineWeek') {

@@ -78,7 +78,7 @@ export const useResourceCalendarConfig = (
     views: getCalendarViews(),
     // Always include resources to preserve team columns
     resources: sortedResources,
-    // CRITICAL: Enable all editing capabilities for drag/drop
+    // CRITICAL: FULLY ENABLE all editing capabilities for drag/drop
     editable: true,
     droppable: true,
     selectable: true,
@@ -88,6 +88,7 @@ export const useResourceCalendarConfig = (
     selectMirror: true,
     eventOverlap: true,
     selectOverlap: true,
+    dayMaxEvents: false,
     height: "auto",
     aspectRatio: getAspectRatio(),
     dropAccept: ".fc-event",

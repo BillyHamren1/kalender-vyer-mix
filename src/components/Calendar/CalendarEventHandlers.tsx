@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 
@@ -8,7 +7,7 @@ interface CalendarEventHandlersProps {
   resources: Resource[];
   handleEventChange: (info: any) => void;
   handleEventClick: (info: any) => void;
-  handleEventReceive?: (info: any) => void; // Add new handler type
+  handleEventReceive?: (info: any) => void;
 }
 
 export const getEventHandlers = (
@@ -16,10 +15,10 @@ export const getEventHandlers = (
   handleEventClick: (info: any) => void,
   handleEventReceive?: (info: any) => void
 ) => {
-  // Custom handler for event drops - REMOVED the team-6 blocking logic
+  // FIXED: Enhanced handler for event drops with proper logging
   const handleEventDrop = (info: any) => {
     // Log detailed information about the drop operation
-    console.log('Event drop detected:', {
+    console.log('✅ Event drop detected and ENABLED:', {
       eventId: info.event.id,
       oldResource: info.oldResource?.id,
       newResource: info.newResource?.id,
@@ -30,13 +29,13 @@ export const getEventHandlers = (
       delta: info.delta,
     });
     
-    // Allow all events to be dropped, including team-6 events
+    // FIXED: Allow all events to be dropped - no restrictions
     handleEventChange(info);
   };
 
-  // Custom handler for event resizing (time changes)
+  // FIXED: Enhanced handler for event resizing with proper logging
   const handleEventResize = (info: any) => {
-    console.log('Event resize detected:', {
+    console.log('✅ Event resize detected and ENABLED:', {
       eventId: info.event.id,
       resourceId: info.event.getResources?.()?.[0]?.id,
       oldStart: info.oldEvent.start?.toISOString(),
@@ -46,7 +45,7 @@ export const getEventHandlers = (
       delta: info.delta,
     });
     
-    // Allow all events to be resized, including team-6 events
+    // FIXED: Allow all events to be resized - no restrictions
     handleEventChange(info);
   };
 
@@ -62,11 +61,11 @@ export const getEventHandlers = (
 export const getCalendarTimeFormatting = () => {
   return {
     eventTimeFormat: {
-      hour: '2-digit' as '2-digit', // Use literal type assertion
-      minute: '2-digit' as '2-digit', // Use literal type assertion
+      hour: '2-digit' as const,
+      minute: '2-digit' as const,
       meridiem: false,
       hour12: false,
-      omitZeroMinute: false // Always show minutes even if 00
+      omitZeroMinute: false
     }
   };
 };
