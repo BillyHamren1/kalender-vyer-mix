@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
@@ -71,15 +72,15 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   // COMPREHENSIVE EVENT DEBUGGING
   console.log('=== UnifiedResourceCalendar Event Debug ===');
   console.log(`View mode: ${viewMode}`);
+  console.log(`Current date: ${format(currentDate, 'yyyy-MM-dd')}`);
   console.log(`Total events received: ${events.length}`);
   console.log(`Available resources: ${resources.length}`, resources.map(r => ({ id: r.id, title: r.title })));
-  console.log('All events:', events.map(e => ({ 
-    id: e.id, 
-    title: e.title, 
-    resourceId: e.resourceId, 
-    start: e.start, 
-    end: e.end 
-  })));
+  console.log('🔍 ALL EVENTS PASSED TO UNIFIED CALENDAR:', events);
+  
+  if (events.length === 0) {
+    console.error('🚨 CRITICAL: UnifiedResourceCalendar received ZERO events!');
+    console.error('This means the issue is upstream - events are not reaching this component');
+  }
 
   // Check for resource ID mismatches
   const eventsWithInvalidResources = events.filter(event => 
@@ -199,7 +200,14 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   const getEventsForDay = (date: Date): CalendarEvent[] => {
     if (viewMode === 'weekly') {
       // CRITICAL FIX: For weekly view, pass ALL events and let FullCalendar handle filtering
-      console.log(`Weekly view: Passing all ${events.length} events to ${format(date, 'yyyy-MM-dd')} calendar`);
+      console.log(`📅 Weekly view: Passing all ${events.length} events to ${format(date, 'yyyy-MM-dd')} calendar`);
+      console.log(`📋 Events being passed:`, events.map(e => ({ 
+        id: e.id, 
+        title: e.title, 
+        start: e.start, 
+        end: e.end, 
+        resourceId: e.resourceId 
+      })));
       return events;
     } else {
       // Monthly view: Filter events for specific day
@@ -245,9 +253,13 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
             const resourceCalendarForceRefresh = numericForceRefresh > 0;
             
             console.log(`=== Rendering weekly calendar for ${format(date, 'yyyy-MM-dd')} ===`);
-            console.log(`Events passed to calendar: ${dayEvents.length}`);
-            console.log(`Resources: ${resources.length}`);
-            console.log(`Calendar props:`, getWeeklyCalendarProps());
+            console.log(`🎯 Events passed to ResourceCalendar: ${dayEvents.length}`);
+            console.log(`📊 Resources: ${resources.length}`);
+            console.log(`⚙️ Calendar props:`, getWeeklyCalendarProps());
+            
+            if (dayEvents.length === 0) {
+              console.warn(`⚠️ No events for ${format(date, 'yyyy-MM-dd')} - this might be why calendar appears empty`);
+            }
             
             return (
               <div 
@@ -350,3 +362,4 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 };
 
 export default React.memo(UnifiedResourceCalendar);
+

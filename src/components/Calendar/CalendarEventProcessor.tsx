@@ -1,9 +1,17 @@
 
+
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
 
 export const processEvents = (events: CalendarEvent[], resources: Resource[]): CalendarEvent[] => {
   console.log('=== CalendarEventProcessor Debug ===');
   console.log(`Processing ${events.length} events with ${resources.length} resources`);
+  console.log('RAW EVENTS RECEIVED:', events);
+  console.log('AVAILABLE RESOURCES:', resources);
+  
+  if (events.length === 0) {
+    console.error('❌ NO EVENTS TO PROCESS - This is the problem!');
+    return [];
+  }
   
   // Create a map of valid resource IDs for quick lookup
   const validResourceIds = new Set(resources.map(r => r.id));
@@ -13,6 +21,8 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
     console.log(`Processing event ${index + 1}/${events.length}: ${event.title} (${event.id})`);
     console.log(`  Original resourceId: ${event.resourceId}`);
     console.log(`  Resource ID valid: ${validResourceIds.has(event.resourceId)}`);
+    console.log(`  Event start: ${event.start}`);
+    console.log(`  Event end: ${event.end}`);
     
     // Ensure the event has a valid resource ID
     let resourceId = event.resourceId;
@@ -43,8 +53,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
       }
     };
     
-    console.log(`  Processed resourceId: ${processedEvent.resourceId}`);
-    console.log(`  Event color: ${eventColor}`);
+    console.log(`  ✅ Processed event:`, processedEvent);
     
     return processedEvent;
   });
@@ -52,14 +61,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
   console.log(`=== Processing Complete ===`);
   console.log(`Input events: ${events.length}`);
   console.log(`Output events: ${processedEvents.length}`);
-  console.log('Final processed events:', processedEvents.map(e => ({
-    id: e.id,
-    title: e.title,
-    resourceId: e.resourceId,
-    start: e.start,
-    end: e.end,
-    backgroundColor: e.backgroundColor
-  })));
+  console.log('FINAL PROCESSED EVENTS FOR CALENDAR:', processedEvents);
   
   return processedEvents;
 };
@@ -76,3 +78,4 @@ export const validateEventResources = (events: CalendarEvent[], resources: Resou
   
   return invalidEvents;
 };
+
