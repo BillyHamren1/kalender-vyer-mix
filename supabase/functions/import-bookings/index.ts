@@ -69,6 +69,7 @@ const getEndTimeForEventType = (startTime: string, eventType: 'rig' | 'event' | 
 
 /**
  * Smart team assignment that distributes bookings evenly across teams
+ * Only assigns teams for NEW events, never overrides existing assignments
  */
 const getNextTeamAssignment = async (supabase: any, eventType: string, eventDate: string, bookingId: string): Promise<string> => {
   // EVENT type events always go to team-6
@@ -122,6 +123,27 @@ const getNextTeamAssignment = async (supabase: any, eventType: string, eventDate
     console.log(`Fallback assignment: booking ${bookingId} to ${selectedTeam}`);
     return selectedTeam;
   }
+};
+
+/**
+ * Check if booking data has meaningfully changed
+ */
+const hasBookingChanged = (externalBooking: any, existingBooking: any): boolean => {
+  const fields = [
+    'client', 'rigdaydate', 'eventdate', 'rigdowndate', 'deliveryaddress',
+    'delivery_city', 'delivery_postal_code', 'status', 'booking_number'
+  ];
+  
+  for (const field of fields) {
+    const external = externalBooking[field] || '';
+    const existing = existingBooking[field] || '';
+    if (external !== existing) {
+      console.log(`Field ${field} changed: "${existing}" -> "${external}"`);
+      return true;
+    }
+  }
+  
+  return false;
 };
 
 serve(async (req) => {
@@ -198,6 +220,7 @@ serve(async (req) => {
       status_changed_bookings: [],
       cancelled_bookings_skipped: [],
       duplicates_skipped: [],
+      unchanged_bookings_skipped: [],
       errors: [],
       sync_mode: syncMode,
       team_distribution: {
@@ -213,7 +236,7 @@ serve(async (req) => {
     // Get existing bookings for comparison
     const { data: existingBookings } = await supabase
       .from('bookings')
-      .select('id, status, version, booking_number')
+      .select('id, status, version, booking_number, client, rigdaydate, eventdate, rigdowndate, deliveryaddress, delivery_city, delivery_postal_code')
 
     const existingBookingMap = new Map(existingBookings?.map(b => [b.id, b]) || [])
     const existingBookingNumberMap = new Map()
@@ -304,13 +327,20 @@ serve(async (req) => {
           // EXISTING BOOKING - UPDATE ONLY IF ACTUALLY DIFFERENT
           console.log(`Found existing booking ${existingBooking.id}, checking for changes...`)
           
-          const statusChanged = existingBooking.status !== bookingData.status
+          const hasChanged = hasBookingChanged(bookingData, existingBooking);
+          const statusChanged = existingBooking.status !== bookingData.status;
+          
+          if (!hasChanged && !statusChanged) {
+            console.log(`No changes detected for ${bookingData.id}, skipping update`)
+            results.unchanged_bookings_skipped.push(bookingData.id)
+            continue; // SKIP UPDATE - NO CHANGES
+          }
           
           if (statusChanged) {
             console.log(`Status changed for ${bookingData.id}: ${existingBooking.status} -> ${bookingData.status}`)
             results.status_changed_bookings.push(bookingData.id)
           } else {
-            console.log(`No significant changes for ${bookingData.id}, marking as updated`)
+            console.log(`Data changed for ${bookingData.id}, updating`)
             results.updated_bookings.push(bookingData.id)
           }
 
@@ -330,6 +360,17 @@ serve(async (req) => {
             results.errors.push({ booking_id: existingBooking.id, error: updateError.message })
             results.failed++
             continue
+          }
+
+          // Only clear and recreate calendar events if booking data has MEANINGFULLY changed
+          if (hasChanged) {
+            console.log(`Recreating calendar events for changed booking ${existingBooking.id}`)
+            // Clear existing calendar events that are NOT manually assigned
+            await supabase
+              .from('calendar_events')
+              .delete()
+              .eq('booking_id', existingBooking.id)
+              .is('manually_assigned', null); // Only delete auto-assigned events
           }
 
           // Clear existing products and attachments for updated bookings
@@ -420,12 +461,12 @@ serve(async (req) => {
 
         results.imported++
 
-        // IMPROVED CALENDAR EVENT HANDLING WITH SMART TEAM DISTRIBUTION
+        // SMART CALENDAR EVENT HANDLING - ONLY CREATE NEW EVENTS, NEVER OVERRIDE MANUAL ASSIGNMENTS
         if (bookingData.status === 'CONFIRMED') {
           // Check if calendar events already exist for this booking
           const { data: existingEvents } = await supabase
             .from('calendar_events')
-            .select('id, event_type, start_time, booking_id')
+            .select('id, event_type, start_time, booking_id, resource_id, manually_assigned')
             .eq('booking_id', bookingData.id)
 
           const existingEventTypes = new Set(existingEvents?.map(e => e.event_type) || [])
@@ -433,7 +474,7 @@ serve(async (req) => {
 
           const calendarEvents = []
           
-          // Only create events that don't already exist
+          // Only create events that don't already exist OR that aren't manually assigned
           if (bookingData.rigdaydate && !existingEventTypes.has('rig')) {
             const startTime = `${bookingData.rigdaydate}T08:00:00`
             const endTime = getEndTimeForEventType(startTime, 'rig')
@@ -506,7 +547,8 @@ serve(async (req) => {
                   end_time: event.end_time,
                   event_type: event.event_type,
                   delivery_address: event.delivery_address,
-                  resource_id: assignedTeam
+                  resource_id: assignedTeam,
+                  manually_assigned: null // Mark as auto-assigned
                 }, {
                   onConflict: 'booking_id,event_type,start_time'
                 })
@@ -533,6 +575,7 @@ serve(async (req) => {
     const currentTimestamp = new Date().toISOString()
     console.log(`Saving sync timestamp: ${currentTimestamp}`)
     console.log(`Team distribution summary:`, results.team_distribution)
+    console.log(`Unchanged bookings skipped: ${results.unchanged_bookings_skipped.length}`)
     
     const { error: syncError } = await supabase
       .from('sync_state')
@@ -555,6 +598,7 @@ serve(async (req) => {
       imported: results.imported,
       new_bookings: results.new_bookings.length,
       updated_bookings: results.updated_bookings.length,
+      unchanged_skipped: results.unchanged_bookings_skipped.length,
       duplicates_skipped: results.duplicates_skipped.length,
       cancelled_skipped: results.cancelled_bookings_skipped.length,
       calendar_events_created: results.calendar_events_created,
@@ -587,6 +631,7 @@ serve(async (req) => {
           status_changed_bookings: [],
           cancelled_bookings_skipped: [],
           duplicates_skipped: [],
+          unchanged_bookings_skipped: [],
           errors: [error.message],
           sync_mode: 'failed',
           team_distribution: {}

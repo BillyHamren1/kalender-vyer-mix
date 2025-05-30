@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -90,6 +89,7 @@ const WeeklyResourceView = () => {
       if (result.success && result.results) {
         const newCount = result.results.new_bookings?.length || 0;
         const updatedCount = result.results.updated_bookings?.length || 0;
+        const unchangedCount = result.results.unchanged_bookings_skipped?.length || 0;
         
         if (showToasts && (newCount > 0 || updatedCount > 0)) {
           const messages = [];
@@ -97,11 +97,11 @@ const WeeklyResourceView = () => {
           if (updatedCount > 0) messages.push(`${updatedCount} updated`);
           
           toast.success('Bookings refreshed', {
-            description: messages.join(' and ') + ' found'
+            description: messages.join(' and ') + ' found' + (unchangedCount > 0 ? `, ${unchangedCount} unchanged` : '')
           });
         }
         
-        console.log(`Weekly Calendar: Import completed - ${newCount} new, ${updatedCount} updated`);
+        console.log(`Weekly Calendar: Import completed - ${newCount} new, ${updatedCount} updated, ${unchangedCount} unchanged`);
       }
     } catch (error) {
       console.error('Weekly Calendar: Error during background import:', error);
@@ -121,17 +121,17 @@ const WeeklyResourceView = () => {
     await performBackgroundImport(false); // Don't show toasts on initial load
   }, [performBackgroundImport]);
 
-  // Set up periodic background imports (every 2 minutes like BookingList)
+  // Set up periodic background imports (every 5 minutes instead of 2 minutes)
   useEffect(() => {
     // Initial import on mount
     initializeCalendar();
     
-    // Set up periodic refresh
+    // Set up periodic refresh - REDUCED FREQUENCY
     intervalRef.current = setInterval(() => {
       if (mountedRef.current) {
         performBackgroundImport(false); // Silent periodic imports
       }
-    }, 2 * 60 * 1000); // 2 minutes
+    }, 5 * 60 * 1000); // 5 minutes instead of 2 minutes
     
     return () => {
       if (intervalRef.current) {

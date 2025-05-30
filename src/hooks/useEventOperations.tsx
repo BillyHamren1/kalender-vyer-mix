@@ -14,7 +14,7 @@ export const useEventOperations = ({
 }) => {
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Enhanced event change handler with detailed logging and consistent resource ID handling
+  // Enhanced event change handler with manual assignment tracking
   const handleEventChange = async (info: any) => {
     console.log('🔄 Event change detected:', {
       eventId: info.event.id,
@@ -38,14 +38,16 @@ export const useEventOperations = ({
     try {
       const eventData: Partial<CalendarEvent> = {};
       let changeDescription = '';
+      let isManualResourceChange = false;
 
       // Handle resource (team) changes with proper logging
       if (info.newResource && info.oldResource?.id !== info.newResource.id) {
         eventData.resourceId = info.newResource.id; // This should be in team-X format
+        isManualResourceChange = true; // Flag this as a manual change
         const oldTeam = resources.find(r => r.id === info.oldResource?.id)?.title || info.oldResource?.id;
         const newTeam = resources.find(r => r.id === info.newResource.id)?.title || info.newResource.id;
         changeDescription = `Event moved from ${oldTeam} to ${newTeam}`;
-        console.log('📋 Team change detected:', { 
+        console.log('📋 Team change detected (MANUAL):', { 
           from: info.oldResource?.id, 
           to: info.newResource.id,
           eventDataResourceId: eventData.resourceId 
@@ -72,11 +74,17 @@ export const useEventOperations = ({
 
       console.log('💾 Updating event in database:', {
         eventId: info.event.id,
-        updates: eventData
+        updates: eventData,
+        manualResourceChange: isManualResourceChange
       });
 
-      // Update the event in the database - the service will handle resource ID mapping
-      const result = await updateCalendarEvent(info.event.id, eventData);
+      // Update the event in the database - mark as manually assigned if resource changed
+      const updatePayload = {
+        ...eventData,
+        manually_assigned: isManualResourceChange ? true : undefined
+      };
+
+      const result = await updateCalendarEvent(info.event.id, updatePayload);
       
       console.log('✅ Event updated successfully in database:', result);
 

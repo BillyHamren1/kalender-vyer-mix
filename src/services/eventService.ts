@@ -1,337 +1,303 @@
-import { supabase } from "@/integrations/supabase/client";
-import { CalendarEvent } from "@/components/Calendar/ResourceData";
 
-// Resource ID mapping - converts between database IDs (single letters) and application format (team-X)
-const resourceIdMap: Record<string, string> = {
-  'a': 'team-1',
-  'b': 'team-2',
-  'c': 'team-3',
-  'd': 'team-4',
-  'e': 'team-5',
-  'f': 'team-6',
-  'g': 'team-7',
-  'h': 'team-8',
-  'i': 'team-9',
-  'j': 'team-10'
-};
+import { supabase } from '@/integrations/supabase/client';
+import { CalendarEvent } from '@/components/Calendar/ResourceData';
 
-// Reverse mapping for saving to database (team-X -> single letter)
-const reverseResourceIdMap: Record<string, string> = Object.entries(resourceIdMap)
-  .reduce((map, [key, value]) => ({ ...map, [value]: key }), {});
+export interface CalendarEventUpdate {
+  start?: string;
+  end?: string;
+  resourceId?: string;
+  title?: string;
+  delivery_address?: string;
+  manually_assigned?: boolean;
+}
 
-// Convert database resource ID (single letter) to application format (team-X)
+// Map database resource ID format to app format
 export const mapDatabaseToAppResourceId = (dbResourceId: string): string => {
-  console.log(`🔄 Mapping database ID "${dbResourceId}" to app format`);
-  
-  // If it's a single letter, map to team-X format
-  if (resourceIdMap[dbResourceId]) {
-    const result = resourceIdMap[dbResourceId];
-    console.log(`✅ Mapped "${dbResourceId}" -> "${result}"`);
-    return result;
-  }
-  
-  // If it's already in team-X format, return as is (shouldn't happen after migration)
-  if (dbResourceId.startsWith('team-')) {
-    console.log(`⚠️ Already in team format: "${dbResourceId}"`);
-    return dbResourceId;
-  }
-  
-  // Fallback: assume it's a team number and convert
-  const fallback = `team-${dbResourceId}`;
-  console.log(`❌ Unknown format "${dbResourceId}", using fallback: "${fallback}"`);
-  return fallback;
-};
-
-// Convert application resource ID (team-X) to database format (single letter)
-export const mapAppToDatabaseResourceId = (appResourceId: string): string => {
-  console.log(`🔄 Mapping app ID "${appResourceId}" to database format`);
-  
-  // If it's in team-X format, map to single letter
-  if (reverseResourceIdMap[appResourceId]) {
-    const result = reverseResourceIdMap[appResourceId];
-    console.log(`✅ Mapped "${appResourceId}" -> "${result}"`);
-    return result;
-  }
-  
-  // If it's already a single letter, return as is
-  if (appResourceId.length === 1 && resourceIdMap[appResourceId]) {
-    console.log(`⚠️ Already in single letter format: "${appResourceId}"`);
-    return appResourceId;
-  }
-  
-  // Handle team-X format by extracting the number and converting to letter
-  if (appResourceId.startsWith('team-')) {
-    const teamNumber = parseInt(appResourceId.split('-')[1]);
-    if (teamNumber >= 1 && teamNumber <= 10) {
-      const letter = String.fromCharCode(96 + teamNumber); // 'a' = 97, so 96 + 1 = 97
-      console.log(`🔧 Converted "${appResourceId}" to letter "${letter}"`);
-      return letter;
+  // Single character IDs are legacy format - convert to team-X
+  if (dbResourceId && dbResourceId.length === 1) {
+    const charCode = dbResourceId.charCodeAt(0);
+    
+    // Map a=1, b=2, c=3, d=4, e=5, f=6, etc.
+    if (charCode >= 97 && charCode <= 122) { // lowercase a-z
+      const teamNumber = charCode - 96; // a=1, b=2, etc.
+      const mappedId = `team-${teamNumber}`;
+      console.log(`🔄 Mapping database ID "${dbResourceId}" to app format`);
+      console.log(`✅ Mapped "${dbResourceId}" -> "${mappedId}"`);
+      return mappedId;
+    }
+    
+    // If it's a number, map directly
+    if (!isNaN(parseInt(dbResourceId))) {
+      return `team-${dbResourceId}`;
     }
   }
   
-  console.log(`❌ No mapping found for "${appResourceId}", using as is`);
+  // If already in team-X format or other valid format, return as-is
+  return dbResourceId;
+};
+
+// Map app resource ID format to database format
+export const mapAppToDatabaseResourceId = (appResourceId: string): string => {
+  // Convert team-X format to single character for database storage
+  if (appResourceId && appResourceId.startsWith('team-')) {
+    const teamNumber = parseInt(appResourceId.replace('team-', ''));
+    if (teamNumber >= 1 && teamNumber <= 26) {
+      // Map 1=a, 2=b, 3=c, 4=d, 5=e, 6=f, etc.
+      const dbId = String.fromCharCode(96 + teamNumber); // 96 + 1 = 97 (a)
+      console.log(`🔄 Converting app ID "${appResourceId}" to database format`);
+      console.log(`✅ Converted "${appResourceId}" -> "${dbId}"`);
+      return dbId;
+    }
+  }
+  
+  // Return as-is if not in team-X format
   return appResourceId;
 };
 
-// Fetch all calendar events
 export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
-  console.log('Fetching calendar events with booking details...');
+  console.log('📅 Fetching calendar events from database...');
   
-  try {
-    // Fetch calendar events with associated booking data and products
-    const { data: events, error } = await supabase
-      .from('calendar_events')
-      .select(`
-        *,
-        bookings!calendar_events_booking_id_fkey (
-          id,
-          client,
-          booking_number,
-          deliveryaddress,
-          delivery_city,
-          delivery_postal_code,
-          internalnotes,
-          carry_more_than_10m,
-          ground_nails_allowed,
-          exact_time_needed,
-          exact_time_info,
-          booking_products (
-            id,
-            name,
-            quantity,
-            notes
-          )
-        )
-      `)
-      .order('start_time', { ascending: true });
+  const { data, error } = await supabase
+    .from('calendar_events')
+    .select(`
+      id,
+      title,
+      start_time,
+      end_time,
+      resource_id,
+      booking_id,
+      event_type,
+      delivery_address,
+      booking_number,
+      manually_assigned
+    `)
+    .order('start_time', { ascending: true });
 
-    if (error) {
-      console.error('Error fetching calendar events:', error);
-      throw error;
-    }
-
-    if (!events) {
-      console.log('No calendar events found');
-      return [];
-    }
-
-    console.log(`Fetched ${events.length} calendar events from database`);
-
-    // Transform the data to match CalendarEvent interface
-    const calendarEvents: CalendarEvent[] = events.map((event: any) => {
-      const booking = event.bookings;
-      
-      // Transform products data if available
-      const products = booking?.booking_products?.map((product: any) => ({
-        id: product.id,
-        name: product.name,
-        quantity: product.quantity,
-        notes: product.notes || undefined
-      })) || [];
-
-      console.log(`Event ${event.id} - Products:`, products, 'Internal notes:', booking?.internalnotes);
-
-      return {
-        id: event.id,
-        title: event.title,
-        start: new Date(event.start_time).toISOString(),
-        end: new Date(event.end_time).toISOString(),
-        resourceId: event.resource_id,
-        extendedProps: {
-          bookingId: event.booking_id,
-          bookingNumber: event.booking_number || booking?.booking_number,
-          eventType: event.event_type,
-          deliveryAddress: event.delivery_address || booking?.deliveryaddress,
-          deliveryCity: booking?.delivery_city,
-          deliveryPostalCode: booking?.delivery_postal_code,
-          internalNotes: booking?.internalnotes,
-          products: products, // Include products array
-          carryMoreThan10m: booking?.carry_more_than_10m,
-          groundNailsAllowed: booking?.ground_nails_allowed,
-          exactTimeNeeded: booking?.exact_time_needed,
-          exactTimeInfo: booking?.exact_time_info
-        }
-      };
-    });
-
-    console.log('Transformed calendar events:', calendarEvents.length, 'events with extended props');
-    return calendarEvents;
-
-  } catch (error) {
-    console.error('Error in fetchCalendarEvents:', error);
+  if (error) {
+    console.error('❌ Error fetching calendar events:', error);
     throw error;
   }
+
+  console.log(`✅ Fetched ${data?.length || 0} calendar events`);
+
+  // Transform the data to match CalendarEvent interface
+  const events: CalendarEvent[] = (data || []).map(event => ({
+    id: event.id,
+    title: event.title,
+    start: event.start_time,
+    end: event.end_time,
+    resourceId: mapDatabaseToAppResourceId(event.resource_id), // Convert database format to app format
+    bookingId: event.booking_id,
+    eventType: event.event_type,
+    delivery_address: event.delivery_address,
+    booking_number: event.booking_number,
+    extendedProps: {
+      bookingId: event.booking_id,
+      booking_id: event.booking_id,
+      resourceId: mapDatabaseToAppResourceId(event.resource_id),
+      deliveryAddress: event.delivery_address,
+      bookingNumber: event.booking_number,
+      eventType: event.event_type,
+      manuallyAssigned: event.manually_assigned || false
+    }
+  }));
+
+  return events;
 };
 
-// Add a calendar event
-export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promise<string> => {
-  // Convert resourceId to database format
+export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promise<CalendarEvent> => {
+  console.log('📝 Adding new calendar event:', event);
+  
+  // Convert app resource ID to database format before saving
   const dbResourceId = mapAppToDatabaseResourceId(event.resourceId);
-
+  
   const { data, error } = await supabase
     .from('calendar_events')
     .insert({
-      resource_id: dbResourceId,
-      booking_id: event.bookingId,
       title: event.title,
       start_time: event.start,
       end_time: event.end,
+      resource_id: dbResourceId, // Store in database format
+      booking_id: event.bookingId,
       event_type: event.eventType,
+      delivery_address: event.delivery_address,
+      booking_number: event.booking_number,
+      manually_assigned: true // Mark new events as manually created
     })
-    .select('id')
+    .select()
     .single();
 
   if (error) {
-    console.error('Error adding calendar event:', error);
+    console.error('❌ Error adding calendar event:', error);
     throw error;
   }
 
-  return data.id;
+  console.log('✅ Calendar event added successfully:', data);
+
+  // Return the event with app-format resource ID
+  return {
+    id: data.id,
+    title: data.title,
+    start: data.start_time,
+    end: data.end_time,
+    resourceId: mapDatabaseToAppResourceId(data.resource_id),
+    bookingId: data.booking_id,
+    eventType: data.event_type,
+    delivery_address: data.delivery_address,
+    booking_number: data.booking_number,
+    extendedProps: {
+      bookingId: data.booking_id,
+      booking_id: data.booking_id,
+      resourceId: mapDatabaseToAppResourceId(data.resource_id),
+      deliveryAddress: data.delivery_address,
+      bookingNumber: data.booking_number,
+      eventType: data.event_type,
+      manuallyAssigned: true
+    }
+  };
 };
 
-// Update a calendar event with enhanced logging and error handling
 export const updateCalendarEvent = async (
-  id: string,
-  updates: Partial<Omit<CalendarEvent, 'id'>>
-): Promise<void> => {
-  console.log(`🔄 Starting update for event ${id} with updates:`, updates);
+  eventId: string, 
+  updates: CalendarEventUpdate
+): Promise<CalendarEvent> => {
+  console.log('📝 Updating calendar event:', eventId, updates);
   
-  try {
-    const updateData: any = {};
-    
-    if (updates.resourceId) {
-      // Convert resourceId to database format (single letter)
-      const dbResourceId = mapAppToDatabaseResourceId(updates.resourceId);
-      updateData.resource_id = dbResourceId;
-      console.log(`📋 Converting resource ID ${updates.resourceId} -> ${dbResourceId}`);
-    }
-    if (updates.title) updateData.title = updates.title;
-    if (updates.start) updateData.start_time = updates.start;
-    if (updates.end) updateData.end_time = updates.end;
-    if (updates.eventType) updateData.event_type = updates.eventType;
-
-    console.log('💾 Final update data for database:', updateData);
-
-    const { data, error } = await supabase
-      .from('calendar_events')
-      .update(updateData)
-      .eq('id', id)
-      .select(); // Add select to get updated data back
-
-    if (error) {
-      console.error('❌ Database error during update:', error);
-      throw new Error(`Database update failed: ${error.message}`);
-    }
-
-    if (!data || data.length === 0) {
-      console.error('❌ No rows updated - event may not exist');
-      throw new Error('Event not found or no changes made');
-    }
-    
-    console.log(`✅ Successfully updated event ${id} in database:`, data[0]);
-  } catch (error) {
-    console.error('❌ Error in updateCalendarEvent:', error);
-    throw error; // Re-throw to be handled by calling code
+  // Prepare the update data
+  const updateData: any = {};
+  
+  if (updates.start) {
+    updateData.start_time = updates.start;
   }
+  
+  if (updates.end) {
+    updateData.end_time = updates.end;
+  }
+  
+  if (updates.resourceId) {
+    // Convert app format to database format
+    updateData.resource_id = mapAppToDatabaseResourceId(updates.resourceId);
+    // Mark as manually assigned when resource changes
+    updateData.manually_assigned = true;
+    console.log(`🔄 Resource change: ${updates.resourceId} -> ${updateData.resource_id} (marked as manually assigned)`);
+  }
+  
+  if (updates.title) {
+    updateData.title = updates.title;
+  }
+  
+  if (updates.delivery_address) {
+    updateData.delivery_address = updates.delivery_address;
+  }
+
+  // Always mark as manually assigned when updating through drag operations
+  if (updates.manually_assigned !== undefined) {
+    updateData.manually_assigned = updates.manually_assigned;
+  } else if (updates.resourceId) {
+    updateData.manually_assigned = true;
+  }
+
+  const { data, error } = await supabase
+    .from('calendar_events')
+    .update(updateData)
+    .eq('id', eventId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('❌ Error updating calendar event:', error);
+    throw error;
+  }
+
+  console.log('✅ Calendar event updated successfully:', data);
+
+  // Return the updated event with app-format resource ID
+  return {
+    id: data.id,
+    title: data.title,
+    start: data.start_time,
+    end: data.end_time,
+    resourceId: mapDatabaseToAppResourceId(data.resource_id),
+    bookingId: data.booking_id,
+    eventType: data.event_type,
+    delivery_address: data.delivery_address,
+    booking_number: data.booking_number,
+    extendedProps: {
+      bookingId: data.booking_id,
+      booking_id: data.booking_id,
+      resourceId: mapDatabaseToAppResourceId(data.resource_id),
+      deliveryAddress: data.delivery_address,
+      bookingNumber: data.booking_number,
+      eventType: data.event_type,
+      manuallyAssigned: data.manually_assigned || false
+    }
+  };
 };
 
-// Delete a calendar event
-export const deleteCalendarEvent = async (id: string): Promise<void> => {
+export const deleteCalendarEvent = async (eventId: string): Promise<void> => {
+  console.log('🗑️ Deleting calendar event:', eventId);
+  
   const { error } = await supabase
     .from('calendar_events')
     .delete()
-    .eq('id', id);
+    .eq('id', eventId);
 
   if (error) {
-    console.error('Error deleting calendar event:', error);
+    console.error('❌ Error deleting calendar event:', error);
     throw error;
   }
+
+  console.log('✅ Calendar event deleted successfully');
 };
 
-// Fetch calendar events by booking ID
 export const fetchEventsByBookingId = async (bookingId: string): Promise<CalendarEvent[]> => {
-  console.log(`Fetching events for booking ID: ${bookingId}`);
+  console.log('📅 Fetching calendar events for booking:', bookingId);
   
   const { data, error } = await supabase
     .from('calendar_events')
-    .select('*')
-    .eq('booking_id', bookingId);
+    .select(`
+      id,
+      title,
+      start_time,
+      end_time,
+      resource_id,
+      booking_id,
+      event_type,
+      delivery_address,
+      booking_number,
+      manually_assigned
+    `)
+    .eq('booking_id', bookingId)
+    .order('start_time', { ascending: true });
 
   if (error) {
-    console.error('Error fetching events for booking:', error);
+    console.error('❌ Error fetching calendar events for booking:', error);
     throw error;
   }
 
-  console.log(`Found ${data.length} events for booking ID ${bookingId}:`, data);
+  console.log(`✅ Fetched ${data?.length || 0} calendar events for booking ${bookingId}`);
 
-  return data.map(event => {
-    const eventType = event.event_type as 'rig' | 'event' | 'rigDown';
-    
-    return {
-      id: event.id,
-      resourceId: mapDatabaseToAppResourceId(event.resource_id),
-      title: event.title,
-      start: event.start_time,
-      end: event.end_time,
-      eventType: eventType,
+  // Transform the data to match CalendarEvent interface
+  const events: CalendarEvent[] = (data || []).map(event => ({
+    id: event.id,
+    title: event.title,
+    start: event.start_time,
+    end: event.end_time,
+    resourceId: mapDatabaseToAppResourceId(event.resource_id),
+    bookingId: event.booking_id,
+    eventType: event.event_type,
+    delivery_address: event.delivery_address,
+    booking_number: event.booking_number,
+    extendedProps: {
       bookingId: event.booking_id,
-      bookingNumber: event.booking_number || event.booking_id || 'No ID',
-      deliveryAddress: event.delivery_address || 'No address provided'
-    };
-  });
-};
-
-// Create a calendar event
-export const createCalendarEvent = async (eventData: Omit<CalendarEvent, 'id'>): Promise<CalendarEvent | null> => {
-  try {
-    console.log('Creating calendar event with data:', eventData);
-    
-    // Map application resource ID to database format
-    const dbResourceId = mapAppToDatabaseResourceId(eventData.resourceId);
-    
-    const { data, error } = await supabase
-      .from('calendar_events')
-      .insert({
-        title: eventData.title,
-        start_time: eventData.start,
-        end_time: eventData.end,
-        resource_id: dbResourceId,
-        event_type: eventData.eventType || 'event',
-        delivery_address: eventData.deliveryAddress,
-        booking_id: eventData.bookingId,
-        booking_number: eventData.bookingNumber,
-        viewed: eventData.viewed || false
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error creating calendar event:', error);
-      throw error;
+      booking_id: event.booking_id,
+      resourceId: mapDatabaseToAppResourceId(event.resource_id),
+      deliveryAddress: event.delivery_address,
+      bookingNumber: event.booking_number,
+      eventType: event.event_type,
+      manuallyAssigned: event.manually_assigned || false
     }
+  }));
 
-    if (data) {
-      // Convert back to application format
-      const calendarEvent: CalendarEvent = {
-        id: data.id,
-        title: data.title,
-        start: data.start_time,
-        end: data.end_time,
-        resourceId: mapDatabaseToAppResourceId(data.resource_id),
-        eventType: data.event_type as 'rig' | 'event' | 'rigDown',
-        deliveryAddress: data.delivery_address,
-        bookingId: data.booking_id,
-        bookingNumber: data.booking_number,
-        viewed: data.viewed
-      };
-
-      console.log('Created calendar event:', calendarEvent);
-      return calendarEvent;
-    }
-
-    return null;
-  } catch (error) {
-    console.error('Error in createCalendarEvent:', error);
-    throw error;
-  }
+  return events;
 };

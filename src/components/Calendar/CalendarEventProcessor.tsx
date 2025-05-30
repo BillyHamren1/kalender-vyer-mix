@@ -18,6 +18,45 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
   });
   
   return events.map(event => {
+    // Check if this event is manually assigned - if so, NEVER change it
+    const isManuallyAssigned = event.extendedProps?.manuallyAssigned || false;
+    if (isManuallyAssigned) {
+      console.log(`✋ Event ${event.id} is manually assigned to ${event.resourceId}, preserving assignment`);
+      
+      // Just ensure the resource is valid, but don't change it
+      const validResource = resources.find(r => r.id === event.resourceId);
+      if (!validResource) {
+        console.warn(`⚠️ Manually assigned event ${event.id} has invalid resourceId: ${event.resourceId}, but preserving it`);
+      }
+      
+      return {
+        ...event,
+        editable: true,
+        startEditable: true,
+        durationEditable: true,
+        resourceEditable: true,
+        constraint: undefined,
+        overlap: true,
+        allow: () => true,
+        extendedProps: {
+          ...event.extendedProps,
+          manuallyAssigned: true,
+          // Enhanced hover data
+          client: event.extendedProps?.client || event.title?.split(':')[1]?.trim() || 'Unknown Client',
+          deliveryCity: event.extendedProps?.deliveryCity || 'Unknown City',
+          deliveryPostalCode: event.extendedProps?.deliveryPostalCode || '',
+          exactTimeNeeded: event.extendedProps?.exactTimeNeeded || false,
+          exactTimeInfo: event.extendedProps?.exactTimeInfo || '',
+          internalNotes: event.extendedProps?.internalNotes || '',
+          carryMoreThan10m: event.extendedProps?.carryMoreThan10m || false,
+          groundNailsAllowed: event.extendedProps?.groundNailsAllowed || false,
+          products: event.extendedProps?.products || []
+        }
+      };
+    }
+    
+    // For non-manually assigned events, proceed with auto-assignment logic
+    
     // Normalize resource ID - convert database format to app format
     let normalizedResourceId = event.resourceId;
     
@@ -39,7 +78,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
     const eventType = event.extendedProps?.eventType || event.eventType;
     
     // DEBUG: Log the current event processing
-    console.log(`Processing event ${event.id}:`, {
+    console.log(`Processing auto-assigned event ${event.id}:`, {
       title: event.title,
       originalResourceId: event.resourceId,
       normalizedResourceId,
@@ -88,6 +127,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
           bookingNumber: event.extendedProps?.bookingNumber || event.booking_number,
           eventType: eventType,
           originalResourceId: normalizedResourceId,
+          manuallyAssigned: false, // Mark as auto-assigned
           // Enhanced hover data
           client: event.extendedProps?.client || event.title?.split(':')[1]?.trim() || 'Unknown Client',
           deliveryCity: event.extendedProps?.deliveryCity || 'Unknown City',
@@ -97,7 +137,6 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
           internalNotes: event.extendedProps?.internalNotes || '',
           carryMoreThan10m: event.extendedProps?.carryMoreThan10m || false,
           groundNailsAllowed: event.extendedProps?.groundNailsAllowed || false,
-          // Products data for hover
           products: event.extendedProps?.products || []
         }
       };
@@ -114,8 +153,9 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
       // Check if any event in this booking has been manually assigned to a non-default team
       const manuallyAssignedEvent = bookingEvents.find(e => {
         const eResourceId = e.resourceId;
-        // Consider it manually assigned if it's not on team-6 (default for EVENT) or team-1 (fallback)
-        return eResourceId !== 'team-6' && eResourceId !== 'team-1' && eResourceId.startsWith('team-');
+        const eIsManuallyAssigned = e.extendedProps?.manuallyAssigned || false;
+        // Consider it manually assigned if it's flagged OR not on team-6 (default for EVENT) or team-1 (fallback)
+        return eIsManuallyAssigned || (eResourceId !== 'team-6' && eResourceId !== 'team-1' && eResourceId.startsWith('team-'));
       });
       
       if (manuallyAssignedEvent) {
@@ -150,6 +190,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
         deliveryAddress: event.extendedProps?.deliveryAddress || event.delivery_address,
         bookingNumber: event.extendedProps?.bookingNumber || event.booking_number,
         eventType: eventType,
+        manuallyAssigned: false, // Mark as auto-assigned
         // Enhanced hover data
         client: event.extendedProps?.client || event.title?.split(':')[1]?.trim() || 'Unknown Client',
         deliveryCity: event.extendedProps?.deliveryCity || 'Unknown City',
@@ -159,7 +200,6 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
         internalNotes: event.extendedProps?.internalNotes || '',
         carryMoreThan10m: event.extendedProps?.carryMoreThan10m || false,
         groundNailsAllowed: event.extendedProps?.groundNailsAllowed || false,
-        // Products data for hover
         products: event.extendedProps?.products || []
       }
     };
@@ -170,7 +210,8 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
       finalResourceId: processedEvent.resourceId,
       originalResourceId: event.resourceId,
       eventType: eventType,
-      client: processedEvent.extendedProps.client
+      client: processedEvent.extendedProps.client,
+      manuallyAssigned: false
     });
 
     return processedEvent;
