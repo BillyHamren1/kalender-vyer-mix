@@ -17,6 +17,12 @@ import { useResourceCalendarConfig } from '@/hooks/useResourceCalendarConfig';
 import { useResourceCalendarHandlers } from '@/hooks/useResourceCalendarHandlers';
 import { ResourceCalendarStyles } from './ResourceCalendarStyles';
 
+interface WeeklyStaffSummary {
+  teamId: string;
+  maxStaffCount: number;
+  minHeight: number;
+}
+
 interface ResourceCalendarProps {
   events: CalendarEvent[];
   resources: Resource[];
@@ -31,6 +37,7 @@ interface ResourceCalendarProps {
   calendarProps?: Record<string, any>; 
   droppableScope?: string;
   targetDate?: Date;
+  weeklyStaffSummary?: WeeklyStaffSummary[];
 }
 
 const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
@@ -46,7 +53,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   forceRefresh,
   calendarProps = {},
   droppableScope = 'weekly-calendar',
-  targetDate
+  targetDate,
+  weeklyStaffSummary = []
 }) => {
   const [selectedDate, setSelectedDate] = useState<Date>(currentDate);
   const [currentView, setCurrentView] = useState<string>("resourceTimeGridDay");
@@ -91,18 +99,28 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     console.log('ResourceCalendar received events:', events);
     console.log('ResourceCalendar received resources:', resources);
     console.log('ResourceCalendar staff assignments:', assignments);
+    console.log('ResourceCalendar weekly staff summary:', weeklyStaffSummary);
     
     // Debug: Log staff assignments per team for this specific date
     resources.forEach(resource => {
       const staffForTeam = getStaffForTeam(resource.id);
-      console.log(`ResourceCalendar: Team ${resource.id} (${resource.title}) has ${staffForTeam.length} staff assigned for ${format(effectiveDate, 'yyyy-MM-dd')}:`, staffForTeam);
+      const summaryHeight = weeklyStaffSummary.find(s => s.teamId === resource.id)?.minHeight || 80;
+      console.log(`ResourceCalendar: Team ${resource.id} (${resource.title}) has ${staffForTeam.length} staff assigned for ${format(effectiveDate, 'yyyy-MM-dd')}, consistent height: ${summaryHeight}px`);
     });
-  }, [events, resources, assignments, effectiveDate, getStaffForTeam]);
+  }, [events, resources, assignments, effectiveDate, getStaffForTeam, weeklyStaffSummary]);
 
   // Process events to ensure valid resources and add styling
   const processedEvents = processEvents(events, resources);
 
-  // Custom resource header content renderer with enhanced staff retrieval
+  // Get consistent height for a team from weekly summary
+  const getConsistentHeightForTeam = (teamId: string): number => {
+    const teamSummary = weeklyStaffSummary.find(summary => summary.teamId === teamId);
+    const height = teamSummary?.minHeight || 80;
+    console.log(`ResourceCalendar: Using consistent height ${height}px for team ${teamId}`);
+    return height;
+  };
+
+  // Custom resource header content renderer with consistent heights
   const resourceHeaderContent = (info: any) => {
     if (isMobile) return info.resource.title;
     
@@ -112,7 +130,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     const assignedStaff = getStaffForTeam(info.resource.id);
     console.log(`ResourceCalendar: Found ${assignedStaff.length} staff members for team ${info.resource.id}:`, assignedStaff.map(s => s.name));
     
-    const minHeight = Math.max(80, 60 + (assignedStaff.length * 35)); // Dynamic minimum height based on staff count
+    // Use consistent height from weekly summary
+    const consistentHeight = getConsistentHeightForTeam(info.resource.id);
     
     return (
       <ResourceHeaderDropZone 
@@ -122,7 +141,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         onStaffDrop={reliableHandleStaffDrop}
         onSelectStaff={onSelectStaff}
         assignedStaff={assignedStaff}
-        minHeight={minHeight}
+        minHeight={consistentHeight}
       />
     );
   };

@@ -1,5 +1,4 @@
 
-
 import React, { useEffect, useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
@@ -7,6 +6,7 @@ import { format, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, each
 import { useNavigate } from 'react-router-dom';
 import { useContext } from 'react';
 import { CalendarContext } from '@/App';
+import { useWeeklyStaffSummary } from '@/hooks/useWeeklyStaffSummary';
 import './WeeklyCalendarStyles.css';
 
 interface UnifiedResourceCalendarProps {
@@ -40,6 +40,12 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   const todayRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { setLastViewedDate } = useContext(CalendarContext);
+
+  // Get weekly staff summary for consistent header heights
+  const { weeklyStaffSummary, isLoading: staffSummaryLoading } = useWeeklyStaffSummary(
+    currentDate,
+    resources
+  );
 
   // Generate days based on view mode
   const getDaysToRender = () => {
@@ -171,6 +177,14 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     return dayEvents;
   };
 
+  // Get consistent header heights from weekly summary
+  const getHeaderHeightsForTeam = (teamId: string): number => {
+    const teamSummary = weeklyStaffSummary.find(summary => summary.teamId === teamId);
+    const height = teamSummary?.minHeight || 80;
+    console.log(`UnifiedResourceCalendar: Consistent height for ${teamId}: ${height}px`);
+    return height;
+  };
+
   // Scroll to today for monthly view
   useEffect(() => {
     if (viewMode === 'monthly' && todayRef.current) {
@@ -196,7 +210,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 
   const getCalendarContainerClass = () => {
     if (viewMode === 'weekly') {
-      return 'weekly-calendar-container';
+      return 'weekly-calendar-container synchronized-calendars';
     } else {
       return 'monthly-calendar-grid';
     }
@@ -235,7 +249,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
                 <ResourceCalendar
                   events={dayEvents}
                   resources={resources}
-                  isLoading={isLoading}
+                  isLoading={isLoading || staffSummaryLoading}
                   isMounted={isMounted}
                   currentDate={date}
                   onDateSet={handleNestedCalendarDateSet}
@@ -247,6 +261,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
                   droppableScope={`${viewMode}-calendar`}
                   calendarProps={getCommonCalendarProps(index)}
                   targetDate={date}
+                  weeklyStaffSummary={weeklyStaffSummary}
                 />
               </div>
             </div>
@@ -258,4 +273,3 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 };
 
 export default React.memo(UnifiedResourceCalendar);
-
