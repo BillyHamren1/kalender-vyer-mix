@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { CalendarEvent } from './ResourceData';
@@ -36,7 +37,7 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event }) => {
         {children}
       </HoverCardTrigger>
       <HoverCardContent 
-        className="w-80 max-w-80 p-3 bg-white border shadow-lg z-[10000] max-h-96 overflow-y-auto" 
+        className="popover-tooltip w-80 max-w-80 p-3 bg-white border shadow-lg max-h-96 overflow-y-auto" 
         side="bottom" 
         align="center"
         sideOffset={8}
@@ -44,6 +45,7 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event }) => {
         avoidCollisions={true}
         collisionPadding={20}
         collisionBoundary={document.body}
+        style={{ zIndex: 9999 }}
       >
         <div className="space-y-3">
           {/* Event Title and Booking Number */}

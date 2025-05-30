@@ -28,18 +28,28 @@
   min-width: 550px;
   flex: 1;
   border-right: 1px solid #e5e7eb;
+  /* FIXED: Allow popovers to escape container bounds */
+  overflow: visible !important;
+  position: relative;
+  z-index: 0;
 }
 
 .monthly-day-wrapper {
   min-width: unset;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible !important;
   min-height: 200px;
 }
 
 .day-calendar-wrapper:last-child {
   border-right: none;
+}
+
+/* Popover tooltip styling - highest z-index */
+.popover-tooltip {
+  z-index: 9999 !important;
+  position: absolute !important;
 }
 
 /* Unified simple day header styling - matching monthly view exactly */
@@ -98,7 +108,7 @@
   background-color: #e5e7eb;
 }
 
-/* Ensure scrolling works properly */
+/* Ensure scrolling works properly - allow popover overflow */
 .fc-scroller {
   overflow: visible !important;
 }
