@@ -1,8 +1,10 @@
+
 import { CalendarEvent, Resource } from './ResourceData';
 import { mapDatabaseToAppResourceId } from '@/services/eventService';
 
 export const processEvents = (events: CalendarEvent[], resources: Resource[]): CalendarEvent[] => {
   console.log('Processing events:', events.length);
+  console.log('Available resources:', resources.map(r => `${r.id}: ${r.title}`));
   
   // Group events by booking ID to ensure consistent team assignment
   const eventsByBooking = new Map<string, CalendarEvent[]>();
@@ -35,6 +37,15 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
 
     // Get the actual event type
     const eventType = event.extendedProps?.eventType || event.eventType;
+    
+    // DEBUG: Log the current event processing
+    console.log(`Processing event ${event.id}:`, {
+      title: event.title,
+      originalResourceId: event.resourceId,
+      normalizedResourceId,
+      targetResourceId,
+      eventType
+    });
     
     // Check if this is an EVENT type that should potentially be auto-assigned to team-6
     if (eventType === 'event') {
@@ -91,7 +102,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
         }
       };
 
-      console.log(`Processed EVENT type event ${event.id}: assigned to ${targetResourceId} with enhanced data`);
+      console.log(`✅ Processed EVENT type event ${event.id}: assigned to ${targetResourceId} (was ${event.resourceId})`);
       return processedEvent;
     }
 
@@ -153,10 +164,11 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
       }
     };
 
-    console.log(`Processed ${eventType || 'unknown'} type event ${event.id}:`, {
+    console.log(`✅ Processed ${eventType || 'unknown'} type event ${event.id}:`, {
       title: event.title,
       bookingId: processedEvent.extendedProps.bookingId,
-      resourceId: processedEvent.resourceId,
+      finalResourceId: processedEvent.resourceId,
+      originalResourceId: event.resourceId,
       eventType: eventType,
       client: processedEvent.extendedProps.client
     });
