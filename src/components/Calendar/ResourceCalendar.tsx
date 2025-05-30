@@ -87,9 +87,10 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     await refreshEvents();
   };
 
-  // Use calendar handlers hook
+  // Use calendar handlers hook - now returns both drop and resize handlers
   const {
     handleEventDrop,
+    handleEventResize, // Now properly using the resize handler
     handleEventChange,
     handleEventClick,
     handleEventReceive,
@@ -177,7 +178,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     ...getBaseCalendarProps(),
     events: processedEvents,
     eventDrop: handleEventDrop,
-    eventResize: handleEventChange,
+    eventResize: handleEventResize, // FIXED: Now using the proper resize handler
     eventClick: handleEventClick,
     eventReceive: handleEventReceive,
     // CRITICAL: Enable all editing capabilities
@@ -220,6 +221,10 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     eventStartEditable: fullCalendarProps.eventStartEditable,
     eventDurationEditable: fullCalendarProps.eventDurationEditable,
     eventResizableFromStart: fullCalendarProps.eventResizableFromStart
+  });
+  console.log('Handlers configured:', {
+    eventDrop: !!fullCalendarProps.eventDrop,
+    eventResize: !!fullCalendarProps.eventResize
   });
 
   return (

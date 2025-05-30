@@ -37,8 +37,8 @@ export const useResourceCalendarHandlers = (
     refreshEvents
   });
 
-  // Get event handlers - using our enhanced handleEventChange
-  const { handleEventDrop } = getEventHandlers(handleEventChange, handleEventClick, handleEventReceive);
+  // Get event handlers - using our enhanced handleEventChange for BOTH drop and resize
+  const { handleEventDrop, handleEventResize } = getEventHandlers(handleEventChange, handleEventClick, handleEventReceive);
 
   // Handler for duplicate button click - FIXED to pass full event data
   const handleDuplicateButtonClick = (eventId: string) => {
@@ -84,6 +84,7 @@ export const useResourceCalendarHandlers = (
 
   return {
     handleEventDrop,
+    handleEventResize, // Now properly returning the resize handler
     handleEventChange,
     handleEventClick,
     handleEventReceive,
