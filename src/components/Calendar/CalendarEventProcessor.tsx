@@ -1,3 +1,4 @@
+
 import { CalendarEvent, Resource } from './ResourceData';
 import { mapDatabaseToAppResourceId } from '@/services/eventService';
 
@@ -17,7 +18,20 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
   });
   
   return events.map(event => {
-    // Check if this event is manually assigned - if so, NEVER change it
+    // Get the actual event type
+    const eventType = event.extendedProps?.eventType || event.eventType;
+    
+    // ALWAYS apply 2.5-hour duration to EVENT type events, regardless of assignment status
+    let eventEnd = event.end;
+    if (eventType === 'event') {
+      const startTime = new Date(event.start);
+      const endTime = new Date(startTime);
+      endTime.setTime(startTime.getTime() + (2.5 * 60 * 60 * 1000)); // 2.5 hours
+      eventEnd = endTime.toISOString();
+      console.log(`Setting EVENT type event ${event.id} duration to 2.5 hours`);
+    }
+    
+    // Check if this event is manually assigned - if so, NEVER change the team assignment
     const isManuallyAssigned = event.extendedProps?.manuallyAssigned || false;
     if (isManuallyAssigned) {
       console.log(`✋ Event ${event.id} is manually assigned to ${event.resourceId}, preserving assignment`);
@@ -30,6 +44,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
       
       return {
         ...event,
+        end: eventEnd, // Apply duration override even for manually assigned events
         editable: true,
         startEditable: true,
         durationEditable: true,
@@ -72,9 +87,6 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
       console.warn(`Event ${event.id} has invalid resourceId: ${normalizedResourceId}, falling back to first resource`);
       targetResourceId = resources[0]?.id || 'team-1';
     }
-
-    // Get the actual event type
-    const eventType = event.extendedProps?.eventType || event.eventType;
     
     // DEBUG: Log the current event processing
     console.log(`Processing auto-assigned event ${event.id}:`, {
@@ -101,15 +113,10 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
         console.log(`Respecting manual assignment of EVENT type event ${event.id} to ${targetResourceId}`);
       }
       
-      // Set EVENT events to 2.5 hours duration
-      const startTime = new Date(event.start);
-      const endTime = new Date(startTime);
-      endTime.setTime(startTime.getTime() + (2.5 * 60 * 60 * 1000));
-      
       const processedEvent = {
         ...event,
         resourceId: targetResourceId,
-        end: endTime.toISOString(),
+        end: eventEnd, // Use the 2.5-hour duration calculated above
         editable: true,
         startEditable: true,
         durationEditable: true,
@@ -174,6 +181,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
     const processedEvent = {
       ...event,
       resourceId: targetResourceId,
+      end: eventEnd, // Apply duration override for all events
       editable: true,
       startEditable: true,
       durationEditable: true,
