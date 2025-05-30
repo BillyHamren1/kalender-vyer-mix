@@ -1,3 +1,4 @@
+
 /* Calendar styling with teal theme */
 .fc .fc-button-primary {
   background-color: #7BAEBF !important;
@@ -206,10 +207,10 @@
   border-bottom: 1px solid #f0f0f0;
 }
 
-/* Resource header styling - FIXED HEIGHT AND ULTRA-TIGHT STACKING */
+/* Resource header styling - ENFORCED FIXED HEIGHT for grid alignment */
 .resource-header-wrapper {
   width: 100%;
-  height: 120px !important; /* FIXED HEIGHT */
+  height: 120px !important; /* ABSOLUTE FIXED HEIGHT */
   max-height: 120px !important;
   min-height: 120px !important;
   display: flex;
@@ -217,7 +218,7 @@
   padding: 2px;
   position: relative;
   z-index: 5;
-  overflow: hidden; /* Prevent overflow */
+  overflow: hidden; /* Prevent overflow that breaks grid */
 }
 
 .resource-title-area {
@@ -235,13 +236,13 @@
   z-index: 10;
 }
 
-/* ULTRA-TIGHT staff stacking with fixed dimensions */
+/* ULTRA-TIGHT staff stacking with ABSOLUTE fixed dimensions */
 .assigned-staff-area {
   overflow-y: auto;
   overflow-x: hidden;
   z-index: 20;
   padding: 0; /* Remove padding */
-  height: 100px !important; /* Fixed height for staff area */
+  height: 100px !important; /* ABSOLUTE fixed height for staff area */
   max-height: 100px !important;
   min-height: 100px !important;
   display: flex;
@@ -302,7 +303,7 @@
   width: 10px !important;
 }
 
-/* CRITICAL FIX: FIXED HEIGHT for all resource headers */
+/* CRITICAL FIX: ABSOLUTE FIXED HEIGHT for ALL resource headers - NO EXCEPTIONS */
 .fc-resource-timeline .fc-resource-group,
 .fc-resource-timeline .fc-datagrid-cell,
 .fc-resource-timeline .fc-datagrid-cell-cushion,
@@ -310,25 +311,25 @@
 .fc-datagrid-cell,
 .fc-datagrid-cell-frame,
 .fc-datagrid-cell-cushion {
-  height: 120px !important; /* FIXED HEIGHT */
-  min-height: 120px !important;
-  max-height: 120px !important;
+  height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
+  min-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
+  max-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
   box-sizing: border-box !important;
-  overflow: hidden !important; /* Prevent overflow */
+  overflow: hidden !important; /* Force overflow to hidden to prevent grid breaking */
 }
 
 .fc-datagrid-cell-frame {
   display: flex;
   flex-direction: column;
-  height: 120px !important; /* FIXED HEIGHT */
-  min-height: 120px !important;
-  max-height: 120px !important;
+  height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
+  min-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
+  max-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
   padding: 2px !important; /* Minimal padding */
   position: relative;
-  overflow: hidden !important;
+  overflow: hidden !important; /* Force hidden overflow */
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
@@ -336,11 +337,11 @@
 
 .fc-datagrid-cell-cushion {
   padding: 0 !important;
-  overflow: hidden !important;
+  overflow: hidden !important; /* Force hidden overflow */
   position: relative;
-  height: 120px !important; /* FIXED HEIGHT */
-  min-height: 120px !important;
-  max-height: 120px !important;
+  height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
+  min-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
+  max-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
@@ -348,10 +349,10 @@
 
 /* CRITICAL: Ensure header content is visible and SAME WIDTH as content */
 .fc-datagrid-cell-main {
-  overflow: hidden !important;
-  height: 120px !important; /* FIXED HEIGHT */
-  min-height: 120px !important;
-  max-height: 120px !important;
+  overflow: hidden !important; /* Force hidden overflow */
+  height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
+  min-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
+  max-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
   z-index: 10;
   position: relative;
   min-width: 80px !important;
@@ -369,7 +370,11 @@
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
+  height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
+  min-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
+  max-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
   box-sizing: border-box !important;
+  overflow: hidden !important; /* Force hidden overflow to prevent grid breaking */
 }
 
 /* CRITICAL: Ensure column headers have exact same width as content */
@@ -441,6 +446,21 @@
   width: 100% !important;
   margin-left: 0 !important;
   margin-right: 0 !important;
+}
+
+/* CRITICAL: Force all rows to maintain exact same height regardless of content */
+.fc-timegrid .fc-scrollgrid-section-body .fc-scrollgrid-section-liquid .fc-scrollgrid-sync-table tbody tr {
+  height: 30px !important;
+  min-height: 30px !important;
+  max-height: 30px !important;
+}
+
+/* Force resource area cells to maintain grid alignment */
+.fc-resource-timeline .fc-scrollgrid-section-body .fc-scrollgrid-section-liquid .fc-scrollgrid-sync-table tbody tr,
+.fc-datagrid .fc-scrollgrid-section-body .fc-scrollgrid-section-liquid .fc-scrollgrid-sync-table tbody tr {
+  height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
+  min-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
+  max-height: 120px !important; /* ABSOLUTE FIXED HEIGHT - NEVER CHANGES */
 }
 
 /* Mobile responsive styles */

@@ -23,11 +23,11 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   onStaffDrop,
   onSelectStaff,
   assignedStaff = [],
-  minHeight = 120 // Fixed height for consistency
+  minHeight = 120 // FIXED height for ALL cells to maintain grid alignment
 }) => {
   const effectiveDate = targetDate || currentDate;
   
-  console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff, target date: ${format(effectiveDate, 'yyyy-MM-dd')}, fixed height: ${minHeight}px`);
+  console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff, target date: ${format(effectiveDate, 'yyyy-MM-dd')}, FIXED height: ${minHeight}px`);
 
   const [{ isOver, canDrop }, drop] = useDrop({
     accept: 'STAFF',
@@ -109,9 +109,9 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         width: '80px',
         minWidth: '80px', 
         maxWidth: '80px',
-        height: `${minHeight}px`, // Fixed height
-        minHeight: `${minHeight}px`,
-        maxHeight: `${minHeight}px`,
+        height: `${minHeight}px`, // FIXED height - never changes
+        minHeight: `${minHeight}px`, // FIXED height - never changes
+        maxHeight: `${minHeight}px`, // FIXED height - never changes
         overflow: 'hidden',
         position: 'relative',
         zIndex: 10
@@ -129,7 +129,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         </div>
       </div>
       
-      {/* Staff Section - ultra tight with fixed height and scrolling */}
+      {/* Staff Section - FIXED height with scrolling */}
       <div 
         className="staff-section flex-1 min-h-0 overflow-y-auto"
         style={{ 
