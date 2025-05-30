@@ -1,11 +1,11 @@
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
-import { format, parseISO, differenceInHours, isValid, addDays, isBefore, startOfDay, endOfDay } from 'date-fns';
+import { format, parseISO, differenceInHours, isValid, addDays, isBefore } from 'date-fns';
 
 export const processEvents = (events: CalendarEvent[], resources: Resource[]): CalendarEvent[] => {
   console.log('=== CalendarEventProcessor Debug ===');
   console.log(`Processing ${events.length} events with ${resources.length} resources`);
   console.log('RAW EVENTS RECEIVED:', events);
-  console.log('AVAILABLE RESOURCES:', resources.map(r => ({ id: r.id, title: r.title })));
+  console.log('AVAILABLE RESOURCES:', resources);
   
   if (events.length === 0) {
     console.error('❌ NO EVENTS TO PROCESS - This is the problem!');
@@ -28,40 +28,39 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
     let endTime: Date;
     
     try {
-      // Parse the ISO strings - handle both string and Date inputs
-      if (typeof event.start === 'string') {
-        startTime = parseISO(event.start);
-      } else {
-        startTime = new Date(event.start);
-      }
-      
-      if (typeof event.end === 'string') {
-        endTime = parseISO(event.end);
-      } else {
-        endTime = new Date(event.end);
-      }
+      // Parse the ISO strings - these should be in UTC from the database
+      startTime = typeof event.start === 'string' ? parseISO(event.start) : new Date(event.start);
+      endTime = typeof event.end === 'string' ? parseISO(event.end) : new Date(event.end);
       
       // Validate parsed dates
       if (!isValid(startTime) || !isValid(endTime)) {
         throw new Error('Invalid date parsing');
       }
       
-      // FIXED: Proper duration calculation without overnight assumption
-      let durationHours = differenceInHours(endTime, startTime);
-      
-      // Only handle overnight events if end is actually before start (which shouldn't happen)
-      if (durationHours < 0) {
-        console.log(`  📅 Negative duration detected, adding 1 day to end time`);
+      // CRITICAL FIX: Handle overnight events correctly
+      // If end time is before start time, it means the event goes to the next day
+      if (isBefore(endTime, startTime)) {
+        console.log(`  📅 Overnight event detected - adding 1 day to end time`);
         endTime = addDays(endTime, 1);
-        durationHours = differenceInHours(endTime, startTime);
       }
       
-      console.log(`  ⏰ CORRECT time processing:`);
+      // Calculate duration in hours - FIXED calculation
+      const durationHours = differenceInHours(endTime, startTime);
+      
+      console.log(`  ⏰ FIXED time processing:`);
       console.log(`    Start: ${format(startTime, 'yyyy-MM-dd HH:mm:ss')} (${startTime.toISOString()})`);
       console.log(`    End: ${format(endTime, 'yyyy-MM-dd HH:mm:ss')} (${endTime.toISOString()})`);
-      console.log(`    Duration: ${durationHours} hours`);
+      console.log(`    Duration: ${durationHours} hours (CORRECTED)`);
       
       // Validate duration - should be reasonable
+      if (durationHours < 0) {
+        console.error(`  ❌ NEGATIVE DURATION: ${durationHours} hours - this is wrong!`);
+        // Fix by adding a day to end time
+        endTime = addDays(endTime, 1);
+        const correctedDuration = differenceInHours(endTime, startTime);
+        console.log(`  🔧 CORRECTED duration: ${correctedDuration} hours`);
+      }
+      
       if (durationHours > 24) {
         console.warn(`  ⚠️ Very long event duration: ${durationHours} hours - verify this is correct`);
       }
@@ -76,6 +75,8 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
       endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
       console.log(`  🔄 Using fallback times: ${format(startTime, 'HH:mm')} - ${format(endTime, 'HH:mm')}`);
     }
+    
+    console.log(`  Extended props:`, event.extendedProps);
     
     // Ensure the event has a valid resource ID
     let resourceId = event.resourceId;
@@ -129,7 +130,7 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
       console.log(`⚠️ Using fallback title: "${eventTitle}"`);
     }
     
-    // FINAL DURATION CALCULATION
+    // FINAL DURATION CALCULATION with overnight handling
     const finalDurationHours = differenceInHours(endTime, startTime);
     
     const processedEvent = {
@@ -147,7 +148,6 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
       editable: true,
       startEditable: true,
       durationEditable: true,
-      resourceEditable: true, // Allow moving between resources
       extendedProps: {
         ...event.extendedProps,
         originalResourceId: event.resourceId,
@@ -169,12 +169,11 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
     };
     
     console.log(`  ✅ Processed event "${eventTitle}":`);
-    console.log(`    Duration: ${finalDurationHours} hours`);
+    console.log(`    CORRECTED Duration: ${finalDurationHours} hours`);
     console.log(`    Times: ${format(startTime, 'yyyy-MM-dd HH:mm')} → ${format(endTime, 'yyyy-MM-dd HH:mm')}`);
     console.log(`    ISO Start: ${startTime.toISOString()}`);
     console.log(`    ISO End: ${endTime.toISOString()}`);
     console.log(`    Editable: ${processedEvent.editable}`);
-    console.log(`    ResourceId: ${processedEvent.resourceId}`);
     
     return processedEvent;
   });
@@ -182,12 +181,11 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
   console.log(`=== Processing Complete ===`);
   console.log(`Input events: ${events.length}`);
   console.log(`Output events: ${processedEvents.length}`);
-  console.log('FINAL PROCESSED EVENTS:', processedEvents.map(e => ({ 
+  console.log('FINAL PROCESSED EVENTS WITH CORRECTED DURATIONS:', processedEvents.map(e => ({ 
     id: e.id, 
     title: e.title, 
     start: e.start, 
     end: e.end,
-    resourceId: e.resourceId,
     duration: e.extendedProps?.durationHours + 'h',
     localTimes: `${e.extendedProps?.localStartTime} - ${e.extendedProps?.localEndTime}`,
     editable: e.editable
