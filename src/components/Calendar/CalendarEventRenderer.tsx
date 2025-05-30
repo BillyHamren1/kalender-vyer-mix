@@ -1,5 +1,3 @@
-
-
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
 import { Copy, Trash2 } from 'lucide-react';
@@ -41,31 +39,31 @@ export const renderEventContent = (eventInfo: any) => {
   // Event content component
   const EventContent = () => {
     if (eventInfo.view.type === 'resourceTimelineWeek') {
-      // More compact display for timeline view
+      // More compact display for timeline view with smaller fonts
       return (
-        <div className="event-content-wrapper" style={{ color: '#000000' }}>
-          <div className="event-booking-id text-xs opacity-80 truncate" style={{ color: '#000000' }}>#{displayId}</div>
-          <div className="event-client-name text-sm break-words whitespace-normal" 
-               style={{ lineHeight: '1.2', maxHeight: '2.4em', overflow: 'hidden', color: '#000000' }}>
+        <div className="event-content-wrapper w-full h-full px-1" style={{ color: '#000000' }}>
+          <div className="event-booking-id text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>#{displayId}</div>
+          <div className="event-client-name text-xs break-words whitespace-normal" 
+               style={{ lineHeight: '1.1', maxHeight: '2.2em', overflow: 'hidden', color: '#000000', fontSize: '11px' }}>
             {clientName}
           </div>
           {city && (
-            <div className="event-city text-xs opacity-80 truncate" style={{ color: '#000000' }}>{city}</div>
+            <div className="event-city text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>{city}</div>
           )}
         </div>
       );
     }
     
-    // Default display for other views
+    // Default display for other views with smaller fonts and full width
     return (
-      <div className="event-content-wrapper" style={{ color: '#000000' }}>
-        <div className="event-booking-id text-xs opacity-80 truncate" style={{ color: '#000000' }}>#{displayId}</div>
-        <div className="event-client-name text-sm break-words whitespace-normal" 
-             style={{ lineHeight: '1.2', maxHeight: '2.4em', overflow: 'hidden', color: '#000000' }}>
+      <div className="event-content-wrapper w-full h-full px-1" style={{ color: '#000000' }}>
+        <div className="event-booking-id text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>#{displayId}</div>
+        <div className="event-client-name text-xs break-words whitespace-normal" 
+             style={{ lineHeight: '1.1', maxHeight: '2.2em', overflow: 'hidden', color: '#000000', fontSize: '11px' }}>
           {clientName}
         </div>
         {city && (
-          <div className="event-city text-xs opacity-80 truncate" style={{ color: '#000000' }}>{city}</div>
+          <div className="event-city text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>{city}</div>
         )}
       </div>
     );
