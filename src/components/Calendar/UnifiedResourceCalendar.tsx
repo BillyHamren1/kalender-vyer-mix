@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
@@ -111,46 +112,37 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     }
   };
 
-  // Helper function to ensure consistent resource column configuration
-  const getResourceTimeGridOptions = () => {
-    return {
-      resourceAreaWidth: 80,
-      resourceLabelText: 'Teams',
-      resourceAreaHeaderContent: 'Teams',
-      stickyResourceAreaHeaders: true,
-      resourceOrder: 'title',
-      resourcesInitiallyExpanded: true,
-      slotMinWidth: 80
-    };
-  };
-
   // Common calendar props to ensure consistency across all day calendars
   const getCommonCalendarProps = (dayIndex: number) => {
     // Calculate the minimum width needed for all team columns
     const teamCount = resources.length;
-    const minCalendarWidth = Math.max(200, teamCount * 80 + 100); // 80px per team + time column
     
     return {
       height: 'auto',
       headerToolbar: false,
       allDaySlot: false,
       initialView: 'resourceTimeGridDay',
-      resourceAreaWidth: 80,
-      slotMinWidth: 80,
+      // CRITICAL: Ensure resources are properly configured
+      resourceAreaWidth: '120px',
       resourceAreaColumns: [
         {
           field: 'title',
           headerContent: 'Teams',
-          width: 80
+          width: '120px'
         }
       ],
-      ...getResourceTimeGridOptions(),
+      resourceLabelText: 'Teams',
+      resourceAreaHeaderContent: 'Teams',
+      stickyResourceAreaHeaders: true,
+      resourceOrder: 'title',
+      resourcesInitiallyExpanded: true,
+      slotMinWidth: 120,
       'data-day-index': dayIndex.toString(),
       'data-team-count': teamCount,
       contentHeight: 'auto',
       expandRows: true,
-      // Ensure calendar is wide enough for all columns
-      aspectRatio: Math.max(1.0, teamCount * 0.4),
+      // Force minimum width for proper display
+      aspectRatio: 1.2,
     };
   };
 
@@ -198,12 +190,6 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
       return 'monthly-calendar-grid';
     }
   };
-
-  // Set CSS custom property for team count
-  React.useEffect(() => {
-    const teamCount = resources.length;
-    document.documentElement.style.setProperty('--team-count', teamCount.toString());
-  }, [resources.length]);
 
   return (
     <div className={getContainerClass()}>

@@ -36,14 +36,14 @@ export const useResourceCalendarConfig = (
     return aNum - bNum;
   });
 
-  // FIXED: Consistent resource column configuration - using NUMBERS for FullCalendar
+  // FIXED: Consistent resource column configuration - using STRING values for FullCalendar
   const getResourceColumnConfig = () => {
-    // Use numeric values for FullCalendar (pixels without 'px')
-    const standardWidth = 80;
+    // Use string values with 'px' for FullCalendar
+    const standardWidth = '120px';
     
     return {
       resourceAreaWidth: standardWidth,
-      slotMinWidth: standardWidth,
+      slotMinWidth: 120,
       resourceAreaColumns: [
         {
           field: 'title',
@@ -70,7 +70,8 @@ export const useResourceCalendarConfig = (
     initialView: getInitialView(),
     headerToolbar: getMobileHeaderToolbar(),
     views: getCalendarViews(),
-    resources: isMobile ? [] : sortedResources,
+    // CRITICAL: Always include resources, even on mobile
+    resources: sortedResources,
     editable: true,
     droppable: true,
     selectable: true,
@@ -80,7 +81,7 @@ export const useResourceCalendarConfig = (
     aspectRatio: getAspectRatio(),
     dropAccept: ".fc-event",
     eventAllow: () => true,
-    // Add the FIXED resource column config with consistent 80px width (as numbers)
+    // Add the FIXED resource column config with consistent 120px width
     ...getResourceColumnConfig(),
     // Add calendar options
     ...getCalendarOptions(),
@@ -88,9 +89,9 @@ export const useResourceCalendarConfig = (
     ...getCalendarTimeFormatting(),
     // Apply any additional calendar props (but prioritize our width settings)
     ...calendarProps,
-    // OVERRIDE any conflicting width settings from calendarProps with NUMBERS
-    resourceAreaWidth: 80,
-    slotMinWidth: 80,
+    // OVERRIDE any conflicting width settings from calendarProps
+    resourceAreaWidth: '120px',
+    slotMinWidth: 120,
     // Update resource rendering to include select button
     resourceAreaHeaderContent: (args: any) => {
       return (
