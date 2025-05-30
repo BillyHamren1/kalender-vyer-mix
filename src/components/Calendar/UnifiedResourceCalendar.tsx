@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
@@ -39,12 +40,11 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   const navigate = useNavigate();
   const { setLastViewedDate } = useContext(CalendarContext);
 
-  // Calculate dynamic width based on view mode
+  // Calculate dynamic width based on view mode - FIXED for weekly view
   const calculateDayWidth = () => {
     if (viewMode === 'weekly') {
-      // For weekly view, use a simpler width calculation
-      const baseWidth = 200; // Base width for time column and content
-      return Math.max(baseWidth, 300); // Minimum 300px for readability
+      // Fixed width for weekly view - reasonable size per day
+      return 180; // 180px per day is reasonable
     }
     
     // For monthly/resource view, calculate based on teams
@@ -131,19 +131,18 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     }
   };
 
-  // Common calendar props for weekly view (simplified)
+  // Common calendar props - simplified for weekly view
   const getCommonCalendarProps = (dayIndex: number) => {
     if (viewMode === 'weekly') {
       return {
         height: 'auto',
         headerToolbar: false,
         allDaySlot: false,
-        initialView: 'timeGridDay', // Use simple time grid day view
-        slotMinWidth: 60,
+        initialView: 'timeGridDay',
         'data-day-index': dayIndex.toString(),
         contentHeight: 'auto',
         expandRows: true,
-        aspectRatio: 1.2,
+        aspectRatio: 1.35,
       };
     }
 
@@ -228,7 +227,10 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
         className={getCalendarContainerClass()} 
         ref={containerRef}
         style={{
-          minWidth: viewMode === 'weekly' ? `${dynamicDayWidth * 7}px` : 'auto'
+          // Set reasonable total width for weekly view: 7 days × 180px = 1260px
+          minWidth: viewMode === 'weekly' ? '1260px' : 'auto',
+          maxWidth: viewMode === 'weekly' ? '1400px' : 'auto',
+          width: viewMode === 'weekly' ? 'fit-content' : 'auto'
         }}
       >
         {days.map((date, index) => {
@@ -248,7 +250,11 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
               className={viewMode === 'weekly' ? 'day-calendar-wrapper' : 'monthly-day-wrapper'}
               ref={isToday ? todayRef : null}
               style={{
-                minWidth: viewMode === 'weekly' ? `${dynamicDayWidth}px` : 'auto'
+                // Fixed width for weekly view
+                width: viewMode === 'weekly' ? `${dynamicDayWidth}px` : 'auto',
+                minWidth: viewMode === 'weekly' ? `${dynamicDayWidth}px` : 'auto',
+                maxWidth: viewMode === 'weekly' ? `${dynamicDayWidth}px` : 'auto',
+                flex: viewMode === 'weekly' ? '0 0 auto' : undefined
               }}
             >
               {/* Clickable day header */}

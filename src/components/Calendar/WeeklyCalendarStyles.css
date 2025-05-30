@@ -12,12 +12,12 @@
 .weekly-calendar-container {
   display: flex;
   height: 100%;
-  width: 100%;
+  width: fit-content; /* Allow container to size to content */
   border: 1px solid #e0e0e0;
   border-radius: 8px;
-  overflow-x: auto; /* Allow horizontal scrolling for 7 days */
+  overflow-x: auto; /* Allow horizontal scrolling if needed */
   overflow-y: hidden;
-  min-width: fit-content; /* Allow container to expand for 7 days */
+  max-width: 100%; /* Don't exceed viewport width */
 }
 
 .day-calendar-wrapper {
@@ -28,8 +28,7 @@
   border-right: 1px solid #e0e0e0;
   background: white;
   overflow: hidden;
-  /* Width will be set dynamically via inline styles */
-  min-width: 250px; /* Minimum width for readability */
+  /* Width is now set via inline styles - 180px per day */
 }
 
 .day-calendar-wrapper:last-child {
@@ -80,32 +79,27 @@
   flex: 1;
   height: 100%;
   overflow: hidden;
-  min-width: 100%;
   width: 100%;
 }
 
 .weekly-view-calendar .fc {
   height: 100% !important;
-  min-width: 100% !important;
   width: 100% !important;
 }
 
 .weekly-view-calendar .fc-view-harness {
   height: 100% !important;
   flex: 1 !important;
-  min-width: 100% !important;
   width: 100% !important;
 }
 
 /* Ensure the time grid takes full width for each day */
 .weekly-view-calendar .fc-timegrid {
   width: 100% !important;
-  min-width: 100% !important;
 }
 
 .weekly-view-calendar .fc-timegrid-body {
   width: 100% !important;
-  min-width: 100% !important;
 }
 
 /* Remove resource-specific styling for weekly view */
@@ -126,6 +120,12 @@
 }
 
 /* Responsive styles */
+@media (max-width: 1400px) {
+  .weekly-calendar-container {
+    overflow-x: auto; /* Enable horizontal scrolling on smaller screens */
+  }
+}
+
 @media (max-width: 768px) {
   .weekly-calendar-container {
     flex-direction: column;
@@ -133,13 +133,16 @@
     min-height: 500px;
     overflow-x: auto;
     overflow-y: auto;
+    width: 100%;
   }
   
   .day-calendar-wrapper {
     border-right: none;
     border-bottom: 1px solid #e0e0e0;
     min-height: 200px;
-    min-width: 100%;
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
     flex: none;
   }
   
