@@ -76,9 +76,9 @@ export const useEventOperations = ({
       });
 
       // Update the event in the database - the service will handle resource ID mapping
-      await updateCalendarEvent(info.event.id, eventData);
+      const result = await updateCalendarEvent(info.event.id, eventData);
       
-      console.log('✅ Event updated successfully in database');
+      console.log('✅ Event updated successfully in database:', result);
 
       // Show success message
       if (changeDescription) {
@@ -87,11 +87,13 @@ export const useEventOperations = ({
         toast.success('Event updated successfully');
       }
 
-      // Refresh the calendar to show updated data
+      // CRITICAL: Force refresh the calendar to show updated data
       if (refreshEvents) {
         console.log('🔄 Refreshing calendar events...');
         await refreshEvents();
         console.log('✅ Calendar refreshed');
+      } else {
+        console.error('❌ No refreshEvents function provided!');
       }
 
     } catch (error) {
