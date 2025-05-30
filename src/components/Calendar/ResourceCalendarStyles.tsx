@@ -29,13 +29,6 @@ export const ResourceCalendarStyles: React.FC = () => (
         padding: 2px 4px !important;
       }
       
-      /* CRITICAL: Force container to be wide enough for all team columns */
-      .weekly-view-calendar .fc-scrollgrid-sync-table {
-        width: 100% !important;
-        min-width: 100% !important;
-        table-layout: auto !important;
-      }
-      
       /* CRITICAL: Force ALL resource columns to be properly sized and VISIBLE */
       .fc-resource-area,
       .fc-resource-area td,
@@ -83,7 +76,7 @@ export const ResourceCalendarStyles: React.FC = () => (
       }
       
       /* CRITICAL: Make sure the time grid expands to show all columns */
-      .weekly-view-calendar .fc-timegrid {
+      .fc-timegrid {
         min-width: fit-content !important;
         width: 100% !important;
         table-layout: auto !important;
@@ -91,18 +84,10 @@ export const ResourceCalendarStyles: React.FC = () => (
       }
       
       /* CRITICAL: Ensure all teams are visible by making the calendar wide enough */
-      .weekly-view-calendar .fc-datagrid {
-        overflow: visible !important;
+      .fc-datagrid {
         min-width: fit-content !important;
         width: 100% !important;
         display: table !important;
-      }
-      
-      /* CRITICAL: Force all scrollers to show content */
-      .weekly-view-calendar .fc-scroller {
-        overflow: visible !important;
-        width: 100% !important;
-        height: auto !important;
       }
       
       /* CRITICAL: Make resource headers visible and properly sized */
@@ -122,29 +107,51 @@ export const ResourceCalendarStyles: React.FC = () => (
       }
       
       /* CRITICAL: Ensure the entire scrollgrid uses table layout for proper column display */
-      .weekly-view-calendar .fc-scrollgrid-liquid {
+      .fc-scrollgrid-liquid {
         width: 100% !important;
         table-layout: auto !important;
         display: table !important;
       }
       
       /* CRITICAL: Force table sections to display properly */
-      .weekly-view-calendar .fc-scrollgrid-section {
+      .fc-scrollgrid-section {
         display: table-row-group !important;
       }
       
-      .weekly-view-calendar .fc-scrollgrid-section > table {
+      .fc-scrollgrid-section > table {
         width: 100% !important;
         table-layout: auto !important;
         display: table !important;
       }
       
       /* CRITICAL: Ensure header and body tables align */
-      .weekly-view-calendar .fc-col-header,
-      .weekly-view-calendar .fc-datagrid-body {
+      .fc-col-header,
+      .fc-datagrid-body {
         width: 100% !important;
         table-layout: auto !important;
         display: table !important;
+      }
+
+      /* CRITICAL: Fix grey overlay issue - ensure calendar grid has proper backgrounds */
+      .fc-timegrid-slots,
+      .fc-timegrid-slot,
+      .fc-timegrid-slot-lane {
+        background: white !important;
+      }
+
+      /* CRITICAL: Ensure events are visible and not hidden behind grey overlay */
+      .fc-timegrid-event-harness,
+      .fc-event,
+      .fc-event-main {
+        z-index: 3 !important;
+        position: relative !important;
+      }
+
+      /* CRITICAL: Fix calendar backgrounds to prevent grey overlay */
+      .fc-scrollgrid,
+      .fc-scrollgrid-sync-table,
+      .fc-view-harness {
+        background: white !important;
       }
     `}
   </style>
