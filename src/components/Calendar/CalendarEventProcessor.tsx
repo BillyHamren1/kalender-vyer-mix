@@ -1,4 +1,3 @@
-
 import { CalendarEvent, Resource } from './ResourceData';
 import { mapDatabaseToAppResourceId } from '@/services/eventService';
 

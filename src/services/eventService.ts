@@ -8,7 +8,6 @@ export interface CalendarEventUpdate {
   resourceId?: string;
   title?: string;
   delivery_address?: string;
-  manually_assigned?: boolean;
 }
 
 // Map database resource ID format to app format
@@ -68,8 +67,7 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
       booking_id,
       event_type,
       delivery_address,
-      booking_number,
-      manually_assigned
+      booking_number
     `)
     .order('start_time', { ascending: true });
 
@@ -98,7 +96,7 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
       deliveryAddress: event.delivery_address,
       bookingNumber: event.booking_number,
       eventType: event.event_type,
-      manuallyAssigned: event.manually_assigned || false
+      manuallyAssigned: false // Default to false since we don't have this column yet
     }
   }));
 
@@ -121,8 +119,7 @@ export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promis
       booking_id: event.bookingId,
       event_type: event.eventType,
       delivery_address: event.delivery_address,
-      booking_number: event.booking_number,
-      manually_assigned: true // Mark new events as manually created
+      booking_number: event.booking_number
     })
     .select()
     .single();
@@ -152,7 +149,7 @@ export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promis
       deliveryAddress: data.delivery_address,
       bookingNumber: data.booking_number,
       eventType: data.event_type,
-      manuallyAssigned: true
+      manuallyAssigned: false
     }
   };
 };
@@ -177,9 +174,7 @@ export const updateCalendarEvent = async (
   if (updates.resourceId) {
     // Convert app format to database format
     updateData.resource_id = mapAppToDatabaseResourceId(updates.resourceId);
-    // Mark as manually assigned when resource changes
-    updateData.manually_assigned = true;
-    console.log(`🔄 Resource change: ${updates.resourceId} -> ${updateData.resource_id} (marked as manually assigned)`);
+    console.log(`🔄 Resource change: ${updates.resourceId} -> ${updateData.resource_id}`);
   }
   
   if (updates.title) {
@@ -188,13 +183,6 @@ export const updateCalendarEvent = async (
   
   if (updates.delivery_address) {
     updateData.delivery_address = updates.delivery_address;
-  }
-
-  // Always mark as manually assigned when updating through drag operations
-  if (updates.manually_assigned !== undefined) {
-    updateData.manually_assigned = updates.manually_assigned;
-  } else if (updates.resourceId) {
-    updateData.manually_assigned = true;
   }
 
   const { data, error } = await supabase
@@ -229,7 +217,7 @@ export const updateCalendarEvent = async (
       deliveryAddress: data.delivery_address,
       bookingNumber: data.booking_number,
       eventType: data.event_type,
-      manuallyAssigned: data.manually_assigned || false
+      manuallyAssigned: false
     }
   };
 };
@@ -264,8 +252,7 @@ export const fetchEventsByBookingId = async (bookingId: string): Promise<Calenda
       booking_id,
       event_type,
       delivery_address,
-      booking_number,
-      manually_assigned
+      booking_number
     `)
     .eq('booking_id', bookingId)
     .order('start_time', { ascending: true });
@@ -295,7 +282,7 @@ export const fetchEventsByBookingId = async (bookingId: string): Promise<Calenda
       deliveryAddress: event.delivery_address,
       bookingNumber: event.booking_number,
       eventType: event.event_type,
-      manuallyAssigned: event.manually_assigned || false
+      manuallyAssigned: false
     }
   }));
 
