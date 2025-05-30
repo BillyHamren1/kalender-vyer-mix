@@ -16,6 +16,7 @@ import UnifiedResourceCalendar from '@/components/Calendar/UnifiedResourceCalend
 import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
 import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
 import TeamEditDialog from '@/components/Calendar/TeamEditDialog';
+import ActionsDropdown from '@/components/Calendar/ActionsDropdown';
 import { startOfWeek, subDays, format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -325,9 +326,29 @@ const WeeklyResourceView = () => {
           ) : <></>}
           isMobile={isMobile}
         >
-          {/* Add the Staff Planning Header with minimal top padding */}
-          <div className="px-6 pt-1">
-            <StaffPlanningHeader />
+          {/* Top section with Staff Planning Header and Actions Dropdown */}
+          <div className="relative">
+            {/* Staff Planning Header with minimal top padding */}
+            <div className="px-6 pt-1">
+              <StaffPlanningHeader />
+            </div>
+
+            {/* Actions Dropdown in top right corner */}
+            <div className="absolute top-1 right-6">
+              <ActionsDropdown
+                teamResources={teamResources}
+                teamCount={teamCount}
+                onAddTeam={addTeam}
+                onRemoveTeam={removeTeam}
+                currentWeekStart={currentWeekStart}
+                onCopyFromPreviousWeek={handleCopyFromPreviousWeek}
+                currentDate={hookCurrentDate}
+                resources={resources}
+                onAddTask={addEventToCalendar}
+                onShowStaffCurtain={handleToggleStaffDisplay}
+                isLoading={isLoading || processingStaffIds.length > 0 || reliableStaffOps.isLoading || isImporting}
+              />
+            </div>
           </div>
 
           {/* ResourceHeader component with team management controls - minimal padding */}
@@ -342,32 +363,12 @@ const WeeklyResourceView = () => {
             />
           </div>
 
-          {/* Week Navigation and Header - CENTERED with minimal spacing */}
-          <div className="flex flex-col items-center space-y-1 mb-1 flex-shrink-0">
+          {/* Week Navigation - CENTERED and standalone */}
+          <div className="flex justify-center mb-1 flex-shrink-0">
             <WeekNavigation 
               currentWeekStart={currentWeekStart}
               setCurrentWeekStart={setCurrentWeekStart}
             />
-            
-            <div className="flex items-center gap-2">
-              <TeamEditDialog
-                teamResources={teamResources}
-                teamCount={teamCount}
-                onAddTeam={addTeam}
-                onRemoveTeam={removeTeam}
-                currentWeekStart={currentWeekStart}
-                onCopyFromPreviousWeek={handleCopyFromPreviousWeek}
-              />
-              
-              <ResourceToolbar
-                isLoading={isLoading || processingStaffIds.length > 0 || reliableStaffOps.isLoading || isImporting}
-                currentDate={hookCurrentDate}
-                resources={resources}
-                onRefresh={handleRefresh}
-                onAddTask={addEventToCalendar}
-                onShowStaffCurtain={handleToggleStaffDisplay}
-              />
-            </div>
           </div>
           
           {/* Unified Calendar View with reliable staff handling - Full height */}
