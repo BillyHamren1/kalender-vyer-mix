@@ -76,12 +76,10 @@ export const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
     <div className="p-2 md:p-3">
       {/* Three equal cards in a grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mb-2">
-        {/* Products Card */}
-        {booking.products && booking.products.length > 0 && (
-          <div className="h-full">
-            <ProductsList products={booking.products} />
-          </div>
-        )}
+        {/* Products Card - ALWAYS display */}
+        <div className="h-full">
+          <ProductsList products={booking.products || []} />
+        </div>
         
         {/* Event Information Card */}
         <div className="h-full">
