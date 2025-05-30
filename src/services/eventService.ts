@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 
@@ -47,8 +48,8 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
       return {
         id: event.id,
         title: event.title,
-        start: new Date(event.start_time), // Convert string to Date object
-        end: new Date(event.end_time), // Convert string to Date object
+        start: new Date(event.start_time + 'Z'), // Add 'Z' to treat as UTC
+        end: new Date(event.end_time + 'Z'), // Add 'Z' to treat as UTC
         resourceId: event.resource_id,
         bookingId: event.booking_id,
         eventType: event.event_type as 'rig' | 'event' | 'rigDown',
@@ -113,8 +114,8 @@ export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promis
   return {
     id: data.id,
     title: data.title,
-    start: new Date(data.start_time), // Convert string to Date object
-    end: new Date(data.end_time), // Convert string to Date object
+    start: new Date(data.start_time + 'Z'), // Add 'Z' to treat as UTC
+    end: new Date(data.end_time + 'Z'), // Add 'Z' to treat as UTC
     resourceId: data.resource_id,
     bookingId: data.booking_id,
     eventType: data.event_type as 'rig' | 'event' | 'rigDown',
@@ -181,8 +182,8 @@ export const updateCalendarEvent = async (
   return {
     id: data.id,
     title: data.title,
-    start: new Date(data.start_time), // Convert string to Date object
-    end: new Date(data.end_time), // Convert string to Date object
+    start: new Date(data.start_time + 'Z'), // Add 'Z' to treat as UTC
+    end: new Date(data.end_time + 'Z'), // Add 'Z' to treat as UTC
     resourceId: data.resource_id,
     bookingId: data.booking_id,
     eventType: data.event_type as 'rig' | 'event' | 'rigDown',
@@ -247,8 +248,8 @@ export const fetchEventsByBookingId = async (bookingId: string): Promise<Calenda
   const events: CalendarEvent[] = (data || []).map(event => ({
     id: event.id,
     title: event.title,
-    start: new Date(event.start_time), // Convert string to Date object
-    end: new Date(event.end_time), // Convert string to Date object
+    start: new Date(event.start_time + 'Z'), // Add 'Z' to treat as UTC
+    end: new Date(event.end_time + 'Z'), // Add 'Z' to treat as UTC
     resourceId: event.resource_id,
     bookingId: event.booking_id,
     eventType: event.event_type as 'rig' | 'event' | 'rigDown',
