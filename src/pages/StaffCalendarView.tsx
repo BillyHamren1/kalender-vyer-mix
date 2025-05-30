@@ -39,7 +39,7 @@ const StaffCalendarView: React.FC = () => {
   // Fetch staff resources for the calendar
   const { 
     data: staffResources = [], 
-    isLoading: isLoadingStaff,
+    isLoadingStaff,
     refetch: refetchStaff 
   } = useQuery({
     queryKey: ['staffResources'],
@@ -47,15 +47,6 @@ const StaffCalendarView: React.FC = () => {
     staleTime: 60000,
     refetchOnWindowFocus: false,
   });
-
-  // Remove the auto-selection effect - staff selection is now manual only
-  // useEffect(() => {
-  //   if (staffResources.length > 0 && selectedStaffIds.length === 0) {
-  //     const allStaffIds = staffResources.map(staff => staff.id);
-  //     console.log('StaffCalendarView: Auto-selecting all staff:', allStaffIds);
-  //     setSelectedStaffIds(allStaffIds);
-  //   }
-  // }, [staffResources, selectedStaffIds.length]);
 
   // Fetch calendar events with improved query key that includes the formatted date
   const { 
@@ -117,84 +108,105 @@ const StaffCalendarView: React.FC = () => {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">Error loading staff calendar: {error.message}</p>
-          <Button onClick={() => {
-            refetchEvents();
-            refetchStaff();
-          }}>Retry</Button>
-        </div>
+        <Card className="max-w-md mx-auto">
+          <CardContent className="p-6 text-center">
+            <p className="text-red-600 mb-4">Error loading staff calendar: {error.message}</p>
+            <Button onClick={() => {
+              refetchEvents();
+              refetchStaff();
+            }}>Retry</Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <Users className="h-8 w-8 text-[#82b6c6]" />
-            <h1 className="text-3xl font-bold text-gray-900">Staff Calendar</h1>
+      {/* Modern Header with consistent styling */}
+      <div className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-sm">
+                <Users className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Staff Calendar</h1>
+                <p className="text-sm text-gray-500">Manage team schedules and assignments</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Navigation */}
-      <SimpleCalendarNavigation
-        currentDate={currentDate}
-        onNavigate={navigateDate}
-        onToday={goToToday}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-      />
+      {/* Navigation with modern styling */}
+      <div className="bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <SimpleCalendarNavigation
+            currentDate={currentDate}
+            onNavigate={navigateDate}
+            onToday={goToToday}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+          />
+        </div>
+      </div>
 
-      {/* Main Content */}
-      <div className="p-6">
-        <div className="grid grid-cols-4 gap-6">
-          {/* Calendar - Takes up 3 columns */}
-          <div className="col-span-3">
-            <Card>
+      {/* Main Content with improved layout */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Calendar Section - 3 columns on large screens */}
+          <div className="lg:col-span-3">
+            <Card className="shadow-sm border-0 bg-white">
               <CardContent className="p-0 relative">
+                {/* Modern loading indicator */}
                 {(isLoadingEvents || isLoadingStaff) && (
-                  <div className="absolute top-4 right-4 z-10">
-                    <div className="flex items-center space-x-2 bg-white px-3 py-2 rounded-lg shadow-sm border">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                      <span className="text-sm text-gray-600">Loading calendar...</span>
+                  <div className="absolute top-4 right-4 z-20">
+                    <div className="flex items-center space-x-3 bg-white/95 backdrop-blur-sm px-4 py-2 rounded-lg shadow-lg border border-gray-100">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
+                      <span className="text-sm font-medium text-gray-700">Loading calendar...</span>
                     </div>
                   </div>
                 )}
                 
-                <IndividualStaffCalendar
-                  events={calendarEvents}
-                  staffResources={filteredStaffResources}
-                  currentDate={currentDate}
-                  viewMode={viewMode}
-                  onDateChange={handleDateChange}
-                  isLoading={isLoadingEvents || isLoadingStaff}
-                />
+                {/* Calendar container with improved styling */}
+                <div className="rounded-lg overflow-hidden border border-gray-100">
+                  <IndividualStaffCalendar
+                    events={calendarEvents}
+                    staffResources={filteredStaffResources}
+                    currentDate={currentDate}
+                    viewMode={viewMode}
+                    onDateChange={handleDateChange}
+                    isLoading={isLoadingEvents || isLoadingStaff}
+                  />
+                </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Right Sidebar - Staff Selection and Job Summary */}
-          <div className="col-span-1 space-y-6">
-            {/* Staff Selection Panel */}
-            <StaffSelectorPanel
-              staffResources={staffResources}
-              selectedStaffIds={selectedStaffIds}
-              onSelectionChange={setSelectedStaffIds}
-              isLoading={isLoadingStaff}
-            />
+          {/* Sidebar - 1 column on large screens */}
+          <div className="lg:col-span-1 space-y-6">
+            {/* Staff Selection Panel with modern styling */}
+            <Card className="shadow-sm border-0 bg-white">
+              <StaffSelectorPanel
+                staffResources={staffResources}
+                selectedStaffIds={selectedStaffIds}
+                onSelectionChange={setSelectedStaffIds}
+                isLoading={isLoadingStaff}
+              />
+            </Card>
 
-            {/* Job Summary */}
-            <JobSummaryList
-              events={calendarEvents}
-              staffResources={filteredStaffResources}
-              selectedClients={selectedClients}
-              currentDate={currentDate}
-              viewMode={viewMode}
-            />
+            {/* Job Summary with modern styling */}
+            <Card className="shadow-sm border-0 bg-white">
+              <JobSummaryList
+                events={calendarEvents}
+                staffResources={filteredStaffResources}
+                selectedClients={selectedClients}
+                currentDate={currentDate}
+                viewMode={viewMode}
+              />
+            </Card>
           </div>
         </div>
       </div>
