@@ -135,15 +135,10 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         style={{ 
           maxHeight: `${minHeight - 25}px`, // Leave room for header
           scrollbarWidth: 'none', // Firefox
-          msOverflowStyle: 'none' // IE/Edge
+          msOverflowStyle: 'none', // IE/Edge
+          WebkitScrollbarWidth: 'none' // Hide scrollbar but keep functionality
         }}
       >
-        <style jsx>{`
-          .staff-section::-webkit-scrollbar {
-            display: none; /* Webkit browsers */
-          }
-        `}</style>
-        
         {assignedStaff.length > 0 ? (
           <div className="space-y-0">
             {assignedStaff.map((staff, index) => (
