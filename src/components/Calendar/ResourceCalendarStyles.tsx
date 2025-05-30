@@ -32,6 +32,7 @@ export const ResourceCalendarStyles: React.FC = () => (
         border-radius: 4px !important;
         cursor: move !important;
         pointer-events: auto !important;
+        position: relative !important;
       }
       
       .fc-event-main {
@@ -40,19 +41,19 @@ export const ResourceCalendarStyles: React.FC = () => (
         display: flex !important;
         flex-direction: column !important;
         justify-content: flex-start !important;
-        pointer-events: auto !important;
+        pointer-events: none !important;
       }
       
-      /* CRITICAL: Enable event resizing handles */
+      /* CRITICAL: Enable event resizing handles and make them visible */
       .fc-event-resizer {
         display: block !important;
         position: absolute !important;
         z-index: 999 !important;
-        overflow: hidden !important;
-        font-size: 300% !important;
-        line-height: 50% !important;
+        overflow: visible !important;
         pointer-events: auto !important;
         cursor: ns-resize !important;
+        background: rgba(0,0,0,0.1) !important;
+        border-radius: 2px !important;
       }
       
       .fc-event-resizer-start {
@@ -60,7 +61,8 @@ export const ResourceCalendarStyles: React.FC = () => (
         top: -3px !important;
         left: 0 !important;
         right: 0 !important;
-        height: 7px !important;
+        height: 6px !important;
+        background: rgba(0,0,0,0.2) !important;
       }
       
       .fc-event-resizer-end {
@@ -68,7 +70,13 @@ export const ResourceCalendarStyles: React.FC = () => (
         bottom: -3px !important;
         left: 0 !important;
         right: 0 !important;
-        height: 7px !important;
+        height: 6px !important;
+        background: rgba(0,0,0,0.2) !important;
+      }
+      
+      /* Show resize handles on hover */
+      .fc-event:hover .fc-event-resizer {
+        background: rgba(0,0,0,0.3) !important;
       }
       
       /* Ensure event content allows dragging but not resizing */
@@ -79,7 +87,7 @@ export const ResourceCalendarStyles: React.FC = () => (
       .event-booking-id,
       .event-client-name,
       .event-city {
-        pointer-events: none !important; /* Let drag events pass through content */
+        pointer-events: none !important;
       }
       
       /* Event content styling for better text wrapping */

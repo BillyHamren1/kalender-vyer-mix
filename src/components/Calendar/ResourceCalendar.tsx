@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import { format } from 'date-fns';
@@ -176,17 +177,21 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     ...getBaseCalendarProps(),
     events: processedEvents,
     eventDrop: handleEventDrop,
-    eventResize: handleEventChange, // This enables time span editing
+    eventResize: handleEventChange,
     eventClick: handleEventClick,
     eventReceive: handleEventReceive,
+    // CRITICAL: Enable all editing capabilities
     editable: true,
     selectable: true,
     selectMirror: true,
     dayMaxEvents: false,
     weekends: true,
-    // CRITICAL: Enable event resizing capabilities
-    eventResizableFromStart: true,
+    eventStartEditable: true,
     eventDurationEditable: true,
+    eventResizableFromStart: true,
+    eventOverlap: true,
+    selectOverlap: true,
+    eventAllow: () => true,
     datesSet: (dateInfo: any) => {
       setSelectedDate(dateInfo.start);
       onDateSet(dateInfo);
@@ -210,6 +215,12 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   console.log('Events passed to FullCalendar:', fullCalendarProps.events.length);
   console.log('Resources passed to FullCalendar:', fullCalendarProps.resources?.length || 0);
   console.log('FullCalendar view:', fullCalendarProps.initialView);
+  console.log('Event editing enabled:', {
+    editable: fullCalendarProps.editable,
+    eventStartEditable: fullCalendarProps.eventStartEditable,
+    eventDurationEditable: fullCalendarProps.eventDurationEditable,
+    eventResizableFromStart: fullCalendarProps.eventResizableFromStart
+  });
 
   return (
     <div className="calendar-container">
