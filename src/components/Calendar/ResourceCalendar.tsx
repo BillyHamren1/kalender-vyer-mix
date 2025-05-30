@@ -151,10 +151,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     selectMirror: true,
     dayMaxEvents: false,
     weekends: true,
-    // Add proper height management for FullCalendar
-    contentHeight: "auto",
-    height: "auto",
-    expandRows: true,
     datesSet: (dateInfo: any) => {
       setSelectedDate(dateInfo.start);
       onDateSet(dateInfo);
