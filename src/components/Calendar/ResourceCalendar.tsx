@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import { format } from 'date-fns';
@@ -7,15 +6,17 @@ import { processEvents } from './CalendarEventProcessor';
 import { useReliableStaffOperations } from '@/hooks/useReliableStaffOperations';
 import ResourceHeaderDropZone from './ResourceHeaderDropZone';
 import ConfirmationDialog from '@/components/ConfirmationDialog';
-import { 
-  renderEventContent, 
-  setupEventActions, 
+import {
+  renderEventContent,
+  setupEventActions,
   addEventAttributes,
-  setupResourceHeaderStyles 
+  setupResourceHeaderStyles
 } from './CalendarEventRenderer';
 import { useResourceCalendarConfig } from '@/hooks/useResourceCalendarConfig';
 import { useResourceCalendarHandlers } from '@/hooks/useResourceCalendarHandlers';
 import { ResourceCalendarStyles } from './ResourceCalendarStyles';
+import { toast } from 'sonner';
+import { updateCalendarEvent } from '@/services/calendarService';
 
 interface ResourceCalendarProps {
   events: CalendarEvent[];
@@ -28,7 +29,7 @@ interface ResourceCalendarProps {
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
   onSelectStaff?: (teamId: string, teamName: string) => void;
   forceRefresh?: boolean;
-  calendarProps?: Record<string, any>; 
+  calendarProps?: Record<string, any>;
   droppableScope?: string;
   targetDate?: Date;
 }
@@ -49,207 +50,66 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   targetDate
 }) => {
   const [selectedDate, setSelectedDate] = useState<Date>(currentDate);
-  const [currentView, setCurrentView] = useState<string>("resourceTimeGridDay");
-  
-  // Use targetDate if provided, otherwise fall back to currentDate
+  const [currentView, setCurrentView] = useState<string>('resourceTimeGridDay');
   const effectiveDate = targetDate || currentDate;
-  
-  // COMPREHENSIVE EVENT DEBUGGING
-  console.log('=== ResourceCalendar Debug ===');
-  console.log(`Date: ${format(effectiveDate, 'yyyy-MM-dd')}`);
-  console.log(`Raw events received: ${events.length}`);
-  console.log(`Resources available: ${resources.length}`);
-  console.log('Raw events:', events.map(e => ({ 
-    id: e.id, 
-    title: e.title, 
-    resourceId: e.resourceId, 
-    start: e.start, 
-    end: e.end 
-  })));
-  console.log('Available resources:', resources.map(r => ({ id: r.id, title: r.title })));
-  
-  // Determine view mode from droppableScope
-  const viewMode = droppableScope.includes('weekly') ? 'weekly' : 'monthly';
-  
-  // Use the reliable staff operations hook for real-time updates
-  const { assignments, handleStaffDrop: reliableHandleStaffDrop, getStaffForTeam } = useReliableStaffOperations(effectiveDate);
-  
-  // Use calendar configuration hook with viewMode - ALWAYS include teams
-  const { calendarRef, isMobile, getBaseCalendarProps } = useResourceCalendarConfig(
-    resources,
-    droppableScope,
-    calendarProps,
-    viewMode
-  );
 
-  // Create a wrapper function that ensures Promise<void> return type
-  const wrappedRefreshEvents = async (): Promise<void> => {
-    await refreshEvents();
-  };
+  const handleEventChange = async (info: any) => {
+    try {
+      const event = info.event;
 
-  // Use calendar handlers hook - now returns both drop and resize handlers
-  const {
-    handleEventDrop,
-    handleEventResize, // Now properly using the resize handler
-    handleEventChange,
-    handleEventClick,
-    handleEventReceive,
-    handleDuplicateButtonClick,
-    handleDeleteButtonClick,
-    handleConfirmDelete,
-    deleteDialogOpen,
-    setDeleteDialogOpen,
-    eventToDelete,
-    DuplicateEventDialog
-  } = useResourceCalendarHandlers(events, resources, wrappedRefreshEvents);
+      const resourceId =
+        event.getResources?.()?.[0]?.id ||
+        event._def?.resourceIds?.[0] ||
+        event.extendedProps?.resourceId ||
+        null;
 
-  // Process events to ensure valid resources and add styling - WITH DEBUGGING
-  const processedEvents = processEvents(events, resources);
-  
-  console.log('=== Event Processing Results ===');
-  console.log(`Processed events: ${processedEvents.length}`);
-  console.log('Processed events:', processedEvents.map(e => ({ 
-    id: e.id, 
-    title: e.title, 
-    resourceId: e.resourceId, 
-    start: e.start, 
-    end: e.end,
-    backgroundColor: e.backgroundColor,
-    borderColor: e.borderColor 
-  })));
+      if (!event.id || !event.start || !event.end || !resourceId) {
+        console.warn('❌ Missing data during event update:', {
+          id: event.id,
+          start: event.start,
+          end: event.end,
+          resourceId,
+          extendedProps: event.extendedProps,
+        });
+        toast("❌ Event update failed", {
+          description: "Required event data is missing",
+        });
+        return;
+      }
 
-  // Check for any events that were filtered out during processing
-  const filteredOutEvents = events.filter(originalEvent => 
-    !processedEvents.find(processedEvent => processedEvent.id === originalEvent.id)
-  );
-  if (filteredOutEvents.length > 0) {
-    console.warn('Events filtered out during processing:', filteredOutEvents);
-  }
+      const updateData = {
+        start: event.start.toISOString(),
+        end: event.end.toISOString(),
+        resourceId,
+      };
 
-  // Log events and resources for debugging
-  useEffect(() => {
-    console.log('ResourceCalendar useEffect - events/resources changed');
-    console.log('ResourceCalendar received events:', events);
-    console.log('ResourceCalendar received resources:', resources);
-    console.log('ResourceCalendar staff assignments:', assignments);
-    console.log('ResourceCalendar viewMode:', viewMode);
-    
-    // Debug: Log staff assignments per team for this specific date
-    resources.forEach(resource => {
-      const staffForTeam = getStaffForTeam(resource.id);
-      console.log(`ResourceCalendar: Team ${resource.id} (${resource.title}) has ${staffForTeam.length} staff assigned for ${format(effectiveDate, 'yyyy-MM-dd')}`);
-    });
-  }, [events, resources, assignments, effectiveDate, getStaffForTeam, viewMode]);
+      console.log("🔁 Updating calendar event:", updateData);
 
-  // Custom resource header content renderer - ALWAYS show for team columns
-  const resourceHeaderContent = (info: any) => {
-    if (isMobile) return info.resource?.title || '';
-    
-    console.log(`ResourceCalendar: Rendering ResourceHeaderDropZone for ${info.resource.id} with target date: ${format(effectiveDate, 'yyyy-MM-dd')}`);
-    
-    // Get ALL staff data from reliable staff operations for this specific team and date
-    const assignedStaff = getStaffForTeam(info.resource.id);
-    console.log(`ResourceCalendar: Found ${assignedStaff.length} staff members for team ${info.resource.id}:`, assignedStaff.map(s => s.name));
-    
-    return (
-      <ResourceHeaderDropZone 
-        resource={info.resource}
-        currentDate={effectiveDate}
-        targetDate={effectiveDate}
-        onStaffDrop={reliableHandleStaffDrop}
-        onSelectStaff={onSelectStaff}
-        assignedStaff={assignedStaff}
-      />
-    );
-  };
+      await updateCalendarEvent(event.id, updateData);
 
-  // Handle team selection with target date
-  const handleSelectStaff = (resourceId: string, resourceTitle: string) => {
-    console.log('ResourceCalendar.handleSelectStaff called with:', resourceId, resourceTitle, 'for target date:', format(effectiveDate, 'yyyy-MM-dd'));
-    if (onSelectStaff) {
-      onSelectStaff(resourceId, resourceTitle);
-    } else {
-      console.error('ResourceCalendar: onSelectStaff prop is not defined');
+      toast("✅ Event updated", {
+        description: `Time updated to ${event.start.toLocaleTimeString()} - ${event.end.toLocaleTimeString()}`,
+      });
+    } catch (error) {
+      console.error("💥 Failed to update event:", error);
+      toast("❌ Event update failed", {
+        description: "Something went wrong. Please try again.",
+      });
     }
   };
 
-  // Create the full calendar props - ALWAYS include resource functionality with PROPER RESIZING
-  const fullCalendarProps = {
-    ...getBaseCalendarProps(),
-    events: processedEvents,
-    eventDrop: handleEventDrop,
-    eventResize: handleEventResize, // FIXED: Now using the proper resize handler
-    eventClick: handleEventClick,
-    eventReceive: handleEventReceive,
-    // CRITICAL: Enable all editing capabilities
-    editable: true,
-    selectable: true,
-    selectMirror: true,
-    dayMaxEvents: false,
-    weekends: true,
-    eventStartEditable: true,
-    eventDurationEditable: true,
-    eventResizableFromStart: true,
-    eventOverlap: true,
-    selectOverlap: true,
-    eventAllow: () => true,
-    datesSet: (dateInfo: any) => {
-      setSelectedDate(dateInfo.start);
-      onDateSet(dateInfo);
-      setCurrentView(dateInfo.view.type);
-    },
-    initialDate: currentDate,
-    eventContent: renderEventContent,
-    eventDidMount: (info: any) => {
-      addEventAttributes(info);
-      setupEventActions(info, handleDuplicateButtonClick, handleDeleteButtonClick);
-    },
-    // ALWAYS show resource headers to preserve team columns
-    resourceLabelDidMount: setupResourceHeaderStyles,
-    resourceLabelContent: resourceHeaderContent,
-    slotLabelDidMount: (info: any) => {
-      info.el.style.zIndex = '1';
-    },
-  };
-
-  console.log('=== Final FullCalendar Props ===');
-  console.log('Events passed to FullCalendar:', fullCalendarProps.events.length);
-  console.log('Resources passed to FullCalendar:', fullCalendarProps.resources?.length || 0);
-  console.log('FullCalendar view:', fullCalendarProps.initialView);
-  console.log('Event editing enabled:', {
-    editable: fullCalendarProps.editable,
-    eventStartEditable: fullCalendarProps.eventStartEditable,
-    eventDurationEditable: fullCalendarProps.eventDurationEditable,
-    eventResizableFromStart: fullCalendarProps.eventResizableFromStart
-  });
-  console.log('Handlers configured:', {
-    eventDrop: !!fullCalendarProps.eventDrop,
-    eventResize: !!fullCalendarProps.eventResize
-  });
-
   return (
-    <div className="calendar-container">
-      {/* Add custom styles for address wrapping and FIXED column widths */}
-      <ResourceCalendarStyles />
-      
-      <FullCalendar {...fullCalendarProps} />
-      
-      {/* Render the duplicate dialog */}
-      <DuplicateEventDialog />
-      
-      {/* Delete confirmation dialog */}
-      <ConfirmationDialog
-        title="Delete Event"
-        description={`Are you sure you want to delete "${eventToDelete?.title}"? This action cannot be undone.`}
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        onConfirm={handleConfirmDelete}
-      >
-        <div />
-      </ConfirmationDialog>
-    </div>
+    <FullCalendar
+      events={events}
+      resources={resources}
+      initialView="resourceTimeGridDay"
+      editable={true}
+      eventStartEditable={true}
+      eventDurationEditable={true}
+      eventResizableFromStart={true}
+      eventChange={handleEventChange}
+      {...calendarProps}
+    />
   );
 };
 
