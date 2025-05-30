@@ -66,7 +66,11 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
       booking_id,
       event_type,
       delivery_address,
-      booking_number
+      booking_number,
+      bookings!inner(
+        delivery_city,
+        delivery_postal_code
+      )
     `)
     .order('start_time', { ascending: true });
 
@@ -93,6 +97,8 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
       booking_id: event.booking_id,
       resourceId: mapDatabaseToAppResourceId(event.resource_id),
       deliveryAddress: event.delivery_address,
+      deliveryCity: event.bookings?.delivery_city || null,
+      deliveryPostalCode: event.bookings?.delivery_postal_code || null,
       bookingNumber: event.booking_number,
       eventType: event.event_type,
       manuallyAssigned: false
@@ -151,6 +157,8 @@ export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promis
       booking_id: data.booking_id,
       resourceId: mapDatabaseToAppResourceId(data.resource_id),
       deliveryAddress: data.delivery_address,
+      deliveryCity: data.bookings?.delivery_city || null,
+      deliveryPostalCode: data.bookings?.delivery_postal_code || null,
       bookingNumber: data.booking_number,
       eventType: data.event_type,
       manuallyAssigned: false
@@ -219,6 +227,8 @@ export const updateCalendarEvent = async (
       booking_id: data.booking_id,
       resourceId: mapDatabaseToAppResourceId(data.resource_id),
       deliveryAddress: data.delivery_address,
+      deliveryCity: data.bookings?.delivery_city || null,
+      deliveryPostalCode: data.bookings?.delivery_postal_code || null,
       bookingNumber: data.booking_number,
       eventType: data.event_type,
       manuallyAssigned: false
@@ -284,6 +294,8 @@ export const fetchEventsByBookingId = async (bookingId: string): Promise<Calenda
       booking_id: event.booking_id,
       resourceId: mapDatabaseToAppResourceId(event.resource_id),
       deliveryAddress: event.delivery_address,
+      deliveryCity: event.bookings?.delivery_city || null,
+      deliveryPostalCode: event.bookings?.delivery_postal_code || null,
       bookingNumber: event.booking_number,
       eventType: event.event_type,
       manuallyAssigned: false

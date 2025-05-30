@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
 import { Copy, Trash2 } from 'lucide-react';
@@ -22,9 +23,10 @@ export const renderEventContent = (eventInfo: any) => {
     ? eventTitle.split(':')[1].trim() 
     : eventTitle;
 
-  // Extract city from delivery address (assume format: "Street, City, PostalCode")
-  const addressParts = deliveryAddress.split(',');
-  const city = addressParts.length > 1 ? addressParts[1].trim() : '';
+  // Get city from the proper field - use deliveryCity from bookings table
+  // Fall back to parsing from address only if no proper city is available
+  const city = eventInfo.event.extendedProps?.deliveryCity || 
+               (deliveryAddress.split(',').length > 1 ? deliveryAddress.split(',')[1].trim() : '');
 
   // Create event object for hover card
   const eventForHover: CalendarEvent = {
