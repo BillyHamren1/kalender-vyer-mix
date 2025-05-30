@@ -1,5 +1,5 @@
 
-/* Weekly Calendar Layout Styles with Synchronized Alignment */
+/* Simple Weekly Calendar Layout Styles */
 
 .weekly-view-container {
   display: flex;
@@ -10,9 +10,7 @@
 }
 
 .weekly-calendar-container {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 0;
+  display: flex;
   height: 100%;
   width: 100%;
   border: 1px solid #e0e0e0;
@@ -20,11 +18,8 @@
   overflow: hidden;
 }
 
-.weekly-calendar-container.synchronized-calendars {
-  align-items: stretch;
-}
-
 .day-calendar-wrapper {
+  flex: 1;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -80,44 +75,19 @@
   overflow: hidden;
 }
 
-/* Synchronized calendar specific styles */
-.synchronized-calendars .weekly-view-calendar {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.synchronized-calendars .weekly-view-calendar .fc {
+.weekly-view-calendar .fc {
   height: 100% !important;
 }
 
-.synchronized-calendars .weekly-view-calendar .fc-view-harness {
+.weekly-view-calendar .fc-view-harness {
   height: 100% !important;
   flex: 1 !important;
-}
-
-/* Ensure all calendars have the same row heights */
-.synchronized-calendars .fc-timegrid-slots table {
-  height: 100% !important;
-}
-
-.synchronized-calendars .fc-timegrid-slot {
-  height: 30px !important;
-  min-height: 30px !important;
-  max-height: 30px !important;
-}
-
-/* Resource header synchronization */
-.synchronized-calendars .fc-datagrid-cell {
-  border-bottom: 1px solid #e0e0e0 !important;
-  border-right: 1px solid #e0e0e0 !important;
 }
 
 /* Responsive styles */
 @media (max-width: 768px) {
   .weekly-calendar-container {
-    grid-template-columns: 1fr;
-    grid-template-rows: repeat(7, 1fr);
+    flex-direction: column;
     height: auto;
     min-height: 500px;
   }

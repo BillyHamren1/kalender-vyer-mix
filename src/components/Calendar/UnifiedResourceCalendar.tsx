@@ -6,7 +6,6 @@ import { format, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, each
 import { useNavigate } from 'react-router-dom';
 import { useContext } from 'react';
 import { CalendarContext } from '@/App';
-import { useWeeklyStaffSummary } from '@/hooks/useWeeklyStaffSummary';
 import './WeeklyCalendarStyles.css';
 
 interface UnifiedResourceCalendarProps {
@@ -41,12 +40,6 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   const navigate = useNavigate();
   const { setLastViewedDate } = useContext(CalendarContext);
 
-  // Get weekly staff summary for consistent header heights
-  const { weeklyStaffSummary, isLoading: staffSummaryLoading } = useWeeklyStaffSummary(
-    currentDate,
-    resources
-  );
-
   // Generate days based on view mode
   const getDaysToRender = () => {
     if (viewMode === 'weekly') {
@@ -76,16 +69,6 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   const numericForceRefresh = typeof forceRefresh === 'boolean' ? (forceRefresh ? 1 : 0) : (forceRefresh || 0);
 
   console.log(`UnifiedResourceCalendar: ${viewMode} view with ${events.length} events, forceRefresh: ${numericForceRefresh}`);
-
-  // Calculate day width for weekly view
-  const getDayWidth = () => {
-    if (viewMode === 'weekly' && containerRef.current) {
-      const containerWidth = containerRef.current.offsetWidth;
-      const dayWidth = Math.floor(containerWidth / 7);
-      return dayWidth;
-    }
-    return 'auto';
-  };
 
   // Handle day header click to navigate to resource view
   const handleDayHeaderClick = (date: Date) => {
@@ -177,14 +160,6 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     return dayEvents;
   };
 
-  // Get consistent header heights from weekly summary
-  const getHeaderHeightsForTeam = (teamId: string): number => {
-    const teamSummary = weeklyStaffSummary.find(summary => summary.teamId === teamId);
-    const height = teamSummary?.minHeight || 80;
-    console.log(`UnifiedResourceCalendar: Consistent height for ${teamId}: ${height}px`);
-    return height;
-  };
-
   // Scroll to today for monthly view
   useEffect(() => {
     if (viewMode === 'monthly' && todayRef.current) {
@@ -210,7 +185,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 
   const getCalendarContainerClass = () => {
     if (viewMode === 'weekly') {
-      return 'weekly-calendar-container synchronized-calendars';
+      return 'weekly-calendar-container';
     } else {
       return 'monthly-calendar-grid';
     }
@@ -235,7 +210,6 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
               key={format(date, 'yyyy-MM-dd')} 
               className={viewMode === 'weekly' ? 'day-calendar-wrapper' : 'monthly-day-wrapper'}
               ref={isToday ? todayRef : null}
-              style={viewMode === 'weekly' ? { width: `${getDayWidth()}px` } : {}}
             >
               {/* Clickable day header */}
               <div 
@@ -249,7 +223,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
                 <ResourceCalendar
                   events={dayEvents}
                   resources={resources}
-                  isLoading={isLoading || staffSummaryLoading}
+                  isLoading={isLoading}
                   isMounted={isMounted}
                   currentDate={date}
                   onDateSet={handleNestedCalendarDateSet}
@@ -261,7 +235,6 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
                   droppableScope={`${viewMode}-calendar`}
                   calendarProps={getCommonCalendarProps(index)}
                   targetDate={date}
-                  weeklyStaffSummary={weeklyStaffSummary}
                 />
               </div>
             </div>
