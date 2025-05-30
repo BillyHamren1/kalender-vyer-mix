@@ -16,7 +16,7 @@ export const ResourceCalendarStyles: React.FC = () => (
         height: 50px !important;
       }
       
-      /* Event sizing and spacing improvements - ENABLE DRAGGING */
+      /* Event sizing and spacing improvements - ENABLE DRAGGING AND RESIZING */
       .fc-timegrid-event {
         min-height: 30px !important;
         margin: 1px 2px !important;
@@ -43,7 +43,35 @@ export const ResourceCalendarStyles: React.FC = () => (
         pointer-events: auto !important;
       }
       
-      /* Ensure event content allows dragging */
+      /* CRITICAL: Enable event resizing handles */
+      .fc-event-resizer {
+        display: block !important;
+        position: absolute !important;
+        z-index: 999 !important;
+        overflow: hidden !important;
+        font-size: 300% !important;
+        line-height: 50% !important;
+        pointer-events: auto !important;
+        cursor: ns-resize !important;
+      }
+      
+      .fc-event-resizer-start {
+        cursor: ns-resize !important;
+        top: -3px !important;
+        left: 0 !important;
+        right: 0 !important;
+        height: 7px !important;
+      }
+      
+      .fc-event-resizer-end {
+        cursor: ns-resize !important;
+        bottom: -3px !important;
+        left: 0 !important;
+        right: 0 !important;
+        height: 7px !important;
+      }
+      
+      /* Ensure event content allows dragging but not resizing */
       .fc-event-title,
       .fc-event-time,
       .event-content-wrapper,

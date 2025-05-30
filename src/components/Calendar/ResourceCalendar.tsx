@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import { format } from 'date-fns';
@@ -172,12 +171,12 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     }
   };
 
-  // Create the full calendar props - ALWAYS include resource functionality
+  // Create the full calendar props - ALWAYS include resource functionality with PROPER RESIZING
   const fullCalendarProps = {
     ...getBaseCalendarProps(),
     events: processedEvents,
     eventDrop: handleEventDrop,
-    eventResize: handleEventChange,
+    eventResize: handleEventChange, // This enables time span editing
     eventClick: handleEventClick,
     eventReceive: handleEventReceive,
     editable: true,
@@ -185,6 +184,9 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     selectMirror: true,
     dayMaxEvents: false,
     weekends: true,
+    // CRITICAL: Enable event resizing capabilities
+    eventResizableFromStart: true,
+    eventDurationEditable: true,
     datesSet: (dateInfo: any) => {
       setSelectedDate(dateInfo.start);
       onDateSet(dateInfo);
