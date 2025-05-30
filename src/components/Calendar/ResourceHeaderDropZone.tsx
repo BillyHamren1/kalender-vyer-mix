@@ -135,8 +135,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         style={{ 
           maxHeight: `${minHeight - 25}px`, // Leave room for header
           scrollbarWidth: 'none', // Firefox
-          msOverflowStyle: 'none', // IE/Edge
-          WebkitScrollbarWidth: 'none' // Hide scrollbar but keep functionality
+          msOverflowStyle: 'none' // IE/Edge
         }}
       >
         {assignedStaff.length > 0 ? (
