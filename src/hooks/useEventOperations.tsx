@@ -25,7 +25,7 @@ export const useEventOperations = ({
     setIsUpdating(true);
 
     try {
-      const eventData: Partial<CalendarEvent> = {};
+      const eventData: any = {}; // Use any type to avoid type conflicts
       let changeDescription = '';
       let shouldUpdateBookingTimes = false;
 
@@ -37,14 +37,14 @@ export const useEventOperations = ({
         changeDescription = `Event moved from ${oldTeam} to ${newTeam}`;
       }
 
-      // Handle time changes - use FullCalendar's values directly
+      // Handle time changes - convert Date objects to ISO strings for database
       if (info.event.start && info.oldEvent?.start?.getTime() !== info.event.start.getTime()) {
-        eventData.start = info.event.start.toISOString();
+        eventData.start = info.event.start.toISOString(); // Convert Date to string
         shouldUpdateBookingTimes = true;
       }
 
       if (info.event.end && info.oldEvent?.end?.getTime() !== info.event.end.getTime()) {
-        eventData.end = info.event.end.toISOString();
+        eventData.end = info.event.end.toISOString(); // Convert Date to string
         shouldUpdateBookingTimes = true;
       }
 
