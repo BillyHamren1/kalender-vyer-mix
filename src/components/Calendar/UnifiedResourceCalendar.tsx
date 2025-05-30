@@ -68,7 +68,26 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   // Convert forceRefresh to number for consistent handling
   const numericForceRefresh = typeof forceRefresh === 'boolean' ? (forceRefresh ? 1 : 0) : (forceRefresh || 0);
 
-  console.log(`UnifiedResourceCalendar: ${viewMode} view with ${events.length} events, forceRefresh: ${numericForceRefresh}, teams: ${resources.length}`);
+  // COMPREHENSIVE EVENT DEBUGGING
+  console.log('=== UnifiedResourceCalendar Event Debug ===');
+  console.log(`View mode: ${viewMode}`);
+  console.log(`Total events received: ${events.length}`);
+  console.log(`Available resources: ${resources.length}`, resources.map(r => ({ id: r.id, title: r.title })));
+  console.log('All events:', events.map(e => ({ 
+    id: e.id, 
+    title: e.title, 
+    resourceId: e.resourceId, 
+    start: e.start, 
+    end: e.end 
+  })));
+
+  // Check for resource ID mismatches
+  const eventsWithInvalidResources = events.filter(event => 
+    !resources.find(resource => resource.id === event.resourceId)
+  );
+  if (eventsWithInvalidResources.length > 0) {
+    console.error('Events with invalid resource IDs:', eventsWithInvalidResources);
+  }
 
   // Handle day header click to navigate to resource view
   const handleDayHeaderClick = (date: Date) => {
@@ -175,18 +194,25 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     };
   };
 
-  // Filter events for each specific day to prevent duplicates
+  // FIXED: For weekly view, pass ALL events to each calendar and let FullCalendar handle date filtering
+  // For monthly view, filter events by specific day
   const getEventsForDay = (date: Date): CalendarEvent[] => {
-    const dateStr = format(date, 'yyyy-MM-dd');
-    
-    const dayEvents = events.filter(event => {
-      const eventStart = new Date(event.start);
-      const eventDateStr = format(eventStart, 'yyyy-MM-dd');
-      return eventDateStr === dateStr;
-    });
-    
-    console.log(`UnifiedResourceCalendar: Events for ${dateStr}: ${dayEvents.length} events`);
-    return dayEvents;
+    if (viewMode === 'weekly') {
+      // CRITICAL FIX: For weekly view, pass ALL events and let FullCalendar handle filtering
+      console.log(`Weekly view: Passing all ${events.length} events to ${format(date, 'yyyy-MM-dd')} calendar`);
+      return events;
+    } else {
+      // Monthly view: Filter events for specific day
+      const dateStr = format(date, 'yyyy-MM-dd');
+      const dayEvents = events.filter(event => {
+        const eventStart = new Date(event.start);
+        const eventDateStr = format(eventStart, 'yyyy-MM-dd');
+        return eventDateStr === dateStr;
+      });
+      
+      console.log(`Monthly view: Events for ${dateStr}: ${dayEvents.length} events`);
+      return dayEvents;
+    }
   };
 
   // Scroll to today for monthly view
@@ -218,7 +244,10 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
             const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
             const resourceCalendarForceRefresh = numericForceRefresh > 0;
             
-            console.log(`UnifiedResourceCalendar: Rendering weekly calendar for ${format(date, 'yyyy-MM-dd')} with ${dayEvents.length} events and ${resources.length} teams`);
+            console.log(`=== Rendering weekly calendar for ${format(date, 'yyyy-MM-dd')} ===`);
+            console.log(`Events passed to calendar: ${dayEvents.length}`);
+            console.log(`Resources: ${resources.length}`);
+            console.log(`Calendar props:`, getWeeklyCalendarProps());
             
             return (
               <div 

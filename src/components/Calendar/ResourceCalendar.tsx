@@ -54,7 +54,19 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   // Use targetDate if provided, otherwise fall back to currentDate
   const effectiveDate = targetDate || currentDate;
   
-  console.log(`ResourceCalendar: Rendering for date ${format(effectiveDate, 'yyyy-MM-dd')} with ${resources.length} teams and target date: ${targetDate ? format(targetDate, 'yyyy-MM-dd') : 'none'}`);
+  // COMPREHENSIVE EVENT DEBUGGING
+  console.log('=== ResourceCalendar Debug ===');
+  console.log(`Date: ${format(effectiveDate, 'yyyy-MM-dd')}`);
+  console.log(`Raw events received: ${events.length}`);
+  console.log(`Resources available: ${resources.length}`);
+  console.log('Raw events:', events.map(e => ({ 
+    id: e.id, 
+    title: e.title, 
+    resourceId: e.resourceId, 
+    start: e.start, 
+    end: e.end 
+  })));
+  console.log('Available resources:', resources.map(r => ({ id: r.id, title: r.title })));
   
   // Determine view mode from droppableScope
   const viewMode = droppableScope.includes('weekly') ? 'weekly' : 'monthly';
@@ -90,8 +102,32 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     DuplicateEventDialog
   } = useResourceCalendarHandlers(events, resources, wrappedRefreshEvents);
 
+  // Process events to ensure valid resources and add styling - WITH DEBUGGING
+  const processedEvents = processEvents(events, resources);
+  
+  console.log('=== Event Processing Results ===');
+  console.log(`Processed events: ${processedEvents.length}`);
+  console.log('Processed events:', processedEvents.map(e => ({ 
+    id: e.id, 
+    title: e.title, 
+    resourceId: e.resourceId, 
+    start: e.start, 
+    end: e.end,
+    backgroundColor: e.backgroundColor,
+    borderColor: e.borderColor 
+  })));
+
+  // Check for any events that were filtered out during processing
+  const filteredOutEvents = events.filter(originalEvent => 
+    !processedEvents.find(processedEvent => processedEvent.id === originalEvent.id)
+  );
+  if (filteredOutEvents.length > 0) {
+    console.warn('Events filtered out during processing:', filteredOutEvents);
+  }
+
   // Log events and resources for debugging
   useEffect(() => {
+    console.log('ResourceCalendar useEffect - events/resources changed');
     console.log('ResourceCalendar received events:', events);
     console.log('ResourceCalendar received resources:', resources);
     console.log('ResourceCalendar staff assignments:', assignments);
@@ -103,9 +139,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       console.log(`ResourceCalendar: Team ${resource.id} (${resource.title}) has ${staffForTeam.length} staff assigned for ${format(effectiveDate, 'yyyy-MM-dd')}`);
     });
   }, [events, resources, assignments, effectiveDate, getStaffForTeam, viewMode]);
-
-  // Process events to ensure valid resources and add styling
-  const processedEvents = processEvents(events, resources);
 
   // Custom resource header content renderer - ALWAYS show for team columns
   const resourceHeaderContent = (info: any) => {
@@ -170,6 +203,11 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       info.el.style.zIndex = '1';
     },
   };
+
+  console.log('=== Final FullCalendar Props ===');
+  console.log('Events passed to FullCalendar:', fullCalendarProps.events.length);
+  console.log('Resources passed to FullCalendar:', fullCalendarProps.resources?.length || 0);
+  console.log('FullCalendar view:', fullCalendarProps.initialView);
 
   return (
     <div className="calendar-container">
