@@ -1,4 +1,3 @@
-
 /* Calendar styling with teal theme */
 .fc .fc-button-primary {
   background-color: #7BAEBF !important;
@@ -207,24 +206,28 @@
   border-bottom: 1px solid #f0f0f0;
 }
 
-/* Resource header styling - updated to match reference */
+/* Resource header styling - FIXED HEIGHT AND ULTRA-TIGHT STACKING */
 .resource-header-wrapper {
   width: 100%;
-  height: 100%;
+  height: 120px !important; /* FIXED HEIGHT */
+  max-height: 120px !important;
+  min-height: 120px !important;
   display: flex;
   flex-direction: column;
-  padding: 4px;
+  padding: 2px;
   position: relative;
   z-index: 5;
+  overflow: hidden; /* Prevent overflow */
 }
 
 .resource-title-area {
-  font-size: 14px;
+  font-size: 10px; /* Smaller text */
   font-weight: 600;
-  margin-bottom: 6px;
+  margin-bottom: 2px; /* Reduced margin */
   display: flex;
   justify-content: space-between;
   align-items: center;
+  height: 16px; /* Fixed title height */
 }
 
 .resource-drop-zone {
@@ -232,37 +235,51 @@
   z-index: 10;
 }
 
-/* Assigned staff badges in resource header - updated styling for vertical stack */
+/* ULTRA-TIGHT staff stacking with fixed dimensions */
 .assigned-staff-area {
-  overflow-y: visible;
+  overflow-y: auto;
+  overflow-x: hidden;
   z-index: 20;
-  padding-bottom: 2px;
-  min-height: 130px; /* Increased to fit 5 staff stacked */
+  padding: 0; /* Remove padding */
+  height: 100px !important; /* Fixed height for staff area */
+  max-height: 100px !important;
+  min-height: 100px !important;
   display: flex;
-  flex-direction: column; /* Changed to column for vertical stacking */
-  gap: 4px;
-  align-items: center; /* Center badges horizontally */
+  flex-direction: column;
+  gap: 1px; /* Minimal gap */
+  align-items: center;
+  /* Hide scrollbar */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.assigned-staff-area::-webkit-scrollbar {
+  display: none; /* Webkit browsers */
 }
 
 .staff-badge {
-  font-size: 11px;
-  line-height: 1.2;
-  white-space: normal; /* Changed from nowrap to allow wrapping */
-  max-width: 100px;
+  font-size: 10px !important; /* Ultra small text */
+  line-height: 1 !important;
+  white-space: nowrap;
+  max-width: 76px; /* Fit within 80px column */
   z-index: 15;
   position: relative;
   cursor: move;
-  height: auto; /* Changed from fixed height to auto */
-  min-height: 22px; /* Minimum height */
+  height: 16px !important; /* Ultra-compact height */
+  min-height: 16px !important;
+  max-height: 16px !important;
   display: flex;
   align-items: center;
-  word-break: break-word;
+  padding: 0 2px !important; /* Minimal padding */
+  margin: 0 !important; /* No margins */
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Icon-only assign button styling */
 .assign-button-icon {
-  height: 20px !important;
-  width: 20px !important;
+  height: 16px !important; /* Smaller icon */
+  width: 16px !important;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -272,7 +289,7 @@
   transition: all 0.2s ease;
   z-index: 10;
   background-color: transparent;
-  padding: 3px;
+  padding: 2px; /* Minimal padding */
   margin-left: auto;
 }
 
@@ -281,11 +298,11 @@
 }
 
 .assign-button-icon svg {
-  height: 12px !important;
-  width: 12px !important;
+  height: 10px !important; /* Smaller icon */
+  width: 10px !important;
 }
 
-/* CRITICAL FIX: Ensure resource headers have enough height for staff display AND consistent width */
+/* CRITICAL FIX: FIXED HEIGHT for all resource headers */
 .fc-resource-timeline .fc-resource-group,
 .fc-resource-timeline .fc-datagrid-cell,
 .fc-resource-timeline .fc-datagrid-cell-cushion,
@@ -293,22 +310,25 @@
 .fc-datagrid-cell,
 .fc-datagrid-cell-frame,
 .fc-datagrid-cell-cushion {
-  height: 100% !important;
-  /* CRITICAL: Force exact width alignment between header and content */
+  height: 120px !important; /* FIXED HEIGHT */
+  min-height: 120px !important;
+  max-height: 120px !important;
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
   box-sizing: border-box !important;
+  overflow: hidden !important; /* Prevent overflow */
 }
 
 .fc-datagrid-cell-frame {
   display: flex;
   flex-direction: column;
-  min-height: 180px !important;  /* Increased height for 5 stacked staff badges */
-  padding: 5px !important;
+  height: 120px !important; /* FIXED HEIGHT */
+  min-height: 120px !important;
+  max-height: 120px !important;
+  padding: 2px !important; /* Minimal padding */
   position: relative;
-  overflow: visible !important;
-  /* CRITICAL: Match header width exactly */
+  overflow: hidden !important;
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
@@ -316,10 +336,11 @@
 
 .fc-datagrid-cell-cushion {
   padding: 0 !important;
-  overflow: visible !important;
+  overflow: hidden !important;
   position: relative;
-  height: 100%;
-  /* CRITICAL: Match header width exactly */
+  height: 120px !important; /* FIXED HEIGHT */
+  min-height: 120px !important;
+  max-height: 120px !important;
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
@@ -327,11 +348,12 @@
 
 /* CRITICAL: Ensure header content is visible and SAME WIDTH as content */
 .fc-datagrid-cell-main {
-  overflow: visible !important;
-  height: 100% !important;
+  overflow: hidden !important;
+  height: 120px !important; /* FIXED HEIGHT */
+  min-height: 120px !important;
+  max-height: 120px !important;
   z-index: 10;
   position: relative;
-  /* CRITICAL: Match header width exactly */
   min-width: 80px !important;
   width: 80px !important;
   max-width: 80px !important;
@@ -438,7 +460,7 @@
   }
   
   .fc-timegrid-slot {
-    height: 25px !important; /* Even smaller for mobile */
+    height: 25px !important;
   }
   
   .fc-timegrid-event {

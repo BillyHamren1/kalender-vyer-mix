@@ -9,7 +9,7 @@ import { format } from 'date-fns';
 interface ResourceHeaderDropZoneProps {
   resource: Resource;
   currentDate: Date;
-  targetDate?: Date; // NEW: specific target date for this drop zone
+  targetDate?: Date;
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
   onSelectStaff?: (resourceId: string, resourceTitle: string) => void;
   assignedStaff?: Array<{id: string, name: string}>;
@@ -19,16 +19,15 @@ interface ResourceHeaderDropZoneProps {
 const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   resource,
   currentDate,
-  targetDate, // NEW: Use this for operations
+  targetDate,
   onStaffDrop,
   onSelectStaff,
   assignedStaff = [],
-  minHeight = 80
+  minHeight = 120 // Fixed height for consistency
 }) => {
-  // Use targetDate if provided, otherwise fall back to currentDate
   const effectiveDate = targetDate || currentDate;
   
-  console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff, target date: ${format(effectiveDate, 'yyyy-MM-dd')}, minHeight: ${minHeight}`);
+  console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff, target date: ${format(effectiveDate, 'yyyy-MM-dd')}, fixed height: ${minHeight}px`);
 
   const [{ isOver, canDrop }, drop] = useDrop({
     accept: 'STAFF',
@@ -44,7 +43,6 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       
       if (onStaffDrop) {
         try {
-          // Call the drop handler - this should trigger immediate optimistic updates
           await onStaffDrop(item.id, resource.id);
           console.log('ResourceHeaderDropZone: Staff drop completed successfully for date:', format(effectiveDate, 'yyyy-MM-dd'));
         } catch (error) {
@@ -53,7 +51,6 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       }
     },
     canDrop: (item: { id: string; assignedTeam?: string | null }) => {
-      // Check if staff is already assigned to this team for this specific date
       const isAlreadyAssigned = assignedStaff.some(staff => staff.id === item.id);
       const canDropHere = !isAlreadyAssigned;
       
@@ -80,13 +77,11 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     }
   };
 
-  // Handle staff removal with immediate UI feedback for the specific date
   const handleStaffRemove = async (staffId: string) => {
     console.log(`ResourceHeaderDropZone: Removing staff ${staffId} from team ${resource.id} for date ${format(effectiveDate, 'yyyy-MM-dd')}`);
     if (onStaffDrop) {
       try {
-        // This should trigger immediate optimistic updates for the specific date
-        await onStaffDrop(staffId, null); // null resourceId means removal
+        await onStaffDrop(staffId, null);
         console.log('ResourceHeaderDropZone: Staff removal completed successfully for date:', format(effectiveDate, 'yyyy-MM-dd'));
       } catch (error) {
         console.error('ResourceHeaderDropZone: Error removing staff:', error);
@@ -94,9 +89,8 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     }
   };
 
-  // Enhanced drop zone styling with smoother transitions
   const getDropZoneClass = () => {
-    let baseClass = `resource-header-drop-zone p-2 h-full w-full flex flex-col justify-between relative transition-all duration-150`;
+    let baseClass = `resource-header-drop-zone p-1 h-full w-full flex flex-col justify-between relative transition-all duration-150`;
     
     if (isOver && canDrop) {
       return `${baseClass} bg-green-100 border-2 border-green-400 shadow-lg transform scale-105`;
@@ -107,17 +101,6 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     }
   };
 
-  // Calculate dynamic height based on number of staff members
-  const calculateHeight = () => {
-    const baseHeight = 35; // Further reduced for tighter layout
-    const staffItemHeight = 32; // Height per staff item
-    const padding = 4; // Reduced padding for tighter spacing
-    const calculatedHeight = baseHeight + (assignedStaff.length * staffItemHeight) + padding;
-    return Math.max(minHeight, calculatedHeight);
-  };
-
-  const dynamicHeight = calculateHeight();
-
   return (
     <div
       ref={drop}
@@ -126,48 +109,61 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         width: '80px',
         minWidth: '80px', 
         maxWidth: '80px',
-        minHeight: `${dynamicHeight}px`,
-        height: 'auto',
-        overflow: 'visible',
+        height: `${minHeight}px`, // Fixed height
+        minHeight: `${minHeight}px`,
+        maxHeight: `${minHeight}px`,
+        overflow: 'hidden',
         position: 'relative',
         zIndex: 10
       }}
     >
-      {/* Team Header Section with border and relative positioning */}
-      <div className="flex flex-col border-b border-gray-200 pb-1 mb-1 relative">
-        {/* Full-width Clickable Team Title */}
+      {/* Team Header Section - ultra compact */}
+      <div className="flex flex-col border-b border-gray-200 pb-0.5 mb-0.5 relative">
         <div 
-          className="w-full text-xs font-medium text-center cursor-pointer hover:bg-blue-100 hover:text-blue-800 transition-colors duration-200 p-1 rounded border border-transparent hover:border-blue-200 relative" 
+          className="w-full text-[10px] font-medium text-center cursor-pointer hover:bg-blue-100 hover:text-blue-800 transition-colors duration-200 p-0.5 rounded border border-transparent hover:border-blue-200 relative" 
           title={`Click to assign staff to ${resource.title} on ${format(effectiveDate, 'MMM d')}`}
           onClick={handleSelectStaff}
         >
-          <span className="block pr-3">{resource.title}</span>
-          {/* Plus icon positioned as overlay in top-right with the specific teal color */}
-          <Plus className="h-3 w-3 absolute top-0.5 right-0.5 text-[#7BAEBF]" />
+          <span className="block pr-2">{resource.title}</span>
+          <Plus className="h-2.5 w-2.5 absolute top-0 right-0 text-[#7BAEBF]" />
         </div>
       </div>
       
-      {/* Staff Section - closer to events with reduced spacing */}
-      <div className="staff-section flex-1 min-h-0">
+      {/* Staff Section - ultra tight with fixed height and scrolling */}
+      <div 
+        className="staff-section flex-1 min-h-0 overflow-y-auto"
+        style={{ 
+          maxHeight: `${minHeight - 25}px`, // Leave room for header
+          scrollbarWidth: 'none', // Firefox
+          msOverflowStyle: 'none' // IE/Edge
+        }}
+      >
+        <style jsx>{`
+          .staff-section::-webkit-scrollbar {
+            display: none; /* Webkit browsers */
+          }
+        `}</style>
+        
         {assignedStaff.length > 0 ? (
-          <div className="space-y-0.5">
-            {assignedStaff.map((staff) => (
-              <DraggableStaffItem
-                key={staff.id}
-                staff={staff}
-                onRemove={() => handleStaffRemove(staff.id)}
-                currentDate={effectiveDate}
-                teamName={resource.title}
-              />
+          <div className="space-y-0">
+            {assignedStaff.map((staff, index) => (
+              <div key={staff.id} style={{ marginBottom: index < assignedStaff.length - 1 ? '1px' : '0' }}>
+                <DraggableStaffItem
+                  staff={staff}
+                  onRemove={() => handleStaffRemove(staff.id)}
+                  currentDate={effectiveDate}
+                  teamName={resource.title}
+                />
+              </div>
             ))}
           </div>
         ) : null}
       </div>
       
-      {/* Enhanced drop feedback overlay with smooth animations */}
+      {/* Enhanced drop feedback overlay */}
       {isOver && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className={`text-xs font-medium px-2 py-1 rounded transition-all duration-150 ${
+          <div className={`text-[10px] font-medium px-1 py-0.5 rounded transition-all duration-150 ${
             canDrop 
               ? 'bg-green-200 text-green-800 shadow-lg' 
               : 'bg-red-200 text-red-800 shadow-lg'
