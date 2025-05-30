@@ -132,69 +132,111 @@ export const ResourceCalendarStyles: React.FC = () => (
         display: table !important;
       }
 
-      /* CRITICAL FIX: Remove grey overlay - ensure all calendar backgrounds are WHITE */
-      .fc-timegrid-slots,
-      .fc-timegrid-slot,
-      .fc-timegrid-slot-lane,
-      .fc-timegrid-slot-minor,
-      .fc-timegrid-divider,
+      /* ULTIMATE FIX: Target ALL possible FullCalendar background elements */
+      .fc,
+      .fc *,
+      .fc-view,
+      .fc-view *,
+      .fc-timegrid-view,
+      .fc-timegrid-view *,
+      .fc-scrollgrid,
+      .fc-scrollgrid *,
+      .fc-scrollgrid-sync-table,
+      .fc-scrollgrid-sync-table *,
+      .fc-view-harness,
+      .fc-view-harness *,
+      .fc-view-harness-active,
+      .fc-view-harness-active *,
+      .fc-scroller,
+      .fc-scroller *,
+      .fc-scroller-liquid,
+      .fc-scroller-liquid *,
+      .fc-scroller-liquid-absolute,
+      .fc-scroller-liquid-absolute *,
+      .fc-timegrid,
+      .fc-timegrid *,
       .fc-timegrid-body,
+      .fc-timegrid-body *,
+      .fc-timegrid-slots,
+      .fc-timegrid-slots *,
+      .fc-timegrid-slot,
+      .fc-timegrid-slot *,
+      .fc-timegrid-slot-lane,
+      .fc-timegrid-slot-lane *,
+      .fc-timegrid-slot-minor,
+      .fc-timegrid-slot-minor *,
+      .fc-timegrid-divider,
+      .fc-timegrid-divider *,
       .fc-timegrid-col,
+      .fc-timegrid-col *,
       .fc-timegrid-col-bg,
+      .fc-timegrid-col-bg *,
       .fc-timegrid-col-events,
+      .fc-timegrid-col-events *,
+      .fc-timegrid-col-frame,
+      .fc-timegrid-col-frame *,
       .fc-timegrid-now-indicator-container,
+      .fc-timegrid-now-indicator-container *,
       .fc-bg-event,
+      .fc-bg-event *,
       .fc-non-business,
-      .fc-timegrid-axis-cushion {
+      .fc-non-business *,
+      .fc-timegrid-axis-cushion,
+      .fc-timegrid-axis-cushion *,
+      .fc-timegrid-slot-label-cushion,
+      .fc-timegrid-slot-label-cushion *,
+      .fc-timegrid-slot-label-frame,
+      .fc-timegrid-slot-label-frame *,
+      .fc-scrollgrid-section-liquid,
+      .fc-scrollgrid-section-liquid *,
+      .fc-scrollgrid-section-sticky,
+      .fc-scrollgrid-section-sticky *,
+      .fc-scrollgrid-section-liquid > table,
+      .fc-scrollgrid-section-sticky > table,
+      .fc-scrollgrid-section-liquid > table *,
+      .fc-scrollgrid-section-sticky > table * {
         background: white !important;
         background-color: white !important;
+        background-image: none !important;
       }
 
-      /* CRITICAL FIX: Ensure events are visible and not hidden behind grey overlay */
+      /* FORCE EVENTS TO BE VISIBLE WITH MAXIMUM Z-INDEX */
       .fc-timegrid-event-harness,
       .fc-event,
       .fc-event-main,
-      .fc-timegrid-event {
-        z-index: 100 !important;
+      .fc-timegrid-event,
+      .fc-event-content,
+      .fc-event-title,
+      .fc-event-time {
+        z-index: 9999 !important;
         position: relative !important;
-        background: inherit !important;
+        visibility: visible !important;
+        opacity: 1 !important;
       }
 
-      /* CRITICAL FIX: Remove any grey backgrounds from the main calendar containers */
-      .fc-scrollgrid,
-      .fc-scrollgrid-sync-table,
-      .fc-view-harness,
-      .fc-view-harness-active,
-      .fc-view,
-      .fc-timegrid-view {
+      /* DEBUGGING: Add temporary red background to identify problem areas */
+      .fc-timegrid-col-frame {
         background: white !important;
         background-color: white !important;
       }
 
-      /* CRITICAL FIX: Ensure the main calendar container has white background */
-      .fc {
-        background: white !important;
-        background-color: white !important;
+      /* NUCLEAR OPTION: Override everything with transparent/white backgrounds */
+      .fc-timegrid-col-frame > *,
+      .fc-timegrid-col > *,
+      .fc-timegrid-body > *,
+      .fc-timegrid-slots > *,
+      .fc-timegrid > * {
+        background: transparent !important;
+        background-color: transparent !important;
       }
 
-      /* CRITICAL FIX: Remove any possible grey overlays from scrollers */
-      .fc-scroller,
-      .fc-scroller-liquid,
-      .fc-scroller-liquid-absolute {
-        background: white !important;
-        background-color: white !important;
-      }
-
-      /* CRITICAL FIX: Ensure time slots have proper white backgrounds */
-      .fc-timegrid-slot-label-cushion,
-      .fc-timegrid-slot-label-frame {
-        background: white !important;
-        background-color: white !important;
-      }
-
-      /* CRITICAL FIX: Remove any grey backgrounds from the calendar grid */
-      .fc-scrollgrid-section-liquid > table,
-      .fc-scrollgrid-section-sticky > table {
+      /* ENSURE CALENDAR CONTAINER ITSELF IS WHITE */
+      .calendar-container,
+      .calendar-container *,
+      .weekly-view-calendar,
+      .weekly-view-calendar *,
+      .day-calendar-wrapper,
+      .day-calendar-wrapper * {
         background: white !important;
         background-color: white !important;
       }
