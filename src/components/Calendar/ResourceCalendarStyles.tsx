@@ -5,6 +5,39 @@ import React from 'react';
 export const ResourceCalendarStyles: React.FC = () => (
   <style>
     {`
+      /* Time slot height adjustments for better event spacing */
+      .fc-timegrid-slot {
+        min-height: 50px !important;
+        height: 50px !important;
+      }
+      
+      .fc-timegrid-slot-lane {
+        min-height: 50px !important;
+        height: 50px !important;
+      }
+      
+      /* Event sizing and spacing improvements */
+      .fc-timegrid-event {
+        min-height: 30px !important;
+        margin: 1px 2px !important;
+        border-radius: 4px !important;
+      }
+      
+      .fc-event {
+        min-height: 30px !important;
+        margin: 1px 0 !important;
+        padding: 2px 4px !important;
+        border-radius: 4px !important;
+      }
+      
+      .fc-event-main {
+        min-height: 26px !important;
+        padding: 2px 4px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: flex-start !important;
+      }
+      
       /* Event content styling for better text wrapping */
       .event-delivery-address {
         overflow-wrap: break-word;
@@ -12,15 +45,23 @@ export const ResourceCalendarStyles: React.FC = () => (
         hyphens: auto;
         max-height: none !important;
         white-space: normal !important;
+        font-size: 11px;
+        line-height: 1.2;
       }
       
       .fc-event-title {
         white-space: normal !important;
         overflow: visible !important;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.3;
       }
       
       .fc-event-time {
         white-space: nowrap;
+        font-size: 10px;
+        font-weight: 500;
+        margin-bottom: 1px;
       }
       
       .event-content-wrapper {
@@ -28,10 +69,6 @@ export const ResourceCalendarStyles: React.FC = () => (
         flex-direction: column;
         min-height: 100%;
         padding: 2px;
-      }
-      
-      .fc-timegrid-event .fc-event-main {
-        padding: 2px 4px !important;
       }
       
       /* Resource column sizing - keeping teams visible */
@@ -70,13 +107,16 @@ export const ResourceCalendarStyles: React.FC = () => (
         max-width: none !important;
       }
       
-      /* Targeted background fixes - only for specific problem areas */
-      .fc-timegrid-slot-lane {
-        background: transparent !important;
+      /* Time axis styling */
+      .fc-timegrid-axis {
+        width: 60px !important;
+        min-width: 60px !important;
       }
       
-      .fc-timegrid-col-bg {
-        background: white !important;
+      .fc-timegrid-slot-label {
+        height: 50px !important;
+        line-height: 50px !important;
+        font-size: 11px;
       }
       
       /* Ensure events are visible with proper z-index */
@@ -104,6 +144,27 @@ export const ResourceCalendarStyles: React.FC = () => (
       
       .fc-scroller-liquid {
         overflow-y: auto !important;
+      }
+      
+      /* Weekly view specific adjustments */
+      .weekly-view-calendar .fc-timegrid-body {
+        min-height: auto !important;
+      }
+      
+      .weekly-view-calendar .fc-timegrid-slots {
+        min-height: auto !important;
+      }
+      
+      /* Prevent event overlap and ensure proper stacking */
+      .fc-timegrid-event-harness-inset {
+        left: 2px !important;
+        right: 2px !important;
+      }
+      
+      /* Improve event readability */
+      .fc-event-title-container {
+        padding: 1px 2px;
+        overflow: visible;
       }
     `}
   </style>
