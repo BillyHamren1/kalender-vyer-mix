@@ -132,26 +132,71 @@ export const ResourceCalendarStyles: React.FC = () => (
         display: table !important;
       }
 
-      /* CRITICAL: Fix grey overlay issue - ensure calendar grid has proper backgrounds */
+      /* CRITICAL FIX: Remove grey overlay - ensure all calendar backgrounds are WHITE */
       .fc-timegrid-slots,
       .fc-timegrid-slot,
-      .fc-timegrid-slot-lane {
+      .fc-timegrid-slot-lane,
+      .fc-timegrid-slot-minor,
+      .fc-timegrid-divider,
+      .fc-timegrid-body,
+      .fc-timegrid-col,
+      .fc-timegrid-col-bg,
+      .fc-timegrid-col-events,
+      .fc-timegrid-now-indicator-container,
+      .fc-bg-event,
+      .fc-non-business,
+      .fc-timegrid-axis-cushion {
         background: white !important;
+        background-color: white !important;
       }
 
-      /* CRITICAL: Ensure events are visible and not hidden behind grey overlay */
+      /* CRITICAL FIX: Ensure events are visible and not hidden behind grey overlay */
       .fc-timegrid-event-harness,
       .fc-event,
-      .fc-event-main {
-        z-index: 3 !important;
+      .fc-event-main,
+      .fc-timegrid-event {
+        z-index: 100 !important;
         position: relative !important;
+        background: inherit !important;
       }
 
-      /* CRITICAL: Fix calendar backgrounds to prevent grey overlay */
+      /* CRITICAL FIX: Remove any grey backgrounds from the main calendar containers */
       .fc-scrollgrid,
       .fc-scrollgrid-sync-table,
-      .fc-view-harness {
+      .fc-view-harness,
+      .fc-view-harness-active,
+      .fc-view,
+      .fc-timegrid-view {
         background: white !important;
+        background-color: white !important;
+      }
+
+      /* CRITICAL FIX: Ensure the main calendar container has white background */
+      .fc {
+        background: white !important;
+        background-color: white !important;
+      }
+
+      /* CRITICAL FIX: Remove any possible grey overlays from scrollers */
+      .fc-scroller,
+      .fc-scroller-liquid,
+      .fc-scroller-liquid-absolute {
+        background: white !important;
+        background-color: white !important;
+      }
+
+      /* CRITICAL FIX: Ensure time slots have proper white backgrounds */
+      .fc-timegrid-slot-label-cushion,
+      .fc-timegrid-slot-label-frame {
+        background: white !important;
+        background-color: white !important;
+      }
+
+      /* CRITICAL FIX: Remove any grey backgrounds from the calendar grid */
+      .fc-scrollgrid-section-liquid > table,
+      .fc-scrollgrid-section-sticky > table {
+        background: white !important;
+        background-color: white !important;
       }
     `}
   </style>
