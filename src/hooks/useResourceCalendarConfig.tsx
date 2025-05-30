@@ -72,7 +72,7 @@ export const useResourceCalendarConfig = (
     headerToolbar: getMobileHeaderToolbar(),
     views: getCalendarViews(),
     resources: sortedResources,
-    // CRITICAL: FULLY ENABLE all editing capabilities for drag/drop
+    // FULLY ENABLE all editing capabilities for drag/drop
     editable: true,
     droppable: true,
     selectable: true,
@@ -87,12 +87,12 @@ export const useResourceCalendarConfig = (
     aspectRatio: getAspectRatio(),
     dropAccept: ".fc-event",
     eventAllow: () => true,
-    // CRITICAL: Let FullCalendar handle timezone naturally
+    // Let FullCalendar handle timezone naturally
     timeZone: 'local',
-    // Standard time configuration
-    slotMinTime: '05:00:00',
+    // FIXED: Use full 24-hour range instead of limiting to 05:00-24:00
+    slotMinTime: '00:00:00',
     slotMaxTime: '24:00:00',
-    scrollTime: '08:00:00',
+    scrollTime: '06:00:00',
     slotDuration: '01:00:00',
     slotLabelInterval: '01:00:00',
     snapDuration: '00:15:00',
