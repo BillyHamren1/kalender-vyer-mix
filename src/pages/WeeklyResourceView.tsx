@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -326,13 +325,13 @@ const WeeklyResourceView = () => {
           ) : <></>}
           isMobile={isMobile}
         >
-          {/* Add the Staff Planning Header with reduced top padding */}
-          <div className="px-6 pt-2">
+          {/* Add the Staff Planning Header with minimal top padding */}
+          <div className="px-6 pt-1">
             <StaffPlanningHeader />
           </div>
 
-          {/* ResourceHeader component with team management controls - reduced padding */}
-          <div className="pt-2">
+          {/* ResourceHeader component with team management controls - minimal padding */}
+          <div className="pt-1">
             <ResourceHeader
               teamResources={teamResources}
               teamCount={teamCount}
@@ -343,8 +342,8 @@ const WeeklyResourceView = () => {
             />
           </div>
 
-          {/* Week Navigation and Header - CENTERED with reduced spacing */}
-          <div className="flex flex-col items-center space-y-2 mb-3 flex-shrink-0 pt-1">
+          {/* Week Navigation and Header - CENTERED with minimal spacing */}
+          <div className="flex flex-col items-center space-y-1 mb-1 flex-shrink-0">
             <WeekNavigation 
               currentWeekStart={currentWeekStart}
               setCurrentWeekStart={setCurrentWeekStart}

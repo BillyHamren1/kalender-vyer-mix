@@ -4,7 +4,7 @@ import { CalendarDays } from 'lucide-react';
 
 const StaffPlanningHeader: React.FC = () => {
   return (
-    <div className="flex items-center gap-3 mb-3">
+    <div className="flex items-center gap-3 mb-1">
       <div className="w-12 h-12 bg-[#82b6c6] rounded-full flex items-center justify-center">
         <CalendarDays className="h-6 w-6 text-white" />
       </div>
