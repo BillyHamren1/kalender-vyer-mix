@@ -62,17 +62,6 @@ export const ResourceCalendarStyles: React.FC = () => (
         width: 80px !important;
         max-width: 80px !important;
       }
-      /* Quick fix: Control resource header height and alignment */
-      .fc-resource {
-        min-height: 36px !important;
-        line-height: 36px !important;
-        display: flex;
-        align-items: center;
-      }
-      .fc-scrollgrid-sync-inner {
-        min-height: 36px !important;
-        line-height: 36px !important;
-      }
     `}
   </style>
 );
