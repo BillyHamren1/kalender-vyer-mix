@@ -1,20 +1,13 @@
+
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
-import { Copy, Trash2 } from 'lucide-react';
 import EventHoverCard from './EventHoverCard';
-import { format } from 'date-fns';
 
 export const renderEventContent = (eventInfo: any) => {
   const eventTitle = eventInfo.event.title;
   
-  // Let FullCalendar handle time display naturally
-  const startTime = format(new Date(eventInfo.event.start), 'HH:mm');
-  const endTime = format(new Date(eventInfo.event.end), 'HH:mm');
-  const timeRangeDisplay = `${startTime}-${endTime}`;
-  
-  // Calculate duration in hours for display
-  const durationMs = new Date(eventInfo.event.end).getTime() - new Date(eventInfo.event.start).getTime();
-  const durationHours = Math.round((durationMs / (1000 * 60 * 60)) * 10) / 10; // Round to 1 decimal
+  // Let FullCalendar handle ALL time display - no manual formatting
+  const timeDisplay = eventInfo.timeText || '';
   
   // Use bookingNumber if available, otherwise fall back to bookingId
   let displayId = eventInfo.event.extendedProps?.bookingNumber || 
@@ -27,7 +20,7 @@ export const renderEventContent = (eventInfo: any) => {
   }
   
   // Get delivery address from event extendedProps
-  const deliveryAddress = eventInfo.event.extendedProps?.deliveryAddress || 'No address provided';
+  const deliveryAddress = eventInfo.event.extendedProps?.deliveryAddress || '';
   
   // Extract the client name
   let clientName = eventTitle;
@@ -50,33 +43,14 @@ export const renderEventContent = (eventInfo: any) => {
   };
 
   const EventContent = () => {
-    if (eventInfo.view.type === 'resourceTimelineWeek') {
-      // More compact display for timeline view
-      return (
-        <div className="event-content-wrapper w-full h-full px-1" style={{ color: '#000000' }}>
-          <div className="event-time text-xs font-medium mb-1" style={{ color: '#000000' }}>
-            {timeRangeDisplay} ({durationHours}h)
-          </div>
-          {displayId && (
-            <div className="event-booking-id text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>#{displayId}</div>
-          )}
-          <div className="event-client-name text-xs break-words whitespace-normal" 
-               style={{ lineHeight: '1.1', maxHeight: '2.2em', overflow: 'hidden', color: '#000000', fontSize: '11px' }}>
-            {clientName}
-          </div>
-          {city && (
-            <div className="event-city text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>{city}</div>
-          )}
-        </div>
-      );
-    }
-    
-    // Enhanced display for other views
     return (
       <div className="event-content-wrapper w-full h-full px-1" style={{ color: '#000000' }}>
-        <div className="event-time text-xs font-medium mb-1" style={{ color: '#000000' }}>
-          {timeRangeDisplay} ({durationHours}h)
-        </div>
+        {/* Let FullCalendar show time naturally */}
+        {timeDisplay && (
+          <div className="event-time text-xs font-medium mb-1" style={{ color: '#000000' }}>
+            {timeDisplay}
+          </div>
+        )}
         {displayId && (
           <div className="event-booking-id text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>#{displayId}</div>
         )}
@@ -124,7 +98,7 @@ export const setupEventActions = (
   actionContainer.style.position = 'absolute';
   actionContainer.style.top = '2px';
   actionContainer.style.right = '2px';
-  actionContainer.style.display = 'none'; // Hidden by default, shown on hover
+  actionContainer.style.display = 'none';
   actionContainer.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
   actionContainer.style.borderRadius = '4px';
   actionContainer.style.padding = '2px';
@@ -170,7 +144,7 @@ export const setupEventActions = (
     deleteButton.style.justifyContent = 'center';
     deleteButton.style.padding = '2px';
     deleteButton.style.borderRadius = '2px';
-    deleteButton.style.color = '#dc2626'; // Red color for delete
+    deleteButton.style.color = '#dc2626';
     
     deleteButton.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -187,7 +161,7 @@ export const setupEventActions = (
     // Add container to the event element
     eventEl.appendChild(actionContainer);
     
-    // Show actions on hover (for desktop)
+    // Show actions on hover
     eventEl.addEventListener('mouseenter', () => {
       actionContainer.style.display = 'flex';
     });
@@ -199,7 +173,6 @@ export const setupEventActions = (
     // For mobile, show on touch start and hide after a delay
     eventEl.addEventListener('touchstart', () => {
       actionContainer.style.display = 'flex';
-      // Hide after 5 seconds to prevent it from staying visible forever
       setTimeout(() => {
         actionContainer.style.display = 'none';
       }, 5000);
@@ -212,22 +185,6 @@ export const addEventAttributes = (info: any) => {
     info.el.setAttribute('data-event-type', info.event.extendedProps.eventType);
   }
   
-  // Calculate duration simply
-  const durationMs = new Date(info.event.end).getTime() - new Date(info.event.start).getTime();
-  const durationHours = durationMs / (1000 * 60 * 60);
-  
-  // Add duration classes for better styling
-  if (durationHours >= 6) {
-    info.el.setAttribute('data-duration', 'long');
-    info.el.classList.add('event-long-duration');
-  } else if (durationHours >= 3) {
-    info.el.setAttribute('data-duration', 'medium');
-    info.el.classList.add('event-medium-duration');
-  } else {
-    info.el.setAttribute('data-duration', 'short');
-    info.el.classList.add('event-short-duration');
-  }
-  
   // Add special class for timeline events
   if (info.view.type === 'resourceTimelineWeek') {
     info.el.classList.add('timeline-event');
@@ -238,21 +195,19 @@ export const setupResourceHeaderStyles = (info: any) => {
   // Ensure proper rendering of resource headers
   const headerEl = info.el.querySelector('.fc-datagrid-cell-main');
   if (headerEl) {
-    // Set the height and make it overflow visible
     const headerHTMLElement = headerEl as HTMLElement;
     headerHTMLElement.style.height = '100%';
     headerHTMLElement.style.width = '100%';
     headerHTMLElement.style.overflow = 'visible';
     headerHTMLElement.style.position = 'relative';
-    headerHTMLElement.style.zIndex = '20'; // Increased z-index to ensure visibility
+    headerHTMLElement.style.zIndex = '20';
     
-    // Also fix the parent elements
     const cellFrame = info.el.querySelector('.fc-datagrid-cell-frame');
     if (cellFrame) {
       const cellFrameElement = cellFrame as HTMLElement;
       cellFrameElement.style.overflow = 'visible';
       cellFrameElement.style.position = 'relative';
-      cellFrameElement.style.minHeight = '50px'; // Ensure enough space for staff badges
+      cellFrameElement.style.minHeight = '50px';
     }
   }
 };

@@ -1,6 +1,5 @@
 
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
-import { parseISO, isValid } from 'date-fns';
 
 export const processEvents = (events: CalendarEvent[], resources: Resource[]): CalendarEvent[] => {
   console.log('Processing events:', events.length);
@@ -13,24 +12,6 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
   const validResourceIds = new Set(resources.map(r => r.id));
 
   const processedEvents = events.map((event) => {
-    // Parse times simply - no modifications
-    let startTime: Date;
-    let endTime: Date;
-    
-    try {
-      startTime = typeof event.start === 'string' ? parseISO(event.start) : new Date(event.start);
-      endTime = typeof event.end === 'string' ? parseISO(event.end) : new Date(event.end);
-      
-      if (!isValid(startTime) || !isValid(endTime)) {
-        throw new Error('Invalid date parsing');
-      }
-    } catch (error) {
-      console.error('Error parsing event times:', error);
-      // Fallback to current time + 1 hour if parsing fails
-      startTime = new Date();
-      endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
-    }
-    
     // Ensure the event has a valid resource ID
     let resourceId = event.resourceId;
     if (!resourceId || !validResourceIds.has(resourceId)) {
@@ -41,30 +22,26 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
     // Get event color based on event type
     const eventColor = getEventColor(event.eventType);
     
-    // Create proper title from booking data
+    // Create simple title from booking data
     let eventTitle = event.title;
     const bookingNumber = event.extendedProps?.bookingNumber || event.bookingNumber;
     const client = event.extendedProps?.client || event.client;
     
-    // Simple title logic
     if (bookingNumber && client) {
       eventTitle = `${bookingNumber}: ${client}`;
-    } else if (client && (event.title.length > 30 || event.title.includes('-'))) {
+    } else if (client) {
       eventTitle = client;
-    } else if (bookingNumber && (event.title.length > 30 || event.title.includes('-'))) {
+    } else if (bookingNumber) {
       eventTitle = bookingNumber;
-    } else if (event.title && event.title.length <= 30 && !event.title.includes('-')) {
-      eventTitle = event.title;
-    } else {
-      eventTitle = `Event ${event.id.substring(0, 8)}`;
     }
     
+    // CRITICAL: Pass times directly to FullCalendar without ANY processing
     const processedEvent = {
       ...event,
       title: eventTitle,
-      // Use the parsed times as ISO strings - let FullCalendar handle display
-      start: startTime.toISOString(),
-      end: endTime.toISOString(),
+      // Pass database times directly - let FullCalendar handle everything
+      start: event.start,
+      end: event.end,
       resourceId,
       backgroundColor: eventColor,
       borderColor: eventColor,

@@ -15,26 +15,15 @@ export const getEventHandlers = (
   handleEventClick: (info: any) => void,
   handleEventReceive?: (info: any) => void
 ) => {
-  // Simple event drop handler
+  // Simple event drop handler - let FullCalendar handle the time changes
   const handleEventDrop = (info: any) => {
-    console.log('Event dropped:', {
-      eventId: info.event.id,
-      newResource: info.newResource?.id,
-      newStart: info.event.start?.toISOString(),
-      newEnd: info.event.end?.toISOString()
-    });
-    
+    console.log('Event dropped:', info.event.id);
     handleEventChange(info);
   };
 
-  // Simple event resize handler
+  // Simple event resize handler - let FullCalendar handle the time changes
   const handleEventResize = (info: any) => {
-    console.log('Event resized:', {
-      eventId: info.event.id,
-      newStart: info.event.start?.toISOString(),
-      newEnd: info.event.end?.toISOString()
-    });
-    
+    console.log('Event resized:', info.event.id);
     handleEventChange(info);
   };
 

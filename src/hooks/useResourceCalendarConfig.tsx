@@ -37,15 +37,10 @@ export const useResourceCalendarConfig = (
     return aNum - bNum;
   });
 
-  // Get the appropriate initial view - ALWAYS use resource view to preserve team columns
-  const getViewForMode = () => {
-    return 'resourceTimeGridDay'; // Always use resource view to preserve team columns
-  };
-
   // Resource column configuration - optimized width for weekly view
   const getResourceColumnConfig = () => {
     // Use optimized width for weekly view - smaller columns to fit more on screen
-    const columnWidth = viewMode === 'weekly' ? 100 : 120; // Smaller width for weekly view
+    const columnWidth = viewMode === 'weekly' ? 100 : 120;
     
     return {
       resourceAreaWidth: columnWidth,
@@ -73,10 +68,9 @@ export const useResourceCalendarConfig = (
       dayGridPlugin
     ],
     schedulerLicenseKey: "0134084325-fcs-1745193612",
-    initialView: getViewForMode(),
+    initialView: 'resourceTimeGridDay',
     headerToolbar: getMobileHeaderToolbar(),
     views: getCalendarViews(),
-    // Always include resources to preserve team columns
     resources: sortedResources,
     // CRITICAL: FULLY ENABLE all editing capabilities for drag/drop
     editable: true,
@@ -92,30 +86,22 @@ export const useResourceCalendarConfig = (
     height: "auto",
     aspectRatio: getAspectRatio(),
     dropAccept: ".fc-event",
-    eventAllow: () => true, // Allow all event operations
-    // CRITICAL: Use local timezone for proper time display
+    eventAllow: () => true,
+    // CRITICAL: Let FullCalendar handle timezone naturally
     timeZone: 'local',
-    // Enhanced time configuration for better event display
+    // Standard time configuration
     slotMinTime: '05:00:00',
     slotMaxTime: '24:00:00',
     scrollTime: '08:00:00',
     slotDuration: '01:00:00',
     slotLabelInterval: '01:00:00',
-    snapDuration: '00:15:00', // Allow 15-minute snapping for precise time changes
-    // Always include resource config to preserve team columns
+    snapDuration: '00:15:00',
+    // Resource config
     ...getResourceColumnConfig(),
     // Add calendar options
     ...getCalendarOptions(),
-    // Add time formatting with proper timezone handling
+    // Simple time formatting
     ...getCalendarTimeFormatting(),
-    // CRITICAL: Enhanced event handling for proper time updates and drag/drop
-    eventTimeFormat: {
-      hour: '2-digit' as const,
-      minute: '2-digit' as const,
-      meridiem: false,
-      hour12: false,
-      omitZeroMinute: false
-    },
     // Apply any additional calendar props
     ...calendarProps,
     // Enable calendar connection for drag & drop

@@ -4,7 +4,6 @@ import { updateCalendarEvent } from '@/services/eventService';
 import { updateBookingTimes } from '@/services/booking/bookingTimeService';
 import { CalendarEvent, Resource } from '@/components/Calendar/ResourceData';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
 
 export const useEventOperations = ({ 
   resources, 
@@ -15,18 +14,11 @@ export const useEventOperations = ({
 }) => {
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Simplified event change handler
+  // Simple event change handler - trust FullCalendar's data
   const handleEventChange = async (info: any) => {
-    console.log('Event change:', {
-      eventId: info.event.id,
-      oldResource: info.oldResource?.id,
-      newResource: info.newResource?.id,
-      newStart: info.event.start?.toISOString(),
-      newEnd: info.event.end?.toISOString()
-    });
+    console.log('Event change:', info.event.id);
 
     if (isUpdating) {
-      console.log('Update already in progress, skipping');
       return;
     }
 
@@ -45,7 +37,7 @@ export const useEventOperations = ({
         changeDescription = `Event moved from ${oldTeam} to ${newTeam}`;
       }
 
-      // Handle time changes - simple ISO string updates
+      // Handle time changes - use FullCalendar's values directly
       if (info.event.start && info.oldEvent?.start?.getTime() !== info.event.start.getTime()) {
         eventData.start = info.event.start.toISOString();
         shouldUpdateBookingTimes = true;
@@ -58,12 +50,9 @@ export const useEventOperations = ({
 
       // If no meaningful changes, skip update
       if (Object.keys(eventData).length === 0) {
-        console.log('No changes detected, skipping update');
         setIsUpdating(false);
         return;
       }
-
-      console.log('Updating event:', eventData);
 
       // Update calendar event
       await updateCalendarEvent(info.event.id, eventData);
@@ -87,8 +76,7 @@ export const useEventOperations = ({
       if (changeDescription) {
         toast.success(changeDescription);
       } else if (shouldUpdateBookingTimes) {
-        const timeDisplay = `${format(info.event.start, 'HH:mm')} - ${format(info.event.end, 'HH:mm')}`;
-        toast.success(`Event time updated to ${timeDisplay}`);
+        toast.success('Event time updated successfully');
       } else {
         toast.success('Event updated successfully');
       }
