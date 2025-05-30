@@ -77,8 +77,8 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   console.log('🔍 ALL EVENTS PASSED TO UNIFIED CALENDAR:', events);
   
   if (events.length === 0) {
-    console.error('🚨 CRITICAL: UnifiedResourceCalendar received ZERO events!');
-    console.error('This means the issue is upstream - events are not reaching this component');
+    console.warn('⚠️ NOTICE: UnifiedResourceCalendar received ZERO events');
+    console.log('This could be normal if there are no events for the current time period');
   }
 
   // Check for resource ID mismatches
@@ -144,7 +144,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     const totalCalendarWidth = timeColumnWidth + (teamCount * optimizedTeamWidth);
     
     return {
-      height: 'auto',
+      height: '600px', // FIXED: Set explicit height
       headerToolbar: false,
       allDaySlot: false,
       initialView: 'resourceTimeGridDay',
@@ -163,9 +163,9 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
       resourceOrder: 'title',
       resourcesInitiallyExpanded: true,
       slotMinWidth: optimizedTeamWidth,
-      contentHeight: 'auto',
+      contentHeight: '580px', // Explicit content height
       expandRows: true,
-      aspectRatio: 1.2,
+      aspectRatio: undefined, // Remove aspect ratio constraints
       // Ensure proper sizing
       width: totalCalendarWidth,
       minWidth: totalCalendarWidth
@@ -175,7 +175,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   // Common calendar props for monthly view
   const getMonthlyCalendarProps = () => {
     return {
-      height: 'auto',
+      height: '400px', // FIXED: Set explicit height for monthly
       headerToolbar: false,
       allDaySlot: false,
       initialView: 'resourceTimeGridDay',
@@ -193,9 +193,9 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
       resourceOrder: 'title',
       resourcesInitiallyExpanded: true,
       slotMinWidth: 120,
-      contentHeight: 'auto',
+      contentHeight: '380px', // Explicit content height
       expandRows: true,
-      aspectRatio: 1.35,
+      aspectRatio: undefined, // Remove aspect ratio constraints
     };
   };
 
@@ -241,6 +241,18 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     }
   }, [currentDate, viewMode]);
 
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading calendar...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Weekly view - single row with 7 columns
   if (viewMode === 'weekly') {
     const teamCount = resources.length;
@@ -249,7 +261,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     const totalDayWidth = timeColumnWidth + (teamCount * optimizedTeamWidth);
     
     return (
-      <div className="weekly-view-container">
+      <div className="weekly-view-container" style={{ minHeight: '600px' }}>
         <div className="weekly-calendar-container" ref={containerRef}>
           {days.map((date, index) => {
             const dayEvents = getEventsForDay(date);
@@ -262,7 +274,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
             console.log(`⚙️ Calendar props:`, getWeeklyCalendarProps());
             
             if (dayEvents.length === 0) {
-              console.warn(`⚠️ No events for ${format(date, 'yyyy-MM-dd')} - this might be why calendar appears empty`);
+              console.log(`ℹ️ No events for ${format(date, 'yyyy-MM-dd')} - this is normal if no events exist for this date`);
             }
             
             return (
@@ -274,7 +286,8 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
                   width: `${totalDayWidth}px`,
                   minWidth: `${totalDayWidth}px`,
                   maxWidth: `${totalDayWidth}px`,
-                  flex: '0 0 auto'
+                  flex: '0 0 auto',
+                  minHeight: '600px'
                 }}
               >
                 {/* Day header */}
@@ -287,7 +300,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
                 </div>
                 
                 {/* Calendar content */}
-                <div className="weekly-view-calendar">
+                <div className="weekly-view-calendar" style={{ height: '580px' }}>
                   <ResourceCalendar
                     events={dayEvents}
                     resources={resources}
@@ -299,7 +312,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
                     onStaffDrop={(staffId: string, resourceId: string | null) => handleStaffDrop(staffId, resourceId, date)}
                     onSelectStaff={(resourceId: string, resourceTitle: string) => handleSelectStaff(resourceId, resourceTitle, date)}
                     forceRefresh={resourceCalendarForceRefresh}
-                    key={`calendar-${format(date, 'yyyy-MM-dd')}-${numericForceRefresh}`}
+                    key={`calendar-${format(date, 'yyyy-MM-dd')}-${numericForceRefresh}-${events.length}`}
                     droppableScope="weekly-calendar"
                     calendarProps={getWeeklyCalendarProps()}
                     targetDate={date}
@@ -315,7 +328,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 
   // Monthly view - grid layout
   return (
-    <div className="monthly-grid-container">
+    <div className="monthly-grid-container" style={{ minHeight: '400px' }}>
       {days.map((date, index) => {
         const dayEvents = getEventsForDay(date);
         const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
@@ -329,6 +342,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
             key={format(date, 'yyyy-MM-dd')} 
             className="monthly-day-wrapper"
             ref={isToday ? todayRef : null}
+            style={{ minHeight: '400px' }}
           >
             {/* Day header */}
             <div 
@@ -340,7 +354,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
             </div>
             
             {/* Calendar content */}
-            <div className="monthly-view-calendar">
+            <div className="monthly-view-calendar" style={{ height: '380px' }}>
               <ResourceCalendar
                 events={dayEvents}
                 resources={resources}
@@ -352,7 +366,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
                 onStaffDrop={(staffId: string, resourceId: string | null) => handleStaffDrop(staffId, resourceId, date)}
                 onSelectStaff={(resourceId: string, resourceTitle: string) => handleSelectStaff(resourceId, resourceTitle, date)}
                 forceRefresh={resourceCalendarForceRefresh}
-                key={`calendar-${format(date, 'yyyy-MM-dd')}-${numericForceRefresh}`}
+                key={`calendar-${format(date, 'yyyy-MM-dd')}-${numericForceRefresh}-${events.length}`}
                 droppableScope="monthly-calendar"
                 calendarProps={getMonthlyCalendarProps()}
                 targetDate={date}
