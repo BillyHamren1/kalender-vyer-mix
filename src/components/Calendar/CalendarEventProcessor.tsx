@@ -46,11 +46,14 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
       backgroundColor: eventColor,
       borderColor: eventColor,
       textColor: '#ffffff',
-      classNames: [`event-${event.eventType || 'default'}`, 'calendar-event'],
-      // Enable editing
+      classNames: [`event-${event.eventType || 'default'}`, 'calendar-event', 'fc-event-draggable'],
+      // EXPLICITLY enable ALL editing capabilities for EVERY event
       editable: true,
       startEditable: true,
       durationEditable: true,
+      eventResizableFromStart: true,
+      constraint: null, // Remove any constraints that might block dragging
+      overlap: true, // Allow events to overlap during drag
       extendedProps: {
         ...event.extendedProps,
         originalResourceId: event.resourceId,
@@ -62,10 +65,24 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
       }
     };
     
+    // Debug individual event processing
+    console.log(`Processed event ${event.id}:`, {
+      title: processedEvent.title,
+      start: processedEvent.start,
+      end: processedEvent.end,
+      editable: processedEvent.editable,
+      startEditable: processedEvent.startEditable,
+      durationEditable: processedEvent.durationEditable
+    });
+    
     return processedEvent;
   });
 
-  console.log('Processed events:', processedEvents.length);
+  console.log('=== Event Processing Complete ===');
+  console.log(`Total processed events: ${processedEvents.length}`);
+  console.log('All events have editable=true:', processedEvents.every(e => e.editable === true));
+  console.log('All events have startEditable=true:', processedEvents.every(e => e.startEditable === true));
+  
   return processedEvents;
 };
 
