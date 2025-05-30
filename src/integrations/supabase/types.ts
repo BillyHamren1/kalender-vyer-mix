@@ -185,6 +185,8 @@ export type Database = {
           delivery_longitude: number | null
           delivery_postal_code: string | null
           deliveryaddress: string | null
+          event_end_time: string | null
+          event_start_time: string | null
           eventdate: string | null
           exact_time_info: string | null
           exact_time_needed: boolean | null
@@ -192,7 +194,11 @@ export type Database = {
           id: string
           internalnotes: string | null
           last_calendar_sync: string | null
+          rig_end_time: string | null
+          rig_start_time: string | null
           rigdaydate: string | null
+          rigdown_end_time: string | null
+          rigdown_start_time: string | null
           rigdowndate: string | null
           status: string | null
           updated_at: string
@@ -212,6 +218,8 @@ export type Database = {
           delivery_longitude?: number | null
           delivery_postal_code?: string | null
           deliveryaddress?: string | null
+          event_end_time?: string | null
+          event_start_time?: string | null
           eventdate?: string | null
           exact_time_info?: string | null
           exact_time_needed?: boolean | null
@@ -219,7 +227,11 @@ export type Database = {
           id: string
           internalnotes?: string | null
           last_calendar_sync?: string | null
+          rig_end_time?: string | null
+          rig_start_time?: string | null
           rigdaydate?: string | null
+          rigdown_end_time?: string | null
+          rigdown_start_time?: string | null
           rigdowndate?: string | null
           status?: string | null
           updated_at?: string
@@ -239,6 +251,8 @@ export type Database = {
           delivery_longitude?: number | null
           delivery_postal_code?: string | null
           deliveryaddress?: string | null
+          event_end_time?: string | null
+          event_start_time?: string | null
           eventdate?: string | null
           exact_time_info?: string | null
           exact_time_needed?: boolean | null
@@ -246,7 +260,11 @@ export type Database = {
           id?: string
           internalnotes?: string | null
           last_calendar_sync?: string | null
+          rig_end_time?: string | null
+          rig_start_time?: string | null
           rigdaydate?: string | null
+          rigdown_end_time?: string | null
+          rigdown_start_time?: string | null
           rigdowndate?: string | null
           status?: string | null
           updated_at?: string

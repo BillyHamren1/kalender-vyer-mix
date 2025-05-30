@@ -1,5 +1,7 @@
+
 import { useState } from 'react';
 import { updateCalendarEvent } from '@/services/eventService';
+import { updateBookingTimes } from '@/services/booking/bookingTimeService';
 import { CalendarEvent, Resource } from '@/components/Calendar/ResourceData';
 import { toast } from 'sonner';
 
@@ -23,7 +25,9 @@ export const useEventOperations = ({
       newStart: info.event.start?.toISOString(),
       oldEnd: info.oldEvent?.end?.toISOString(),
       newEnd: info.event.end?.toISOString(),
-      changeType: info.oldResource?.id !== info.newResource?.id ? 'TEAM_MOVE' : 'TIME_CHANGE'
+      changeType: info.oldResource?.id !== info.newResource?.id ? 'TEAM_MOVE' : 'TIME_CHANGE',
+      eventType: info.event.extendedProps?.eventType,
+      bookingId: info.event.extendedProps?.bookingId
     });
 
     if (isUpdating) {
@@ -36,6 +40,7 @@ export const useEventOperations = ({
     try {
       const eventData: Partial<CalendarEvent> = {};
       let changeDescription = '';
+      let shouldUpdateBookingTimes = false;
 
       // Handle resource (team) changes
       if (info.newResource && info.oldResource?.id !== info.newResource.id) {
@@ -52,11 +57,13 @@ export const useEventOperations = ({
       // Handle time changes
       if (info.event.start && info.oldEvent?.start?.getTime() !== info.event.start.getTime()) {
         eventData.start = info.event.start.toISOString();
+        shouldUpdateBookingTimes = true;
         console.log('⏰ Start time change:', { from: info.oldEvent?.start, to: info.event.start });
       }
 
       if (info.event.end && info.oldEvent?.end?.getTime() !== info.event.end.getTime()) {
         eventData.end = info.event.end.toISOString();
+        shouldUpdateBookingTimes = true;
         console.log('⏰ End time change:', { from: info.oldEvent?.end, to: info.event.end });
       }
 
@@ -72,13 +79,34 @@ export const useEventOperations = ({
         updates: eventData
       });
 
+      // Update calendar event
       const result = await updateCalendarEvent(info.event.id, eventData);
-      
       console.log('✅ Event updated successfully in database:', result);
+
+      // Update booking times if this is a time change and we have booking info
+      if (shouldUpdateBookingTimes && info.event.extendedProps?.bookingId && info.event.extendedProps?.eventType) {
+        console.log('📅 Updating booking times for booking:', info.event.extendedProps.bookingId);
+        
+        try {
+          await updateBookingTimes(
+            info.event.extendedProps.bookingId,
+            info.event.extendedProps.eventType,
+            info.event.start.toISOString(),
+            info.event.end.toISOString()
+          );
+          console.log('✅ Booking times updated successfully');
+        } catch (bookingError) {
+          console.error('❌ Error updating booking times:', bookingError);
+          // Don't revert calendar change if booking update fails, just warn
+          toast.error('Event updated but failed to sync booking times');
+        }
+      }
 
       // Show success message
       if (changeDescription) {
         toast.success(changeDescription);
+      } else if (shouldUpdateBookingTimes) {
+        toast.success('Event time updated successfully');
       } else {
         toast.success('Event updated successfully');
       }

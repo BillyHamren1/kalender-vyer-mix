@@ -15,11 +15,18 @@ export interface BookingAttachment {
 
 export interface Booking {
   id: string;
-  bookingNumber?: string; // Add the booking number field
+  bookingNumber?: string;
   client: string;
   rigDayDate: string;
   eventDate: string;
   rigDownDate: string;
+  // Add the new time fields
+  rigStartTime?: string;
+  rigEndTime?: string;
+  eventStartTime?: string;
+  eventEndTime?: string;
+  rigdownStartTime?: string;
+  rigdownEndTime?: string;
   deliveryAddress?: string;
   deliveryCity?: string;
   deliveryPostalCode?: string;
