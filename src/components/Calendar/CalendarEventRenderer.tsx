@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
 import { Copy, Trash2 } from 'lucide-react';
@@ -9,7 +8,7 @@ export const renderEventContent = (eventInfo: any) => {
   // Get the event details
   const eventTitle = eventInfo.event.title;
   
-  // FIXED: Use the corrected duration from extendedProps instead of recalculating
+  // FIXED: Use the corrected duration from extendedProps - this should now be accurate
   const duration = eventInfo.event.extendedProps?.durationHours || 0;
   const startTimeDisplay = eventInfo.event.extendedProps?.localStartTime || 
                           format(new Date(eventInfo.event.start), 'HH:mm');
@@ -17,12 +16,12 @@ export const renderEventContent = (eventInfo: any) => {
                         format(new Date(eventInfo.event.end), 'HH:mm');
   const timeRangeDisplay = `${startTimeDisplay}-${endTimeDisplay}`;
   
-  console.log(`Event ${eventInfo.event.id} FIXED time rendering:`, {
+  console.log(`Event ${eventInfo.event.id} CORRECTED time rendering:`, {
     duration: duration,
     startDisplay: startTimeDisplay,
     endDisplay: endTimeDisplay,
     timeRange: timeRangeDisplay,
-    source: 'extendedProps (FIXED)'
+    source: 'extendedProps (CORRECTED)'
   });
   
   // Use bookingNumber if available, otherwise fall back to bookingId, or extract from title
@@ -59,7 +58,7 @@ export const renderEventContent = (eventInfo: any) => {
     extendedProps: eventInfo.event.extendedProps || {}
   };
 
-  // FIXED event content component with corrected duration display
+  // CORRECTED event content component with accurate duration display
   const EventContent = () => {
     if (eventInfo.view.type === 'resourceTimelineWeek') {
       // More compact display for timeline view
@@ -82,7 +81,7 @@ export const renderEventContent = (eventInfo: any) => {
       );
     }
     
-    // Enhanced display for other views with FIXED duration information
+    // Enhanced display for other views with CORRECTED duration information
     return (
       <div className="event-content-wrapper w-full h-full px-1" style={{ color: '#000000' }}>
         <div className="event-time text-xs font-medium mb-1" style={{ color: '#000000' }}>
@@ -98,10 +97,10 @@ export const renderEventContent = (eventInfo: any) => {
         {city && (
           <div className="event-city text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>{city}</div>
         )}
-        {/* Debug info shows FIXED duration */}
+        {/* Debug info shows CORRECTED duration */}
         {process.env.NODE_ENV === 'development' && (
           <div className="event-debug-info text-xs" style={{ color: '#000000', background: 'rgba(255,255,255,0.8)' }}>
-            FIXED: {duration}h | {startTimeDisplay}-{endTimeDisplay}
+            CORRECTED: {duration}h | {startTimeDisplay}-{endTimeDisplay}
           </div>
         )}
       </div>
@@ -230,10 +229,10 @@ export const addEventAttributes = (info: any) => {
     info.el.setAttribute('data-event-type', info.event.extendedProps.eventType);
   }
   
-  // Use the FIXED duration from extendedProps instead of recalculating
+  // Use the CORRECTED duration from extendedProps
   const duration = info.event.extendedProps?.durationHours || 0;
   
-  // Add duration classes for better styling - FIXED calculation
+  // Add duration classes for better styling - CORRECTED calculation
   if (duration >= 6) {
     info.el.setAttribute('data-duration', 'long');
     info.el.classList.add('event-long-duration');
@@ -245,7 +244,7 @@ export const addEventAttributes = (info: any) => {
     info.el.classList.add('event-short-duration');
   }
   
-  console.log(`Event ${info.event.id} attributes: FIXED duration=${duration}h, class=${duration >= 6 ? 'long' : duration >= 3 ? 'medium' : 'short'}`);
+  console.log(`Event ${info.event.id} attributes: CORRECTED duration=${duration}h, class=${duration >= 6 ? 'long' : duration >= 3 ? 'medium' : 'short'}`);
   
   // Add special class for timeline events to ensure they have proper height
   if (info.view.type === 'resourceTimelineWeek') {

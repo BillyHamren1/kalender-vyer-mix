@@ -1,5 +1,5 @@
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
-import { format, parseISO, differenceInHours, isValid, addDays, isBefore } from 'date-fns';
+import { format, parseISO, differenceInHours, differenceInMinutes, isValid } from 'date-fns';
 
 export const processEvents = (events: CalendarEvent[], resources: Resource[]): CalendarEvent[] => {
   console.log('=== CalendarEventProcessor Debug ===');
@@ -23,12 +23,12 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
     console.log(`  Event start: ${event.start}`);
     console.log(`  Event end: ${event.end}`);
     
-    // CRITICAL FIX: Parse and validate event times with proper timezone handling
+    // FIXED: Simple and direct time parsing without adding days
     let startTime: Date;
     let endTime: Date;
     
     try {
-      // Parse the ISO strings - these should be in UTC from the database
+      // Parse the ISO strings directly - NO MODIFICATIONS
       startTime = typeof event.start === 'string' ? parseISO(event.start) : new Date(event.start);
       endTime = typeof event.end === 'string' ? parseISO(event.end) : new Date(event.end);
       
@@ -37,33 +37,9 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
         throw new Error('Invalid date parsing');
       }
       
-      // CRITICAL FIX: Handle overnight events correctly
-      // If end time is before start time, it means the event goes to the next day
-      if (isBefore(endTime, startTime)) {
-        console.log(`  📅 Overnight event detected - adding 1 day to end time`);
-        endTime = addDays(endTime, 1);
-      }
-      
-      // Calculate duration in hours - FIXED calculation
-      const durationHours = differenceInHours(endTime, startTime);
-      
-      console.log(`  ⏰ FIXED time processing:`);
+      console.log(`  ⏰ DIRECT time parsing (NO MODIFICATIONS):`);
       console.log(`    Start: ${format(startTime, 'yyyy-MM-dd HH:mm:ss')} (${startTime.toISOString()})`);
       console.log(`    End: ${format(endTime, 'yyyy-MM-dd HH:mm:ss')} (${endTime.toISOString()})`);
-      console.log(`    Duration: ${durationHours} hours (CORRECTED)`);
-      
-      // Validate duration - should be reasonable
-      if (durationHours < 0) {
-        console.error(`  ❌ NEGATIVE DURATION: ${durationHours} hours - this is wrong!`);
-        // Fix by adding a day to end time
-        endTime = addDays(endTime, 1);
-        const correctedDuration = differenceInHours(endTime, startTime);
-        console.log(`  🔧 CORRECTED duration: ${correctedDuration} hours`);
-      }
-      
-      if (durationHours > 24) {
-        console.warn(`  ⚠️ Very long event duration: ${durationHours} hours - verify this is correct`);
-      }
       
     } catch (error) {
       console.error(`  ❌ Error parsing event times:`, error);
@@ -74,6 +50,25 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
       startTime = new Date();
       endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
       console.log(`  🔄 Using fallback times: ${format(startTime, 'HH:mm')} - ${format(endTime, 'HH:mm')}`);
+    }
+    
+    // FIXED: Calculate duration directly in minutes then convert to hours with decimals
+    const durationMinutes = differenceInMinutes(endTime, startTime);
+    const durationHours = Math.round((durationMinutes / 60) * 100) / 100; // Round to 2 decimal places
+    
+    console.log(`  📊 CORRECTED Duration Calculation:`);
+    console.log(`    Minutes: ${durationMinutes}`);
+    console.log(`    Hours: ${durationHours}`);
+    console.log(`    Start: ${format(startTime, 'HH:mm')}`);
+    console.log(`    End: ${format(endTime, 'HH:mm')}`);
+    
+    // Validate duration - should be reasonable
+    if (durationHours < 0) {
+      console.error(`  ❌ NEGATIVE DURATION: ${durationHours} hours - this indicates a parsing error!`);
+    }
+    
+    if (durationHours > 24) {
+      console.warn(`  ⚠️ Very long event duration: ${durationHours} hours - verify this is correct`);
     }
     
     console.log(`  Extended props:`, event.extendedProps);
@@ -130,13 +125,10 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
       console.log(`⚠️ Using fallback title: "${eventTitle}"`);
     }
     
-    // FINAL DURATION CALCULATION with overnight handling
-    const finalDurationHours = differenceInHours(endTime, startTime);
-    
     const processedEvent = {
       ...event,
       title: eventTitle,
-      // CRITICAL: Ensure proper ISO string format for FullCalendar
+      // CRITICAL: Use the original times without modification
       start: startTime.toISOString(),
       end: endTime.toISOString(),
       resourceId,
@@ -156,8 +148,8 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
         deliveryAddress: event.deliveryAddress,
         bookingNumber: bookingNumber,
         client: client,
-        // CORRECTED timing info
-        durationHours: finalDurationHours,
+        // CORRECTED timing info with proper calculation
+        durationHours: durationHours,
         startTime: format(startTime, 'HH:mm'),
         endTime: format(endTime, 'HH:mm'),
         startDateTime: startTime.toISOString(),
@@ -169,8 +161,8 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
     };
     
     console.log(`  ✅ Processed event "${eventTitle}":`);
-    console.log(`    CORRECTED Duration: ${finalDurationHours} hours`);
-    console.log(`    Times: ${format(startTime, 'yyyy-MM-dd HH:mm')} → ${format(endTime, 'yyyy-MM-dd HH:mm')}`);
+    console.log(`    CORRECTED Duration: ${durationHours} hours`);
+    console.log(`    Times: ${format(startTime, 'HH:mm')} → ${format(endTime, 'HH:mm')}`);
     console.log(`    ISO Start: ${startTime.toISOString()}`);
     console.log(`    ISO End: ${endTime.toISOString()}`);
     console.log(`    Editable: ${processedEvent.editable}`);
