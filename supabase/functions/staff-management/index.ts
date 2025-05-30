@@ -345,7 +345,7 @@ async function getStaffCalendarEvents(supabase: any, staffIds: string[], startDa
 
     const staffMap = new Map(staffMembers?.map(staff => [staff.id, staff.name]) || [])
 
-    // FIXED: Get staff assignments for the date range to validate actual assignments
+    // FIXED: Get staff assignments for the date range
     const { data: staffAssignments, error: assignmentError } = await supabase
       .from('staff_assignments')
       .select('staff_id, team_id, assignment_date')
@@ -359,16 +359,6 @@ async function getStaffCalendarEvents(supabase: any, staffIds: string[], startDa
       console.log('No staff assignments found for the selected staff in the date range')
       return { success: true, data: [] }
     }
-
-    // Create a map of staff assignments by date and team for quick lookup
-    const assignmentMap = new Map<string, { staffId: string, teamId: string }>()
-    staffAssignments.forEach(assignment => {
-      const key = `${assignment.staff_id}-${assignment.assignment_date}-${assignment.team_id}`
-      assignmentMap.set(key, {
-        staffId: assignment.staff_id,
-        teamId: assignment.team_id
-      })
-    })
 
     const events: CalendarEvent[] = []
 
@@ -391,31 +381,44 @@ async function getStaffCalendarEvents(supabase: any, staffIds: string[], startDa
 
       if (calendarEvents && calendarEvents.length > 0) {
         for (const calendarEvent of calendarEvents) {
-          // Only include events that have booking IDs (actual work assignments)
+          // Get client name from booking if available
+          let clientName = 'Unknown Client'
           if (calendarEvent.booking_id) {
-            events.push({
-              id: `staff-${assignment.staff_id}-event-${calendarEvent.id}`,
-              title: calendarEvent.title,
-              start: calendarEvent.start_time,
-              end: calendarEvent.end_time,
-              resourceId: assignment.staff_id,
-              teamId: assignment.team_id,
-              bookingId: calendarEvent.booking_id,
-              eventType: 'booking_event',
-              backgroundColor: getEventColor(calendarEvent.event_type || 'event'),
-              borderColor: getEventBorderColor(calendarEvent.event_type || 'event'),
-              client: extractClientFromTitle(calendarEvent.title),
-              extendedProps: {
-                bookingId: calendarEvent.booking_id,
-                deliveryAddress: calendarEvent.delivery_address,
-                bookingNumber: calendarEvent.booking_number,
-                eventType: calendarEvent.event_type || 'booking_event',
-                staffName: staffName,
-                client: extractClientFromTitle(calendarEvent.title),
-                teamName: `Team ${assignment.team_id.replace('team-', '')}`
-              }
-            })
+            const { data: booking, error: bookingError } = await supabase
+              .from('bookings')
+              .select('client')
+              .eq('id', calendarEvent.booking_id)
+              .single()
+
+            if (!bookingError && booking) {
+              clientName = booking.client
+            }
+          } else {
+            clientName = extractClientFromTitle(calendarEvent.title) || calendarEvent.title
           }
+
+          events.push({
+            id: `staff-${assignment.staff_id}-event-${calendarEvent.id}`,
+            title: `${clientName} - ${calendarEvent.event_type || 'event'}`,
+            start: calendarEvent.start_time,
+            end: calendarEvent.end_time,
+            resourceId: assignment.staff_id,
+            teamId: assignment.team_id,
+            bookingId: calendarEvent.booking_id,
+            eventType: 'booking_event',
+            backgroundColor: getEventColor(calendarEvent.event_type || 'event'),
+            borderColor: getEventBorderColor(calendarEvent.event_type || 'event'),
+            client: clientName,
+            extendedProps: {
+              bookingId: calendarEvent.booking_id,
+              deliveryAddress: calendarEvent.delivery_address,
+              bookingNumber: calendarEvent.booking_number,
+              eventType: calendarEvent.event_type || 'booking_event',
+              staffName: staffName,
+              client: clientName,
+              teamName: `Team ${assignment.team_id.replace('team-', '')}`
+            }
+          })
         }
       }
     }
@@ -664,11 +667,11 @@ function extractClientFromTitle(title: string): string | undefined {
 function getEventColor(eventType: string): string {
   switch (eventType) {
     case 'rig':
-      return '#fff3e0'
+      return '#F2FCE2'
     case 'event':
-      return '#fff9c4'
+      return '#FEF7CD'
     case 'rigDown':
-      return '#f3e5f5'
+      return '#FFDEE2'
     default:
       return '#e8f5e8'
   }
@@ -677,11 +680,11 @@ function getEventColor(eventType: string): string {
 function getEventBorderColor(eventType: string): string {
   switch (eventType) {
     case 'rig':
-      return '#ff9800'
+      return '#D4EAB5'
     case 'event':
-      return '#ffeb3b'
+      return '#F3E8A3'
     case 'rigDown':
-      return '#9c27b0'
+      return '#FEB190'
     default:
       return '#4caf50'
   }
