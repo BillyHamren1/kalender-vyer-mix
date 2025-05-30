@@ -1,5 +1,5 @@
 
-/* Enhanced Weekly Calendar Layout Styles with Dynamic Width Support */
+/* Enhanced Weekly Calendar Layout Styles with 7-Day Support */
 
 .weekly-view-container {
   display: flex;
@@ -15,20 +15,21 @@
   width: 100%;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
-  overflow-x: auto; /* CRITICAL: Allow horizontal scrolling for wide calendars */
+  overflow-x: auto; /* Allow horizontal scrolling for 7 days */
   overflow-y: hidden;
-  min-width: fit-content; /* CRITICAL: Allow container to expand beyond viewport */
+  min-width: fit-content; /* Allow container to expand for 7 days */
 }
 
 .day-calendar-wrapper {
-  flex: 0 0 auto; /* CRITICAL: Don't flex shrink, use explicit width */
+  flex: 0 0 auto; /* Don't flex shrink, use explicit width */
   display: flex;
   flex-direction: column;
   height: 100%;
   border-right: 1px solid #e0e0e0;
   background: white;
-  /* min-width will be set dynamically via inline styles */
   overflow: hidden;
+  /* Width will be set dynamically via inline styles */
+  min-width: 250px; /* Minimum width for readability */
 }
 
 .day-calendar-wrapper:last-child {
@@ -52,7 +53,7 @@
   z-index: 10;
   transition: background-color 0.2s ease;
   white-space: nowrap;
-  flex-shrink: 0; /* Prevent header from shrinking */
+  flex-shrink: 0;
 }
 
 .day-header:hover {
@@ -80,51 +81,39 @@
   height: 100%;
   overflow: hidden;
   min-width: 100%;
-  width: 100%; /* CRITICAL: Take full width of parent */
+  width: 100%;
 }
 
 .weekly-view-calendar .fc {
   height: 100% !important;
   min-width: 100% !important;
-  width: 100% !important; /* CRITICAL: Force FullCalendar to use full width */
+  width: 100% !important;
 }
 
 .weekly-view-calendar .fc-view-harness {
   height: 100% !important;
   flex: 1 !important;
   min-width: 100% !important;
-  width: 100% !important; /* CRITICAL: Force view harness to use full width */
-}
-
-/* Ensure each day calendar has proper width for all columns */
-.weekly-view-calendar .fc-datagrid {
-  min-width: 100% !important;
   width: 100% !important;
-  overflow: visible !important; /* CRITICAL: Don't hide team columns */
 }
 
-.weekly-view-calendar .fc-scrollgrid {
-  min-width: 100% !important;
+/* Ensure the time grid takes full width for each day */
+.weekly-view-calendar .fc-timegrid {
   width: 100% !important;
-  overflow: visible !important; /* CRITICAL: Don't hide team columns */
-}
-
-/* Force team columns to be visible and properly sized */
-.weekly-view-calendar .fc-resource-area {
-  min-width: fit-content !important;
-  width: auto !important;
-  display: block !important; /* CRITICAL: Ensure resource area is visible */
-  visibility: visible !important;
-  opacity: 1 !important;
+  min-width: 100% !important;
 }
 
 .weekly-view-calendar .fc-timegrid-body {
-  min-width: fit-content !important;
   width: 100% !important;
-  overflow: visible !important; /* CRITICAL: Don't hide content */
+  min-width: 100% !important;
 }
 
-/* CRITICAL: Force all scrollers to show content, not hide it */
+/* Remove resource-specific styling for weekly view */
+.weekly-view-calendar .fc-resource-area {
+  display: none !important; /* Hide resource areas in weekly view */
+}
+
+/* Ensure scrollers show content properly */
 .weekly-view-calendar .fc-scroller {
   overflow: visible !important;
   height: auto !important;
@@ -151,7 +140,7 @@
     border-bottom: 1px solid #e0e0e0;
     min-height: 200px;
     min-width: 100%;
-    flex: none; /* Remove flex on mobile */
+    flex: none;
   }
   
   .day-calendar-wrapper:last-child {

@@ -12,7 +12,8 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 export const useResourceCalendarConfig = (
   resources: Resource[],
   droppableScope: string,
-  calendarProps: Record<string, any>
+  calendarProps: Record<string, any>,
+  viewMode?: 'weekly' | 'monthly' // Add viewMode parameter
 ) => {
   const calendarRef = useRef<any>(null);
   const { isMobile, getInitialView, getMobileHeaderToolbar, getAspectRatio } = useCalendarView();
@@ -36,8 +37,21 @@ export const useResourceCalendarConfig = (
     return aNum - bNum;
   });
 
-  // FIXED: Consistent resource column configuration - using NUMBER values for FullCalendar
+  // Get the appropriate initial view based on mode
+  const getViewForMode = () => {
+    if (viewMode === 'weekly') {
+      return 'timeGridDay'; // Use simple day view for weekly mode
+    }
+    return getInitialView(); // Use default for other modes
+  };
+
+  // FIXED: Resource column configuration - only for non-weekly modes
   const getResourceColumnConfig = () => {
+    // Don't show resource columns in weekly mode
+    if (viewMode === 'weekly') {
+      return {};
+    }
+
     // Use number values for FullCalendar (pixels without 'px')
     const standardWidth = 120;
     
@@ -48,7 +62,7 @@ export const useResourceCalendarConfig = (
         {
           field: 'title',
           headerContent: 'Teams',
-          width: standardWidth // FIXED: Use number instead of string
+          width: standardWidth
         }
       ],
       resourcesInitiallyExpanded: true,
@@ -67,11 +81,11 @@ export const useResourceCalendarConfig = (
       dayGridPlugin
     ],
     schedulerLicenseKey: "0134084325-fcs-1745193612",
-    initialView: getInitialView(),
+    initialView: getViewForMode(),
     headerToolbar: getMobileHeaderToolbar(),
     views: getCalendarViews(),
-    // CRITICAL: Always include resources, even on mobile
-    resources: sortedResources,
+    // Only include resources for non-weekly modes
+    ...(viewMode !== 'weekly' && { resources: sortedResources }),
     editable: true,
     droppable: true,
     selectable: true,
@@ -81,25 +95,14 @@ export const useResourceCalendarConfig = (
     aspectRatio: getAspectRatio(),
     dropAccept: ".fc-event",
     eventAllow: () => true,
-    // Add the FIXED resource column config with consistent 120px width
+    // Add resource config only for non-weekly modes
     ...getResourceColumnConfig(),
     // Add calendar options
     ...getCalendarOptions(),
     // Add time formatting
     ...getCalendarTimeFormatting(),
-    // Apply any additional calendar props (but prioritize our width settings)
+    // Apply any additional calendar props
     ...calendarProps,
-    // OVERRIDE any conflicting width settings from calendarProps
-    resourceAreaWidth: 120, // FIXED: Use number
-    slotMinWidth: 120,
-    // Update resource rendering to include select button
-    resourceAreaHeaderContent: (args: any) => {
-      return (
-        <div className="flex items-center justify-between p-1">
-          <span>Teams</span>
-        </div>
-      );
-    },
     // Enable calendar connection for drag & drop
     eventSourceId: droppableScope,
   });

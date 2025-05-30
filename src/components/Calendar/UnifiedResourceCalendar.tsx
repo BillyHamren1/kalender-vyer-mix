@@ -39,17 +39,21 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   const navigate = useNavigate();
   const { setLastViewedDate } = useContext(CalendarContext);
 
-  // Calculate dynamic width based on number of teams
+  // Calculate dynamic width based on view mode
   const calculateDayWidth = () => {
+    if (viewMode === 'weekly') {
+      // For weekly view, use a simpler width calculation
+      const baseWidth = 200; // Base width for time column and content
+      return Math.max(baseWidth, 300); // Minimum 300px for readability
+    }
+    
+    // For monthly/resource view, calculate based on teams
     const teamCount = resources.length;
-    const timeColumnWidth = 60; // Width for time labels
-    const teamColumnWidth = 120; // Width per team column
-    const padding = 20; // Additional padding
+    const timeColumnWidth = 60;
+    const teamColumnWidth = 120;
+    const padding = 20;
     
-    // Minimum width needed to show all teams
     const minWidth = timeColumnWidth + (teamCount * teamColumnWidth) + padding;
-    
-    // Ensure minimum of 300px for readability
     return Math.max(minWidth, 300);
   };
 
@@ -127,9 +131,23 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     }
   };
 
-  // Common calendar props to ensure consistency across all day calendars
+  // Common calendar props for weekly view (simplified)
   const getCommonCalendarProps = (dayIndex: number) => {
-    // Calculate the minimum width needed for all team columns
+    if (viewMode === 'weekly') {
+      return {
+        height: 'auto',
+        headerToolbar: false,
+        allDaySlot: false,
+        initialView: 'timeGridDay', // Use simple time grid day view
+        slotMinWidth: 60,
+        'data-day-index': dayIndex.toString(),
+        contentHeight: 'auto',
+        expandRows: true,
+        aspectRatio: 1.2,
+      };
+    }
+
+    // For monthly/resource view, use the original logic
     const teamCount = resources.length;
     
     return {
@@ -137,13 +155,12 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
       headerToolbar: false,
       allDaySlot: false,
       initialView: 'resourceTimeGridDay',
-      // CRITICAL: Ensure resources are properly configured with NUMBER values
-      resourceAreaWidth: 120, // FIXED: Use number instead of string
+      resourceAreaWidth: 120,
       resourceAreaColumns: [
         {
           field: 'title',
           headerContent: 'Teams',
-          width: 120 // FIXED: Use number instead of string
+          width: 120
         }
       ],
       resourceLabelText: 'Teams',
@@ -156,7 +173,6 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
       'data-team-count': teamCount,
       contentHeight: 'auto',
       expandRows: true,
-      // Force minimum width for proper display
       aspectRatio: 1.2,
     };
   };

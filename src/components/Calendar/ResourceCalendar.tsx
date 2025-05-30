@@ -56,14 +56,18 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   
   console.log(`ResourceCalendar: Rendering for date ${format(effectiveDate, 'yyyy-MM-dd')} with target date: ${targetDate ? format(targetDate, 'yyyy-MM-dd') : 'none'}`);
   
+  // Determine view mode from droppableScope
+  const viewMode = droppableScope.includes('weekly') ? 'weekly' : 'monthly';
+  
   // Use the reliable staff operations hook for real-time updates
   const { assignments, handleStaffDrop: reliableHandleStaffDrop, getStaffForTeam } = useReliableStaffOperations(effectiveDate);
   
-  // Use calendar configuration hook
+  // Use calendar configuration hook with viewMode
   const { calendarRef, isMobile, getBaseCalendarProps } = useResourceCalendarConfig(
     resources,
     droppableScope,
-    calendarProps
+    calendarProps,
+    viewMode // Pass the viewMode
   );
 
   // Create a wrapper function that ensures Promise<void> return type
@@ -91,20 +95,21 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     console.log('ResourceCalendar received events:', events);
     console.log('ResourceCalendar received resources:', resources);
     console.log('ResourceCalendar staff assignments:', assignments);
+    console.log('ResourceCalendar viewMode:', viewMode);
     
     // Debug: Log staff assignments per team for this specific date
     resources.forEach(resource => {
       const staffForTeam = getStaffForTeam(resource.id);
       console.log(`ResourceCalendar: Team ${resource.id} (${resource.title}) has ${staffForTeam.length} staff assigned for ${format(effectiveDate, 'yyyy-MM-dd')}`);
     });
-  }, [events, resources, assignments, effectiveDate, getStaffForTeam]);
+  }, [events, resources, assignments, effectiveDate, getStaffForTeam, viewMode]);
 
   // Process events to ensure valid resources and add styling
   const processedEvents = processEvents(events, resources);
 
-  // Custom resource header content renderer
+  // Custom resource header content renderer - only for non-weekly modes
   const resourceHeaderContent = (info: any) => {
-    if (isMobile) return info.resource.title;
+    if (isMobile || viewMode === 'weekly') return info.resource?.title || '';
     
     console.log(`ResourceCalendar: Rendering ResourceHeaderDropZone for ${info.resource.id} with target date: ${format(effectiveDate, 'yyyy-MM-dd')}`);
     
@@ -139,10 +144,9 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     ...getBaseCalendarProps(),
     events: processedEvents,
     eventDrop: handleEventDrop,
-    eventResize: handleEventChange, // Enable event resizing for time changes
+    eventResize: handleEventChange,
     eventClick: handleEventClick,
     eventReceive: handleEventReceive,
-    // Enable event interaction
     editable: true,
     selectable: true,
     selectMirror: true,
@@ -159,8 +163,11 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       addEventAttributes(info);
       setupEventActions(info, handleDuplicateButtonClick, handleDeleteButtonClick);
     },
-    resourceLabelDidMount: setupResourceHeaderStyles,
-    resourceLabelContent: resourceHeaderContent,
+    // Only show resource headers for non-weekly modes
+    ...(viewMode !== 'weekly' && {
+      resourceLabelDidMount: setupResourceHeaderStyles,
+      resourceLabelContent: resourceHeaderContent,
+    }),
     slotLabelDidMount: (info: any) => {
       info.el.style.zIndex = '1';
     },
