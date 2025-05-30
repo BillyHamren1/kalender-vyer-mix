@@ -36,9 +36,21 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
     // Get the actual event type
     const eventType = event.extendedProps?.eventType || event.eventType;
     
-    // Force EVENT type events to team-6 (Todays events)
+    // Check if this is an EVENT type that should potentially be auto-assigned to team-6
     if (eventType === 'event') {
-      targetResourceId = 'team-6';
+      // Only auto-assign to team-6 if the event is currently on a team that seems auto-assigned
+      // This respects manual drag operations to other teams
+      const bookingId = event.extendedProps?.bookingId || event.bookingId;
+      
+      // If the event is already on team-6 or has no specific team assignment, use team-6
+      // Otherwise, respect the current team assignment (user may have dragged it)
+      if (targetResourceId === 'team-6' || !targetResourceId || targetResourceId === 'team-1') {
+        targetResourceId = 'team-6';
+        console.log(`Auto-assigning EVENT type event ${event.id} to team-6`);
+      } else {
+        // Event has been manually assigned to a specific team - respect that choice
+        console.log(`Respecting manual assignment of EVENT type event ${event.id} to ${targetResourceId}`);
+      }
       
       // Set EVENT events to 2.5 hours duration
       const startTime = new Date(event.start);
@@ -79,22 +91,34 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
         }
       };
 
-      console.log(`Processed EVENT type event ${event.id}: moved to team-6 with enhanced data`);
+      console.log(`Processed EVENT type event ${event.id}: assigned to ${targetResourceId} with enhanced data`);
       return processedEvent;
     }
 
-    // For non-EVENT types, keep consistent team assignment within booking
+    // For non-EVENT types, check if events in the same booking should stay together
     const bookingId = event.extendedProps?.bookingId || event.bookingId;
     if (bookingId && eventsByBooking.has(bookingId)) {
       const bookingEvents = eventsByBooking.get(bookingId)!;
       
-      // Use the booking ID to determine consistent team assignment
-      const bookingHash = bookingId.split('-')[0];
-      const teams = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5'];
-      const baseTeamIndex = parseInt(bookingHash, 16) % teams.length;
-      targetResourceId = teams[baseTeamIndex];
+      // Check if any event in this booking has been manually assigned to a non-default team
+      const manuallyAssignedEvent = bookingEvents.find(e => {
+        const eResourceId = e.resourceId;
+        // Consider it manually assigned if it's not on team-6 (default for EVENT) or team-1 (fallback)
+        return eResourceId !== 'team-6' && eResourceId !== 'team-1' && eResourceId.startsWith('team-');
+      });
       
-      console.log(`Assigning booking ${bookingId} events to consistent team: ${targetResourceId}`);
+      if (manuallyAssignedEvent) {
+        // Use the manually assigned team for consistency
+        targetResourceId = manuallyAssignedEvent.resourceId;
+        console.log(`Using manually assigned team ${targetResourceId} for booking ${bookingId} events`);
+      } else {
+        // Use the booking ID to determine consistent team assignment (original logic)
+        const bookingHash = bookingId.split('-')[0];
+        const teams = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5'];
+        const baseTeamIndex = parseInt(bookingHash, 16) % teams.length;
+        targetResourceId = teams[baseTeamIndex];
+        console.log(`Assigning booking ${bookingId} events to consistent team: ${targetResourceId}`);
+      }
     }
 
     const processedEvent = {
