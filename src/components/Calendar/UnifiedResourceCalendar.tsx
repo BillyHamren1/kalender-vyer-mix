@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
@@ -40,6 +39,22 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   const navigate = useNavigate();
   const { setLastViewedDate } = useContext(CalendarContext);
 
+  // Calculate dynamic width based on number of teams
+  const calculateDayWidth = () => {
+    const teamCount = resources.length;
+    const timeColumnWidth = 60; // Width for time labels
+    const teamColumnWidth = 120; // Width per team column
+    const padding = 20; // Additional padding
+    
+    // Minimum width needed to show all teams
+    const minWidth = timeColumnWidth + (teamCount * teamColumnWidth) + padding;
+    
+    // Ensure minimum of 300px for readability
+    return Math.max(minWidth, 300);
+  };
+
+  const dynamicDayWidth = calculateDayWidth();
+
   // Generate days based on view mode
   const getDaysToRender = () => {
     if (viewMode === 'weekly') {
@@ -68,7 +83,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   // Convert forceRefresh to number for consistent handling
   const numericForceRefresh = typeof forceRefresh === 'boolean' ? (forceRefresh ? 1 : 0) : (forceRefresh || 0);
 
-  console.log(`UnifiedResourceCalendar: ${viewMode} view with ${events.length} events, forceRefresh: ${numericForceRefresh}`);
+  console.log(`UnifiedResourceCalendar: ${viewMode} view with ${events.length} events, forceRefresh: ${numericForceRefresh}, dynamicDayWidth: ${dynamicDayWidth}px`);
 
   // Handle day header click to navigate to resource view
   const handleDayHeaderClick = (date: Date) => {
@@ -122,13 +137,13 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
       headerToolbar: false,
       allDaySlot: false,
       initialView: 'resourceTimeGridDay',
-      // CRITICAL: Ensure resources are properly configured
-      resourceAreaWidth: '120px',
+      // CRITICAL: Ensure resources are properly configured with NUMBER values
+      resourceAreaWidth: 120, // FIXED: Use number instead of string
       resourceAreaColumns: [
         {
           field: 'title',
           headerContent: 'Teams',
-          width: '120px'
+          width: 120 // FIXED: Use number instead of string
         }
       ],
       resourceLabelText: 'Teams',
@@ -193,7 +208,13 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 
   return (
     <div className={getContainerClass()}>
-      <div className={getCalendarContainerClass()} ref={containerRef}>
+      <div 
+        className={getCalendarContainerClass()} 
+        ref={containerRef}
+        style={{
+          minWidth: viewMode === 'weekly' ? `${dynamicDayWidth * 7}px` : 'auto'
+        }}
+      >
         {days.map((date, index) => {
           // Get only the events for this specific day
           const dayEvents = getEventsForDay(date);
@@ -210,6 +231,9 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
               key={format(date, 'yyyy-MM-dd')} 
               className={viewMode === 'weekly' ? 'day-calendar-wrapper' : 'monthly-day-wrapper'}
               ref={isToday ? todayRef : null}
+              style={{
+                minWidth: viewMode === 'weekly' ? `${dynamicDayWidth}px` : 'auto'
+              }}
             >
               {/* Clickable day header */}
               <div 

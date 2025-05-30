@@ -36,19 +36,19 @@ export const useResourceCalendarConfig = (
     return aNum - bNum;
   });
 
-  // FIXED: Consistent resource column configuration - using STRING values for FullCalendar
+  // FIXED: Consistent resource column configuration - using NUMBER values for FullCalendar
   const getResourceColumnConfig = () => {
-    // Use string values with 'px' for FullCalendar
-    const standardWidth = '120px';
+    // Use number values for FullCalendar (pixels without 'px')
+    const standardWidth = 120;
     
     return {
       resourceAreaWidth: standardWidth,
-      slotMinWidth: 120,
+      slotMinWidth: standardWidth,
       resourceAreaColumns: [
         {
           field: 'title',
           headerContent: 'Teams',
-          width: standardWidth
+          width: standardWidth // FIXED: Use number instead of string
         }
       ],
       resourcesInitiallyExpanded: true,
@@ -90,7 +90,7 @@ export const useResourceCalendarConfig = (
     // Apply any additional calendar props (but prioritize our width settings)
     ...calendarProps,
     // OVERRIDE any conflicting width settings from calendarProps
-    resourceAreaWidth: '120px',
+    resourceAreaWidth: 120, // FIXED: Use number
     slotMinWidth: 120,
     // Update resource rendering to include select button
     resourceAreaHeaderContent: (args: any) => {

@@ -1,7 +1,7 @@
 
 import React from 'react';
 
-// Custom styles to ensure addresses wrap properly and CONSISTENT COLUMN WIDTHS
+// Custom styles to ensure addresses wrap properly and FORCE ALL TEAM COLUMNS TO BE VISIBLE
 export const ResourceCalendarStyles: React.FC = () => (
   <style>
     {`
@@ -29,13 +29,14 @@ export const ResourceCalendarStyles: React.FC = () => (
         padding: 2px 4px !important;
       }
       
-      /* Enhanced container width for weekly view */
+      /* CRITICAL: Force container to be wide enough for all team columns */
       .weekly-view-calendar .fc-scrollgrid-sync-table {
         width: 100% !important;
         min-width: 100% !important;
+        table-layout: auto !important;
       }
       
-      /* Force ALL resource columns to be properly sized with larger width */
+      /* CRITICAL: Force ALL resource columns to be properly sized and VISIBLE */
       .fc-resource-area,
       .fc-resource-area td,
       .fc-resource-area th,
@@ -45,67 +46,105 @@ export const ResourceCalendarStyles: React.FC = () => (
       .fc-datagrid-cell-cushion {
         min-width: 120px !important;
         width: 120px !important;
-        max-width: 120px !important;
+        max-width: none !important;
         box-sizing: border-box !important;
+        display: table-cell !important;
+        visibility: visible !important;
+        opacity: 1 !important;
       }
       
-      /* Ensure header area matches content area exactly */
+      /* CRITICAL: Ensure header area matches content area exactly */
       .fc-datagrid-header .fc-datagrid-cell,
       .fc-datagrid-header .fc-datagrid-cell-frame,
       .fc-datagrid-body .fc-datagrid-cell,
       .fc-datagrid-body .fc-datagrid-cell-frame {
         min-width: 120px !important;
         width: 120px !important;
-        max-width: 120px !important;
+        max-width: none !important;
+        display: table-cell !important;
+        visibility: visible !important;
       }
       
-      /* Force resource area to be visible */
+      /* CRITICAL: Force resource area to be visible with proper display */
       .fc-resource-area {
-        display: block !important;
+        display: table !important;
         visibility: visible !important;
         opacity: 1 !important;
+        width: auto !important;
+        min-width: fit-content !important;
       }
       
-      /* Ensure time grid columns are properly sized */
+      /* CRITICAL: Ensure time grid columns are properly sized and visible */
       .fc-timegrid-col {
         min-width: 120px !important;
         width: auto !important;
+        display: table-cell !important;
+        visibility: visible !important;
       }
       
-      /* Make sure the time grid expands to show all columns */
+      /* CRITICAL: Make sure the time grid expands to show all columns */
       .weekly-view-calendar .fc-timegrid {
         min-width: fit-content !important;
         width: 100% !important;
+        table-layout: auto !important;
+        display: table !important;
       }
       
-      /* Ensure all teams are visible by making the calendar wide enough */
+      /* CRITICAL: Ensure all teams are visible by making the calendar wide enough */
       .weekly-view-calendar .fc-datagrid {
         overflow: visible !important;
         min-width: fit-content !important;
+        width: 100% !important;
+        display: table !important;
       }
       
+      /* CRITICAL: Force all scrollers to show content */
       .weekly-view-calendar .fc-scroller {
-        overflow-x: auto !important;
-        overflow-y: auto !important;
+        overflow: visible !important;
+        width: 100% !important;
+        height: auto !important;
       }
       
-      /* Make resource headers visible and properly sized */
+      /* CRITICAL: Make resource headers visible and properly sized */
       .fc-col-header-cell {
         min-width: 120px !important;
         width: 120px !important;
-        max-width: 120px !important;
+        max-width: none !important;
+        display: table-cell !important;
+        visibility: visible !important;
       }
       
-      /* Force resource timeline to show */
+      /* CRITICAL: Force resource timeline to show all columns */
       .fc-resource-timeline {
-        display: block !important;
+        display: table !important;
+        width: 100% !important;
+        table-layout: auto !important;
       }
       
-      /* Ensure resource area has proper minimum width */
-      .weekly-view-calendar .fc-resource-area {
-        min-width: calc(120px * var(--team-count, 2)) !important;
-        width: auto !important;
-        flex-shrink: 0 !important;
+      /* CRITICAL: Ensure the entire scrollgrid uses table layout for proper column display */
+      .weekly-view-calendar .fc-scrollgrid-liquid {
+        width: 100% !important;
+        table-layout: auto !important;
+        display: table !important;
+      }
+      
+      /* CRITICAL: Force table sections to display properly */
+      .weekly-view-calendar .fc-scrollgrid-section {
+        display: table-row-group !important;
+      }
+      
+      .weekly-view-calendar .fc-scrollgrid-section > table {
+        width: 100% !important;
+        table-layout: auto !important;
+        display: table !important;
+      }
+      
+      /* CRITICAL: Ensure header and body tables align */
+      .weekly-view-calendar .fc-col-header,
+      .weekly-view-calendar .fc-datagrid-body {
+        width: 100% !important;
+        table-layout: auto !important;
+        display: table !important;
       }
     `}
   </style>
