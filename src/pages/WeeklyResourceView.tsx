@@ -33,8 +33,13 @@ const WeeklyResourceView = () => {
     isMounted,
     currentDate: hookCurrentDate,
     handleDatesSet,
-    refreshEvents
+    refreshEvents: originalRefreshEvents
   } = useRealTimeCalendarEvents();
+  
+  // Wrap refreshEvents to return Promise<void> instead of Promise<void | CalendarEvent[]>
+  const refreshEvents = React.useCallback(async (): Promise<void> => {
+    await originalRefreshEvents();
+  }, [originalRefreshEvents]);
   
   // Use our custom hooks to manage state and logic
   const {

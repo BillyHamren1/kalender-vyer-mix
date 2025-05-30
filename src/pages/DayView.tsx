@@ -1,5 +1,4 @@
-
-import React, { useEffect, useContext } from 'react';
+import React, { useEffect, useContext, useCallback } from 'react';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import DayCalendar from '@/components/Calendar/DayCalendar';
 import '../styles/calendar.css';
@@ -17,8 +16,13 @@ const DayView = () => {
     isMounted,
     currentDate,
     handleDatesSet,
-    refreshEvents
+    refreshEvents: originalRefreshEvents
   } = useCalendarEvents();
+
+  // Wrap refreshEvents to return Promise<void>
+  const refreshEvents = React.useCallback(async (): Promise<void> => {
+    await originalRefreshEvents();
+  }, [originalRefreshEvents]);
 
   const [isImporting, setIsImporting] = React.useState(false);
   const navigate = useNavigate();

@@ -1,3 +1,4 @@
+
 import React, { useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -93,7 +94,7 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
       eventDurationEditable={true}
       eventResizableFromStart={true}
       eventChange={handleEventChange}
-      {...getCalendarOptions(currentDate, onDateSet)}
+      {...getCalendarOptions()}
     />
   );
 };

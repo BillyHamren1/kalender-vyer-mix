@@ -25,7 +25,7 @@ interface ResourceCalendarProps {
   isMounted: boolean;
   currentDate: Date;
   onDateSet: (dateInfo: any) => void;
-  refreshEvents: () => Promise<void | CalendarEvent[]>;
+  refreshEvents: () => Promise<void>;
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
   onSelectStaff?: (teamId: string, teamName: string) => void;
   forceRefresh?: boolean;
@@ -153,8 +153,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     // Time zone and formatting
     timeZone: 'local',
     eventTimeFormat: {
-      hour: '2-digit',
-      minute: '2-digit',
+      hour: '2-digit' as '2-digit',
+      minute: '2-digit' as '2-digit',
       hour12: false,
       meridiem: false
     },
@@ -195,7 +195,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         onConfirm={handleConfirmDelete}
         title="Delete Event"
         description={`Are you sure you want to delete "${eventToDelete?.title}"? This action cannot be undone.`}
-        confirmText="Delete"
         isLoading={isDeleting}
       />
 
