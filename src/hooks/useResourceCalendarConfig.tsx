@@ -78,17 +78,22 @@ export const useResourceCalendarConfig = (
     views: getCalendarViews(),
     // Always include resources to preserve team columns
     resources: sortedResources,
+    // CRITICAL: Enable all editing capabilities for drag/drop
     editable: true,
     droppable: true,
     selectable: true,
     eventDurationEditable: true,
     eventResizableFromStart: true,
+    eventStartEditable: true,
+    selectMirror: true,
+    eventOverlap: true,
+    selectOverlap: true,
     height: "auto",
     aspectRatio: getAspectRatio(),
     dropAccept: ".fc-event",
-    eventAllow: () => true,
-    // CRITICAL: Add timezone handling for proper time display
-    timeZone: 'local', // Use local timezone for display
+    eventAllow: () => true, // Allow all event operations
+    // CRITICAL: Use local timezone for proper time display
+    timeZone: 'local',
     // Enhanced time configuration for better event display
     slotMinTime: '05:00:00',
     slotMaxTime: '24:00:00',
@@ -102,7 +107,7 @@ export const useResourceCalendarConfig = (
     ...getCalendarOptions(),
     // Add time formatting with proper timezone handling
     ...getCalendarTimeFormatting(),
-    // Enhanced event handling for proper time updates
+    // CRITICAL: Enhanced event handling for proper time updates and drag/drop
     eventTimeFormat: {
       hour: '2-digit' as '2-digit',
       minute: '2-digit' as '2-digit',
