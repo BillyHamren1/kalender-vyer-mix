@@ -13,7 +13,7 @@ export const useResourceCalendarConfig = (
   resources: Resource[],
   droppableScope: string,
   calendarProps: Record<string, any>,
-  viewMode?: 'weekly' | 'monthly' // Add viewMode parameter
+  viewMode?: 'weekly' | 'monthly'
 ) => {
   const calendarRef = useRef<any>(null);
   const { isMobile, getInitialView, getMobileHeaderToolbar, getAspectRatio } = useCalendarView();
@@ -109,8 +109,8 @@ export const useResourceCalendarConfig = (
     ...getCalendarTimeFormatting(),
     // CRITICAL: Enhanced event handling for proper time updates and drag/drop
     eventTimeFormat: {
-      hour: '2-digit' as '2-digit',
-      minute: '2-digit' as '2-digit',
+      hour: '2-digit' as const,
+      minute: '2-digit' as const,
       meridiem: false,
       hour12: false,
       omitZeroMinute: false

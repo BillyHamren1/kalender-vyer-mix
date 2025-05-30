@@ -84,13 +84,14 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
 
   // Create a wrapper function that ensures Promise<void> return type
   const wrappedRefreshEvents = async (): Promise<void> => {
-    await refreshEvents();
+    const result = await refreshEvents();
+    // Don't return the result, just ensure it's void
   };
 
   // Use calendar handlers hook - now returns both drop and resize handlers
   const {
     handleEventDrop,
-    handleEventResize, // Now properly using the resize handler
+    handleEventResize,
     handleEventChange,
     handleEventClick,
     handleEventReceive,
@@ -178,10 +179,10 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     ...getBaseCalendarProps(),
     events: processedEvents,
     eventDrop: handleEventDrop,
-    eventResize: handleEventResize, // FIXED: Now using the proper resize handler
+    eventResize: handleEventResize,
     eventClick: handleEventClick,
     eventReceive: handleEventReceive,
-    // CRITICAL: Enable all editing capabilities
+    // CRITICAL: Enable all editing capabilities for drag/drop
     editable: true,
     selectable: true,
     selectMirror: true,
@@ -193,6 +194,9 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     eventOverlap: true,
     selectOverlap: true,
     eventAllow: () => true,
+    // CRITICAL: Enable drag and drop
+    droppable: true,
+    dropAccept: ".fc-event",
     datesSet: (dateInfo: any) => {
       setSelectedDate(dateInfo.start);
       onDateSet(dateInfo);
@@ -220,7 +224,8 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     editable: fullCalendarProps.editable,
     eventStartEditable: fullCalendarProps.eventStartEditable,
     eventDurationEditable: fullCalendarProps.eventDurationEditable,
-    eventResizableFromStart: fullCalendarProps.eventResizableFromStart
+    eventResizableFromStart: fullCalendarProps.eventResizableFromStart,
+    droppable: fullCalendarProps.droppable
   });
   console.log('Handlers configured:', {
     eventDrop: !!fullCalendarProps.eventDrop,

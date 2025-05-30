@@ -1,5 +1,4 @@
 
-
 import React, { useEffect, useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
@@ -130,6 +129,11 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     } else {
       console.error('UnifiedResourceCalendar: onSelectStaff prop is not defined');
     }
+  };
+
+  // Create a wrapper for refreshEvents that returns Promise<void>
+  const wrappedRefreshEvents = async (): Promise<void> => {
+    await refreshEvents();
   };
 
   // Common calendar props for weekly view - optimized for team columns
@@ -291,7 +295,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
                     isMounted={isMounted}
                     currentDate={date}
                     onDateSet={handleNestedCalendarDateSet}
-                    refreshEvents={refreshEvents}
+                    refreshEvents={wrappedRefreshEvents}
                     onStaffDrop={(staffId: string, resourceId: string | null) => handleStaffDrop(staffId, resourceId, date)}
                     onSelectStaff={(resourceId: string, resourceTitle: string) => handleSelectStaff(resourceId, resourceTitle, date)}
                     forceRefresh={resourceCalendarForceRefresh}
@@ -344,7 +348,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
                 isMounted={isMounted}
                 currentDate={date}
                 onDateSet={handleNestedCalendarDateSet}
-                refreshEvents={refreshEvents}
+                refreshEvents={wrappedRefreshEvents}
                 onStaffDrop={(staffId: string, resourceId: string | null) => handleStaffDrop(staffId, resourceId, date)}
                 onSelectStaff={(resourceId: string, resourceTitle: string) => handleSelectStaff(resourceId, resourceTitle, date)}
                 forceRefresh={resourceCalendarForceRefresh}
@@ -362,4 +366,3 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 };
 
 export default React.memo(UnifiedResourceCalendar);
-
