@@ -37,38 +37,30 @@ export const useResourceCalendarConfig = (
     return aNum - bNum;
   });
 
-  // Get the appropriate initial view based on mode
+  // Get the appropriate initial view - ALWAYS use resource view to preserve team columns
   const getViewForMode = () => {
-    if (viewMode === 'weekly') {
-      return 'timeGridDay'; // Use simple day view for weekly mode
-    }
-    return getInitialView(); // Use default for other modes
+    return 'resourceTimeGridDay'; // Always use resource view to preserve team columns
   };
 
-  // FIXED: Resource column configuration - only for non-weekly modes
+  // Resource column configuration - optimized width for weekly view
   const getResourceColumnConfig = () => {
-    // Don't show resource columns in weekly mode
-    if (viewMode === 'weekly') {
-      return {};
-    }
-
-    // Use number values for FullCalendar (pixels without 'px')
-    const standardWidth = 120;
+    // Use optimized width for weekly view - smaller columns to fit more on screen
+    const columnWidth = viewMode === 'weekly' ? 100 : 120; // Smaller width for weekly view
     
     return {
-      resourceAreaWidth: standardWidth,
-      slotMinWidth: standardWidth,
+      resourceAreaWidth: columnWidth,
+      slotMinWidth: columnWidth,
       resourceAreaColumns: [
         {
           field: 'title',
           headerContent: 'Teams',
-          width: standardWidth
+          width: columnWidth
         }
       ],
       resourcesInitiallyExpanded: true,
       stickyResourceAreaHeaders: true,
-      resourceLaneWidth: standardWidth,
-      resourceWidth: standardWidth
+      resourceLaneWidth: columnWidth,
+      resourceWidth: columnWidth
     };
   };
 
@@ -84,8 +76,8 @@ export const useResourceCalendarConfig = (
     initialView: getViewForMode(),
     headerToolbar: getMobileHeaderToolbar(),
     views: getCalendarViews(),
-    // Only include resources for non-weekly modes
-    ...(viewMode !== 'weekly' && { resources: sortedResources }),
+    // Always include resources to preserve team columns
+    resources: sortedResources,
     editable: true,
     droppable: true,
     selectable: true,
@@ -95,7 +87,7 @@ export const useResourceCalendarConfig = (
     aspectRatio: getAspectRatio(),
     dropAccept: ".fc-event",
     eventAllow: () => true,
-    // Add resource config only for non-weekly modes
+    // Always include resource config to preserve team columns
     ...getResourceColumnConfig(),
     // Add calendar options
     ...getCalendarOptions(),

@@ -40,14 +40,21 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   const navigate = useNavigate();
   const { setLastViewedDate } = useContext(CalendarContext);
 
-  // Calculate dynamic width based on view mode - FIXED for weekly view
+  // Calculate dynamic width based on view mode - OPTIMIZED for team columns
   const calculateDayWidth = () => {
     if (viewMode === 'weekly') {
-      // Fixed width for weekly view - reasonable size per day
-      return 180; // 180px per day is reasonable
+      // Optimized width calculation for weekly view with team columns
+      const teamCount = resources.length;
+      const timeColumnWidth = 60; // Time column on the left
+      const teamColumnWidth = 100; // Optimized smaller width per team
+      const padding = 20;
+      
+      // Calculate total width needed for all teams plus time column
+      const totalWidth = timeColumnWidth + (teamCount * teamColumnWidth) + padding;
+      return Math.max(totalWidth, 400); // Minimum reasonable width
     }
     
-    // For monthly/resource view, calculate based on teams
+    // For monthly/resource view, use larger width
     const teamCount = resources.length;
     const timeColumnWidth = 60;
     const teamColumnWidth = 120;
@@ -87,7 +94,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   // Convert forceRefresh to number for consistent handling
   const numericForceRefresh = typeof forceRefresh === 'boolean' ? (forceRefresh ? 1 : 0) : (forceRefresh || 0);
 
-  console.log(`UnifiedResourceCalendar: ${viewMode} view with ${events.length} events, forceRefresh: ${numericForceRefresh}, dynamicDayWidth: ${dynamicDayWidth}px`);
+  console.log(`UnifiedResourceCalendar: ${viewMode} view with ${events.length} events, forceRefresh: ${numericForceRefresh}, dynamicDayWidth: ${dynamicDayWidth}px, teams: ${resources.length}`);
 
   // Handle day header click to navigate to resource view
   const handleDayHeaderClick = (date: Date) => {
@@ -131,35 +138,21 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     }
   };
 
-  // Common calendar props - simplified for weekly view
+  // Common calendar props - RESTORED team functionality for weekly view
   const getCommonCalendarProps = (dayIndex: number) => {
-    if (viewMode === 'weekly') {
-      return {
-        height: 'auto',
-        headerToolbar: false,
-        allDaySlot: false,
-        initialView: 'timeGridDay',
-        'data-day-index': dayIndex.toString(),
-        contentHeight: 'auto',
-        expandRows: true,
-        aspectRatio: 1.35,
-      };
-    }
-
-    // For monthly/resource view, use the original logic
     const teamCount = resources.length;
     
     return {
       height: 'auto',
       headerToolbar: false,
       allDaySlot: false,
-      initialView: 'resourceTimeGridDay',
-      resourceAreaWidth: 120,
+      initialView: 'resourceTimeGridDay', // Always use resource view to preserve team columns
+      resourceAreaWidth: viewMode === 'weekly' ? 100 : 120, // Optimized width for weekly
       resourceAreaColumns: [
         {
           field: 'title',
           headerContent: 'Teams',
-          width: 120
+          width: viewMode === 'weekly' ? 100 : 120
         }
       ],
       resourceLabelText: 'Teams',
@@ -167,12 +160,12 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
       stickyResourceAreaHeaders: true,
       resourceOrder: 'title',
       resourcesInitiallyExpanded: true,
-      slotMinWidth: 120,
+      slotMinWidth: viewMode === 'weekly' ? 100 : 120, // Optimized for weekly
       'data-day-index': dayIndex.toString(),
       'data-team-count': teamCount,
       contentHeight: 'auto',
       expandRows: true,
-      aspectRatio: 1.2,
+      aspectRatio: viewMode === 'weekly' ? 1.2 : 1.35,
     };
   };
 
@@ -227,9 +220,8 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
         className={getCalendarContainerClass()} 
         ref={containerRef}
         style={{
-          // Set reasonable total width for weekly view: 7 days × 180px = 1260px
-          minWidth: viewMode === 'weekly' ? '1260px' : 'auto',
-          maxWidth: viewMode === 'weekly' ? '1400px' : 'auto',
+          // Set total width based on teams and optimized for weekly view
+          minWidth: viewMode === 'weekly' ? `${days.length * dynamicDayWidth}px` : 'auto',
           width: viewMode === 'weekly' ? 'fit-content' : 'auto'
         }}
       >
@@ -242,7 +234,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
           // Convert forceRefresh to boolean for ResourceCalendar
           const resourceCalendarForceRefresh = numericForceRefresh > 0;
           
-          console.log(`UnifiedResourceCalendar: Rendering calendar for ${format(date, 'yyyy-MM-dd')} with ${dayEvents.length} events`);
+          console.log(`UnifiedResourceCalendar: Rendering calendar for ${format(date, 'yyyy-MM-dd')} with ${dayEvents.length} events and ${resources.length} teams`);
           
           return (
             <div 
@@ -250,7 +242,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
               className={viewMode === 'weekly' ? 'day-calendar-wrapper' : 'monthly-day-wrapper'}
               ref={isToday ? todayRef : null}
               style={{
-                // Fixed width for weekly view
+                // Set width to accommodate all teams with optimized sizing
                 width: viewMode === 'weekly' ? `${dynamicDayWidth}px` : 'auto',
                 minWidth: viewMode === 'weekly' ? `${dynamicDayWidth}px` : 'auto',
                 maxWidth: viewMode === 'weekly' ? `${dynamicDayWidth}px` : 'auto',

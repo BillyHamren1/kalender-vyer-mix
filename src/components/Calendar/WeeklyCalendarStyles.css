@@ -1,5 +1,5 @@
 
-/* Enhanced Weekly Calendar Layout Styles with 7-Day Support */
+/* Enhanced Weekly Calendar Layout Styles with Optimized Team Columns */
 
 .weekly-view-container {
   display: flex;
@@ -12,23 +12,23 @@
 .weekly-calendar-container {
   display: flex;
   height: 100%;
-  width: fit-content; /* Allow container to size to content */
+  width: fit-content;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
-  overflow-x: auto; /* Allow horizontal scrolling if needed */
+  overflow-x: auto; /* Allow horizontal scrolling for many teams */
   overflow-y: hidden;
-  max-width: 100%; /* Don't exceed viewport width */
+  max-width: 100%;
 }
 
 .day-calendar-wrapper {
-  flex: 0 0 auto; /* Don't flex shrink, use explicit width */
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   height: 100%;
   border-right: 1px solid #e0e0e0;
   background: white;
   overflow: hidden;
-  /* Width is now set via inline styles - 180px per day */
+  /* Width is set via inline styles based on team count */
 }
 
 .day-calendar-wrapper:last-child {
@@ -93,7 +93,7 @@
   width: 100% !important;
 }
 
-/* Ensure the time grid takes full width for each day */
+/* Ensure the time grid takes full width for each day with team columns */
 .weekly-view-calendar .fc-timegrid {
   width: 100% !important;
 }
@@ -102,9 +102,28 @@
   width: 100% !important;
 }
 
-/* Remove resource-specific styling for weekly view */
+/* CRITICAL: Ensure resource areas are visible in weekly view */
 .weekly-view-calendar .fc-resource-area {
-  display: none !important; /* Hide resource areas in weekly view */
+  display: table !important; /* Show resource areas in weekly view */
+  min-width: fit-content !important;
+  width: auto !important;
+}
+
+/* Optimized team column widths for weekly view */
+.weekly-view-calendar .fc-resource-area,
+.weekly-view-calendar .fc-resource-area td,
+.weekly-view-calendar .fc-resource-area th,
+.weekly-view-calendar .fc-resource-lane,
+.weekly-view-calendar .fc-datagrid-cell,
+.weekly-view-calendar .fc-datagrid-cell-frame,
+.weekly-view-calendar .fc-datagrid-cell-cushion {
+  min-width: 100px !important; /* Optimized width for weekly view */
+  width: 100px !important;
+  max-width: 100px !important;
+  box-sizing: border-box !important;
+  display: table-cell !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 /* Ensure scrollers show content properly */
@@ -148,6 +167,19 @@
   
   .day-calendar-wrapper:last-child {
     border-bottom: none;
+  }
+  
+  /* Smaller team columns on mobile */
+  .weekly-view-calendar .fc-resource-area,
+  .weekly-view-calendar .fc-resource-area td,
+  .weekly-view-calendar .fc-resource-area th,
+  .weekly-view-calendar .fc-resource-lane,
+  .weekly-view-calendar .fc-datagrid-cell,
+  .weekly-view-calendar .fc-datagrid-cell-frame,
+  .weekly-view-calendar .fc-datagrid-cell-cushion {
+    min-width: 80px !important;
+    width: 80px !important;
+    max-width: 80px !important;
   }
 }
 

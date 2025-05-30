@@ -54,7 +54,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   // Use targetDate if provided, otherwise fall back to currentDate
   const effectiveDate = targetDate || currentDate;
   
-  console.log(`ResourceCalendar: Rendering for date ${format(effectiveDate, 'yyyy-MM-dd')} with target date: ${targetDate ? format(targetDate, 'yyyy-MM-dd') : 'none'}`);
+  console.log(`ResourceCalendar: Rendering for date ${format(effectiveDate, 'yyyy-MM-dd')} with ${resources.length} teams and target date: ${targetDate ? format(targetDate, 'yyyy-MM-dd') : 'none'}`);
   
   // Determine view mode from droppableScope
   const viewMode = droppableScope.includes('weekly') ? 'weekly' : 'monthly';
@@ -62,12 +62,12 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   // Use the reliable staff operations hook for real-time updates
   const { assignments, handleStaffDrop: reliableHandleStaffDrop, getStaffForTeam } = useReliableStaffOperations(effectiveDate);
   
-  // Use calendar configuration hook with viewMode
+  // Use calendar configuration hook with viewMode - ALWAYS include teams
   const { calendarRef, isMobile, getBaseCalendarProps } = useResourceCalendarConfig(
     resources,
     droppableScope,
     calendarProps,
-    viewMode // Pass the viewMode
+    viewMode
   );
 
   // Create a wrapper function that ensures Promise<void> return type
@@ -107,9 +107,9 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   // Process events to ensure valid resources and add styling
   const processedEvents = processEvents(events, resources);
 
-  // Custom resource header content renderer - only for non-weekly modes
+  // Custom resource header content renderer - ALWAYS show for team columns
   const resourceHeaderContent = (info: any) => {
-    if (isMobile || viewMode === 'weekly') return info.resource?.title || '';
+    if (isMobile) return info.resource?.title || '';
     
     console.log(`ResourceCalendar: Rendering ResourceHeaderDropZone for ${info.resource.id} with target date: ${format(effectiveDate, 'yyyy-MM-dd')}`);
     
@@ -139,7 +139,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     }
   };
 
-  // Create the full calendar props
+  // Create the full calendar props - ALWAYS include resource functionality
   const fullCalendarProps = {
     ...getBaseCalendarProps(),
     events: processedEvents,
@@ -163,11 +163,9 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       addEventAttributes(info);
       setupEventActions(info, handleDuplicateButtonClick, handleDeleteButtonClick);
     },
-    // Only show resource headers for non-weekly modes
-    ...(viewMode !== 'weekly' && {
-      resourceLabelDidMount: setupResourceHeaderStyles,
-      resourceLabelContent: resourceHeaderContent,
-    }),
+    // ALWAYS show resource headers to preserve team columns
+    resourceLabelDidMount: setupResourceHeaderStyles,
+    resourceLabelContent: resourceHeaderContent,
     slotLabelDidMount: (info: any) => {
       info.el.style.zIndex = '1';
     },
