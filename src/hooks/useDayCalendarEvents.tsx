@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { mapDatabaseToAppResourceId, mapAppToDatabaseResourceId } from '@/services/eventService';
 
 export const useDayCalendarEvents = () => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -50,8 +49,8 @@ export const useDayCalendarEvents = () => {
           const processedEvents = [];
           
           for (const event of data) {
-            // Map the database resource_id to the application's resource ID format
-            const mappedResourceId = mapDatabaseToAppResourceId(event.resource_id);
+            // Direct usage - no conversion needed since everything uses team-X format
+            const resourceId = event.resource_id;
             
             // If the event has a booking_id, fetch the booking to get the address
             let deliveryAddress = 'No address provided';
@@ -80,7 +79,7 @@ export const useDayCalendarEvents = () => {
             
             processedEvents.push({
               id: event.id,
-              resourceId: mappedResourceId,
+              resourceId: resourceId, // Direct usage - no conversion needed
               title: event.title,
               start: event.start_time,
               end: event.end_time,
@@ -92,7 +91,7 @@ export const useDayCalendarEvents = () => {
             });
           }
           
-          console.log('Formatted events for calendar with mapped resource IDs:', processedEvents);
+          console.log('Formatted events for calendar with team resource IDs:', processedEvents);
           setEvents(processedEvents);
         }
       } catch (error) {
@@ -133,8 +132,8 @@ export const useDayCalendarEvents = () => {
     try {
       console.log('Updating event in Supabase:', updatedEvent);
       
-      // Convert application resourceId back to database format
-      const databaseResourceId = mapAppToDatabaseResourceId(updatedEvent.resourceId);
+      // Direct usage - no conversion needed since everything uses team-X format
+      const resourceId = updatedEvent.resourceId;
       
       const { error } = await supabase
         .from('calendar_events')
@@ -142,7 +141,7 @@ export const useDayCalendarEvents = () => {
           title: updatedEvent.title,
           start_time: updatedEvent.start,
           end_time: updatedEvent.end,
-          resource_id: databaseResourceId, // Use the reverse-mapped resource ID
+          resource_id: resourceId, // Direct usage - no conversion needed
           event_type: updatedEvent.eventType
         })
         .eq('id', updatedEvent.id);

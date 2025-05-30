@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
-import { fetchCalendarEvents, mapDatabaseToAppResourceId } from '@/services/eventService';
+import { fetchCalendarEvents } from '@/services/eventService';
 import { smartUpdateBookingCalendar } from '@/services/bookingCalendarService';
 import { fixAllEventTitles } from '@/services/eventTitleFixService';
 import { toast } from 'sonner';
@@ -134,7 +134,7 @@ export const useRealTimeCalendarEvents = () => {
           if (newRecord && !updatedEvents.find(e => e.id === newRecord.id)) {
             const newEvent: CalendarEvent = {
               id: newRecord.id,
-              resourceId: mapDatabaseToAppResourceId(newRecord.resource_id),
+              resourceId: newRecord.resource_id, // Direct usage - no conversion needed
               title: newRecord.title,
               start: newRecord.start_time,
               end: newRecord.end_time,
@@ -145,7 +145,7 @@ export const useRealTimeCalendarEvents = () => {
               extendedProps: {
                 bookingId: newRecord.booking_id,
                 booking_id: newRecord.booking_id,
-                resourceId: mapDatabaseToAppResourceId(newRecord.resource_id),
+                resourceId: newRecord.resource_id, // Direct usage - no conversion needed
                 deliveryAddress: newRecord.delivery_address,
                 bookingNumber: newRecord.booking_number,
                 eventType: newRecord.event_type
@@ -163,7 +163,7 @@ export const useRealTimeCalendarEvents = () => {
               updatedEvents[index] = {
                 ...updatedEvents[index],
                 id: newRecord.id,
-                resourceId: mapDatabaseToAppResourceId(newRecord.resource_id),
+                resourceId: newRecord.resource_id, // Direct usage - no conversion needed
                 title: newRecord.title,
                 start: newRecord.start_time,
                 end: newRecord.end_time,
@@ -175,7 +175,7 @@ export const useRealTimeCalendarEvents = () => {
                   ...updatedEvents[index].extendedProps,
                   bookingId: newRecord.booking_id,
                   booking_id: newRecord.booking_id,
-                  resourceId: mapDatabaseToAppResourceId(newRecord.resource_id),
+                  resourceId: newRecord.resource_id, // Direct usage - no conversion needed
                   deliveryAddress: newRecord.delivery_address,
                   bookingNumber: newRecord.booking_number,
                   eventType: newRecord.event_type

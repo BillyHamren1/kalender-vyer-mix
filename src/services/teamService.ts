@@ -1,7 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { Resource } from "@/components/Calendar/ResourceData";
-import { mapDatabaseToAppResourceId, mapAppToDatabaseResourceId } from "./eventService";
 
 // Fetch all team resources
 export const fetchTeamResources = async (): Promise<Resource[]> => {
@@ -83,10 +82,10 @@ export const findAvailableTeam = async (startTime: Date, endTime: Date): Promise
       if (
         (startTime <= eventEnd && endTime >= eventStart)
       ) {
-        // Map database resource ID to application format
-        const appResourceId = mapDatabaseToAppResourceId(event.resource_id);
-        if (appResourceId.startsWith('team-')) {
-          busyTeams.add(appResourceId);
+        // Direct usage - no conversion needed since everything uses team-X format
+        const resourceId = event.resource_id;
+        if (resourceId.startsWith('team-')) {
+          busyTeams.add(resourceId);
         }
       }
     });
@@ -147,8 +146,8 @@ export const moveEventsToTeam = async (
       return 0;
     }
     
-    // Convert team ID to database format
-    const dbTeamId = mapAppToDatabaseResourceId(targetTeamId);
+    // Direct usage - no conversion needed since everything uses team-X format
+    const dbTeamId = targetTeamId;
     
     // Update all events to the target team
     const updatePromises = events.map(event => 
