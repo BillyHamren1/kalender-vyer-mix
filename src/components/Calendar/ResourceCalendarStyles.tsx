@@ -16,11 +16,13 @@ export const ResourceCalendarStyles: React.FC = () => (
         height: 50px !important;
       }
       
-      /* Event sizing and spacing improvements */
+      /* Event sizing and spacing improvements - ENABLE DRAGGING */
       .fc-timegrid-event {
         min-height: 30px !important;
         margin: 1px 2px !important;
         border-radius: 4px !important;
+        cursor: move !important;
+        pointer-events: auto !important;
       }
       
       .fc-event {
@@ -28,6 +30,8 @@ export const ResourceCalendarStyles: React.FC = () => (
         margin: 1px 0 !important;
         padding: 2px 4px !important;
         border-radius: 4px !important;
+        cursor: move !important;
+        pointer-events: auto !important;
       }
       
       .fc-event-main {
@@ -36,6 +40,18 @@ export const ResourceCalendarStyles: React.FC = () => (
         display: flex !important;
         flex-direction: column !important;
         justify-content: flex-start !important;
+        pointer-events: auto !important;
+      }
+      
+      /* Ensure event content allows dragging */
+      .fc-event-title,
+      .fc-event-time,
+      .event-content-wrapper,
+      .event-delivery-address,
+      .event-booking-id,
+      .event-client-name,
+      .event-city {
+        pointer-events: none !important; /* Let drag events pass through content */
       }
       
       /* Event content styling for better text wrapping */
@@ -119,7 +135,7 @@ export const ResourceCalendarStyles: React.FC = () => (
         font-size: 11px;
       }
       
-      /* Ensure events are visible with proper z-index */
+      /* Ensure events are visible with proper z-index and draggable */
       .fc-timegrid-event-harness,
       .fc-event,
       .fc-event-main,
@@ -128,6 +144,7 @@ export const ResourceCalendarStyles: React.FC = () => (
         position: relative !important;
         visibility: visible !important;
         opacity: 1 !important;
+        pointer-events: auto !important;
       }
       
       /* Main calendar container - ensure white background */
@@ -165,6 +182,23 @@ export const ResourceCalendarStyles: React.FC = () => (
       .fc-event-title-container {
         padding: 1px 2px;
         overflow: visible;
+      }
+      
+      /* Fix drag and drop functionality */
+      .fc-timegrid-event-harness {
+        cursor: move !important;
+        pointer-events: auto !important;
+      }
+      
+      /* Ensure action buttons don't interfere with dragging */
+      .event-actions {
+        pointer-events: auto !important;
+        z-index: 20 !important;
+      }
+      
+      .duplicate-event-btn,
+      .delete-event-btn {
+        pointer-events: auto !important;
       }
     `}
   </style>

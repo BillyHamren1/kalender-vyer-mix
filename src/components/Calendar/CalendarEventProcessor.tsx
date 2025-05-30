@@ -1,5 +1,4 @@
 
-
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
 
 export const processEvents = (events: CalendarEvent[], resources: Resource[]): CalendarEvent[] => {
@@ -36,8 +35,20 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
     // Get event color based on event type
     const eventColor = getEventColor(event.eventType);
     
+    // Create proper title from booking data - FIXED
+    let eventTitle = event.title;
+    if (event.extendedProps?.bookingNumber && event.extendedProps?.client) {
+      eventTitle = `${event.extendedProps.bookingNumber}: ${event.extendedProps.client}`;
+    } else if (event.extendedProps?.client) {
+      eventTitle = event.extendedProps.client;
+    } else if (event.extendedProps?.bookingId && event.title !== event.extendedProps.bookingId) {
+      // Use the original title if it's not a UUID
+      eventTitle = event.title;
+    }
+    
     const processedEvent = {
       ...event,
+      title: eventTitle, // Use the properly formatted title
       resourceId,
       backgroundColor: eventColor,
       borderColor: eventColor,
@@ -49,7 +60,8 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
         eventType: event.eventType,
         bookingId: event.bookingId,
         deliveryAddress: event.deliveryAddress,
-        bookingNumber: event.bookingNumber
+        bookingNumber: event.bookingNumber,
+        client: event.extendedProps?.client || event.client
       }
     };
     
