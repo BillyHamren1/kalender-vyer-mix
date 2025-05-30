@@ -386,6 +386,41 @@
   z-index: 5;
 }
 
+/* CRITICAL FIX: Force team-6 events to stack vertically instead of spreading horizontally */
+[data-resource-id="team-6"] .fc-timegrid-col {
+  position: relative !important;
+}
+
+[data-resource-id="team-6"] .fc-timegrid-event-harness {
+  position: static !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+[data-resource-id="team-6"] .fc-timegrid-event {
+  position: static !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  margin-bottom: 2px !important;
+  box-sizing: border-box !important;
+}
+
+/* Force team-6 events to take full width and stack */
+.fc-timegrid-col[data-resource-id="team-6"] .fc-timegrid-event,
+.fc-timegrid-col[data-resource-id="team-6"] .fc-timegrid-event-harness {
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
 /* Mobile responsive styles */
 @media (max-width: 768px) {
   .fc .fc-toolbar-title {
