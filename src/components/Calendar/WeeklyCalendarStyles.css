@@ -16,6 +16,7 @@
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   overflow: hidden;
+  min-width: fit-content;
 }
 
 .day-calendar-wrapper {
@@ -25,6 +26,8 @@
   height: 100%;
   border-right: 1px solid #e0e0e0;
   background: white;
+  min-width: 200px; /* Ensure minimum width for each day */
+  overflow: hidden;
 }
 
 .day-calendar-wrapper:last-child {
@@ -47,6 +50,7 @@
   top: 0;
   z-index: 10;
   transition: background-color 0.2s ease;
+  white-space: nowrap;
 }
 
 .day-header:hover {
@@ -73,15 +77,40 @@
   flex: 1;
   height: 100%;
   overflow: hidden;
+  min-width: 100%;
 }
 
 .weekly-view-calendar .fc {
   height: 100% !important;
+  min-width: 100% !important;
 }
 
 .weekly-view-calendar .fc-view-harness {
   height: 100% !important;
   flex: 1 !important;
+  min-width: 100% !important;
+}
+
+/* Ensure each day calendar has proper width for all columns */
+.weekly-view-calendar .fc-datagrid {
+  min-width: 100% !important;
+  width: 100% !important;
+}
+
+.weekly-view-calendar .fc-scrollgrid {
+  min-width: 100% !important;
+  width: 100% !important;
+}
+
+/* Force team columns to be visible and properly sized */
+.weekly-view-calendar .fc-resource-area {
+  min-width: fit-content !important;
+  width: auto !important;
+}
+
+.weekly-view-calendar .fc-timegrid-body {
+  min-width: fit-content !important;
+  width: 100% !important;
 }
 
 /* Responsive styles */
@@ -90,12 +119,14 @@
     flex-direction: column;
     height: auto;
     min-height: 500px;
+    overflow-x: auto;
   }
   
   .day-calendar-wrapper {
     border-right: none;
     border-bottom: 1px solid #e0e0e0;
     min-height: 200px;
+    min-width: 100%;
   }
   
   .day-calendar-wrapper:last-child {

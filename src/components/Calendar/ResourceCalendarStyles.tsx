@@ -28,7 +28,14 @@ export const ResourceCalendarStyles: React.FC = () => (
       .fc-timegrid-event .fc-event-main {
         padding: 2px 4px !important;
       }
-      /* Force ALL resource columns to be exactly 80px */
+      
+      /* Enhanced container width for weekly view */
+      .weekly-view-calendar .fc-scrollgrid-sync-table {
+        width: 100% !important;
+        min-width: 100% !important;
+      }
+      
+      /* Force ALL resource columns to be properly sized */
       .fc-resource-area td,
       .fc-resource-area th,
       .fc-resource-lane,
@@ -42,6 +49,7 @@ export const ResourceCalendarStyles: React.FC = () => (
         max-width: 80px !important;
         box-sizing: border-box !important;
       }
+      
       /* Ensure header area matches content area exactly */
       .fc-datagrid-header .fc-datagrid-cell,
       .fc-datagrid-header .fc-datagrid-cell-frame,
@@ -50,6 +58,27 @@ export const ResourceCalendarStyles: React.FC = () => (
         min-width: 80px !important;
         width: 80px !important;
         max-width: 80px !important;
+      }
+      
+      /* Ensure all teams are visible by making the calendar wide enough */
+      .weekly-view-calendar .fc-datagrid {
+        overflow: visible !important;
+      }
+      
+      .weekly-view-calendar .fc-scroller {
+        overflow-x: visible !important;
+        overflow-y: auto !important;
+      }
+      
+      /* Make sure the time grid expands to show all columns */
+      .weekly-view-calendar .fc-timegrid {
+        min-width: fit-content !important;
+      }
+      
+      /* Ensure resource area is wide enough for all teams */
+      .weekly-view-calendar .fc-resource-area {
+        min-width: calc(80px * var(--team-count, 2)) !important;
+        width: auto !important;
       }
     `}
   </style>
