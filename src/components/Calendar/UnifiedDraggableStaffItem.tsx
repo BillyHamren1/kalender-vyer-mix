@@ -66,7 +66,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
   });
 
   const handleDoubleClick = (e: React.MouseEvent) => {
-    if (variant === 'assigned' && onRemove && showRemoveDialog) {
+    if ((variant === 'assigned' || variant === 'compact') && onRemove && showRemoveDialog) {
       e.preventDefault();
       e.stopPropagation();
       console.log('Double click detected for staff:', staff.name);
@@ -116,7 +116,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
           }`}>
             {getInitials(staff.name)}
           </span>
-          {showRemoveDialog && variant === 'assigned' && (
+          {showRemoveDialog && onRemove && (
             <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full text-white text-[6px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                  onClick={(e) => {
                    e.stopPropagation();
@@ -127,7 +127,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
           )}
         </div>
         
-        {showRemoveDialog && variant === 'assigned' && (
+        {showRemoveDialog && onRemove && (
           <ConfirmationDialog
             title="Unassign Staff?"
             description={`Are you sure you want to unassign ${staff.name} from ${teamName}?`}
