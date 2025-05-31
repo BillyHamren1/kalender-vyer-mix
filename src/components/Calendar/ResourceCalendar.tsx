@@ -54,44 +54,26 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   // Use targetDate if provided, otherwise fall back to currentDate
   const effectiveDate = targetDate || currentDate;
   
-  // COMPREHENSIVE EVENT DEBUGGING
-  console.log('=== ResourceCalendar Debug ===');
-  console.log(`Date: ${format(effectiveDate, 'yyyy-MM-dd')}`);
-  console.log(`Raw events received: ${events.length}`);
-  console.log(`Resources available: ${resources.length}`);
-  console.log('Raw events:', events.map(e => ({ 
-    id: e.id, 
-    title: e.title, 
-    resourceId: e.resourceId, 
-    start: e.start, 
-    end: e.end 
-  })));
-  console.log('Available resources:', resources.map(r => ({ id: r.id, title: r.title })));
-  
-  // Determine view mode from droppableScope
-  const viewMode = droppableScope.includes('weekly') ? 'weekly' : 'monthly';
+  console.log(`ResourceCalendar: Rendering for date ${format(effectiveDate, 'yyyy-MM-dd')} with target date: ${targetDate ? format(targetDate, 'yyyy-MM-dd') : 'none'}`);
   
   // Use the reliable staff operations hook for real-time updates
   const { assignments, handleStaffDrop: reliableHandleStaffDrop, getStaffForTeam } = useReliableStaffOperations(effectiveDate);
   
-  // Use calendar configuration hook with viewMode - ALWAYS include teams
+  // Use calendar configuration hook
   const { calendarRef, isMobile, getBaseCalendarProps } = useResourceCalendarConfig(
     resources,
     droppableScope,
-    calendarProps,
-    viewMode
+    calendarProps
   );
 
   // Create a wrapper function that ensures Promise<void> return type
   const wrappedRefreshEvents = async (): Promise<void> => {
-    const result = await refreshEvents();
-    // Don't return the result, just ensure it's void
+    await refreshEvents();
   };
 
-  // Use calendar handlers hook - now returns both drop and resize handlers
+  // Use calendar handlers hook
   const {
     handleEventDrop,
-    handleEventResize,
     handleEventChange,
     handleEventClick,
     handleEventReceive,
@@ -104,53 +86,33 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     DuplicateEventDialog
   } = useResourceCalendarHandlers(events, resources, wrappedRefreshEvents);
 
-  // Process events to ensure valid resources and add styling - WITH DEBUGGING
-  const processedEvents = processEvents(events, resources);
-  
-  console.log('=== Event Processing Results ===');
-  console.log(`Processed events: ${processedEvents.length}`);
-  console.log('Processed events:', processedEvents.map(e => ({ 
-    id: e.id, 
-    title: e.title, 
-    resourceId: e.resourceId, 
-    start: e.start, 
-    end: e.end,
-    backgroundColor: e.backgroundColor,
-    borderColor: e.borderColor 
-  })));
-
-  // Check for any events that were filtered out during processing
-  const filteredOutEvents = events.filter(originalEvent => 
-    !processedEvents.find(processedEvent => processedEvent.id === originalEvent.id)
-  );
-  if (filteredOutEvents.length > 0) {
-    console.warn('Events filtered out during processing:', filteredOutEvents);
-  }
-
   // Log events and resources for debugging
   useEffect(() => {
-    console.log('ResourceCalendar useEffect - events/resources changed');
     console.log('ResourceCalendar received events:', events);
     console.log('ResourceCalendar received resources:', resources);
     console.log('ResourceCalendar staff assignments:', assignments);
-    console.log('ResourceCalendar viewMode:', viewMode);
     
     // Debug: Log staff assignments per team for this specific date
     resources.forEach(resource => {
       const staffForTeam = getStaffForTeam(resource.id);
-      console.log(`ResourceCalendar: Team ${resource.id} (${resource.title}) has ${staffForTeam.length} staff assigned for ${format(effectiveDate, 'yyyy-MM-dd')}`);
+      console.log(`ResourceCalendar: Team ${resource.id} (${resource.title}) has ${staffForTeam.length} staff assigned for ${format(effectiveDate, 'yyyy-MM-dd')}:`, staffForTeam);
     });
-  }, [events, resources, assignments, effectiveDate, getStaffForTeam, viewMode]);
+  }, [events, resources, assignments, effectiveDate, getStaffForTeam]);
 
-  // Custom resource header content renderer - ALWAYS show for team columns
+  // Process events to ensure valid resources and add styling
+  const processedEvents = processEvents(events, resources);
+
+  // Custom resource header content renderer with enhanced staff retrieval
   const resourceHeaderContent = (info: any) => {
-    if (isMobile) return info.resource?.title || '';
+    if (isMobile) return info.resource.title;
     
     console.log(`ResourceCalendar: Rendering ResourceHeaderDropZone for ${info.resource.id} with target date: ${format(effectiveDate, 'yyyy-MM-dd')}`);
     
     // Get ALL staff data from reliable staff operations for this specific team and date
     const assignedStaff = getStaffForTeam(info.resource.id);
     console.log(`ResourceCalendar: Found ${assignedStaff.length} staff members for team ${info.resource.id}:`, assignedStaff.map(s => s.name));
+    
+    const minHeight = Math.max(80, 60 + (assignedStaff.length * 35)); // Dynamic minimum height based on staff count
     
     return (
       <ResourceHeaderDropZone 
@@ -160,6 +122,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         onStaffDrop={reliableHandleStaffDrop}
         onSelectStaff={onSelectStaff}
         assignedStaff={assignedStaff}
+        minHeight={minHeight}
       />
     );
   };
@@ -174,29 +137,20 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     }
   };
 
-  // Create the full calendar props - ALWAYS include resource functionality with PROPER RESIZING
+  // Create the full calendar props
   const fullCalendarProps = {
     ...getBaseCalendarProps(),
     events: processedEvents,
     eventDrop: handleEventDrop,
-    eventResize: handleEventResize,
+    eventResize: handleEventChange, // Enable event resizing for time changes
     eventClick: handleEventClick,
     eventReceive: handleEventReceive,
-    // CRITICAL: Enable all editing capabilities for drag/drop
+    // Enable event interaction
     editable: true,
     selectable: true,
     selectMirror: true,
     dayMaxEvents: false,
     weekends: true,
-    eventStartEditable: true,
-    eventDurationEditable: true,
-    eventResizableFromStart: true,
-    eventOverlap: true,
-    selectOverlap: true,
-    eventAllow: () => true,
-    // CRITICAL: Enable drag and drop
-    droppable: true,
-    dropAccept: ".fc-event",
     datesSet: (dateInfo: any) => {
       setSelectedDate(dateInfo.start);
       onDateSet(dateInfo);
@@ -208,29 +162,12 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
       addEventAttributes(info);
       setupEventActions(info, handleDuplicateButtonClick, handleDeleteButtonClick);
     },
-    // ALWAYS show resource headers to preserve team columns
     resourceLabelDidMount: setupResourceHeaderStyles,
     resourceLabelContent: resourceHeaderContent,
     slotLabelDidMount: (info: any) => {
       info.el.style.zIndex = '1';
     },
   };
-
-  console.log('=== Final FullCalendar Props ===');
-  console.log('Events passed to FullCalendar:', fullCalendarProps.events.length);
-  console.log('Resources passed to FullCalendar:', fullCalendarProps.resources?.length || 0);
-  console.log('FullCalendar view:', fullCalendarProps.initialView);
-  console.log('Event editing enabled:', {
-    editable: fullCalendarProps.editable,
-    eventStartEditable: fullCalendarProps.eventStartEditable,
-    eventDurationEditable: fullCalendarProps.eventDurationEditable,
-    eventResizableFromStart: fullCalendarProps.eventResizableFromStart,
-    droppable: fullCalendarProps.droppable
-  });
-  console.log('Handlers configured:', {
-    eventDrop: !!fullCalendarProps.eventDrop,
-    eventResize: !!fullCalendarProps.eventResize
-  });
 
   return (
     <div className="calendar-container">

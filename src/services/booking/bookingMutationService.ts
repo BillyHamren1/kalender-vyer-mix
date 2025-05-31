@@ -47,31 +47,6 @@ export const updateBookingDates = async (
   }
 };
 
-export const updateBookingTimes = async (
-  id: string,
-  timeType: 'rigStartTime' | 'rigEndTime' | 'eventStartTime' | 'eventEndTime' | 'rigdownStartTime' | 'rigdownEndTime',
-  time: string | null
-): Promise<void> => {
-  const columnMap = {
-    rigStartTime: 'rig_start_time',
-    rigEndTime: 'rig_end_time',
-    eventStartTime: 'event_start_time',
-    eventEndTime: 'event_end_time',
-    rigdownStartTime: 'rigdown_start_time',
-    rigdownEndTime: 'rigdown_end_time'
-  };
-
-  const { error } = await supabase
-    .from('bookings')
-    .update({ [columnMap[timeType]]: time })
-    .eq('id', id);
-
-  if (error) {
-    console.error(`Error updating ${timeType}:`, error);
-    throw error;
-  }
-};
-
 export const updateBookingLogistics = async (
   id: string, 
   logisticsData: {

@@ -26,8 +26,10 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
   variant = 'assigned',
   showRemoveDialog = true
 }) => {
+  // State for confirmation dialog
   const [dialogOpen, setDialogOpen] = useState(false);
   
+  // Configure drag functionality with immediate feedback
   const [{ isDragging }, drag, dragPreview] = useDrag({
     type: 'STAFF',
     item: () => {
@@ -62,6 +64,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
     }
   });
 
+  // Handle double click on staff item (only for assigned staff)
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (variant === 'assigned' && onRemove && showRemoveDialog) {
       e.preventDefault();
@@ -71,6 +74,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
     }
   };
   
+  // Handle confirmation of removal
   const handleConfirmRemove = () => {
     console.log('Confirming removal of staff:', staff.name);
     if (onRemove) {
@@ -79,18 +83,20 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
     setDialogOpen(false);
   };
 
+  // Determine styling based on variant and assignment status
   const isAssigned = variant === 'available' && !!staff.assignedTeam;
   
+  // Don't render available staff if they are already assigned (this prevents duplicates)
   if (variant === 'available' && isAssigned) {
     return null;
   }
   
-  // Ultra-compact styling for tight stacking
-  const baseClasses = `px-1 py-0 border border-gray-200 rounded-sm cursor-move flex items-center w-full transition-all duration-150 hover:shadow-sm active:cursor-grabbing`;
+  const baseClasses = `p-1 border border-gray-200 rounded-md mb-1 cursor-move flex items-center w-full transition-all duration-150 hover:shadow-sm active:cursor-grabbing`;
   const variantClasses = variant === 'available' 
     ? 'bg-white shadow-sm'
     : 'bg-white';
   
+  // Enhanced drag feedback - more pronounced visual changes
   const dragClasses = isDragging 
     ? 'opacity-30 transform rotate-1 scale-110 shadow-lg bg-blue-50 border-blue-300' 
     : 'opacity-100';
@@ -104,17 +110,18 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
         }}
         className={`${baseClasses} ${variantClasses} ${dragClasses}`}
         style={{ 
-          height: "16px", // Ultra-compact height
+          height: variant === 'available' ? "28px" : "24px", 
           maxWidth: "100%",
           userSelect: 'none',
           WebkitUserSelect: 'none',
+          // Add immediate visual feedback
           transition: isDragging ? 'all 0.1s ease-out' : 'all 0.15s ease-in-out'
         }}
         onDoubleClick={handleDoubleClick}
         draggable="true"
       >
         <div className="flex items-center w-full pointer-events-none">
-          <span className={`text-[10px] font-medium whitespace-nowrap overflow-hidden text-ellipsis ${
+          <span className={`text-xs font-medium whitespace-nowrap overflow-hidden text-ellipsis ${
             isDragging ? 'text-blue-700 font-semibold' : ''
           }`}>
             {getFirstName(staff.name)}

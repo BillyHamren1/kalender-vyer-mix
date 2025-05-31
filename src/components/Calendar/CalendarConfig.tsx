@@ -19,13 +19,13 @@ export const getCalendarViews = () => {
   };
 };
 
-// Calendar options - FIXED to use full 24-hour range
+// Calendar options
 export const getCalendarOptions = () => {
   return {
     height: "auto",
-    slotMinTime: "00:00:00", // Allow events from midnight
-    slotMaxTime: "24:00:00", // Allow events until midnight next day
-    scrollTime: "06:00:00", // Start view at 6 AM for convenience
+    slotMinTime: "05:00:00", // Changed from 00:00:00 to 05:00:00
+    slotMaxTime: "24:00:00",
+    scrollTime: "05:00:00", // Changed from 00:00:00 to 05:00:00
     slotDuration: "01:00:00", // One hour per slot
     slotLabelInterval: "01:00", // Keep at 1 hour
     allDaySlot: false,

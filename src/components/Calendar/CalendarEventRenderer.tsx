@@ -1,34 +1,28 @@
-
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
+import { Copy, Trash2 } from 'lucide-react';
 import EventHoverCard from './EventHoverCard';
 
 export const renderEventContent = (eventInfo: any) => {
+  // Get the event details
   const eventTitle = eventInfo.event.title;
-  
-  // Let FullCalendar handle ALL time display - no manual formatting
-  const timeDisplay = eventInfo.timeText || '';
+  const eventTime = eventInfo.timeText;
   
   // Use bookingNumber if available, otherwise fall back to bookingId
-  let displayId = eventInfo.event.extendedProps?.bookingNumber || 
-                  eventInfo.event.extendedProps?.bookingId || 
-                  '';
+  const displayId = eventInfo.event.extendedProps?.bookingNumber || 
+                   eventInfo.event.extendedProps?.bookingId || 
+                   '';
   
-  // If no explicit booking number, try to extract from title
-  if (!displayId && eventTitle.includes(':')) {
-    displayId = eventTitle.split(':')[0].trim();
-  }
+  // Get delivery address from event extendedProps or use default message
+  const deliveryAddress = eventInfo.event.extendedProps?.deliveryAddress || 'No address provided';
   
-  // Get delivery address from event extendedProps
-  const deliveryAddress = eventInfo.event.extendedProps?.deliveryAddress || '';
-  
-  // Extract the client name
-  let clientName = eventTitle;
-  if (eventTitle.includes(':')) {
-    clientName = eventTitle.split(':')[1].trim();
-  }
+  // Extract the client name (remove the booking ID if it's in the title)
+  const clientName = eventTitle.includes(':') 
+    ? eventTitle.split(':')[1].trim() 
+    : eventTitle;
 
-  // Get city from the proper field
+  // Get city from the proper field - use deliveryCity from bookings table
+  // Fall back to parsing from address only if no proper city is available
   const city = eventInfo.event.extendedProps?.deliveryCity || 
                (deliveryAddress.split(',').length > 1 ? deliveryAddress.split(',')[1].trim() : '');
 
@@ -42,20 +36,30 @@ export const renderEventContent = (eventInfo: any) => {
     extendedProps: eventInfo.event.extendedProps || {}
   };
 
+  // Event content component
   const EventContent = () => {
+    if (eventInfo.view.type === 'resourceTimelineWeek') {
+      // More compact display for timeline view with smaller fonts
+      return (
+        <div className="event-content-wrapper w-full h-full px-1" style={{ color: '#000000' }}>
+          <div className="event-booking-id text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>#{displayId}</div>
+          <div className="event-client-name text-xs break-words whitespace-normal" 
+               style={{ lineHeight: '1.1', maxHeight: '2.2em', overflow: 'hidden', color: '#000000', fontSize: '11px' }}>
+            {clientName}
+          </div>
+          {city && (
+            <div className="event-city text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>{city}</div>
+          )}
+        </div>
+      );
+    }
+    
+    // Default display for other views with smaller fonts and full width
     return (
       <div className="event-content-wrapper w-full h-full px-1" style={{ color: '#000000' }}>
-        {/* Let FullCalendar show time naturally */}
-        {timeDisplay && (
-          <div className="event-time text-xs font-medium mb-1" style={{ color: '#000000' }}>
-            {timeDisplay}
-          </div>
-        )}
-        {displayId && (
-          <div className="event-booking-id text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>#{displayId}</div>
-        )}
+        <div className="event-booking-id text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>#{displayId}</div>
         <div className="event-client-name text-xs break-words whitespace-normal" 
-             style={{ lineHeight: '1.1', color: '#000000', fontSize: '11px', flexGrow: 1 }}>
+             style={{ lineHeight: '1.1', maxHeight: '2.2em', overflow: 'hidden', color: '#000000', fontSize: '11px' }}>
           {clientName}
         </div>
         {city && (
@@ -98,7 +102,7 @@ export const setupEventActions = (
   actionContainer.style.position = 'absolute';
   actionContainer.style.top = '2px';
   actionContainer.style.right = '2px';
-  actionContainer.style.display = 'none';
+  actionContainer.style.display = 'none'; // Hidden by default, shown on hover
   actionContainer.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
   actionContainer.style.borderRadius = '4px';
   actionContainer.style.padding = '2px';
@@ -144,7 +148,7 @@ export const setupEventActions = (
     deleteButton.style.justifyContent = 'center';
     deleteButton.style.padding = '2px';
     deleteButton.style.borderRadius = '2px';
-    deleteButton.style.color = '#dc2626';
+    deleteButton.style.color = '#dc2626'; // Red color for delete
     
     deleteButton.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -161,7 +165,7 @@ export const setupEventActions = (
     // Add container to the event element
     eventEl.appendChild(actionContainer);
     
-    // Show actions on hover
+    // Show actions on hover (for desktop)
     eventEl.addEventListener('mouseenter', () => {
       actionContainer.style.display = 'flex';
     });
@@ -173,6 +177,7 @@ export const setupEventActions = (
     // For mobile, show on touch start and hide after a delay
     eventEl.addEventListener('touchstart', () => {
       actionContainer.style.display = 'flex';
+      // Hide after 5 seconds to prevent it from staying visible forever
       setTimeout(() => {
         actionContainer.style.display = 'none';
       }, 5000);
@@ -180,12 +185,13 @@ export const setupEventActions = (
   }
 };
 
+// Add data event type attribute
 export const addEventAttributes = (info: any) => {
   if (info.event.extendedProps.eventType) {
     info.el.setAttribute('data-event-type', info.event.extendedProps.eventType);
   }
   
-  // Add special class for timeline events
+  // Add special class for timeline events to ensure they have proper height
   if (info.view.type === 'resourceTimelineWeek') {
     info.el.classList.add('timeline-event');
   }
@@ -195,19 +201,21 @@ export const setupResourceHeaderStyles = (info: any) => {
   // Ensure proper rendering of resource headers
   const headerEl = info.el.querySelector('.fc-datagrid-cell-main');
   if (headerEl) {
+    // Set the height and make it overflow visible
     const headerHTMLElement = headerEl as HTMLElement;
     headerHTMLElement.style.height = '100%';
     headerHTMLElement.style.width = '100%';
     headerHTMLElement.style.overflow = 'visible';
     headerHTMLElement.style.position = 'relative';
-    headerHTMLElement.style.zIndex = '20';
+    headerHTMLElement.style.zIndex = '20'; // Increased z-index to ensure visibility
     
+    // Also fix the parent elements
     const cellFrame = info.el.querySelector('.fc-datagrid-cell-frame');
     if (cellFrame) {
       const cellFrameElement = cellFrame as HTMLElement;
       cellFrameElement.style.overflow = 'visible';
       cellFrameElement.style.position = 'relative';
-      cellFrameElement.style.minHeight = '50px';
+      cellFrameElement.style.minHeight = '50px'; // Ensure enough space for staff badges
     }
   }
 };

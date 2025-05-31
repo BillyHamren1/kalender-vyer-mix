@@ -12,8 +12,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 export const useResourceCalendarConfig = (
   resources: Resource[],
   droppableScope: string,
-  calendarProps: Record<string, any>,
-  viewMode?: 'weekly' | 'monthly'
+  calendarProps: Record<string, any>
 ) => {
   const calendarRef = useRef<any>(null);
   const { isMobile, getInitialView, getMobileHeaderToolbar, getAspectRatio } = useCalendarView();
@@ -37,25 +36,25 @@ export const useResourceCalendarConfig = (
     return aNum - bNum;
   });
 
-  // Resource column configuration - optimized width for weekly view
+  // FIXED: Consistent resource column configuration - using NUMBERS for FullCalendar
   const getResourceColumnConfig = () => {
-    // Use optimized width for weekly view - smaller columns to fit more on screen
-    const columnWidth = viewMode === 'weekly' ? 100 : 120;
+    // Use numeric values for FullCalendar (pixels without 'px')
+    const standardWidth = 80;
     
     return {
-      resourceAreaWidth: columnWidth,
-      slotMinWidth: columnWidth,
+      resourceAreaWidth: standardWidth,
+      slotMinWidth: standardWidth,
       resourceAreaColumns: [
         {
           field: 'title',
           headerContent: 'Teams',
-          width: columnWidth
+          width: standardWidth
         }
       ],
       resourcesInitiallyExpanded: true,
       stickyResourceAreaHeaders: true,
-      resourceLaneWidth: columnWidth,
-      resourceWidth: columnWidth
+      resourceLaneWidth: standardWidth,
+      resourceWidth: standardWidth
     };
   };
 
@@ -68,42 +67,38 @@ export const useResourceCalendarConfig = (
       dayGridPlugin
     ],
     schedulerLicenseKey: "0134084325-fcs-1745193612",
-    initialView: 'resourceTimeGridDay',
+    initialView: getInitialView(),
     headerToolbar: getMobileHeaderToolbar(),
     views: getCalendarViews(),
-    resources: sortedResources,
-    // FULLY ENABLE all editing capabilities for drag/drop
+    resources: isMobile ? [] : sortedResources,
     editable: true,
     droppable: true,
     selectable: true,
     eventDurationEditable: true,
     eventResizableFromStart: true,
-    eventStartEditable: true,
-    selectMirror: true,
-    eventOverlap: true,
-    selectOverlap: true,
-    dayMaxEvents: false,
     height: "auto",
     aspectRatio: getAspectRatio(),
     dropAccept: ".fc-event",
     eventAllow: () => true,
-    // Let FullCalendar handle timezone naturally
-    timeZone: 'local',
-    // FIXED: Use full 24-hour range instead of limiting to 05:00-24:00
-    slotMinTime: '00:00:00',
-    slotMaxTime: '24:00:00',
-    scrollTime: '06:00:00',
-    slotDuration: '01:00:00',
-    slotLabelInterval: '01:00:00',
-    snapDuration: '00:15:00',
-    // Resource config
+    // Add the FIXED resource column config with consistent 80px width (as numbers)
     ...getResourceColumnConfig(),
     // Add calendar options
     ...getCalendarOptions(),
-    // Simple time formatting
+    // Add time formatting
     ...getCalendarTimeFormatting(),
-    // Apply any additional calendar props
+    // Apply any additional calendar props (but prioritize our width settings)
     ...calendarProps,
+    // OVERRIDE any conflicting width settings from calendarProps with NUMBERS
+    resourceAreaWidth: 80,
+    slotMinWidth: 80,
+    // Update resource rendering to include select button
+    resourceAreaHeaderContent: (args: any) => {
+      return (
+        <div className="flex items-center justify-between p-1">
+          <span>Teams</span>
+        </div>
+      );
+    },
     // Enable calendar connection for drag & drop
     eventSourceId: droppableScope,
   });

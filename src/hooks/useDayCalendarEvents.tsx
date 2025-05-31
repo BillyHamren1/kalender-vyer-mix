@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { mapDatabaseToAppResourceId, mapAppToDatabaseResourceId } from '@/services/eventService';
 
 export const useDayCalendarEvents = () => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -49,8 +50,8 @@ export const useDayCalendarEvents = () => {
           const processedEvents = [];
           
           for (const event of data) {
-            // Direct usage - no conversion needed since everything uses team-X format
-            const resourceId = event.resource_id;
+            // Map the database resource_id to the application's resource ID format
+            const mappedResourceId = mapDatabaseToAppResourceId(event.resource_id);
             
             // If the event has a booking_id, fetch the booking to get the address
             let deliveryAddress = 'No address provided';
@@ -79,10 +80,10 @@ export const useDayCalendarEvents = () => {
             
             processedEvents.push({
               id: event.id,
-              resourceId: resourceId, // Direct usage - no conversion needed
+              resourceId: mappedResourceId,
               title: event.title,
-              start: new Date(event.start_time), // Convert string to Date object
-              end: new Date(event.end_time), // Convert string to Date object
+              start: event.start_time,
+              end: event.end_time,
               eventType: (event.event_type as 'rig' | 'event' | 'rigDown') || 'event',
               bookingId: event.booking_id || undefined,
               color: getEventColor((event.event_type as 'rig' | 'event' | 'rigDown') || 'event'),
@@ -91,7 +92,7 @@ export const useDayCalendarEvents = () => {
             });
           }
           
-          console.log('Formatted events for calendar with team resource IDs:', processedEvents);
+          console.log('Formatted events for calendar with mapped resource IDs:', processedEvents);
           setEvents(processedEvents);
         }
       } catch (error) {
@@ -132,16 +133,16 @@ export const useDayCalendarEvents = () => {
     try {
       console.log('Updating event in Supabase:', updatedEvent);
       
-      // Direct usage - no conversion needed since everything uses team-X format
-      const resourceId = updatedEvent.resourceId;
+      // Convert application resourceId back to database format
+      const databaseResourceId = mapAppToDatabaseResourceId(updatedEvent.resourceId);
       
       const { error } = await supabase
         .from('calendar_events')
         .update({
           title: updatedEvent.title,
-          start_time: updatedEvent.start.toISOString(), // Convert Date to string for database
-          end_time: updatedEvent.end.toISOString(), // Convert Date to string for database
-          resource_id: resourceId, // Direct usage - no conversion needed
+          start_time: updatedEvent.start,
+          end_time: updatedEvent.end,
+          resource_id: databaseResourceId, // Use the reverse-mapped resource ID
           event_type: updatedEvent.eventType
         })
         .eq('id', updatedEvent.id);

@@ -1,3 +1,4 @@
+
 import { EventInput } from '@fullcalendar/core';
 
 export interface Resource {
@@ -9,8 +10,8 @@ export interface Resource {
 export interface CalendarEvent extends EventInput {
   id: string;
   title: string;
-  start: Date; // Changed from string to Date
-  end: Date; // Changed from string to Date
+  start: string;
+  end: string;
   resourceId: string;
   bookingId?: string;
   bookingNumber?: string; // Add bookingNumber field

@@ -73,8 +73,8 @@ export const syncBookingEvents = async (): Promise<CalendarEvent[]> => {
         const calendarEvent: CalendarEvent = {
           id: eventId,
           title: eventTitle,
-          start: new Date(`${date}T08:00:00`), // Convert string to Date object
-          end: new Date(`${date}T18:00:00`), // Convert string to Date object
+          start: `${date}T08:00:00`,
+          end: `${date}T18:00:00`,
           resourceId: resourceId,
           extendedProps: {
             bookingId: booking.id,

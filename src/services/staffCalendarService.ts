@@ -117,7 +117,7 @@ const getCachedStaffMembers = async (): Promise<StaffMember[]> => {
   return staffMembers;
 };
 
-// SIMPLIFIED: Get calendar events for selected staff members using staff assignments to teams
+// Get calendar events for selected staff members within a date range - FOCUS ON BOOKINGS ONLY
 export const getStaffCalendarEvents = async (
   staffIds: string[], 
   startDate: Date, 
@@ -128,7 +128,7 @@ export const getStaffCalendarEvents = async (
       return [];
     }
 
-    console.log(`Fetching staff calendar events for staff: ${staffIds.join(', ')} from ${format(startDate, 'yyyy-MM-dd')} to ${format(endDate, 'yyyy-MM-dd')}`);
+    console.log(`Fetching booking events only for staff: ${staffIds.join(', ')} from ${format(startDate, 'yyyy-MM-dd')} to ${format(endDate, 'yyyy-MM-dd')}`);
 
     const events: StaffCalendarEvent[] = [];
 
@@ -136,95 +136,80 @@ export const getStaffCalendarEvents = async (
     const allStaff = await getCachedStaffMembers();
     const staffMap = new Map(allStaff.map(staff => [staff.id, staff.name]));
 
-    // Get staff assignments for the date range and selected staff
-    const { data: staffAssignments, error: assignmentError } = await supabase
-      .from('staff_assignments')
-      .select('staff_id, team_id, assignment_date')
-      .in('staff_id', staffIds)
-      .gte('assignment_date', format(startDate, 'yyyy-MM-dd'))
-      .lte('assignment_date', format(endDate, 'yyyy-MM-dd'));
+    // Get booking-staff assignments for the date range and selected staff
+    const bookingStaffAssignments = await getBookingStaffAssignments(startDate, endDate);
+    const filteredBookingAssignments = bookingStaffAssignments.filter(assignment =>
+      staffIds.includes(assignment.staff_id)
+    );
 
-    if (assignmentError) {
-      console.error('Error fetching staff assignments:', assignmentError);
-      throw assignmentError;
-    }
+    console.log(`Found ${filteredBookingAssignments.length} booking-staff assignments`);
 
-    if (!staffAssignments || staffAssignments.length === 0) {
-      console.log('No staff assignments found for the selected staff in the date range');
-      return [];
-    }
-
-    console.log(`Found ${staffAssignments.length} staff assignments`);
-
-    // Process each staff assignment and find corresponding calendar events
-    for (const assignment of staffAssignments) {
-      const staffName = staffMap.get(assignment.staff_id) || `Staff ${assignment.staff_id}`;
+    // Process booking assignments (these are the actual work assignments)
+    for (const bookingAssignment of filteredBookingAssignments) {
+      const staffName = staffMap.get(bookingAssignment.staff_id) || `Staff ${bookingAssignment.staff_id}`;
       
-      // Get calendar events for this team on this date - SIMPLIFIED: direct team_id usage
-      const { data: calendarEvents, error: eventsError } = await supabase
+      // Get the booking details to get proper client name
+      const { data: booking, error: bookingError } = await supabase
+        .from('bookings')
+        .select('client')
+        .eq('id', bookingAssignment.booking_id)
+        .single();
+
+      if (bookingError) {
+        console.error(`Error fetching booking ${bookingAssignment.booking_id}:`, bookingError);
+        continue;
+      }
+
+      // Get the calendar events for this booking
+      const { data: calendarEvents, error } = await supabase
         .from('calendar_events')
         .select('*')
-        .eq('resource_id', assignment.team_id) // Direct usage - no conversion needed!
-        .gte('start_time', `${assignment.assignment_date}T00:00:00`)
-        .lt('start_time', `${assignment.assignment_date}T23:59:59`);
+        .eq('booking_id', bookingAssignment.booking_id)
+        .eq('resource_id', bookingAssignment.team_id)
+        .gte('start_time', `${bookingAssignment.assignment_date}T00:00:00`)
+        .lt('start_time', `${bookingAssignment.assignment_date}T23:59:59`);
 
-      if (eventsError) {
-        console.error(`Error fetching calendar events for team ${assignment.team_id} on ${assignment.assignment_date}:`, eventsError);
+      if (error) {
+        console.error(`Error fetching calendar events for booking ${bookingAssignment.booking_id}:`, error);
         continue;
       }
 
       if (calendarEvents && calendarEvents.length > 0) {
         for (const calendarEvent of calendarEvents) {
-          // Get the booking details to get proper client name
-          let clientName = 'Unknown Client';
-          if (calendarEvent.booking_id) {
-            const { data: booking, error: bookingError } = await supabase
-              .from('bookings')
-              .select('client')
-              .eq('id', calendarEvent.booking_id)
-              .single();
-
-            if (!bookingError && booking) {
-              clientName = booking.client;
-            }
-          } else {
-            // Try to extract client from title if no booking_id
-            clientName = extractClientFromTitle(calendarEvent.title) || calendarEvent.title;
-          }
-
+          const clientName = booking?.client || 'Unknown Client';
           const eventType = calendarEvent.event_type || 'event';
           
-          console.log(`Adding calendar event: ${clientName} - ${eventType} for staff ${staffName} with booking ID: ${calendarEvent.booking_id || 'N/A'}`);
+          console.log(`Adding booking event: ${clientName} - ${eventType} for staff ${staffName} with booking ID: ${bookingAssignment.booking_id}`);
           
           events.push({
-            id: `staff-${assignment.staff_id}-event-${calendarEvent.id}`,
+            id: `staff-${bookingAssignment.staff_id}-booking-${calendarEvent.id}`,
             title: `${clientName} - ${eventType}`,
             start: calendarEvent.start_time,
             end: calendarEvent.end_time,
-            resourceId: assignment.staff_id,
-            teamId: assignment.team_id,
-            bookingId: calendarEvent.booking_id,
+            resourceId: bookingAssignment.staff_id,
+            teamId: bookingAssignment.team_id,
+            bookingId: bookingAssignment.booking_id,
             staffName: staffName,
             client: clientName,
             eventType: 'booking_event',
             backgroundColor: getEventColor(eventType),
             borderColor: getEventBorderColor(eventType),
             extendedProps: {
-              bookingId: calendarEvent.booking_id,
-              booking_id: calendarEvent.booking_id,
+              bookingId: bookingAssignment.booking_id,
+              booking_id: bookingAssignment.booking_id,
               deliveryAddress: calendarEvent.delivery_address,
               bookingNumber: calendarEvent.booking_number,
               eventType: eventType,
               staffName: staffName,
               client: clientName,
-              teamName: `Team ${assignment.team_id.replace('team-', '')}`
+              teamName: `Team ${bookingAssignment.team_id}`
             }
           });
         }
       }
     }
 
-    console.log(`Generated ${events.length} calendar events for staff view:`);
+    console.log(`Generated ${events.length} booking calendar events for staff view:`);
     events.forEach(event => {
       console.log(`- Event: ${event.title}, Date: ${event.start}, Type: ${event.extendedProps?.eventType}, Staff: ${event.staffName}, Booking ID: ${event.bookingId || 'N/A'}`);
     });
@@ -403,7 +388,7 @@ const getEventBorderColor = (eventType: string): string => {
   }
 };
 
-// Get staff assignment summary for a specific date (updated to use both assignment types)
+// Get staff assignment summary for a specific date (updated to use booking assignments)
 export const getStaffSummaryForDate = async (
   staffIds: string[], 
   date: Date
@@ -414,54 +399,20 @@ export const getStaffSummaryForDate = async (
     // Get team assignments
     const assignments = await fetchStaffAssignmentsForDateRange(date, date);
     
-    // Get booking assignments (if any exist)
+    // Get booking assignments
     const bookingAssignments = await getBookingStaffAssignments(date, date);
-    
-    // Get calendar events for teams to count bookings for staff without direct booking assignments
-    const teamIds = [...new Set(assignments.map(a => a.teamId))];
-    let calendarEventBookings: Array<{teamId: string, bookingId: string}> = [];
-    
-    if (teamIds.length > 0) {
-      const { data: calendarEvents, error } = await supabase
-        .from('calendar_events')
-        .select('resource_id, booking_id')
-        .in('resource_id', teamIds)
-        .gte('start_time', `${dateStr}T00:00:00`)
-        .lt('start_time', `${dateStr}T23:59:59`)
-        .not('booking_id', 'is', null);
-
-      if (!error && calendarEvents) {
-        calendarEventBookings = calendarEvents.map(event => ({
-          teamId: event.resource_id,
-          bookingId: event.booking_id
-        }));
-      }
-    }
     
     return staffIds.map(staffId => {
       const assignment = assignments.find(a => a.staffId === staffId && a.date === dateStr);
-      
-      // Count bookings from direct assignments
-      const directBookingCount = bookingAssignments.filter(ba => 
+      const bookingCount = bookingAssignments.filter(ba => 
         ba.staff_id === staffId && ba.assignment_date === dateStr
       ).length;
-      
-      // If no direct bookings, count team bookings
-      let teamBookingCount = 0;
-      if (directBookingCount === 0 && assignment?.teamId) {
-        const uniqueBookings = new Set(
-          calendarEventBookings
-            .filter(eb => eb.teamId === assignment.teamId)
-            .map(eb => eb.bookingId)
-        );
-        teamBookingCount = uniqueBookings.size;
-      }
       
       return {
         staffId,
         teamId: assignment?.teamId,
         teamName: assignment?.teamName,
-        bookingsCount: directBookingCount || teamBookingCount
+        bookingsCount: bookingCount
       };
     });
   } catch (error) {

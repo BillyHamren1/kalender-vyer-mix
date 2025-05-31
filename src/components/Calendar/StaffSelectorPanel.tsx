@@ -50,21 +50,16 @@ const StaffSelectorPanel: React.FC<StaffSelectorPanelProps> = ({
 
   if (isLoading) {
     return (
-      <Card className="border-0">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-lg font-semibold flex items-center gap-3">
-            <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-[#7BAEBF] to-[#6E9DAC] rounded-lg">
-              <Users className="h-4 w-4 text-white" />
-            </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <Users className="h-4 w-4" />
             Staff Members
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center py-12">
-            <div className="flex items-center space-x-3">
-              <div className="animate-spin rounded-full h-6 w-6 border-2 border-[#7BAEBF] border-t-transparent"></div>
-              <span className="text-gray-600 font-medium">Loading staff...</span>
-            </div>
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
           </div>
         </CardContent>
       </Card>
@@ -72,136 +67,94 @@ const StaffSelectorPanel: React.FC<StaffSelectorPanelProps> = ({
   }
 
   return (
-    <Card className="border-0">
-      <CardHeader className="pb-4">
-        <CardTitle className="text-lg font-semibold flex items-center gap-3">
-          <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-[#7BAEBF] to-[#6E9DAC] rounded-lg">
-            <Users className="h-4 w-4 text-white" />
-          </div>
-          <div>
-            <div>Staff Members</div>
-            <div className="text-sm font-normal text-gray-500">{staffResources.length} available</div>
-          </div>
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <Users className="h-4 w-4" />
+          Staff Members ({staffResources.length})
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Modern Search */}
+      <CardContent className="space-y-3">
+        {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
             placeholder="Search staff members..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 border-gray-200 focus:border-[#7BAEBF] focus:ring-[#7BAEBF] transition-colors"
+            className="pl-9"
           />
         </div>
 
-        {/* Modern Select All/None Buttons */}
-        <div className="grid grid-cols-2 gap-2">
+        {/* Select All/None Buttons */}
+        <div className="flex gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={handleSelectAll}
-            className={cn(
-              "text-xs font-medium transition-all duration-200",
-              selectedStaffIds.length === staffResources.length 
-                ? "bg-[#7BAEBF]/10 border-[#7BAEBF]/30 text-[#6E9DAC] hover:bg-[#7BAEBF]/20" 
-                : "border-gray-200 text-gray-700 hover:bg-gray-50"
-            )}
+            className="flex-1 text-xs"
             disabled={selectedStaffIds.length === staffResources.length}
           >
             <Check
               className={cn(
-                "mr-1 h-3 w-3 transition-opacity",
+                "mr-1 h-3 w-3",
                 selectedStaffIds.length === staffResources.length ? "opacity-100" : "opacity-0"
               )}
             />
-            All ({staffResources.length})
+            Select All ({staffResources.length})
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={handleSelectNone}
-            className={cn(
-              "text-xs font-medium transition-all duration-200",
-              selectedStaffIds.length === 0 
-                ? "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100" 
-                : "border-gray-200 text-gray-700 hover:bg-gray-50"
-            )}
+            className="flex-1 text-xs"
             disabled={selectedStaffIds.length === 0}
           >
             <Check
               className={cn(
-                "mr-1 h-3 w-3 transition-opacity",
+                "mr-1 h-3 w-3",
                 selectedStaffIds.length === 0 ? "opacity-100" : "opacity-0"
               )}
             />
-            None
+            Select None
           </Button>
         </div>
 
-        {/* Modern Staff List */}
+        {/* Staff List */}
         <div className="space-y-1 max-h-80 overflow-y-auto">
           {filteredStaff.length === 0 ? (
-            <div className="text-center py-8">
-              <div className="text-gray-400 mb-2">
-                <Users className="h-8 w-8 mx-auto" />
-              </div>
-              <p className="text-sm text-gray-500">
-                {searchTerm ? 'No staff members found.' : 'No staff members available.'}
-              </p>
+            <div className="text-center py-4 text-sm text-gray-500">
+              {searchTerm ? 'No staff members found.' : 'No staff members available.'}
             </div>
           ) : (
             filteredStaff.map((staff) => (
               <div
                 key={staff.id}
                 className={cn(
-                  "flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-all duration-200 group",
-                  selectedStaffIds.includes(staff.id) 
-                    ? "bg-[#7BAEBF]/10 border border-[#7BAEBF]/30 shadow-sm" 
-                    : "border border-transparent hover:bg-gray-50 hover:shadow-sm"
+                  "flex items-center space-x-2 p-2 rounded-md cursor-pointer transition-colors hover:bg-gray-50",
+                  selectedStaffIds.includes(staff.id) ? "bg-blue-50 border border-blue-200" : "border border-transparent"
                 )}
                 onClick={() => handleStaffToggle(staff.id)}
               >
-                <div className={cn(
-                  "flex items-center justify-center w-5 h-5 rounded border-2 transition-all duration-200",
-                  selectedStaffIds.includes(staff.id)
-                    ? "bg-[#7BAEBF] border-[#7BAEBF]"
-                    : "border-gray-300 group-hover:border-gray-400"
-                )}>
+                <div className="flex items-center justify-center w-4 h-4">
                   <Check
                     className={cn(
-                      "h-3 w-3 text-white transition-opacity duration-200",
+                      "h-3 w-3 text-blue-600",
                       selectedStaffIds.includes(staff.id) ? "opacity-100" : "opacity-0"
                     )}
                   />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{staff.name}</p>
-                  {staff.email && (
-                    <p className="text-xs text-gray-500 truncate">{staff.email}</p>
-                  )}
-                </div>
+                <span className="text-sm font-medium flex-1">{staff.name}</span>
               </div>
             ))
           )}
         </div>
 
-        {/* Modern Selection Summary */}
-        <div className="pt-3 border-t border-gray-100">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-600">
-              {selectedStaffIds.length === 0 && 'No staff selected'}
-              {selectedStaffIds.length === 1 && '1 staff member selected'}
-              {selectedStaffIds.length > 1 && `${selectedStaffIds.length} staff members selected`}
-            </span>
-            {selectedStaffIds.length > 0 && (
-              <div className="flex items-center space-x-1">
-                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                <span className="text-xs font-medium text-green-600">Active</span>
-              </div>
-            )}
-          </div>
+        {/* Selection Summary */}
+        <div className="pt-2 border-t text-xs text-gray-600">
+          {selectedStaffIds.length === 0 && 'No staff selected'}
+          {selectedStaffIds.length === 1 && '1 staff member selected'}
+          {selectedStaffIds.length > 1 && `${selectedStaffIds.length} staff members selected`}
         </div>
       </CardContent>
     </Card>

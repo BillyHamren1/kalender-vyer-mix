@@ -326,7 +326,7 @@ async function getAvailableStaff(supabase: any, date: string): Promise<Operation
   }
 }
 
-// Calendar Operations - SIMPLIFIED to work with standardized team-X format
+// Calendar Operations - FIXED to properly validate staff assignments
 async function getStaffCalendarEvents(supabase: any, staffIds: string[], startDate: string, endDate: string): Promise<OperationResponse> {
   try {
     if (!staffIds || staffIds.length === 0) {
@@ -345,7 +345,7 @@ async function getStaffCalendarEvents(supabase: any, staffIds: string[], startDa
 
     const staffMap = new Map(staffMembers?.map(staff => [staff.id, staff.name]) || [])
 
-    // Get staff assignments for the date range
+    // FIXED: Get staff assignments for the date range to validate actual assignments
     const { data: staffAssignments, error: assignmentError } = await supabase
       .from('staff_assignments')
       .select('staff_id, team_id, assignment_date')
@@ -360,17 +360,27 @@ async function getStaffCalendarEvents(supabase: any, staffIds: string[], startDa
       return { success: true, data: [] }
     }
 
+    // Create a map of staff assignments by date and team for quick lookup
+    const assignmentMap = new Map<string, { staffId: string, teamId: string }>()
+    staffAssignments.forEach(assignment => {
+      const key = `${assignment.staff_id}-${assignment.assignment_date}-${assignment.team_id}`
+      assignmentMap.set(key, {
+        staffId: assignment.staff_id,
+        teamId: assignment.team_id
+      })
+    })
+
     const events: CalendarEvent[] = []
 
     // Process each staff assignment and find corresponding calendar events
     for (const assignment of staffAssignments) {
       const staffName = staffMap.get(assignment.staff_id) || `Staff ${assignment.staff_id}`
       
-      // SIMPLIFIED: Get calendar events for this team on this date - direct team_id usage
+      // Get calendar events for this team on this date
       const { data: calendarEvents, error: eventsError } = await supabase
         .from('calendar_events')
         .select('*')
-        .eq('resource_id', assignment.team_id) // Direct usage - no conversion needed!
+        .eq('resource_id', assignment.team_id)
         .gte('start_time', `${assignment.assignment_date}T00:00:00`)
         .lt('start_time', `${assignment.assignment_date}T23:59:59`)
 
@@ -381,44 +391,31 @@ async function getStaffCalendarEvents(supabase: any, staffIds: string[], startDa
 
       if (calendarEvents && calendarEvents.length > 0) {
         for (const calendarEvent of calendarEvents) {
-          // Get client name from booking if available
-          let clientName = 'Unknown Client'
+          // Only include events that have booking IDs (actual work assignments)
           if (calendarEvent.booking_id) {
-            const { data: booking, error: bookingError } = await supabase
-              .from('bookings')
-              .select('client')
-              .eq('id', calendarEvent.booking_id)
-              .single()
-
-            if (!bookingError && booking) {
-              clientName = booking.client
-            }
-          } else {
-            clientName = extractClientFromTitle(calendarEvent.title) || calendarEvent.title
-          }
-
-          events.push({
-            id: `staff-${assignment.staff_id}-event-${calendarEvent.id}`,
-            title: `${clientName} - ${calendarEvent.event_type || 'event'}`,
-            start: calendarEvent.start_time,
-            end: calendarEvent.end_time,
-            resourceId: assignment.staff_id,
-            teamId: assignment.team_id,
-            bookingId: calendarEvent.booking_id,
-            eventType: 'booking_event',
-            backgroundColor: getEventColor(calendarEvent.event_type || 'event'),
-            borderColor: getEventBorderColor(calendarEvent.event_type || 'event'),
-            client: clientName,
-            extendedProps: {
+            events.push({
+              id: `staff-${assignment.staff_id}-event-${calendarEvent.id}`,
+              title: calendarEvent.title,
+              start: calendarEvent.start_time,
+              end: calendarEvent.end_time,
+              resourceId: assignment.staff_id,
+              teamId: assignment.team_id,
               bookingId: calendarEvent.booking_id,
-              deliveryAddress: calendarEvent.delivery_address,
-              bookingNumber: calendarEvent.booking_number,
-              eventType: calendarEvent.event_type || 'booking_event',
-              staffName: staffName,
-              client: clientName,
-              teamName: `Team ${assignment.team_id.replace('team-', '')}`
-            }
-          })
+              eventType: 'booking_event',
+              backgroundColor: getEventColor(calendarEvent.event_type || 'event'),
+              borderColor: getEventBorderColor(calendarEvent.event_type || 'event'),
+              client: extractClientFromTitle(calendarEvent.title),
+              extendedProps: {
+                bookingId: calendarEvent.booking_id,
+                deliveryAddress: calendarEvent.delivery_address,
+                bookingNumber: calendarEvent.booking_number,
+                eventType: calendarEvent.event_type || 'booking_event',
+                staffName: staffName,
+                client: extractClientFromTitle(calendarEvent.title),
+                teamName: `Team ${assignment.team_id.replace('team-', '')}`
+              }
+            })
+          }
         }
       }
     }
@@ -629,7 +626,7 @@ async function autoAssignToBookings(supabase: any, staffId: string, teamId: stri
     const { data: events, error } = await supabase
       .from('calendar_events')
       .select('booking_id')
-      .eq('resource_id', teamId) // Direct usage - no conversion needed!
+      .eq('resource_id', teamId)
       .gte('start_time', `${date}T00:00:00`)
       .lt('start_time', `${date}T23:59:59`)
       .not('booking_id', 'is', null)
@@ -667,11 +664,11 @@ function extractClientFromTitle(title: string): string | undefined {
 function getEventColor(eventType: string): string {
   switch (eventType) {
     case 'rig':
-      return '#F2FCE2'
+      return '#fff3e0'
     case 'event':
-      return '#FEF7CD'
+      return '#fff9c4'
     case 'rigDown':
-      return '#FFDEE2'
+      return '#f3e5f5'
     default:
       return '#e8f5e8'
   }
@@ -680,11 +677,11 @@ function getEventColor(eventType: string): string {
 function getEventBorderColor(eventType: string): string {
   switch (eventType) {
     case 'rig':
-      return '#D4EAB5'
+      return '#ff9800'
     case 'event':
-      return '#F3E8A3'
+      return '#ffeb3b'
     case 'rigDown':
-      return '#FEB190'
+      return '#9c27b0'
     default:
       return '#4caf50'
   }
