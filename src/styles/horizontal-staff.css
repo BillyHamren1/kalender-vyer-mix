@@ -1,0 +1,120 @@
+
+/* Horizontal staff layout styles */
+.horizontal-staff-container {
+  height: 100%;
+  overflow: visible;
+}
+
+/* Custom scrollbar styling for horizontal staff container */
+.horizontal-staff-container .flex::-webkit-scrollbar {
+  height: 2px;
+}
+
+.horizontal-staff-container .flex::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.horizontal-staff-container .flex::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 1px;
+}
+
+.horizontal-staff-container .flex::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Firefox scrollbar styling */
+.horizontal-staff-container .flex {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+
+/* Compact staff item hover effects */
+.compact-staff-item {
+  position: relative;
+  transition: all 0.15s ease-in-out;
+}
+
+.compact-staff-item:hover {
+  transform: scale(1.1);
+  z-index: 20;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* Remove button for compact staff items */
+.compact-remove-btn {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  color: white;
+  font-size: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.compact-staff-item:hover .compact-remove-btn {
+  opacity: 1;
+}
+
+/* Drag feedback for compact items */
+.compact-staff-item.dragging {
+  opacity: 0.3;
+  transform: rotate(1deg) scale(1.1);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  background: #dbeafe;
+  border-color: #3b82f6;
+}
+
+/* Scroll indicators for when content overflows */
+.horizontal-staff-container:after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(to left, rgba(0,0,0,0.1), transparent);
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+  pointer-events: none;
+}
+
+.horizontal-staff-container:hover:after {
+  opacity: 1;
+}
+
+/* Ensure proper spacing and alignment */
+.resource-header-drop-zone {
+  position: relative;
+  overflow: visible;
+}
+
+.resource-header-drop-zone .horizontal-staff-container {
+  position: relative;
+  z-index: 5;
+}
+
+/* Team title styling for compact layout */
+.compact-team-title {
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 600;
+  text-align: center;
+  padding: 2px;
+  border-radius: 3px;
+  transition: all 0.2s ease-in-out;
+}
+
+.compact-team-title:hover {
+  background: #e5f3ff;
+  color: #1e40af;
+}
