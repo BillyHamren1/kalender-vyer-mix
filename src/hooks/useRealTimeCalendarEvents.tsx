@@ -15,7 +15,7 @@ export const useRealTimeCalendarEvents = () => {
   
   const mountedRef = useRef(true);
 
-  // Enhanced refresh function with better error handling
+  // Enhanced refresh function with comprehensive debugging
   const refreshEvents = useCallback(async (): Promise<CalendarEvent[]> => {
     if (!mountedRef.current) {
       console.log('📴 Component unmounted, skipping refresh');
@@ -35,6 +35,24 @@ export const useRealTimeCalendarEvents = () => {
 
       console.log(`🎯 useRealTimeCalendarEvents: Successfully fetched ${fetchedEvents.length} events`);
       
+      // COMPREHENSIVE DEBUGGING - Log every single event with all details
+      console.log('🔍 DETAILED EVENT ANALYSIS:');
+      fetchedEvents.forEach((event, index) => {
+        console.log(`Event ${index + 1}:`, {
+          id: event.id,
+          title: event.title,
+          start: event.start,
+          end: event.end,
+          resourceId: event.resourceId,
+          bookingId: event.bookingId,
+          eventType: event.eventType,
+          startISO: event.start.toISOString(),
+          endISO: event.end.toISOString(),
+          startLocal: event.start.toLocaleString(),
+          endLocal: event.end.toLocaleString()
+        });
+      });
+      
       // Log event distribution for debugging
       const eventsByResource = fetchedEvents.reduce((acc, event) => {
         acc[event.resourceId] = (acc[event.resourceId] || 0) + 1;
@@ -42,6 +60,24 @@ export const useRealTimeCalendarEvents = () => {
       }, {} as Record<string, number>);
       
       console.log('📊 Event distribution by resource:', eventsByResource);
+      
+      // Check for any events with invalid dates
+      const invalidDateEvents = fetchedEvents.filter(event => 
+        !event.start || !event.end || isNaN(event.start.getTime()) || isNaN(event.end.getTime())
+      );
+      
+      if (invalidDateEvents.length > 0) {
+        console.error('🚨 EVENTS WITH INVALID DATES:', invalidDateEvents);
+      }
+      
+      // Check for events with missing or invalid resource IDs
+      const invalidResourceEvents = fetchedEvents.filter(event => 
+        !event.resourceId || event.resourceId === ''
+      );
+      
+      if (invalidResourceEvents.length > 0) {
+        console.error('🚨 EVENTS WITH INVALID RESOURCE IDS:', invalidResourceEvents);
+      }
       
       setEvents(fetchedEvents);
       return fetchedEvents;

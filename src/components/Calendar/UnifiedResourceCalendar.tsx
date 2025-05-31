@@ -68,26 +68,64 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   // Convert forceRefresh to number for consistent handling
   const numericForceRefresh = typeof forceRefresh === 'boolean' ? (forceRefresh ? 1 : 0) : (forceRefresh || 0);
 
-  // COMPREHENSIVE EVENT DEBUGGING
-  console.log('=== UnifiedResourceCalendar Event Debug ===');
+  // ULTRA-COMPREHENSIVE EVENT DEBUGGING
+  console.log('=== UnifiedResourceCalendar ULTRA DEBUG ===');
   console.log(`View mode: ${viewMode}`);
   console.log(`Current date: ${format(currentDate, 'yyyy-MM-dd')}`);
   console.log(`Total events received: ${events.length}`);
   console.log(`Available resources: ${resources.length}`, resources.map(r => ({ id: r.id, title: r.title })));
-  console.log('🔍 ALL EVENTS PASSED TO UNIFIED CALENDAR:', events);
+  
+  // Log EVERY single event received
+  console.log('🔍 ALL EVENTS PASSED TO UNIFIED CALENDAR:');
+  events.forEach((event, index) => {
+    console.log(`Event ${index + 1}:`, {
+      id: event.id,
+      title: event.title,
+      start: event.start,
+      end: event.end,
+      resourceId: event.resourceId,
+      startFormatted: format(event.start, 'yyyy-MM-dd HH:mm:ss'),
+      endFormatted: format(event.end, 'yyyy-MM-dd HH:mm:ss')
+    });
+  });
   
   if (events.length === 0) {
     console.error('🚨 CRITICAL: UnifiedResourceCalendar received ZERO events!');
     console.error('This means the issue is upstream - events are not reaching this component');
   }
 
-  // Check for resource ID mismatches
+  // CRITICAL: Check for resource ID mismatches with DETAILED analysis
+  const resourceIds = resources.map(r => r.id);
+  console.log('🎯 Available resource IDs:', resourceIds);
+  
+  const eventResourceIds = [...new Set(events.map(e => e.resourceId))];
+  console.log('🎯 Event resource IDs:', eventResourceIds);
+  
   const eventsWithInvalidResources = events.filter(event => 
     !resources.find(resource => resource.id === event.resourceId)
   );
   if (eventsWithInvalidResources.length > 0) {
-    console.error('Events with invalid resource IDs:', eventsWithInvalidResources);
+    console.error('🚨 EVENTS WITH INVALID RESOURCE IDS:', eventsWithInvalidResources);
+    console.error('🚨 These events will likely be filtered out by FullCalendar!');
   }
+
+  // Check for date range issues
+  const today = new Date();
+  const weekStart = new Date(currentDate);
+  const weekEnd = new Date(currentDate);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+  
+  console.log('📅 Date range analysis:');
+  console.log(`Today: ${format(today, 'yyyy-MM-dd')}`);
+  console.log(`Week start: ${format(weekStart, 'yyyy-MM-dd')}`);
+  console.log(`Week end: ${format(weekEnd, 'yyyy-MM-dd')}`);
+  
+  const eventsInRange = events.filter(event => {
+    const eventDate = new Date(event.start);
+    return eventDate >= weekStart && eventDate <= weekEnd;
+  });
+  
+  console.log(`📊 Events in current week range: ${eventsInRange.length} out of ${events.length}`);
 
   // Handle day header click to navigate to resource view
   const handleDayHeaderClick = (date: Date) => {
@@ -199,30 +237,45 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     };
   };
 
-  // FIXED: For weekly view, pass ALL events to each calendar and let FullCalendar handle date filtering
+  // CRITICAL FIX: For weekly view, pass ALL events to each calendar and let FullCalendar handle date filtering
   // For monthly view, filter events by specific day
   const getEventsForDay = (date: Date): CalendarEvent[] => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    
     if (viewMode === 'weekly') {
       // CRITICAL FIX: For weekly view, pass ALL events and let FullCalendar handle filtering
-      console.log(`📅 Weekly view: Passing all ${events.length} events to ${format(date, 'yyyy-MM-dd')} calendar`);
-      console.log(`📋 Events being passed:`, events.map(e => ({ 
+      console.log(`📅 Weekly view: Passing all ${events.length} events to ${dateStr} calendar`);
+      console.log(`📋 Events being passed for ${dateStr}:`, events.map(e => ({ 
         id: e.id, 
         title: e.title, 
-        start: e.start, 
-        end: e.end, 
+        start: format(e.start, 'yyyy-MM-dd HH:mm'), 
+        end: format(e.end, 'yyyy-MM-dd HH:mm'), 
         resourceId: e.resourceId 
       })));
       return events;
     } else {
       // Monthly view: Filter events for specific day
-      const dateStr = format(date, 'yyyy-MM-dd');
       const dayEvents = events.filter(event => {
         const eventStart = new Date(event.start);
         const eventDateStr = format(eventStart, 'yyyy-MM-dd');
-        return eventDateStr === dateStr;
+        const matches = eventDateStr === dateStr;
+        
+        if (matches) {
+          console.log(`✅ Event ${event.id} matches date ${dateStr}`);
+        }
+        
+        return matches;
       });
       
       console.log(`Monthly view: Events for ${dateStr}: ${dayEvents.length} events`);
+      if (dayEvents.length > 0) {
+        console.log('Monthly day events:', dayEvents.map(e => ({ 
+          id: e.id, 
+          title: e.title,
+          start: format(e.start, 'yyyy-MM-dd HH:mm'),
+          resourceId: e.resourceId
+        })));
+      }
       return dayEvents;
     }
   };
@@ -255,19 +308,22 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
             const dayEvents = getEventsForDay(date);
             const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
             const resourceCalendarForceRefresh = numericForceRefresh > 0;
+            const dateStr = format(date, 'yyyy-MM-dd');
             
-            console.log(`=== Rendering weekly calendar for ${format(date, 'yyyy-MM-dd')} ===`);
+            console.log(`=== Rendering weekly calendar for ${dateStr} ===`);
             console.log(`🎯 Events passed to ResourceCalendar: ${dayEvents.length}`);
             console.log(`📊 Resources: ${resources.length}`);
             console.log(`⚙️ Calendar props:`, getWeeklyCalendarProps());
             
             if (dayEvents.length === 0) {
-              console.warn(`⚠️ No events for ${format(date, 'yyyy-MM-dd')} - this might be why calendar appears empty`);
+              console.warn(`⚠️ No events for ${dateStr} - this might be why calendar appears empty`);
+            } else {
+              console.log(`✅ Events for ${dateStr}:`, dayEvents.map(e => e.title));
             }
             
             return (
               <div 
-                key={format(date, 'yyyy-MM-dd')} 
+                key={dateStr} 
                 className="day-calendar-wrapper"
                 ref={isToday ? todayRef : null}
                 style={{
@@ -299,7 +355,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
                     onStaffDrop={(staffId: string, resourceId: string | null) => handleStaffDrop(staffId, resourceId, date)}
                     onSelectStaff={(resourceId: string, resourceTitle: string) => handleSelectStaff(resourceId, resourceTitle, date)}
                     forceRefresh={resourceCalendarForceRefresh}
-                    key={`calendar-${format(date, 'yyyy-MM-dd')}-${numericForceRefresh}`}
+                    key={`calendar-${dateStr}-${numericForceRefresh}`}
                     droppableScope="weekly-calendar"
                     calendarProps={getWeeklyCalendarProps()}
                     targetDate={date}
@@ -321,12 +377,13 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
         const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
         const isCurrentMonth = isSameMonth(date, currentDate);
         const resourceCalendarForceRefresh = numericForceRefresh > 0;
+        const dateStr = format(date, 'yyyy-MM-dd');
         
-        console.log(`UnifiedResourceCalendar: Rendering monthly calendar for ${format(date, 'yyyy-MM-dd')} with ${dayEvents.length} events and ${resources.length} teams`);
+        console.log(`UnifiedResourceCalendar: Rendering monthly calendar for ${dateStr} with ${dayEvents.length} events and ${resources.length} teams`);
         
         return (
           <div 
-            key={format(date, 'yyyy-MM-dd')} 
+            key={dateStr} 
             className="monthly-day-wrapper"
             ref={isToday ? todayRef : null}
           >
@@ -352,7 +409,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
                 onStaffDrop={(staffId: string, resourceId: string | null) => handleStaffDrop(staffId, resourceId, date)}
                 onSelectStaff={(resourceId: string, resourceTitle: string) => handleSelectStaff(resourceId, resourceTitle, date)}
                 forceRefresh={resourceCalendarForceRefresh}
-                key={`calendar-${format(date, 'yyyy-MM-dd')}-${numericForceRefresh}`}
+                key={`calendar-${dateStr}-${numericForceRefresh}`}
                 droppableScope="monthly-calendar"
                 calendarProps={getMonthlyCalendarProps()}
                 targetDate={date}
