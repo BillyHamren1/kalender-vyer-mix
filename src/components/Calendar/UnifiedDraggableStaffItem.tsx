@@ -101,7 +101,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
             drag(node);
             dragPreview(node);
           }}
-          className={`w-[16px] h-[18px] bg-white border border-gray-200 rounded text-[8px] font-medium cursor-move hover:shadow-sm transition-all duration-150 flex items-center justify-center relative group ${dragClasses}`}
+          className={`w-[50px] h-[18px] bg-white border border-gray-200 rounded text-[7px] font-medium cursor-move hover:shadow-sm transition-all duration-150 flex items-center justify-center relative group ${dragClasses}`}
           style={{ 
             userSelect: 'none',
             WebkitUserSelect: 'none',
@@ -111,10 +111,10 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
           draggable="true"
           title={staff.name}
         >
-          <span className={`text-[8px] font-bold leading-none ${
+          <span className={`text-[7px] font-bold leading-none truncate px-1 ${
             isDragging ? 'text-blue-700 font-semibold' : ''
           }`}>
-            {getInitials(staff.name)}
+            {getFirstName(staff.name)}
           </span>
           {showRemoveDialog && onRemove && (
             <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full text-white text-[6px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
