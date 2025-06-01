@@ -20,6 +20,14 @@ export interface StaffMemberWithAssignment {
   assignedTeam?: string | null;
 }
 
+// Add interface for compatibility with existing components
+export interface StaffAssignment {
+  staffId: string;
+  staffName: string;
+  teamId: string;
+  date: string;
+}
+
 export const useReliableStaffOperations = (currentDate: Date) => {
   const [assignments, setAssignments] = useState<StaffAssignmentData[]>([]);
   const [allStaff, setAllStaff] = useState<StaffMemberWithAssignment[]>([]);
@@ -171,6 +179,16 @@ export const useReliableStaffOperations = (currentDate: Date) => {
     setRefreshCounter(prev => prev + 1);
   }, []);
 
+  // Convert assignments to the format expected by existing components
+  const compatibleAssignments = useMemo((): StaffAssignment[] => {
+    return assignments.map(assignment => ({
+      staffId: assignment.staffId,
+      staffName: assignment.staffName || `Staff ${assignment.staffId}`,
+      teamId: assignment.teamId,
+      date: assignment.date
+    }));
+  }, [assignments]);
+
   return {
     assignments,
     allStaff,
@@ -178,6 +196,10 @@ export const useReliableStaffOperations = (currentDate: Date) => {
     getStaffForTeam,
     getAvailableStaff,
     handleStaffDrop,
-    forceRefresh
+    forceRefresh,
+    // Add refreshTrigger for compatibility with MonthlyResourceView
+    refreshTrigger: refreshCounter,
+    // Add assignments in the format expected by WeeklyResourceView's StaffSelectionDialog
+    compatibleAssignments
   };
 };

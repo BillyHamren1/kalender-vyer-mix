@@ -313,7 +313,11 @@ const WeeklyResourceView = () => {
           open={staffSelectionDialogOpen}
           onOpenChange={setStaffSelectionDialogOpen}
           onStaffAssigned={handleStaffAssigned}
-          reliableStaffOperations={reliableStaffOps}
+          reliableStaffOperations={{
+            assignments: reliableStaffOps.compatibleAssignments,
+            getStaffForTeam: reliableStaffOps.getStaffForTeam,
+            handleStaffDrop: reliableStaffOps.handleStaffDrop
+          }}
         />
         
         <ResourceLayout 
