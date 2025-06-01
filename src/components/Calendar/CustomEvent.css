@@ -1,0 +1,86 @@
+
+.time-slots-container {
+  @apply relative h-full;
+  position: relative;
+  height: calc(60px * 17); /* 17 time slots */
+}
+
+.time-slots-container.drop-over {
+  @apply bg-blue-50;
+}
+
+.time-slot {
+  @apply relative;
+  background: linear-gradient(to bottom, transparent 0%, transparent 99%, #e5e7eb 99%, #e5e7eb 100%);
+}
+
+.events-container {
+  @apply absolute inset-0 pointer-events-none;
+}
+
+.custom-event {
+  @apply rounded text-white text-xs p-1 shadow-sm border border-white/20 pointer-events-auto;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.custom-event:hover {
+  @apply shadow-md;
+  transform: translateY(-1px);
+}
+
+.custom-event.dragging {
+  @apply shadow-lg;
+  transform: rotate(2deg);
+}
+
+.event-content {
+  @apply space-y-0.5;
+}
+
+.event-title {
+  @apply font-medium truncate;
+  line-height: 1.2;
+}
+
+.event-time {
+  @apply text-xs opacity-90;
+}
+
+.event-booking {
+  @apply text-xs opacity-75;
+}
+
+.resource-column {
+  @apply absolute inset-0 transition-colors;
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  writing-mode: vertical-lr;
+  text-orientation: mixed;
+}
+
+.resource-column.drop-over {
+  @apply bg-blue-100;
+}
+
+.resource-title {
+  @apply text-sm font-medium text-gray-700 transform rotate-180;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .custom-event {
+    @apply text-xs p-0.5;
+  }
+  
+  .event-title {
+    @apply text-xs;
+  }
+  
+  .event-time,
+  .event-booking {
+    @apply text-xs;
+  }
+}
