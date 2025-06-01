@@ -1,4 +1,3 @@
-
 /* Unified Calendar Styles for both Weekly and Monthly Views */
 .weekly-view-container,
 .monthly-grid-container {
@@ -100,25 +99,75 @@
   opacity: 0.6;
 }
 
-/* CRITICAL: Sticky resource headers - make team headers stick to top when scrolling */
-.fc-datagrid-header,
-.fc-datagrid-header .fc-datagrid-cell,
-.fc-col-header,
-.fc-col-header-cell {
+/* CRITICAL: ENHANCED STICKY HEADERS - Force FullCalendar headers to stick */
+/* Target all possible FullCalendar header selectors with maximum specificity */
+.fc .fc-datagrid-header,
+.fc .fc-datagrid-header .fc-datagrid-cell,
+.fc .fc-datagrid-header .fc-datagrid-cell-frame,
+.fc .fc-datagrid-header .fc-datagrid-cell-cushion,
+.fc .fc-col-header,
+.fc .fc-col-header-cell,
+.fc .fc-col-header-cell .fc-col-header-cell-cushion,
+.fc .fc-resource-area .fc-datagrid-header,
+.fc .fc-resource-area .fc-datagrid-header .fc-datagrid-cell,
+.weekly-view-calendar .fc-datagrid-header,
+.weekly-view-calendar .fc-datagrid-header .fc-datagrid-cell,
+.weekly-view-calendar .fc-col-header-cell,
+.monthly-view-calendar .fc-datagrid-header,
+.monthly-view-calendar .fc-datagrid-header .fc-datagrid-cell,
+.monthly-view-calendar .fc-col-header-cell {
   position: sticky !important;
   top: 0 !important;
-  z-index: 100 !important;
+  z-index: 150 !important;
   background-color: #fafafa !important;
   border-bottom: 2px solid #e5e7eb !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+  backdrop-filter: blur(4px) !important;
 }
 
-/* Ensure resource area header stays sticky */
-.fc-resource-area .fc-datagrid-header {
+/* Force FullCalendar scroll containers to allow sticky children */
+.fc .fc-scroller,
+.fc .fc-scroller-liquid,
+.fc .fc-scroller-liquid-absolute,
+.fc .fc-view-harness,
+.fc .fc-view,
+.fc .fc-datagrid-body,
+.fc .fc-scrollgrid,
+.fc .fc-scrollgrid-section,
+.weekly-view-calendar .fc-scroller,
+.weekly-view-calendar .fc-view-harness,
+.monthly-view-calendar .fc-scroller,
+.monthly-view-calendar .fc-view-harness {
+  overflow: visible !important;
+  position: relative !important;
+}
+
+/* Ensure resource area header has the highest priority and sticks */
+.fc .fc-resource-area .fc-datagrid-header,
+.fc .fc-resource-area .fc-datagrid-header .fc-datagrid-cell,
+.weekly-view-calendar .fc-resource-area .fc-datagrid-header,
+.monthly-view-calendar .fc-resource-area .fc-datagrid-header {
   position: sticky !important;
   top: 0 !important;
-  z-index: 101 !important;
+  z-index: 160 !important;
   background-color: #f8fafc !important;
+  border-bottom: 3px solid #d1d5db !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Force main calendar container to create proper stacking context */
+.weekly-view-calendar,
+.monthly-view-calendar {
+  position: relative !important;
+  z-index: 1 !important;
+  overflow: visible !important;
+}
+
+/* Ensure day calendar wrappers don't interfere with sticky positioning */
+.day-calendar-wrapper,
+.monthly-day-wrapper {
+  position: relative !important;
+  z-index: 1 !important;
 }
 
 /* Make resource timeline work properly */
