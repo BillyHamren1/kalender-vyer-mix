@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
@@ -147,99 +148,98 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   };
 
   return (
-    <div
-      ref={drop}
-      className={getDropZoneClass()}
-      style={{ 
-        width: '80px',
-        minWidth: '80px', 
-        maxWidth: '80px',
-        height: '100px',
-        minHeight: '100px',
-        overflow: 'visible',
-        position: 'relative',
-        zIndex: 10
-      }}
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
-    >
-      {/* Fixed Team Header Section */}
-      <div className="flex justify-between items-center px-1 py-1 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-        <div 
-          className="text-sm font-medium cursor-pointer hover:bg-blue-100 hover:text-blue-800 transition-colors duration-200 px-1 py-0.5 rounded text-center flex-1 relative" 
-          title={`Click to assign staff to ${resource.title} on ${format(effectiveDate, 'MMM d')}`}
-          onClick={handleSelectStaff}
-        >
-          <span className="block text-sm leading-tight">{resource.title}</span>
-          <Plus className="h-2 w-2 absolute top-0 right-0 text-[#7BAEBF]" />
-        </div>
-      </div>
-      
-      {/* Scrollable Staff Section */}
-      <div className="flex-1 overflow-hidden relative">
-        {assignedStaff.length > 0 ? (
+    <div className="relative" style={{ width: '80px', minWidth: '80px', maxWidth: '80px' }}>
+      <div
+        ref={drop}
+        className={getDropZoneClass()}
+        style={{ 
+          height: '100px',
+          minHeight: '100px',
+          overflow: 'visible',
+          position: 'relative',
+          zIndex: 10
+        }}
+        onMouseEnter={() => setIsHovering(true)}
+        onMouseLeave={() => setIsHovering(false)}
+      >
+        {/* Fixed Team Header Section */}
+        <div className="flex justify-between items-center px-1 py-1 border-b border-gray-200 bg-gray-50 flex-shrink-0">
           <div 
-            ref={scrollContainerRef}
-            className={`h-full overflow-y-auto p-1 enhanced-scrollbar ${isHovering ? 'scrollbar-visible' : ''}`}
-            style={{
-              maxHeight: '72px'
-            }}
-            onScroll={handleScroll}
+            className="text-sm font-medium cursor-pointer hover:bg-blue-100 hover:text-blue-800 transition-colors duration-200 px-1 py-0.5 rounded text-center flex-1 relative" 
+            title={`Click to assign staff to ${resource.title} on ${format(effectiveDate, 'MMM d')}`}
+            onClick={handleSelectStaff}
           >
-            <div className="relative">
-              {assignedStaff.map((staff, index) => (
-                <div
-                  key={staff.id}
-                  className={`relative transition-all duration-200 ${
-                    isScrolling 
-                      ? 'mb-1'
-                      : index > 0 ? '-mt-1' : ''
-                  }`}
-                  style={{
-                    zIndex: assignedStaff.length - index,
-                  }}
-                >
-                  <UnifiedDraggableStaffItem
-                    staff={{
-                      id: staff.id,
-                      name: staff.name,
-                      assignedTeam: resource.id
-                    }}
-                    onRemove={() => handleStaffRemove(staff.id)}
-                    currentDate={effectiveDate}
-                    teamName={resource.title}
-                    variant="compact"
-                    showRemoveDialog={false}
-                  />
-                </div>
-              ))}
-            </div>
+            <span className="block text-sm leading-tight">{resource.title}</span>
+            <Plus className="h-2 w-2 absolute top-0 right-0 text-[#7BAEBF]" />
           </div>
-        ) : (
-          <div className="flex items-center justify-center h-full text-[8px] text-gray-400">
-            <span>Drop staff</span>
+        </div>
+        
+        {/* Scrollable Staff Section */}
+        <div className="flex-1 overflow-hidden relative">
+          {assignedStaff.length > 0 ? (
+            <div 
+              ref={scrollContainerRef}
+              className={`h-full overflow-y-auto p-1 enhanced-scrollbar ${isHovering ? 'scrollbar-visible' : ''}`}
+              style={{
+                maxHeight: '72px'
+              }}
+              onScroll={handleScroll}
+            >
+              <div className="relative">
+                {assignedStaff.map((staff, index) => (
+                  <div
+                    key={staff.id}
+                    className={`relative transition-all duration-200 ${
+                      isScrolling 
+                        ? 'mb-1'
+                        : index > 0 ? '-mt-1' : ''
+                    }`}
+                    style={{
+                      zIndex: assignedStaff.length - index,
+                    }}
+                  >
+                    <UnifiedDraggableStaffItem
+                      staff={{
+                        id: staff.id,
+                        name: staff.name,
+                        assignedTeam: resource.id
+                      }}
+                      onRemove={() => handleStaffRemove(staff.id)}
+                      currentDate={effectiveDate}
+                      teamName={resource.title}
+                      variant="compact"
+                      showRemoveDialog={false}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-full text-[8px] text-gray-400">
+              <span>Drop staff</span>
+            </div>
+          )}
+        </div>
+        
+        {/* Enhanced drop feedback overlay */}
+        {isOver && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+            <div className={`text-[8px] font-medium px-1 py-0.5 rounded transition-all duration-150 ${
+              canDrop 
+                ? 'bg-green-200 text-green-800 shadow-lg' 
+                : 'bg-red-200 text-red-800 shadow-lg'
+            }`}>
+              {canDrop ? `Drop for ${format(effectiveDate, 'MMM d')}` : 'Already assigned'}
+            </div>
           </div>
         )}
       </div>
       
-      {/* Scroll Arrow Indicator - POSITIONED UNDER the staff container */}
+      {/* Scroll Arrow Indicator - positioned below the main container */}
       {showScrollIndicator && (
-        <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full pointer-events-none z-30">
+        <div className="absolute left-1/2 transform -translate-x-1/2 mt-1 pointer-events-none z-30">
           <div className="bg-white rounded-full p-0.5 shadow-md">
-            <ChevronDown className="h-4 w-4 text-[#7BAEBF]" strokeWidth={3} />
-          </div>
-        </div>
-      )}
-      
-      {/* Enhanced drop feedback overlay */}
-      {isOver && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-          <div className={`text-[8px] font-medium px-1 py-0.5 rounded transition-all duration-150 ${
-            canDrop 
-              ? 'bg-green-200 text-green-800 shadow-lg' 
-              : 'bg-red-200 text-red-800 shadow-lg'
-          }`}>
-            {canDrop ? `Drop for ${format(effectiveDate, 'MMM d')}` : 'Already assigned'}
+            <ChevronDown className="h-3 w-3 text-[#7BAEBF]" strokeWidth={3} />
           </div>
         </div>
       )}
