@@ -139,7 +139,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
               scrollbarColor: '#d1d5db transparent'
             }}
           >
-            <div className="flex flex-wrap gap-1 justify-start items-start">
+            <div className="flex flex-wrap gap-0.5 justify-start items-start">
               {assignedStaff.map((staff) => (
                 <UnifiedDraggableStaffItem
                   key={staff.id}
