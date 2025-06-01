@@ -100,7 +100,26 @@
   opacity: 0.6;
 }
 
-/* ... keep existing code (all resource and calendar styling) */
+/* CRITICAL: Sticky resource headers - make team headers stick to top when scrolling */
+.fc-datagrid-header,
+.fc-datagrid-header .fc-datagrid-cell,
+.fc-col-header,
+.fc-col-header-cell {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 100 !important;
+  background-color: #fafafa !important;
+  border-bottom: 2px solid #e5e7eb !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Ensure resource area header stays sticky */
+.fc-resource-area .fc-datagrid-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 101 !important;
+  background-color: #f8fafc !important;
+}
 
 /* Make resource timeline work properly */
 .fc-resource-timeline-divider {
@@ -290,7 +309,7 @@
   min-width: 450px !important;
 }
 
-/* Critical fix - ensure ALL resource column headers have consistent width and soft borders */
+/* Critical fix - ensure ALL resource column headers have consistent width and soft borders + STICKY */
 .weekly-view-calendar .fc-col-header-cell,
 .monthly-view-calendar .fc-col-header-cell {
   min-width: 80px !important;
@@ -299,6 +318,9 @@
   border-right: 1px solid #f0f0f0 !important;
   border-bottom: 1px solid #e5e7eb !important;
   background-color: #fafafa !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 95 !important;
 }
 
 /* Fix for resource container width */
