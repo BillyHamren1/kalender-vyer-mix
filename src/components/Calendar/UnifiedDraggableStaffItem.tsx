@@ -111,7 +111,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
           draggable="true"
           title={staff.name}
         >
-          <span className={`text-[10px] font-bold leading-none truncate ${
+          <span className={`text-[10px] font-medium leading-none truncate ${
             isDragging ? 'text-blue-700 font-semibold' : 'text-gray-800'
           }`}>
             {getFirstName(staff.name)}
@@ -173,8 +173,8 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
         draggable="true"
       >
         <div className="flex items-center w-full pointer-events-none">
-          <span className={`text-xs font-medium whitespace-nowrap overflow-hidden text-ellipsis ${
-            isDragging ? 'text-blue-700 font-semibold' : ''
+          <span className={`text-xs font-normal whitespace-nowrap overflow-hidden text-ellipsis ${
+            isDragging ? 'text-blue-700 font-medium' : ''
           }`}>
             {getFirstName(staff.name)}
           </span>
