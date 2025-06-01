@@ -154,7 +154,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         </div>
       </div>
       
-      {/* Scrollable Staff Section with Overlapping Effect */}
+      {/* Scrollable Staff Section with Subtle Overlapping Effect */}
       <div className="flex-1 overflow-hidden">
         {assignedStaff.length > 0 ? (
           <div 
@@ -172,12 +172,11 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
                   key={staff.id}
                   className={`relative transition-all duration-200 ${
                     isScrolling 
-                      ? 'mb-0.5' // Normal spacing when scrolling
-                      : index > 0 ? '-mt-2' : '' // Overlap when not scrolling (except first item)
+                      ? 'mb-1' // Normal spacing when scrolling for better readability
+                      : index > 0 ? '-mt-1' : '' // Subtle overlap when not scrolling (just 4px)
                   }`}
                   style={{
                     zIndex: assignedStaff.length - index, // Higher z-index for items on top
-                    transform: isScrolling ? 'translateY(0)' : `translateY(${index * -2}px)`,
                   }}
                 >
                   <UnifiedDraggableStaffItem

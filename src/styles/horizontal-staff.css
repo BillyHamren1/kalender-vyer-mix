@@ -29,7 +29,7 @@
   scrollbar-color: #d1d5db transparent;
 }
 
-/* Compact staff item hover effects with overlapping support */
+/* Compact staff item hover effects with subtle overlapping support */
 .compact-staff-item {
   position: relative;
   transition: all 0.15s ease-in-out;
@@ -37,20 +37,20 @@
 }
 
 .compact-staff-item:hover {
-  transform: scale(1.1) translateY(-2px);
+  transform: scale(1.05) translateY(-1px);
   z-index: 30;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
 }
 
-/* Enhanced stacking for overlapped items */
+/* Subtle stacking for overlapped items - reduced overlap for better readability */
 .compact-staff-item.stacked {
-  margin-top: -8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  margin-top: -4px; /* Reduced from -8px to just -4px */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 .compact-staff-item.stacked:hover {
   margin-top: 0;
-  transform: scale(1.05) translateY(-4px);
+  transform: scale(1.05) translateY(-2px);
   z-index: 40;
 }
 
@@ -145,12 +145,12 @@
   color: #1e40af;
 }
 
-/* Overlapping effect enhancements */
+/* Subtle overlapping effect - reduced for better readability */
 .overlapped-staff-item {
   position: relative;
-  margin-top: -8px;
+  margin-top: -4px; /* Reduced from -8px to -4px for subtler overlap */
   transition: all 0.2s ease-in-out;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .overlapped-staff-item:first-child {
@@ -159,7 +159,7 @@
 
 .overlapped-staff-item:hover {
   margin-top: 0;
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   z-index: 20;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
 }
