@@ -3,7 +3,7 @@ import React from 'react';
 import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
 import { Plus } from 'lucide-react';
-import DraggableStaffItem from './DraggableStaffItem';
+import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
 import { format } from 'date-fns';
 
 interface ResourceHeaderDropZoneProps {
@@ -127,7 +127,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         </div>
       </div>
       
-      {/* Ultra-Compact Horizontal Staff Section - NO PADDING */}
+      {/* Ultra-Compact Horizontal Staff Section - Using UnifiedDraggableStaffItem */}
       <div className="horizontal-staff-container flex-1">
         {assignedStaff.length > 0 ? (
           <div 
@@ -138,23 +138,19 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
             }}
           >
             {assignedStaff.map((staff) => (
-              <div
+              <UnifiedDraggableStaffItem
                 key={staff.id}
-                className="flex-shrink-0 w-[50px] h-[18px] cursor-move transition-all duration-150 flex items-center justify-center relative group"
-                title={staff.name}
-                onDoubleClick={() => handleStaffRemove(staff.id)}
-              >
-                <span className="text-xs font-bold leading-none w-full h-full flex items-center justify-center text-gray-800">
-                  {staff.name.split(' ')[0]}
-                </span>
-                <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full text-white text-[6px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                     onClick={(e) => {
-                       e.stopPropagation();
-                       handleStaffRemove(staff.id);
-                     }}>
-                  ×
-                </div>
-              </div>
+                staff={{
+                  id: staff.id,
+                  name: staff.name,
+                  assignedTeam: resource.id
+                }}
+                onRemove={() => handleStaffRemove(staff.id)}
+                currentDate={effectiveDate}
+                teamName={resource.title}
+                variant="compact"
+                showRemoveDialog={false}
+              />
             ))}
           </div>
         ) : (
