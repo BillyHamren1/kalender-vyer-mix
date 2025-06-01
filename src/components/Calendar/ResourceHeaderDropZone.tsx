@@ -1,8 +1,7 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
-import { Plus } from 'lucide-react';
+import { Plus, ChevronDown } from 'lucide-react';
 import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
 import { format } from 'date-fns';
 
@@ -28,6 +27,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   const effectiveDate = targetDate || currentDate;
   const [isScrolling, setIsScrolling] = useState(false);
   const [showScrollIndicator, setShowScrollIndicator] = useState(false);
+  const [isHovering, setIsHovering] = useState(false);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
@@ -93,29 +93,25 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     }
   };
 
-  // Check if content is scrollable and update indicator
+  // Enhanced scroll detection with more precise checking
   const checkScrollable = () => {
     if (scrollContainerRef.current) {
       const { scrollHeight, clientHeight, scrollTop } = scrollContainerRef.current;
-      const hasScrollableContent = scrollHeight > clientHeight;
-      const isScrolledDown = scrollTop > 0;
-      const hasMoreBelow = scrollTop + clientHeight < scrollHeight - 2; // 2px tolerance
+      const hasScrollableContent = scrollHeight > clientHeight + 2; // Add small tolerance
+      const hasMoreBelow = scrollTop + clientHeight < scrollHeight - 2;
       
       setShowScrollIndicator(hasScrollableContent && hasMoreBelow);
     }
   };
 
-  // Handle scroll events to separate items during scrolling and check scroll indicator
   const handleScroll = () => {
     setIsScrolling(true);
     checkScrollable();
     
-    // Clear existing timeout
     if (scrollTimeoutRef.current) {
       clearTimeout(scrollTimeoutRef.current);
     }
     
-    // Set timeout to reset scrolling state
     scrollTimeoutRef.current = setTimeout(() => {
       setIsScrolling(false);
       checkScrollable();
@@ -125,7 +121,6 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   // Check scroll indicator on mount and when staff changes
   useEffect(() => {
     checkScrollable();
-    // Add a small delay to ensure DOM is updated
     const timer = setTimeout(checkScrollable, 100);
     return () => clearTimeout(timer);
   }, [assignedStaff.length]);
@@ -165,6 +160,8 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         position: 'relative',
         zIndex: 10
       }}
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
     >
       {/* Fixed Team Header Section */}
       <div className="flex justify-between items-center px-1 py-1 border-b border-gray-200 bg-gray-50 flex-shrink-0">
@@ -178,17 +175,15 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         </div>
       </div>
       
-      {/* Scrollable Staff Section with Scroll Indicator */}
+      {/* Scrollable Staff Section with Enhanced Scroll Indicators */}
       <div className="flex-1 overflow-hidden relative">
         {assignedStaff.length > 0 ? (
           <>
             <div 
               ref={scrollContainerRef}
-              className="h-full overflow-y-auto p-1"
+              className={`h-full overflow-y-auto p-1 enhanced-scrollbar ${isHovering ? 'scrollbar-visible' : ''}`}
               style={{
-                maxHeight: '72px',
-                scrollbarWidth: 'thin',
-                scrollbarColor: '#d1d5db transparent'
+                maxHeight: '72px'
               }}
               onScroll={handleScroll}
             >
@@ -198,11 +193,11 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
                     key={staff.id}
                     className={`relative transition-all duration-200 ${
                       isScrolling 
-                        ? 'mb-1' // Normal spacing when scrolling for better readability
-                        : index > 0 ? '-mt-1' : '' // Subtle overlap when not scrolling (just 4px)
+                        ? 'mb-1'
+                        : index > 0 ? '-mt-1' : ''
                     }`}
                     style={{
-                      zIndex: assignedStaff.length - index, // Higher z-index for items on top
+                      zIndex: assignedStaff.length - index,
                     }}
                   >
                     <UnifiedDraggableStaffItem
@@ -222,11 +217,29 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
               </div>
             </div>
             
-            {/* Scroll Indicator - shows when there's more content below */}
+            {/* Enhanced Scroll Indicator - Much More Visible */}
             {showScrollIndicator && (
-              <div className="absolute bottom-0 left-0 right-0 h-3 bg-gradient-to-t from-gray-200 via-gray-100 to-transparent pointer-events-none flex items-end justify-center pb-0.5">
-                <div className="text-[6px] text-gray-500 font-medium">⋯</div>
-              </div>
+              <>
+                {/* Strong gradient fade */}
+                <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-gray-50 via-gray-50/80 to-transparent pointer-events-none z-10" />
+                
+                {/* Clear scroll indicator */}
+                <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center pb-1 pointer-events-none z-20">
+                  <div className="bg-blue-500 text-white text-[8px] font-bold px-2 py-0.5 rounded-full shadow-md flex items-center gap-0.5 animate-bounce">
+                    <ChevronDown className="h-2 w-2" />
+                    <span>More</span>
+                  </div>
+                </div>
+                
+                {/* Hover hint */}
+                {isHovering && (
+                  <div className="absolute bottom-6 left-0 right-0 flex items-center justify-center pointer-events-none z-20">
+                    <div className="bg-gray-800 text-white text-[7px] px-1 py-0.5 rounded shadow-lg">
+                      Scroll to see all
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </>
         ) : (

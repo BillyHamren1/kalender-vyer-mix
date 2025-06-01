@@ -5,28 +5,46 @@
   overflow: visible;
 }
 
-/* Custom scrollbar styling for horizontal staff container */
-.horizontal-staff-container .flex::-webkit-scrollbar {
-  height: 2px;
-}
-
-.horizontal-staff-container .flex::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.horizontal-staff-container .flex::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 1px;
-}
-
-.horizontal-staff-container .flex::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
-}
-
-/* Firefox scrollbar styling */
-.horizontal-staff-container .flex {
+/* Enhanced scrollbar styling for much better visibility */
+.enhanced-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #d1d5db transparent;
+  scrollbar-color: #9ca3af #e5e7eb;
+}
+
+.enhanced-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.enhanced-scrollbar::-webkit-scrollbar-track {
+  background: #e5e7eb;
+  border-radius: 3px;
+}
+
+.enhanced-scrollbar::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border-radius: 3px;
+  border: 1px solid #e5e7eb;
+}
+
+.enhanced-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* More visible scrollbar on hover */
+.enhanced-scrollbar.scrollbar-visible::-webkit-scrollbar {
+  width: 8px;
+}
+
+.enhanced-scrollbar.scrollbar-visible::-webkit-scrollbar-thumb {
+  background: #6b7280;
+  box-shadow: 0 0 3px rgba(0,0,0,0.2);
+}
+
+/* Firefox enhanced scrollbar */
+.enhanced-scrollbar.scrollbar-visible {
+  scrollbar-width: auto;
+  scrollbar-color: #6b7280 #e5e7eb;
 }
 
 /* Compact staff item hover effects with subtle overlapping support */
@@ -44,7 +62,7 @@
 
 /* Subtle stacking for overlapped items - reduced overlap for better readability */
 .compact-staff-item.stacked {
-  margin-top: -4px; /* Reduced from -8px to just -4px */
+  margin-top: -4px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
@@ -148,7 +166,7 @@
 /* Subtle overlapping effect - reduced for better readability */
 .overlapped-staff-item {
   position: relative;
-  margin-top: -4px; /* Reduced from -8px to -4px for subtler overlap */
+  margin-top: -4px;
   transition: all 0.2s ease-in-out;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
@@ -164,7 +182,7 @@
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
 }
 
-/* Enhanced scroll indicator styling */
+/* Enhanced scroll indicator styling with animations */
 .scroll-indicator {
   position: absolute;
   bottom: 0;
@@ -184,14 +202,51 @@
   50% { opacity: 0.9; }
 }
 
-/* Gradient overlay for better scroll indication */
+/* Strong gradient overlay for better scroll indication */
 .scroll-gradient-overlay {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 12px;
-  background: linear-gradient(to top, rgba(249,250,251,0.8), transparent);
+  height: 20px;
+  background: linear-gradient(to top, rgba(249,250,251,0.95), transparent);
   pointer-events: none;
   z-index: 15;
+}
+
+/* Animation for scroll indicators */
+@keyframes bounce-gentle {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+/* Enhanced visibility for scroll hints */
+.scroll-hint {
+  animation: bounce-gentle 2s ease-in-out infinite;
+}
+
+/* Hover state enhancements */
+.resource-header-drop-zone:hover .enhanced-scrollbar::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  box-shadow: 0 0 4px rgba(0,0,0,0.3);
+}
+
+/* Visual feedback for scrollable areas */
+.scrollable-area-indicator {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom, #3b82f6, #1d4ed8);
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.resource-header-drop-zone:hover .scrollable-area-indicator {
+  opacity: 0.6;
 }
