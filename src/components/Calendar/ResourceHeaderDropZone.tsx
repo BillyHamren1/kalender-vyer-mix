@@ -217,16 +217,16 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
               </div>
             </div>
             
-            {/* Scroll Indicators with Correct Teal Colors */}
+            {/* Scroll Indicators with Clear Arrow */}
             {showScrollIndicator && (
               <>
                 {/* Subtle gradient fade - much smaller */}
                 <div className="absolute bottom-0 left-0 right-0 h-3 bg-gradient-to-t from-gray-50/70 to-transparent pointer-events-none z-10" />
                 
-                {/* Arrow indicator with correct system teal color and thicker border */}
+                {/* Arrow indicator with clear visibility */}
                 <div className="absolute bottom-1 right-1 pointer-events-none z-20">
-                  <div className="bg-white border-2 border-[#7BAEBF] rounded-full p-0.5 shadow-sm">
-                    <ChevronDown className="h-2 w-2 text-[#7BAEBF]" />
+                  <div className="bg-white border-2 border-[#7BAEBF] rounded-full p-1 shadow-md">
+                    <ChevronDown className="h-3 w-3 text-[#7BAEBF] stroke-2" strokeWidth={2.5} />
                   </div>
                 </div>
                 
