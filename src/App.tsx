@@ -1,12 +1,12 @@
+
 import React, { useState, createContext } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { Navbar } from "./components/Navigation/Navbar";
+import Navbar from "./components/Navigation/Navbar";
 import WeeklyResourceView from "./pages/WeeklyResourceView";
 import CustomCalendarPage from "./pages/CustomCalendarPage";
 import MonthlyResourceView from "./pages/MonthlyResourceView";
 import ResourceView from "./pages/ResourceView";
-import BookingCalendar from "./pages/BookingCalendar";
 import StaffManagement from "./pages/StaffManagement";
 import { resetColorAssignments } from "./utils/uniqueStaffColors";
 
@@ -44,7 +44,6 @@ function App() {
               <Route path="/weekly-view" element={<WeeklyResourceView />} />
               <Route path="/monthly-view" element={<MonthlyResourceView />} />
               <Route path="/resource-view" element={<ResourceView />} />
-              <Route path="/booking-calendar" element={<BookingCalendar />} />
               <Route path="/staff-management" element={<StaffManagement />} />
               <Route path="/custom-calendar" element={<CustomCalendarPage />} />
             </Routes>
