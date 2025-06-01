@@ -5,15 +5,17 @@ import { Users, Plus, Search, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { fetchStaffMembers } from '@/services/staffService';
+import { fetchStaffMembers, updateStaffColor } from '@/services/staffService';
 import { toast } from 'sonner';
 import StaffList from '@/components/staff/StaffList';
 import AddStaffDialog from '@/components/staff/AddStaffDialog';
 import StaffStats from '@/components/staff/StaffStats';
+import StaffColorSettings from '@/components/staff/StaffColorSettings';
 
 const StaffManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [selectedStaffForColor, setSelectedStaffForColor] = useState<any>(null);
 
   // Fetch staff members
   const { 
@@ -37,6 +39,11 @@ const StaffManagement: React.FC = () => {
     setIsAddDialogOpen(false);
     refetch();
     toast.success('Staff member added successfully');
+  };
+
+  const handleColorUpdate = async (staffId: string, color: string) => {
+    await updateStaffColor(staffId, color);
+    refetch(); // Refresh the list to show updated colors
   };
 
   // Filter staff based on search term
@@ -89,36 +96,61 @@ const StaffManagement: React.FC = () => {
 
       {/* Main Content */}
       <div className="p-6">
-        <div className="space-y-6">
-          {/* Stats Cards */}
-          <StaffStats staffMembers={staffMembers} isLoading={isLoading} />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left side - Staff Directory */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Stats Cards */}
+            <StaffStats staffMembers={staffMembers} isLoading={isLoading} />
 
-          {/* Search and Filters */}
-          <Card>
-            <CardHeader className="py-4">
-              <CardTitle className="text-lg">Staff Directory</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="flex items-center space-x-4 mb-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                  <Input
-                    placeholder="Search by name, email, or phone..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
+            {/* Search and Filters */}
+            <Card>
+              <CardHeader className="py-4">
+                <CardTitle className="text-lg">Staff Directory</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="flex items-center space-x-4 mb-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      placeholder="Search by name, email, or phone..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
                 </div>
-              </div>
-              
-              {/* Staff List */}
-              <StaffList 
-                staffMembers={filteredStaff}
-                isLoading={isLoading}
-                onRefresh={refetch}
+                
+                {/* Staff List */}
+                <StaffList 
+                  staffMembers={filteredStaff}
+                  isLoading={isLoading}
+                  onRefresh={refetch}
+                  onColorEdit={setSelectedStaffForColor}
+                />
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right side - Color Settings */}
+          <div className="space-y-6">
+            {selectedStaffForColor ? (
+              <StaffColorSettings
+                staff={selectedStaffForColor}
+                onColorUpdate={handleColorUpdate}
               />
-            </CardContent>
-          </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Färginställningar</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600">
+                    Välj en personal från listan för att ändra deras färg.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
       </div>
 

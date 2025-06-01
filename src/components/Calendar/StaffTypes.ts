@@ -6,6 +6,7 @@ export interface StaffMember {
   email?: string;
   phone?: string;
   assignedTeam?: string | null;
+  color?: string; // Add color property
 }
 
 // Interface for a staff assignment
@@ -19,5 +20,6 @@ export interface StaffAssignment {
     name: string;
     email?: string;
     phone?: string;
+    color?: string; // Add color property
   };
 }

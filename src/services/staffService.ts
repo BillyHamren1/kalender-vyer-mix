@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface StaffMember {
@@ -17,6 +16,7 @@ export interface StaffMember {
   emergency_contact_phone?: string;
   notes?: string;
   assignedTeam?: string;
+  color?: string; // Add color property
 }
 
 export interface StaffAssignment {
@@ -29,6 +29,7 @@ export interface StaffAssignment {
     name: string;
     email?: string;
     phone?: string;
+    color?: string; // Add color property
   };
   // Alternative field names for backward compatibility
   staff_name?: string;
@@ -36,6 +37,28 @@ export interface StaffAssignment {
   email?: string;
   phone?: string;
 }
+
+// Update staff member color
+export const updateStaffColor = async (staffId: string, color: string): Promise<void> => {
+  try {
+    console.log(`Updating color for staff ${staffId} to ${color}`);
+    
+    const { error } = await supabase
+      .from('staff_members')
+      .update({ color })
+      .eq('id', staffId);
+
+    if (error) {
+      console.error('Error updating staff color:', error);
+      throw error;
+    }
+
+    console.log('Staff color updated successfully');
+  } catch (error) {
+    console.error('Error in updateStaffColor:', error);
+    throw error;
+  }
+};
 
 // Sync staff member from external API to local database
 export const syncStaffMember = async (staffData: any): Promise<void> => {

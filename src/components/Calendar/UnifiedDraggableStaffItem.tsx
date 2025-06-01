@@ -1,7 +1,9 @@
+
 import React, { useState } from 'react';
 import { useDrag } from 'react-dnd';
 import { StaffMember } from './StaffTypes';
 import ConfirmationDialog from '@/components/ConfirmationDialog';
+import { getContrastTextColor, adjustColorOpacity } from '@/utils/staffColors';
 
 const getFirstName = (fullName: string): string => {
   return fullName.trim().split(' ')[0];
@@ -87,6 +89,11 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
     return null;
   }
 
+  // Get staff color with fallback
+  const staffColor = staff.color || '#E3F2FD';
+  const textColor = getContrastTextColor(staffColor);
+  const dragColor = isDragging ? adjustColorOpacity(staffColor, 0.7) : staffColor;
+
   // Compact variant for wrapping layout
   if (variant === 'compact') {
     const dragClasses = isDragging 
@@ -100,19 +107,22 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
             drag(node);
             dragPreview(node);
           }}
-          className={`min-w-[40px] max-w-[60px] h-[12px] cursor-move transition-all duration-150 flex items-center justify-center relative group bg-white border border-gray-200 rounded mb-0.5 ${dragClasses}`}
+          className={`min-w-[40px] max-w-[60px] h-[12px] cursor-move transition-all duration-150 flex items-center justify-center relative group border border-gray-200 rounded mb-0.5 ${dragClasses}`}
           style={{ 
+            backgroundColor: dragColor,
+            color: textColor,
             userSelect: 'none',
             WebkitUserSelect: 'none',
             padding: '1px 2px',
-            transition: isDragging ? 'all 0.1s ease-out' : 'all 0.15s ease-in-out'
+            transition: isDragging ? 'all 0.1s ease-out' : 'all 0.15s ease-in-out',
+            borderColor: isDragging ? textColor : '#e5e7eb'
           }}
           onDoubleClick={handleDoubleClick}
           draggable="true"
           title={staff.name}
         >
           <span className={`text-xs font-medium leading-none truncate ${
-            isDragging ? 'text-blue-700 font-semibold' : 'text-gray-800'
+            isDragging ? 'font-semibold' : ''
           }`}>
             {getFirstName(staff.name)}
           </span>
@@ -147,11 +157,11 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
   // Standard vertical variant
   const baseClasses = `p-1 border border-gray-200 rounded-md mb-1 cursor-move flex items-center w-full transition-all duration-150 hover:shadow-sm active:cursor-grabbing`;
   const variantClasses = variant === 'available' 
-    ? 'bg-white shadow-sm'
-    : 'bg-white';
+    ? 'shadow-sm'
+    : '';
   
   const dragClasses = isDragging 
-    ? 'opacity-30 transform rotate-1 scale-110 shadow-lg bg-blue-50 border-blue-300' 
+    ? 'opacity-30 transform rotate-1 scale-110 shadow-lg border-blue-300' 
     : 'opacity-100';
 
   return (
@@ -163,18 +173,21 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
         }}
         className={`${baseClasses} ${variantClasses} ${dragClasses}`}
         style={{ 
+          backgroundColor: dragColor,
+          color: textColor,
           height: variant === 'available' ? "28px" : "24px", 
           maxWidth: "100%",
           userSelect: 'none',
           WebkitUserSelect: 'none',
-          transition: isDragging ? 'all 0.1s ease-out' : 'all 0.15s ease-in-out'
+          transition: isDragging ? 'all 0.1s ease-out' : 'all 0.15s ease-in-out',
+          borderColor: isDragging ? textColor : '#e5e7eb'
         }}
         onDoubleClick={handleDoubleClick}
         draggable="true"
       >
         <div className="flex items-center w-full pointer-events-none">
           <span className={`text-xs font-normal whitespace-nowrap overflow-hidden text-ellipsis ${
-            isDragging ? 'text-blue-700 font-medium' : ''
+            isDragging ? 'font-medium' : ''
           }`}>
             {getFirstName(staff.name)}
           </span>
