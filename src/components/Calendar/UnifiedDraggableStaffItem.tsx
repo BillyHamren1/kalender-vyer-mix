@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useDrag } from 'react-dnd';
 import { StaffMember } from './StaffTypes';
@@ -101,17 +100,18 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
             drag(node);
             dragPreview(node);
           }}
-          className={`min-w-[40px] max-w-[60px] h-[16px] cursor-move transition-all duration-150 flex items-center justify-center relative group bg-white border border-gray-200 rounded px-1 ${dragClasses}`}
+          className={`min-w-[40px] max-w-[60px] h-[12px] cursor-move transition-all duration-150 flex items-center justify-center relative group bg-white border border-gray-200 rounded mb-0.5 ${dragClasses}`}
           style={{ 
             userSelect: 'none',
             WebkitUserSelect: 'none',
+            padding: '1px 2px',
             transition: isDragging ? 'all 0.1s ease-out' : 'all 0.15s ease-in-out'
           }}
           onDoubleClick={handleDoubleClick}
           draggable="true"
           title={staff.name}
         >
-          <span className={`text-[10px] font-medium leading-none truncate ${
+          <span className={`text-xs font-medium leading-none truncate ${
             isDragging ? 'text-blue-700 font-semibold' : 'text-gray-800'
           }`}>
             {getFirstName(staff.name)}

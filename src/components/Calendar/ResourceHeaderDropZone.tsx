@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
@@ -158,13 +157,13 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
           {assignedStaff.length > 0 ? (
             <div 
               ref={scrollContainerRef}
-              className={`h-full overflow-y-auto p-1 enhanced-scrollbar ${isHovering ? 'scrollbar-visible' : ''}`}
+              className={`h-full overflow-y-auto px-1 py-0.5 enhanced-scrollbar ${isHovering ? 'scrollbar-visible' : ''}`}
               style={{
                 maxHeight: '72px'
               }}
               onScroll={handleScroll}
             >
-              <div className="space-y-1">
+              <div className="space-y-0">
                 {assignedStaff.map((staff) => (
                   <div key={staff.id}>
                     <UnifiedDraggableStaffItem
