@@ -89,7 +89,7 @@
   z-index: 50;
 }
 
-/* Scroll indicators for when content overflows */
+/* Enhanced scroll indicators for when content overflows */
 .horizontal-staff-container:after {
   content: '';
   position: absolute;
@@ -162,4 +162,36 @@
   transform: translateY(-1px);
   z-index: 20;
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* Enhanced scroll indicator styling */
+.scroll-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  color: #6b7280;
+  background: linear-gradient(to top, rgba(255,255,255,0.9), transparent);
+  padding: 1px 4px;
+  border-radius: 2px;
+  opacity: 0.7;
+  animation: pulse-subtle 2s ease-in-out infinite;
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 0.9; }
+}
+
+/* Gradient overlay for better scroll indication */
+.scroll-gradient-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 12px;
+  background: linear-gradient(to top, rgba(249,250,251,0.8), transparent);
+  pointer-events: none;
+  z-index: 15;
 }

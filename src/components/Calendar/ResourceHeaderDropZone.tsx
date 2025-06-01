@@ -27,7 +27,9 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
 }) => {
   const effectiveDate = targetDate || currentDate;
   const [isScrolling, setIsScrolling] = useState(false);
+  const [showScrollIndicator, setShowScrollIndicator] = useState(false);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff, target date: ${format(effectiveDate, 'yyyy-MM-dd')}, minHeight: ${minHeight}`);
 
@@ -91,9 +93,22 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     }
   };
 
-  // Handle scroll events to separate items during scrolling
+  // Check if content is scrollable and update indicator
+  const checkScrollable = () => {
+    if (scrollContainerRef.current) {
+      const { scrollHeight, clientHeight, scrollTop } = scrollContainerRef.current;
+      const hasScrollableContent = scrollHeight > clientHeight;
+      const isScrolledDown = scrollTop > 0;
+      const hasMoreBelow = scrollTop + clientHeight < scrollHeight - 2; // 2px tolerance
+      
+      setShowScrollIndicator(hasScrollableContent && hasMoreBelow);
+    }
+  };
+
+  // Handle scroll events to separate items during scrolling and check scroll indicator
   const handleScroll = () => {
     setIsScrolling(true);
+    checkScrollable();
     
     // Clear existing timeout
     if (scrollTimeoutRef.current) {
@@ -103,8 +118,17 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     // Set timeout to reset scrolling state
     scrollTimeoutRef.current = setTimeout(() => {
       setIsScrolling(false);
+      checkScrollable();
     }, 150);
   };
+
+  // Check scroll indicator on mount and when staff changes
+  useEffect(() => {
+    checkScrollable();
+    // Add a small delay to ensure DOM is updated
+    const timer = setTimeout(checkScrollable, 100);
+    return () => clearTimeout(timer);
+  }, [assignedStaff.length]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -154,47 +178,57 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         </div>
       </div>
       
-      {/* Scrollable Staff Section with Subtle Overlapping Effect */}
-      <div className="flex-1 overflow-hidden">
+      {/* Scrollable Staff Section with Scroll Indicator */}
+      <div className="flex-1 overflow-hidden relative">
         {assignedStaff.length > 0 ? (
-          <div 
-            className="h-full overflow-y-auto p-1"
-            style={{
-              maxHeight: '72px',
-              scrollbarWidth: 'thin',
-              scrollbarColor: '#d1d5db transparent'
-            }}
-            onScroll={handleScroll}
-          >
-            <div className="relative">
-              {assignedStaff.map((staff, index) => (
-                <div
-                  key={staff.id}
-                  className={`relative transition-all duration-200 ${
-                    isScrolling 
-                      ? 'mb-1' // Normal spacing when scrolling for better readability
-                      : index > 0 ? '-mt-1' : '' // Subtle overlap when not scrolling (just 4px)
-                  }`}
-                  style={{
-                    zIndex: assignedStaff.length - index, // Higher z-index for items on top
-                  }}
-                >
-                  <UnifiedDraggableStaffItem
-                    staff={{
-                      id: staff.id,
-                      name: staff.name,
-                      assignedTeam: resource.id
+          <>
+            <div 
+              ref={scrollContainerRef}
+              className="h-full overflow-y-auto p-1"
+              style={{
+                maxHeight: '72px',
+                scrollbarWidth: 'thin',
+                scrollbarColor: '#d1d5db transparent'
+              }}
+              onScroll={handleScroll}
+            >
+              <div className="relative">
+                {assignedStaff.map((staff, index) => (
+                  <div
+                    key={staff.id}
+                    className={`relative transition-all duration-200 ${
+                      isScrolling 
+                        ? 'mb-1' // Normal spacing when scrolling for better readability
+                        : index > 0 ? '-mt-1' : '' // Subtle overlap when not scrolling (just 4px)
+                    }`}
+                    style={{
+                      zIndex: assignedStaff.length - index, // Higher z-index for items on top
                     }}
-                    onRemove={() => handleStaffRemove(staff.id)}
-                    currentDate={effectiveDate}
-                    teamName={resource.title}
-                    variant="compact"
-                    showRemoveDialog={false}
-                  />
-                </div>
-              ))}
+                  >
+                    <UnifiedDraggableStaffItem
+                      staff={{
+                        id: staff.id,
+                        name: staff.name,
+                        assignedTeam: resource.id
+                      }}
+                      onRemove={() => handleStaffRemove(staff.id)}
+                      currentDate={effectiveDate}
+                      teamName={resource.title}
+                      variant="compact"
+                      showRemoveDialog={false}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+            
+            {/* Scroll Indicator - shows when there's more content below */}
+            {showScrollIndicator && (
+              <div className="absolute bottom-0 left-0 right-0 h-3 bg-gradient-to-t from-gray-200 via-gray-100 to-transparent pointer-events-none flex items-end justify-center pb-0.5">
+                <div className="text-[6px] text-gray-500 font-medium">⋯</div>
+              </div>
+            )}
+          </>
         ) : (
           <div className="flex items-center justify-center h-full text-[8px] text-gray-400">
             <span>Drop staff</span>
