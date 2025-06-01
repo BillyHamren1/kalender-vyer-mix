@@ -88,7 +88,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
     return null;
   }
 
-  // Compact variant for horizontal stacking - ULTRA COMPACT
+  // Compact variant for wrapping layout
   if (variant === 'compact') {
     const dragClasses = isDragging 
       ? 'opacity-30 transform rotate-1 scale-110' 
@@ -101,7 +101,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
             drag(node);
             dragPreview(node);
           }}
-          className={`w-[50px] h-[18px] cursor-move transition-all duration-150 flex items-center justify-center relative group ${dragClasses}`}
+          className={`min-w-[40px] max-w-[60px] h-[16px] cursor-move transition-all duration-150 flex items-center justify-center relative group bg-white border border-gray-200 rounded px-1 ${dragClasses}`}
           style={{ 
             userSelect: 'none',
             WebkitUserSelect: 'none',
@@ -111,7 +111,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
           draggable="true"
           title={staff.name}
         >
-          <span className={`text-xs font-bold leading-none w-full h-full flex items-center justify-center ${
+          <span className={`text-[10px] font-bold leading-none truncate ${
             isDragging ? 'text-blue-700 font-semibold' : 'text-gray-800'
           }`}>
             {getFirstName(staff.name)}

@@ -109,14 +109,15 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         width: '80px',
         minWidth: '80px', 
         maxWidth: '80px',
-        height: '100px',
+        minHeight: '100px',
+        height: 'auto',
         overflow: 'visible',
         position: 'relative',
         zIndex: 10
       }}
     >
       {/* Fixed Team Header Section */}
-      <div className="flex justify-between items-center px-1 py-1 border-b border-gray-200 bg-gray-50">
+      <div className="flex justify-between items-center px-1 py-1 border-b border-gray-200 bg-gray-50 flex-shrink-0">
         <div 
           className="text-sm font-medium cursor-pointer hover:bg-blue-100 hover:text-blue-800 transition-colors duration-200 px-1 py-0.5 rounded text-center flex-1 relative" 
           title={`Click to assign staff to ${resource.title} on ${format(effectiveDate, 'MMM d')}`}
@@ -127,16 +128,10 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         </div>
       </div>
       
-      {/* Ultra-Compact Horizontal Staff Section - Using UnifiedDraggableStaffItem */}
-      <div className="horizontal-staff-container flex-1">
+      {/* Vertical Wrapping Staff Section */}
+      <div className="flex-1 p-1">
         {assignedStaff.length > 0 ? (
-          <div 
-            className="flex overflow-x-auto h-full scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
-            style={{
-              scrollbarWidth: 'thin',
-              scrollbarColor: '#d1d5db transparent'
-            }}
-          >
+          <div className="flex flex-wrap gap-1 justify-start items-start h-full">
             {assignedStaff.map((staff) => (
               <UnifiedDraggableStaffItem
                 key={staff.id}
