@@ -224,10 +224,10 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
                 {/* Subtle gradient fade - much smaller */}
                 <div className="absolute bottom-0 left-0 right-0 h-3 bg-gradient-to-t from-gray-50/70 to-transparent pointer-events-none z-10" />
                 
-                {/* Small arrow indicator in bottom-right corner */}
+                {/* Small arrow indicator in bottom-right corner with teal styling */}
                 <div className="absolute bottom-1 right-1 pointer-events-none z-20">
-                  <div className="bg-gray-600/80 text-white rounded-full p-0.5 shadow-sm">
-                    <ChevronDown className="h-2 w-2" />
+                  <div className="bg-white border border-teal-500 rounded-full p-0.5 shadow-sm">
+                    <ChevronDown className="h-2 w-2 text-teal-500" />
                   </div>
                 </div>
                 
