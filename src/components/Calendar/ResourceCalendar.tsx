@@ -55,7 +55,11 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     
     return (
       <ResourceHeaderDropZone
-        resource={{ id: resourceId, title: resourceTitle }}
+        resource={{ 
+          id: resourceId, 
+          title: resourceTitle,
+          eventColor: arg.resource.eventColor || '#3b82f6'
+        }}
         currentDate={currentDate}
         targetDate={effectiveDate}
         onStaffDrop={onStaffDrop}

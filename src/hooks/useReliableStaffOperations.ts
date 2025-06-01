@@ -4,19 +4,20 @@ import { supabase } from '@/integrations/supabase/client';
 import { fetchStaffMembers } from '@/services/staffService';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { getUniqueColorForStaff } from '@/utils/uniqueStaffColors';
 
 export interface StaffAssignmentData {
   staffId: string;
   teamId: string;
   date: string;
-  staffName?: string;
-  color?: string;
+  staffName: string; // Made required
+  color: string; // Made required
 }
 
 export interface StaffMemberWithAssignment {
   id: string;
   name: string;
-  color?: string;
+  color: string; // Made required
   assignedTeam?: string | null;
 }
 
@@ -36,14 +37,14 @@ export const useReliableStaffOperations = (currentDate: Date) => {
 
   const dateStr = format(currentDate, 'yyyy-MM-dd');
 
-  // Fetch all staff members with color information
+  // Fetch all staff members with unique color assignments
   const fetchAllStaff = useCallback(async () => {
     try {
       const staffMembers = await fetchStaffMembers();
       const staffWithAssignments = staffMembers.map(staff => ({
         id: staff.id,
         name: staff.name,
-        color: staff.color || '#E3F2FD',
+        color: getUniqueColorForStaff(staff.id, staff.color),
         assignedTeam: null
       }));
       setAllStaff(staffWithAssignments);
@@ -72,13 +73,19 @@ export const useReliableStaffOperations = (currentDate: Date) => {
 
       if (error) throw error;
 
-      const assignmentsData = (data || []).map(assignment => ({
-        staffId: assignment.staff_id,
-        teamId: assignment.team_id,
-        date: assignment.assignment_date,
-        staffName: assignment.staff_members?.name || `Staff ${assignment.staff_id}`,
-        color: assignment.staff_members?.color || '#E3F2FD'
-      }));
+      const assignmentsData = (data || []).map(assignment => {
+        const staffName = assignment.staff_members?.name || `Staff ${assignment.staff_id}`;
+        const originalColor = assignment.staff_members?.color;
+        const uniqueColor = getUniqueColorForStaff(assignment.staff_id, originalColor);
+        
+        return {
+          staffId: assignment.staff_id,
+          teamId: assignment.team_id,
+          date: assignment.assignment_date,
+          staffName,
+          color: uniqueColor
+        };
+      });
 
       setAssignments(assignmentsData);
       return assignmentsData;
@@ -103,13 +110,13 @@ export const useReliableStaffOperations = (currentDate: Date) => {
   }, [fetchAllStaff, fetchAssignments, refreshCounter]);
 
   // Get staff assigned to a specific team with color information
-  const getStaffForTeam = useCallback((teamId: string): Array<{id: string, name: string, color?: string}> => {
+  const getStaffForTeam = useCallback((teamId: string): Array<{id: string, name: string, color: string}> => {
     const teamAssignments = assignments.filter(assignment => assignment.teamId === teamId);
     
     return teamAssignments.map(assignment => ({
       id: assignment.staffId,
-      name: assignment.staffName || `Staff ${assignment.staffId}`,
-      color: assignment.color || '#E3F2FD'
+      name: assignment.staffName,
+      color: assignment.color
     }));
   }, [assignments]);
 
