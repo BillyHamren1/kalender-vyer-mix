@@ -88,10 +88,10 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
     return null;
   }
 
-  // Compact variant for horizontal stacking
+  // Compact variant for horizontal stacking - ULTRA COMPACT
   if (variant === 'compact') {
     const dragClasses = isDragging 
-      ? 'opacity-30 transform rotate-1 scale-110 shadow-lg bg-blue-50 border-blue-300' 
+      ? 'opacity-30 transform rotate-1 scale-110' 
       : 'opacity-100';
 
     return (
@@ -101,7 +101,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
             drag(node);
             dragPreview(node);
           }}
-          className={`w-[50px] h-[18px] bg-white border border-gray-200 rounded text-[7px] font-medium cursor-move hover:shadow-sm transition-all duration-150 flex items-center justify-center relative group ${dragClasses}`}
+          className={`w-[40px] h-[14px] cursor-move transition-all duration-150 flex items-center justify-center relative group ${dragClasses}`}
           style={{ 
             userSelect: 'none',
             WebkitUserSelect: 'none',
@@ -111,8 +111,8 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
           draggable="true"
           title={staff.name}
         >
-          <span className={`text-[7px] font-bold leading-none truncate px-1 ${
-            isDragging ? 'text-blue-700 font-semibold' : ''
+          <span className={`text-[7px] font-bold leading-none w-full h-full flex items-center justify-center ${
+            isDragging ? 'text-blue-700 font-semibold' : 'text-gray-800'
           }`}>
             {getFirstName(staff.name)}
           </span>

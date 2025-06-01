@@ -127,11 +127,11 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         </div>
       </div>
       
-      {/* Fixed Height Horizontal Staff Section */}
-      <div className="horizontal-staff-container flex-1 p-1">
+      {/* Ultra-Compact Horizontal Staff Section - NO PADDING */}
+      <div className="horizontal-staff-container flex-1">
         {assignedStaff.length > 0 ? (
           <div 
-            className="flex gap-0.5 overflow-x-auto h-full scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
+            className="flex overflow-x-auto h-full scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
             style={{
               scrollbarWidth: 'thin',
               scrollbarColor: '#d1d5db transparent'
@@ -140,11 +140,11 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
             {assignedStaff.map((staff) => (
               <div
                 key={staff.id}
-                className="flex-shrink-0 w-[50px] h-[18px] bg-white border border-gray-200 rounded text-[7px] font-medium cursor-move hover:shadow-sm transition-all duration-150 flex items-center justify-center relative group"
+                className="flex-shrink-0 w-[40px] h-[14px] cursor-move transition-all duration-150 flex items-center justify-center relative group"
                 title={staff.name}
                 onDoubleClick={() => handleStaffRemove(staff.id)}
               >
-                <span className="text-[7px] font-bold leading-none truncate px-1">
+                <span className="text-[7px] font-bold leading-none w-full h-full flex items-center justify-center text-gray-800">
                   {staff.name.split(' ')[0]}
                 </span>
                 <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full text-white text-[6px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
