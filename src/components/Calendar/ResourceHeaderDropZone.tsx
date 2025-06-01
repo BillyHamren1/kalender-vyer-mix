@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
@@ -175,7 +176,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         </div>
       </div>
       
-      {/* Scrollable Staff Section with Enhanced Scroll Indicators */}
+      {/* Scrollable Staff Section with Subtle Scroll Indicators */}
       <div className="flex-1 overflow-hidden relative">
         {assignedStaff.length > 0 ? (
           <>
@@ -217,25 +218,24 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
               </div>
             </div>
             
-            {/* Enhanced Scroll Indicator - Much More Visible */}
+            {/* Subtle Scroll Indicators */}
             {showScrollIndicator && (
               <>
-                {/* Strong gradient fade */}
-                <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-gray-50 via-gray-50/80 to-transparent pointer-events-none z-10" />
+                {/* Subtle gradient fade - much smaller */}
+                <div className="absolute bottom-0 left-0 right-0 h-3 bg-gradient-to-t from-gray-50/70 to-transparent pointer-events-none z-10" />
                 
-                {/* Clear scroll indicator */}
-                <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center pb-1 pointer-events-none z-20">
-                  <div className="bg-blue-500 text-white text-[8px] font-bold px-2 py-0.5 rounded-full shadow-md flex items-center gap-0.5 animate-bounce">
+                {/* Small arrow indicator in bottom-right corner */}
+                <div className="absolute bottom-1 right-1 pointer-events-none z-20">
+                  <div className="bg-gray-600/80 text-white rounded-full p-0.5 shadow-sm">
                     <ChevronDown className="h-2 w-2" />
-                    <span>More</span>
                   </div>
                 </div>
                 
-                {/* Hover hint */}
+                {/* Hover hint - only show on hover and much smaller */}
                 {isHovering && (
-                  <div className="absolute bottom-6 left-0 right-0 flex items-center justify-center pointer-events-none z-20">
-                    <div className="bg-gray-800 text-white text-[7px] px-1 py-0.5 rounded shadow-lg">
-                      Scroll to see all
+                  <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 pointer-events-none z-20">
+                    <div className="bg-gray-800 text-white text-[6px] px-1 py-0.5 rounded shadow-lg whitespace-nowrap">
+                      Scroll for more
                     </div>
                   </div>
                 )}
