@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
 import { Plus } from 'lucide-react';
@@ -26,6 +26,8 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   minHeight = 100
 }) => {
   const effectiveDate = targetDate || currentDate;
+  const [isScrolling, setIsScrolling] = useState(false);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff, target date: ${format(effectiveDate, 'yyyy-MM-dd')}, minHeight: ${minHeight}`);
 
@@ -89,6 +91,30 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     }
   };
 
+  // Handle scroll events to separate items during scrolling
+  const handleScroll = () => {
+    setIsScrolling(true);
+    
+    // Clear existing timeout
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+    
+    // Set timeout to reset scrolling state
+    scrollTimeoutRef.current = setTimeout(() => {
+      setIsScrolling(false);
+    }, 150);
+  };
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const getDropZoneClass = () => {
     let baseClass = `resource-header-drop-zone h-full w-full flex flex-col relative transition-all duration-150`;
     
@@ -128,32 +154,45 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         </div>
       </div>
       
-      {/* Scrollable Staff Section - Max height for 3 staff items */}
+      {/* Scrollable Staff Section with Overlapping Effect */}
       <div className="flex-1 overflow-hidden">
         {assignedStaff.length > 0 ? (
           <div 
             className="h-full overflow-y-auto p-1"
             style={{
-              maxHeight: '72px', // Approximately 3 staff items (24px each)
+              maxHeight: '72px',
               scrollbarWidth: 'thin',
               scrollbarColor: '#d1d5db transparent'
             }}
+            onScroll={handleScroll}
           >
-            <div className="flex flex-wrap gap-0.5 justify-start items-start">
-              {assignedStaff.map((staff) => (
-                <UnifiedDraggableStaffItem
+            <div className="relative">
+              {assignedStaff.map((staff, index) => (
+                <div
                   key={staff.id}
-                  staff={{
-                    id: staff.id,
-                    name: staff.name,
-                    assignedTeam: resource.id
+                  className={`relative transition-all duration-200 ${
+                    isScrolling 
+                      ? 'mb-0.5' // Normal spacing when scrolling
+                      : index > 0 ? '-mt-2' : '' // Overlap when not scrolling (except first item)
+                  }`}
+                  style={{
+                    zIndex: assignedStaff.length - index, // Higher z-index for items on top
+                    transform: isScrolling ? 'translateY(0)' : `translateY(${index * -2}px)`,
                   }}
-                  onRemove={() => handleStaffRemove(staff.id)}
-                  currentDate={effectiveDate}
-                  teamName={resource.title}
-                  variant="compact"
-                  showRemoveDialog={false}
-                />
+                >
+                  <UnifiedDraggableStaffItem
+                    staff={{
+                      id: staff.id,
+                      name: staff.name,
+                      assignedTeam: resource.id
+                    }}
+                    onRemove={() => handleStaffRemove(staff.id)}
+                    currentDate={effectiveDate}
+                    teamName={resource.title}
+                    variant="compact"
+                    showRemoveDialog={false}
+                  />
+                </div>
               ))}
             </div>
           </div>

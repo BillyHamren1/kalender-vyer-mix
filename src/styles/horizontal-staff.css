@@ -29,16 +29,29 @@
   scrollbar-color: #d1d5db transparent;
 }
 
-/* Compact staff item hover effects */
+/* Compact staff item hover effects with overlapping support */
 .compact-staff-item {
   position: relative;
   transition: all 0.15s ease-in-out;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .compact-staff-item:hover {
-  transform: scale(1.1);
-  z-index: 20;
+  transform: scale(1.1) translateY(-2px);
+  z-index: 30;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Enhanced stacking for overlapped items */
+.compact-staff-item.stacked {
+  margin-top: -8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.compact-staff-item.stacked:hover {
+  margin-top: 0;
+  transform: scale(1.05) translateY(-4px);
+  z-index: 40;
 }
 
 /* Remove button for compact staff items */
@@ -59,19 +72,21 @@
   transition: opacity 0.2s ease-in-out;
   cursor: pointer;
   line-height: 1;
+  z-index: 10;
 }
 
 .compact-staff-item:hover .compact-remove-btn {
   opacity: 1;
 }
 
-/* Drag feedback for compact items */
+/* Drag feedback for compact items with stacking awareness */
 .compact-staff-item.dragging {
   opacity: 0.3;
-  transform: rotate(1deg) scale(1.1);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  transform: rotate(1deg) scale(1.1) translateY(-4px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
   background: #dbeafe;
   border-color: #3b82f6;
+  z-index: 50;
 }
 
 /* Scroll indicators for when content overflows */
@@ -92,7 +107,7 @@
   opacity: 1;
 }
 
-/* Ensure proper spacing and alignment */
+/* Ensure proper spacing and alignment for overlapped layout */
 .resource-header-drop-zone {
   position: relative;
   overflow: visible;
@@ -101,6 +116,17 @@
 .resource-header-drop-zone .horizontal-staff-container {
   position: relative;
   z-index: 5;
+}
+
+/* Staff stacking container */
+.staff-stack-container {
+  position: relative;
+  transition: all 0.2s ease-in-out;
+}
+
+.staff-stack-container.scrolling .compact-staff-item {
+  margin-top: 2px;
+  transform: translateY(0);
 }
 
 /* Team title styling for compact layout */
@@ -117,4 +143,23 @@
 .compact-team-title:hover {
   background: #e5f3ff;
   color: #1e40af;
+}
+
+/* Overlapping effect enhancements */
+.overlapped-staff-item {
+  position: relative;
+  margin-top: -8px;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.overlapped-staff-item:first-child {
+  margin-top: 0;
+}
+
+.overlapped-staff-item:hover {
+  margin-top: 0;
+  transform: translateY(-2px);
+  z-index: 20;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
