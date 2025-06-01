@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
-import { Plus, ChevronDown } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
 import { format } from 'date-fns';
 
@@ -26,11 +26,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   minHeight = 100
 }) => {
   const effectiveDate = targetDate || currentDate;
-  const [isScrolling, setIsScrolling] = useState(false);
-  const [showScrollIndicator, setShowScrollIndicator] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff, target date: ${format(effectiveDate, 'yyyy-MM-dd')}, minHeight: ${minHeight}`);
 
@@ -94,47 +90,6 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     }
   };
 
-  // Enhanced scroll detection with more precise checking
-  const checkScrollable = () => {
-    if (scrollContainerRef.current) {
-      const { scrollHeight, clientHeight, scrollTop } = scrollContainerRef.current;
-      const hasScrollableContent = scrollHeight > clientHeight + 2; // Add small tolerance
-      const hasMoreBelow = scrollTop + clientHeight < scrollHeight - 2;
-      
-      setShowScrollIndicator(hasScrollableContent && hasMoreBelow);
-    }
-  };
-
-  const handleScroll = () => {
-    setIsScrolling(true);
-    checkScrollable();
-    
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current);
-    }
-    
-    scrollTimeoutRef.current = setTimeout(() => {
-      setIsScrolling(false);
-      checkScrollable();
-    }, 150);
-  };
-
-  // Check scroll indicator on mount and when staff changes
-  useEffect(() => {
-    checkScrollable();
-    const timer = setTimeout(checkScrollable, 100);
-    return () => clearTimeout(timer);
-  }, [assignedStaff.length]);
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-    };
-  }, []);
-
   const getDropZoneClass = () => {
     let baseClass = `resource-header-drop-zone h-full w-full flex flex-col relative transition-all duration-150`;
     
@@ -146,6 +101,10 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
       return `${baseClass} bg-gray-50 hover:bg-gray-100`;
     }
   };
+
+  // Limit staff to 4 members
+  const displayStaff = assignedStaff.slice(0, 4);
+  const remainingCount = assignedStaff.length - 4;
 
   return (
     <div className="relative" style={{ width: '80px', minWidth: '80px', maxWidth: '80px' }}>
@@ -174,30 +133,13 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
           </div>
         </div>
         
-        {/* Scrollable Staff Section */}
+        {/* Fixed Staff Section - No Scrolling */}
         <div className="flex-1 overflow-hidden relative">
-          {assignedStaff.length > 0 ? (
-            <div 
-              ref={scrollContainerRef}
-              className={`h-full overflow-y-auto p-1 enhanced-scrollbar ${isHovering ? 'scrollbar-visible' : ''}`}
-              style={{
-                maxHeight: '72px'
-              }}
-              onScroll={handleScroll}
-            >
-              <div className="relative">
-                {assignedStaff.map((staff, index) => (
-                  <div
-                    key={staff.id}
-                    className={`relative transition-all duration-200 ${
-                      isScrolling 
-                        ? 'mb-1'
-                        : index > 0 ? '-mt-1' : ''
-                    }`}
-                    style={{
-                      zIndex: assignedStaff.length - index,
-                    }}
-                  >
+          {displayStaff.length > 0 ? (
+            <div className="h-full p-1">
+              <div className="relative space-y-1">
+                {displayStaff.map((staff, index) => (
+                  <div key={staff.id} className="relative">
                     <UnifiedDraggableStaffItem
                       staff={{
                         id: staff.id,
@@ -212,6 +154,11 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
                     />
                   </div>
                 ))}
+                {remainingCount > 0 && (
+                  <div className="text-[8px] text-gray-500 text-center pt-1">
+                    +{remainingCount} more
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -234,15 +181,6 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
           </div>
         )}
       </div>
-      
-      {/* Scroll Arrow Indicator - positioned below the main container */}
-      {showScrollIndicator && (
-        <div className="absolute left-1/2 transform -translate-x-1/2 mt-1 pointer-events-none z-30">
-          <div className="bg-white rounded-full p-0.5 shadow-md">
-            <ChevronDown className="h-3 w-3 text-[#7BAEBF]" strokeWidth={3} />
-          </div>
-        </div>
-      )}
     </div>
   );
 };
