@@ -223,8 +223,8 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
                 {/* Subtle gradient fade - much smaller */}
                 <div className="absolute bottom-0 left-0 right-0 h-3 bg-gradient-to-t from-gray-50/70 to-transparent pointer-events-none z-10" />
                 
-                {/* Arrow indicator with clear visibility - no border */}
-                <div className="absolute bottom-1 right-1 pointer-events-none z-20">
+                {/* Arrow indicator centered horizontally */}
+                <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 pointer-events-none z-20">
                   <div className="bg-white rounded-full p-0.5 shadow-md">
                     <ChevronDown className="h-4 w-4 text-[#7BAEBF]" strokeWidth={3} />
                   </div>
