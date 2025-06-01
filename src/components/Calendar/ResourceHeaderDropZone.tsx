@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
@@ -11,7 +12,7 @@ interface ResourceHeaderDropZoneProps {
   targetDate?: Date;
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
   onSelectStaff?: (resourceId: string, resourceTitle: string) => void;
-  assignedStaff?: Array<{id: string, name: string}>;
+  assignedStaff?: Array<{id: string, name: string, color?: string}>;
   minHeight?: number;
 }
 
@@ -170,6 +171,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
                       staff={{
                         id: staff.id,
                         name: staff.name,
+                        color: staff.color || '#E3F2FD',
                         assignedTeam: resource.id
                       }}
                       onRemove={() => handleStaffRemove(staff.id)}
