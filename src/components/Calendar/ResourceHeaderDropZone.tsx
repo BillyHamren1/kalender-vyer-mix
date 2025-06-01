@@ -175,78 +175,61 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         </div>
       </div>
       
-      {/* Scrollable Staff Section with Subtle Scroll Indicators */}
+      {/* Scrollable Staff Section */}
       <div className="flex-1 overflow-hidden relative">
         {assignedStaff.length > 0 ? (
-          <>
-            <div 
-              ref={scrollContainerRef}
-              className={`h-full overflow-y-auto p-1 enhanced-scrollbar ${isHovering ? 'scrollbar-visible' : ''}`}
-              style={{
-                maxHeight: '72px'
-              }}
-              onScroll={handleScroll}
-            >
-              <div className="relative">
-                {assignedStaff.map((staff, index) => (
-                  <div
-                    key={staff.id}
-                    className={`relative transition-all duration-200 ${
-                      isScrolling 
-                        ? 'mb-1'
-                        : index > 0 ? '-mt-1' : ''
-                    }`}
-                    style={{
-                      zIndex: assignedStaff.length - index,
+          <div 
+            ref={scrollContainerRef}
+            className={`h-full overflow-y-auto p-1 enhanced-scrollbar ${isHovering ? 'scrollbar-visible' : ''}`}
+            style={{
+              maxHeight: '72px'
+            }}
+            onScroll={handleScroll}
+          >
+            <div className="relative">
+              {assignedStaff.map((staff, index) => (
+                <div
+                  key={staff.id}
+                  className={`relative transition-all duration-200 ${
+                    isScrolling 
+                      ? 'mb-1'
+                      : index > 0 ? '-mt-1' : ''
+                  }`}
+                  style={{
+                    zIndex: assignedStaff.length - index,
+                  }}
+                >
+                  <UnifiedDraggableStaffItem
+                    staff={{
+                      id: staff.id,
+                      name: staff.name,
+                      assignedTeam: resource.id
                     }}
-                  >
-                    <UnifiedDraggableStaffItem
-                      staff={{
-                        id: staff.id,
-                        name: staff.name,
-                        assignedTeam: resource.id
-                      }}
-                      onRemove={() => handleStaffRemove(staff.id)}
-                      currentDate={effectiveDate}
-                      teamName={resource.title}
-                      variant="compact"
-                      showRemoveDialog={false}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            {/* Scroll Indicators with Clear Arrow */}
-            {showScrollIndicator && (
-              <>
-                {/* Subtle gradient fade - much smaller */}
-                <div className="absolute bottom-0 left-0 right-0 h-3 bg-gradient-to-t from-gray-50/70 to-transparent pointer-events-none z-10" />
-                
-                {/* Arrow indicator centered horizontally */}
-                <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 pointer-events-none z-20">
-                  <div className="bg-white rounded-full p-0.5 shadow-md">
-                    <ChevronDown className="h-4 w-4 text-[#7BAEBF]" strokeWidth={3} />
-                  </div>
+                    onRemove={() => handleStaffRemove(staff.id)}
+                    currentDate={effectiveDate}
+                    teamName={resource.title}
+                    variant="compact"
+                    showRemoveDialog={false}
+                  />
                 </div>
-                
-                {/* Hover hint - only show on hover and much smaller */}
-                {isHovering && (
-                  <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 pointer-events-none z-20">
-                    <div className="bg-gray-800 text-white text-[6px] px-1 py-0.5 rounded shadow-lg whitespace-nowrap">
-                      Scroll for more
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </>
+              ))}
+            </div>
+          </div>
         ) : (
           <div className="flex items-center justify-center h-full text-[8px] text-gray-400">
             <span>Drop staff</span>
           </div>
         )}
       </div>
+      
+      {/* Scroll Arrow Indicator - POSITIONED UNDER the staff container */}
+      {showScrollIndicator && (
+        <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full pointer-events-none z-30">
+          <div className="bg-white rounded-full p-0.5 shadow-md">
+            <ChevronDown className="h-4 w-4 text-[#7BAEBF]" strokeWidth={3} />
+          </div>
+        </div>
+      )}
       
       {/* Enhanced drop feedback overlay */}
       {isOver && (
