@@ -28,18 +28,28 @@
   min-width: 550px;
   flex: 1;
   border-right: 1px solid #e5e7eb;
+  /* FIXED: Allow popovers to escape container bounds */
+  overflow: visible !important;
   position: relative;
+  z-index: 0;
 }
 
 .monthly-day-wrapper {
   min-width: unset;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
+  overflow: visible !important;
   min-height: 200px;
 }
 
 .day-calendar-wrapper:last-child {
   border-right: none;
+}
+
+/* Popover tooltip styling - highest z-index */
+.popover-tooltip {
+  z-index: 9999 !important;
+  position: absolute !important;
 }
 
 /* Unified simple day header styling - matching monthly view exactly */
@@ -90,24 +100,17 @@
   opacity: 0.6;
 }
 
-/* SIMPLIFIED STICKY HEADERS - Let FullCalendar handle its own scrolling */
-.fc .fc-datagrid-header,
-.fc .fc-col-header,
-.fc .fc-col-header-cell {
-  position: sticky !important;
-  top: 0 !important;
-  z-index: 50 !important;
-  background-color: #fafafa !important;
-  border-bottom: 1px solid #e5e7eb !important;
+/* ... keep existing code (all resource and calendar styling) */
+
+/* Make resource timeline work properly */
+.fc-resource-timeline-divider {
+  width: 1px !important;
+  background-color: #e5e7eb;
 }
 
-/* Resource area header specific styling */
-.fc .fc-resource-area .fc-datagrid-header {
-  position: sticky !important;
-  top: 0 !important;
-  z-index: 60 !important;
-  background-color: #f8fafc !important;
-  border-bottom: 2px solid #d1d5db !important;
+/* Ensure scrolling works properly - allow popover overflow */
+.fc-scroller {
+  overflow: visible !important;
 }
 
 /* Day resource header styling - more calendar-like */
@@ -120,7 +123,7 @@
   border-radius: 6px 6px 0 0;
 }
 
-/* CONSISTENT COLUMN WIDTHS - REDUCED WIDTH */
+/* Enforce fixed width for ALL resource columns - REDUCED WIDTH */
 .fc-resource-area td,
 .fc-resource-area th,
 .fc-resource-lane,
@@ -201,6 +204,7 @@
   overflow-wrap: break-word;
   word-wrap: break-word;
   hyphens: auto;
+  max-height: none !important;
   white-space: normal !important;
   font-size: 11px;
   line-height: 1.3;
@@ -209,6 +213,7 @@
 
 .fc-event-title {
   white-space: normal !important;
+  overflow: visible !important;
   line-height: 1.3;
   margin-bottom: 2px;
 }
@@ -244,14 +249,14 @@
   transition: all 0.2s ease;
 }
 
-/* Calendar height settings */
+/* Reduced height for weekly view calendars */
 .weekly-view-calendar .fc-view-harness,
 .monthly-view-calendar .fc-view-harness {
   min-height: 400px !important;
   max-height: 600px !important;
 }
 
-/* Make weekly calendars more compact with increased slot height */
+/* Make weekly calendars more compact but with softer styling and increased slot height */
 .weekly-view-calendar .fc-timegrid-slot,
 .monthly-view-calendar .fc-timegrid-slot {
   height: 40px !important;
@@ -285,7 +290,7 @@
   min-width: 450px !important;
 }
 
-/* Critical fix - ensure ALL resource column headers have consistent width */
+/* Critical fix - ensure ALL resource column headers have consistent width and soft borders */
 .weekly-view-calendar .fc-col-header-cell,
 .monthly-view-calendar .fc-col-header-cell {
   min-width: 80px !important;
@@ -294,9 +299,6 @@
   border-right: 1px solid #f0f0f0 !important;
   border-bottom: 1px solid #e5e7eb !important;
   background-color: #fafafa !important;
-  position: sticky !important;
-  top: 0 !important;
-  z-index: 50 !important;
 }
 
 /* Fix for resource container width */
@@ -305,7 +307,7 @@
   min-width: 450px !important;
 }
 
-/* Critical fix - ensure ALL resource cells have exact same width */
+/* Critical fix - ensure ALL resource cells have exact same width with soft borders */
 .weekly-view-calendar .fc-resource-group,
 .weekly-view-calendar .fc-datagrid-cell,
 .monthly-view-calendar .fc-resource-group,
@@ -317,7 +319,7 @@
   border-bottom: 1px solid #f8f9fa !important;
 }
 
-/* Ensure time labels have enough room */
+/* Ensure time labels have enough room with soft styling */
 .weekly-view-calendar .fc-timegrid-axis,
 .monthly-view-calendar .fc-timegrid-axis {
   width: 60px !important;
@@ -343,7 +345,7 @@
   border-right: 1px solid #f0f0f0 !important;
 }
 
-/* Ensure ALL columns are exactly the same width */
+/* Ensure ALL columns are exactly the same width with soft borders */
 .weekly-view-calendar .fc-datagrid-cell,
 .weekly-view-calendar .fc-datagrid-cell-frame,
 .weekly-view-calendar .fc-timegrid-col,
@@ -375,7 +377,7 @@
   border-bottom: 1px solid #f8f9fa !important;
 }
 
-/* Icon-only assign button styling */
+/* Icon-only assign button styling - keep existing */
 .assign-button-icon {
   height: 20px !important;
   width: 20px !important;
