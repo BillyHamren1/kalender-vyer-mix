@@ -109,8 +109,8 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         width: '80px',
         minWidth: '80px', 
         maxWidth: '80px',
+        height: '100px',
         minHeight: '100px',
-        height: 'auto',
         overflow: 'visible',
         position: 'relative',
         zIndex: 10
@@ -128,25 +128,34 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
         </div>
       </div>
       
-      {/* Vertical Wrapping Staff Section */}
-      <div className="flex-1 p-1">
+      {/* Scrollable Staff Section - Max height for 3 staff items */}
+      <div className="flex-1 overflow-hidden">
         {assignedStaff.length > 0 ? (
-          <div className="flex flex-wrap gap-1 justify-start items-start h-full">
-            {assignedStaff.map((staff) => (
-              <UnifiedDraggableStaffItem
-                key={staff.id}
-                staff={{
-                  id: staff.id,
-                  name: staff.name,
-                  assignedTeam: resource.id
-                }}
-                onRemove={() => handleStaffRemove(staff.id)}
-                currentDate={effectiveDate}
-                teamName={resource.title}
-                variant="compact"
-                showRemoveDialog={false}
-              />
-            ))}
+          <div 
+            className="h-full overflow-y-auto p-1"
+            style={{
+              maxHeight: '72px', // Approximately 3 staff items (24px each)
+              scrollbarWidth: 'thin',
+              scrollbarColor: '#d1d5db transparent'
+            }}
+          >
+            <div className="flex flex-wrap gap-1 justify-start items-start">
+              {assignedStaff.map((staff) => (
+                <UnifiedDraggableStaffItem
+                  key={staff.id}
+                  staff={{
+                    id: staff.id,
+                    name: staff.name,
+                    assignedTeam: resource.id
+                  }}
+                  onRemove={() => handleStaffRemove(staff.id)}
+                  currentDate={effectiveDate}
+                  teamName={resource.title}
+                  variant="compact"
+                  showRemoveDialog={false}
+                />
+              ))}
+            </div>
           </div>
         ) : (
           <div className="flex items-center justify-center h-full text-[8px] text-gray-400">
