@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useDrop } from 'react-dnd';
 import { Resource } from './ResourceData';
@@ -223,10 +224,10 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
                 {/* Subtle gradient fade - much smaller */}
                 <div className="absolute bottom-0 left-0 right-0 h-3 bg-gradient-to-t from-gray-50/70 to-transparent pointer-events-none z-10" />
                 
-                {/* Arrow indicator with clear visibility */}
+                {/* Arrow indicator with clear visibility - small container, big arrow */}
                 <div className="absolute bottom-1 right-1 pointer-events-none z-20">
-                  <div className="bg-white border-2 border-[#7BAEBF] rounded-full p-1 shadow-md">
-                    <ChevronDown className="h-3 w-3 text-[#7BAEBF] stroke-2" strokeWidth={2.5} />
+                  <div className="bg-white border-2 border-[#7BAEBF] rounded-full p-0.5 shadow-md">
+                    <ChevronDown className="h-4 w-4 text-[#7BAEBF]" strokeWidth={3} />
                   </div>
                 </div>
                 
