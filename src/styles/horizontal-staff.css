@@ -47,7 +47,7 @@
   scrollbar-color: #6b7280 #e5e7eb;
 }
 
-/* Compact staff item hover effects with subtle overlapping support */
+/* Compact staff item basic styles - no overlapping */
 .compact-staff-item {
   position: relative;
   transition: all 0.15s ease-in-out;
@@ -58,18 +58,6 @@
   transform: scale(1.05) translateY(-1px);
   z-index: 30;
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
-}
-
-/* Subtle stacking for overlapped items - reduced overlap for better readability */
-.compact-staff-item.stacked {
-  margin-top: -4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-}
-
-.compact-staff-item.stacked:hover {
-  margin-top: 0;
-  transform: scale(1.05) translateY(-2px);
-  z-index: 40;
 }
 
 /* Remove button for compact staff items */
@@ -97,7 +85,7 @@
   opacity: 1;
 }
 
-/* Drag feedback for compact items with stacking awareness */
+/* Drag feedback for compact items */
 .compact-staff-item.dragging {
   opacity: 0.3;
   transform: rotate(1deg) scale(1.1) translateY(-4px);
@@ -125,7 +113,7 @@
   opacity: 1;
 }
 
-/* Ensure proper spacing and alignment for overlapped layout */
+/* Ensure proper spacing and alignment */
 .resource-header-drop-zone {
   position: relative;
   overflow: visible;
@@ -134,17 +122,6 @@
 .resource-header-drop-zone .horizontal-staff-container {
   position: relative;
   z-index: 5;
-}
-
-/* Staff stacking container */
-.staff-stack-container {
-  position: relative;
-  transition: all 0.2s ease-in-out;
-}
-
-.staff-stack-container.scrolling .compact-staff-item {
-  margin-top: 2px;
-  transform: translateY(0);
 }
 
 /* Team title styling for compact layout */
@@ -163,31 +140,6 @@
   color: #1e40af;
 }
 
-/* Subtle overlapping effect - reduced for better readability */
-.overlapped-staff-item {
-  position: relative;
-  margin-top: -4px;
-  transition: all 0.2s ease-in-out;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.overlapped-staff-item:first-child {
-  margin-top: 0;
-}
-
-.overlapped-staff-item:hover {
-  margin-top: 0;
-  transform: translateY(-1px);
-  z-index: 20;
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
-}
-
-/* Hover state enhancements */
-.resource-header-drop-zone:hover .enhanced-scrollbar::-webkit-scrollbar-thumb {
-  background: #4b5563;
-  box-shadow: 0 0 4px rgba(0,0,0,0.3);
-}
-
 /* Visual feedback for scrollable areas */
 .scrollable-area-indicator {
   position: absolute;
@@ -202,4 +154,10 @@
 
 .resource-header-drop-zone:hover .scrollable-area-indicator {
   opacity: 0.6;
+}
+
+/* Hover state enhancements */
+.resource-header-drop-zone:hover .enhanced-scrollbar::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  box-shadow: 0 0 4px rgba(0,0,0,0.3);
 }

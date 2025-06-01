@@ -26,10 +26,8 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   minHeight = 100
 }) => {
   const effectiveDate = targetDate || currentDate;
-  const [isScrolling, setIsScrolling] = useState(false);
   const [showScrollIndicator, setShowScrollIndicator] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   console.log(`ResourceHeaderDropZone: Rendering for ${resource.id} with ${assignedStaff.length} staff, target date: ${format(effectiveDate, 'yyyy-MM-dd')}, minHeight: ${minHeight}`);
@@ -94,11 +92,11 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     }
   };
 
-  // Enhanced scroll detection with more precise checking
+  // Check scroll indicator
   const checkScrollable = () => {
     if (scrollContainerRef.current) {
       const { scrollHeight, clientHeight, scrollTop } = scrollContainerRef.current;
-      const hasScrollableContent = scrollHeight > clientHeight + 2; // Add small tolerance
+      const hasScrollableContent = scrollHeight > clientHeight + 2;
       const hasMoreBelow = scrollTop + clientHeight < scrollHeight - 2;
       
       setShowScrollIndicator(hasScrollableContent && hasMoreBelow);
@@ -106,17 +104,7 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
   };
 
   const handleScroll = () => {
-    setIsScrolling(true);
     checkScrollable();
-    
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current);
-    }
-    
-    scrollTimeoutRef.current = setTimeout(() => {
-      setIsScrolling(false);
-      checkScrollable();
-    }, 150);
   };
 
   // Check scroll indicator on mount and when staff changes
@@ -125,15 +113,6 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
     const timer = setTimeout(checkScrollable, 100);
     return () => clearTimeout(timer);
   }, [assignedStaff.length]);
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-    };
-  }, []);
 
   const getDropZoneClass = () => {
     let baseClass = `resource-header-drop-zone h-full w-full flex flex-col relative transition-all duration-150`;
@@ -185,19 +164,9 @@ const ResourceHeaderDropZone: React.FC<ResourceHeaderDropZoneProps> = ({
               }}
               onScroll={handleScroll}
             >
-              <div className="relative">
-                {assignedStaff.map((staff, index) => (
-                  <div
-                    key={staff.id}
-                    className={`relative transition-all duration-200 ${
-                      isScrolling 
-                        ? 'mb-1'
-                        : index > 0 ? '-mt-1' : ''
-                    }`}
-                    style={{
-                      zIndex: assignedStaff.length - index,
-                    }}
-                  >
+              <div className="space-y-1">
+                {assignedStaff.map((staff) => (
+                  <div key={staff.id}>
                     <UnifiedDraggableStaffItem
                       staff={{
                         id: staff.id,
