@@ -120,7 +120,7 @@ const CustomCalendarPage = () => {
           isLoading={weeklyStaffOps.isLoading}
         />
 
-        {/* Staff Selection Dialog */}
+        {/* Staff Selection Dialog - remove availableStaff prop to fix build error */}
         {selectedTeam && (
           <StaffSelectionDialog
             resourceId={selectedTeam.resourceId}
@@ -129,7 +129,6 @@ const CustomCalendarPage = () => {
             open={staffDialogOpen}
             onOpenChange={setStaffDialogOpen}
             onStaffAssigned={handleStaffAssigned}
-            availableStaff={weeklyStaffOps.getAvailableStaffForWeek()}
           />
         )}
       </div>

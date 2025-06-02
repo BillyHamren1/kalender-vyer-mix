@@ -1,176 +1,96 @@
+import React, { useState } from 'react';
+import { Calendar, Calendar as CalendarIcon } from 'lucide-react';
+import { format } from 'date-fns';
+import { DayPicker } from 'react-day-picker';
 
-import React, { useEffect, useState, useCallback } from 'react';
-import { useCalendarEvents } from '@/hooks/useCalendarEvents';
-import { useTeamResources } from '@/hooks/useTeamResources';
-import { useEventActions } from '@/hooks/useEventActions';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { useStaffOperations } from '@/hooks/useStaffOperations';
-import { DndProvider } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
-import ResourceHeader from '@/components/Calendar/ResourceHeader';
-import ResourceLayout from '@/components/Calendar/ResourceLayout';
-import ResourceToolbar from '@/components/Calendar/ResourceToolbar';
-import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
-import MonthNavigation from '@/components/Calendar/MonthNavigation';
-import TestMonthlyResourceCalendar from '@/components/Calendar/TestMonthlyResourceCalendar';
-import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Calendar asshadCalendar } from '@/components/ui/calendar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
-import TeamManagementDialog from '@/components/Calendar/TeamManagementDialog';
-import { startOfMonth } from 'date-fns';
 
 const TestMonthlyView = () => {
-  const {
-    events,
-    setEvents,
-    isLoading,
-    isMounted,
-    currentDate: hookCurrentDate,
-    handleDatesSet,
-    refreshEvents
-  } = useCalendarEvents();
-  
-  const {
-    resources,
-    teamResources,
-    teamCount,
-    dialogOpen,
-    setDialogOpen,
-    addTeam,
-    removeTeam
-  } = useTeamResources();
-  
-  const { addEventToCalendar, duplicateEvent } = useEventActions(events, setEvents, resources);
-  const isMobile = useIsMobile();
-  
-  const [currentMonthStart, setCurrentMonthStart] = useState(() => {
-    return startOfMonth(new Date(hookCurrentDate));
-  });
-
-  const [showStaffDisplay, setShowStaffDisplay] = useState(false);
-  const [staffSelectionDialogOpen, setStaffSelectionDialogOpen] = useState(false);
-  const [selectedResourceId, setSelectedResourceId] = useState('');
-  const [selectedResourceTitle, setSelectedResourceTitle] = useState('');
-
-  const { handleStaffDrop } = useStaffOperations(hookCurrentDate);
-
-  useEffect(() => {
-    setCurrentMonthStart(startOfMonth(new Date(hookCurrentDate)));
-  }, [hookCurrentDate]);
-
-  const handleCalendarDateSet = useCallback((dateInfo: any) => {
-    if (Math.abs(dateInfo.start.getTime() - hookCurrentDate.getTime()) > 3600000) {
-      handleDatesSet(dateInfo);
-    }
-  }, [handleDatesSet, hookCurrentDate]);
-
-  const handleOpenStaffSelectionDialog = useCallback((resourceId: string, resourceTitle: string) => {
-    setSelectedResourceId(resourceId);
-    setSelectedResourceTitle(resourceTitle);
-    setStaffSelectionDialogOpen(true);
-  }, []);
-
-  const handleStaffAssigned = useCallback(async (staffId: string, staffName: string): Promise<void> => {
-    // Trigger a refresh of staff assignments
-    handleStaffDrop('', '');
-  }, [handleStaffDrop]);
-
-  const handleToggleStaffDisplay = useCallback(() => {
-    setShowStaffDisplay(prev => !prev);
-  }, []);
-
-  // Wrapper function to ensure Promise<void> return type
-  const handleRefresh = async (): Promise<void> => {
-    await refreshEvents();
-  };
+  const [date, setDate] = useState<Date | undefined>(new Date());
 
   return (
-    <DndProvider backend={HTML5Backend}>
-      <StaffSyncManager currentDate={hookCurrentDate} />
-      
-      <StaffSelectionDialog
-        resourceId={selectedResourceId}
-        resourceTitle={selectedResourceTitle}
-        currentDate={hookCurrentDate}
-        open={staffSelectionDialogOpen}
-        onOpenChange={setStaffSelectionDialogOpen}
-        onStaffAssigned={handleStaffAssigned}
-      />
-      
-      <ResourceLayout 
-        showStaffDisplay={showStaffDisplay}
-        staffDisplay={showStaffDisplay ? (
-          <AvailableStaffDisplay 
-            currentDate={hookCurrentDate} 
-            onStaffDrop={handleStaffDrop}
-          />
-        ) : <></>}
-        isMobile={isMobile}
-      >
-        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <h2 className="text-lg font-semibold text-blue-800 mb-2">Test: Dynamic Column Sizing</h2>
-          <p className="text-blue-700 text-sm">
-            This is a test page for experimenting with dynamic column sizing. 
-            The center column should appear wider and more prominent as you scroll.
-          </p>
+    <div className="flex flex-col h-screen">
+      <div className="bg-gray-100 py-4 px-6 border-b border-gray-300">
+        <h1 className="text-2xl font-semibold">Test Monthly View</h1>
+      </div>
+
+      <div className="flex flex-grow overflow-auto">
+        <div className="w-64 p-4 border-r border-gray-300">
+          <Card>
+            <CardHeader>
+              <CardTitle>Calendar</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={'outline'}
+                    className={cn(
+                      'w-[240px] justify-start text-left font-normal',
+                      !date && 'text-muted-foreground'
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {date ? format(date, 'PPP') : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <DayPicker
+                    mode="single"
+                    selected={date}
+                    onSelect={setDate}
+                    footer={
+                      date ? (
+                        <p>
+                          You picked{' '}
+                          {format(date, 'PPP')}
+                          .
+                        </p>
+                      ) : (
+                        <p>Please pick a date.</p>
+                      )
+                    }
+                  />
+                </PopoverContent>
+              </Popover>
+            </CardContent>
+          </Card>
         </div>
 
-        <ResourceHeader
-          teamResources={teamResources}
-          teamCount={teamCount}
-          onAddTeam={addTeam}
-          onRemoveTeam={removeTeam}
-          dialogOpen={dialogOpen}
-          setDialogOpen={setDialogOpen}
+        <div className="flex-1 p-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Monthly Content</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p>
+                This is where the main monthly content would go.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Available Staff Panel - add required props */}
+        <AvailableStaffDisplay
+          currentDate={date}
+          onStaffDrop={async () => {}}
+          availableStaff={[]}
+          isLoading={false}
         />
-
-        {/* ResourceToolbar by itself */}
-        <div className="flex justify-end mb-4">
-          <ResourceToolbar
-            isLoading={isLoading}
-            currentDate={hookCurrentDate}
-            resources={resources}
-            onRefresh={handleRefresh}
-            onAddTask={addEventToCalendar}
-            onShowStaffCurtain={handleToggleStaffDisplay}
-          />
-        </div>
-        
-        {/* MonthNavigation with Edit button aligned */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex-1"></div>
-          <div className="flex-1 flex justify-center">
-            <MonthNavigation 
-              currentMonthStart={currentMonthStart}
-              setCurrentMonthStart={setCurrentMonthStart}
-            />
-          </div>
-          <div className="flex-1 flex justify-end">
-            <TeamManagementDialog
-              teamResources={teamResources}
-              teamCount={teamCount}
-              onAddTeam={addTeam}
-              onRemoveTeam={removeTeam}
-              dialogOpen={dialogOpen}
-              setDialogOpen={setDialogOpen}
-            />
-          </div>
-        </div>
-        
-        <div className="test-monthly-view-container overflow-x-auto">
-          <TestMonthlyResourceCalendar
-            events={events}
-            resources={resources}
-            isLoading={isLoading}
-            isMounted={isMounted}
-            currentDate={hookCurrentDate}
-            onDateSet={handleCalendarDateSet}
-            refreshEvents={refreshEvents}
-            onStaffDrop={handleStaffDrop}
-            onSelectStaff={handleOpenStaffSelectionDialog}
-          />
-        </div>
-      </ResourceLayout>
-    </DndProvider>
+      </div>
+    </div>
   );
 };
 

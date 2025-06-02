@@ -10,6 +10,7 @@ export interface StaffAssignment {
   staffName: string;
   teamId: string;
   date: string;
+  color?: string;
 }
 
 export interface StaffMember {
@@ -58,7 +59,8 @@ export const useWeeklyStaffOperations = (currentWeekStart: Date) => {
             staffId: assignment.staff_id,
             staffName: assignment.staff_members?.name || `Staff ${assignment.staff_id}`,
             teamId: assignment.team_id,
-            date: format(date, 'yyyy-MM-dd')
+            date: format(date, 'yyyy-MM-dd'),
+            color: assignment.staff_members?.color
           }));
           
           allAssignments.push(...formattedAssignments);
@@ -128,9 +130,13 @@ export const useWeeklyStaffOperations = (currentWeekStart: Date) => {
         },
         (payload) => {
           console.log(`🔔 Weekly real-time change: ${payload.eventType}`);
+          
+          // Fix TypeScript error by properly typing the payload
+          const staffId = (payload.new as any)?.staff_id || (payload.old as any)?.staff_id || 'unknown';
+          
           addDebugLog({
             operation: 'weekly_realtime_change',
-            staffId: payload.new?.staff_id || payload.old?.staff_id || 'unknown',
+            staffId,
             date: startDate,
             success: true,
             dbResult: payload
@@ -159,6 +165,10 @@ export const useWeeklyStaffOperations = (currentWeekStart: Date) => {
 
     console.log(`🎯 Weekly staff drop: ${staffId} to ${resourceId || 'unassigned'} on ${effectiveDateStr}`);
     
+    // Get staff color for optimistic update
+    const staffMember = availableStaff.find(s => s.id === staffId);
+    const staffColor = staffMember?.color;
+    
     // Optimistic update - immediately update UI
     setAssignments(prevAssignments => {
       // Remove any existing assignment for this staff on this date
@@ -168,12 +178,12 @@ export const useWeeklyStaffOperations = (currentWeekStart: Date) => {
       
       // If assigning to a team, add the new assignment
       if (resourceId) {
-        const staffMember = availableStaff.find(s => s.id === staffId);
         const newAssignment: StaffAssignment = {
           staffId,
           staffName: staffMember?.name || `Staff ${staffId}`,
           teamId: resourceId,
-          date: effectiveDateStr
+          date: effectiveDateStr,
+          color: staffColor
         };
         return [...filteredAssignments, newAssignment];
       }
@@ -228,18 +238,23 @@ export const useWeeklyStaffOperations = (currentWeekStart: Date) => {
     }
   }, [currentWeekStart, createAssignmentDirectly, removeAssignmentDirectly, verifyAssignmentInDatabase, fetchWeekAssignments, availableStaff]);
 
-  // Get staff for a specific team and date
+  // Get staff for a specific team and date with color information
   const getStaffForTeamAndDate = useCallback((teamId: string, date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
     const teamStaff = assignments
       .filter(a => a.teamId === teamId && a.date === dateStr)
-      .map(a => ({
-        id: a.staffId,
-        name: a.staffName
-      }));
+      .map(a => {
+        // Get color from assignment or fall back to available staff color
+        const availableStaffMember = availableStaff.find(s => s.id === a.staffId);
+        return {
+          id: a.staffId,
+          name: a.staffName,
+          color: a.color || availableStaffMember?.color || '#E3F2FD'
+        };
+      });
     
     return teamStaff;
-  }, [assignments]);
+  }, [assignments, availableStaff]);
 
   // Get available staff (not assigned to any team on any day of the week)
   const getAvailableStaffForWeek = useCallback(() => {

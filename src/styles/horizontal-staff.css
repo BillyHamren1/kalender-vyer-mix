@@ -47,11 +47,12 @@
   scrollbar-color: #6b7280 #e5e7eb;
 }
 
-/* Compact staff item basic styles - no overlapping */
+/* Compact staff item basic styles - no overlapping, tighter spacing */
 .compact-staff-item {
   position: relative;
   transition: all 0.15s ease-in-out;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1px; /* Reduced from default */
 }
 
 .compact-staff-item:hover {
@@ -160,4 +161,13 @@
 .resource-header-drop-zone:hover .enhanced-scrollbar::-webkit-scrollbar-thumb {
   background: #4b5563;
   box-shadow: 0 0 4px rgba(0,0,0,0.3);
+}
+
+/* Staff assignment area tighter spacing */
+.staff-assignment-header-row {
+  padding: 1px; /* Reduced padding */
+}
+
+.staff-assignment-header-row .space-y-0 > * {
+  margin-bottom: 1px; /* Even tighter spacing */
 }
