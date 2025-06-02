@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Resource } from '@/components/Calendar/ResourceData';
 import { saveResourcesToStorage, loadResourcesFromStorage } from '@/components/Calendar/ResourceData';
@@ -12,14 +11,14 @@ export const useTeamResources = () => {
   const [initialSetupComplete, setInitialSetupComplete] = useState(false);
   const [cleanupDone, setCleanupDone] = useState(false);
   
-  // Default required teams (Team 1-5 + Todays events)
+  // Default required teams (Team 1-5 + Live)
   const defaultTeams: Resource[] = [
     { id: 'team-1', title: 'Team 1', eventColor: '#3788d8' },
     { id: 'team-2', title: 'Team 2', eventColor: '#1e90ff' },
     { id: 'team-3', title: 'Team 3', eventColor: '#4169e1' },
     { id: 'team-4', title: 'Team 4', eventColor: '#0073cf' },
     { id: 'team-5', title: 'Team 5', eventColor: '#4682b4' },
-    { id: 'team-6', title: 'Todays events', eventColor: '#FEF7CD' },
+    { id: 'team-6', title: 'Live', eventColor: '#FEF7CD' },
   ];
   
   // Load resources on initial mount only
@@ -38,11 +37,17 @@ export const useTeamResources = () => {
         updatedResources.push(defaultTeam);
         resourcesChanged = true;
         console.log(`Added missing default team: ${defaultTeam.title}`);
-      } else if (defaultTeam.id === 'team-6' && existingTeam.title !== 'Todays events') {
+      } else if (defaultTeam.id === 'team-6' && (existingTeam.title !== 'Live' && existingTeam.title !== 'Todays events')) {
         // Ensure Team 6 has the correct name
-        existingTeam.title = 'Todays events';
+        existingTeam.title = 'Live';
         existingTeam.eventColor = '#FEF7CD';
         resourcesChanged = true;
+      } else if (defaultTeam.id === 'team-6' && existingTeam.title === 'Todays events') {
+        // Rename "Todays events" to "Live"
+        existingTeam.title = 'Live';
+        existingTeam.eventColor = '#FEF7CD';
+        resourcesChanged = true;
+        console.log('Renamed "Todays events" to "Live"');
       }
     });
     
@@ -81,7 +86,7 @@ export const useTeamResources = () => {
     
     // If we have more than 6 teams, clean up
     if (teamResources.length > 6) {
-      // Keep only teams 1-5 and team-6 (Todays events)
+      // Keep only teams 1-5 and team-6 (Live)
       const teamsToKeep = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5', 'team-6'];
       
       const cleanedResources = resources.filter(resource => {
@@ -190,7 +195,7 @@ export const useTeamResources = () => {
   const teamResources = resources
     .filter(resource => resource.id.startsWith('team-'))
     .sort((a, b) => {
-      // Special case for "Todays events" (team-6) - it should be last
+      // Special case for "Live" (team-6) - it should be last
       if (a.id === 'team-6') return 1;
       if (b.id === 'team-6') return -1;
       

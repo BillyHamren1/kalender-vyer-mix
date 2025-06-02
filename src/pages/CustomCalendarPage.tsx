@@ -26,7 +26,7 @@ const CustomCalendarPage = () => {
     refreshEvents
   } = useRealTimeCalendarEvents();
   
-  const { resources } = useTeamResources();
+  const { teamResources } = useTeamResources();
   const reliableStaffOps = useReliableStaffOperations(hookCurrentDate);
   
   // Week navigation state
@@ -97,7 +97,7 @@ const CustomCalendarPage = () => {
         <div className="p-6">
           <CustomCalendar
             events={events}
-            resources={resources}
+            resources={teamResources}
             isLoading={isLoading}
             isMounted={isMounted}
             currentDate={currentWeekStart}
