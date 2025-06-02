@@ -32,13 +32,12 @@ const BookingEvent: React.FC<BookingEventProps> = ({
 
   return (
     <div
-      className="booking-event absolute left-1 right-1 rounded text-xs p-1 border border-gray-300 cursor-pointer hover:shadow-md transition-shadow"
+      className="booking-event"
       style={{
         ...style,
         backgroundColor: getEventTypeColor(event.eventType || 'event'),
         color: '#333',
-        zIndex: 20,
-        minHeight: '30px'
+        pointerEvents: 'auto' // Ensure hover events work
       }}
       onClick={onClick}
     >

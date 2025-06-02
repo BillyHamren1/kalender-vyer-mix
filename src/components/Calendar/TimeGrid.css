@@ -1,3 +1,4 @@
+
 .time-grid-with-staff-header {
   @apply bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden;
   display: grid;
@@ -136,11 +137,11 @@
   @apply border-b-0;
 }
 
-/* Time Slot Columns - Responsive */
+/* Time Slot Columns - Responsive with proper hover handling */
 .time-slots-column {
   @apply border-r border-gray-200 relative bg-white;
   position: relative;
-  overflow: hidden; /* Prevent overflow */
+  overflow: visible; /* Allow hover cards to appear */
 }
 
 .time-slots-column:last-child {
@@ -151,6 +152,8 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 .time-slot-cell {
@@ -161,6 +164,41 @@
 
 .time-slot-cell:last-child {
   @apply border-b-0;
+}
+
+/* Events overlay - FIXED for proper hover detection */
+.events-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  pointer-events: none; /* Allow clicks to pass through to underlying elements */
+}
+
+/* Individual booking events - ENABLE pointer events for hover */
+.booking-event {
+  pointer-events: auto !important; /* Enable hover and click events */
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  border-radius: 4px;
+  font-size: 11px;
+  padding: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 20;
+  min-height: 30px;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.booking-event:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+  z-index: 30;
 }
 
 /* Original staff assignment area styles (for reference/fallback) */

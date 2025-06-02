@@ -32,19 +32,19 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event }) => {
     .join(', ');
 
   return (
-    <HoverCard openDelay={200} closeDelay={100}>
+    <HoverCard openDelay={100} closeDelay={50}>
       <HoverCardTrigger asChild>
         {children}
       </HoverCardTrigger>
       <HoverCardContent 
         className="w-80 max-w-80 p-3 bg-white border shadow-lg max-h-96 overflow-y-auto" 
-        side="bottom" 
-        align="center"
-        sideOffset={8}
+        side="top" 
+        align="start"
+        sideOffset={5}
         alignOffset={0}
         avoidCollisions={true}
         collisionPadding={20}
-        style={{ zIndex: 9999 }}
+        style={{ zIndex: 50 }}
       >
         <div className="space-y-3">
           {/* Event Title and Booking Number */}
