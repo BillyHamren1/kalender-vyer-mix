@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
-import { format, addDays } from 'date-fns';
+import { format } from 'date-fns';
 import TimeGrid from './TimeGrid';
 import WeekNavigation from './WeekNavigation';
 import { Button } from '@/components/ui/button';
@@ -33,17 +33,6 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   const [currentWeekStart, setCurrentWeekStart] = useState(currentDate);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Generate days for the week
-  const getDaysToRender = () => {
-    return Array.from({ length: 7 }, (_, i) => {
-      const date = new Date(currentWeekStart);
-      date.setDate(currentWeekStart.getDate() + i);
-      return date;
-    });
-  };
-
-  const days = getDaysToRender();
-
   // Handle refresh
   const handleRefresh = async () => {
     await refreshEvents();
@@ -58,16 +47,6 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
       const eventDateStr = format(eventStart, 'yyyy-MM-dd');
       return eventDateStr === dateStr && event.resourceId === resourceId;
     });
-  };
-
-  // Calculate day width for weekly view
-  const getDayWidth = () => {
-    if (containerRef.current) {
-      const containerWidth = containerRef.current.offsetWidth;
-      const dayWidth = Math.floor(containerWidth / 7);
-      return Math.max(300, dayWidth); // Minimum width of 300px per day
-    }
-    return 300;
   };
 
   if (isLoading) {
@@ -97,30 +76,15 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         </Button>
       </div>
 
-      {/* Weekly Staff Planning Grid - Horizontally Scrollable */}
-      <div className="weekly-calendar-container overflow-x-auto">
-        <div 
-          className="weekly-calendar-grid flex"
-          style={{
-            minWidth: `${7 * getDayWidth()}px`
-          }}
-        >
-          {days.map((date) => (
-            <div 
-              key={format(date, 'yyyy-MM-dd')} 
-              className="day-calendar-wrapper flex-shrink-0"
-              style={{ width: `${getDayWidth()}px` }}
-            >
-              <TimeGrid
-                day={date}
-                resources={resources}
-                events={events}
-                getEventsForDayAndResource={getEventsForDayAndResource}
-                onStaffDrop={onStaffDrop}
-              />
-            </div>
-          ))}
-        </div>
+      {/* Single Day View with Team Columns */}
+      <div className="single-day-container">
+        <TimeGrid
+          day={currentDate}
+          resources={resources}
+          events={events}
+          getEventsForDayAndResource={getEventsForDayAndResource}
+          onStaffDrop={onStaffDrop}
+        />
       </div>
     </div>
   );
