@@ -12,6 +12,7 @@ interface TimeGridProps {
   getEventsForDayAndResource: (date: Date, resourceId: string) => CalendarEvent[];
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
   onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date) => void;
+  dayWidth?: number; // New prop for responsive width
 }
 
 const TimeGrid: React.FC<TimeGridProps> = ({
@@ -20,7 +21,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   events,
   getEventsForDayAndResource,
   onStaffDrop,
-  onOpenStaffSelection
+  onOpenStaffSelection,
+  dayWidth = 300
 }) => {
   // Generate time slots from 05:00 to 23:00
   const generateTimeSlots = () => {
@@ -39,12 +41,18 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   const timeSlots = generateTimeSlots();
 
+  // Calculate responsive column widths
+  const timeColumnWidth = 80; // Fixed width for time column
+  const availableWidth = dayWidth - timeColumnWidth;
+  const teamColumnWidth = Math.max(120, Math.floor(availableWidth / resources.length)); // Minimum 120px per team
+
   return (
     <div 
       className="time-grid-with-staff-header"
       style={{
-        gridTemplateColumns: `80px repeat(${resources.length}, minmax(150px, 1fr))`, // Increased minimum width to 150px
-        gridTemplateRows: 'auto auto auto 1fr'
+        gridTemplateColumns: `${timeColumnWidth}px repeat(${resources.length}, ${teamColumnWidth}px)`,
+        gridTemplateRows: 'auto auto auto 1fr',
+        width: `${dayWidth}px`
       }}
     >
       {/* Time Column Header */}
@@ -70,11 +78,12 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           style={{ 
             gridColumn: index + 2,
             gridRow: 2,
-            borderLeft: `3px solid ${resource.eventColor}`
+            borderLeft: `3px solid ${resource.eventColor}`,
+            width: `${teamColumnWidth}px`
           }}
         >
           <div className="team-header-content">
-            <span className="team-title">{resource.title}</span>
+            <span className="team-title" title={resource.title}>{resource.title}</span>
             <button
               className="add-staff-button-header"
               onClick={() => onOpenStaffSelection?.(resource.id, resource.title, day)}
@@ -95,7 +104,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           className="staff-assignment-header-row"
           style={{ 
             gridColumn: index + 2,
-            gridRow: 3
+            gridRow: 3,
+            width: `${teamColumnWidth}px`
           }}
         >
           <StaffAssignmentArea
@@ -126,7 +136,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           className="time-slots-column"
           style={{ 
             gridColumn: index + 2,
-            gridRow: 4
+            gridRow: 4,
+            width: `${teamColumnWidth}px`
           }}
         >
           <div className="time-slots-grid">

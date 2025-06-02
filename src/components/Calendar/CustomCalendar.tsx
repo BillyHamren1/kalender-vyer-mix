@@ -62,14 +62,14 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     });
   };
 
-  // Calculate day width for weekly view
+  // Calculate day width for weekly view - improved calculation
   const getDayWidth = () => {
     if (containerRef.current) {
-      const containerWidth = containerRef.current.offsetWidth;
+      const containerWidth = containerRef.current.offsetWidth - 48; // Account for padding
       const dayWidth = Math.floor(containerWidth / 7);
-      return Math.max(300, dayWidth); // Minimum width of 300px per day
+      return Math.max(250, dayWidth); // Minimum width of 250px per day (reduced from 300px)
     }
-    return 300;
+    return 250;
   };
 
   if (isLoading) {
@@ -120,6 +120,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                 getEventsForDayAndResource={getEventsForDayAndResource}
                 onStaffDrop={onStaffDrop}
                 onOpenStaffSelection={onOpenStaffSelection}
+                dayWidth={getDayWidth()}
               />
             </div>
           ))}
