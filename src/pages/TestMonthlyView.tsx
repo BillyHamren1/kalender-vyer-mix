@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Calendar, Calendar as CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
@@ -5,7 +6,7 @@ import { DayPicker } from 'react-day-picker';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Calendar asshadCalendar } from '@/components/ui/calendar';
+import { Calendar as ShadCalendar } from '@/components/ui/calendar';
 import {
   Popover,
   PopoverContent,
@@ -84,7 +85,7 @@ const TestMonthlyView = () => {
 
         {/* Available Staff Panel - add required props */}
         <AvailableStaffDisplay
-          currentDate={date}
+          currentDate={date || new Date()}
           onStaffDrop={async () => {}}
           availableStaff={[]}
           isLoading={false}

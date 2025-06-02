@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from 'react';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
 import moment from 'moment';
@@ -7,7 +8,6 @@ import { useTeamResources } from '@/hooks/useTeamResources';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { StaffAssignment } from '@/hooks/useWeeklyStaffOperations';
 import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
 
 moment.locale('en-GB');
@@ -15,7 +15,7 @@ const localizer = momentLocalizer(moment);
 
 const WeeklyResourceView = () => {
   const navigate = useNavigate();
-  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const {
@@ -29,7 +29,7 @@ const WeeklyResourceView = () => {
   const { teamResources } = useTeamResources();
 
   const handleSelectEvent = useCallback(
-    (event) => {
+    (event: any) => {
       setSelectedEvent(event);
       setIsModalOpen(true);
     },
@@ -41,7 +41,7 @@ const WeeklyResourceView = () => {
     setSelectedEvent(null);
   }, []);
 
-  const eventStyleGetter = (event) => {
+  const eventStyleGetter = (event: any) => {
     const backgroundColor = event.color ? event.color : '#3174ad';
     const style = {
       backgroundColor: backgroundColor,
