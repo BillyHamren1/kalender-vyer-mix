@@ -1,5 +1,5 @@
 
-.time-grid {
+.time-grid-aligned {
   @apply bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden;
   display: grid;
   min-height: 600px;
@@ -29,16 +29,53 @@
   @apply text-lg font-bold text-blue-800;
 }
 
-/* Time Labels Column */
-.time-labels {
-  @apply border-r border-gray-200 bg-gray-50;
+/* Empty cell for proper alignment */
+.time-empty-cell {
   grid-column: 1;
   grid-row: 2;
+  @apply bg-gray-50 border-r border-b border-gray-200;
+  height: 40px;
+}
+
+/* Team Headers Row - aligned with time structure */
+.team-header-cell {
+  @apply bg-gray-50 border-r border-b border-gray-200 p-2;
+  height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+.team-header-content {
+  @apply flex items-center justify-between w-full;
+}
+
+.team-title {
+  @apply text-sm font-medium text-gray-700;
+}
+
+.add-staff-button-header {
+  @apply bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-full;
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+/* Time Labels Column - aligned */
+.time-labels-aligned {
+  @apply border-r border-gray-200 bg-gray-50;
+  grid-column: 1;
+  grid-row: 3;
   display: flex;
   flex-direction: column;
 }
 
-.time-label {
+.time-label-aligned {
   @apply text-xs text-gray-600 p-2 border-b border-gray-200 text-center;
   height: 60px;
   display: flex;
@@ -47,94 +84,29 @@
   font-weight: 500;
 }
 
-.time-label:last-child {
+.time-label-aligned:last-child {
   @apply border-b-0;
 }
 
-/* Team Columns */
-.team-column {
+/* Team Columns - perfectly aligned with time slots */
+.team-column-aligned {
   @apply border-r border-gray-200 relative bg-white;
   position: relative;
   overflow: visible;
 }
 
-.team-column:last-child {
+.team-column-aligned:last-child {
   @apply border-r-0;
 }
 
-/* Unified Staff Assignment Area */
-.unified-staff-assignment-area {
+/* Staff Assignment Area - aligned with time slots */
+.staff-assignment-area-aligned {
   @apply relative h-full;
   position: relative;
   min-height: 400px;
 }
 
-.unified-team-area {
-  @apply absolute inset-0;
-  transition: background-color 0.2s;
-  display: flex;
-  flex-direction: column;
-}
-
-.unified-team-area.drop-over {
-  @apply bg-blue-50/50;
-  border: 2px dashed #3b82f6;
-}
-
-/* Unified Team Header */
-.unified-team-header {
-  @apply bg-gray-50 border-b border-gray-200 p-2;
-  transition: background-color 0.2s;
-  flex-shrink: 0;
-}
-
-.unified-team-header:hover {
-  @apply bg-gray-100;
-}
-
-.team-header-content {
-  @apply flex items-center justify-between h-full;
-}
-
-.team-title {
-  @apply text-sm font-medium text-gray-700;
-}
-
-.add-staff-button {
-  @apply opacity-0 transition-opacity duration-200 h-6 w-6 p-0;
-  background-color: rgba(59, 130, 246, 0.1);
-}
-
-.unified-team-header:hover .add-staff-button {
-  @apply opacity-100;
-}
-
-.add-staff-button:hover {
-  background-color: rgba(59, 130, 246, 0.2);
-}
-
-/* Staff Assignment Content */
-.staff-assignment-content {
-  @apply flex-1 p-2;
-  display: flex;
-  flex-direction: column;
-}
-
-.drop-zone-info {
-  @apply mb-2 p-2 bg-gray-50 rounded border;
-  flex-shrink: 0;
-}
-
-.drop-staff-text {
-  @apply text-xs text-gray-500;
-}
-
-.assigned-staff-list {
-  @apply space-y-1 flex-1;
-}
-
-/* Time Slot Background Grid */
-.time-slot-grid {
+.time-slot-grid-aligned {
   position: absolute;
   top: 0;
   left: 0;
@@ -144,16 +116,63 @@
   z-index: 0;
 }
 
-.time-slot {
+.time-slot-aligned {
   @apply border-b border-gray-100;
   height: 60px;
 }
 
-.time-slot:last-child {
+.time-slot-aligned:last-child {
   @apply border-b-0;
 }
 
-/* Weekly Calendar Container Styles */
+/* Staff Drop Zone - overlays time grid */
+.staff-drop-zone-aligned {
+  @apply absolute inset-0;
+  transition: background-color 0.2s;
+  z-index: 1;
+}
+
+.staff-drop-zone-aligned.drop-over {
+  @apply bg-blue-50/50;
+  border: 2px dashed #3b82f6;
+}
+
+/* Drop Info */
+.drop-info-aligned {
+  @apply p-2 text-xs text-gray-500 bg-gray-50/80 rounded border;
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  right: 5px;
+  z-index: 2;
+}
+
+/* Assigned Staff List - positioned within time slots */
+.assigned-staff-list-aligned {
+  position: relative;
+  z-index: 3;
+  padding-top: 35px; /* Account for drop info */
+}
+
+.staff-item-positioned {
+  position: relative;
+  margin-bottom: 4px;
+  padding: 0 5px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .time-grid-aligned {
+    grid-template-columns: 60px repeat(auto-fit, minmax(120px, 1fr));
+  }
+  
+  .time-title {
+    writing-mode: horizontal-tb;
+    text-orientation: initial;
+  }
+}
+
+/* ... keep existing code (weekly calendar container styles) */
 .custom-calendar-container {
   @apply w-full h-full;
 }
@@ -172,20 +191,4 @@
 
 .day-calendar-wrapper:last-child {
   @apply border-r-0;
-}
-
-/* Responsive design */
-@media (max-width: 768px) {
-  .time-grid {
-    grid-template-columns: 60px repeat(auto-fit, minmax(120px, 1fr));
-  }
-  
-  .day-calendar-wrapper {
-    min-width: 250px;
-  }
-  
-  .time-title {
-    writing-mode: horizontal-tb;
-    text-orientation: initial;
-  }
 }

@@ -41,10 +41,10 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   return (
     <div 
-      className="time-grid"
+      className="time-grid-aligned"
       style={{
         gridTemplateColumns: `80px repeat(${resources.length}, 1fr)`,
-        gridTemplateRows: 'auto 1fr'
+        gridTemplateRows: 'auto auto 1fr'
       }}
     >
       {/* Time Column Header */}
@@ -59,23 +59,49 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         </div>
       </div>
 
+      {/* Empty cell for alignment */}
+      <div className="time-empty-cell"></div>
+
+      {/* Team Headers Row - aligned with time structure */}
+      {resources.map((resource, index) => (
+        <div 
+          key={`header-${resource.id}`}
+          className="team-header-cell"
+          style={{ 
+            gridColumn: index + 2,
+            gridRow: 2,
+            borderLeft: `3px solid ${resource.eventColor}`
+          }}
+        >
+          <div className="team-header-content">
+            <span className="team-title">{resource.title}</span>
+            <button
+              className="add-staff-button-header"
+              onClick={() => onOpenStaffSelection?.(resource.id, resource.title, day)}
+            >
+              +
+            </button>
+          </div>
+        </div>
+      ))}
+
       {/* Time Labels Column */}
-      <div className="time-labels">
+      <div className="time-labels-aligned">
         {timeSlots.map((slot) => (
-          <div key={slot.time} className="time-label">
+          <div key={slot.time} className="time-label-aligned">
             {slot.displayTime}
           </div>
         ))}
       </div>
 
-      {/* Unified Team columns with headers and staff assignments */}
+      {/* Team columns with staff assignments - aligned with time slots */}
       {resources.map((resource, index) => (
         <div 
           key={resource.id} 
-          className="team-column"
+          className="team-column-aligned"
           style={{ 
             gridColumn: index + 2,
-            gridRow: 2
+            gridRow: 3
           }}
         >
           <StaffAssignmentArea

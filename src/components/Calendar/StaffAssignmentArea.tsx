@@ -4,8 +4,6 @@ import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import { useDrop } from 'react-dnd';
 import { useReliableStaffOperations } from '@/hooks/useReliableStaffOperations';
-import { Plus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
 
 interface TimeSlot {
@@ -54,59 +52,30 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
     }
   };
 
-  const handleAddStaff = () => {
-    if (onOpenStaffSelection) {
-      onOpenStaffSelection(resource.id, resource.title, day);
-    }
-  };
-
   return (
-    <div className="unified-staff-assignment-area">
-      {/* Time Slot Background Grid */}
-      <div className="time-slot-grid">
+    <div className="staff-assignment-area-aligned">
+      {/* Time Slot Background Grid - matches time labels exactly */}
+      <div className="time-slot-grid-aligned">
         {timeSlots.map((slot) => (
-          <div key={slot.time} className="time-slot" />
+          <div key={slot.time} className="time-slot-aligned" />
         ))}
       </div>
 
-      {/* Unified Team Header + Staff Assignment */}
+      {/* Staff Assignment Drop Zone - overlays the time grid */}
       <div
         ref={drop}
-        className={`unified-team-area ${isOver ? 'drop-over' : ''}`}
+        className={`staff-drop-zone-aligned ${isOver ? 'drop-over' : ''}`}
       >
-        {/* Team Header with controls */}
-        <div 
-          className="unified-team-header"
-          style={{ borderLeft: `3px solid ${resource.eventColor}` }}
-        >
-          <div className="team-header-content">
-            <div className="team-title">
-              {resource.title}
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="add-staff-button"
-              onClick={handleAddStaff}
-            >
-              <Plus className="h-3 w-3" />
-            </Button>
-          </div>
+        {/* Drop instruction or staff count */}
+        <div className="drop-info-aligned">
+          {assignedStaff.length === 0 ? 'Drop staff here' : `${assignedStaff.length} staff assigned`}
         </div>
         
-        {/* Staff Assignment Content */}
-        <div className="staff-assignment-content">
-          <div className="drop-zone-info">
-            <div className="drop-staff-text">
-              {assignedStaff.length === 0 ? 'Drop staff here' : `${assignedStaff.length} staff assigned`}
-            </div>
-          </div>
-          
-          {/* Assigned Staff List */}
-          <div className="assigned-staff-list">
-            {assignedStaff.map((staff) => (
+        {/* Assigned Staff List - positioned within time slots */}
+        <div className="assigned-staff-list-aligned">
+          {assignedStaff.map((staff, index) => (
+            <div key={staff.id} className="staff-item-positioned" style={{ top: `${index * 30}px` }}>
               <UnifiedDraggableStaffItem
-                key={staff.id}
                 staff={{
                   id: staff.id,
                   name: staff.name,
@@ -118,8 +87,8 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
                 variant="assigned"
                 showRemoveDialog={true}
               />
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
