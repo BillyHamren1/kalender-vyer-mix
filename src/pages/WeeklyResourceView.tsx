@@ -69,11 +69,11 @@ const WeeklyResourceView = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/custom-calendar')}
               className="flex items-center gap-2"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back to Dashboard
+              To Custom Calendar
             </Button>
             <h1 className="text-2xl font-bold text-gray-900">Weekly Resource Calendar</h1>
           </div>
@@ -92,7 +92,8 @@ const WeeklyResourceView = () => {
             startAccessor="start"
             endAccessor="end"
             allDayAccessor="allDay"
-            resourceIdAccessor="resourceId"
+            resourceIdAccessor="id"
+            resourceTitleAccessor="title"
             resources={teamResources}
             views={['day', 'work_week', 'month']}
             style={{ height: 800 }}
@@ -108,7 +109,7 @@ const WeeklyResourceView = () => {
         )}
       </div>
 
-      {/* Available Staff Panel - add required props */}
+      {/* Available Staff Panel */}
       <AvailableStaffDisplay
         currentDate={currentDate}
         onStaffDrop={handleStaffDrop}
