@@ -20,27 +20,53 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   getEventsForDayAndResource,
   onStaffDrop
 }) => {
+  // Generate time slots from 05:00 to 23:00
+  const generateTimeSlots = () => {
+    const timeSlots = [];
+    for (let hour = 5; hour <= 23; hour++) {
+      const time = hour.toString().padStart(2, '0') + ':00';
+      const displayTime = hour <= 12 ? `${hour}am` : `${hour - 12}pm`;
+      if (hour === 12) {
+        timeSlots.push({ time, displayTime: '12pm' });
+      } else {
+        timeSlots.push({ time, displayTime });
+      }
+    }
+    return timeSlots;
+  };
+
+  const timeSlots = generateTimeSlots();
+
   return (
     <div 
       className="time-grid"
       style={{
-        gridTemplateColumns: `repeat(${resources.length}, 1fr)`,
-        gridTemplateRows: 'auto 1fr'
+        gridTemplateColumns: `80px repeat(${resources.length}, 1fr)`,
+        gridTemplateRows: 'auto auto 1fr'
       }}
     >
-      {/* Day Header - spans entire width */}
-      <div className="day-header-full" style={{ gridColumn: '1 / -1' }}>
+      {/* Time Column Header - spans rows 1-2 */}
+      <div className="time-column-header">
+        <div className="time-title">Time</div>
+      </div>
+
+      {/* Day Header - spans team columns only */}
+      <div className="day-header-teams" style={{ gridColumn: '2 / -1' }}>
         <div className="day-title">
           {format(day, 'EEE d')}
         </div>
       </div>
 
-      {/* Team Headers */}
-      {resources.map((resource) => (
+      {/* Team Headers - row 2, columns 2+ */}
+      {resources.map((resource, index) => (
         <div 
           key={resource.id} 
           className="team-header"
-          style={{ borderLeft: `3px solid ${resource.eventColor}` }}
+          style={{ 
+            gridColumn: index + 2,
+            gridRow: 2,
+            borderLeft: `3px solid ${resource.eventColor}` 
+          }}
         >
           <div className="team-title">
             {resource.title}
@@ -48,14 +74,31 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         </div>
       ))}
 
-      {/* Team columns with staff assignments */}
-      {resources.map((resource) => (
-        <div key={resource.id} className="team-column">
+      {/* Time Labels Column - row 3, column 1 */}
+      <div className="time-labels">
+        {timeSlots.map((slot) => (
+          <div key={slot.time} className="time-label">
+            {slot.displayTime}
+          </div>
+        ))}
+      </div>
+
+      {/* Team columns with staff assignments - row 3, columns 2+ */}
+      {resources.map((resource, index) => (
+        <div 
+          key={resource.id} 
+          className="team-column"
+          style={{ 
+            gridColumn: index + 2,
+            gridRow: 3
+          }}
+        >
           <StaffAssignmentArea
             day={day}
             resource={resource}
             events={getEventsForDayAndResource(day, resource.id)}
             onStaffDrop={onStaffDrop}
+            timeSlots={timeSlots}
           />
         </div>
       ))}

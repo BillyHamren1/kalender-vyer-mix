@@ -6,18 +6,25 @@ import { useDrop } from 'react-dnd';
 import { useEnhancedStaffOperations } from '@/hooks/useEnhancedStaffOperations';
 import DraggableStaffItem from './DraggableStaffItem';
 
+interface TimeSlot {
+  time: string;
+  displayTime: string;
+}
+
 interface StaffAssignmentAreaProps {
   day: Date;
   resource: Resource;
   events: CalendarEvent[];
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
+  timeSlots?: TimeSlot[];
 }
 
 const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
   day,
   resource,
   events,
-  onStaffDrop
+  onStaffDrop,
+  timeSlots = []
 }) => {
   const { getStaffForTeam } = useEnhancedStaffOperations(day);
   
@@ -39,10 +46,18 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
 
   return (
     <div className="staff-assignment-area">
+      {/* Time Slot Background Grid */}
+      <div className="time-slot-grid">
+        {timeSlots.map((slot) => (
+          <div key={slot.time} className="time-slot" />
+        ))}
+      </div>
+
       {/* Staff Drop Zone */}
       <div
         ref={drop}
         className={`staff-drop-zone ${isOver ? 'drop-over' : ''}`}
+        style={{ zIndex: 1 }}
       >
         <div className="drop-zone-header">
           <div className="team-name" style={{ color: resource.eventColor }}>
