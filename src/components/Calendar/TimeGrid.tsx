@@ -2,8 +2,6 @@
 import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
-import { Plus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import StaffAssignmentArea from './StaffAssignmentArea';
 import './TimeGrid.css';
 
@@ -41,21 +39,15 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   const timeSlots = generateTimeSlots();
 
-  const handleAddStaff = (resourceId: string, resourceTitle: string) => {
-    if (onOpenStaffSelection) {
-      onOpenStaffSelection(resourceId, resourceTitle, day);
-    }
-  };
-
   return (
     <div 
       className="time-grid"
       style={{
         gridTemplateColumns: `80px repeat(${resources.length}, 1fr)`,
-        gridTemplateRows: 'auto auto 1fr'
+        gridTemplateRows: 'auto 1fr'
       }}
     >
-      {/* Time Column Header - spans rows 1-2 */}
+      {/* Time Column Header */}
       <div className="time-column-header">
         <div className="time-title">Time</div>
       </div>
@@ -67,34 +59,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         </div>
       </div>
 
-      {/* Team Headers - row 2, columns 2+ */}
-      {resources.map((resource, index) => (
-        <div 
-          key={resource.id} 
-          className="team-header"
-          style={{ 
-            gridColumn: index + 2,
-            gridRow: 2,
-            borderLeft: `3px solid ${resource.eventColor}` 
-          }}
-        >
-          <div className="team-header-content">
-            <div className="team-title">
-              {resource.title}
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="add-staff-button"
-              onClick={() => handleAddStaff(resource.id, resource.title)}
-            >
-              <Plus className="h-3 w-3" />
-            </Button>
-          </div>
-        </div>
-      ))}
-
-      {/* Time Labels Column - row 3, column 1 */}
+      {/* Time Labels Column */}
       <div className="time-labels">
         {timeSlots.map((slot) => (
           <div key={slot.time} className="time-label">
@@ -103,14 +68,14 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         ))}
       </div>
 
-      {/* Team columns with staff assignments - row 3, columns 2+ */}
+      {/* Unified Team columns with headers and staff assignments */}
       {resources.map((resource, index) => (
         <div 
           key={resource.id} 
           className="team-column"
           style={{ 
             gridColumn: index + 2,
-            gridRow: 3
+            gridRow: 2
           }}
         >
           <StaffAssignmentArea
@@ -118,6 +83,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             resource={resource}
             events={getEventsForDayAndResource(day, resource.id)}
             onStaffDrop={onStaffDrop}
+            onOpenStaffSelection={onOpenStaffSelection}
             timeSlots={timeSlots}
           />
         </div>

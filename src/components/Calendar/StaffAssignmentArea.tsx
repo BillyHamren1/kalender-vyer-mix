@@ -4,6 +4,8 @@ import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import { useDrop } from 'react-dnd';
 import { useReliableStaffOperations } from '@/hooks/useReliableStaffOperations';
+import { Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
 
 interface TimeSlot {
@@ -16,6 +18,7 @@ interface StaffAssignmentAreaProps {
   resource: Resource;
   events: CalendarEvent[];
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
+  onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date) => void;
   timeSlots?: TimeSlot[];
 }
 
@@ -24,6 +27,7 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
   resource,
   events,
   onStaffDrop,
+  onOpenStaffSelection,
   timeSlots = []
 }) => {
   const { getStaffForTeam } = useReliableStaffOperations(day);
@@ -50,8 +54,14 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
     }
   };
 
+  const handleAddStaff = () => {
+    if (onOpenStaffSelection) {
+      onOpenStaffSelection(resource.id, resource.title, day);
+    }
+  };
+
   return (
-    <div className="staff-assignment-area">
+    <div className="unified-staff-assignment-area">
       {/* Time Slot Background Grid */}
       <div className="time-slot-grid">
         {timeSlots.map((slot) => (
@@ -59,35 +69,57 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
         ))}
       </div>
 
-      {/* Staff Drop Zone */}
+      {/* Unified Team Header + Staff Assignment */}
       <div
         ref={drop}
-        className={`staff-drop-zone ${isOver ? 'drop-over' : ''}`}
-        style={{ zIndex: 1 }}
+        className={`unified-team-area ${isOver ? 'drop-over' : ''}`}
       >
-        <div className="drop-zone-header">
-          <div className="drop-staff-text">
-            {assignedStaff.length === 0 ? 'Drop staff' : `${assignedStaff.length} staff assigned`}
+        {/* Team Header with controls */}
+        <div 
+          className="unified-team-header"
+          style={{ borderLeft: `3px solid ${resource.eventColor}` }}
+        >
+          <div className="team-header-content">
+            <div className="team-title">
+              {resource.title}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="add-staff-button"
+              onClick={handleAddStaff}
+            >
+              <Plus className="h-3 w-3" />
+            </Button>
           </div>
         </div>
         
-        {/* Assigned Staff List */}
-        <div className="assigned-staff-list">
-          {assignedStaff.map((staff) => (
-            <UnifiedDraggableStaffItem
-              key={staff.id}
-              staff={{
-                id: staff.id,
-                name: staff.name,
-                assignedTeam: resource.id
-              }}
-              onRemove={() => handleRemoveStaff(staff.id)}
-              currentDate={day}
-              teamName={resource.title}
-              variant="assigned"
-              showRemoveDialog={true}
-            />
-          ))}
+        {/* Staff Assignment Content */}
+        <div className="staff-assignment-content">
+          <div className="drop-zone-info">
+            <div className="drop-staff-text">
+              {assignedStaff.length === 0 ? 'Drop staff here' : `${assignedStaff.length} staff assigned`}
+            </div>
+          </div>
+          
+          {/* Assigned Staff List */}
+          <div className="assigned-staff-list">
+            {assignedStaff.map((staff) => (
+              <UnifiedDraggableStaffItem
+                key={staff.id}
+                staff={{
+                  id: staff.id,
+                  name: staff.name,
+                  assignedTeam: resource.id
+                }}
+                onRemove={() => handleRemoveStaff(staff.id)}
+                currentDate={day}
+                teamName={resource.title}
+                variant="assigned"
+                showRemoveDialog={true}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>

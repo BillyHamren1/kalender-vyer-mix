@@ -10,7 +10,7 @@
 .time-column-header {
   @apply bg-gray-100 border-r border-b border-gray-200 p-2 text-center flex items-center justify-center;
   grid-column: 1;
-  grid-row: 1 / 3; /* Spans both header rows */
+  grid-row: 1;
 }
 
 .time-title {
@@ -29,43 +29,11 @@
   @apply text-lg font-bold text-blue-800;
 }
 
-/* Team Headers */
-.team-header {
-  @apply bg-gray-50 border-r border-b border-gray-200 p-2;
-  transition: background-color 0.2s;
-  position: relative;
-}
-
-.team-header:hover {
-  @apply bg-gray-100;
-}
-
-.team-header-content {
-  @apply flex items-center justify-between h-full;
-}
-
-.team-title {
-  @apply text-sm font-medium text-gray-700;
-}
-
-.add-staff-button {
-  @apply opacity-0 transition-opacity duration-200 h-6 w-6 p-0;
-  background-color: rgba(59, 130, 246, 0.1);
-}
-
-.team-header:hover .add-staff-button {
-  @apply opacity-100;
-}
-
-.add-staff-button:hover {
-  background-color: rgba(59, 130, 246, 0.2);
-}
-
 /* Time Labels Column */
 .time-labels {
   @apply border-r border-gray-200 bg-gray-50;
   grid-column: 1;
-  grid-row: 3;
+  grid-row: 2;
   display: flex;
   flex-direction: column;
 }
@@ -94,33 +62,75 @@
   @apply border-r-0;
 }
 
-/* Staff Assignment Area */
-.staff-assignment-area {
+/* Unified Staff Assignment Area */
+.unified-staff-assignment-area {
   @apply relative h-full;
   position: relative;
   min-height: 400px;
 }
 
-.staff-drop-zone {
-  @apply absolute inset-0 p-2;
+.unified-team-area {
+  @apply absolute inset-0;
   transition: background-color 0.2s;
+  display: flex;
+  flex-direction: column;
 }
 
-.staff-drop-zone.drop-over {
+.unified-team-area.drop-over {
   @apply bg-blue-50/50;
   border: 2px dashed #3b82f6;
 }
 
-.drop-zone-header {
+/* Unified Team Header */
+.unified-team-header {
+  @apply bg-gray-50 border-b border-gray-200 p-2;
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.unified-team-header:hover {
+  @apply bg-gray-100;
+}
+
+.team-header-content {
+  @apply flex items-center justify-between h-full;
+}
+
+.team-title {
+  @apply text-sm font-medium text-gray-700;
+}
+
+.add-staff-button {
+  @apply opacity-0 transition-opacity duration-200 h-6 w-6 p-0;
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+.unified-team-header:hover .add-staff-button {
+  @apply opacity-100;
+}
+
+.add-staff-button:hover {
+  background-color: rgba(59, 130, 246, 0.2);
+}
+
+/* Staff Assignment Content */
+.staff-assignment-content {
+  @apply flex-1 p-2;
+  display: flex;
+  flex-direction: column;
+}
+
+.drop-zone-info {
   @apply mb-2 p-2 bg-gray-50 rounded border;
+  flex-shrink: 0;
 }
 
 .drop-staff-text {
-  @apply text-xs text-gray-500 mt-1;
+  @apply text-xs text-gray-500;
 }
 
 .assigned-staff-list {
-  @apply space-y-1;
+  @apply space-y-1 flex-1;
 }
 
 /* Time Slot Background Grid */
