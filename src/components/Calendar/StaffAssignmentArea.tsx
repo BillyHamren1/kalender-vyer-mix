@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import { useDrop } from 'react-dnd';
@@ -30,9 +30,17 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
   timeSlots = [],
   isHeaderRow = false
 }) => {
-  const { getStaffForTeam } = useReliableStaffOperations(day);
+  const { getStaffForTeam, refreshTrigger } = useReliableStaffOperations(day);
   const [isDragOver, setIsDragOver] = useState(false);
   const [canDropHere, setCanDropHere] = useState(false);
+  const [localStaffList, setLocalStaffList] = useState<Array<{id: string, name: string, color: string}>>([]);
+  
+  // Update local staff list when refreshTrigger changes
+  useEffect(() => {
+    const staffForTeam = getStaffForTeam(resource.id);
+    setLocalStaffList(staffForTeam);
+    console.log(`StaffAssignmentArea: Updated staff list for team ${resource.id}:`, staffForTeam);
+  }, [getStaffForTeam, resource.id, refreshTrigger]);
   
   const [{ isOver }, drop] = useDrop({
     accept: ['STAFF'],
@@ -44,14 +52,18 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
       if (item.id && onStaffDrop) {
         try {
           await onStaffDrop(item.id, resource.id, day);
+          // Force immediate local update
+          setTimeout(() => {
+            const updatedStaff = getStaffForTeam(resource.id);
+            setLocalStaffList(updatedStaff);
+          }, 100);
         } catch (error) {
           console.error('Error handling staff drop:', error);
         }
       }
     },
     hover: (item: any) => {
-      const assignedStaff = getStaffForTeam(resource.id);
-      const isAlreadyAssigned = assignedStaff.some(staff => staff.id === item.id);
+      const isAlreadyAssigned = localStaffList.some(staff => staff.id === item.id);
       setCanDropHere(!isAlreadyAssigned);
     },
     collect: (monitor) => ({
@@ -67,13 +79,15 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
     }
   }, [isOver]);
 
-  // Get assigned staff for this team on this specific day
-  const assignedStaff = getStaffForTeam(resource.id);
-
   const handleRemoveStaff = async (staffId: string) => {
     if (onStaffDrop) {
       try {
         await onStaffDrop(staffId, null, day);
+        // Force immediate local update
+        setTimeout(() => {
+          const updatedStaff = getStaffForTeam(resource.id);
+          setLocalStaffList(updatedStaff);
+        }, 100);
       } catch (error) {
         console.error('Error removing staff:', error);
       }
@@ -93,14 +107,14 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
         <div className={`staff-count-info ${isDragOver ? 'drag-active' : ''}`}>
           {isDragOver 
             ? (canDropHere ? `Drop for ${format(day, 'MMM d')}` : 'Already assigned')
-            : (assignedStaff.length === 0 ? 'Drop staff here' : `${assignedStaff.length} staff`)
+            : (localStaffList.length === 0 ? 'Drop staff here' : `${localStaffList.length} staff`)
           }
         </div>
         
         {/* Assigned Staff List - compact header version */}
         <div className="assigned-staff-header-list">
-          {assignedStaff.map((staff, index) => (
-            <div key={staff.id} className="staff-header-item">
+          {localStaffList.map((staff, index) => (
+            <div key={`${staff.id}-${index}`} className="staff-header-item">
               <UnifiedDraggableStaffItem
                 staff={{
                   id: staff.id,
@@ -148,12 +162,12 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
         }`}
       >
         <div className="drop-info-aligned">
-          {assignedStaff.length === 0 ? 'Drop staff here' : `${assignedStaff.length} staff assigned`}
+          {localStaffList.length === 0 ? 'Drop staff here' : `${localStaffList.length} staff assigned`}
         </div>
         
         <div className="assigned-staff-list-aligned">
-          {assignedStaff.map((staff, index) => (
-            <div key={staff.id} className="staff-item-positioned" style={{ top: `${index * 30}px` }}>
+          {localStaffList.map((staff, index) => (
+            <div key={`${staff.id}-${index}`} className="staff-item-positioned" style={{ top: `${index * 30}px` }}>
               <UnifiedDraggableStaffItem
                 staff={{
                   id: staff.id,

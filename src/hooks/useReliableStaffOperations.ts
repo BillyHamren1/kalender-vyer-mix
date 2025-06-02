@@ -35,6 +35,7 @@ interface OptimisticAssignment {
   staffName: string;
   color: string;
   isOptimistic: boolean;
+  timestamp: number;
 }
 
 export const useReliableStaffOperations = (currentDate: Date) => {
@@ -166,7 +167,7 @@ export const useReliableStaffOperations = (currentDate: Date) => {
     return allStaff.filter(staff => !assignedStaffIds.has(staff.id));
   }, [allStaff, combinedAssignments]);
 
-  // Add optimistic assignment immediately
+  // Add optimistic assignment immediately with force update trigger
   const addOptimisticAssignment = useCallback((staffId: string, teamId: string | null) => {
     const staffMember = allStaff.find(s => s.id === staffId);
     if (!staffMember) return;
@@ -181,18 +182,24 @@ export const useReliableStaffOperations = (currentDate: Date) => {
         teamId,
         staffName: staffMember.name,
         color: staffMember.color,
-        isOptimistic: true
+        isOptimistic: true,
+        timestamp: Date.now()
       };
       setOptimisticAssignments(prev => [...prev, newOptimistic]);
+      console.log('Added optimistic assignment:', newOptimistic);
     }
+    
+    // Force a small refresh counter increment to trigger re-renders
+    setRefreshCounter(prev => prev + 0.1);
   }, [allStaff]);
 
   // Remove optimistic assignment (for error rollback)
   const removeOptimisticAssignment = useCallback((staffId: string) => {
     setOptimisticAssignments(prev => prev.filter(opt => opt.staffId !== staffId));
+    setRefreshCounter(prev => prev + 0.1);
   }, []);
 
-  // Handle staff drop operations with optimistic updates
+  // Handle staff drop operations with immediate optimistic updates
   const handleStaffDrop = useCallback(async (staffId: string, targetTeamId: string | null, targetDate?: Date) => {
     const effectiveDate = targetDate || currentDate;
     const effectiveDateStr = format(effectiveDate, 'yyyy-MM-dd');
@@ -203,7 +210,7 @@ export const useReliableStaffOperations = (currentDate: Date) => {
       effectiveDateStr
     });
 
-    // Add optimistic assignment immediately for visual feedback
+    // Add optimistic assignment immediately for instant visual feedback
     addOptimisticAssignment(staffId, targetTeamId);
 
     try {
@@ -239,8 +246,9 @@ export const useReliableStaffOperations = (currentDate: Date) => {
         toast.success(`${staffMember?.name || 'Staff'} unassigned from team`);
       }
 
-      // Refresh assignments from database (this will clear the optimistic assignment)
+      // Immediate refresh to sync with database - no delay
       await fetchAssignments();
+      
     } catch (error) {
       console.error('Error in handleStaffDrop:', error);
       
