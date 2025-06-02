@@ -73,7 +73,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading custom calendar...</div>
+        <div className="text-gray-500">Loading staff planning calendar...</div>
       </div>
     );
   }
@@ -97,7 +97,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         </Button>
       </div>
 
-      {/* Weekly Calendar Grid - Horizontally Scrollable */}
+      {/* Weekly Staff Planning Grid - Horizontally Scrollable */}
       <div className="weekly-calendar-container overflow-x-auto">
         <div 
           className="weekly-calendar-grid flex"

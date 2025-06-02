@@ -2,40 +2,48 @@
 .time-grid {
   @apply bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden;
   display: grid;
-  grid-template-rows: 60px 1fr;
   min-height: 600px;
-  height: calc(60px + 60px * 17); /* Header + 17 time slots */
+  height: auto;
 }
 
-.time-grid-header {
-  @apply bg-gray-50 border-b border-gray-200;
-  display: contents;
+/* Day Header - Full Width */
+.day-header-full {
+  @apply bg-blue-50 border-b-2 border-blue-200 p-4 text-center;
+  grid-column: 1 / -1;
+  grid-row: 1;
 }
 
-.resource-header-label {
-  @apply flex items-center justify-center text-sm font-medium text-gray-700 border-r border-gray-200 bg-gray-100;
+.day-title {
+  @apply text-lg font-bold text-blue-800;
+}
+
+/* Time Column Header */
+.time-column-header {
+  @apply bg-gray-100 border-r border-gray-200 p-2 text-center text-sm font-medium text-gray-700;
   grid-column: 1;
-  grid-row: 1;
+  grid-row: 2;
 }
 
-.day-header {
-  @apply flex items-center justify-center border-r border-gray-200 bg-gray-50;
-  grid-row: 1;
+/* Team Headers */
+.team-header {
+  @apply bg-gray-50 border-r border-gray-200 p-2 text-center;
+  grid-row: 2;
   transition: background-color 0.2s;
 }
 
-.day-header:hover {
+.team-header:hover {
   @apply bg-gray-100;
 }
 
-.day-label {
+.team-title {
   @apply text-sm font-medium text-gray-700;
 }
 
+/* Time Labels */
 .time-labels {
   @apply bg-gray-50 border-r border-gray-200;
   grid-column: 1;
-  grid-row: 2;
+  grid-row: 3;
   display: flex;
   flex-direction: column;
 }
@@ -50,34 +58,58 @@
   @apply border-b-0;
 }
 
-.resource-rows {
-  grid-column: 2 / -1;
-  grid-row: 2;
-  display: flex;
-  flex-direction: column;
-  background: white;
-}
-
-.resource-row {
-  @apply border-b border-gray-200 flex-1;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, 1fr);
-  height: calc(60px * 17); /* 17 time slots */
-  position: relative;
-}
-
-.resource-row:last-child {
-  @apply border-b-0;
-}
-
-.day-column {
+/* Team Columns */
+.team-column {
   @apply border-r border-gray-200 relative bg-white;
+  grid-row: 3;
   position: relative;
   overflow: visible;
 }
 
-.day-column:last-child {
+.team-column:last-child {
   @apply border-r-0;
+}
+
+/* Staff Assignment Area */
+.staff-assignment-area {
+  @apply relative h-full;
+  position: relative;
+  min-height: calc(60px * 11); /* 11 time slots */
+}
+
+.staff-drop-zone {
+  @apply absolute inset-0 p-2;
+  transition: background-color 0.2s;
+}
+
+.staff-drop-zone.drop-over {
+  @apply bg-blue-50/50;
+  border: 2px dashed #3b82f6;
+}
+
+.drop-zone-header {
+  @apply mb-2 p-2 bg-gray-50 rounded border;
+}
+
+.team-name {
+  @apply font-medium text-sm;
+}
+
+.drop-staff-text {
+  @apply text-xs text-gray-500 mt-1;
+}
+
+.assigned-staff-list {
+  @apply space-y-1;
+}
+
+.time-grid-background {
+  @apply absolute inset-0 pointer-events-none;
+  z-index: 1;
+}
+
+.time-slot-background {
+  background: linear-gradient(to bottom, transparent 0%, transparent 99%, #e5e7eb 99%, #e5e7eb 100%);
 }
 
 /* Weekly Calendar Container Styles */
@@ -104,10 +136,10 @@
 /* Responsive design */
 @media (max-width: 768px) {
   .time-grid {
-    grid-template-columns: 60px repeat(auto-fit, minmax(80px, 1fr));
+    grid-template-columns: 60px repeat(auto-fit, minmax(120px, 1fr));
   }
   
-  .resource-header-label,
+  .time-column-header,
   .time-labels {
     width: 60px;
   }
