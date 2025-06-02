@@ -1,10 +1,10 @@
-
 import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import StaffAssignmentArea from './StaffAssignmentArea';
 import BookingEvent from './BookingEvent';
 import { useWeeklyStaffOperations } from '@/hooks/useWeeklyStaffOperations';
+import { useEventNavigation } from '@/hooks/useEventNavigation';
 import './TimeGrid.css';
 
 interface TimeGridProps {
@@ -28,6 +28,9 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   dayWidth = 800,
   weeklyStaffOperations
 }) => {
+  // Use the event navigation hook for handling event clicks
+  const { handleEventClick } = useEventNavigation();
+
   // Generate time slots from 05:00 to 23:00
   const generateTimeSlots = () => {
     const timeSlots = [];
@@ -72,6 +75,27 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     const height = Math.max(30, (clampedEndHour - clampedStartHour) * 60);
     
     return { top, height };
+  };
+
+  // Handle event click - format event data for navigation hook
+  const handleBookingEventClick = (event: CalendarEvent) => {
+    console.log('TimeGrid: Event clicked:', event);
+    
+    // Format the event data to match what useEventNavigation expects
+    const formattedEventInfo = {
+      event: {
+        id: event.id,
+        title: event.title,
+        start: new Date(event.start),
+        extendedProps: {
+          bookingId: event.bookingId,
+          resourceId: event.resourceId
+        }
+      }
+    };
+    
+    console.log('TimeGrid: Formatted event for navigation:', formattedEventInfo);
+    handleEventClick(formattedEventInfo);
   };
 
   console.log('TimeGrid: Width calculations', {
@@ -203,10 +227,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                       top: `${position.top}px`,
                       height: `${position.height}px`,
                     }}
-                    onClick={() => {
-                      console.log('Event clicked:', event);
-                      // TODO: Add event click handling (navigate to booking detail, etc.)
-                    }}
+                    onClick={() => handleBookingEventClick(event)}
                   />
                 );
               })}
