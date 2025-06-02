@@ -10,18 +10,17 @@ export interface StaffAssignmentData {
   staffId: string;
   teamId: string;
   date: string;
-  staffName: string; // Made required
-  color: string; // Made required
+  staffName: string;
+  color: string;
 }
 
 export interface StaffMemberWithAssignment {
   id: string;
   name: string;
-  color: string; // Made required
+  color: string;
   assignedTeam?: string | null;
 }
 
-// Add interface for compatibility with existing components
 export interface StaffAssignment {
   staffId: string;
   staffName: string;
@@ -29,9 +28,19 @@ export interface StaffAssignment {
   date: string;
 }
 
+// Optimistic assignment interface
+interface OptimisticAssignment {
+  staffId: string;
+  teamId: string | null;
+  staffName: string;
+  color: string;
+  isOptimistic: boolean;
+}
+
 export const useReliableStaffOperations = (currentDate: Date) => {
   const [assignments, setAssignments] = useState<StaffAssignmentData[]>([]);
   const [allStaff, setAllStaff] = useState<StaffMemberWithAssignment[]>([]);
+  const [optimisticAssignments, setOptimisticAssignments] = useState<OptimisticAssignment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [refreshCounter, setRefreshCounter] = useState(0);
 
@@ -88,6 +97,14 @@ export const useReliableStaffOperations = (currentDate: Date) => {
       });
 
       setAssignments(assignmentsData);
+      
+      // Clear optimistic assignments that now exist in the database
+      setOptimisticAssignments(prev => 
+        prev.filter(opt => !assignmentsData.some(db => 
+          db.staffId === opt.staffId && db.teamId === opt.teamId
+        ))
+      );
+      
       return assignmentsData;
     } catch (error) {
       console.error('Error fetching staff assignments:', error);
@@ -109,25 +126,73 @@ export const useReliableStaffOperations = (currentDate: Date) => {
     loadData();
   }, [fetchAllStaff, fetchAssignments, refreshCounter]);
 
-  // Get staff assigned to a specific team with color information
+  // Combine database assignments with optimistic assignments
+  const combinedAssignments = useMemo(() => {
+    const dbAssignments = assignments.map(a => ({ ...a, isOptimistic: false }));
+    const validOptimistic = optimisticAssignments.filter(opt => 
+      opt.teamId && !dbAssignments.some(db => 
+        db.staffId === opt.staffId && db.teamId === opt.teamId
+      )
+    );
+    
+    return [
+      ...dbAssignments,
+      ...validOptimistic.map(opt => ({
+        staffId: opt.staffId,
+        teamId: opt.teamId!,
+        date: dateStr,
+        staffName: opt.staffName,
+        color: opt.color,
+        isOptimistic: true
+      }))
+    ];
+  }, [assignments, optimisticAssignments, dateStr]);
+
+  // Get staff assigned to a specific team with optimistic updates
   const getStaffForTeam = useCallback((teamId: string): Array<{id: string, name: string, color: string}> => {
-    const teamAssignments = assignments.filter(assignment => assignment.teamId === teamId);
+    const teamAssignments = combinedAssignments.filter(assignment => assignment.teamId === teamId);
     
     return teamAssignments.map(assignment => ({
       id: assignment.staffId,
       name: assignment.staffName,
       color: assignment.color
     }));
-  }, [assignments]);
+  }, [combinedAssignments]);
 
-  // Get available staff (not assigned to any team) with color information
+  // Get available staff (not assigned to any team) with optimistic updates
   const getAvailableStaff = useCallback((): StaffMemberWithAssignment[] => {
-    const assignedStaffIds = new Set(assignments.map(a => a.staffId));
+    const assignedStaffIds = new Set(combinedAssignments.map(a => a.staffId));
     
     return allStaff.filter(staff => !assignedStaffIds.has(staff.id));
-  }, [allStaff, assignments]);
+  }, [allStaff, combinedAssignments]);
 
-  // Handle staff drop operations
+  // Add optimistic assignment immediately
+  const addOptimisticAssignment = useCallback((staffId: string, teamId: string | null) => {
+    const staffMember = allStaff.find(s => s.id === staffId);
+    if (!staffMember) return;
+
+    // Remove any existing optimistic assignments for this staff
+    setOptimisticAssignments(prev => prev.filter(opt => opt.staffId !== staffId));
+
+    if (teamId) {
+      // Add new optimistic assignment
+      const newOptimistic: OptimisticAssignment = {
+        staffId,
+        teamId,
+        staffName: staffMember.name,
+        color: staffMember.color,
+        isOptimistic: true
+      };
+      setOptimisticAssignments(prev => [...prev, newOptimistic]);
+    }
+  }, [allStaff]);
+
+  // Remove optimistic assignment (for error rollback)
+  const removeOptimisticAssignment = useCallback((staffId: string) => {
+    setOptimisticAssignments(prev => prev.filter(opt => opt.staffId !== staffId));
+  }, []);
+
+  // Handle staff drop operations with optimistic updates
   const handleStaffDrop = useCallback(async (staffId: string, targetTeamId: string | null, targetDate?: Date) => {
     const effectiveDate = targetDate || currentDate;
     const effectiveDateStr = format(effectiveDate, 'yyyy-MM-dd');
@@ -137,6 +202,9 @@ export const useReliableStaffOperations = (currentDate: Date) => {
       targetTeamId,
       effectiveDateStr
     });
+
+    // Add optimistic assignment immediately for visual feedback
+    addOptimisticAssignment(staffId, targetTeamId);
 
     try {
       setIsLoading(true);
@@ -171,42 +239,46 @@ export const useReliableStaffOperations = (currentDate: Date) => {
         toast.success(`${staffMember?.name || 'Staff'} unassigned from team`);
       }
 
-      // Refresh assignments
+      // Refresh assignments from database (this will clear the optimistic assignment)
       await fetchAssignments();
     } catch (error) {
       console.error('Error in handleStaffDrop:', error);
+      
+      // Rollback optimistic assignment on error
+      removeOptimisticAssignment(staffId);
+      
       toast.error('Failed to update staff assignment');
     } finally {
       setIsLoading(false);
     }
-  }, [currentDate, allStaff, fetchAssignments]);
+  }, [currentDate, allStaff, fetchAssignments, addOptimisticAssignment, removeOptimisticAssignment]);
 
   // Force refresh function
   const forceRefresh = useCallback(() => {
     setRefreshCounter(prev => prev + 1);
+    // Clear optimistic assignments on manual refresh
+    setOptimisticAssignments([]);
   }, []);
 
   // Convert assignments to the format expected by existing components
   const compatibleAssignments = useMemo((): StaffAssignment[] => {
-    return assignments.map(assignment => ({
+    return combinedAssignments.map(assignment => ({
       staffId: assignment.staffId,
       staffName: assignment.staffName || `Staff ${assignment.staffId}`,
       teamId: assignment.teamId,
       date: assignment.date
     }));
-  }, [assignments]);
+  }, [combinedAssignments]);
 
   return {
-    assignments,
+    assignments: combinedAssignments,
     allStaff,
     isLoading,
     getStaffForTeam,
     getAvailableStaff,
     handleStaffDrop,
     forceRefresh,
-    // Add refreshTrigger for compatibility with MonthlyResourceView
     refreshTrigger: refreshCounter,
-    // Add assignments in the format expected by WeeklyResourceView's StaffSelectionDialog
     compatibleAssignments
   };
 };
