@@ -60,9 +60,6 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
         style={{ zIndex: 1 }}
       >
         <div className="drop-zone-header">
-          <div className="team-name" style={{ color: resource.eventColor }}>
-            {resource.title}
-          </div>
           <div className="drop-staff-text">
             {assignedStaff.length === 0 ? 'Drop staff' : `${assignedStaff.length} staff assigned`}
           </div>
