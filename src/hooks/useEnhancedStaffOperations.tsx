@@ -170,7 +170,7 @@ export const useEnhancedStaffOperations = (currentDate: Date) => {
     }
   }, [assignments, currentDate, dateStr, addLog, assignStaffWithValidation, removeStaffWithValidation]);
 
-  // Get staff for a specific team with logging
+  // Get staff for a specific team - FIXED: Removed addLog to prevent infinite re-renders
   const getStaffForTeam = useCallback((teamId: string) => {
     const teamStaff = assignments
       .filter(a => a.teamId === teamId)
@@ -179,9 +179,9 @@ export const useEnhancedStaffOperations = (currentDate: Date) => {
         name: a.staffName
       }));
     
-    addLog(`Getting staff for team ${teamId}: ${teamStaff.length} members`);
+    // Removed addLog call that was causing infinite re-renders
     return teamStaff;
-  }, [assignments, addLog]);
+  }, [assignments]);
 
   // Force refresh with validation
   const forceRefresh = useCallback(() => {
