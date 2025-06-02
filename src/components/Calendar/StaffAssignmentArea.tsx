@@ -9,7 +9,6 @@ import DraggableStaffItem from './DraggableStaffItem';
 interface StaffAssignmentAreaProps {
   day: Date;
   resource: Resource;
-  timeSlots: string[];
   events: CalendarEvent[];
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
 }
@@ -17,7 +16,6 @@ interface StaffAssignmentAreaProps {
 const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
   day,
   resource,
-  timeSlots,
   events,
   onStaffDrop
 }) => {
@@ -67,20 +65,6 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
             />
           ))}
         </div>
-      </div>
-
-      {/* Time Grid Background */}
-      <div className="time-grid-background">
-        {timeSlots.map((time, index) => (
-          <div
-            key={time}
-            className="time-slot-background"
-            style={{
-              height: '60px',
-              borderBottom: '1px solid #f3f4f6',
-            }}
-          />
-        ))}
       </div>
     </div>
   );
