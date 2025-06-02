@@ -3,6 +3,7 @@ import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import StaffAssignmentArea from './StaffAssignmentArea';
 import BookingEvent from './BookingEvent';
+import EventHoverCard from './EventHoverCard';
 import { useWeeklyStaffOperations } from '@/hooks/useWeeklyStaffOperations';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
 import './TimeGrid.css';
@@ -216,15 +217,16 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               {resourceEvents.map((event) => {
                 const position = getEventPosition(event);
                 return (
-                  <BookingEvent
-                    key={event.id}
-                    event={event}
-                    style={{
-                      top: `${position.top}px`,
-                      height: `${position.height}px`,
-                    }}
-                    onClick={() => handleBookingEventClick(event)}
-                  />
+                  <EventHoverCard key={event.id} event={event}>
+                    <BookingEvent
+                      event={event}
+                      style={{
+                        top: `${position.top}px`,
+                        height: `${position.height}px`,
+                      }}
+                      onClick={() => handleBookingEventClick(event)}
+                    />
+                  </EventHoverCard>
                 );
               })}
             </div>
