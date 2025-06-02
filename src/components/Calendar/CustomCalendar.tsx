@@ -6,6 +6,7 @@ import TimeGrid from './TimeGrid';
 import WeekNavigation from './WeekNavigation';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
+import { useWeeklyStaffOperations } from '@/hooks/useWeeklyStaffOperations';
 
 interface CustomCalendarProps {
   events: CalendarEvent[];
@@ -18,6 +19,7 @@ interface CustomCalendarProps {
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
   onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date) => void;
   viewMode: 'weekly' | 'monthly';
+  weeklyStaffOperations?: ReturnType<typeof useWeeklyStaffOperations>;
 }
 
 const CustomCalendar: React.FC<CustomCalendarProps> = ({
@@ -30,7 +32,8 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   refreshEvents,
   onStaffDrop,
   onOpenStaffSelection,
-  viewMode
+  viewMode,
+  weeklyStaffOperations
 }) => {
   const [currentWeekStart, setCurrentWeekStart] = useState(currentDate);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -49,6 +52,9 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   // Handle refresh
   const handleRefresh = async () => {
     await refreshEvents();
+    if (weeklyStaffOperations) {
+      weeklyStaffOperations.forceRefresh();
+    }
   };
 
   // Filter events for a specific day and resource
@@ -135,6 +141,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                 onStaffDrop={onStaffDrop}
                 onOpenStaffSelection={onOpenStaffSelection}
                 dayWidth={getDayWidth()}
+                weeklyStaffOperations={weeklyStaffOperations}
               />
             </div>
           ))}

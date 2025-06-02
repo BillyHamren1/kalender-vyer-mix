@@ -1,26 +1,31 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Calendar, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
 import { format } from 'date-fns';
-import { useReliableStaffOperations } from '@/hooks/useReliableStaffOperations';
+
+interface StaffMember {
+  id: string;
+  name: string;
+  color?: string;
+}
 
 interface AvailableStaffDisplayProps {
   currentDate: Date;
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
+  availableStaff: StaffMember[];
+  isLoading: boolean;
 }
 
 const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({
   currentDate,
-  onStaffDrop
+  onStaffDrop,
+  availableStaff,
+  isLoading
 }) => {
   const [isVisible, setIsVisible] = useState(true);
-  const { getAvailableStaff, isLoading } = useReliableStaffOperations(currentDate);
-  
-  // Get available staff with color information
-  const availableStaff = getAvailableStaff();
 
   console.log('AvailableStaffDisplay: Available staff with colors:', availableStaff);
 

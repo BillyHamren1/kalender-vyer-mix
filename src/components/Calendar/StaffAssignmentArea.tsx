@@ -3,7 +3,7 @@ import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import { useDrop } from 'react-dnd';
-import { useReliableStaffOperations } from '@/hooks/useReliableStaffOperations';
+import { useWeeklyStaffOperations } from '@/hooks/useWeeklyStaffOperations';
 import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
 
 interface TimeSlot {
@@ -19,6 +19,7 @@ interface StaffAssignmentAreaProps {
   onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date) => void;
   timeSlots?: TimeSlot[];
   isHeaderRow?: boolean;
+  weeklyStaffOperations?: ReturnType<typeof useWeeklyStaffOperations>;
 }
 
 const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
@@ -28,10 +29,9 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
   onStaffDrop,
   onOpenStaffSelection,
   timeSlots = [],
-  isHeaderRow = false
+  isHeaderRow = false,
+  weeklyStaffOperations
 }) => {
-  const { getStaffForTeam } = useReliableStaffOperations(day);
-  
   const [{ isOver }, drop] = useDrop({
     accept: ['STAFF'],
     drop: (item: any) => {
@@ -45,8 +45,10 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
     }),
   });
 
-  // Get assigned staff for this team on this specific day
-  const assignedStaff = getStaffForTeam(resource.id);
+  // Get assigned staff for this team on this specific day using weekly operations
+  const assignedStaff = weeklyStaffOperations 
+    ? weeklyStaffOperations.getStaffForTeamAndDate(resource.id, day)
+    : [];
 
   const handleRemoveStaff = (staffId: string) => {
     if (onStaffDrop) {

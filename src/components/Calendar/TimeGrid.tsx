@@ -3,6 +3,7 @@ import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import StaffAssignmentArea from './StaffAssignmentArea';
+import { useWeeklyStaffOperations } from '@/hooks/useWeeklyStaffOperations';
 import './TimeGrid.css';
 
 interface TimeGridProps {
@@ -13,6 +14,7 @@ interface TimeGridProps {
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
   onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date) => void;
   dayWidth?: number;
+  weeklyStaffOperations?: ReturnType<typeof useWeeklyStaffOperations>;
 }
 
 const TimeGrid: React.FC<TimeGridProps> = ({
@@ -22,7 +24,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   getEventsForDayAndResource,
   onStaffDrop,
   onOpenStaffSelection,
-  dayWidth = 800 // Increased default width
+  dayWidth = 800,
+  weeklyStaffOperations
 }) => {
   // Generate time slots from 05:00 to 23:00
   const generateTimeSlots = () => {
@@ -126,6 +129,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             onOpenStaffSelection={onOpenStaffSelection}
             timeSlots={[]}
             isHeaderRow={true}
+            weeklyStaffOperations={weeklyStaffOperations}
           />
         </div>
       ))}

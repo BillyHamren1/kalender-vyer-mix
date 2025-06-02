@@ -4,7 +4,7 @@ import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
-import { useReliableStaffOperations } from '@/hooks/useReliableStaffOperations';
+import { useWeeklyStaffOperations } from '@/hooks/useWeeklyStaffOperations';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -27,12 +27,14 @@ const CustomCalendarPage = () => {
   } = useRealTimeCalendarEvents();
   
   const { teamResources } = useTeamResources();
-  const reliableStaffOps = useReliableStaffOperations(hookCurrentDate);
   
   // Week navigation state
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     return startOfWeek(new Date(hookCurrentDate), { weekStartsOn: 1 });
   });
+
+  // Use the new weekly staff operations hook
+  const weeklyStaffOps = useWeeklyStaffOperations(currentWeekStart);
 
   // Staff selection dialog state
   const [staffDialogOpen, setStaffDialogOpen] = useState(false);
@@ -48,7 +50,7 @@ const CustomCalendarPage = () => {
     console.log('CustomCalendarPage: Staff drop', { staffId, resourceId, targetDate: effectiveDate });
     
     try {
-      await reliableStaffOps.handleStaffDrop(staffId, resourceId, effectiveDate);
+      await weeklyStaffOps.handleStaffDrop(staffId, resourceId, effectiveDate);
     } catch (error) {
       console.error('CustomCalendarPage: Error in staff drop:', error);
     }
@@ -106,6 +108,7 @@ const CustomCalendarPage = () => {
             onStaffDrop={handleStaffDrop}
             onOpenStaffSelection={handleOpenStaffSelection}
             viewMode="weekly"
+            weeklyStaffOperations={weeklyStaffOps}
           />
         </div>
 
@@ -113,6 +116,8 @@ const CustomCalendarPage = () => {
         <AvailableStaffDisplay
           currentDate={currentWeekStart}
           onStaffDrop={handleStaffDrop}
+          availableStaff={weeklyStaffOps.getAvailableStaffForWeek()}
+          isLoading={weeklyStaffOps.isLoading}
         />
 
         {/* Staff Selection Dialog */}
@@ -124,7 +129,7 @@ const CustomCalendarPage = () => {
             open={staffDialogOpen}
             onOpenChange={setStaffDialogOpen}
             onStaffAssigned={handleStaffAssigned}
-            reliableStaffOperations={reliableStaffOps}
+            availableStaff={weeklyStaffOps.getAvailableStaffForWeek()}
           />
         )}
       </div>
