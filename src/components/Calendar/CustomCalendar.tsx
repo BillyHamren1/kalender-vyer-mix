@@ -60,6 +60,16 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     });
   };
 
+  // Calculate day width for weekly view
+  const getDayWidth = () => {
+    if (containerRef.current) {
+      const containerWidth = containerRef.current.offsetWidth;
+      const dayWidth = Math.floor(containerWidth / 7);
+      return Math.max(300, dayWidth); // Minimum width of 300px per day
+    }
+    return 300;
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -87,14 +97,31 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         </Button>
       </div>
 
-      {/* Time Grid */}
-      <TimeGrid
-        days={days}
-        resources={resources}
-        events={events}
-        getEventsForDayAndResource={getEventsForDayAndResource}
-        onStaffDrop={onStaffDrop}
-      />
+      {/* Weekly Calendar Grid - Horizontally Scrollable */}
+      <div className="weekly-calendar-container overflow-x-auto">
+        <div 
+          className="weekly-calendar-grid flex"
+          style={{
+            minWidth: `${7 * getDayWidth()}px`
+          }}
+        >
+          {days.map((date) => (
+            <div 
+              key={format(date, 'yyyy-MM-dd')} 
+              className="day-calendar-wrapper flex-shrink-0"
+              style={{ width: `${getDayWidth()}px` }}
+            >
+              <TimeGrid
+                day={date}
+                resources={resources}
+                events={events}
+                getEventsForDayAndResource={getEventsForDayAndResource}
+                onStaffDrop={onStaffDrop}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };

@@ -2,7 +2,6 @@
 .time-grid {
   @apply bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden;
   display: grid;
-  grid-template-columns: 80px repeat(7, 1fr);
   grid-template-rows: 60px 1fr;
   min-height: 600px;
   height: calc(60px + 60px * 17); /* Header + 17 time slots */
@@ -62,7 +61,7 @@
 .resource-row {
   @apply border-b border-gray-200 flex-1;
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(auto-fit, 1fr);
   height: calc(60px * 17); /* 17 time slots */
   position: relative;
 }
@@ -81,10 +80,31 @@
   @apply border-r-0;
 }
 
+/* Weekly Calendar Container Styles */
+.custom-calendar-container {
+  @apply w-full h-full;
+}
+
+.weekly-calendar-container {
+  @apply w-full;
+}
+
+.weekly-calendar-grid {
+  @apply gap-1;
+}
+
+.day-calendar-wrapper {
+  @apply border-r border-gray-300;
+}
+
+.day-calendar-wrapper:last-child {
+  @apply border-r-0;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
   .time-grid {
-    grid-template-columns: 60px repeat(7, minmax(80px, 1fr));
+    grid-template-columns: 60px repeat(auto-fit, minmax(80px, 1fr));
   }
   
   .resource-header-label,
@@ -94,5 +114,9 @@
   
   .time-label {
     font-size: 10px;
+  }
+  
+  .day-calendar-wrapper {
+    min-width: 250px;
   }
 }

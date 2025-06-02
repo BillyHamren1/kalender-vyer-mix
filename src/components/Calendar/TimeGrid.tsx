@@ -2,12 +2,11 @@
 import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
-import ResourceColumn from './ResourceColumn';
 import TimeSlots from './TimeSlots';
 import './TimeGrid.css';
 
 interface TimeGridProps {
-  days: Date[];
+  day: Date;
   resources: Resource[];
   events: CalendarEvent[];
   getEventsForDayAndResource: (date: Date, resourceId: string) => CalendarEvent[];
@@ -15,7 +14,7 @@ interface TimeGridProps {
 }
 
 const TimeGrid: React.FC<TimeGridProps> = ({
-  days,
+  day,
   resources,
   events,
   getEventsForDayAndResource,
@@ -33,14 +32,26 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   const timeSlots = generateTimeSlots();
 
   return (
-    <div className="time-grid">
-      {/* Header with day labels */}
+    <div 
+      className="time-grid"
+      style={{
+        gridTemplateColumns: `80px repeat(${resources.length}, 1fr)`,
+        gridTemplateRows: '60px 1fr'
+      }}
+    >
+      {/* Header with team labels */}
       <div className="time-grid-header">
-        <div className="resource-header-label">Teams</div>
-        {days.map((day) => (
-          <div key={format(day, 'yyyy-MM-dd')} className="day-header">
+        <div className="resource-header-label">
+          {format(day, 'EEE d')}
+        </div>
+        {resources.map((resource) => (
+          <div 
+            key={resource.id} 
+            className="day-header"
+            style={{ borderLeft: `3px solid ${resource.eventColor}` }}
+          >
             <div className="day-label">
-              {format(day, 'EEE d')}
+              {resource.title}
             </div>
           </div>
         ))}
@@ -55,30 +66,21 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         ))}
       </div>
 
-      {/* Resource rows */}
+      {/* Team columns */}
       <div className="resource-rows">
-        {resources.map((resource) => (
-          <div key={resource.id} className="resource-row">
-            {/* Resource label */}
-            <ResourceColumn
-              resource={resource}
-              onStaffDrop={onStaffDrop}
-            />
-            
-            {/* Time slots for each day */}
-            {days.map((day) => (
-              <div key={`${resource.id}-${format(day, 'yyyy-MM-dd')}`} className="day-column">
-                <TimeSlots
-                  day={day}
-                  resource={resource}
-                  timeSlots={timeSlots}
-                  events={getEventsForDayAndResource(day, resource.id)}
-                  onStaffDrop={onStaffDrop}
-                />
-              </div>
-            ))}
-          </div>
-        ))}
+        <div className="resource-row">
+          {resources.map((resource) => (
+            <div key={resource.id} className="day-column">
+              <TimeSlots
+                day={day}
+                resource={resource}
+                timeSlots={timeSlots}
+                events={getEventsForDayAndResource(day, resource.id)}
+                onStaffDrop={onStaffDrop}
+              />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
