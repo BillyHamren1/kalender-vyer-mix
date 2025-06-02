@@ -1,9 +1,8 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
-import { format, addDays } from 'date-fns';
+import { format } from 'date-fns';
 import TimeGrid from './TimeGrid';
-import WeekNavigation from './WeekNavigation';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
 
@@ -14,7 +13,7 @@ interface CustomCalendarProps {
   isMounted: boolean;
   currentDate: Date;
   onDateSet: (dateInfo: any) => void;
-  refreshEvents: () => Promise<void | CalendarEvent[]>;
+  refreshEvents: () => Promise<void>;
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
   onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date) => void;
   viewMode: 'weekly' | 'monthly';
@@ -32,14 +31,13 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   onOpenStaffSelection,
   viewMode
 }) => {
-  const [currentWeekStart, setCurrentWeekStart] = useState(currentDate);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Generate days for the week
+  // Generate days for the week using the currentDate prop
   const getDaysToRender = () => {
     return Array.from({ length: 7 }, (_, i) => {
-      const date = new Date(currentWeekStart);
-      date.setDate(currentWeekStart.getDate() + i);
+      const date = new Date(currentDate);
+      date.setDate(currentDate.getDate() + i);
       return date;
     });
   };
@@ -87,12 +85,8 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
 
   return (
     <div className="custom-calendar-container" ref={containerRef}>
-      {/* Navigation */}
-      <div className="flex items-center justify-between mb-6">
-        <WeekNavigation 
-          currentWeekStart={currentWeekStart}
-          setCurrentWeekStart={setCurrentWeekStart}
-        />
+      {/* Refresh Button - moved to top right */}
+      <div className="flex items-center justify-end mb-6">
         <Button
           onClick={handleRefresh}
           variant="outline"
