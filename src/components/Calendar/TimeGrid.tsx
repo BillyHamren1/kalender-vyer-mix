@@ -53,7 +53,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   const availableWidth = dayWidth - timeColumnWidth - 24; // Account for padding/margins
   const teamColumnWidth = Math.max(120, Math.floor(availableWidth / resources.length)); // Ensure minimum 120px per team
 
-  // Calculate event position based on time - Updated for smaller rows
+  // Calculate event position based on time - Updated for 25px rows
   const getEventPosition = (event: CalendarEvent) => {
     const startTime = new Date(event.start);
     const endTime = new Date(event.end);
@@ -70,9 +70,9 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     const clampedStartHour = Math.max(gridStartHour, Math.min(gridEndHour, startHour));
     const clampedEndHour = Math.max(gridStartHour, Math.min(gridEndHour, endHour));
     
-    // Calculate position in pixels (15px per hour instead of 60px - 75% reduction)
-    const top = (clampedStartHour - gridStartHour) * 15;
-    const height = Math.max(8, (clampedEndHour - clampedStartHour) * 15); // Minimum height reduced to 8px
+    // Calculate position in pixels (25px per hour instead of 15px for better visibility)
+    const top = (clampedStartHour - gridStartHour) * 25;
+    const height = Math.max(12, (clampedEndHour - clampedStartHour) * 25); // Minimum height increased to 12px
     
     return { top, height };
   };
