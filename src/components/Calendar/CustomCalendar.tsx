@@ -1,8 +1,9 @@
 
-import React, { useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import TimeGrid from './TimeGrid';
+import WeekNavigation from './WeekNavigation';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
 
@@ -31,13 +32,14 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   onOpenStaffSelection,
   viewMode
 }) => {
+  const [currentWeekStart, setCurrentWeekStart] = useState(currentDate);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Generate days for the week using the currentDate prop
+  // Generate days for the week
   const getDaysToRender = () => {
     return Array.from({ length: 7 }, (_, i) => {
-      const date = new Date(currentDate);
-      date.setDate(currentDate.getDate() + i);
+      const date = new Date(currentWeekStart);
+      date.setDate(currentWeekStart.getDate() + i);
       return date;
     });
   };
@@ -60,19 +62,14 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     });
   };
 
-  // Calculate day width for weekly view - SIGNIFICANTLY INCREASED for 6 team columns
+  // Calculate day width for weekly view - improved calculation
   const getDayWidth = () => {
-    // Base calculation: 6 teams × 140px per team + 80px for time column + padding
-    const timeColumnWidth = 80;
-    const teamColumnWidth = 140; // Increased from previous smaller width
-    const numberOfTeams = resources.length;
-    const padding = 20;
-    
-    // Minimum width to accommodate all team columns properly
-    const calculatedWidth = timeColumnWidth + (numberOfTeams * teamColumnWidth) + padding;
-    const minimumWidth = 900; // Significantly increased minimum to ensure all teams fit
-    
-    return Math.max(minimumWidth, calculatedWidth);
+    if (containerRef.current) {
+      const containerWidth = containerRef.current.offsetWidth - 48; // Account for padding
+      const dayWidth = Math.floor(containerWidth / 7);
+      return Math.max(250, dayWidth); // Minimum width of 250px per day (reduced from 300px)
+    }
+    return 250;
   };
 
   if (isLoading) {
@@ -85,8 +82,12 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
 
   return (
     <div className="custom-calendar-container" ref={containerRef}>
-      {/* Refresh Button - moved to top right */}
-      <div className="flex items-center justify-end mb-6">
+      {/* Navigation */}
+      <div className="flex items-center justify-between mb-6">
+        <WeekNavigation 
+          currentWeekStart={currentWeekStart}
+          setCurrentWeekStart={setCurrentWeekStart}
+        />
         <Button
           onClick={handleRefresh}
           variant="outline"
@@ -98,12 +99,12 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         </Button>
       </div>
 
-      {/* Weekly Staff Planning Grid - 7 Days Horizontally with Much Wider Layout */}
+      {/* Weekly Staff Planning Grid - 7 Days Horizontally */}
       <div className="weekly-calendar-container overflow-x-auto">
         <div 
           className="weekly-calendar-grid flex"
           style={{
-            minWidth: `${7 * getDayWidth()}px` // Total width will be ~6300px for proper display
+            minWidth: `${7 * getDayWidth()}px`
           }}
         >
           {days.map((date) => (
