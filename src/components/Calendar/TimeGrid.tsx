@@ -3,6 +3,7 @@ import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import StaffAssignmentArea from './StaffAssignmentArea';
+import BookingEvent from './BookingEvent';
 import { useWeeklyStaffOperations } from '@/hooks/useWeeklyStaffOperations';
 import './TimeGrid.css';
 
@@ -48,6 +49,30 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   const timeColumnWidth = 80; // Fixed width for time column
   const availableWidth = dayWidth - timeColumnWidth - 24; // Account for padding/margins
   const teamColumnWidth = Math.max(120, Math.floor(availableWidth / resources.length)); // Ensure minimum 120px per team
+
+  // Calculate event position based on time
+  const getEventPosition = (event: CalendarEvent) => {
+    const startTime = new Date(event.start);
+    const endTime = new Date(event.end);
+    
+    // Get hours and minutes as decimal
+    const startHour = startTime.getHours() + startTime.getMinutes() / 60;
+    const endHour = endTime.getHours() + endTime.getMinutes() / 60;
+    
+    // Calculate position from 5 AM (our grid starts at 5 AM)
+    const gridStartHour = 5;
+    const gridEndHour = 23;
+    
+    // Ensure event is within our time range
+    const clampedStartHour = Math.max(gridStartHour, Math.min(gridEndHour, startHour));
+    const clampedEndHour = Math.max(gridStartHour, Math.min(gridEndHour, endHour));
+    
+    // Calculate position in pixels (60px per hour)
+    const top = (clampedStartHour - gridStartHour) * 60;
+    const height = Math.max(30, (clampedEndHour - clampedStartHour) * 60);
+    
+    return { top, height };
+  };
 
   console.log('TimeGrid: Width calculations', {
     dayWidth,
@@ -143,25 +168,52 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         ))}
       </div>
 
-      {/* Time Slot Columns - below staff assignments */}
-      {resources.map((resource, index) => (
-        <div 
-          key={`timeslots-${resource.id}`} 
-          className="time-slots-column"
-          style={{ 
-            gridColumn: index + 2,
-            gridRow: 4,
-            width: `${teamColumnWidth}px`,
-            minWidth: `${teamColumnWidth}px`
-          }}
-        >
-          <div className="time-slots-grid">
-            {timeSlots.map((slot) => (
-              <div key={slot.time} className="time-slot-cell" />
-            ))}
+      {/* Time Slot Columns with Events - below staff assignments */}
+      {resources.map((resource, index) => {
+        const resourceEvents = getEventsForDayAndResource(day, resource.id);
+        
+        return (
+          <div 
+            key={`timeslots-${resource.id}`} 
+            className="time-slots-column"
+            style={{ 
+              gridColumn: index + 2,
+              gridRow: 4,
+              width: `${teamColumnWidth}px`,
+              minWidth: `${teamColumnWidth}px`,
+              position: 'relative'
+            }}
+          >
+            {/* Time slots grid */}
+            <div className="time-slots-grid">
+              {timeSlots.map((slot) => (
+                <div key={slot.time} className="time-slot-cell" />
+              ))}
+            </div>
+            
+            {/* Events positioned absolutely on top of time slots */}
+            <div className="events-overlay" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+              {resourceEvents.map((event) => {
+                const position = getEventPosition(event);
+                return (
+                  <BookingEvent
+                    key={event.id}
+                    event={event}
+                    style={{
+                      top: `${position.top}px`,
+                      height: `${position.height}px`,
+                    }}
+                    onClick={() => {
+                      console.log('Event clicked:', event);
+                      // TODO: Add event click handling (navigate to booking detail, etc.)
+                    }}
+                  />
+                );
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
