@@ -1,5 +1,5 @@
+
 import React, { useState } from 'react';
-import { Calendar, CalendarEvent } from '@/components/Calendar/ResourceData';
 import MonthlyCalendar from '@/components/Calendar/MonthlyCalendar';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
