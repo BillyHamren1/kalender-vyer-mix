@@ -55,9 +55,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         width: `${dayWidth}px`
       }}
     >
-      {/* Time Column Header */}
+      {/* Time Column Header - Empty for clean layout */}
       <div className="time-column-header">
-        <div className="time-title">Time</div>
       </div>
 
       {/* Day Header - spans team columns only */}
