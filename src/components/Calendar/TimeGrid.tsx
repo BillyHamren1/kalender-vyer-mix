@@ -41,10 +41,10 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   return (
     <div 
-      className="time-grid-aligned"
+      className="time-grid-with-staff-header"
       style={{
         gridTemplateColumns: `80px repeat(${resources.length}, 1fr)`,
-        gridTemplateRows: 'auto auto 1fr'
+        gridTemplateRows: 'auto auto auto 1fr'
       }}
     >
       {/* Time Column Header */}
@@ -59,10 +59,10 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         </div>
       </div>
 
-      {/* Empty cell for alignment */}
-      <div className="time-empty-cell"></div>
+      {/* Empty cell for time column alignment with team headers */}
+      <div className="time-empty-cell" style={{ gridRow: 2 }}></div>
 
-      {/* Team Headers Row - aligned with time structure */}
+      {/* Team Headers Row */}
       {resources.map((resource, index) => (
         <div 
           key={`header-${resource.id}`}
@@ -85,20 +85,14 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         </div>
       ))}
 
-      {/* Time Labels Column */}
-      <div className="time-labels-aligned">
-        {timeSlots.map((slot) => (
-          <div key={slot.time} className="time-label-aligned">
-            {slot.displayTime}
-          </div>
-        ))}
-      </div>
+      {/* Empty cell for staff assignment row alignment */}
+      <div className="staff-row-time-cell" style={{ gridRow: 3 }}></div>
 
-      {/* Team columns with staff assignments - aligned with time slots */}
+      {/* Staff Assignment Row - dedicated space above time slots */}
       {resources.map((resource, index) => (
         <div 
-          key={resource.id} 
-          className="team-column-aligned"
+          key={`staff-${resource.id}`}
+          className="staff-assignment-header-row"
           style={{ 
             gridColumn: index + 2,
             gridRow: 3
@@ -110,8 +104,36 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             events={getEventsForDayAndResource(day, resource.id)}
             onStaffDrop={onStaffDrop}
             onOpenStaffSelection={onOpenStaffSelection}
-            timeSlots={timeSlots}
+            timeSlots={[]} // No time slots for header row
+            isHeaderRow={true}
           />
+        </div>
+      ))}
+
+      {/* Time Labels Column */}
+      <div className="time-labels-column" style={{ gridRow: 4 }}>
+        {timeSlots.map((slot) => (
+          <div key={slot.time} className="time-label-slot">
+            {slot.displayTime}
+          </div>
+        ))}
+      </div>
+
+      {/* Time Slot Columns - below staff assignments */}
+      {resources.map((resource, index) => (
+        <div 
+          key={`timeslots-${resource.id}`} 
+          className="time-slots-column"
+          style={{ 
+            gridColumn: index + 2,
+            gridRow: 4
+          }}
+        >
+          <div className="time-slots-grid">
+            {timeSlots.map((slot) => (
+              <div key={slot.time} className="time-slot-cell" />
+            ))}
+          </div>
         </div>
       ))}
     </div>
