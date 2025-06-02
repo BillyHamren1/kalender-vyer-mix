@@ -2,26 +2,31 @@
 .time-slots-container {
   @apply relative h-full;
   position: relative;
-  height: calc(60px * 17); /* 17 time slots */
+  height: calc(60px * 17); /* 17 time slots from 6 AM to 10 PM */
 }
 
 .time-slots-container.drop-over {
-  @apply bg-blue-50;
+  @apply bg-blue-50/30;
+  border: 2px dashed #3b82f6;
 }
 
 .time-slot {
   @apply relative;
   background: linear-gradient(to bottom, transparent 0%, transparent 99%, #e5e7eb 99%, #e5e7eb 100%);
+  height: 60px;
+  border-bottom: 1px solid #f3f4f6;
 }
 
 .events-container {
   @apply absolute inset-0 pointer-events-none;
+  z-index: 10;
 }
 
 .custom-event {
-  @apply rounded text-white text-xs p-1 shadow-sm border border-white/20 pointer-events-auto;
+  @apply rounded text-white text-xs p-2 shadow-sm border border-white/20 pointer-events-auto;
   overflow: hidden;
   transition: all 0.2s ease;
+  min-height: 30px;
 }
 
 .custom-event:hover {
@@ -32,10 +37,11 @@
 .custom-event.dragging {
   @apply shadow-lg;
   transform: rotate(2deg);
+  z-index: 50;
 }
 
 .event-content {
-  @apply space-y-0.5;
+  @apply space-y-1;
 }
 
 .event-title {
@@ -59,10 +65,12 @@
   justify-content: center;
   writing-mode: vertical-lr;
   text-orientation: mixed;
+  background: transparent;
 }
 
 .resource-column.drop-over {
-  @apply bg-blue-100;
+  @apply bg-blue-100/50;
+  border: 2px dashed #3b82f6;
 }
 
 .resource-title {
@@ -72,7 +80,7 @@
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .custom-event {
-    @apply text-xs p-0.5;
+    @apply text-xs p-1;
   }
   
   .event-title {

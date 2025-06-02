@@ -33,17 +33,30 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
     }),
   });
 
-  // Calculate event positions based on time
+  // Calculate event positions based on time - FIXED calculation
   const getEventPosition = (event: CalendarEvent) => {
     const startTime = new Date(event.start);
     const endTime = new Date(event.end);
     
-    // Calculate position from 6 AM
+    // Get hours and minutes as decimal
     const startHour = startTime.getHours() + startTime.getMinutes() / 60;
     const endHour = endTime.getHours() + endTime.getMinutes() / 60;
     
-    const top = Math.max(0, (startHour - 6) * 60); // 60px per hour
-    const height = Math.max(30, (endHour - startHour) * 60); // Minimum 30px height
+    console.log(`Event ${event.title}: ${startHour} - ${endHour}`);
+    
+    // Calculate position from 6 AM (our grid starts at 6 AM)
+    const gridStartHour = 6;
+    const gridEndHour = 22;
+    
+    // Ensure event is within our time range
+    const clampedStartHour = Math.max(gridStartHour, Math.min(gridEndHour, startHour));
+    const clampedEndHour = Math.max(gridStartHour, Math.min(gridEndHour, endHour));
+    
+    // Calculate position in pixels (60px per hour)
+    const top = (clampedStartHour - gridStartHour) * 60;
+    const height = Math.max(30, (clampedEndHour - clampedStartHour) * 60);
+    
+    console.log(`Event ${event.title} positioned at top: ${top}px, height: ${height}px`);
     
     return { top, height };
   };
@@ -52,6 +65,7 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
     <div
       ref={drop}
       className={`time-slots-container ${isOver ? 'drop-over' : ''}`}
+      style={{ position: 'relative' }}
     >
       {/* Time slot grid */}
       {timeSlots.map((time, index) => (
@@ -60,7 +74,7 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
           className="time-slot"
           style={{
             height: '60px',
-            borderBottom: index < timeSlots.length - 1 ? '1px solid #e5e7eb' : 'none',
+            position: 'relative',
           }}
         />
       ))}
@@ -78,8 +92,8 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
                 position: 'absolute',
                 top: `${position.top}px`,
                 height: `${position.height}px`,
-                left: '2px',
-                right: '2px',
+                left: '4px',
+                right: '4px',
                 zIndex: 10,
               }}
             />

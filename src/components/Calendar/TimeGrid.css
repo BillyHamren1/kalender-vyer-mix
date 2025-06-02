@@ -5,6 +5,7 @@
   grid-template-columns: 80px repeat(7, 1fr);
   grid-template-rows: 60px 1fr;
   min-height: 600px;
+  height: calc(60px + 60px * 17); /* Header + 17 time slots */
 }
 
 .time-grid-header {
@@ -21,6 +22,11 @@
 .day-header {
   @apply flex items-center justify-center border-r border-gray-200 bg-gray-50;
   grid-row: 1;
+  transition: background-color 0.2s;
+}
+
+.day-header:hover {
+  @apply bg-gray-100;
 }
 
 .day-label {
@@ -50,13 +56,15 @@
   grid-row: 2;
   display: flex;
   flex-direction: column;
+  background: white;
 }
 
 .resource-row {
   @apply border-b border-gray-200 flex-1;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  min-height: calc(60px * 17); /* 17 time slots */
+  height: calc(60px * 17); /* 17 time slots */
+  position: relative;
 }
 
 .resource-row:last-child {
@@ -64,8 +72,9 @@
 }
 
 .day-column {
-  @apply border-r border-gray-200 relative;
+  @apply border-r border-gray-200 relative bg-white;
   position: relative;
+  overflow: visible;
 }
 
 .day-column:last-child {

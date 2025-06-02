@@ -30,8 +30,14 @@ const ResourceColumn: React.FC<ResourceColumnProps> = ({
       ref={drop}
       className={`resource-column ${isOver ? 'drop-over' : ''}`}
       style={{
-        backgroundColor: isOver ? '#e3f2fd' : resource.eventColor + '20',
+        backgroundColor: isOver ? '#e3f2fd40' : 'transparent',
         borderLeft: `3px solid ${resource.eventColor}`,
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        zIndex: 1,
       }}
     >
       <div className="resource-title">
