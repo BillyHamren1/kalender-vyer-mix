@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -12,7 +13,7 @@ import ResourceLayout from '@/components/Calendar/ResourceLayout';
 import ResourceToolbar from '@/components/Calendar/ResourceToolbar';
 import StaffSyncManager from '@/components/Calendar/StaffSyncManager';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
-import UnifiedResourceCalendar from '@/components/Calendar/UnifiedResourceCalendar';
+import CustomCalendar from '@/components/Calendar/CustomCalendar';
 import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
 import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
 import TeamEditDialog from '@/components/Calendar/TeamEditDialog';
@@ -375,20 +376,19 @@ const WeeklyResourceView = () => {
             />
           </div>
           
-          {/* Unified Calendar View with reliable staff handling - Full height */}
+          {/* Custom Calendar View with horizontal team layout - Full height */}
           <div className="flex-1 overflow-hidden">
             <div className="h-full overflow-x-auto">
-              <UnifiedResourceCalendar
+              <CustomCalendar
                 events={events}
                 resources={resources}
                 isLoading={isLoading || isImporting}
                 isMounted={isMounted}
                 currentDate={currentWeekStart}
                 onDateSet={handleCalendarDateSet}
-                refreshEvents={refreshEvents}
+                refreshEvents={handleRefresh}
                 onStaffDrop={handleWeeklyStaffDrop}
-                onSelectStaff={handleOpenStaffSelectionDialog}
-                forceRefresh={false}
+                onOpenStaffSelection={handleOpenStaffSelectionDialog}
                 viewMode="weekly"
               />
             </div>
