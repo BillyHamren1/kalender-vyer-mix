@@ -62,14 +62,28 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     });
   };
 
-  // Calculate day width for weekly view - improved calculation
+  // Calculate day width - SIGNIFICANTLY INCREASED to accommodate all teams
   const getDayWidth = () => {
-    if (containerRef.current) {
-      const containerWidth = containerRef.current.offsetWidth - 48; // Account for padding
-      const dayWidth = Math.floor(containerWidth / 7);
-      return Math.max(250, dayWidth); // Minimum width of 250px per day (reduced from 300px)
-    }
-    return 250;
+    // Calculate based on number of teams (usually 6 teams)
+    const numberOfTeams = resources.length;
+    const timeColumnWidth = 80;
+    const minTeamColumnWidth = 120; // Increased minimum width per team
+    const padding = 24; // Extra padding for spacing
+    
+    const calculatedWidth = timeColumnWidth + (numberOfTeams * minTeamColumnWidth) + padding;
+    
+    // Ensure minimum width that can display all teams comfortably
+    const minimumWidth = Math.max(800, calculatedWidth); // Increased from 250px to 800px minimum
+    
+    console.log('CustomCalendar: Day width calculation', {
+      numberOfTeams,
+      timeColumnWidth,
+      minTeamColumnWidth,
+      calculatedWidth,
+      finalWidth: minimumWidth
+    });
+    
+    return minimumWidth;
   };
 
   if (isLoading) {
@@ -99,10 +113,10 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         </Button>
       </div>
 
-      {/* Weekly Staff Planning Grid - 7 Days Horizontally */}
+      {/* Weekly Staff Planning Grid - 7 Days Horizontally with WIDER containers */}
       <div className="weekly-calendar-container overflow-x-auto">
         <div 
-          className="weekly-calendar-grid flex"
+          className="weekly-calendar-grid flex gap-2"
           style={{
             minWidth: `${7 * getDayWidth()}px`
           }}
@@ -110,7 +124,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
           {days.map((date) => (
             <div 
               key={format(date, 'yyyy-MM-dd')} 
-              className="day-calendar-wrapper flex-shrink-0"
+              className="day-calendar-wrapper flex-shrink-0 border border-gray-300 rounded-lg"
               style={{ width: `${getDayWidth()}px` }}
             >
               <TimeGrid

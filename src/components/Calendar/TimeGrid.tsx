@@ -12,7 +12,7 @@ interface TimeGridProps {
   getEventsForDayAndResource: (date: Date, resourceId: string) => CalendarEvent[];
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
   onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date) => void;
-  dayWidth?: number; // New prop for responsive width
+  dayWidth?: number;
 }
 
 const TimeGrid: React.FC<TimeGridProps> = ({
@@ -22,7 +22,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   getEventsForDayAndResource,
   onStaffDrop,
   onOpenStaffSelection,
-  dayWidth = 300
+  dayWidth = 800 // Increased default width
 }) => {
   // Generate time slots from 05:00 to 23:00
   const generateTimeSlots = () => {
@@ -41,10 +41,18 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   const timeSlots = generateTimeSlots();
 
-  // Calculate responsive column widths
+  // Calculate responsive column widths with better spacing
   const timeColumnWidth = 80; // Fixed width for time column
-  const availableWidth = dayWidth - timeColumnWidth;
-  const teamColumnWidth = Math.max(120, Math.floor(availableWidth / resources.length)); // Minimum 120px per team
+  const availableWidth = dayWidth - timeColumnWidth - 24; // Account for padding/margins
+  const teamColumnWidth = Math.max(120, Math.floor(availableWidth / resources.length)); // Ensure minimum 120px per team
+
+  console.log('TimeGrid: Width calculations', {
+    dayWidth,
+    timeColumnWidth,
+    availableWidth,
+    resourcesCount: resources.length,
+    teamColumnWidth
+  });
 
   return (
     <div 
@@ -79,7 +87,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             gridColumn: index + 2,
             gridRow: 2,
             borderLeft: `3px solid ${resource.eventColor}`,
-            width: `${teamColumnWidth}px`
+            width: `${teamColumnWidth}px`,
+            minWidth: `${teamColumnWidth}px`
           }}
         >
           <div className="team-header-content">
@@ -105,7 +114,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           style={{ 
             gridColumn: index + 2,
             gridRow: 3,
-            width: `${teamColumnWidth}px`
+            width: `${teamColumnWidth}px`,
+            minWidth: `${teamColumnWidth}px`
           }}
         >
           <StaffAssignmentArea
@@ -114,7 +124,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             events={getEventsForDayAndResource(day, resource.id)}
             onStaffDrop={onStaffDrop}
             onOpenStaffSelection={onOpenStaffSelection}
-            timeSlots={[]} // No time slots for header row
+            timeSlots={[]}
             isHeaderRow={true}
           />
         </div>
@@ -137,7 +147,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           style={{ 
             gridColumn: index + 2,
             gridRow: 4,
-            width: `${teamColumnWidth}px`
+            width: `${teamColumnWidth}px`,
+            minWidth: `${teamColumnWidth}px`
           }}
         >
           <div className="time-slots-grid">
