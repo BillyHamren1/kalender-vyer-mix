@@ -31,17 +31,13 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   // Use the event navigation hook for handling event clicks
   const { handleEventClick } = useEventNavigation();
 
-  // Generate time slots from 05:00 to 23:00
+  // Generate time slots from 05:00 to 23:00 with European 24-hour format
   const generateTimeSlots = () => {
     const timeSlots = [];
     for (let hour = 5; hour <= 23; hour++) {
       const time = hour.toString().padStart(2, '0') + ':00';
-      const displayTime = hour <= 12 ? `${hour}am` : `${hour - 12}pm`;
-      if (hour === 12) {
-        timeSlots.push({ time, displayTime: '12pm' });
-      } else {
-        timeSlots.push({ time, displayTime });
-      }
+      const displayTime = time; // Use 24-hour format directly (e.g., "05:00", "13:00", "23:00")
+      timeSlots.push({ time, displayTime });
     }
     return timeSlots;
   };
