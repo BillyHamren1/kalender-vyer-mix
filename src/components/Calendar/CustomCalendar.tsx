@@ -62,14 +62,19 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     });
   };
 
-  // Calculate day width for weekly view - improved calculation
+  // Calculate day width for weekly view - SIGNIFICANTLY INCREASED for 6 team columns
   const getDayWidth = () => {
-    if (containerRef.current) {
-      const containerWidth = containerRef.current.offsetWidth - 48; // Account for padding
-      const dayWidth = Math.floor(containerWidth / 7);
-      return Math.max(250, dayWidth); // Minimum width of 250px per day (reduced from 300px)
-    }
-    return 250;
+    // Base calculation: 6 teams × 140px per team + 80px for time column + padding
+    const timeColumnWidth = 80;
+    const teamColumnWidth = 140; // Increased from previous smaller width
+    const numberOfTeams = resources.length;
+    const padding = 20;
+    
+    // Minimum width to accommodate all team columns properly
+    const calculatedWidth = timeColumnWidth + (numberOfTeams * teamColumnWidth) + padding;
+    const minimumWidth = 900; // Significantly increased minimum to ensure all teams fit
+    
+    return Math.max(minimumWidth, calculatedWidth);
   };
 
   if (isLoading) {
@@ -99,12 +104,12 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         </Button>
       </div>
 
-      {/* Weekly Staff Planning Grid - 7 Days Horizontally */}
+      {/* Weekly Staff Planning Grid - 7 Days Horizontally with Much Wider Layout */}
       <div className="weekly-calendar-container overflow-x-auto">
         <div 
           className="weekly-calendar-grid flex"
           style={{
-            minWidth: `${7 * getDayWidth()}px`
+            minWidth: `${7 * getDayWidth()}px` // Total width will be ~6300px for proper display
           }}
         >
           {days.map((date) => (
