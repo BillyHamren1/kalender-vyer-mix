@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CustomCalendar from '@/components/Calendar/CustomCalendar';
+import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
+import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
 import { startOfWeek } from 'date-fns';
 
 const CustomCalendarPage = () => {
@@ -32,6 +34,14 @@ const CustomCalendarPage = () => {
     return startOfWeek(new Date(hookCurrentDate), { weekStartsOn: 1 });
   });
 
+  // Staff selection dialog state
+  const [staffDialogOpen, setStaffDialogOpen] = useState(false);
+  const [selectedTeam, setSelectedTeam] = useState<{
+    resourceId: string;
+    resourceTitle: string;
+    targetDate: Date;
+  } | null>(null);
+
   // Handle staff drop operations
   const handleStaffDrop = async (staffId: string, resourceId: string | null, targetDate?: Date) => {
     const effectiveDate = targetDate || hookCurrentDate;
@@ -41,6 +51,21 @@ const CustomCalendarPage = () => {
       await reliableStaffOps.handleStaffDrop(staffId, resourceId, effectiveDate);
     } catch (error) {
       console.error('CustomCalendarPage: Error in staff drop:', error);
+    }
+  };
+
+  // Handle opening staff selection dialog
+  const handleOpenStaffSelection = (resourceId: string, resourceTitle: string, targetDate: Date) => {
+    console.log('Opening staff selection for:', { resourceId, resourceTitle, targetDate });
+    setSelectedTeam({ resourceId, resourceTitle, targetDate });
+    setStaffDialogOpen(true);
+  };
+
+  // Handle staff assignment from dialog
+  const handleStaffAssigned = async (staffId: string, staffName: string) => {
+    if (selectedTeam) {
+      console.log('Assigning staff from dialog:', { staffId, staffName, team: selectedTeam });
+      await handleStaffDrop(staffId, selectedTeam.resourceId, selectedTeam.targetDate);
     }
   };
 
@@ -79,9 +104,29 @@ const CustomCalendarPage = () => {
             onDateSet={handleDatesSet}
             refreshEvents={refreshEvents}
             onStaffDrop={handleStaffDrop}
+            onOpenStaffSelection={handleOpenStaffSelection}
             viewMode="weekly"
           />
         </div>
+
+        {/* Available Staff Panel */}
+        <AvailableStaffDisplay
+          currentDate={currentWeekStart}
+          onStaffDrop={handleStaffDrop}
+        />
+
+        {/* Staff Selection Dialog */}
+        {selectedTeam && (
+          <StaffSelectionDialog
+            resourceId={selectedTeam.resourceId}
+            resourceTitle={selectedTeam.resourceTitle}
+            currentDate={selectedTeam.targetDate}
+            open={staffDialogOpen}
+            onOpenChange={setStaffDialogOpen}
+            onStaffAssigned={handleStaffAssigned}
+            reliableStaffOperations={reliableStaffOps}
+          />
+        )}
       </div>
     </DndProvider>
   );

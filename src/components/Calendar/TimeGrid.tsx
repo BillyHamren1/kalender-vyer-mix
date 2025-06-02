@@ -2,6 +2,8 @@
 import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
+import { Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import StaffAssignmentArea from './StaffAssignmentArea';
 import './TimeGrid.css';
 
@@ -11,6 +13,7 @@ interface TimeGridProps {
   events: CalendarEvent[];
   getEventsForDayAndResource: (date: Date, resourceId: string) => CalendarEvent[];
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
+  onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date) => void;
 }
 
 const TimeGrid: React.FC<TimeGridProps> = ({
@@ -18,7 +21,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   resources,
   events,
   getEventsForDayAndResource,
-  onStaffDrop
+  onStaffDrop,
+  onOpenStaffSelection
 }) => {
   // Generate time slots from 05:00 to 23:00
   const generateTimeSlots = () => {
@@ -36,6 +40,12 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   };
 
   const timeSlots = generateTimeSlots();
+
+  const handleAddStaff = (resourceId: string, resourceTitle: string) => {
+    if (onOpenStaffSelection) {
+      onOpenStaffSelection(resourceId, resourceTitle, day);
+    }
+  };
 
   return (
     <div 
@@ -68,8 +78,18 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             borderLeft: `3px solid ${resource.eventColor}` 
           }}
         >
-          <div className="team-title">
-            {resource.title}
+          <div className="team-header-content">
+            <div className="team-title">
+              {resource.title}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="add-staff-button"
+              onClick={() => handleAddStaff(resource.id, resource.title)}
+            >
+              <Plus className="h-3 w-3" />
+            </Button>
           </div>
         </div>
       ))}

@@ -16,6 +16,7 @@ interface CustomCalendarProps {
   onDateSet: (dateInfo: any) => void;
   refreshEvents: () => Promise<void | CalendarEvent[]>;
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
+  onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date) => void;
   viewMode: 'weekly' | 'monthly';
 }
 
@@ -28,6 +29,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   onDateSet,
   refreshEvents,
   onStaffDrop,
+  onOpenStaffSelection,
   viewMode
 }) => {
   const [currentWeekStart, setCurrentWeekStart] = useState(currentDate);
@@ -117,6 +119,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                 events={events}
                 getEventsForDayAndResource={getEventsForDayAndResource}
                 onStaffDrop={onStaffDrop}
+                onOpenStaffSelection={onOpenStaffSelection}
               />
             </div>
           ))}

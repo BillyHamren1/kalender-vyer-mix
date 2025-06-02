@@ -3,8 +3,8 @@ import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import { useDrop } from 'react-dnd';
-import { useEnhancedStaffOperations } from '@/hooks/useEnhancedStaffOperations';
-import DraggableStaffItem from './DraggableStaffItem';
+import { useReliableStaffOperations } from '@/hooks/useReliableStaffOperations';
+import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
 
 interface TimeSlot {
   time: string;
@@ -26,13 +26,13 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
   onStaffDrop,
   timeSlots = []
 }) => {
-  const { getStaffForTeam } = useEnhancedStaffOperations(day);
+  const { getStaffForTeam } = useReliableStaffOperations(day);
   
   const [{ isOver }, drop] = useDrop({
-    accept: ['staff', 'event'],
+    accept: ['STAFF'],
     drop: (item: any) => {
       console.log('StaffAssignmentArea: Item dropped', item, 'on', format(day, 'yyyy-MM-dd'), resource.id);
-      if (item.type === 'staff' && onStaffDrop) {
+      if (item.id && onStaffDrop) {
         onStaffDrop(item.id, resource.id, day);
       }
     },
@@ -41,8 +41,14 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
     }),
   });
 
-  // Get assigned staff for this team
+  // Get assigned staff for this team on this specific day
   const assignedStaff = getStaffForTeam(resource.id);
+
+  const handleRemoveStaff = (staffId: string) => {
+    if (onStaffDrop) {
+      onStaffDrop(staffId, null, day);
+    }
+  };
 
   return (
     <div className="staff-assignment-area">
@@ -68,12 +74,18 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
         {/* Assigned Staff List */}
         <div className="assigned-staff-list">
           {assignedStaff.map((staff) => (
-            <DraggableStaffItem
+            <UnifiedDraggableStaffItem
               key={staff.id}
-              staff={staff}
-              onRemove={() => onStaffDrop && onStaffDrop(staff.id, null, day)}
+              staff={{
+                id: staff.id,
+                name: staff.name,
+                assignedTeam: resource.id
+              }}
+              onRemove={() => handleRemoveStaff(staff.id)}
               currentDate={day}
               teamName={resource.title}
+              variant="assigned"
+              showRemoveDialog={true}
             />
           ))}
         </div>

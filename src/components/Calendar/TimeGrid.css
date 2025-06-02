@@ -31,16 +31,34 @@
 
 /* Team Headers */
 .team-header {
-  @apply bg-gray-50 border-r border-b border-gray-200 p-2 text-center;
+  @apply bg-gray-50 border-r border-b border-gray-200 p-2;
   transition: background-color 0.2s;
+  position: relative;
 }
 
 .team-header:hover {
   @apply bg-gray-100;
 }
 
+.team-header-content {
+  @apply flex items-center justify-between h-full;
+}
+
 .team-title {
   @apply text-sm font-medium text-gray-700;
+}
+
+.add-staff-button {
+  @apply opacity-0 transition-opacity duration-200 h-6 w-6 p-0;
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+.team-header:hover .add-staff-button {
+  @apply opacity-100;
+}
+
+.add-staff-button:hover {
+  background-color: rgba(59, 130, 246, 0.2);
 }
 
 /* Time Labels Column */
@@ -95,10 +113,6 @@
 
 .drop-zone-header {
   @apply mb-2 p-2 bg-gray-50 rounded border;
-}
-
-.team-name {
-  @apply font-medium text-sm;
 }
 
 .drop-staff-text {
