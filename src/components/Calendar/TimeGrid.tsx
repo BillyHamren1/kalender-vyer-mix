@@ -43,7 +43,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     <div 
       className="time-grid-with-staff-header"
       style={{
-        gridTemplateColumns: `80px repeat(${resources.length}, 1fr)`,
+        gridTemplateColumns: `80px repeat(${resources.length}, minmax(150px, 1fr))`, // Increased minimum width to 150px
         gridTemplateRows: 'auto auto auto 1fr'
       }}
     >

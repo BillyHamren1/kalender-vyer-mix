@@ -43,18 +43,22 @@
 
 /* Team Headers Row */
 .team-header-cell {
-  @apply bg-gray-50 border-r border-b border-gray-200 p-2;
+  @apply bg-gray-50 border-r border-b border-gray-200 p-3; /* Increased padding */
   height: 40px;
   display: flex;
   align-items: center;
+  min-width: 150px; /* Set minimum width for team headers */
 }
 
 .team-header-content {
   @apply flex items-center justify-between w-full;
+  gap: 8px; /* Add gap between elements */
 }
 
 .team-title {
   @apply text-sm font-medium text-gray-700;
+  flex: 1; /* Allow title to take available space */
+  min-width: 0; /* Allow shrinking */
 }
 
 .add-staff-button-header {
@@ -68,6 +72,7 @@
   border: none;
   cursor: pointer;
   transition: background-color 0.2s;
+  flex-shrink: 0; /* Prevent button from shrinking */
 }
 
 /* Staff Assignment Header Row - dedicated space above time slots */
@@ -75,6 +80,7 @@
   @apply border-r border-b border-gray-200 bg-gray-50/50;
   height: 80px;
   position: relative;
+  min-width: 150px; /* Match team header width */
 }
 
 .staff-assignment-header-row:last-child {
@@ -131,6 +137,7 @@
 .time-slots-column {
   @apply border-r border-gray-200 relative bg-white;
   position: relative;
+  min-width: 150px; /* Match team header width */
 }
 
 .time-slots-column:last-child {
@@ -214,7 +221,7 @@
 /* Responsive design */
 @media (max-width: 768px) {
   .time-grid-with-staff-header {
-    grid-template-columns: 60px repeat(auto-fit, minmax(120px, 1fr));
+    grid-template-columns: 60px repeat(auto-fit, minmax(150px, 1fr)); /* Increased minimum width */
   }
   
   .time-title {
