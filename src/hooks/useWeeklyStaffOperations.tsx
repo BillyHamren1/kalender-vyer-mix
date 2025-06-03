@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -262,6 +261,18 @@ export const useWeeklyStaffOperations = (currentWeekStart: Date) => {
     return availableStaff.filter(staff => !assignedStaffIds.has(staff.id));
   }, [assignments, availableStaff]);
 
+  // NEW: Get available staff for a specific date
+  const getAvailableStaffForDate = useCallback((targetDate: Date) => {
+    const dateStr = format(targetDate, 'yyyy-MM-dd');
+    const assignedStaffIdsForDate = new Set(
+      assignments
+        .filter(a => a.date === dateStr)
+        .map(a => a.staffId)
+    );
+    
+    return availableStaff.filter(staff => !assignedStaffIdsForDate.has(staff.id));
+  }, [assignments, availableStaff]);
+
   // Force refresh
   const forceRefresh = useCallback(() => {
     console.log('🔄 Force refreshing weekly assignments');
@@ -275,6 +286,7 @@ export const useWeeklyStaffOperations = (currentWeekStart: Date) => {
     handleStaffDrop,
     getStaffForTeamAndDate,
     getAvailableStaffForWeek,
+    getAvailableStaffForDate, // NEW: Export the new function
     forceRefresh,
     refreshTrigger
   };

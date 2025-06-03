@@ -142,7 +142,7 @@ const CustomCalendarPage = () => {
           <AvailableStaffDisplay
             currentDate={currentWeekStart}
             onStaffDrop={handleStaffDrop}
-            availableStaff={weeklyStaffOps.getAvailableStaffForWeek()}
+            availableStaff={weeklyStaffOps.getAvailableStaffForDate(currentWeekStart)}
             isLoading={weeklyStaffOps.isLoading}
           />
 
@@ -154,7 +154,7 @@ const CustomCalendarPage = () => {
               onAssignStaff={handleStaffAssigned}
               selectedTeamId={selectedTeam.resourceId}
               selectedTeamName={selectedTeam.resourceTitle}
-              availableStaff={weeklyStaffOps.getAvailableStaffForWeek()}
+              availableStaff={weeklyStaffOps.getAvailableStaffForDate(selectedTeam.targetDate)}
               position={selectedTeam.position}
             />
           )}

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Calendar, Eye, EyeOff } from 'lucide-react';
@@ -27,7 +26,7 @@ const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({
 }) => {
   const [isVisible, setIsVisible] = useState(true);
 
-  console.log('AvailableStaffDisplay: Available staff with colors:', availableStaff);
+  console.log(`AvailableStaffDisplay: Available staff for ${format(currentDate, 'yyyy-MM-dd')}:`, availableStaff);
 
   const toggleVisibility = () => {
     setIsVisible(!isVisible);
@@ -79,7 +78,7 @@ const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({
             </div>
           ) : availableStaff.length === 0 ? (
             <div className="text-center text-sm text-gray-500 py-4">
-              No available staff for this date
+              No available staff for {format(currentDate, 'MMM d')}
             </div>
           ) : (
             <div className="space-y-1">
