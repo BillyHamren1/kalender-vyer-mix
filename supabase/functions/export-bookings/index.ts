@@ -359,6 +359,7 @@ async function processBookings(supabase, bookingsData) {
       // Construct the booking object with all information
       bookings.push({
         id: booking.id,
+        bookingNumber: booking.booking_number || undefined,
         client: booking.client,
         status: booking.status, // Include status in response
         rigdaydate: booking.rigdaydate,
