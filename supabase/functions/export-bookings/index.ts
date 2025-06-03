@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
@@ -42,24 +41,25 @@ serve(async (req) => {
     const filters = getFiltersFromUrl(req.url);
     console.log(`Export request received with filters - startDate: ${filters.startDate}, endDate: ${filters.endDate}, client: ${filters.clientName}, timestamp: ${filters.timestamp}`)
     
-    // If timestamp is provided, only return bookings updated since that timestamp
+    // If timestamp is provided, return ALL bookings updated since that timestamp (including status changes)
     if (filters.timestamp) {
-      console.log(`Timestamp-based filtering: only returning bookings updated after ${filters.timestamp}`)
+      console.log(`Timestamp-based filtering: returning ALL bookings updated after ${filters.timestamp} (including status changes)`)
       const updatedBookings = await fetchUpdatedBookingsSinceTimestamp(supabaseClient, filters);
       
-      console.log(`Returning ${updatedBookings.length} updated bookings since ${filters.timestamp}`)
+      console.log(`Returning ${updatedBookings.length} updated bookings since ${filters.timestamp} (all statuses)`)
       
       return new Response(
         JSON.stringify({
           count: updatedBookings.length,
           bookings: updatedBookings,
-          filtered_by_timestamp: filters.timestamp
+          filtered_by_timestamp: filters.timestamp,
+          export_type: 'incremental_update'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
     
-    // Fetch filtered CONFIRMED bookings data only
+    // Fetch filtered CONFIRMED bookings data only (full export)
     const bookingsData = await fetchFilteredConfirmedBookings(supabaseClient, filters);
     if (!bookingsData) {
       throw new Error('Failed to fetch bookings data')
@@ -77,7 +77,8 @@ serve(async (req) => {
       JSON.stringify({
         count: bookings.length,
         bookings: bookings,
-        status_filter: 'CONFIRMED'
+        status_filter: 'CONFIRMED',
+        export_type: 'full_export'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
@@ -114,13 +115,13 @@ function getFiltersFromUrl(url: string) {
   }
 }
 
-// Fetch CONFIRMED bookings with filters applied
+// Fetch CONFIRMED bookings with filters applied (for full exports only)
 async function fetchFilteredConfirmedBookings(supabase, filters) {
   // Build base query for CONFIRMED bookings only
   let query = supabase
     .from('bookings')
     .select()
-    .eq('status', 'CONFIRMED') // Only fetch CONFIRMED bookings
+    .eq('status', 'CONFIRMED') // Only fetch CONFIRMED bookings for full exports
     .order('eventdate', { ascending: true })
   
   // Apply filters
@@ -146,13 +147,12 @@ async function fetchFilteredConfirmedBookings(supabase, filters) {
   return data
 }
 
-// Fetch bookings updated since a specific timestamp (for incremental updates)
+// Fetch ALL bookings updated since a specific timestamp (for incremental updates - includes ALL statuses)
 async function fetchUpdatedBookingsSinceTimestamp(supabase, filters) {
-  // Build query for bookings updated after the timestamp
+  // Build query for ALL bookings updated after the timestamp (no status filter)
   let query = supabase
     .from('bookings')
     .select()
-    .eq('status', 'CONFIRMED') // Only fetch CONFIRMED bookings
     .gt('updated_at', filters.timestamp) // Only bookings updated after timestamp
     .order('updated_at', { ascending: true })
   
@@ -172,8 +172,8 @@ async function fetchUpdatedBookingsSinceTimestamp(supabase, filters) {
   const { data, error } = await query
   
   if (error) {
-    console.error('Error fetching updated CONFIRMED bookings:', error)
-    throw new Error(`Failed to fetch updated CONFIRMED bookings: ${error.message}`)
+    console.error('Error fetching updated bookings:', error)
+    throw new Error(`Failed to fetch updated bookings: ${error.message}`)
   }
   
   // Process the bookings to include related data
