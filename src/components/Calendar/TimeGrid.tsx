@@ -8,6 +8,7 @@ import { useEventNavigation } from '@/hooks/useEventNavigation';
 import { useDrag, useDrop } from 'react-dnd';
 import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
 import { toast } from 'sonner';
+import { updateCalendarEvent } from '@/services/eventService';
 import './TimeGrid.css';
 
 interface TimeGridProps {
@@ -59,7 +60,7 @@ const DraggableEvent: React.FC<{
   );
 });
 
-// Enhanced Droppable Time Slot Component with precise time calculation
+// Enhanced Droppable Time Slot Component with precise time calculation and better error handling
 const DroppableTimeSlot: React.FC<{
   resourceId: string;
   day: Date;
@@ -92,9 +93,15 @@ const DroppableTimeSlot: React.FC<{
     accept: ['calendar-event', 'STAFF'],
     drop: async (item: any, monitor) => {
       const clientOffset = monitor.getClientOffset();
-      const targetElement = drop as any; // Fix TypeScript issue
+      const targetElement = drop as any;
       
-      console.log('DroppableTimeSlot: Handling drop', { item, resourceId, day: format(day, 'yyyy-MM-dd') });
+      console.log('DroppableTimeSlot: Handling drop', { 
+        item, 
+        resourceId, 
+        day: format(day, 'yyyy-MM-dd'),
+        eventId: item.eventId,
+        staffId: item.id 
+      });
       
       try {
         // Handle event drops with precise time calculation
@@ -120,7 +127,7 @@ const DroppableTimeSlot: React.FC<{
         }
       } catch (error) {
         console.error('Error in drop operation:', error);
-        toast.error('Failed to complete operation. Please try again.');
+        toast.error(`Failed to complete operation: ${error.message || 'Unknown error'}`);
       }
     },
     collect: (monitor) => ({
@@ -242,6 +249,57 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     }
   };
 
+  // Enhanced event drop handler with better error handling
+  const handleEventDropWithErrorHandling = async (
+    eventId: string, 
+    targetResourceId: string, 
+    targetDate: Date, 
+    targetTime: string
+  ) => {
+    try {
+      console.log('TimeGrid: Handling event drop', {
+        eventId,
+        targetResourceId,
+        targetDate: format(targetDate, 'yyyy-MM-dd'),
+        targetTime
+      });
+
+      // Create the new start and end times
+      const [hours, minutes] = targetTime.split(':').map(Number);
+      const newStartTime = new Date(targetDate);
+      newStartTime.setHours(hours, minutes, 0, 0);
+      
+      // Find the original event to maintain duration
+      const originalEvent = events.find(e => e.id === eventId);
+      if (!originalEvent) {
+        throw new Error('Original event not found');
+      }
+      
+      const originalStart = new Date(originalEvent.start);
+      const originalEnd = new Date(originalEvent.end);
+      const duration = originalEnd.getTime() - originalStart.getTime();
+      
+      const newEndTime = new Date(newStartTime.getTime() + duration);
+      
+      // Update the event
+      await updateCalendarEvent(eventId, {
+        start: newStartTime.toISOString(),
+        end: newEndTime.toISOString(),
+        resourceId: targetResourceId
+      });
+
+      console.log('Event updated successfully');
+      
+      // Call the original handler if provided
+      if (onEventDrop) {
+        await onEventDrop(eventId, targetResourceId, targetDate, targetTime);
+      }
+    } catch (error) {
+      console.error('Error handling event drop:', error);
+      throw error; // Re-throw to be caught by the drop handler
+    }
+  };
+
   return (
     <div 
       className="time-grid-with-staff-header"
@@ -352,7 +410,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             resourceId={resource.id}
             day={day}
             timeSlot="any"
-            onEventDrop={onEventDrop}
+            onEventDrop={handleEventDropWithErrorHandling}
             onStaffDrop={onStaffDrop}
           >
             <div 

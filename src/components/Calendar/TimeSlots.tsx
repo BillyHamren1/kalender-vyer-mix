@@ -1,9 +1,11 @@
+
 import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import CustomEvent from './CustomEvent';
 import { useDrop } from 'react-dnd';
 import { toast } from 'sonner';
+import { updateCalendarEvent } from '@/services/eventService';
 
 interface TimeSlotsProps {
   day: Date;
@@ -34,17 +36,74 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
     return `${hour.toString().padStart(2, '0')}:00`;
   };
 
+  // Enhanced event drop handler with better error handling
+  const handleEventDropWithErrorHandling = async (
+    eventId: string, 
+    targetResourceId: string, 
+    targetDate: Date, 
+    targetTime: string
+  ) => {
+    try {
+      console.log('TimeSlots: Handling event drop', {
+        eventId,
+        targetResourceId,
+        targetDate: format(targetDate, 'yyyy-MM-dd'),
+        targetTime
+      });
+
+      // Create the new start and end times
+      const [hours, minutes] = targetTime.split(':').map(Number);
+      const newStartTime = new Date(targetDate);
+      newStartTime.setHours(hours, minutes, 0, 0);
+      
+      // Find the original event to maintain duration
+      const originalEvent = events.find(e => e.id === eventId);
+      if (!originalEvent) {
+        throw new Error('Original event not found');
+      }
+      
+      const originalStart = new Date(originalEvent.start);
+      const originalEnd = new Date(originalEvent.end);
+      const duration = originalEnd.getTime() - originalStart.getTime();
+      
+      const newEndTime = new Date(newStartTime.getTime() + duration);
+      
+      // Update the event in the database
+      await updateCalendarEvent(eventId, {
+        start: newStartTime.toISOString(),
+        end: newEndTime.toISOString(),
+        resourceId: targetResourceId
+      });
+
+      console.log('Event updated successfully');
+      
+      // Call the original handler if provided
+      if (onEventDrop) {
+        await onEventDrop(eventId, targetResourceId, targetDate, targetTime);
+      }
+    } catch (error) {
+      console.error('Error handling event drop:', error);
+      throw error; // Re-throw to be caught by the drop handler
+    }
+  };
+
   const [{ isOver, dragType }, drop] = useDrop({
     accept: ['staff', 'calendar-event', 'STAFF'],
     drop: async (item: any, monitor) => {
       const clientOffset = monitor.getClientOffset();
-      const dropElement = drop as any; // Fix TypeScript issue
+      const dropElement = drop as any;
       
-      console.log('TimeSlots: Item dropped', item, 'on', format(day, 'yyyy-MM-dd'), resource.id);
+      console.log('TimeSlots: Item dropped', { 
+        item, 
+        day: format(day, 'yyyy-MM-dd'), 
+        resourceId: resource.id,
+        eventId: item.eventId,
+        staffId: item.id 
+      });
       
       try {
         // Handle event drops with time calculation
-        if (item.eventId && onEventDrop && clientOffset && dropElement) {
+        if (item.eventId && clientOffset && dropElement) {
           const targetTime = getTimeSlotFromPosition(clientOffset.y, dropElement);
           
           console.log('Moving event with time:', {
@@ -55,7 +114,7 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
             clientY: clientOffset.y
           });
           
-          await onEventDrop(item.eventId, resource.id, day, targetTime);
+          await handleEventDropWithErrorHandling(item.eventId, resource.id, day, targetTime);
           toast.success('Event moved successfully');
         }
         // Handle staff drops
@@ -67,7 +126,7 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
         }
       } catch (error) {
         console.error('Error in drop operation:', error);
-        toast.error('Failed to complete operation. Please try again.');
+        toast.error(`Failed to complete operation: ${error.message || 'Unknown error'}`);
       }
     },
     collect: (monitor) => ({
