@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
-import { format } from 'date-fns';
+import { format, addMinutes } from 'date-fns';
 import { useDrag } from 'react-dnd';
 import './CustomEvent.css';
 
@@ -9,18 +9,21 @@ interface CustomEventProps {
   event: CalendarEvent;
   resource: Resource;
   style?: React.CSSProperties;
+  onEventResize?: (eventId: string, newStartTime: Date, newEndTime: Date) => Promise<void>;
 }
 
 const CustomEvent: React.FC<CustomEventProps> = ({
   event,
   resource,
-  style
+  style,
+  onEventResize
 }) => {
   const [isTooltipVisible, setIsTooltipVisible] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
+  const [isResizing, setIsResizing] = useState(false);
   const eventRef = useRef<HTMLDivElement>(null);
 
-  // Standardized drag implementation
+  // Drag implementation for moving events
   const [{ isDragging }, drag] = useDrag({
     type: 'calendar-event',
     item: { 
@@ -31,31 +34,110 @@ const CustomEvent: React.FC<CustomEventProps> = ({
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
+    canDrag: !isResizing, // Prevent dragging while resizing
   });
 
   const eventColor = getEventColor(event.eventType);
   const startTime = format(new Date(event.start), 'HH:mm');
   const endTime = format(new Date(event.end), 'HH:mm');
 
-  const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (eventRef.current) {
-      const rect = eventRef.current.getBoundingClientRect();
-      const tooltipHeight = 80; // Estimated tooltip height
-      const tooltipWidth = 200; // Estimated tooltip width
+  // Handle resize operations
+  const handleResizeStart = (e: React.MouseEvent, direction: 'top' | 'bottom') => {
+    e.stopPropagation();
+    setIsResizing(true);
+    
+    const startY = e.clientY;
+    const originalStart = new Date(event.start);
+    const originalEnd = new Date(event.end);
+    const pixelsPerHour = 60;
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaY = moveEvent.clientY - startY;
+      const deltaMinutes = (deltaY / pixelsPerHour) * 60;
       
-      // Calculate initial position (above the event)
+      let newStart = originalStart;
+      let newEnd = originalEnd;
+      
+      if (direction === 'top') {
+        // Resizing from top changes start time
+        newStart = addMinutes(originalStart, deltaMinutes);
+        // Ensure minimum 15-minute duration
+        if (newStart >= originalEnd) {
+          newStart = addMinutes(originalEnd, -15);
+        }
+      } else {
+        // Resizing from bottom changes end time
+        newEnd = addMinutes(originalEnd, deltaMinutes);
+        // Ensure minimum 15-minute duration
+        if (newEnd <= originalStart) {
+          newEnd = addMinutes(originalStart, 15);
+        }
+      }
+      
+      // Visual feedback could be added here
+      console.log('Resizing event:', { newStart, newEnd, direction, deltaMinutes });
+    };
+    
+    const handleMouseUp = async () => {
+      setIsResizing(false);
+      
+      const deltaY = (window as any).lastMouseEvent?.clientY - startY || 0;
+      const deltaMinutes = (deltaY / pixelsPerHour) * 60;
+      
+      let newStart = originalStart;
+      let newEnd = originalEnd;
+      
+      if (direction === 'top') {
+        newStart = addMinutes(originalStart, deltaMinutes);
+        if (newStart >= originalEnd) {
+          newStart = addMinutes(originalEnd, -15);
+        }
+      } else {
+        newEnd = addMinutes(originalEnd, deltaMinutes);
+        if (newEnd <= originalStart) {
+          newEnd = addMinutes(originalStart, 15);
+        }
+      }
+      
+      if (onEventResize) {
+        try {
+          await onEventResize(event.id, newStart, newEnd);
+        } catch (error) {
+          console.error('Failed to resize event:', error);
+        }
+      }
+      
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    // Store last mouse event for final calculation
+    const trackMouseMove = (e: MouseEvent) => {
+      (window as any).lastMouseEvent = e;
+      handleMouseMove(e);
+    };
+    
+    document.addEventListener('mousemove', trackMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (eventRef.current && !isResizing) {
+      const rect = eventRef.current.getBoundingClientRect();
+      const tooltipHeight = 80;
+      const tooltipWidth = 200;
+      
       let top = rect.top - tooltipHeight - 10;
       let left = rect.left + (rect.width / 2) - (tooltipWidth / 2);
       
-      // Adjust if tooltip would go off screen
       if (top < 0) {
-        top = rect.bottom + 10; // Show below if no space above
+        top = rect.bottom + 10;
       }
       
       if (left < 0) {
-        left = 10; // Keep some margin from left edge
+        left = 10;
       } else if (left + tooltipWidth > window.innerWidth) {
-        left = window.innerWidth - tooltipWidth - 10; // Keep some margin from right edge
+        left = window.innerWidth - tooltipWidth - 10;
       }
       
       setTooltipPosition({ top, left });
@@ -64,15 +146,9 @@ const CustomEvent: React.FC<CustomEventProps> = ({
   };
 
   const handleMouseLeave = () => {
-    setIsTooltipVisible(false);
-  };
-
-  const handleTooltipMouseEnter = () => {
-    setIsTooltipVisible(true);
-  };
-
-  const handleTooltipMouseLeave = () => {
-    setIsTooltipVisible(false);
+    if (!isResizing) {
+      setIsTooltipVisible(false);
+    }
   };
 
   return (
@@ -82,19 +158,36 @@ const CustomEvent: React.FC<CustomEventProps> = ({
           drag(node);
           eventRef.current = node;
         }}
-        className={`custom-event ${isDragging ? 'dragging' : ''}`}
+        className={`custom-event ${isDragging ? 'dragging' : ''} ${isResizing ? 'resizing' : ''}`}
         style={{
           ...style,
           backgroundColor: eventColor,
           opacity: isDragging ? 0.5 : 1,
-          cursor: isDragging ? 'grabbing' : 'grab',
+          cursor: isDragging ? 'grabbing' : (isResizing ? 'ns-resize' : 'grab'),
           border: isDragging ? '2px dashed #3b82f6' : 'none',
           transform: isDragging ? 'rotate(2deg)' : 'none',
-          transition: 'all 0.2s ease'
+          transition: isDragging || isResizing ? 'none' : 'all 0.2s ease',
+          position: 'relative'
         }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
+        {/* Top resize handle */}
+        <div
+          className="resize-handle resize-handle-top"
+          style={{
+            position: 'absolute',
+            top: '-2px',
+            left: 0,
+            right: 0,
+            height: '4px',
+            cursor: 'ns-resize',
+            backgroundColor: 'transparent',
+            zIndex: 20
+          }}
+          onMouseDown={(e) => handleResizeStart(e, 'top')}
+        />
+        
         <div className="event-content">
           <div className="event-title">
             {event.title}
@@ -108,19 +201,34 @@ const CustomEvent: React.FC<CustomEventProps> = ({
             </div>
           )}
         </div>
+        
+        {/* Bottom resize handle */}
+        <div
+          className="resize-handle resize-handle-bottom"
+          style={{
+            position: 'absolute',
+            bottom: '-2px',
+            left: 0,
+            right: 0,
+            height: '4px',
+            cursor: 'ns-resize',
+            backgroundColor: 'transparent',
+            zIndex: 20
+          }}
+          onMouseDown={(e) => handleResizeStart(e, 'bottom')}
+        />
       </div>
 
       {/* Tooltip */}
-      {isTooltipVisible && (
+      {isTooltipVisible && !isResizing && (
         <div 
           className="event-tooltip"
           style={{
             position: 'fixed',
             top: `${tooltipPosition.top}px`,
             left: `${tooltipPosition.left}px`,
+            zIndex: 1000
           }}
-          onMouseEnter={handleTooltipMouseEnter}
-          onMouseLeave={handleTooltipMouseLeave}
         >
           <div className="tooltip-arrow"></div>
           <div className="tooltip-content">
@@ -129,6 +237,9 @@ const CustomEvent: React.FC<CustomEventProps> = ({
               <div className="tooltip-booking">Booking: #{event.booking_number}</div>
             )}
             <div className="tooltip-time">{startTime} – {endTime}</div>
+            <div className="tooltip-instructions">
+              <small>Drag to move • Drag edges to resize</small>
+            </div>
           </div>
         </div>
       )}

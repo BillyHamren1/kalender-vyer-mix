@@ -70,7 +70,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     });
   };
 
-  // Enhanced event drop handler with better error handling and feedback
+  // Enhanced event drop handler with time-based positioning
   const handleEventDrop = async (eventId: string, targetResourceId: string, targetDate: Date, targetTime: string) => {
     console.log('CustomCalendar: Event drop detected', {
       eventId,
@@ -80,42 +80,54 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     });
 
     try {
-      // Find the event being moved
       const eventToMove = events.find(event => event.id === eventId);
       if (!eventToMove) {
         toast.error('Event not found');
         return;
       }
 
-      // Don't update if it's the same resource
-      if (eventToMove.resourceId === targetResourceId) {
-        console.log('Event dropped on same resource, no update needed');
-        return;
-      }
-
       const sourceTeam = resources.find(r => r.id === eventToMove.resourceId)?.title || 'Unknown';
       const targetTeam = resources.find(r => r.id === targetResourceId)?.title || 'Unknown';
       
-      console.log('Updating event in database:', {
+      // Calculate new start and end times
+      const originalStart = new Date(eventToMove.start);
+      const originalEnd = new Date(eventToMove.end);
+      const duration = originalEnd.getTime() - originalStart.getTime(); // Duration in milliseconds
+      
+      // Parse target time (e.g., "14:00") and create new start time
+      const [targetHour, targetMinute] = targetTime.split(':').map(Number);
+      const newStart = new Date(targetDate);
+      newStart.setHours(targetHour, targetMinute || 0, 0, 0);
+      
+      // Calculate new end time maintaining the same duration
+      const newEnd = new Date(newStart.getTime() + duration);
+      
+      console.log('Updating event with new time:', {
         eventId,
-        newResourceId: targetResourceId,
-        sourceTeam,
-        targetTeam
+        originalStart: originalStart.toISOString(),
+        originalEnd: originalEnd.toISOString(),
+        newStart: newStart.toISOString(),
+        newEnd: newEnd.toISOString(),
+        targetTime
       });
 
-      // Show loading toast
       const loadingToast = toast.loading(`Moving event from ${sourceTeam} to ${targetTeam}...`);
 
-      // Actually update the event in the database
+      // Update the event in the database
       await updateCalendarEvent(eventId, {
-        resourceId: targetResourceId
+        resourceId: targetResourceId,
+        start: newStart.toISOString(),
+        end: newEnd.toISOString()
       });
 
-      // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
-      toast.success(`Event "${eventToMove.title}" moved from ${sourceTeam} to ${targetTeam}`);
       
-      // Refresh the calendar to show changes
+      if (eventToMove.resourceId !== targetResourceId) {
+        toast.success(`Event "${eventToMove.title}" moved from ${sourceTeam} to ${targetTeam} at ${targetTime}`);
+      } else {
+        toast.success(`Event "${eventToMove.title}" moved to ${targetTime}`);
+      }
+      
       await refreshEvents();
       
     } catch (error) {
@@ -124,25 +136,48 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     }
   };
 
-  // Calculate day width - SIGNIFICANTLY INCREASED to accommodate all teams
+  // Handle event resize operations
+  const handleEventResize = async (eventId: string, newStartTime: Date, newEndTime: Date) => {
+    console.log('CustomCalendar: Event resize detected', {
+      eventId,
+      newStartTime: newStartTime.toISOString(),
+      newEndTime: newEndTime.toISOString()
+    });
+
+    try {
+      const eventToResize = events.find(event => event.id === eventId);
+      if (!eventToResize) {
+        toast.error('Event not found');
+        return;
+      }
+
+      const loadingToast = toast.loading(`Resizing event "${eventToResize.title}"...`);
+
+      await updateCalendarEvent(eventId, {
+        start: newStartTime.toISOString(),
+        end: newEndTime.toISOString()
+      });
+
+      toast.dismiss(loadingToast);
+      toast.success(`Event "${eventToResize.title}" resized successfully`);
+      
+      await refreshEvents();
+      
+    } catch (error) {
+      console.error('Error resizing event:', error);
+      toast.error('Failed to resize event. Please try again.');
+    }
+  };
+
+  // Calculate day width
   const getDayWidth = () => {
     const numberOfTeams = resources.length;
     const timeColumnWidth = 80;
-    const minTeamColumnWidth = 120; // Increased minimum width per team
-    const padding = 24; // Extra padding for spacing
+    const minTeamColumnWidth = 120;
+    const padding = 24;
     
     const calculatedWidth = timeColumnWidth + (numberOfTeams * minTeamColumnWidth) + padding;
-    
-    // Ensure minimum width that can display all teams comfortably
-    const minimumWidth = Math.max(800, calculatedWidth); // Increased from 250px to 800px minimum
-    
-    console.log('CustomCalendar: Day width calculation', {
-      numberOfTeams,
-      timeColumnWidth,
-      minTeamColumnWidth,
-      calculatedWidth,
-      finalWidth: minimumWidth
-    });
+    const minimumWidth = Math.max(800, calculatedWidth);
     
     return minimumWidth;
   };
@@ -174,7 +209,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         </Button>
       </div>
 
-      {/* Enhanced Weekly Staff Planning Grid with improved drag and drop */}
+      {/* Enhanced Weekly Staff Planning Grid with time-based drag and drop */}
       <div className="weekly-calendar-container overflow-x-auto">
         <div 
           className="weekly-calendar-grid flex gap-2"
@@ -198,6 +233,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                 dayWidth={getDayWidth()}
                 weeklyStaffOperations={weeklyStaffOperations}
                 onEventDrop={handleEventDrop}
+                onEventResize={handleEventResize}
               />
             </div>
           ))}

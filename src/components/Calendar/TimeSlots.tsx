@@ -23,20 +23,41 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
   onStaffDrop,
   onEventDrop
 }) => {
+  // Calculate which time slot was dropped on based on Y position
+  const getTimeSlotFromPosition = (clientY: number, dropZoneElement: HTMLElement) => {
+    const rect = dropZoneElement.getBoundingClientRect();
+    const relativeY = clientY - rect.top;
+    const slotHeight = 60; // Each time slot is 60px high
+    const slotIndex = Math.floor(relativeY / slotHeight);
+    
+    // Time slots start at 6 AM (index 0) and go to 22 PM
+    const hour = Math.max(6, Math.min(22, 6 + slotIndex));
+    return `${hour.toString().padStart(2, '0')}:00`;
+  };
+
   const [{ isOver, dragType }, drop] = useDrop({
     accept: ['staff', 'calendar-event', 'STAFF'],
-    drop: async (item: any) => {
+    drop: async (item: any, monitor) => {
+      const clientOffset = monitor.getClientOffset();
+      const dropElement = monitor.getDropResult()?.dropTarget || drop.current;
+      
       console.log('TimeSlots: Item dropped', item, 'on', format(day, 'yyyy-MM-dd'), resource.id);
       
       try {
-        // Handle event drops with standardized structure
-        if (item.eventId && onEventDrop) {
-          // Only drop if moving to a different resource
-          if (item.resourceId !== resource.id) {
-            console.log('Moving event from', item.resourceId, 'to', resource.id);
-            await onEventDrop(item.eventId, resource.id, day, '');
-            toast.success('Event moved successfully');
-          }
+        // Handle event drops with time calculation
+        if (item.eventId && onEventDrop && clientOffset && dropElement) {
+          const targetTime = getTimeSlotFromPosition(clientOffset.y, dropElement);
+          
+          console.log('Moving event with time:', {
+            eventId: item.eventId,
+            fromResource: item.resourceId,
+            toResource: resource.id,
+            targetTime,
+            clientY: clientOffset.y
+          });
+          
+          await onEventDrop(item.eventId, resource.id, day, targetTime);
+          toast.success('Event moved successfully');
         }
         // Handle staff drops
         else if ((item.id || item.staffId) && onStaffDrop) {
@@ -56,7 +77,7 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
     }),
   });
 
-  // Calculate event positions based on time - FIXED calculation
+  // Calculate event positions based on time
   const getEventPosition = (event: CalendarEvent) => {
     const startTime = new Date(event.start);
     const endTime = new Date(event.end);
@@ -64,8 +85,6 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
     // Get hours and minutes as decimal
     const startHour = startTime.getHours() + startTime.getMinutes() / 60;
     const endHour = endTime.getHours() + endTime.getMinutes() / 60;
-    
-    console.log(`Event ${event.title}: ${startHour} - ${endHour}`);
     
     // Calculate position from 6 AM (our grid starts at 6 AM)
     const gridStartHour = 6;
@@ -79,8 +98,6 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
     const top = (clampedStartHour - gridStartHour) * 60;
     const height = Math.max(30, (clampedEndHour - clampedStartHour) * 60);
     
-    console.log(`Event ${event.title} positioned at top: ${top}px, height: ${height}px`);
-    
     return { top, height };
   };
 
@@ -92,30 +109,32 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
         position: 'relative',
         backgroundColor: isOver ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
         border: isOver ? '2px dashed #3b82f6' : '2px solid transparent',
-        transition: 'all 0.2s ease'
+        transition: 'all 0.2s ease',
+        minHeight: `${timeSlots.length * 60}px`
       }}
     >
-      {/* Time slot grid */}
+      {/* Time slot grid with visual indicators */}
       {timeSlots.map((time, index) => (
         <div
           key={time}
-          className="time-slot"
+          className={`time-slot ${isOver ? 'highlight' : ''}`}
           style={{
             height: '60px',
             position: 'relative',
+            borderBottom: '1px solid #e5e7eb',
+            backgroundColor: isOver && dragType === 'calendar-event' ? 'rgba(59, 130, 246, 0.05)' : 'transparent'
           }}
+          data-time={time}
         />
       ))}
       
       {/* Events positioned absolutely */}
-      <div className="events-container">
+      <div className="events-container" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none' }}>
         {events.map((event) => {
           const position = getEventPosition(event);
           return (
-            <CustomEvent
+            <div
               key={event.id}
-              event={event}
-              resource={resource}
               style={{
                 position: 'absolute',
                 top: `${position.top}px`,
@@ -123,8 +142,18 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
                 left: '4px',
                 right: '4px',
                 zIndex: 10,
+                pointerEvents: 'auto'
               }}
-            />
+            >
+              <CustomEvent
+                event={event}
+                resource={resource}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                }}
+              />
+            </div>
           );
         })}
       </div>

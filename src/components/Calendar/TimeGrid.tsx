@@ -4,6 +4,7 @@ import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import BookingEvent from './BookingEvent';
 import EventHoverCard from './EventHoverCard';
+import CustomEvent from './CustomEvent';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
 import { useDrag, useDrop } from 'react-dnd';
 import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
@@ -22,61 +23,44 @@ interface TimeGridProps {
     getStaffForTeamAndDate: (teamId: string, date: Date) => Array<{id: string, name: string, color?: string}>;
   };
   onEventDrop?: (eventId: string, targetResourceId: string, targetDate: Date, targetTime: string) => Promise<void>;
+  onEventResize?: (eventId: string, newStartTime: Date, newEndTime: Date) => Promise<void>;
 }
 
-// Enhanced Draggable Event Wrapper Component with standardized drag data
+// Enhanced Draggable Event Wrapper Component with resize support
 const DraggableEvent: React.FC<{
   event: CalendarEvent;
   position: { top: number; height: number };
   teamColumnWidth: number;
   onEventClick: (event: CalendarEvent) => void;
-}> = React.memo(({ event, position, teamColumnWidth, onEventClick }) => {
-  const [{ isDragging }, drag] = useDrag({
-    type: 'calendar-event',
-    item: { 
-      eventId: event.id,
-      resourceId: event.resourceId,
-      originalEvent: event
-    },
-    collect: (monitor) => ({
-      isDragging: monitor.isDragging(),
-    }),
-  });
-
+  onEventResize?: (eventId: string, newStartTime: Date, newEndTime: Date) => Promise<void>;
+}> = React.memo(({ event, position, teamColumnWidth, onEventClick, onEventResize }) => {
   return (
     <div
-      ref={drag}
       style={{
         position: 'absolute',
         top: `${position.top}px`,
         height: `${position.height}px`,
         left: '4px',
         right: '4px',
-        zIndex: isDragging ? 30 : 25,
-        pointerEvents: 'auto',
-        opacity: isDragging ? 0.5 : 1,
-        cursor: isDragging ? 'grabbing' : 'grab',
-        border: isDragging ? '2px dashed #3b82f6' : 'none',
-        transform: isDragging ? 'rotate(1deg) scale(1.02)' : 'none',
-        transition: 'all 0.2s ease'
+        zIndex: 25,
+        pointerEvents: 'auto'
       }}
     >
-      <EventHoverCard event={event}>
-        <BookingEvent
-          event={event}
-          style={{
-            width: '100%',
-            height: '100%',
-            position: 'relative'
-          }}
-          onClick={() => onEventClick(event)}
-        />
-      </EventHoverCard>
+      <CustomEvent
+        event={event}
+        resource={{ id: event.resourceId, title: '' } as Resource}
+        style={{
+          width: '100%',
+          height: '100%',
+          position: 'relative'
+        }}
+        onEventResize={onEventResize}
+      />
     </div>
   );
 });
 
-// Enhanced Droppable Time Slot Component with better error handling
+// Enhanced Droppable Time Slot Component with precise time calculation
 const DroppableTimeSlot: React.FC<{
   resourceId: string;
   day: Date;
@@ -85,22 +69,49 @@ const DroppableTimeSlot: React.FC<{
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
   children: React.ReactNode;
 }> = React.memo(({ resourceId, day, timeSlot, onEventDrop, onStaffDrop, children }) => {
+  
+  // Calculate precise time based on drop position
+  const getDropTime = (clientY: number, element: HTMLElement) => {
+    const rect = element.getBoundingClientRect();
+    const relativeY = clientY - rect.top;
+    const hourHeight = 25; // 25px per hour in our grid
+    const startHour = 5; // Grid starts at 5 AM
+    
+    // Calculate the hour based on position
+    const hourOffset = relativeY / hourHeight;
+    const targetHour = Math.max(5, Math.min(23, startHour + hourOffset));
+    
+    // Round to nearest 15-minute interval for better UX
+    const minutes = (targetHour % 1) * 60;
+    const roundedMinutes = Math.round(minutes / 15) * 15;
+    const finalHour = Math.floor(targetHour);
+    
+    return `${finalHour.toString().padStart(2, '0')}:${roundedMinutes.toString().padStart(2, '0')}`;
+  };
+
   const [{ isOver, dragType }, drop] = useDrop({
     accept: ['calendar-event', 'STAFF'],
-    drop: async (item: any) => {
+    drop: async (item: any, monitor) => {
+      const clientOffset = monitor.getClientOffset();
+      const targetElement = drop.current;
+      
       console.log('DroppableTimeSlot: Handling drop', { item, resourceId, day: format(day, 'yyyy-MM-dd') });
       
       try {
-        // Handle event drops with standardized data structure
-        if (item.eventId && onEventDrop) {
-          // Only process if moving to a different resource
-          if (item.resourceId !== resourceId) {
-            console.log('Moving event', item.eventId, 'from', item.resourceId, 'to', resourceId);
-            await onEventDrop(item.eventId, resourceId, day, timeSlot);
-            toast.success('Event moved successfully');
-          } else {
-            console.log('Event dropped on same resource, no action needed');
-          }
+        // Handle event drops with precise time calculation
+        if (item.eventId && onEventDrop && clientOffset && targetElement) {
+          const targetTime = getDropTime(clientOffset.y, targetElement);
+          
+          console.log('Moving event with precise time:', {
+            eventId: item.eventId,
+            fromResource: item.resourceId,
+            toResource: resourceId,
+            targetTime,
+            clientY: clientOffset.y
+          });
+          
+          await onEventDrop(item.eventId, resourceId, day, targetTime);
+          toast.success('Event moved successfully');
         }
         // Handle staff drops
         else if (item.id && onStaffDrop) {
@@ -146,7 +157,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   onOpenStaffSelection,
   dayWidth = 800,
   weeklyStaffOperations,
-  onEventDrop
+  onEventDrop,
+  onEventResize
 }) => {
   // Use the event navigation hook for handling event clicks
   const { handleEventClick } = useEventNavigation();
@@ -156,7 +168,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     const timeSlots = [];
     for (let hour = 5; hour <= 23; hour++) {
       const time = hour.toString().padStart(2, '0') + ':00';
-      const displayTime = time; // Use 24-hour format directly (e.g., "05:00", "13:00", "23:00")
+      const displayTime = time;
       timeSlots.push({ time, displayTime });
     }
     return timeSlots;
@@ -165,9 +177,9 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   const timeSlots = generateTimeSlots();
 
   // Calculate responsive column widths with better spacing
-  const timeColumnWidth = 80; // Fixed width for time column
-  const availableWidth = dayWidth - timeColumnWidth - 24; // Account for padding/margins
-  const teamColumnWidth = Math.max(120, Math.floor(availableWidth / resources.length)); // Ensure minimum 120px per team
+  const timeColumnWidth = 80;
+  const availableWidth = dayWidth - timeColumnWidth - 24;
+  const teamColumnWidth = Math.max(120, Math.floor(availableWidth / resources.length));
 
   // Calculate event position based on time - Updated for 25px rows
   const getEventPosition = (event: CalendarEvent) => {
@@ -188,7 +200,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     
     // Calculate position in pixels (25px per hour instead of 15px for better visibility)
     const top = (clampedStartHour - gridStartHour) * 25;
-    const height = Math.max(12, (clampedEndHour - clampedStartHour) * 25); // Minimum height increased to 12px
+    const height = Math.max(12, (clampedEndHour - clampedStartHour) * 25);
     
     return { top, height };
   };
@@ -197,7 +209,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   const handleBookingEventClick = (event: CalendarEvent) => {
     console.log('TimeGrid: Event clicked:', event);
     
-    // Format the event data to match what useEventNavigation expects
     const formattedEventInfo = {
       event: {
         id: event.id,
@@ -332,7 +343,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         ))}
       </div>
 
-      {/* Enhanced Time Slot Columns with improved drag & drop */}
+      {/* Enhanced Time Slot Columns with improved drag & drop and resize support */}
       {resources.map((resource, index) => {
         const resourceEvents = getEventsForDayAndResource(day, resource.id);
         
@@ -361,7 +372,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 ))}
               </div>
               
-              {/* Events positioned absolutely on top of time slots with enhanced dragging */}
+              {/* Events positioned absolutely with resize support */}
               {resourceEvents.map((event) => {
                 const position = getEventPosition(event);
                 return (
@@ -371,6 +382,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                     position={position}
                     teamColumnWidth={teamColumnWidth}
                     onEventClick={handleBookingEventClick}
+                    onEventResize={onEventResize}
                   />
                 );
               })}
