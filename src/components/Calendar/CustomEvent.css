@@ -57,6 +57,95 @@
   @apply text-xs opacity-75;
 }
 
+/* Event Tooltip Styles */
+.event-tooltip {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  padding: 12px;
+  min-width: 200px;
+  max-width: 250px;
+  z-index: 9999;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-5px);
+  transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out, transform 0.2s ease-in-out;
+  pointer-events: auto;
+}
+
+.event-tooltip.visible,
+.event-tooltip:hover {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.tooltip-arrow {
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid white;
+}
+
+.tooltip-arrow::before {
+  content: '';
+  position: absolute;
+  bottom: 1px;
+  left: -7px;
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 7px solid #e2e8f0;
+}
+
+.tooltip-content {
+  color: #1f2937;
+}
+
+.tooltip-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+  color: #111827;
+}
+
+.tooltip-booking {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.tooltip-time {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+/* Animation trigger */
+.event-tooltip {
+  animation: tooltipFadeIn 0.2s ease-in-out forwards;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+}
+
 .resource-column {
   @apply absolute inset-0 transition-colors;
   grid-column: 1;
@@ -90,5 +179,20 @@
   .event-time,
   .event-booking {
     @apply text-xs;
+  }
+
+  .event-tooltip {
+    min-width: 180px;
+    max-width: 200px;
+    padding: 10px;
+  }
+  
+  .tooltip-title {
+    font-size: 13px;
+  }
+  
+  .tooltip-booking,
+  .tooltip-time {
+    font-size: 11px;
   }
 }
