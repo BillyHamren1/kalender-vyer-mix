@@ -107,7 +107,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
             drag(node);
             dragPreview(node);
           }}
-          className={`min-w-[45px] max-w-[70px] h-[16px] cursor-move transition-all duration-150 flex items-center justify-center relative group border border-gray-200 rounded ${dragClasses}`}
+          className={`min-w-[45px] max-w-[70px] h-[18px] cursor-move transition-all duration-150 flex items-center justify-center relative group border border-gray-200 rounded ${dragClasses}`}
           style={{ 
             backgroundColor: dragColor,
             color: textColor,
@@ -122,7 +122,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
           draggable="true"
           title={staff.name}
         >
-          <span className={`text-[11px] font-semibold leading-none truncate ${
+          <span className={`text-sm font-semibold leading-none truncate ${
             isDragging ? 'font-bold' : ''
           }`}>
             {getFirstName(staff.name)}
