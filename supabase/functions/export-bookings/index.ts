@@ -243,36 +243,56 @@ async function fetchBookingAttachments(supabase, bookingId) {
   }))
 }
 
-// Get team IDs for a booking from calendar events - NOW WITH PROPER ID MAPPING
-async function fetchBookingTeamIds(supabase, bookingId) {
+// Get team IDs for a booking by event type from calendar events
+async function fetchBookingTeamIdsByEventType(supabase, bookingId) {
   const { data, error } = await supabase
     .from('calendar_events')
-    .select('resource_id')
+    .select('resource_id, event_type, start_time')
     .eq('booking_id', bookingId)
     .order('start_time', { ascending: true })
   
   if (error) {
     console.error(`Error fetching calendar events for booking ${bookingId}:`, error)
-    return []
+    return { rig: [], event: [], rigDown: [] }
   }
   
-  // Get unique team IDs and map them to frontend format
-  const rawTeamIds = data ? [...new Set(data.map(event => event.resource_id))] : []
-  const mappedTeamIds = rawTeamIds.map(id => mapDatabaseToAppResourceId(id))
+  const eventTypeTeams = { rig: [], event: [], rigDown: [] }
   
-  console.log(`📋 Booking ${bookingId} team mapping:`, {
-    rawTeamIds,
-    mappedTeamIds
-  })
+  if (data) {
+    data.forEach(event => {
+      const mappedTeamId = mapDatabaseToAppResourceId(event.resource_id)
+      const eventType = event.event_type || 'event' // Default to 'event' if no type specified
+      
+      if (eventTypeTeams[eventType] && !eventTypeTeams[eventType].includes(mappedTeamId)) {
+        eventTypeTeams[eventType].push(mappedTeamId)
+      }
+    })
+  }
   
-  return mappedTeamIds
+  console.log(`📋 Booking ${bookingId} team mapping by event type:`, eventTypeTeams)
+  
+  return eventTypeTeams
 }
 
-// Get staff assignments for a team on specific dates
-async function fetchStaffAssignments(supabase, teamId, relevantDates) {
+// Get staff assignments for specific event type and teams
+async function fetchStaffAssignmentsByEventType(supabase, eventType, teamIds, bookingDates) {
   const assignedStaff = []
   
-  for (const date of relevantDates) {
+  // Determine which date to use based on event type
+  let relevantDate = null
+  if (eventType === 'rig' && bookingDates.rigdaydate) {
+    relevantDate = bookingDates.rigdaydate
+  } else if (eventType === 'event' && bookingDates.eventdate) {
+    relevantDate = bookingDates.eventdate
+  } else if (eventType === 'rigDown' && bookingDates.rigdowndate) {
+    relevantDate = bookingDates.rigdowndate
+  }
+  
+  if (!relevantDate || teamIds.length === 0) {
+    return assignedStaff
+  }
+  
+  for (const teamId of teamIds) {
     const { data: staffAssignmentsData, error: staffAssignmentsError } = await supabase
       .from('staff_assignments')
       .select(`
@@ -288,25 +308,25 @@ async function fetchStaffAssignments(supabase, teamId, relevantDates) {
         )
       `)
       .eq('team_id', teamId)
-      .eq('assignment_date', date)
+      .eq('assignment_date', relevantDate)
     
     if (staffAssignmentsError) {
-      console.error(`Error fetching staff assignments for team ${teamId} on ${date}:`, staffAssignmentsError)
+      console.error(`Error fetching staff assignments for team ${teamId} on ${relevantDate}:`, staffAssignmentsError)
       continue
     }
     
     if (staffAssignmentsData && staffAssignmentsData.length > 0) {
-      // Add staff members with assignment details including both ID formats
       for (const assignment of staffAssignmentsData) {
         assignedStaff.push({
-          assignment_id: assignment.id, // UUID format
-          assignment_string_id: assignment.id, // Same UUID as string for compatibility
+          assignment_id: assignment.id,
+          assignment_string_id: assignment.id,
           team_id: assignment.team_id,
           date: assignment.assignment_date,
+          event_type: eventType,
           staff: {
-            id: assignment.staff_members.id, // Original ID format (likely string)
-            uuid: assignment.staff_id, // String format ID
-            uuid_id: assignment.staff_members.id, // UUID format when available
+            id: assignment.staff_members.id,
+            uuid: assignment.staff_id,
+            uuid_id: assignment.staff_members.id,
             name: assignment.staff_members.name,
             email: assignment.staff_members.email || undefined,
             phone: assignment.staff_members.phone || undefined
@@ -319,7 +339,7 @@ async function fetchStaffAssignments(supabase, teamId, relevantDates) {
   return assignedStaff
 }
 
-// Process all bookings to include their related data
+// Process all bookings to include their related data with event-specific staff assignments
 async function processBookings(supabase, bookingsData) {
   const bookings = []
   
@@ -333,35 +353,36 @@ async function processBookings(supabase, bookingsData) {
       const attachments = await fetchBookingAttachments(supabase, booking.id)
       if (!attachments) continue
       
-      // Fetch team IDs for this booking
-      const teamIds = await fetchBookingTeamIds(supabase, booking.id)
+      // Fetch team IDs by event type for this booking
+      const teamIdsByEventType = await fetchBookingTeamIdsByEventType(supabase, booking.id)
       
-      // Find the relevant dates from booking for staff assignments
-      const relevantDates = [
-        booking.rigdaydate, 
-        booking.eventdate, 
-        booking.rigdowndate
-      ].filter(date => date) // Filter out null/undefined dates
-      
-      // For each team, fetch assigned staff members
-      let assignedStaff = []
-      
-      for (const teamId of teamIds) {
-        if (relevantDates.length === 0) continue
-        
-        const teamStaff = await fetchStaffAssignments(supabase, teamId, relevantDates)
-        assignedStaff = [...assignedStaff, ...teamStaff]
+      // Prepare booking dates for staff assignment queries
+      const bookingDates = {
+        rigdaydate: booking.rigdaydate,
+        eventdate: booking.eventdate,
+        rigdowndate: booking.rigdowndate
       }
+      
+      // Fetch staff assignments for each event type separately
+      const rigStaff = await fetchStaffAssignmentsByEventType(
+        supabase, 'rig', teamIdsByEventType.rig, bookingDates
+      )
+      const eventStaff = await fetchStaffAssignmentsByEventType(
+        supabase, 'event', teamIdsByEventType.event, bookingDates
+      )
+      const rigDownStaff = await fetchStaffAssignmentsByEventType(
+        supabase, 'rigDown', teamIdsByEventType.rigDown, bookingDates
+      )
       
       // Log the geodata being added
       console.log(`Booking ${booking.id} geodata: latitude=${booking.delivery_latitude}, longitude=${booking.delivery_longitude}`)
       
-      // Construct the booking object with all information
+      // Construct the booking object with all information and event-specific staff
       bookings.push({
         id: booking.id,
         bookingNumber: booking.booking_number || undefined,
         client: booking.client,
-        status: booking.status, // Include status in response
+        status: booking.status,
         rigdaydate: booking.rigdaydate,
         eventdate: booking.eventdate,
         rigdowndate: booking.rigdowndate,
@@ -377,7 +398,9 @@ async function processBookings(supabase, bookingsData) {
         internalnotes: booking.internalnotes || undefined,
         products,
         attachments,
-        staff: assignedStaff,
+        rigStaff,
+        eventStaff,
+        rigDownStaff,
         created_at: booking.created_at,
         updated_at: booking.updated_at
       })
