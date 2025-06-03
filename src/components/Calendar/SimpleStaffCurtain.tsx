@@ -1,13 +1,17 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Users, X, UserPlus } from 'lucide-react';
-import { StaffMember } from './StaffTypes';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { syncStaffMember } from '@/services/staffService';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { toast } from 'sonner';
+
+interface StaffMember {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  color?: string;
+}
 
 interface SimpleStaffCurtainProps {
   currentDate: Date;
@@ -15,6 +19,7 @@ interface SimpleStaffCurtainProps {
   onAssignStaff: (staffId: string, teamId: string) => Promise<void>;
   selectedTeamId: string | null;
   selectedTeamName: string;
+  availableStaff: StaffMember[]; // Use the staff data that's already available
 }
 
 const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({ 
@@ -22,10 +27,9 @@ const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({
   onClose,
   onAssignStaff,
   selectedTeamId,
-  selectedTeamName
+  selectedTeamName,
+  availableStaff
 }) => {
-  const [availableStaff, setAvailableStaff] = useState<StaffMember[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [assigning, setAssigning] = useState<string | null>(null);
   
   // Helper function to get initials for avatar
@@ -34,67 +38,6 @@ const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({
     if (nameParts.length === 1) return nameParts[0].substring(0, 2).toUpperCase();
     return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
   };
-
-  // Fetch all available staff from external API
-  useEffect(() => {
-    const fetchAvailableStaff = async () => {
-      try {
-        setIsLoading(true);
-        const formattedDate = currentDate.toISOString().split('T')[0];
-        
-        // Call the edge function to get staff availability
-        const { data, error } = await supabase.functions.invoke('fetch_staff_for_planning', {
-          body: { date: formattedDate }
-        });
-        
-        if (error) {
-          console.error('Error fetching staff availability:', error);
-          toast.error('Failed to load available staff');
-          return;
-        }
-        
-        if (data && data.success && data.data) {
-          // Transform and sync staff data
-          const staffList: StaffMember[] = [];
-          
-          for (const externalStaff of data.data) {
-            if (externalStaff.isavailable) {
-              try {
-                // Sync the staff member to our database
-                await syncStaffMember({
-                  id: externalStaff.id,
-                  name: externalStaff.name,
-                  email: externalStaff.email || undefined,
-                  phone: externalStaff.phone || undefined
-                });
-                
-                // Add to our available staff list
-                staffList.push({
-                  id: externalStaff.id,
-                  name: externalStaff.name,
-                  email: externalStaff.email || undefined,
-                  phone: externalStaff.phone || undefined
-                });
-              } catch (syncError) {
-                console.error(`Error syncing staff member ${externalStaff.id}:`, syncError);
-              }
-            }
-          }
-          
-          setAvailableStaff(staffList);
-        } else {
-          setAvailableStaff([]);
-        }
-      } catch (error) {
-        console.error('Error in fetchAvailableStaff:', error);
-        toast.error('Failed to load available staff');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchAvailableStaff();
-  }, [currentDate]);
 
   const handleAssignToTeam = async (staffId: string, staffName: string) => {
     if (!selectedTeamId) {
@@ -117,8 +60,12 @@ const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-end">
-      <div className="bg-white h-full w-80 shadow-lg flex flex-col">
+    <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-start justify-end">
+      <div 
+        className="bg-white h-full w-80 shadow-xl transform transition-transform duration-300 ease-out translate-x-0"
+        style={{ animation: 'slideInFromRight 0.3s ease-out' }}
+      >
+        {/* Header */}
         <div className="p-4 border-b flex justify-between items-center bg-gray-50">
           <h3 className="text-lg font-medium flex items-center gap-2">
             <Users className="h-5 w-5" />
@@ -129,6 +76,7 @@ const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({
           </Button>
         </div>
         
+        {/* Team info */}
         {selectedTeamId && (
           <div className="bg-blue-50 p-3 text-sm border-b">
             <div className="font-medium text-blue-900">Assigning to:</div>
@@ -144,21 +92,9 @@ const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({
           </div>
         )}
         
+        {/* Staff list */}
         <div className="flex-1 overflow-y-auto p-4">
-          {isLoading ? (
-            <div className="space-y-3">
-              {Array(8).fill(0).map((_, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 border rounded-md">
-                  <Skeleton className="h-10 w-10 rounded-full" />
-                  <div className="flex-1">
-                    <Skeleton className="h-4 w-full mb-1" />
-                    <Skeleton className="h-3 w-20" />
-                  </div>
-                  <Skeleton className="h-8 w-8" />
-                </div>
-              ))}
-            </div>
-          ) : availableStaff.length > 0 ? (
+          {availableStaff.length > 0 ? (
             <div className="space-y-2">
               <div className="text-sm text-gray-600 mb-3">
                 {availableStaff.length} staff member{availableStaff.length !== 1 ? 's' : ''} available
@@ -169,8 +105,17 @@ const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({
                   className="flex items-center justify-between p-3 border rounded-md bg-white hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10 bg-purple-100">
-                      <AvatarFallback className="text-sm text-purple-700">
+                    <Avatar 
+                      className="h-10 w-10"
+                      style={{ backgroundColor: staff.color || '#E3F2FD' }}
+                    >
+                      <AvatarFallback 
+                        className="text-sm"
+                        style={{ 
+                          backgroundColor: staff.color || '#E3F2FD',
+                          color: '#333'
+                        }}
+                      >
                         {getInitials(staff.name)}
                       </AvatarFallback>
                     </Avatar>
@@ -223,6 +168,17 @@ const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({
           </div>
         )}
       </div>
+      
+      <style jsx>{`
+        @keyframes slideInFromRight {
+          from {
+            transform: translateX(100%);
+          }
+          to {
+            transform: translateX(0);
+          }
+        }
+      `}</style>
     </div>
   );
 };

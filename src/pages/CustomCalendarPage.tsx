@@ -128,7 +128,7 @@ const CustomCalendarPage = () => {
             isLoading={weeklyStaffOps.isLoading}
           />
 
-          {/* Simple Staff Curtain */}
+          {/* Simple Staff Curtain - now uses existing staff data */}
           {staffCurtainOpen && selectedTeam && (
             <SimpleStaffCurtain
               currentDate={selectedTeam.targetDate}
@@ -136,6 +136,7 @@ const CustomCalendarPage = () => {
               onAssignStaff={handleStaffAssigned}
               selectedTeamId={selectedTeam.resourceId}
               selectedTeamName={selectedTeam.resourceTitle}
+              availableStaff={weeklyStaffOps.getAvailableStaffForWeek()}
             />
           )}
         </div>
