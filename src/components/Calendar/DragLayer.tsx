@@ -55,10 +55,10 @@ const DragLayer: React.FC = () => {
         }}
       >
         <div className="event-content">
-          <div className="event-title" style={{ fontSize: '12px', fontWeight: 'bold', color: 'white' }}>
+          <div className="event-title" style={{ fontSize: '12px', fontWeight: 'bold', color: '#000000' }}>
             {event.title}
           </div>
-          <div className="event-time" style={{ fontSize: '10px', color: 'rgba(255, 255, 255, 0.9)' }}>
+          <div className="event-time" style={{ fontSize: '10px', color: '#000000' }}>
             {startTime} - {endTime}
           </div>
         </div>
