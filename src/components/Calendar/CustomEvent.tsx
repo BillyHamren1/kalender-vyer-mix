@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
 import { format, addMinutes } from 'date-fns';
@@ -12,7 +11,7 @@ interface CustomEventProps {
   onEventResize?: (eventId: string, newStartTime: Date, newEndTime: Date) => Promise<void>;
 }
 
-const CustomEvent: React.FC<CustomEventProps> = ({
+const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   event,
   resource,
   style,
@@ -23,8 +22,8 @@ const CustomEvent: React.FC<CustomEventProps> = ({
   const [isResizing, setIsResizing] = useState(false);
   const eventRef = useRef<HTMLDivElement>(null);
 
-  // Drag implementation for moving events
-  const [{ isDragging }, drag] = useDrag({
+  // Optimized drag implementation for smooth movement
+  const [{ isDragging }, drag, preview] = useDrag({
     type: 'calendar-event',
     item: { 
       eventId: event.id,
@@ -34,8 +33,16 @@ const CustomEvent: React.FC<CustomEventProps> = ({
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
-    canDrag: !isResizing, // Prevent dragging while resizing
+    canDrag: !isResizing,
+    options: {
+      dropEffect: 'move',
+    },
   });
+
+  // Use empty preview to hide default preview (we use custom drag layer)
+  React.useEffect(() => {
+    preview(null, { captureDraggingState: true });
+  }, [preview]);
 
   const eventColor = getEventColor(event.eventType);
   const startTime = format(new Date(event.start), 'HH:mm');
@@ -172,12 +179,13 @@ const CustomEvent: React.FC<CustomEventProps> = ({
         style={{
           ...style,
           backgroundColor: eventColor,
-          opacity: isDragging ? 0.5 : 1,
+          opacity: isDragging ? 0.3 : 1, // More transparent when dragging
           cursor: isDragging ? 'grabbing' : (isResizing ? 'ns-resize' : 'grab'),
-          border: isDragging ? '2px dashed #3b82f6' : 'none',
-          transform: isDragging ? 'rotate(2deg)' : 'none',
-          transition: isDragging || isResizing ? 'none' : 'all 0.2s ease',
-          position: 'relative'
+          border: 'none',
+          transform: 'none', // Remove transform during drag
+          transition: isDragging || isResizing ? 'none' : 'opacity 0.2s ease', // Remove all transitions during drag
+          position: 'relative',
+          willChange: 'transform, opacity', // GPU acceleration hint
         }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -255,6 +263,8 @@ const CustomEvent: React.FC<CustomEventProps> = ({
       )}
     </>
   );
-};
+});
+
+CustomEvent.displayName = 'CustomEvent';
 
 export default CustomEvent;

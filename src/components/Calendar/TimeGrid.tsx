@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import BookingEvent from './BookingEvent';
 import EventHoverCard from './EventHoverCard';
 import CustomEvent from './CustomEvent';
+import DragLayer from './DragLayer';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
 import { useDrag, useDrop } from 'react-dnd';
 import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
@@ -26,7 +27,7 @@ interface TimeGridProps {
   onEventResize?: (eventId: string, newStartTime: Date, newEndTime: Date) => Promise<void>;
 }
 
-// Enhanced Draggable Event Wrapper Component with resize support
+// Enhanced Draggable Event Wrapper Component with performance optimization
 const DraggableEvent: React.FC<{
   event: CalendarEvent;
   position: { top: number; height: number };
@@ -60,7 +61,7 @@ const DraggableEvent: React.FC<{
   );
 });
 
-// Enhanced Droppable Time Slot Component with fixed DOM element reference
+// Enhanced Droppable Time Slot Component with optimized drop handling
 const DroppableTimeSlot: React.FC<{
   resourceId: string;
   day: Date;
@@ -70,22 +71,20 @@ const DroppableTimeSlot: React.FC<{
   children: React.ReactNode;
 }> = React.memo(({ resourceId, day, timeSlot, onEventDrop, onStaffDrop, children }) => {
   
-  // Create separate refs - one for react-dnd and one for DOM element
   const elementRef = React.useRef<HTMLDivElement>(null);
   
-  // Calculate precise time based on drop position
+  // Optimized time calculation for smoother drops
   const getDropTime = (clientY: number) => {
     if (!elementRef.current) {
       console.warn('Element ref not available for time calculation');
-      return '12:00'; // fallback time
+      return '12:00';
     }
     
     const rect = elementRef.current.getBoundingClientRect();
     const relativeY = clientY - rect.top;
-    const hourHeight = 25; // 25px per hour in our grid
-    const startHour = 5; // Grid starts at 5 AM
+    const hourHeight = 25;
+    const startHour = 5;
     
-    // Calculate the hour based on position
     const hourOffset = relativeY / hourHeight;
     const targetHour = Math.max(5, Math.min(23, startHour + hourOffset));
     
@@ -111,7 +110,7 @@ const DroppableTimeSlot: React.FC<{
       });
       
       try {
-        // Handle event drops with precise time calculation - NO MANUAL REFRESH
+        // Handle event drops with immediate visual feedback
         if (item.eventId && onEventDrop && clientOffset) {
           const targetTime = getDropTime(clientOffset.y);
           
@@ -127,7 +126,7 @@ const DroppableTimeSlot: React.FC<{
           await onEventDrop(item.eventId, resourceId, day, targetTime);
           toast.success('Event moved successfully');
         }
-        // Handle staff drops - NO MANUAL REFRESH
+        // Handle staff drops
         else if (item.id && onStaffDrop) {
           console.log('Assigning staff', item.id, 'to resource', resourceId);
           await onStaffDrop(item.id, resourceId, day);
@@ -144,7 +143,6 @@ const DroppableTimeSlot: React.FC<{
     }),
   });
 
-  // Combine the refs properly
   const combinedRef = (node: HTMLDivElement) => {
     elementRef.current = node;
     drop(node);
@@ -180,7 +178,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   onEventDrop,
   onEventResize
 }) => {
-  // Use the event navigation hook for handling event clicks
   const { handleEventClick } = useEventNavigation();
 
   // Generate time slots from 05:00 to 23:00 with European 24-hour format
@@ -263,7 +260,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     }
   };
 
-  // Optimized event drop handler - NO MANUAL REFRESH, real-time will handle it
+  // Optimized event drop handler with immediate visual feedback
   const handleEventDropOptimized = async (
     eventId: string, 
     targetResourceId: string, 
@@ -278,12 +275,10 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         targetTime
       });
 
-      // Create the new start and end times
       const [hours, minutes] = targetTime.split(':').map(Number);
       const newStartTime = new Date(targetDate);
       newStartTime.setHours(hours, minutes, 0, 0);
       
-      // Find the original event to maintain duration
       const originalEvent = events.find(e => e.id === eventId);
       if (!originalEvent) {
         throw new Error('Original event not found');
@@ -295,7 +290,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
       
       const newEndTime = new Date(newStartTime.getTime() + duration);
       
-      // Update the event - real-time subscription will handle UI updates
+      // Update immediately with visual feedback
       await updateCalendarEvent(eventId, {
         start: newStartTime.toISOString(),
         end: newEndTime.toISOString(),
@@ -304,162 +299,165 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
       console.log('Event updated successfully - real-time will refresh UI');
       
-      // NO manual refresh - real-time subscription handles this
-      
     } catch (error) {
       console.error('Error handling event drop:', error);
-      throw error; // Re-throw to be caught by the drop handler
+      throw error;
     }
   };
 
   return (
-    <div 
-      className="time-grid-with-staff-header"
-      style={{
-        gridTemplateColumns: `${timeColumnWidth}px repeat(${resources.length}, ${teamColumnWidth}px)`,
-        gridTemplateRows: 'auto auto auto 1fr',
-        width: `${dayWidth}px`
-      }}
-    >
-      {/* Time Column Header */}
-      <div className="time-column-header">
-        <div className="time-title">Time</div>
-      </div>
-
-      <div className="day-header-teams" style={{ gridColumn: '2 / -1' }}>
-        <div className="day-title">
-          {format(day, 'EEE d')}
+    <>
+      {/* Add drag layer for smooth visual feedback */}
+      <DragLayer />
+      
+      <div 
+        className="time-grid-with-staff-header"
+        style={{
+          gridTemplateColumns: `${timeColumnWidth}px repeat(${resources.length}, ${teamColumnWidth}px)`,
+          gridTemplateRows: 'auto auto auto 1fr',
+          width: `${dayWidth}px`
+        }}
+      >
+        {/* Time Column Header */}
+        <div className="time-column-header">
+          <div className="time-title">Time</div>
         </div>
-      </div>
 
-      <div className="time-empty-cell" style={{ gridRow: 2 }}></div>
-
-      {resources.map((resource, index) => {
-        const assignedStaff = getAssignedStaffForTeam(resource.id);
-        
-        return (
-          <div 
-            key={`header-${resource.id}`}
-            className="team-header-cell"
-            style={{ 
-              gridColumn: index + 2,
-              gridRow: 2,
-              width: `${teamColumnWidth}px`,
-              minWidth: `${teamColumnWidth}px`
-            }}
-          >
-            <div className="team-header-content">
-              <span className="team-title" title={resource.title}>{resource.title}</span>
-              <button
-                className="add-staff-button-header"
-                onClick={(e) => handleStaffSelectionClick(resource.id, resource.title, e)}
-                title={`Assign staff to ${resource.title}`}
-              >
-                +
-              </button>
-            </div>
+        <div className="day-header-teams" style={{ gridColumn: '2 / -1' }}>
+          <div className="day-title">
+            {format(day, 'EEE d')}
           </div>
-        );
-      })}
+        </div>
 
-      <div className="staff-row-time-cell" style={{ gridRow: 3 }}></div>
+        <div className="time-empty-cell" style={{ gridRow: 2 }}></div>
 
-      {resources.map((resource, index) => {
-        const assignedStaff = getAssignedStaffForTeam(resource.id);
-        
-        return (
-          <DroppableTimeSlot
-            key={`staff-${resource.id}`}
-            resourceId={resource.id}
-            day={day}
-            timeSlot="staff-assignment"
-            onStaffDrop={onStaffDrop}
-          >
+        {resources.map((resource, index) => {
+          const assignedStaff = getAssignedStaffForTeam(resource.id);
+          
+          return (
             <div 
-              className="staff-assignment-header-row"
+              key={`header-${resource.id}`}
+              className="team-header-cell"
               style={{ 
                 gridColumn: index + 2,
-                gridRow: 3,
+                gridRow: 2,
                 width: `${teamColumnWidth}px`,
                 minWidth: `${teamColumnWidth}px`
               }}
             >
-              <div className="staff-header-assignment-area">
-                <div className="assigned-staff-header-list">
-                  {assignedStaff.map((staff) => (
-                    <UnifiedDraggableStaffItem
-                      key={staff.id}
-                      staff={staff}
-                      onRemove={() => handleStaffRemoval(staff.id, resource.id)}
-                      currentDate={day}
-                      teamName={resource.title}
-                      variant="compact"
-                      showRemoveDialog={true}
-                    />
-                  ))}
+              <div className="team-header-content">
+                <span className="team-title" title={resource.title}>{resource.title}</span>
+                <button
+                  className="add-staff-button-header"
+                  onClick={(e) => handleStaffSelectionClick(resource.id, resource.title, e)}
+                  title={`Assign staff to ${resource.title}`}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          );
+        })}
+
+        <div className="staff-row-time-cell" style={{ gridRow: 3 }}></div>
+
+        {resources.map((resource, index) => {
+          const assignedStaff = getAssignedStaffForTeam(resource.id);
+          
+          return (
+            <DroppableTimeSlot
+              key={`staff-${resource.id}`}
+              resourceId={resource.id}
+              day={day}
+              timeSlot="staff-assignment"
+              onStaffDrop={onStaffDrop}
+            >
+              <div 
+                className="staff-assignment-header-row"
+                style={{ 
+                  gridColumn: index + 2,
+                  gridRow: 3,
+                  width: `${teamColumnWidth}px`,
+                  minWidth: `${teamColumnWidth}px`
+                }}
+              >
+                <div className="staff-header-assignment-area">
+                  <div className="assigned-staff-header-list">
+                    {assignedStaff.map((staff) => (
+                      <UnifiedDraggableStaffItem
+                        key={staff.id}
+                        staff={staff}
+                        onRemove={() => handleStaffRemoval(staff.id, resource.id)}
+                        currentDate={day}
+                        teamName={resource.title}
+                        variant="compact"
+                        showRemoveDialog={true}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
+            </DroppableTimeSlot>
+          );
+        })}
+
+        <div className="time-labels-column" style={{ gridRow: 4 }}>
+          {timeSlots.map((slot) => (
+            <div key={slot.time} className="time-label-slot">
+              {slot.displayTime}
             </div>
-          </DroppableTimeSlot>
-        );
-      })}
+          ))}
+        </div>
 
-      <div className="time-labels-column" style={{ gridRow: 4 }}>
-        {timeSlots.map((slot) => (
-          <div key={slot.time} className="time-label-slot">
-            {slot.displayTime}
-          </div>
-        ))}
-      </div>
-
-      {/* Enhanced Time Slot Columns with optimized drag & drop */}
-      {resources.map((resource, index) => {
-        const resourceEvents = getEventsForDayAndResource(day, resource.id);
-        
-        return (
-          <DroppableTimeSlot
-            key={`timeslots-${resource.id}`}
-            resourceId={resource.id}
-            day={day}
-            timeSlot="any"
-            onEventDrop={handleEventDropOptimized}
-            onStaffDrop={onStaffDrop}
-          >
-            <div 
-              style={{ 
-                gridColumn: index + 2,
-                gridRow: 4,
-                width: `${teamColumnWidth}px`,
-                minWidth: `${teamColumnWidth}px`,
-                position: 'relative'
-              }}
+        {/* Enhanced Time Slot Columns with optimized performance */}
+        {resources.map((resource, index) => {
+          const resourceEvents = getEventsForDayAndResource(day, resource.id);
+          
+          return (
+            <DroppableTimeSlot
+              key={`timeslots-${resource.id}`}
+              resourceId={resource.id}
+              day={day}
+              timeSlot="any"
+              onEventDrop={handleEventDropOptimized}
+              onStaffDrop={onStaffDrop}
             >
-              {/* Time slots grid */}
-              <div className="time-slots-grid">
-                {timeSlots.map((slot) => (
-                  <div key={slot.time} className="time-slot-cell" />
-                ))}
+              <div 
+                style={{ 
+                  gridColumn: index + 2,
+                  gridRow: 4,
+                  width: `${teamColumnWidth}px`,
+                  minWidth: `${teamColumnWidth}px`,
+                  position: 'relative'
+                }}
+              >
+                {/* Time slots grid */}
+                <div className="time-slots-grid">
+                  {timeSlots.map((slot) => (
+                    <div key={slot.time} className="time-slot-cell" />
+                  ))}
+                </div>
+                
+                {/* Events positioned absolutely with optimized performance */}
+                {resourceEvents.map((event) => {
+                  const position = getEventPosition(event);
+                  return (
+                    <DraggableEvent
+                      key={`event-wrapper-${event.id}`}
+                      event={event}
+                      position={position}
+                      teamColumnWidth={teamColumnWidth}
+                      onEventClick={handleBookingEventClick}
+                      onEventResize={onEventResize}
+                    />
+                  );
+                })}
               </div>
-              
-              {/* Events positioned absolutely with resize support */}
-              {resourceEvents.map((event) => {
-                const position = getEventPosition(event);
-                return (
-                  <DraggableEvent
-                    key={`event-wrapper-${event.id}`}
-                    event={event}
-                    position={position}
-                    teamColumnWidth={teamColumnWidth}
-                    onEventClick={handleBookingEventClick}
-                    onEventResize={onEventResize}
-                  />
-                );
-              })}
-            </div>
-          </DroppableTimeSlot>
-        );
-      })}
-    </div>
+            </DroppableTimeSlot>
+          );
+        })}
+      </div>
+    </>
   );
 };
 

@@ -17,11 +17,12 @@ export const useOptimisticUpdates = (
   const [pendingUpdates, setPendingUpdates] = useState<OptimisticUpdate[]>([]);
   const debounceTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
-  // Add optimistic update with debouncing to prevent rapid successive updates
+  // Optimized for smooth drag operations - reduced debouncing
   const addOptimisticUpdate = useCallback((
     type: 'add' | 'update' | 'delete',
     event: CalendarEvent,
-    operation: () => Promise<void>
+    operation: () => Promise<void>,
+    skipDebounce: boolean = false // Add option to skip debouncing for drag operations
   ) => {
     const updateId = `${type}-${event.id}-${Date.now()}`;
     
@@ -31,7 +32,9 @@ export const useOptimisticUpdates = (
       clearTimeout(existingTimeout);
     }
 
-    // Debounce rapid updates to the same event
+    // For drag operations, use immediate updates with minimal debounce
+    const debounceTime = skipDebounce ? 0 : (type === 'update' ? 50 : 100); // Reduced from 100ms to 50ms for updates
+
     const timeout = setTimeout(() => {
       const optimisticUpdate: OptimisticUpdate = {
         id: updateId,
@@ -93,7 +96,7 @@ export const useOptimisticUpdates = (
           // Clean up timeout reference
           debounceTimeouts.current.delete(event.id);
         });
-    }, 100); // 100ms debounce to prevent rapid updates
+    }, debounceTime);
 
     // Store timeout reference
     debounceTimeouts.current.set(event.id, timeout);
@@ -109,7 +112,6 @@ export const useOptimisticUpdates = (
     // Clean up old timeouts
     for (const [eventId, timeout] of debounceTimeouts.current) {
       if (timeout) {
-        // Check if timeout is still valid, if not remove it
         const timeoutExists = Array.from(debounceTimeouts.current.values()).includes(timeout);
         if (!timeoutExists) {
           debounceTimeouts.current.delete(eventId);

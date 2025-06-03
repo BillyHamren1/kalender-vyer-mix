@@ -1,212 +1,128 @@
 
-.time-slots-container {
-  @apply relative h-full;
-  position: relative;
-  height: calc(60px * 17); /* 17 time slots from 6 AM to 10 PM */
-}
-
-.time-slots-container.drop-over {
-  @apply bg-blue-50/30;
-  border: 2px dashed #3b82f6;
-}
-
-.time-slot {
-  @apply relative;
-  background: linear-gradient(to bottom, transparent 0%, transparent 99%, #e5e7eb 99%, #e5e7eb 100%);
-  height: 60px;
-  border-bottom: 1px solid #f3f4f6;
-}
-
-.events-container {
-  @apply absolute inset-0 pointer-events-none;
-  z-index: 10;
-}
-
 .custom-event {
-  @apply rounded text-white text-xs p-2 shadow-sm border border-white/20 pointer-events-auto;
+  position: relative;
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: white;
+  font-size: 12px;
   overflow: hidden;
-  transition: all 0.2s ease;
-  min-height: 30px;
+  cursor: grab;
+  user-select: none;
+  will-change: transform, opacity; /* GPU acceleration hint */
 }
 
-.custom-event:hover {
-  @apply shadow-md;
-  transform: translateY(-1px);
+.custom-event:active {
+  cursor: grabbing;
 }
 
 .custom-event.dragging {
-  @apply shadow-lg;
-  transform: rotate(2deg);
-  z-index: 50;
+  opacity: 0.3;
+  cursor: grabbing;
+  transition: none; /* Remove all transitions during drag for smoothness */
+  transform: none; /* Remove transform effects during drag */
 }
 
-.event-content {
-  @apply space-y-1;
+.custom-event.resizing {
+  cursor: ns-resize;
+  transition: none; /* Remove transitions during resize */
 }
 
-.event-title {
-  @apply font-medium truncate;
+.custom-event .event-content {
+  pointer-events: none; /* Prevent interference with drag operations */
+}
+
+.custom-event .event-title {
+  font-weight: bold;
   line-height: 1.2;
+  margin-bottom: 2px;
 }
 
-.event-time {
-  @apply text-xs opacity-90;
+.custom-event .event-time {
+  font-size: 10px;
+  opacity: 0.9;
+  line-height: 1;
 }
 
-.event-booking {
-  @apply text-xs opacity-75;
+.custom-event .event-booking {
+  font-size: 10px;
+  opacity: 0.8;
+  margin-top: 2px;
 }
 
-/* Event Tooltip Styles */
-.event-tooltip {
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-  padding: 12px;
-  min-width: 200px;
-  max-width: 250px;
-  z-index: 9999;
+.resize-handle {
   opacity: 0;
-  visibility: hidden;
-  transform: translateY(-5px);
-  transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out, transform 0.2s ease-in-out;
-  pointer-events: auto;
+  transition: opacity 0.2s ease;
 }
 
-.event-tooltip.visible,
-.event-tooltip:hover {
+.custom-event:hover .resize-handle {
   opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
+}
+
+.resize-handle:hover {
+  background-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Tooltip styles */
+.event-tooltip {
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  max-width: 200px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  pointer-events: none; /* Prevent tooltip from interfering with drag */
 }
 
 .tooltip-arrow {
   position: absolute;
-  bottom: -6px;
+  top: -5px;
   left: 50%;
   transform: translateX(-50%);
   width: 0;
   height: 0;
-  border-left: 6px solid transparent;
-  border-right: 6px solid transparent;
-  border-top: 6px solid white;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 5px solid rgba(0, 0, 0, 0.9);
 }
 
-.tooltip-arrow::before {
-  content: '';
-  position: absolute;
-  bottom: 1px;
-  left: -7px;
-  width: 0;
-  height: 0;
-  border-left: 7px solid transparent;
-  border-right: 7px solid transparent;
-  border-top: 7px solid #e2e8f0;
-}
-
-.tooltip-content {
-  color: #1f2937;
-}
-
-.tooltip-title {
-  font-weight: 600;
-  font-size: 14px;
-  margin-bottom: 4px;
-  color: #111827;
-}
-
-.tooltip-booking {
-  font-size: 12px;
-  color: #6b7280;
+.tooltip-content .tooltip-title {
+  font-weight: bold;
   margin-bottom: 4px;
 }
 
-.tooltip-time {
-  font-size: 12px;
-  color: #6b7280;
-  font-weight: 500;
+.tooltip-content .tooltip-booking {
+  color: #ccc;
+  margin-bottom: 4px;
 }
 
-/* Animation trigger */
-.event-tooltip {
-  animation: tooltipFadeIn 0.2s ease-in-out forwards;
+.tooltip-content .tooltip-time {
+  color: #ddd;
+  margin-bottom: 4px;
 }
 
-@keyframes tooltipFadeIn {
-  from {
-    opacity: 0;
-    visibility: hidden;
-    transform: translateY(-5px);
-  }
-  to {
-    opacity: 1;
-    visibility: visible;
-    transform: translateY(0);
-  }
+.tooltip-content .tooltip-instructions {
+  color: #999;
+  font-style: italic;
 }
 
-.resource-column {
-  @apply absolute inset-0 transition-colors;
-  grid-column: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  writing-mode: vertical-lr;
-  text-orientation: mixed;
-  background: transparent;
+/* Drag preview styles */
+.dragging-preview {
+  pointer-events: none;
+  user-select: none;
+  transform-origin: center;
 }
 
-.resource-column.drop-over {
-  @apply bg-blue-100/50;
-  border: 2px dashed #3b82f6;
+/* Performance optimization classes */
+.gpu-accelerated {
+  will-change: transform, opacity;
+  transform: translateZ(0); /* Force GPU layer */
 }
 
-.resource-title {
-  @apply text-sm font-medium text-gray-700 transform rotate-180;
-}
-
-/* Staff Curtain Animation */
-@keyframes slideInFromRight {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-.animate-slide-in-right {
-  animation: slideInFromRight 0.3s ease-out;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .custom-event {
-    @apply text-xs p-1;
-  }
-  
-  .event-title {
-    @apply text-xs;
-  }
-  
-  .event-time,
-  .event-booking {
-    @apply text-xs;
-  }
-
-  .event-tooltip {
-    min-width: 180px;
-    max-width: 200px;
-    padding: 10px;
-  }
-  
-  .tooltip-title {
-    font-size: 13px;
-  }
-  
-  .tooltip-booking,
-  .tooltip-time {
-    font-size: 11px;
-  }
+/* Smooth drop zone highlighting */
+.drop-over {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+  border: 2px dashed #3b82f6 !important;
+  transition: all 0.2s ease;
 }
