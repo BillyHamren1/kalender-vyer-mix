@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
 import { format, addMinutes } from 'date-fns';
@@ -17,8 +18,6 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   style,
   onEventResize
 }) => {
-  const [isTooltipVisible, setIsTooltipVisible] = useState(false);
-  const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
   const [isResizing, setIsResizing] = useState(false);
   const eventRef = useRef<HTMLDivElement>(null);
 
@@ -52,8 +51,6 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   const handleResizeStart = (e: React.MouseEvent, direction: 'top' | 'bottom') => {
     e.stopPropagation();
     setIsResizing(true);
-    // Hide tooltip when resizing starts
-    setIsTooltipVisible(false);
     
     const startY = e.clientY;
     const originalStart = new Date(event.start);
@@ -130,139 +127,72 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     document.addEventListener('mouseup', handleMouseUp);
   };
 
-  const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Don't show tooltip if dragging or resizing
-    if (eventRef.current && !isResizing && !isDragging) {
-      const rect = eventRef.current.getBoundingClientRect();
-      const tooltipHeight = 80;
-      const tooltipWidth = 200;
-      
-      let top = rect.top - tooltipHeight - 10;
-      let left = rect.left + (rect.width / 2) - (tooltipWidth / 2);
-      
-      if (top < 0) {
-        top = rect.bottom + 10;
-      }
-      
-      if (left < 0) {
-        left = 10;
-      } else if (left + tooltipWidth > window.innerWidth) {
-        left = window.innerWidth - tooltipWidth - 10;
-      }
-      
-      setTooltipPosition({ top, left });
-      setIsTooltipVisible(true);
-    }
-  };
-
-  const handleMouseLeave = () => {
-    if (!isResizing && !isDragging) {
-      setIsTooltipVisible(false);
-    }
-  };
-
-  // Hide tooltip when dragging starts
-  React.useEffect(() => {
-    if (isDragging) {
-      setIsTooltipVisible(false);
-    }
-  }, [isDragging]);
-
   return (
-    <>
+    <div
+      ref={(node) => {
+        drag(node);
+        eventRef.current = node;
+      }}
+      className={`custom-event ${isDragging ? 'dragging' : ''} ${isResizing ? 'resizing' : ''}`}
+      style={{
+        ...style,
+        backgroundColor: eventColor,
+        opacity: isDragging ? 0.3 : 1,
+        cursor: isDragging ? 'grabbing' : (isResizing ? 'ns-resize' : 'grab'),
+        border: 'none',
+        transform: 'none',
+        transition: isDragging || isResizing ? 'none' : 'opacity 0.2s ease',
+        position: 'relative',
+        willChange: 'transform, opacity',
+        color: '#000000'
+      }}
+    >
+      {/* Top resize handle */}
       <div
-        ref={(node) => {
-          drag(node);
-          eventRef.current = node;
-        }}
-        className={`custom-event ${isDragging ? 'dragging' : ''} ${isResizing ? 'resizing' : ''}`}
+        className="resize-handle resize-handle-top"
         style={{
-          ...style,
-          backgroundColor: eventColor,
-          opacity: isDragging ? 0.3 : 1,
-          cursor: isDragging ? 'grabbing' : (isResizing ? 'ns-resize' : 'grab'),
-          border: 'none',
-          transform: 'none',
-          transition: isDragging || isResizing ? 'none' : 'opacity 0.2s ease',
-          position: 'relative',
-          willChange: 'transform, opacity',
-          color: '#000000'
+          position: 'absolute',
+          top: '-2px',
+          left: 0,
+          right: 0,
+          height: '4px',
+          cursor: 'ns-resize',
+          backgroundColor: 'transparent',
+          zIndex: 20
         }}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-      >
-        {/* Top resize handle */}
-        <div
-          className="resize-handle resize-handle-top"
-          style={{
-            position: 'absolute',
-            top: '-2px',
-            left: 0,
-            right: 0,
-            height: '4px',
-            cursor: 'ns-resize',
-            backgroundColor: 'transparent',
-            zIndex: 20
-          }}
-          onMouseDown={(e) => handleResizeStart(e, 'top')}
-        />
-        
-        <div className="event-content" style={{ color: '#000000' }}>
-          <div className="event-title" style={{ color: '#000000' }}>
-            {event.title}
-          </div>
-          <div className="event-time" style={{ color: '#000000' }}>
-            {startTime} - {endTime}
-          </div>
-          {event.booking_number && (
-            <div className="event-booking" style={{ color: '#000000' }}>
-              #{event.booking_number}
-            </div>
-          )}
+        onMouseDown={(e) => handleResizeStart(e, 'top')}
+      />
+      
+      <div className="event-content" style={{ color: '#000000' }}>
+        <div className="event-title" style={{ color: '#000000' }}>
+          {event.title}
         </div>
-        
-        {/* Bottom resize handle */}
-        <div
-          className="resize-handle resize-handle-bottom"
-          style={{
-            position: 'absolute',
-            bottom: '-2px',
-            left: 0,
-            right: 0,
-            height: '4px',
-            cursor: 'ns-resize',
-            backgroundColor: 'transparent',
-            zIndex: 20
-          }}
-          onMouseDown={(e) => handleResizeStart(e, 'bottom')}
-        />
+        <div className="event-time" style={{ color: '#000000' }}>
+          {startTime} - {endTime}
+        </div>
+        {event.booking_number && (
+          <div className="event-booking" style={{ color: '#000000' }}>
+            #{event.booking_number}
+          </div>
+        )}
       </div>
-
-      {/* Tooltip - only show when not dragging or resizing */}
-      {isTooltipVisible && !isResizing && !isDragging && (
-        <div 
-          className="event-tooltip"
-          style={{
-            position: 'fixed',
-            top: `${tooltipPosition.top}px`,
-            left: `${tooltipPosition.left}px`,
-            zIndex: 1000
-          }}
-        >
-          <div className="tooltip-arrow"></div>
-          <div className="tooltip-content">
-            <div className="tooltip-title">{event.title}</div>
-            {event.booking_number && (
-              <div className="tooltip-booking">Booking: #{event.booking_number}</div>
-            )}
-            <div className="tooltip-time">{startTime} – {endTime}</div>
-            <div className="tooltip-instructions">
-              <small>Drag to move • Drag edges to resize</small>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+      
+      {/* Bottom resize handle */}
+      <div
+        className="resize-handle resize-handle-bottom"
+        style={{
+          position: 'absolute',
+          bottom: '-2px',
+          left: 0,
+          right: 0,
+          height: '4px',
+          cursor: 'ns-resize',
+          backgroundColor: 'transparent',
+          zIndex: 20
+        }}
+        onMouseDown={(e) => handleResizeStart(e, 'bottom')}
+      />
+    </div>
   );
 });
 

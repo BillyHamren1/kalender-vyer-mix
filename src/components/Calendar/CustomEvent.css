@@ -66,51 +66,6 @@
   background-color: rgba(255, 255, 255, 0.3) !important;
 }
 
-/* Tooltip styles */
-.event-tooltip {
-  background: rgba(0, 0, 0, 0.9);
-  color: white;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 12px;
-  max-width: 200px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  z-index: 1000;
-  pointer-events: none;
-}
-
-.tooltip-arrow {
-  position: absolute;
-  top: -5px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 0;
-  border-left: 5px solid transparent;
-  border-right: 5px solid transparent;
-  border-bottom: 5px solid rgba(0, 0, 0, 0.9);
-}
-
-.tooltip-content .tooltip-title {
-  font-weight: bold;
-  margin-bottom: 4px;
-}
-
-.tooltip-content .tooltip-booking {
-  color: #ccc;
-  margin-bottom: 4px;
-}
-
-.tooltip-content .tooltip-time {
-  color: #ddd;
-  margin-bottom: 4px;
-}
-
-.tooltip-content .tooltip-instructions {
-  color: #999;
-  font-style: italic;
-}
-
 /* Drag preview styles */
 .dragging-preview {
   pointer-events: none;
