@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
@@ -6,6 +5,7 @@ import BookingEvent from './BookingEvent';
 import EventHoverCard from './EventHoverCard';
 import { useWeeklyStaffOperations } from '@/hooks/useWeeklyStaffOperations';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
+import { useDrag, useDrop } from 'react-dnd';
 import './TimeGrid.css';
 
 interface TimeGridProps {
@@ -17,7 +17,106 @@ interface TimeGridProps {
   onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date) => void;
   dayWidth?: number;
   weeklyStaffOperations?: ReturnType<typeof useWeeklyStaffOperations>;
+  onEventDrop?: (eventId: string, targetResourceId: string, targetDate: Date, targetTime: string) => Promise<void>;
 }
+
+// Draggable Event Wrapper Component
+const DraggableEvent: React.FC<{
+  event: CalendarEvent;
+  position: { top: number; height: number };
+  teamColumnWidth: number;
+  onEventClick: (event: CalendarEvent) => void;
+}> = ({ event, position, teamColumnWidth, onEventClick }) => {
+  const [{ isDragging }, drag] = useDrag({
+    type: 'calendar-event',
+    item: { 
+      id: event.id,
+      eventId: event.id,
+      resourceId: event.resourceId,
+      originalEvent: event
+    },
+    collect: (monitor) => ({
+      isDragging: monitor.isDragging(),
+    }),
+  });
+
+  return (
+    <div
+      ref={drag}
+      style={{
+        position: 'absolute',
+        top: `${position.top}px`,
+        height: `${position.height}px`,
+        left: '4px',
+        right: '4px',
+        zIndex: isDragging ? 30 : 25,
+        pointerEvents: 'auto',
+        opacity: isDragging ? 0.5 : 1,
+        cursor: isDragging ? 'grabbing' : 'grab'
+      }}
+    >
+      <EventHoverCard event={event}>
+        <BookingEvent
+          event={event}
+          style={{
+            width: '100%',
+            height: '100%',
+            position: 'relative'
+          }}
+          onClick={() => onEventClick(event)}
+        />
+      </EventHoverCard>
+    </div>
+  );
+};
+
+// Droppable Time Slot Component
+const DroppableTimeSlot: React.FC<{
+  resourceId: string;
+  day: Date;
+  timeSlot: string;
+  onEventDrop?: (eventId: string, targetResourceId: string, targetDate: Date, targetTime: string) => Promise<void>;
+  children: React.ReactNode;
+}> = ({ resourceId, day, timeSlot, onEventDrop, children }) => {
+  const [{ isOver }, drop] = useDrop({
+    accept: 'calendar-event',
+    drop: async (item: any) => {
+      if (onEventDrop && item.eventId && item.resourceId !== resourceId) {
+        console.log('Dropping event:', {
+          eventId: item.eventId,
+          fromResource: item.resourceId,
+          toResource: resourceId,
+          targetDate: day,
+          targetTime: timeSlot
+        });
+        
+        try {
+          await onEventDrop(item.eventId, resourceId, day, timeSlot);
+        } catch (error) {
+          console.error('Error dropping event:', error);
+        }
+      }
+    },
+    collect: (monitor) => ({
+      isOver: monitor.isOver(),
+    }),
+  });
+
+  return (
+    <div
+      ref={drop}
+      className={`time-slots-column hover-container ${isOver ? 'drop-over' : ''}`}
+      style={{ 
+        width: `100%`,
+        minWidth: `100%`,
+        position: 'relative',
+        backgroundColor: isOver ? 'rgba(59, 130, 246, 0.1)' : 'transparent'
+      }}
+    >
+      {children}
+    </div>
+  );
+};
 
 const TimeGrid: React.FC<TimeGridProps> = ({
   day,
@@ -27,7 +126,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   onStaffDrop,
   onOpenStaffSelection,
   dayWidth = 800,
-  weeklyStaffOperations
+  weeklyStaffOperations,
+  onEventDrop
 }) => {
   // Use the event navigation hook for handling event clicks
   const { handleEventClick } = useEventNavigation();
@@ -219,60 +319,49 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         ))}
       </div>
 
-      {/* Time Slot Columns with Events - below staff assignments */}
+      {/* Time Slot Columns with Events - NOW WITH DRAG & DROP */}
       {resources.map((resource, index) => {
         const resourceEvents = getEventsForDayAndResource(day, resource.id);
         
         return (
-          <div 
-            key={`timeslots-${resource.id}`} 
-            className="time-slots-column hover-container"
-            style={{ 
-              gridColumn: index + 2,
-              gridRow: 4,
-              width: `${teamColumnWidth}px`,
-              minWidth: `${teamColumnWidth}px`,
-              position: 'relative'
-            }}
+          <DroppableTimeSlot
+            key={`timeslots-${resource.id}`}
+            resourceId={resource.id}
+            day={day}
+            timeSlot="any" // We can make this more specific if needed
+            onEventDrop={onEventDrop}
           >
-            {/* Time slots grid */}
-            <div className="time-slots-grid">
-              {timeSlots.map((slot) => (
-                <div key={slot.time} className="time-slot-cell" />
-              ))}
+            <div 
+              style={{ 
+                gridColumn: index + 2,
+                gridRow: 4,
+                width: `${teamColumnWidth}px`,
+                minWidth: `${teamColumnWidth}px`,
+                position: 'relative'
+              }}
+            >
+              {/* Time slots grid */}
+              <div className="time-slots-grid">
+                {timeSlots.map((slot) => (
+                  <div key={slot.time} className="time-slot-cell" />
+                ))}
+              </div>
+              
+              {/* Events positioned absolutely on top of time slots - NOW DRAGGABLE */}
+              {resourceEvents.map((event) => {
+                const position = getEventPosition(event);
+                return (
+                  <DraggableEvent
+                    key={`event-wrapper-${event.id}`}
+                    event={event}
+                    position={position}
+                    teamColumnWidth={teamColumnWidth}
+                    onEventClick={handleBookingEventClick}
+                  />
+                );
+              })}
             </div>
-            
-            {/* Events positioned absolutely on top of time slots with hover functionality */}
-            {resourceEvents.map((event) => {
-              const position = getEventPosition(event);
-              return (
-                <div
-                  key={`event-wrapper-${event.id}`}
-                  style={{
-                    position: 'absolute',
-                    top: `${position.top}px`,
-                    height: `${position.height}px`,
-                    left: '4px',
-                    right: '4px',
-                    zIndex: 25,
-                    pointerEvents: 'auto'
-                  }}
-                >
-                  <EventHoverCard event={event}>
-                    <BookingEvent
-                      event={event}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        position: 'relative'
-                      }}
-                      onClick={() => handleBookingEventClick(event)}
-                    />
-                  </EventHoverCard>
-                </div>
-              );
-            })}
-          </div>
+          </DroppableTimeSlot>
         );
       })}
     </div>

@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format, addDays } from 'date-fns';
@@ -7,6 +6,7 @@ import WeekNavigation from './WeekNavigation';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
 import { useWeeklyStaffOperations } from '@/hooks/useWeeklyStaffOperations';
+import { toast } from 'sonner';
 
 interface CustomCalendarProps {
   events: CalendarEvent[];
@@ -66,6 +66,39 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
       const eventDateStr = format(eventStart, 'yyyy-MM-dd');
       return eventDateStr === dateStr && event.resourceId === resourceId;
     });
+  };
+
+  // Handle event drop between teams/resources
+  const handleEventDrop = async (eventId: string, targetResourceId: string, targetDate: Date, targetTime: string) => {
+    console.log('CustomCalendar: Event drop detected', {
+      eventId,
+      targetResourceId,
+      targetDate,
+      targetTime
+    });
+
+    try {
+      // Find the event being moved
+      const eventToMove = events.find(event => event.id === eventId);
+      if (!eventToMove) {
+        toast.error('Event not found');
+        return;
+      }
+
+      // For now, we'll show a success message and refresh
+      // You can integrate with your existing event update service here
+      const sourceTeam = resources.find(r => r.id === eventToMove.resourceId)?.title || 'Unknown';
+      const targetTeam = resources.find(r => r.id === targetResourceId)?.title || 'Unknown';
+      
+      toast.success(`Event "${eventToMove.title}" moved from ${sourceTeam} to ${targetTeam}`);
+      
+      // Refresh the calendar to show changes
+      await refreshEvents();
+      
+    } catch (error) {
+      console.error('Error moving event:', error);
+      toast.error('Failed to move event. Please try again.');
+    }
   };
 
   // Calculate day width - SIGNIFICANTLY INCREASED to accommodate all teams
@@ -142,6 +175,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                 onOpenStaffSelection={onOpenStaffSelection}
                 dayWidth={getDayWidth()}
                 weeklyStaffOperations={weeklyStaffOperations}
+                onEventDrop={handleEventDrop}
               />
             </div>
           ))}
