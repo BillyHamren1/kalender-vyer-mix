@@ -45,6 +45,8 @@ const CustomEvent: React.FC<CustomEventProps> = ({
   const handleResizeStart = (e: React.MouseEvent, direction: 'top' | 'bottom') => {
     e.stopPropagation();
     setIsResizing(true);
+    // Hide tooltip when resizing starts
+    setIsTooltipVisible(false);
     
     const startY = e.clientY;
     const originalStart = new Date(event.start);
@@ -122,7 +124,8 @@ const CustomEvent: React.FC<CustomEventProps> = ({
   };
 
   const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (eventRef.current && !isResizing) {
+    // Don't show tooltip if dragging or resizing
+    if (eventRef.current && !isResizing && !isDragging) {
       const rect = eventRef.current.getBoundingClientRect();
       const tooltipHeight = 80;
       const tooltipWidth = 200;
@@ -146,10 +149,17 @@ const CustomEvent: React.FC<CustomEventProps> = ({
   };
 
   const handleMouseLeave = () => {
-    if (!isResizing) {
+    if (!isResizing && !isDragging) {
       setIsTooltipVisible(false);
     }
   };
+
+  // Hide tooltip when dragging starts
+  React.useEffect(() => {
+    if (isDragging) {
+      setIsTooltipVisible(false);
+    }
+  }, [isDragging]);
 
   return (
     <>
@@ -219,8 +229,8 @@ const CustomEvent: React.FC<CustomEventProps> = ({
         />
       </div>
 
-      {/* Tooltip */}
-      {isTooltipVisible && !isResizing && (
+      {/* Tooltip - only show when not dragging or resizing */}
+      {isTooltipVisible && !isResizing && !isDragging && (
         <div 
           className="event-tooltip"
           style={{
