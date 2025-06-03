@@ -22,13 +22,13 @@ interface TimeGridProps {
   onEventDrop?: (eventId: string, targetResourceId: string, targetDate: Date, targetTime: string) => Promise<void>;
 }
 
-// Draggable Event Wrapper Component
+// Optimized Draggable Event Wrapper Component - REDUCED RE-RENDERS
 const DraggableEvent: React.FC<{
   event: CalendarEvent;
   position: { top: number; height: number };
   teamColumnWidth: number;
   onEventClick: (event: CalendarEvent) => void;
-}> = ({ event, position, teamColumnWidth, onEventClick }) => {
+}> = React.memo(({ event, position, teamColumnWidth, onEventClick }) => {
   const [{ isDragging }, drag] = useDrag({
     type: 'calendar-event',
     item: { 
@@ -70,9 +70,9 @@ const DraggableEvent: React.FC<{
       </EventHoverCard>
     </div>
   );
-};
+});
 
-// Droppable Time Slot Component
+// Optimized Droppable Time Slot Component - REDUCED RE-RENDERS
 const DroppableTimeSlot: React.FC<{
   resourceId: string;
   day: Date;
@@ -80,20 +80,12 @@ const DroppableTimeSlot: React.FC<{
   onEventDrop?: (eventId: string, targetResourceId: string, targetDate: Date, targetTime: string) => Promise<void>;
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
   children: React.ReactNode;
-}> = ({ resourceId, day, timeSlot, onEventDrop, onStaffDrop, children }) => {
+}> = React.memo(({ resourceId, day, timeSlot, onEventDrop, onStaffDrop, children }) => {
   const [{ isOver, dragType }, drop] = useDrop({
     accept: ['calendar-event', 'STAFF'],
     drop: async (item: any) => {
-      // Handle event drops
+      // Handle event drops with reduced logging
       if (item.eventId && onEventDrop && item.resourceId !== resourceId) {
-        console.log('Dropping event:', {
-          eventId: item.eventId,
-          fromResource: item.resourceId,
-          toResource: resourceId,
-          targetDate: day,
-          targetTime: timeSlot
-        });
-        
         try {
           await onEventDrop(item.eventId, resourceId, day, timeSlot);
         } catch (error) {
@@ -101,14 +93,8 @@ const DroppableTimeSlot: React.FC<{
         }
       }
       
-      // Handle staff drops
+      // Handle staff drops with reduced logging
       if (item.id && !item.eventId && onStaffDrop) {
-        console.log('Dropping staff:', {
-          staffId: item.id,
-          toResource: resourceId,
-          targetDate: day
-        });
-        
         try {
           await onStaffDrop(item.id, resourceId, day);
         } catch (error) {
@@ -136,7 +122,7 @@ const DroppableTimeSlot: React.FC<{
       {children}
     </div>
   );
-};
+});
 
 const TimeGrid: React.FC<TimeGridProps> = ({
   day,
@@ -235,14 +221,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
       await onStaffDrop(staffId, null, day);
     }
   };
-
-  console.log('TimeGrid: Width calculations', {
-    dayWidth,
-    timeColumnWidth,
-    availableWidth,
-    resourcesCount: resources.length,
-    teamColumnWidth
-  });
 
   return (
     <div 
@@ -354,7 +332,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         ))}
       </div>
 
-      {/* Time Slot Columns with Events - NOW WITH DRAG & DROP */}
+      {/* Time Slot Columns with Events - OPTIMIZED DRAG & DROP */}
       {resources.map((resource, index) => {
         const resourceEvents = getEventsForDayAndResource(day, resource.id);
         
@@ -383,7 +361,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 ))}
               </div>
               
-              {/* Events positioned absolutely on top of time slots - NOW DRAGGABLE */}
+              {/* Events positioned absolutely on top of time slots - OPTIMIZED DRAGGABLE */}
               {resourceEvents.map((event) => {
                 const position = getEventPosition(event);
                 return (

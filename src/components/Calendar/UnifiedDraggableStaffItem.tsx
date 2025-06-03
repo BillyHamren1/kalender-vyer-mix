@@ -94,7 +94,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
   const textColor = getContrastTextColor(staffColor);
   const dragColor = isDragging ? adjustColorOpacity(staffColor, 0.7) : staffColor;
 
-  // Compact variant for wrapping layout - much tighter spacing
+  // Compact variant for wrapping layout - FIXED text sizing
   if (variant === 'compact') {
     const dragClasses = isDragging 
       ? 'opacity-30 transform rotate-1 scale-110' 
@@ -107,14 +107,14 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
             drag(node);
             dragPreview(node);
           }}
-          className={`min-w-[40px] max-w-[60px] h-[10px] cursor-move transition-all duration-150 flex items-center justify-center relative group border border-gray-200 rounded ${dragClasses}`}
+          className={`min-w-[45px] max-w-[70px] h-[14px] cursor-move transition-all duration-150 flex items-center justify-center relative group border border-gray-200 rounded ${dragClasses}`}
           style={{ 
             backgroundColor: dragColor,
             color: textColor,
             userSelect: 'none',
             WebkitUserSelect: 'none',
-            padding: '1px 2px',
-            marginBottom: '1px',
+            padding: '2px 4px',
+            marginBottom: '2px',
             transition: isDragging ? 'all 0.1s ease-out' : 'all 0.15s ease-in-out',
             borderColor: isDragging ? textColor : '#e5e7eb'
           }}
@@ -122,7 +122,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
           draggable="true"
           title={staff.name}
         >
-          <span className={`text-[8px] font-medium leading-none truncate ${
+          <span className={`text-[10px] font-medium leading-none truncate ${
             isDragging ? 'font-semibold' : ''
           }`}>
             {getFirstName(staff.name)}
@@ -155,11 +155,11 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
     );
   }
   
-  // Standard vertical variant - tighter spacing
-  const baseClasses = `p-1 border border-gray-200 rounded-md cursor-move flex items-center w-full transition-all duration-150 hover:shadow-sm active:cursor-grabbing`;
+  // Standard vertical variant - improved text sizing
+  const baseClasses = `p-2 border border-gray-200 rounded-md cursor-move flex items-center w-full transition-all duration-150 hover:shadow-sm active:cursor-grabbing`;
   const variantClasses = variant === 'available' 
-    ? 'shadow-sm mb-0.5'
-    : 'mb-0.5';
+    ? 'shadow-sm mb-1'
+    : 'mb-1';
   
   const dragClasses = isDragging 
     ? 'opacity-30 transform rotate-1 scale-110 shadow-lg border-blue-300' 
@@ -176,7 +176,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
         style={{ 
           backgroundColor: dragColor,
           color: textColor,
-          height: variant === 'available' ? "24px" : "20px", 
+          height: variant === 'available' ? "28px" : "24px", 
           maxWidth: "100%",
           userSelect: 'none',
           WebkitUserSelect: 'none',
@@ -187,8 +187,8 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
         draggable="true"
       >
         <div className="flex items-center w-full pointer-events-none">
-          <span className={`text-xs font-normal whitespace-nowrap overflow-hidden text-ellipsis ${
-            isDragging ? 'font-medium' : ''
+          <span className={`text-sm font-medium whitespace-nowrap overflow-hidden text-ellipsis ${
+            isDragging ? 'font-semibold' : ''
           }`}>
             {getFirstName(staff.name)}
           </span>
