@@ -37,12 +37,13 @@ const CustomCalendarPage = () => {
   // Use the new weekly staff operations hook
   const weeklyStaffOps = useWeeklyStaffOperations(currentWeekStart);
 
-  // Staff curtain state - simplified
+  // Staff curtain state - simplified with position
   const [staffCurtainOpen, setStaffCurtainOpen] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<{
     resourceId: string;
     resourceTitle: string;
     targetDate: Date;
+    position: { top: number; left: number };
   } | null>(null);
 
   // Handle staff drop operations
@@ -57,10 +58,27 @@ const CustomCalendarPage = () => {
     }
   };
 
-  // Handle opening staff curtain
-  const handleOpenStaffSelection = (resourceId: string, resourceTitle: string, targetDate: Date) => {
+  // Handle opening staff curtain with position
+  const handleOpenStaffSelection = (resourceId: string, resourceTitle: string, targetDate: Date, buttonElement?: HTMLElement) => {
     console.log('Opening staff curtain for:', { resourceId, resourceTitle, targetDate });
-    setSelectedTeam({ resourceId, resourceTitle, targetDate });
+    
+    // Calculate position relative to the button
+    let position = { top: 100, left: 300 }; // Default fallback position
+    
+    if (buttonElement) {
+      const rect = buttonElement.getBoundingClientRect();
+      position = {
+        top: rect.bottom + 5, // Position below the button
+        left: Math.max(10, rect.left - 120) // Position to the left of button, with minimum margin
+      };
+      
+      // Adjust if it would go off-screen
+      if (position.left + 250 > window.innerWidth) {
+        position.left = window.innerWidth - 260; // Keep some margin from right edge
+      }
+    }
+    
+    setSelectedTeam({ resourceId, resourceTitle, targetDate, position });
     setStaffCurtainOpen(true);
   };
 
@@ -128,7 +146,7 @@ const CustomCalendarPage = () => {
             isLoading={weeklyStaffOps.isLoading}
           />
 
-          {/* Simple Staff Curtain - now uses existing staff data */}
+          {/* Compact Staff Curtain - positioned relative to the + button */}
           {staffCurtainOpen && selectedTeam && (
             <SimpleStaffCurtain
               currentDate={selectedTeam.targetDate}
@@ -137,6 +155,7 @@ const CustomCalendarPage = () => {
               selectedTeamId={selectedTeam.resourceId}
               selectedTeamName={selectedTeam.resourceTitle}
               availableStaff={weeklyStaffOps.getAvailableStaffForWeek()}
+              position={selectedTeam.position}
             />
           )}
         </div>

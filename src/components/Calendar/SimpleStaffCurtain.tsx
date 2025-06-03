@@ -19,7 +19,8 @@ interface SimpleStaffCurtainProps {
   onAssignStaff: (staffId: string, teamId: string) => Promise<void>;
   selectedTeamId: string | null;
   selectedTeamName: string;
-  availableStaff: StaffMember[]; // Use the staff data that's already available
+  availableStaff: StaffMember[];
+  position: { top: number; left: number }; // Position relative to the + button
 }
 
 const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({ 
@@ -28,7 +29,8 @@ const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({
   onAssignStaff,
   selectedTeamId,
   selectedTeamName,
-  availableStaff
+  availableStaff,
+  position
 }) => {
   const [assigning, setAssigning] = useState<string | null>(null);
   
@@ -50,7 +52,7 @@ const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({
     try {
       await onAssignStaff(staffId, selectedTeamId);
       toast.success(`${staffName} assigned to ${selectedTeamName}`);
-      onClose(); // Close the curtain after successful assignment
+      onClose();
     } catch (error) {
       console.error('Error assigning staff:', error);
       toast.error('Failed to assign staff');
@@ -60,54 +62,48 @@ const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-start justify-end">
-      <div className="bg-white h-full w-80 shadow-xl transform transition-transform duration-300 ease-out animate-slide-in-right">
+    <>
+      {/* Backdrop */}
+      <div className="fixed inset-0 z-40" onClick={onClose}></div>
+      
+      {/* Compact Staff Curtain */}
+      <div 
+        className="fixed bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-64 max-h-80 overflow-hidden animate-slide-in-right"
+        style={{
+          top: `${position.top}px`,
+          left: `${position.left}px`,
+        }}
+      >
         {/* Header */}
-        <div className="p-4 border-b flex justify-between items-center bg-gray-50">
-          <h3 className="text-lg font-medium flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Available Staff
+        <div className="p-3 border-b bg-[#7BAEBF] text-white flex justify-between items-center">
+          <h3 className="text-sm font-medium flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Add to {selectedTeamName}
           </h3>
-          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
-            <X className="h-4 w-4" />
+          <Button variant="ghost" size="sm" onClick={onClose} className="h-6 w-6 p-0 text-white hover:bg-white/20">
+            <X className="h-3 w-3" />
           </Button>
         </div>
         
-        {/* Team info */}
-        {selectedTeamId && (
-          <div className="bg-blue-50 p-3 text-sm border-b">
-            <div className="font-medium text-blue-900">Assigning to:</div>
-            <div className="text-blue-700">{selectedTeamName}</div>
-            <div className="text-blue-600 text-xs">
-              {currentDate.toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              })}
-            </div>
-          </div>
-        )}
-        
         {/* Staff list */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="max-h-64 overflow-y-auto">
           {availableStaff.length > 0 ? (
-            <div className="space-y-2">
-              <div className="text-sm text-gray-600 mb-3">
-                {availableStaff.length} staff member{availableStaff.length !== 1 ? 's' : ''} available
+            <div className="p-2">
+              <div className="text-xs text-gray-600 mb-2 px-1">
+                {availableStaff.length} available
               </div>
               {availableStaff.map(staff => (
                 <div 
                   key={staff.id}
-                  className="flex items-center justify-between p-3 border rounded-md bg-white hover:bg-gray-50 transition-colors"
+                  className="flex items-center justify-between p-2 rounded hover:bg-gray-50 transition-colors"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
                     <Avatar 
-                      className="h-10 w-10"
+                      className="h-6 w-6 flex-shrink-0"
                       style={{ backgroundColor: staff.color || '#E3F2FD' }}
                     >
                       <AvatarFallback 
-                        className="text-sm"
+                        className="text-xs"
                         style={{ 
                           backgroundColor: staff.color || '#E3F2FD',
                           color: '#333'
@@ -116,56 +112,42 @@ const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({
                         {getInitials(staff.name)}
                       </AvatarFallback>
                     </Avatar>
-                    <div>
-                      <div className="font-medium text-gray-900">{staff.name}</div>
-                      {staff.email && (
-                        <div className="text-xs text-gray-500">{staff.email}</div>
-                      )}
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-medium text-gray-900 truncate">{staff.name}</div>
                     </div>
                   </div>
                   
-                  {selectedTeamId && (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => handleAssignToTeam(staff.id, staff.name)}
-                      disabled={assigning === staff.id}
-                      className="ml-2"
-                    >
-                      {assigning === staff.id ? (
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600"></div>
-                      ) : (
-                        <>
-                          <UserPlus className="h-4 w-4 mr-1" />
-                          Assign
-                        </>
-                      )}
-                    </Button>
-                  )}
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => handleAssignToTeam(staff.id, staff.name)}
+                    disabled={assigning === staff.id}
+                    className="h-6 px-2 text-xs flex-shrink-0"
+                  >
+                    {assigning === staff.id ? (
+                      <div className="h-3 w-3 animate-spin rounded-full border border-gray-300 border-t-[#7BAEBF]"></div>
+                    ) : (
+                      <>
+                        <UserPlus className="h-3 w-3 mr-1" />
+                        Add
+                      </>
+                    )}
+                  </Button>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center text-gray-500 py-8">
-              <Users className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-              <div className="text-lg font-medium mb-1">No Staff Available</div>
-              <div className="text-sm">
-                No staff members are available for {currentDate.toLocaleDateString()}
+            <div className="text-center text-gray-500 py-6 px-4">
+              <Users className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+              <div className="text-sm font-medium mb-1">No Staff Available</div>
+              <div className="text-xs">
+                All staff are assigned for {currentDate.toLocaleDateString()}
               </div>
             </div>
           )}
         </div>
-        
-        {!selectedTeamId && (
-          <div className="p-4 border-t text-sm text-gray-500 bg-gray-50">
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-2 bg-orange-400 rounded-full"></div>
-              Select a team first by clicking the + button next to a team name
-            </div>
-          </div>
-        )}
       </div>
-    </div>
+    </>
   );
 };
 
