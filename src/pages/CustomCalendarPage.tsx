@@ -10,7 +10,6 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CustomCalendar from '@/components/Calendar/CustomCalendar';
-import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
 import SimpleStaffCurtain from '@/components/Calendar/SimpleStaffCurtain';
 import { startOfWeek } from 'date-fns';
 
@@ -137,14 +136,6 @@ const CustomCalendarPage = () => {
               weeklyStaffOperations={weeklyStaffOps}
             />
           </div>
-
-          {/* Available Staff Panel */}
-          <AvailableStaffDisplay
-            currentDate={currentWeekStart}
-            onStaffDrop={handleStaffDrop}
-            availableStaff={weeklyStaffOps.getAvailableStaffForDate(currentWeekStart)}
-            isLoading={weeklyStaffOps.isLoading}
-          />
 
           {/* Compact Staff Curtain - positioned relative to the + button */}
           {staffCurtainOpen && selectedTeam && (
