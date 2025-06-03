@@ -94,7 +94,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
   const textColor = getContrastTextColor(staffColor);
   const dragColor = isDragging ? adjustColorOpacity(staffColor, 0.7) : staffColor;
 
-  // Compact variant for wrapping layout - FIXED text sizing
+  // Compact variant for wrapping layout - INCREASED text sizing
   if (variant === 'compact') {
     const dragClasses = isDragging 
       ? 'opacity-30 transform rotate-1 scale-110' 
@@ -107,7 +107,7 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
             drag(node);
             dragPreview(node);
           }}
-          className={`min-w-[45px] max-w-[70px] h-[14px] cursor-move transition-all duration-150 flex items-center justify-center relative group border border-gray-200 rounded ${dragClasses}`}
+          className={`min-w-[45px] max-w-[70px] h-[16px] cursor-move transition-all duration-150 flex items-center justify-center relative group border border-gray-200 rounded ${dragClasses}`}
           style={{ 
             backgroundColor: dragColor,
             color: textColor,
@@ -122,8 +122,8 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
           draggable="true"
           title={staff.name}
         >
-          <span className={`text-[10px] font-medium leading-none truncate ${
-            isDragging ? 'font-semibold' : ''
+          <span className={`text-[11px] font-semibold leading-none truncate ${
+            isDragging ? 'font-bold' : ''
           }`}>
             {getFirstName(staff.name)}
           </span>
