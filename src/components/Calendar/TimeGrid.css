@@ -1,4 +1,3 @@
-
 .time-grid-with-staff-header {
   @apply bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden;
   display: grid;
@@ -41,13 +40,21 @@
   height: 80px; /* Taller for staff assignment space */
 }
 
-/* Team Headers Row - Responsive with proper team color borders */
+/* Team Headers Row - Responsive with thin teal borders */
 .team-header-cell {
-  @apply bg-gray-50 border-r border-b border-gray-200 p-2;
+  @apply bg-gray-50 border-l border-r border-b border-[#7BAEBF] p-2;
   height: 40px;
   display: flex;
   align-items: center;
   overflow: hidden; /* Prevent overflow */
+}
+
+.team-header-cell:first-of-type {
+  @apply border-l border-[#7BAEBF];
+}
+
+.team-header-cell:last-of-type {
+  @apply border-r border-[#7BAEBF];
 }
 
 .team-header-content {
@@ -80,16 +87,20 @@
   flex-shrink: 0;
 }
 
-/* Staff Assignment Header Row - Responsive */
+/* Staff Assignment Header Row - Responsive with matching teal borders */
 .staff-assignment-header-row {
-  @apply border-r border-b border-gray-200 bg-gray-50/50;
+  @apply border-l border-r border-b border-[#7BAEBF] bg-gray-50/50;
   height: 80px;
   position: relative;
   overflow: hidden; /* Prevent overflow */
 }
 
-.staff-assignment-header-row:last-child {
-  @apply border-r-0;
+.staff-assignment-header-row:first-of-type {
+  @apply border-l border-[#7BAEBF];
+}
+
+.staff-assignment-header-row:last-of-type {
+  @apply border-r border-[#7BAEBF];
 }
 
 .staff-header-assignment-area {

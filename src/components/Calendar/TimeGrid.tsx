@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
@@ -257,7 +256,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             style={{ 
               gridColumn: index + 2,
               gridRow: 2,
-              borderLeft: `3px solid ${resource.eventColor}`,
               width: `${teamColumnWidth}px`,
               minWidth: `${teamColumnWidth}px`
             }}
