@@ -7,6 +7,30 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-api-key',
 }
 
+// Map database resource ID format to app format
+const mapDatabaseToAppResourceId = (dbResourceId: string): string => {
+  // Single character IDs are legacy format - convert to team-X
+  if (dbResourceId && dbResourceId.length === 1) {
+    const charCode = dbResourceId.charCodeAt(0);
+    
+    // Map a=1, b=2, c=3, d=4, e=5, f=6, etc.
+    if (charCode >= 97 && charCode <= 122) { // lowercase a-z
+      const teamNumber = charCode - 96; // a=1, b=2, etc.
+      const mappedId = `team-${teamNumber}`;
+      console.log(`🔄 Mapping database ID "${dbResourceId}" to app format "${mappedId}"`);
+      return mappedId;
+    }
+    
+    // If it's a number, map directly
+    if (!isNaN(parseInt(dbResourceId))) {
+      return `team-${dbResourceId}`;
+    }
+  }
+  
+  // If already in team-X format or other valid format, return as-is
+  return dbResourceId;
+};
+
 // Main handler function
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -219,7 +243,7 @@ async function fetchBookingAttachments(supabase, bookingId) {
   }))
 }
 
-// Get team IDs for a booking from calendar events
+// Get team IDs for a booking from calendar events - NOW WITH PROPER ID MAPPING
 async function fetchBookingTeamIds(supabase, bookingId) {
   const { data, error } = await supabase
     .from('calendar_events')
@@ -232,8 +256,16 @@ async function fetchBookingTeamIds(supabase, bookingId) {
     return []
   }
   
-  // Get unique team IDs
-  return data ? [...new Set(data.map(event => event.resource_id))] : []
+  // Get unique team IDs and map them to frontend format
+  const rawTeamIds = data ? [...new Set(data.map(event => event.resource_id))] : []
+  const mappedTeamIds = rawTeamIds.map(id => mapDatabaseToAppResourceId(id))
+  
+  console.log(`📋 Booking ${bookingId} team mapping:`, {
+    rawTeamIds,
+    mappedTeamIds
+  })
+  
+  return mappedTeamIds
 }
 
 // Get staff assignments for a team on specific dates
