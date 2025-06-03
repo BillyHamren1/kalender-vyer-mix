@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format, addDays } from 'date-fns';
@@ -70,7 +69,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     });
   };
 
-  // Enhanced event drop handler with time-based positioning
+  // Optimized event drop handler - NO loading toast, NO manual refresh
   const handleEventDrop = async (eventId: string, targetResourceId: string, targetDate: Date, targetTime: string) => {
     console.log('CustomCalendar: Event drop detected', {
       eventId,
@@ -111,24 +110,21 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         targetTime
       });
 
-      const loadingToast = toast.loading(`Moving event from ${sourceTeam} to ${targetTeam}...`);
-
-      // Update the event in the database
+      // NO loading toast - just update the event, real-time will handle UI updates
       await updateCalendarEvent(eventId, {
         resourceId: targetResourceId,
         start: newStart.toISOString(),
         end: newEnd.toISOString()
       });
-
-      toast.dismiss(loadingToast);
       
+      // Show success message with move details
       if (eventToMove.resourceId !== targetResourceId) {
         toast.success(`Event "${eventToMove.title}" moved from ${sourceTeam} to ${targetTeam} at ${targetTime}`);
       } else {
         toast.success(`Event "${eventToMove.title}" moved to ${targetTime}`);
       }
       
-      await refreshEvents();
+      // NO manual refresh - real-time subscription handles this
       
     } catch (error) {
       console.error('Error moving event:', error);
@@ -136,7 +132,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     }
   };
 
-  // Handle event resize operations
+  // Optimized event resize handler - NO loading toast, NO manual refresh
   const handleEventResize = async (eventId: string, newStartTime: Date, newEndTime: Date) => {
     console.log('CustomCalendar: Event resize detected', {
       eventId,
@@ -151,17 +147,15 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         return;
       }
 
-      const loadingToast = toast.loading(`Resizing event "${eventToResize.title}"...`);
-
+      // NO loading toast - just update the event
       await updateCalendarEvent(eventId, {
         start: newStartTime.toISOString(),
         end: newEndTime.toISOString()
       });
 
-      toast.dismiss(loadingToast);
       toast.success(`Event "${eventToResize.title}" resized successfully`);
       
-      await refreshEvents();
+      // NO manual refresh - real-time subscription handles this
       
     } catch (error) {
       console.error('Error resizing event:', error);
@@ -209,7 +203,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         </Button>
       </div>
 
-      {/* Enhanced Weekly Staff Planning Grid with time-based drag and drop */}
+      {/* Optimized Weekly Staff Planning Grid with NO loading toasts */}
       <div className="weekly-calendar-container overflow-x-auto">
         <div 
           className="weekly-calendar-grid flex gap-2"

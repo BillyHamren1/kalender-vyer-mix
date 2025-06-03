@@ -43,15 +43,15 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
     return `${hour.toString().padStart(2, '0')}:00`;
   };
 
-  // Enhanced event drop handler with better error handling
-  const handleEventDropWithErrorHandling = async (
+  // Optimized event drop handler - NO MANUAL REFRESH
+  const handleEventDropOptimized = async (
     eventId: string, 
     targetResourceId: string, 
     targetDate: Date, 
     targetTime: string
   ) => {
     try {
-      console.log('TimeSlots: Handling event drop', {
+      console.log('TimeSlots: Handling optimized event drop', {
         eventId,
         targetResourceId,
         targetDate: format(targetDate, 'yyyy-MM-dd'),
@@ -75,19 +75,17 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
       
       const newEndTime = new Date(newStartTime.getTime() + duration);
       
-      // Update the event in the database
+      // Update the event in the database - real-time subscription will handle UI updates
       await updateCalendarEvent(eventId, {
         start: newStartTime.toISOString(),
         end: newEndTime.toISOString(),
         resourceId: targetResourceId
       });
 
-      console.log('Event updated successfully');
+      console.log('Event updated successfully - real-time will refresh UI');
       
-      // Call the original handler if provided
-      if (onEventDrop) {
-        await onEventDrop(eventId, targetResourceId, targetDate, targetTime);
-      }
+      // NO manual refresh - real-time subscription handles this
+      
     } catch (error) {
       console.error('Error handling event drop:', error);
       throw error; // Re-throw to be caught by the drop handler
@@ -108,7 +106,7 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
       });
       
       try {
-        // Handle event drops with time calculation
+        // Handle event drops with time calculation - NO MANUAL REFRESH
         if (item.eventId && clientOffset) {
           const targetTime = getTimeSlotFromPosition(clientOffset.y);
           
@@ -120,10 +118,10 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
             clientY: clientOffset.y
           });
           
-          await handleEventDropWithErrorHandling(item.eventId, resource.id, day, targetTime);
+          await handleEventDropOptimized(item.eventId, resource.id, day, targetTime);
           toast.success('Event moved successfully');
         }
-        // Handle staff drops
+        // Handle staff drops - NO MANUAL REFRESH
         else if ((item.id || item.staffId) && onStaffDrop) {
           const staffId = item.id || item.staffId;
           console.log('Assigning staff', staffId, 'to', resource.id);

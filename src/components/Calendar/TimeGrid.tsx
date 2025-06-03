@@ -111,7 +111,7 @@ const DroppableTimeSlot: React.FC<{
       });
       
       try {
-        // Handle event drops with precise time calculation
+        // Handle event drops with precise time calculation - NO MANUAL REFRESH
         if (item.eventId && onEventDrop && clientOffset) {
           const targetTime = getDropTime(clientOffset.y);
           
@@ -123,10 +123,11 @@ const DroppableTimeSlot: React.FC<{
             clientY: clientOffset.y
           });
           
+          // Only call the drop handler, real-time updates will handle the refresh
           await onEventDrop(item.eventId, resourceId, day, targetTime);
           toast.success('Event moved successfully');
         }
-        // Handle staff drops
+        // Handle staff drops - NO MANUAL REFRESH
         else if (item.id && onStaffDrop) {
           console.log('Assigning staff', item.id, 'to resource', resourceId);
           await onStaffDrop(item.id, resourceId, day);
@@ -262,15 +263,15 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     }
   };
 
-  // Enhanced event drop handler with better error handling
-  const handleEventDropWithErrorHandling = async (
+  // Optimized event drop handler - NO MANUAL REFRESH, real-time will handle it
+  const handleEventDropOptimized = async (
     eventId: string, 
     targetResourceId: string, 
     targetDate: Date, 
     targetTime: string
   ) => {
     try {
-      console.log('TimeGrid: Handling event drop', {
+      console.log('TimeGrid: Handling optimized event drop', {
         eventId,
         targetResourceId,
         targetDate: format(targetDate, 'yyyy-MM-dd'),
@@ -294,19 +295,17 @@ const TimeGrid: React.FC<TimeGridProps> = ({
       
       const newEndTime = new Date(newStartTime.getTime() + duration);
       
-      // Update the event
+      // Update the event - real-time subscription will handle UI updates
       await updateCalendarEvent(eventId, {
         start: newStartTime.toISOString(),
         end: newEndTime.toISOString(),
         resourceId: targetResourceId
       });
 
-      console.log('Event updated successfully');
+      console.log('Event updated successfully - real-time will refresh UI');
       
-      // Call the original handler if provided
-      if (onEventDrop) {
-        await onEventDrop(eventId, targetResourceId, targetDate, targetTime);
-      }
+      // NO manual refresh - real-time subscription handles this
+      
     } catch (error) {
       console.error('Error handling event drop:', error);
       throw error; // Re-throw to be caught by the drop handler
@@ -413,7 +412,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         ))}
       </div>
 
-      {/* Enhanced Time Slot Columns with improved drag & drop and resize support */}
+      {/* Enhanced Time Slot Columns with optimized drag & drop */}
       {resources.map((resource, index) => {
         const resourceEvents = getEventsForDayAndResource(day, resource.id);
         
@@ -423,7 +422,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             resourceId={resource.id}
             day={day}
             timeSlot="any"
-            onEventDrop={handleEventDropWithErrorHandling}
+            onEventDrop={handleEventDropOptimized}
             onStaffDrop={onStaffDrop}
           >
             <div 
