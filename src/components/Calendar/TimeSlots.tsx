@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
@@ -24,9 +23,17 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
   onStaffDrop,
   onEventDrop
 }) => {
+  // Create a proper DOM element ref
+  const elementRef = React.useRef<HTMLDivElement>(null);
+
   // Calculate which time slot was dropped on based on Y position
-  const getTimeSlotFromPosition = (clientY: number, dropZoneElement: HTMLElement) => {
-    const rect = dropZoneElement.getBoundingClientRect();
+  const getTimeSlotFromPosition = (clientY: number) => {
+    if (!elementRef.current) {
+      console.warn('Element ref not available for time calculation');
+      return '12:00'; // fallback time
+    }
+    
+    const rect = elementRef.current.getBoundingClientRect();
     const relativeY = clientY - rect.top;
     const slotHeight = 60; // Each time slot is 60px high
     const slotIndex = Math.floor(relativeY / slotHeight);
@@ -91,7 +98,6 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
     accept: ['staff', 'calendar-event', 'STAFF'],
     drop: async (item: any, monitor) => {
       const clientOffset = monitor.getClientOffset();
-      const dropElement = drop as any;
       
       console.log('TimeSlots: Item dropped', { 
         item, 
@@ -103,8 +109,8 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
       
       try {
         // Handle event drops with time calculation
-        if (item.eventId && clientOffset && dropElement) {
-          const targetTime = getTimeSlotFromPosition(clientOffset.y, dropElement);
+        if (item.eventId && clientOffset) {
+          const targetTime = getTimeSlotFromPosition(clientOffset.y);
           
           console.log('Moving event with time:', {
             eventId: item.eventId,
@@ -135,6 +141,12 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
     }),
   });
 
+  // Combine the refs properly
+  const combinedRef = (node: HTMLDivElement) => {
+    elementRef.current = node;
+    drop(node);
+  };
+
   // Calculate event positions based on time
   const getEventPosition = (event: CalendarEvent) => {
     const startTime = new Date(event.start);
@@ -161,7 +173,7 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
 
   return (
     <div
-      ref={drop}
+      ref={combinedRef}
       className={`time-slots-container ${isOver ? 'drop-over' : ''}`}
       style={{ 
         position: 'relative',

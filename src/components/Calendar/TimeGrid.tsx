@@ -60,7 +60,7 @@ const DraggableEvent: React.FC<{
   );
 });
 
-// Enhanced Droppable Time Slot Component with precise time calculation and better error handling
+// Enhanced Droppable Time Slot Component with fixed DOM element reference
 const DroppableTimeSlot: React.FC<{
   resourceId: string;
   day: Date;
@@ -70,9 +70,17 @@ const DroppableTimeSlot: React.FC<{
   children: React.ReactNode;
 }> = React.memo(({ resourceId, day, timeSlot, onEventDrop, onStaffDrop, children }) => {
   
+  // Create separate refs - one for react-dnd and one for DOM element
+  const elementRef = React.useRef<HTMLDivElement>(null);
+  
   // Calculate precise time based on drop position
-  const getDropTime = (clientY: number, element: HTMLElement) => {
-    const rect = element.getBoundingClientRect();
+  const getDropTime = (clientY: number) => {
+    if (!elementRef.current) {
+      console.warn('Element ref not available for time calculation');
+      return '12:00'; // fallback time
+    }
+    
+    const rect = elementRef.current.getBoundingClientRect();
     const relativeY = clientY - rect.top;
     const hourHeight = 25; // 25px per hour in our grid
     const startHour = 5; // Grid starts at 5 AM
@@ -93,7 +101,6 @@ const DroppableTimeSlot: React.FC<{
     accept: ['calendar-event', 'STAFF'],
     drop: async (item: any, monitor) => {
       const clientOffset = monitor.getClientOffset();
-      const targetElement = drop as any;
       
       console.log('DroppableTimeSlot: Handling drop', { 
         item, 
@@ -105,8 +112,8 @@ const DroppableTimeSlot: React.FC<{
       
       try {
         // Handle event drops with precise time calculation
-        if (item.eventId && onEventDrop && clientOffset && targetElement) {
-          const targetTime = getDropTime(clientOffset.y, targetElement);
+        if (item.eventId && onEventDrop && clientOffset) {
+          const targetTime = getDropTime(clientOffset.y);
           
           console.log('Moving event with precise time:', {
             eventId: item.eventId,
@@ -136,9 +143,15 @@ const DroppableTimeSlot: React.FC<{
     }),
   });
 
+  // Combine the refs properly
+  const combinedRef = (node: HTMLDivElement) => {
+    elementRef.current = node;
+    drop(node);
+  };
+
   return (
     <div
-      ref={drop}
+      ref={combinedRef}
       className={`time-slots-column hover-container ${isOver ? 'drop-over' : ''}`}
       style={{ 
         width: `100%`,
