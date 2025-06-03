@@ -40,26 +40,44 @@ serve(async (req) => {
 
     // Parse URL parameters for filtering
     const filters = getFiltersFromUrl(req.url);
-    console.log(`Export request received with filters - startDate: ${filters.startDate}, endDate: ${filters.endDate}, client: ${filters.clientName}`)
+    console.log(`Export request received with filters - startDate: ${filters.startDate}, endDate: ${filters.endDate}, client: ${filters.clientName}, timestamp: ${filters.timestamp}`)
     
-    // Fetch filtered bookings data
-    const bookingsData = await fetchFilteredBookings(supabaseClient, filters);
+    // If timestamp is provided, only return bookings updated since that timestamp
+    if (filters.timestamp) {
+      console.log(`Timestamp-based filtering: only returning bookings updated after ${filters.timestamp}`)
+      const updatedBookings = await fetchUpdatedBookingsSinceTimestamp(supabaseClient, filters);
+      
+      console.log(`Returning ${updatedBookings.length} updated bookings since ${filters.timestamp}`)
+      
+      return new Response(
+        JSON.stringify({
+          count: updatedBookings.length,
+          bookings: updatedBookings,
+          filtered_by_timestamp: filters.timestamp
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    
+    // Fetch filtered CONFIRMED bookings data only
+    const bookingsData = await fetchFilteredConfirmedBookings(supabaseClient, filters);
     if (!bookingsData) {
       throw new Error('Failed to fetch bookings data')
     }
     
-    console.log(`Retrieved ${bookingsData.length || 0} bookings from database`)
+    console.log(`Retrieved ${bookingsData.length || 0} CONFIRMED bookings from database`)
     
     // Process bookings to include all related data
     const bookings = await processBookings(supabaseClient, bookingsData);
     
-    console.log(`Returning ${bookings.length} processed bookings with their products, attachments, and assigned staff`)
+    console.log(`Returning ${bookings.length} processed CONFIRMED bookings with their products, attachments, and assigned staff`)
 
     // Return the response
     return new Response(
       JSON.stringify({
         count: bookings.length,
-        bookings: bookings
+        bookings: bookings,
+        status_filter: 'CONFIRMED'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
@@ -91,16 +109,18 @@ function getFiltersFromUrl(url: string) {
   return {
     startDate: urlObj.searchParams.get('startDate'),
     endDate: urlObj.searchParams.get('endDate'),
-    clientName: urlObj.searchParams.get('client')
+    clientName: urlObj.searchParams.get('client'),
+    timestamp: urlObj.searchParams.get('timestamp') // New timestamp parameter
   }
 }
 
-// Fetch bookings with filters applied
-async function fetchFilteredBookings(supabase, filters) {
-  // Build base query for bookings
+// Fetch CONFIRMED bookings with filters applied
+async function fetchFilteredConfirmedBookings(supabase, filters) {
+  // Build base query for CONFIRMED bookings only
   let query = supabase
     .from('bookings')
     .select()
+    .eq('status', 'CONFIRMED') // Only fetch CONFIRMED bookings
     .order('eventdate', { ascending: true })
   
   // Apply filters
@@ -119,11 +139,45 @@ async function fetchFilteredBookings(supabase, filters) {
   const { data, error } = await query
   
   if (error) {
-    console.error('Error fetching bookings:', error)
-    throw new Error(`Failed to fetch bookings: ${error.message}`)
+    console.error('Error fetching CONFIRMED bookings:', error)
+    throw new Error(`Failed to fetch CONFIRMED bookings: ${error.message}`)
   }
   
   return data
+}
+
+// Fetch bookings updated since a specific timestamp (for incremental updates)
+async function fetchUpdatedBookingsSinceTimestamp(supabase, filters) {
+  // Build query for bookings updated after the timestamp
+  let query = supabase
+    .from('bookings')
+    .select()
+    .eq('status', 'CONFIRMED') // Only fetch CONFIRMED bookings
+    .gt('updated_at', filters.timestamp) // Only bookings updated after timestamp
+    .order('updated_at', { ascending: true })
+  
+  // Apply additional filters if provided
+  if (filters.startDate) {
+    query = query.gte('eventdate', filters.startDate)
+  }
+  
+  if (filters.endDate) {
+    query = query.lte('eventdate', filters.endDate)
+  }
+  
+  if (filters.clientName) {
+    query = query.ilike('client', `%${filters.clientName}%`)
+  }
+  
+  const { data, error } = await query
+  
+  if (error) {
+    console.error('Error fetching updated CONFIRMED bookings:', error)
+    throw new Error(`Failed to fetch updated CONFIRMED bookings: ${error.message}`)
+  }
+  
+  // Process the bookings to include related data
+  return await processBookings(supabase, data);
 }
 
 // Get all products for a booking
@@ -274,6 +328,7 @@ async function processBookings(supabase, bookingsData) {
       bookings.push({
         id: booking.id,
         client: booking.client,
+        status: booking.status, // Include status in response
         rigdaydate: booking.rigdaydate,
         eventdate: booking.eventdate,
         rigdowndate: booking.rigdowndate,
