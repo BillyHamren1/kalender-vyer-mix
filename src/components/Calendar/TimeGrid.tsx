@@ -277,7 +277,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
       {/* Empty cell for staff assignment row alignment */}
       <div className="staff-row-time-cell" style={{ gridRow: 3 }}></div>
 
-      {/* Staff Assignment Display Row - shows assigned staff count and names */}
+      {/* Staff Assignment Display Row - REMOVED staff count display */}
       {resources.map((resource, index) => {
         const assignedStaff = getAssignedStaffForTeam(resource.id);
         
@@ -299,9 +299,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               }}
             >
               <div className="staff-header-assignment-area">
-                <div className="staff-count-info">
-                  {assignedStaff.length} staff
-                </div>
                 <div className="assigned-staff-header-list">
                   {assignedStaff.map((staff) => (
                     <UnifiedDraggableStaffItem
