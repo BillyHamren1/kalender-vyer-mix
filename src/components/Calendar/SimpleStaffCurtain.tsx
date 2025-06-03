@@ -61,10 +61,7 @@ const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-start justify-end">
-      <div 
-        className="bg-white h-full w-80 shadow-xl transform transition-transform duration-300 ease-out translate-x-0"
-        style={{ animation: 'slideInFromRight 0.3s ease-out' }}
-      >
+      <div className="bg-white h-full w-80 shadow-xl transform transition-transform duration-300 ease-out animate-slide-in-right">
         {/* Header */}
         <div className="p-4 border-b flex justify-between items-center bg-gray-50">
           <h3 className="text-lg font-medium flex items-center gap-2">
@@ -168,17 +165,6 @@ const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({
           </div>
         )}
       </div>
-      
-      <style jsx>{`
-        @keyframes slideInFromRight {
-          from {
-            transform: translateX(100%);
-          }
-          to {
-            transform: translateX(0);
-          }
-        }
-      `}</style>
     </div>
   );
 };

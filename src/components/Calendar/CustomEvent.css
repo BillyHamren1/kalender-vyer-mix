@@ -166,6 +166,20 @@
   @apply text-sm font-medium text-gray-700 transform rotate-180;
 }
 
+/* Staff Curtain Animation */
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slideInFromRight 0.3s ease-out;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .custom-event {
