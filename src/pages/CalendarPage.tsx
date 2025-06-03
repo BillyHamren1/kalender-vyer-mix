@@ -67,6 +67,13 @@ const CalendarPage = () => {
     setSelectedTeam(null);
   };
 
+  // Handle staff selection for curtain (used by StaffCurtain component)
+  const handleSelectStaff = (teamId: string, teamName: string) => {
+    if (teamId && teamName) {
+      setSelectedTeam(prev => prev ? { ...prev, resourceId: teamId, resourceTitle: teamName } : null);
+    }
+  };
+
   return (
     <DndProvider backend={HTML5Backend}>
       <TooltipProvider>
@@ -144,9 +151,9 @@ const CalendarPage = () => {
               currentDate={selectedTeam.targetDate}
               onClose={handleCloseCurtain}
               onAssignStaff={handleStaffAssigned}
+              onSelectStaff={handleSelectStaff}
               selectedTeamId={selectedTeam.resourceId}
               selectedTeamName={selectedTeam.resourceTitle}
-              availableStaff={staffOps.getAvailableStaffForDate(selectedTeam.targetDate)}
             />
           )}
         </div>
