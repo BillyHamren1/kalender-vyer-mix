@@ -1,9 +1,9 @@
+
 import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import BookingEvent from './BookingEvent';
 import EventHoverCard from './EventHoverCard';
-import { useWeeklyStaffOperations } from '@/hooks/useWeeklyStaffOperations';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
 import { useDrag, useDrop } from 'react-dnd';
 import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
@@ -17,7 +17,9 @@ interface TimeGridProps {
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
   onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date) => void;
   dayWidth?: number;
-  weeklyStaffOperations?: ReturnType<typeof useWeeklyStaffOperations>;
+  weeklyStaffOperations?: {
+    getStaffForTeamAndDate: (teamId: string, date: Date) => Array<{id: string, name: string, color?: string}>;
+  };
   onEventDrop?: (eventId: string, targetResourceId: string, targetDate: Date, targetTime: string) => Promise<void>;
 }
 
@@ -277,7 +279,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
       {/* Empty cell for staff assignment row alignment */}
       <div className="staff-row-time-cell" style={{ gridRow: 3 }}></div>
 
-      {/* Staff Assignment Display Row - REMOVED staff count display */}
+      {/* Staff Assignment Display Row */}
       {resources.map((resource, index) => {
         const assignedStaff = getAssignedStaffForTeam(resource.id);
         

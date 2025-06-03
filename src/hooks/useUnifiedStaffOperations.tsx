@@ -1,53 +1,132 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
-import { unifiedStaffService } from '@/services/unifiedStaffService';
 import { supabase } from '@/integrations/supabase/client';
-import { format } from 'date-fns';
+import { format, startOfWeek, addDays } from 'date-fns';
 
 export interface StaffAssignment {
   staffId: string;
   staffName: string;
   teamId: string;
   date: string;
+  color?: string;
 }
 
-export const useUnifiedStaffOperations = (currentDate: Date) => {
+export interface StaffMember {
+  id: string;
+  name: string;
+  color?: string;
+}
+
+export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'weekly' = 'weekly') => {
   const [assignments, setAssignments] = useState<StaffAssignment[]>([]);
+  const [availableStaff, setAvailableStaff] = useState<StaffMember[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  const dateStr = format(currentDate, 'yyyy-MM-dd');
+  // Get the date range based on mode
+  const getDateRange = useCallback(() => {
+    if (mode === 'daily') {
+      return [currentDate];
+    } else {
+      const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+      return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+    }
+  }, [currentDate, mode]);
 
-  // Fetch assignments using unified service
+  // Fetch assignments for the date range
   const fetchAssignments = useCallback(async () => {
     try {
-      console.log('Unified Staff Operations: Fetching assignments for date:', dateStr);
-      const data = await unifiedStaffService.getStaffAssignments(currentDate);
+      setIsLoading(true);
+      const dates = getDateRange();
+      const allAssignments: StaffAssignment[] = [];
       
-      const formattedAssignments = data.map(assignment => ({
-        staffId: assignment.staff_id,
-        staffName: assignment.staff_members?.name || `Staff ${assignment.staff_id}`,
-        teamId: assignment.team_id,
-        date: dateStr
-      }));
+      console.log(`🔄 Fetching ${mode} assignments for ${dates.length} days`);
       
-      console.log('Unified Staff Operations: Fetched assignments:', formattedAssignments);
-      setAssignments(formattedAssignments);
-    } catch (error) {
-      console.error('Error fetching staff assignments:', error);
-      toast.error('Failed to load staff assignments');
-    }
-  }, [currentDate, dateStr]);
+      for (const date of dates) {
+        const dateStr = format(date, 'yyyy-MM-dd');
+        
+        const { data, error } = await supabase
+          .from('staff_assignments')
+          .select(`
+            *,
+            staff_members (
+              id,
+              name,
+              color
+            )
+          `)
+          .eq('assignment_date', dateStr)
+          .order('created_at', { ascending: true });
 
-  // Initial load and refresh trigger
+        if (error) {
+          console.error(`Error fetching assignments for ${dateStr}:`, error);
+          continue;
+        }
+
+        if (data) {
+          const formattedAssignments = data.map(assignment => ({
+            staffId: assignment.staff_id,
+            staffName: assignment.staff_members?.name || `Staff ${assignment.staff_id}`,
+            teamId: assignment.team_id,
+            date: dateStr,
+            color: assignment.staff_members?.color || '#E3F2FD'
+          }));
+          
+          allAssignments.push(...formattedAssignments);
+        }
+      }
+      
+      console.log(`✅ Fetched ${allAssignments.length} assignments`);
+      setAssignments(allAssignments);
+      
+    } catch (error) {
+      console.error('Error in fetchAssignments:', error);
+      toast.error('Failed to load staff assignments');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [getDateRange, mode]);
+
+  // Fetch available staff
+  const fetchAvailableStaff = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('staff_members')
+        .select('id, name, color')
+        .order('name');
+
+      if (error) {
+        console.error('Error fetching available staff:', error);
+        return;
+      }
+
+      const staff = (data || []).map(member => ({
+        id: member.id,
+        name: member.name,
+        color: member.color || '#E3F2FD'
+      }));
+
+      console.log(`📋 Fetched ${staff.length} available staff members`);
+      setAvailableStaff(staff);
+    } catch (error) {
+      console.error('Error fetching available staff:', error);
+    }
+  }, []);
+
+  // Initial load
   useEffect(() => {
     fetchAssignments();
-  }, [fetchAssignments, refreshTrigger]);
+    fetchAvailableStaff();
+  }, [fetchAssignments, fetchAvailableStaff, refreshTrigger]);
 
   // Real-time subscription
   useEffect(() => {
-    console.log('Unified Staff Operations: Setting up real-time subscription');
+    const dates = getDateRange();
+    const startDate = format(dates[0], 'yyyy-MM-dd');
+    const endDate = format(dates[dates.length - 1], 'yyyy-MM-dd');
+    
+    console.log(`🔔 Setting up real-time subscription from ${startDate} to ${endDate}`);
     
     const channel = supabase
       .channel('unified-staff-assignments-changes')
@@ -57,101 +136,134 @@ export const useUnifiedStaffOperations = (currentDate: Date) => {
           event: '*',
           schema: 'public',
           table: 'staff_assignments',
-          filter: `assignment_date=eq.${dateStr}`
+          filter: `assignment_date.gte.${startDate},assignment_date.lte.${endDate}`
         },
         (payload) => {
-          console.log('Unified Staff Operations: Real-time change:', payload);
+          console.log(`🔔 Real-time change: ${payload.eventType}`);
           fetchAssignments();
         }
       )
       .subscribe();
 
     return () => {
-      console.log('Unified Staff Operations: Cleaning up real-time subscription');
+      console.log('🔔 Cleaning up real-time subscription');
       supabase.removeChannel(channel);
     };
-  }, [dateStr, fetchAssignments]);
+  }, [getDateRange, fetchAssignments]);
 
-  // Handle staff assignment with optimistic updates
-  const handleStaffDrop = useCallback(async (staffId: string, resourceId: string | null) => {
+  // Handle staff drop operations
+  const handleStaffDrop = useCallback(async (staffId: string, resourceId: string | null, targetDate?: Date) => {
     if (!staffId) {
-      setRefreshTrigger(prev => prev + 1);
+      console.warn('No staffId provided to handleStaffDrop');
       return;
     }
 
-    console.log(`Unified Staff Operations: Handling staff drop: ${staffId} to ${resourceId || 'unassigned'} for ${dateStr}`);
+    const effectiveDate = targetDate || currentDate;
+    const effectiveDateStr = format(effectiveDate, 'yyyy-MM-dd');
+
+    console.log(`🎯 Staff drop: ${staffId} to ${resourceId || 'unassigned'} on ${effectiveDateStr}`);
     
-    // Store current state for rollback
-    const previousAssignments = [...assignments];
+    // Get staff info for optimistic update
+    const staffMember = availableStaff.find(s => s.id === staffId);
     
     // Optimistic update
-    if (resourceId) {
-      const existingAssignment = assignments.find(a => a.staffId === staffId);
-      const staffName = existingAssignment?.staffName || `Staff ${staffId}`;
+    setAssignments(prevAssignments => {
+      const filteredAssignments = prevAssignments.filter(
+        a => !(a.staffId === staffId && a.date === effectiveDateStr)
+      );
       
-      setAssignments(prev => {
-        const filtered = prev.filter(a => a.staffId !== staffId);
-        return [...filtered, {
+      if (resourceId) {
+        const newAssignment: StaffAssignment = {
           staffId,
-          staffName,
+          staffName: staffMember?.name || `Staff ${staffId}`,
           teamId: resourceId,
-          date: dateStr
-        }];
-      });
-    } else {
-      setAssignments(prev => prev.filter(a => a.staffId !== staffId));
-    }
-
+          date: effectiveDateStr,
+          color: staffMember?.color || '#E3F2FD'
+        };
+        return [...filteredAssignments, newAssignment];
+      }
+      
+      return filteredAssignments;
+    });
+    
     setIsLoading(true);
     
     try {
       if (resourceId) {
-        await unifiedStaffService.assignStaffToTeam(staffId, resourceId, currentDate);
-        console.log('Unified Staff Operations: Staff assigned successfully');
-        toast.success('Staff assigned to team');
+        // Assign staff to team
+        const { error } = await supabase
+          .from('staff_assignments')
+          .upsert({
+            staff_id: staffId,
+            team_id: resourceId,
+            assignment_date: effectiveDateStr
+          }, {
+            onConflict: 'staff_id,assignment_date'
+          });
+
+        if (error) throw error;
+        
+        toast.success(`Staff assigned to ${resourceId} successfully`);
       } else {
-        await unifiedStaffService.removeStaffAssignment(staffId, currentDate);
-        console.log('Unified Staff Operations: Staff assignment removed successfully');
-        toast.success('Staff assignment removed');
+        // Remove assignment
+        const { error } = await supabase
+          .from('staff_assignments')
+          .delete()
+          .eq('staff_id', staffId)
+          .eq('assignment_date', effectiveDateStr);
+
+        if (error) throw error;
+        
+        toast.success(`Staff assignment removed successfully`);
       }
       
     } catch (error) {
-      console.error('Unified Staff Operations: Error in staff operation:', error);
-      
-      // Rollback optimistic update
-      setAssignments(previousAssignments);
-      
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      toast.error(`Failed to update staff assignment: ${errorMessage}`);
+      console.error('Error in staff drop:', error);
+      toast.error('Failed to update staff assignment');
+      // Revert optimistic update on error
+      fetchAssignments();
     } finally {
       setIsLoading(false);
     }
-  }, [assignments, currentDate, dateStr]);
+  }, [currentDate, availableStaff, fetchAssignments]);
 
-  // Get staff for a specific team
-  const getStaffForTeam = useCallback((teamId: string) => {
-    const teamStaff = assignments
-      .filter(a => a.teamId === teamId)
+  // Get staff for a specific team and date
+  const getStaffForTeamAndDate = useCallback((teamId: string, date: Date) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    return assignments
+      .filter(a => a.teamId === teamId && a.date === dateStr)
       .map(a => ({
         id: a.staffId,
-        name: a.staffName
+        name: a.staffName,
+        color: a.color || '#E3F2FD'
       }));
-    
-    console.log(`Unified Staff Operations: Getting staff for team ${teamId}:`, teamStaff);
-    return teamStaff;
   }, [assignments]);
+
+  // Get available staff for a specific date
+  const getAvailableStaffForDate = useCallback((targetDate: Date) => {
+    const dateStr = format(targetDate, 'yyyy-MM-dd');
+    const assignedStaffIdsForDate = new Set(
+      assignments
+        .filter(a => a.date === dateStr)
+        .map(a => a.staffId)
+    );
+    
+    return availableStaff.filter(staff => !assignedStaffIdsForDate.has(staff.id));
+  }, [assignments, availableStaff]);
 
   // Force refresh
   const forceRefresh = useCallback(() => {
-    console.log('Unified Staff Operations: Force refreshing assignments');
+    console.log('🔄 Force refreshing assignments');
     setRefreshTrigger(prev => prev + 1);
   }, []);
 
   return {
     assignments,
+    availableStaff,
     isLoading,
     handleStaffDrop,
-    getStaffForTeam,
+    getStaffForTeamAndDate,
+    getAvailableStaffForDate,
     forceRefresh,
     refreshTrigger
   };

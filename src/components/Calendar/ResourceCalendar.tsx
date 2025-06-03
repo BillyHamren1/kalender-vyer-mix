@@ -5,7 +5,6 @@ import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceHeaderDropZone from './ResourceHeaderDropZone';
-import { useReliableStaffOperations } from '@/hooks/useReliableStaffOperations';
 
 interface ResourceCalendarProps {
   events: CalendarEvent[];
@@ -22,6 +21,9 @@ interface ResourceCalendarProps {
   droppableScope?: string;
   calendarProps?: any;
   targetDate?: Date;
+  staffOperations?: {
+    getStaffForTeamAndDate: (teamId: string, date: Date) => Array<{id: string, name: string, color?: string}>;
+  };
 }
 
 const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
@@ -37,19 +39,21 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   forceRefresh,
   droppableScope = 'resource-calendar',
   calendarProps = {},
-  targetDate
+  targetDate,
+  staffOperations
 }) => {
   const calendarRef = useRef<FullCalendar>(null);
   const effectiveDate = targetDate || currentDate;
-  const reliableStaffOps = useReliableStaffOperations(effectiveDate);
 
   // Custom header content that includes staff assignments with colors
   const customResourceLabelContent = useCallback((arg: any) => {
     const resourceId = arg.resource.id;
     const resourceTitle = arg.resource.title;
     
-    // Get staff with color information for this team
-    const assignedStaff = reliableStaffOps.getStaffForTeam(resourceId);
+    // Get staff with color information for this team using passed-in operations
+    const assignedStaff = staffOperations 
+      ? staffOperations.getStaffForTeamAndDate(resourceId, effectiveDate)
+      : [];
     
     console.log(`ResourceCalendar: Staff for team ${resourceId}:`, assignedStaff);
     
@@ -68,7 +72,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
         minHeight={100}
       />
     );
-  }, [currentDate, effectiveDate, onStaffDrop, onSelectStaff, reliableStaffOps]);
+  }, [currentDate, effectiveDate, onStaffDrop, onSelectStaff, staffOperations]);
 
   // Calendar configuration
   const calendarOptions = {

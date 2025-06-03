@@ -4,7 +4,7 @@ import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
-import { useWeeklyStaffOperations } from '@/hooks/useWeeklyStaffOperations';
+import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ArrowLeft } from 'lucide-react';
@@ -33,8 +33,8 @@ const CustomCalendarPage = () => {
     return startOfWeek(new Date(hookCurrentDate), { weekStartsOn: 1 });
   });
 
-  // Use the new weekly staff operations hook
-  const weeklyStaffOps = useWeeklyStaffOperations(currentWeekStart);
+  // Use the unified staff operations hook
+  const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly');
 
   // Staff curtain state - simplified with position
   const [staffCurtainOpen, setStaffCurtainOpen] = useState(false);
@@ -44,18 +44,6 @@ const CustomCalendarPage = () => {
     targetDate: Date;
     position: { top: number; left: number };
   } | null>(null);
-
-  // Handle staff drop operations
-  const handleStaffDrop = async (staffId: string, resourceId: string | null, targetDate?: Date) => {
-    const effectiveDate = targetDate || hookCurrentDate;
-    console.log('CustomCalendarPage: Staff drop', { staffId, resourceId, targetDate: effectiveDate });
-    
-    try {
-      await weeklyStaffOps.handleStaffDrop(staffId, resourceId, effectiveDate);
-    } catch (error) {
-      console.error('CustomCalendarPage: Error in staff drop:', error);
-    }
-  };
 
   // Handle opening staff curtain with position
   const handleOpenStaffSelection = (resourceId: string, resourceTitle: string, targetDate: Date, buttonElement?: HTMLElement) => {
@@ -85,7 +73,7 @@ const CustomCalendarPage = () => {
   const handleStaffAssigned = async (staffId: string, teamId: string) => {
     if (selectedTeam) {
       console.log('Assigning staff from curtain:', { staffId, teamId, team: selectedTeam });
-      await handleStaffDrop(staffId, teamId, selectedTeam.targetDate);
+      await staffOps.handleStaffDrop(staffId, teamId, selectedTeam.targetDate);
     }
   };
 
@@ -106,16 +94,16 @@ const CustomCalendarPage = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => navigate('/weekly-view')}
+                  onClick={() => navigate('/')}
                   className="flex items-center gap-2"
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  Back to Original Calendar
+                  Back to Dashboard
                 </Button>
-                <h1 className="text-2xl font-bold text-gray-900">Custom Calendar (FullCalendar Replacement)</h1>
+                <h1 className="text-2xl font-bold text-gray-900">Staff Calendar</h1>
               </div>
               <div className="text-sm text-gray-500">
-                No license restrictions • Built with React & CSS Grid
+                Unified staff management system
               </div>
             </div>
           </div>
@@ -130,10 +118,10 @@ const CustomCalendarPage = () => {
               currentDate={currentWeekStart}
               onDateSet={handleDatesSet}
               refreshEvents={refreshEvents}
-              onStaffDrop={handleStaffDrop}
+              onStaffDrop={staffOps.handleStaffDrop}
               onOpenStaffSelection={handleOpenStaffSelection}
               viewMode="weekly"
-              weeklyStaffOperations={weeklyStaffOps}
+              weeklyStaffOperations={staffOps}
             />
           </div>
 
@@ -145,7 +133,7 @@ const CustomCalendarPage = () => {
               onAssignStaff={handleStaffAssigned}
               selectedTeamId={selectedTeam.resourceId}
               selectedTeamName={selectedTeam.resourceTitle}
-              availableStaff={weeklyStaffOps.getAvailableStaffForDate(selectedTeam.targetDate)}
+              availableStaff={staffOps.getAvailableStaffForDate(selectedTeam.targetDate)}
               position={selectedTeam.position}
             />
           )}
