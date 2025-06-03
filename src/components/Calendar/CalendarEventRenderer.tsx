@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
 import { Copy, Trash2 } from 'lucide-react';
@@ -36,10 +37,10 @@ export const renderEventContent = (eventInfo: any) => {
     extendedProps: eventInfo.event.extendedProps || {}
   };
 
-  // Event content component
+  // Event content component with BLACK TEXT
   const EventContent = () => {
     if (eventInfo.view.type === 'resourceTimelineWeek') {
-      // More compact display for timeline view with smaller fonts
+      // More compact display for timeline view with BLACK text
       return (
         <div className="event-content-wrapper w-full h-full px-1" style={{ color: '#000000' }}>
           <div className="event-booking-id text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>#{displayId}</div>
@@ -54,7 +55,7 @@ export const renderEventContent = (eventInfo: any) => {
       );
     }
     
-    // Default display for other views with smaller fonts and full width
+    // Default display for other views with BLACK text
     return (
       <div className="event-content-wrapper w-full h-full px-1" style={{ color: '#000000' }}>
         <div className="event-booking-id text-xs opacity-80 truncate leading-tight" style={{ color: '#000000', fontSize: '10px' }}>#{displayId}</div>

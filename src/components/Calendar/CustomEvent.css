@@ -3,12 +3,12 @@
   position: relative;
   padding: 4px 8px;
   border-radius: 4px;
-  color: white;
+  color: #000000 !important; /* FORCE BLACK TEXT */
   font-size: 12px;
   overflow: hidden;
   cursor: grab;
   user-select: none;
-  will-change: transform, opacity; /* GPU acceleration hint */
+  will-change: transform, opacity;
 }
 
 .custom-event:active {
@@ -18,35 +18,39 @@
 .custom-event.dragging {
   opacity: 0.3;
   cursor: grabbing;
-  transition: none; /* Remove all transitions during drag for smoothness */
-  transform: none; /* Remove transform effects during drag */
+  transition: none;
+  transform: none;
 }
 
 .custom-event.resizing {
   cursor: ns-resize;
-  transition: none; /* Remove transitions during resize */
+  transition: none;
 }
 
 .custom-event .event-content {
-  pointer-events: none; /* Prevent interference with drag operations */
+  pointer-events: none;
+  color: #000000 !important; /* FORCE BLACK TEXT */
 }
 
 .custom-event .event-title {
   font-weight: bold;
   line-height: 1.2;
   margin-bottom: 2px;
+  color: #000000 !important; /* FORCE BLACK TEXT */
 }
 
 .custom-event .event-time {
   font-size: 10px;
   opacity: 0.9;
   line-height: 1;
+  color: #000000 !important; /* FORCE BLACK TEXT */
 }
 
 .custom-event .event-booking {
   font-size: 10px;
   opacity: 0.8;
   margin-top: 2px;
+  color: #000000 !important; /* FORCE BLACK TEXT */
 }
 
 .resize-handle {
@@ -72,7 +76,7 @@
   max-width: 200px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   z-index: 1000;
-  pointer-events: none; /* Prevent tooltip from interfering with drag */
+  pointer-events: none;
 }
 
 .tooltip-arrow {
@@ -117,7 +121,7 @@
 /* Performance optimization classes */
 .gpu-accelerated {
   will-change: transform, opacity;
-  transform: translateZ(0); /* Force GPU layer */
+  transform: translateZ(0);
 }
 
 /* Smooth drop zone highlighting */
@@ -125,4 +129,21 @@
   background-color: rgba(59, 130, 246, 0.1) !important;
   border: 2px dashed #3b82f6 !important;
   transition: all 0.2s ease;
+}
+
+/* Ensure all text in FullCalendar events is black */
+.fc-event,
+.fc-event-main,
+.fc-event-main-frame,
+.fc-event-title,
+.fc-event-time,
+.fc-daygrid-event-dot,
+.fc-list-event-title,
+.fc-list-event-time {
+  color: #000000 !important;
+}
+
+/* Override any inherited text colors */
+.fc-event * {
+  color: #000000 !important;
 }

@@ -179,13 +179,14 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         style={{
           ...style,
           backgroundColor: eventColor,
-          opacity: isDragging ? 0.3 : 1, // More transparent when dragging
+          opacity: isDragging ? 0.3 : 1,
           cursor: isDragging ? 'grabbing' : (isResizing ? 'ns-resize' : 'grab'),
           border: 'none',
-          transform: 'none', // Remove transform during drag
-          transition: isDragging || isResizing ? 'none' : 'opacity 0.2s ease', // Remove all transitions during drag
+          transform: 'none',
+          transition: isDragging || isResizing ? 'none' : 'opacity 0.2s ease',
           position: 'relative',
-          willChange: 'transform, opacity', // GPU acceleration hint
+          willChange: 'transform, opacity',
+          color: '#000000'
         }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -206,15 +207,15 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
           onMouseDown={(e) => handleResizeStart(e, 'top')}
         />
         
-        <div className="event-content">
-          <div className="event-title">
+        <div className="event-content" style={{ color: '#000000' }}>
+          <div className="event-title" style={{ color: '#000000' }}>
             {event.title}
           </div>
-          <div className="event-time">
+          <div className="event-time" style={{ color: '#000000' }}>
             {startTime} - {endTime}
           </div>
           {event.booking_number && (
-            <div className="event-booking">
+            <div className="event-booking" style={{ color: '#000000' }}>
               #{event.booking_number}
             </div>
           )}
