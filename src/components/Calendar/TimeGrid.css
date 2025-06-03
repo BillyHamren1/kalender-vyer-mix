@@ -1,4 +1,5 @@
 
+
 .time-grid-with-staff-header {
   @apply bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden;
   display: grid;
@@ -137,11 +138,11 @@
   @apply border-b-0;
 }
 
-/* Time Slot Columns - Responsive with proper hover handling */
+/* Time Slot Columns - OPTIMIZED for hover functionality */
 .time-slots-column {
   @apply border-r border-gray-200 relative bg-white;
   position: relative;
-  overflow: visible; /* Allow hover cards to appear */
+  overflow: visible; /* Critical for hover cards */
 }
 
 .time-slots-column:last-child {
@@ -166,33 +167,25 @@
   @apply border-b-0;
 }
 
-/* Events overlay - FIXED for proper hover detection */
-.events-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 10;
-  pointer-events: none; /* Allow clicks to pass through to underlying elements */
+/* Hover container for proper event detection */
+.hover-container {
+  position: relative;
 }
 
-/* Individual booking events - ENABLE pointer events for hover */
+/* Individual booking events - OPTIMIZED for hover */
 .booking-event {
-  pointer-events: auto !important; /* Enable hover and click events */
-  position: absolute;
-  left: 4px;
-  right: 4px;
+  pointer-events: auto !important; /* Critical for hover detection */
   border-radius: 4px;
   font-size: 11px;
   padding: 4px;
   border: 1px solid rgba(0, 0, 0, 0.1);
   cursor: pointer;
   transition: all 0.2s ease;
-  z-index: 20;
   min-height: 30px;
   background: white;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  position: relative;
+  z-index: 20;
 }
 
 .booking-event:hover {

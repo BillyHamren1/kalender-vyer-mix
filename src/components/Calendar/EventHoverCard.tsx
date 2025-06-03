@@ -2,7 +2,7 @@
 import React from 'react';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { CalendarEvent } from './ResourceData';
-import { Package, MapPin, FileText, AlertTriangle } from 'lucide-react';
+import { Package, MapPin, FileText, AlertTriangle, User, Building } from 'lucide-react';
 
 interface EventHoverCardProps {
   children: React.ReactNode;
@@ -21,10 +21,16 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event }) => {
   const deliveryCity = event.extendedProps?.deliveryCity;
   const deliveryPostalCode = event.extendedProps?.deliveryPostalCode;
   
+  // Get client and city information
+  const client = event.extendedProps?.client || 'Unknown Client';
+  const city = event.extendedProps?.deliveryCity || event.extendedProps?.city || 'Unknown City';
+  
   // Debug specific fields
   console.log('EventHoverCard - Products:', products);
   console.log('EventHoverCard - Internal notes:', internalNotes);
   console.log('EventHoverCard - Delivery address:', deliveryAddress);
+  console.log('EventHoverCard - Client:', client);
+  console.log('EventHoverCard - City:', city);
   
   // Build full address string
   const fullAddress = [deliveryAddress, deliveryCity, deliveryPostalCode]
@@ -32,7 +38,7 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event }) => {
     .join(', ');
 
   return (
-    <HoverCard openDelay={100} closeDelay={50}>
+    <HoverCard openDelay={0} closeDelay={100}>
       <HoverCardTrigger asChild>
         {children}
       </HoverCardTrigger>
@@ -44,7 +50,7 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event }) => {
         alignOffset={0}
         avoidCollisions={true}
         collisionPadding={20}
-        style={{ zIndex: 50 }}
+        style={{ zIndex: 9999 }}
       >
         <div className="space-y-3">
           {/* Event Title and Booking Number */}
@@ -53,6 +59,24 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event }) => {
             {bookingNumber && (
               <p className="text-xs text-gray-500 mt-1">Booking #{bookingNumber}</p>
             )}
+          </div>
+
+          {/* Client and City Section */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <User className="h-3 w-3 text-indigo-600" />
+              <span className="text-xs font-semibold text-gray-800">Client & Location</span>
+            </div>
+            <div className="bg-indigo-50 p-2 rounded border border-indigo-100 space-y-1">
+              <div className="flex items-center gap-2">
+                <Building className="h-3 w-3 text-indigo-600" />
+                <span className="text-xs text-gray-700 font-medium">{client}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <MapPin className="h-3 w-3 text-indigo-600" />
+                <span className="text-xs text-gray-700">{city}</span>
+              </div>
+            </div>
           </div>
 
           {/* Products Section */}

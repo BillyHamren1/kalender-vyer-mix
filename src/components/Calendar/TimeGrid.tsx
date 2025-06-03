@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
@@ -196,7 +197,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         return (
           <div 
             key={`timeslots-${resource.id}`} 
-            className="time-slots-column"
+            className="time-slots-column hover-container"
             style={{ 
               gridColumn: index + 2,
               gridRow: 4,
@@ -212,24 +213,36 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               ))}
             </div>
             
-            {/* Events positioned absolutely on top of time slots */}
-            <div className="events-overlay" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
-              {resourceEvents.map((event) => {
-                const position = getEventPosition(event);
-                return (
-                  <EventHoverCard key={event.id} event={event}>
+            {/* Events positioned absolutely on top of time slots with hover functionality */}
+            {resourceEvents.map((event) => {
+              const position = getEventPosition(event);
+              return (
+                <div
+                  key={`event-wrapper-${event.id}`}
+                  style={{
+                    position: 'absolute',
+                    top: `${position.top}px`,
+                    height: `${position.height}px`,
+                    left: '4px',
+                    right: '4px',
+                    zIndex: 25,
+                    pointerEvents: 'auto'
+                  }}
+                >
+                  <EventHoverCard event={event}>
                     <BookingEvent
                       event={event}
                       style={{
-                        top: `${position.top}px`,
-                        height: `${position.height}px`,
+                        width: '100%',
+                        height: '100%',
+                        position: 'relative'
                       }}
                       onClick={() => handleBookingEventClick(event)}
                     />
                   </EventHoverCard>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </div>
         );
       })}
