@@ -95,10 +95,10 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     handleEventClick(formattedEventInfo);
   };
 
-  // Get assigned staff for a team on this day
+  // Get assigned staff for a team on this day - FIXED: Use correct function name
   const getAssignedStaffForTeam = (teamId: string) => {
     if (!weeklyStaffOperations) return [];
-    return weeklyStaffOperations.getAssignedStaffForTeamAndDate(teamId, day) || [];
+    return weeklyStaffOperations.getStaffForTeamAndDate(teamId, day) || [];
   };
 
   // Handle staff selection button click
