@@ -4,6 +4,7 @@ import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import CustomEvent from './CustomEvent';
 import { useDrop } from 'react-dnd';
+import { toast } from 'sonner';
 
 interface TimeSlotsProps {
   day: Date;
@@ -11,6 +12,7 @@ interface TimeSlotsProps {
   timeSlots: string[];
   events: CalendarEvent[];
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
+  onEventDrop?: (eventId: string, targetResourceId: string, targetDate: Date, targetTime: string) => Promise<void>;
 }
 
 const TimeSlots: React.FC<TimeSlotsProps> = ({
@@ -18,18 +20,39 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
   resource,
   timeSlots,
   events,
-  onStaffDrop
+  onStaffDrop,
+  onEventDrop
 }) => {
-  const [{ isOver }, drop] = useDrop({
-    accept: ['staff', 'event'],
-    drop: (item: any) => {
+  const [{ isOver, dragType }, drop] = useDrop({
+    accept: ['staff', 'calendar-event', 'STAFF'],
+    drop: async (item: any) => {
       console.log('TimeSlots: Item dropped', item, 'on', format(day, 'yyyy-MM-dd'), resource.id);
-      if (item.type === 'staff' && onStaffDrop) {
-        onStaffDrop(item.id, resource.id, day);
+      
+      try {
+        // Handle event drops with standardized structure
+        if (item.eventId && onEventDrop) {
+          // Only drop if moving to a different resource
+          if (item.resourceId !== resource.id) {
+            console.log('Moving event from', item.resourceId, 'to', resource.id);
+            await onEventDrop(item.eventId, resource.id, day, '');
+            toast.success('Event moved successfully');
+          }
+        }
+        // Handle staff drops
+        else if ((item.id || item.staffId) && onStaffDrop) {
+          const staffId = item.id || item.staffId;
+          console.log('Assigning staff', staffId, 'to', resource.id);
+          await onStaffDrop(staffId, resource.id, day);
+          toast.success('Staff assigned successfully');
+        }
+      } catch (error) {
+        console.error('Error in drop operation:', error);
+        toast.error('Failed to complete operation. Please try again.');
       }
     },
     collect: (monitor) => ({
       isOver: monitor.isOver(),
+      dragType: monitor.getItemType(),
     }),
   });
 
@@ -65,7 +88,12 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
     <div
       ref={drop}
       className={`time-slots-container ${isOver ? 'drop-over' : ''}`}
-      style={{ position: 'relative' }}
+      style={{ 
+        position: 'relative',
+        backgroundColor: isOver ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+        border: isOver ? '2px dashed #3b82f6' : '2px solid transparent',
+        transition: 'all 0.2s ease'
+      }}
     >
       {/* Time slot grid */}
       {timeSlots.map((time, index) => (

@@ -20,11 +20,11 @@ const CustomEvent: React.FC<CustomEventProps> = ({
   const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
   const eventRef = useRef<HTMLDivElement>(null);
 
+  // Standardized drag implementation
   const [{ isDragging }, drag] = useDrag({
-    type: 'event',
+    type: 'calendar-event',
     item: { 
-      id: event.id, 
-      type: 'event',
+      eventId: event.id,
       resourceId: event.resourceId,
       originalEvent: event
     },
@@ -87,7 +87,10 @@ const CustomEvent: React.FC<CustomEventProps> = ({
           ...style,
           backgroundColor: eventColor,
           opacity: isDragging ? 0.5 : 1,
-          cursor: 'move',
+          cursor: isDragging ? 'grabbing' : 'grab',
+          border: isDragging ? '2px dashed #3b82f6' : 'none',
+          transform: isDragging ? 'rotate(2deg)' : 'none',
+          transition: 'all 0.2s ease'
         }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -99,9 +102,9 @@ const CustomEvent: React.FC<CustomEventProps> = ({
           <div className="event-time">
             {startTime} - {endTime}
           </div>
-          {event.bookingNumber && (
+          {event.booking_number && (
             <div className="event-booking">
-              #{event.bookingNumber}
+              #{event.booking_number}
             </div>
           )}
         </div>
@@ -122,8 +125,8 @@ const CustomEvent: React.FC<CustomEventProps> = ({
           <div className="tooltip-arrow"></div>
           <div className="tooltip-content">
             <div className="tooltip-title">{event.title}</div>
-            {event.bookingNumber && (
-              <div className="tooltip-booking">Booking: #{event.bookingNumber}</div>
+            {event.booking_number && (
+              <div className="tooltip-booking">Booking: #{event.booking_number}</div>
             )}
             <div className="tooltip-time">{startTime} – {endTime}</div>
           </div>

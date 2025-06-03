@@ -18,7 +18,7 @@ interface CustomCalendarProps {
   onDateSet: (dateInfo: any) => void;
   refreshEvents: () => Promise<void | CalendarEvent[]>;
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
-  onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date) => void;
+  onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date, buttonElement?: HTMLElement) => void;
   viewMode: 'weekly' | 'monthly';
   weeklyStaffOperations?: {
     getStaffForTeamAndDate: (teamId: string, date: Date) => Array<{id: string, name: string, color?: string}>;
@@ -53,7 +53,6 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
 
   const days = getDaysToRender();
 
-  // Handle refresh
   const handleRefresh = async () => {
     await refreshEvents();
     if (weeklyStaffOperations) {
@@ -61,7 +60,6 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     }
   };
 
-  // Filter events for a specific day and resource
   const getEventsForDayAndResource = (date: Date, resourceId: string): CalendarEvent[] => {
     const dateStr = format(date, 'yyyy-MM-dd');
     
@@ -72,7 +70,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     });
   };
 
-  // Handle event drop between teams/resources - ACTUALLY UPDATE THE DATABASE
+  // Enhanced event drop handler with better error handling and feedback
   const handleEventDrop = async (eventId: string, targetResourceId: string, targetDate: Date, targetTime: string) => {
     console.log('CustomCalendar: Event drop detected', {
       eventId,
@@ -89,6 +87,12 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         return;
       }
 
+      // Don't update if it's the same resource
+      if (eventToMove.resourceId === targetResourceId) {
+        console.log('Event dropped on same resource, no update needed');
+        return;
+      }
+
       const sourceTeam = resources.find(r => r.id === eventToMove.resourceId)?.title || 'Unknown';
       const targetTeam = resources.find(r => r.id === targetResourceId)?.title || 'Unknown';
       
@@ -99,11 +103,16 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         targetTeam
       });
 
+      // Show loading toast
+      const loadingToast = toast.loading(`Moving event from ${sourceTeam} to ${targetTeam}...`);
+
       // Actually update the event in the database
       await updateCalendarEvent(eventId, {
         resourceId: targetResourceId
       });
 
+      // Dismiss loading toast and show success
+      toast.dismiss(loadingToast);
       toast.success(`Event "${eventToMove.title}" moved from ${sourceTeam} to ${targetTeam}`);
       
       // Refresh the calendar to show changes
@@ -117,7 +126,6 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
 
   // Calculate day width - SIGNIFICANTLY INCREASED to accommodate all teams
   const getDayWidth = () => {
-    // Calculate based on number of teams (usually 6 teams)
     const numberOfTeams = resources.length;
     const timeColumnWidth = 80;
     const minTeamColumnWidth = 120; // Increased minimum width per team
@@ -166,7 +174,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         </Button>
       </div>
 
-      {/* Weekly Staff Planning Grid - 7 Days Horizontally with WIDER containers */}
+      {/* Enhanced Weekly Staff Planning Grid with improved drag and drop */}
       <div className="weekly-calendar-container overflow-x-auto">
         <div 
           className="weekly-calendar-grid flex gap-2"

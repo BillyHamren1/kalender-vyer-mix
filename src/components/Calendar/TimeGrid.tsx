@@ -7,6 +7,7 @@ import EventHoverCard from './EventHoverCard';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
 import { useDrag, useDrop } from 'react-dnd';
 import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
+import { toast } from 'sonner';
 import './TimeGrid.css';
 
 interface TimeGridProps {
@@ -15,7 +16,7 @@ interface TimeGridProps {
   events: CalendarEvent[];
   getEventsForDayAndResource: (date: Date, resourceId: string) => CalendarEvent[];
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
-  onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date) => void;
+  onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date, buttonElement?: HTMLElement) => void;
   dayWidth?: number;
   weeklyStaffOperations?: {
     getStaffForTeamAndDate: (teamId: string, date: Date) => Array<{id: string, name: string, color?: string}>;
@@ -23,7 +24,7 @@ interface TimeGridProps {
   onEventDrop?: (eventId: string, targetResourceId: string, targetDate: Date, targetTime: string) => Promise<void>;
 }
 
-// Optimized Draggable Event Wrapper Component - REDUCED RE-RENDERS
+// Enhanced Draggable Event Wrapper Component with standardized drag data
 const DraggableEvent: React.FC<{
   event: CalendarEvent;
   position: { top: number; height: number };
@@ -33,7 +34,6 @@ const DraggableEvent: React.FC<{
   const [{ isDragging }, drag] = useDrag({
     type: 'calendar-event',
     item: { 
-      id: event.id,
       eventId: event.id,
       resourceId: event.resourceId,
       originalEvent: event
@@ -55,7 +55,10 @@ const DraggableEvent: React.FC<{
         zIndex: isDragging ? 30 : 25,
         pointerEvents: 'auto',
         opacity: isDragging ? 0.5 : 1,
-        cursor: isDragging ? 'grabbing' : 'grab'
+        cursor: isDragging ? 'grabbing' : 'grab',
+        border: isDragging ? '2px dashed #3b82f6' : 'none',
+        transform: isDragging ? 'rotate(1deg) scale(1.02)' : 'none',
+        transition: 'all 0.2s ease'
       }}
     >
       <EventHoverCard event={event}>
@@ -73,7 +76,7 @@ const DraggableEvent: React.FC<{
   );
 });
 
-// Optimized Droppable Time Slot Component - REDUCED RE-RENDERS
+// Enhanced Droppable Time Slot Component with better error handling
 const DroppableTimeSlot: React.FC<{
   resourceId: string;
   day: Date;
@@ -85,22 +88,29 @@ const DroppableTimeSlot: React.FC<{
   const [{ isOver, dragType }, drop] = useDrop({
     accept: ['calendar-event', 'STAFF'],
     drop: async (item: any) => {
-      // Handle event drops with reduced logging
-      if (item.eventId && onEventDrop && item.resourceId !== resourceId) {
-        try {
-          await onEventDrop(item.eventId, resourceId, day, timeSlot);
-        } catch (error) {
-          console.error('Error dropping event:', error);
-        }
-      }
+      console.log('DroppableTimeSlot: Handling drop', { item, resourceId, day: format(day, 'yyyy-MM-dd') });
       
-      // Handle staff drops with reduced logging
-      if (item.id && !item.eventId && onStaffDrop) {
-        try {
-          await onStaffDrop(item.id, resourceId, day);
-        } catch (error) {
-          console.error('Error dropping staff:', error);
+      try {
+        // Handle event drops with standardized data structure
+        if (item.eventId && onEventDrop) {
+          // Only process if moving to a different resource
+          if (item.resourceId !== resourceId) {
+            console.log('Moving event', item.eventId, 'from', item.resourceId, 'to', resourceId);
+            await onEventDrop(item.eventId, resourceId, day, timeSlot);
+            toast.success('Event moved successfully');
+          } else {
+            console.log('Event dropped on same resource, no action needed');
+          }
         }
+        // Handle staff drops
+        else if (item.id && onStaffDrop) {
+          console.log('Assigning staff', item.id, 'to resource', resourceId);
+          await onStaffDrop(item.id, resourceId, day);
+          toast.success('Staff assigned successfully');
+        }
+      } catch (error) {
+        console.error('Error in drop operation:', error);
+        toast.error('Failed to complete operation. Please try again.');
       }
     },
     collect: (monitor) => ({
@@ -117,7 +127,9 @@ const DroppableTimeSlot: React.FC<{
         width: `100%`,
         minWidth: `100%`,
         position: 'relative',
-        backgroundColor: isOver ? 'rgba(59, 130, 246, 0.1)' : 'transparent'
+        backgroundColor: isOver ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+        border: isOver ? '2px dashed #3b82f6' : '2px solid transparent',
+        transition: 'all 0.2s ease'
       }}
     >
       {children}
@@ -202,21 +214,18 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     handleEventClick(formattedEventInfo);
   };
 
-  // Get assigned staff for a team on this day
   const getAssignedStaffForTeam = (teamId: string) => {
     if (!weeklyStaffOperations) return [];
     return weeklyStaffOperations.getStaffForTeamAndDate(teamId, day) || [];
   };
 
-  // Handle staff selection button click
-  const handleStaffSelectionClick = (resourceId: string, resourceTitle: string) => {
+  const handleStaffSelectionClick = (resourceId: string, resourceTitle: string, event: React.MouseEvent<HTMLButtonElement>) => {
     console.log('TimeGrid: Opening staff selection for', { resourceId, resourceTitle, day });
     if (onOpenStaffSelection) {
-      onOpenStaffSelection(resourceId, resourceTitle, day);
+      onOpenStaffSelection(resourceId, resourceTitle, day, event.currentTarget);
     }
   };
 
-  // Handle staff removal
   const handleStaffRemoval = async (staffId: string, teamId: string) => {
     if (onStaffDrop) {
       await onStaffDrop(staffId, null, day);
@@ -237,17 +246,14 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         <div className="time-title">Time</div>
       </div>
 
-      {/* Day Header - spans team columns only */}
       <div className="day-header-teams" style={{ gridColumn: '2 / -1' }}>
         <div className="day-title">
           {format(day, 'EEE d')}
         </div>
       </div>
 
-      {/* Empty cell for time column alignment with team headers */}
       <div className="time-empty-cell" style={{ gridRow: 2 }}></div>
 
-      {/* Team Headers Row */}
       {resources.map((resource, index) => {
         const assignedStaff = getAssignedStaffForTeam(resource.id);
         
@@ -266,7 +272,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               <span className="team-title" title={resource.title}>{resource.title}</span>
               <button
                 className="add-staff-button-header"
-                onClick={() => handleStaffSelectionClick(resource.id, resource.title)}
+                onClick={(e) => handleStaffSelectionClick(resource.id, resource.title, e)}
                 title={`Assign staff to ${resource.title}`}
               >
                 +
@@ -276,10 +282,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         );
       })}
 
-      {/* Empty cell for staff assignment row alignment */}
       <div className="staff-row-time-cell" style={{ gridRow: 3 }}></div>
 
-      {/* Staff Assignment Display Row */}
       {resources.map((resource, index) => {
         const assignedStaff = getAssignedStaffForTeam(resource.id);
         
@@ -320,7 +324,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         );
       })}
 
-      {/* Time Labels Column */}
       <div className="time-labels-column" style={{ gridRow: 4 }}>
         {timeSlots.map((slot) => (
           <div key={slot.time} className="time-label-slot">
@@ -329,7 +332,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         ))}
       </div>
 
-      {/* Time Slot Columns with Events - OPTIMIZED DRAG & DROP */}
+      {/* Enhanced Time Slot Columns with improved drag & drop */}
       {resources.map((resource, index) => {
         const resourceEvents = getEventsForDayAndResource(day, resource.id);
         
@@ -358,7 +361,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 ))}
               </div>
               
-              {/* Events positioned absolutely on top of time slots - OPTIMIZED DRAGGABLE */}
+              {/* Events positioned absolutely on top of time slots with enhanced dragging */}
               {resourceEvents.map((event) => {
                 const position = getEventPosition(event);
                 return (
