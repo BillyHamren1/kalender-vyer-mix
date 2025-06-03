@@ -15,6 +15,7 @@ export interface CalendarEvent extends EventInput {
   resourceId: string;
   bookingId?: string;
   bookingNumber?: string; // Add bookingNumber field
+  booking_number?: string; // Alternative naming
   eventType?: 'rig' | 'event' | 'rigDown';
   deliveryAddress?: string;
   viewed?: boolean;
@@ -23,11 +24,11 @@ export interface CalendarEvent extends EventInput {
 export const getEventColor = (eventType: string | undefined): string => {
   switch (eventType) {
     case 'rig':
-      return '#3b82f6'; // blue-500
+      return '#F2FCE2'; // Light green
     case 'event':
-      return '#f59e0b'; // yellow-500
+      return '#FEF7CD'; // Yellow
     case 'rigDown':
-      return '#10b981'; // green-500
+      return '#FEE2E2'; // Light red
     default:
       return '#6b7280'; // gray-500
   }

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
@@ -39,7 +38,7 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
     accept: ['staff', 'calendar-event', 'STAFF'],
     drop: async (item: any, monitor) => {
       const clientOffset = monitor.getClientOffset();
-      const dropElement = monitor.getDropResult()?.dropTarget || drop.current;
+      const dropElement = drop as any; // Fix TypeScript issue
       
       console.log('TimeSlots: Item dropped', item, 'on', format(day, 'yyyy-MM-dd'), resource.id);
       
