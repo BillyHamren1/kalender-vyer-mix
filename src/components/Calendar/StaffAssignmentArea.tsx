@@ -3,7 +3,6 @@ import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import { useDrop } from 'react-dnd';
-import { useWeeklyStaffOperations } from '@/hooks/useWeeklyStaffOperations';
 import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
 
 interface TimeSlot {
@@ -19,7 +18,9 @@ interface StaffAssignmentAreaProps {
   onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date) => void;
   timeSlots?: TimeSlot[];
   isHeaderRow?: boolean;
-  weeklyStaffOperations?: ReturnType<typeof useWeeklyStaffOperations>;
+  weeklyStaffOperations?: {
+    getStaffForTeamAndDate: (teamId: string, date: Date) => Array<{id: string, name: string, color?: string}>;
+  };
 }
 
 const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({

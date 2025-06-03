@@ -6,7 +6,6 @@ import TimeGrid from './TimeGrid';
 import WeekNavigation from './WeekNavigation';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
-import { useWeeklyStaffOperations } from '@/hooks/useWeeklyStaffOperations';
 import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/eventService';
 
@@ -21,7 +20,10 @@ interface CustomCalendarProps {
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
   onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date) => void;
   viewMode: 'weekly' | 'monthly';
-  weeklyStaffOperations?: ReturnType<typeof useWeeklyStaffOperations>;
+  weeklyStaffOperations?: {
+    getStaffForTeamAndDate: (teamId: string, date: Date) => Array<{id: string, name: string, color?: string}>;
+    forceRefresh: () => void;
+  };
 }
 
 const CustomCalendar: React.FC<CustomCalendarProps> = ({
