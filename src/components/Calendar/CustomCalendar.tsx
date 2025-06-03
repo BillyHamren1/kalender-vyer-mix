@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format, addDays } from 'date-fns';
@@ -7,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
 import { useWeeklyStaffOperations } from '@/hooks/useWeeklyStaffOperations';
 import { toast } from 'sonner';
+import { updateCalendarEvent } from '@/services/eventService';
 
 interface CustomCalendarProps {
   events: CalendarEvent[];
@@ -68,7 +70,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     });
   };
 
-  // Handle event drop between teams/resources
+  // Handle event drop between teams/resources - ACTUALLY UPDATE THE DATABASE
   const handleEventDrop = async (eventId: string, targetResourceId: string, targetDate: Date, targetTime: string) => {
     console.log('CustomCalendar: Event drop detected', {
       eventId,
@@ -85,11 +87,21 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         return;
       }
 
-      // For now, we'll show a success message and refresh
-      // You can integrate with your existing event update service here
       const sourceTeam = resources.find(r => r.id === eventToMove.resourceId)?.title || 'Unknown';
       const targetTeam = resources.find(r => r.id === targetResourceId)?.title || 'Unknown';
       
+      console.log('Updating event in database:', {
+        eventId,
+        newResourceId: targetResourceId,
+        sourceTeam,
+        targetTeam
+      });
+
+      // Actually update the event in the database
+      await updateCalendarEvent(eventId, {
+        resourceId: targetResourceId
+      });
+
       toast.success(`Event "${eventToMove.title}" moved from ${sourceTeam} to ${targetTeam}`);
       
       // Refresh the calendar to show changes

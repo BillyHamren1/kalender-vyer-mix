@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
@@ -6,6 +7,7 @@ import EventHoverCard from './EventHoverCard';
 import { useWeeklyStaffOperations } from '@/hooks/useWeeklyStaffOperations';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
 import { useDrag, useDrop } from 'react-dnd';
+import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
 import './TimeGrid.css';
 
 interface TimeGridProps {
@@ -76,12 +78,14 @@ const DroppableTimeSlot: React.FC<{
   day: Date;
   timeSlot: string;
   onEventDrop?: (eventId: string, targetResourceId: string, targetDate: Date, targetTime: string) => Promise<void>;
+  onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
   children: React.ReactNode;
-}> = ({ resourceId, day, timeSlot, onEventDrop, children }) => {
-  const [{ isOver }, drop] = useDrop({
-    accept: 'calendar-event',
+}> = ({ resourceId, day, timeSlot, onEventDrop, onStaffDrop, children }) => {
+  const [{ isOver, dragType }, drop] = useDrop({
+    accept: ['calendar-event', 'STAFF'],
     drop: async (item: any) => {
-      if (onEventDrop && item.eventId && item.resourceId !== resourceId) {
+      // Handle event drops
+      if (item.eventId && onEventDrop && item.resourceId !== resourceId) {
         console.log('Dropping event:', {
           eventId: item.eventId,
           fromResource: item.resourceId,
@@ -96,9 +100,25 @@ const DroppableTimeSlot: React.FC<{
           console.error('Error dropping event:', error);
         }
       }
+      
+      // Handle staff drops
+      if (item.id && !item.eventId && onStaffDrop) {
+        console.log('Dropping staff:', {
+          staffId: item.id,
+          toResource: resourceId,
+          targetDate: day
+        });
+        
+        try {
+          await onStaffDrop(item.id, resourceId, day);
+        } catch (error) {
+          console.error('Error dropping staff:', error);
+        }
+      }
     },
     collect: (monitor) => ({
       isOver: monitor.isOver(),
+      dragType: monitor.getItemType(),
     }),
   });
 
@@ -195,7 +215,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     handleEventClick(formattedEventInfo);
   };
 
-  // Get assigned staff for a team on this day - FIXED: Use correct function name
+  // Get assigned staff for a team on this day
   const getAssignedStaffForTeam = (teamId: string) => {
     if (!weeklyStaffOperations) return [];
     return weeklyStaffOperations.getStaffForTeamAndDate(teamId, day) || [];
@@ -206,6 +226,13 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     console.log('TimeGrid: Opening staff selection for', { resourceId, resourceTitle, day });
     if (onOpenStaffSelection) {
       onOpenStaffSelection(resourceId, resourceTitle, day);
+    }
+  };
+
+  // Handle staff removal
+  const handleStaffRemoval = async (staffId: string, teamId: string) => {
+    if (onStaffDrop) {
+      await onStaffDrop(staffId, null, day);
     }
   };
 
@@ -279,34 +306,42 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         const assignedStaff = getAssignedStaffForTeam(resource.id);
         
         return (
-          <div 
+          <DroppableTimeSlot
             key={`staff-${resource.id}`}
-            className="staff-assignment-header-row"
-            style={{ 
-              gridColumn: index + 2,
-              gridRow: 3,
-              width: `${teamColumnWidth}px`,
-              minWidth: `${teamColumnWidth}px`
-            }}
+            resourceId={resource.id}
+            day={day}
+            timeSlot="staff-assignment"
+            onStaffDrop={onStaffDrop}
           >
-            <div className="staff-header-assignment-area">
-              <div className="staff-count-info">
-                {assignedStaff.length} staff
-              </div>
-              <div className="assigned-staff-header-list">
-                {assignedStaff.map((staff) => (
-                  <div key={staff.id} className="staff-header-item">
-                    <div 
-                      className="text-xs px-1 py-0.5 bg-blue-100 text-blue-800 rounded"
-                      title={staff.name}
-                    >
-                      {staff.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
-                    </div>
-                  </div>
-                ))}
+            <div 
+              className="staff-assignment-header-row"
+              style={{ 
+                gridColumn: index + 2,
+                gridRow: 3,
+                width: `${teamColumnWidth}px`,
+                minWidth: `${teamColumnWidth}px`
+              }}
+            >
+              <div className="staff-header-assignment-area">
+                <div className="staff-count-info">
+                  {assignedStaff.length} staff
+                </div>
+                <div className="assigned-staff-header-list">
+                  {assignedStaff.map((staff) => (
+                    <UnifiedDraggableStaffItem
+                      key={staff.id}
+                      staff={staff}
+                      onRemove={() => handleStaffRemoval(staff.id, resource.id)}
+                      currentDate={day}
+                      teamName={resource.title}
+                      variant="compact"
+                      showRemoveDialog={true}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          </DroppableTimeSlot>
         );
       })}
 
@@ -328,8 +363,9 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             key={`timeslots-${resource.id}`}
             resourceId={resource.id}
             day={day}
-            timeSlot="any" // We can make this more specific if needed
+            timeSlot="any"
             onEventDrop={onEventDrop}
+            onStaffDrop={onStaffDrop}
           >
             <div 
               style={{ 
