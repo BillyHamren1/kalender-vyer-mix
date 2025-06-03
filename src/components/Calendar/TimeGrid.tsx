@@ -2,7 +2,6 @@
 import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
-import StaffAssignmentArea from './StaffAssignmentArea';
 import BookingEvent from './BookingEvent';
 import EventHoverCard from './EventHoverCard';
 import { useWeeklyStaffOperations } from '@/hooks/useWeeklyStaffOperations';
@@ -96,6 +95,20 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     handleEventClick(formattedEventInfo);
   };
 
+  // Get assigned staff for a team on this day
+  const getAssignedStaffForTeam = (teamId: string) => {
+    if (!weeklyStaffOperations) return [];
+    return weeklyStaffOperations.getAssignedStaffForTeamAndDate(teamId, day) || [];
+  };
+
+  // Handle staff selection button click
+  const handleStaffSelectionClick = (resourceId: string, resourceTitle: string) => {
+    console.log('TimeGrid: Opening staff selection for', { resourceId, resourceTitle, day });
+    if (onOpenStaffSelection) {
+      onOpenStaffSelection(resourceId, resourceTitle, day);
+    }
+  };
+
   console.log('TimeGrid: Width calculations', {
     dayWidth,
     timeColumnWidth,
@@ -129,57 +142,73 @@ const TimeGrid: React.FC<TimeGridProps> = ({
       <div className="time-empty-cell" style={{ gridRow: 2 }}></div>
 
       {/* Team Headers Row */}
-      {resources.map((resource, index) => (
-        <div 
-          key={`header-${resource.id}`}
-          className="team-header-cell"
-          style={{ 
-            gridColumn: index + 2,
-            gridRow: 2,
-            borderLeft: `3px solid ${resource.eventColor}`,
-            width: `${teamColumnWidth}px`,
-            minWidth: `${teamColumnWidth}px`
-          }}
-        >
-          <div className="team-header-content">
-            <span className="team-title" title={resource.title}>{resource.title}</span>
-            <button
-              className="add-staff-button-header"
-              onClick={() => onOpenStaffSelection?.(resource.id, resource.title, day)}
-            >
-              +
-            </button>
+      {resources.map((resource, index) => {
+        const assignedStaff = getAssignedStaffForTeam(resource.id);
+        
+        return (
+          <div 
+            key={`header-${resource.id}`}
+            className="team-header-cell"
+            style={{ 
+              gridColumn: index + 2,
+              gridRow: 2,
+              borderLeft: `3px solid ${resource.eventColor}`,
+              width: `${teamColumnWidth}px`,
+              minWidth: `${teamColumnWidth}px`
+            }}
+          >
+            <div className="team-header-content">
+              <span className="team-title" title={resource.title}>{resource.title}</span>
+              <button
+                className="add-staff-button-header"
+                onClick={() => handleStaffSelectionClick(resource.id, resource.title)}
+                title={`Assign staff to ${resource.title}`}
+              >
+                +
+              </button>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {/* Empty cell for staff assignment row alignment */}
       <div className="staff-row-time-cell" style={{ gridRow: 3 }}></div>
 
-      {/* Staff Assignment Row - dedicated space above time slots */}
-      {resources.map((resource, index) => (
-        <div 
-          key={`staff-${resource.id}`}
-          className="staff-assignment-header-row"
-          style={{ 
-            gridColumn: index + 2,
-            gridRow: 3,
-            width: `${teamColumnWidth}px`,
-            minWidth: `${teamColumnWidth}px`
-          }}
-        >
-          <StaffAssignmentArea
-            day={day}
-            resource={resource}
-            events={getEventsForDayAndResource(day, resource.id)}
-            onStaffDrop={onStaffDrop}
-            onOpenStaffSelection={onOpenStaffSelection}
-            timeSlots={[]}
-            isHeaderRow={true}
-            weeklyStaffOperations={weeklyStaffOperations}
-          />
-        </div>
-      ))}
+      {/* Staff Assignment Display Row - shows assigned staff count and names */}
+      {resources.map((resource, index) => {
+        const assignedStaff = getAssignedStaffForTeam(resource.id);
+        
+        return (
+          <div 
+            key={`staff-${resource.id}`}
+            className="staff-assignment-header-row"
+            style={{ 
+              gridColumn: index + 2,
+              gridRow: 3,
+              width: `${teamColumnWidth}px`,
+              minWidth: `${teamColumnWidth}px`
+            }}
+          >
+            <div className="staff-header-assignment-area">
+              <div className="staff-count-info">
+                {assignedStaff.length} staff
+              </div>
+              <div className="assigned-staff-header-list">
+                {assignedStaff.map((staff) => (
+                  <div key={staff.id} className="staff-header-item">
+                    <div 
+                      className="text-xs px-1 py-0.5 bg-blue-100 text-blue-800 rounded"
+                      title={staff.name}
+                    >
+                      {staff.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })}
 
       {/* Time Labels Column */}
       <div className="time-labels-column" style={{ gridRow: 4 }}>
