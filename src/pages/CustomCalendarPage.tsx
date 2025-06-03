@@ -11,7 +11,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CustomCalendar from '@/components/Calendar/CustomCalendar';
 import AvailableStaffDisplay from '@/components/Calendar/AvailableStaffDisplay';
-import StaffSelectionDialog from '@/components/Calendar/StaffSelectionDialog';
+import SimpleStaffCurtain from '@/components/Calendar/SimpleStaffCurtain';
 import { startOfWeek } from 'date-fns';
 
 const CustomCalendarPage = () => {
@@ -37,8 +37,8 @@ const CustomCalendarPage = () => {
   // Use the new weekly staff operations hook
   const weeklyStaffOps = useWeeklyStaffOperations(currentWeekStart);
 
-  // Staff selection dialog state
-  const [staffDialogOpen, setStaffDialogOpen] = useState(false);
+  // Staff curtain state - simplified
+  const [staffCurtainOpen, setStaffCurtainOpen] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<{
     resourceId: string;
     resourceTitle: string;
@@ -57,19 +57,25 @@ const CustomCalendarPage = () => {
     }
   };
 
-  // Handle opening staff selection dialog
+  // Handle opening staff curtain
   const handleOpenStaffSelection = (resourceId: string, resourceTitle: string, targetDate: Date) => {
-    console.log('Opening staff selection for:', { resourceId, resourceTitle, targetDate });
+    console.log('Opening staff curtain for:', { resourceId, resourceTitle, targetDate });
     setSelectedTeam({ resourceId, resourceTitle, targetDate });
-    setStaffDialogOpen(true);
+    setStaffCurtainOpen(true);
   };
 
-  // Handle staff assignment from dialog
-  const handleStaffAssigned = async (staffId: string, staffName: string) => {
+  // Handle staff assignment from curtain
+  const handleStaffAssigned = async (staffId: string, teamId: string) => {
     if (selectedTeam) {
-      console.log('Assigning staff from dialog:', { staffId, staffName, team: selectedTeam });
-      await handleStaffDrop(staffId, selectedTeam.resourceId, selectedTeam.targetDate);
+      console.log('Assigning staff from curtain:', { staffId, teamId, team: selectedTeam });
+      await handleStaffDrop(staffId, teamId, selectedTeam.targetDate);
     }
+  };
+
+  // Close curtain
+  const handleCloseCurtain = () => {
+    setStaffCurtainOpen(false);
+    setSelectedTeam(null);
   };
 
   return (
@@ -122,15 +128,14 @@ const CustomCalendarPage = () => {
             isLoading={weeklyStaffOps.isLoading}
           />
 
-          {/* Staff Selection Dialog - remove availableStaff prop to fix build error */}
-          {selectedTeam && (
-            <StaffSelectionDialog
-              resourceId={selectedTeam.resourceId}
-              resourceTitle={selectedTeam.resourceTitle}
+          {/* Simple Staff Curtain */}
+          {staffCurtainOpen && selectedTeam && (
+            <SimpleStaffCurtain
               currentDate={selectedTeam.targetDate}
-              open={staffDialogOpen}
-              onOpenChange={setStaffDialogOpen}
-              onStaffAssigned={handleStaffAssigned}
+              onClose={handleCloseCurtain}
+              onAssignStaff={handleStaffAssigned}
+              selectedTeamId={selectedTeam.resourceId}
+              selectedTeamName={selectedTeam.resourceTitle}
             />
           )}
         </div>
