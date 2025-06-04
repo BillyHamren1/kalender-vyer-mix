@@ -1,13 +1,12 @@
+
 import React, { useState, useMemo } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format, startOfDay, endOfDay, addDays, subDays, isWithinInterval } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Users, RefreshCw, Calendar, Settings, Database } from 'lucide-react';
+import { Users, RefreshCw, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
-import HistoricalImportControls from './HistoricalImportControls';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface StaffBookingsListProps {
   events: CalendarEvent[];
@@ -24,7 +23,6 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
   weeklyStaffOperations,
   backgroundImport
 }) => {
-  const [showHistoricalImport, setShowHistoricalImport] = useState(false);
   const [dateRange, setDateRange] = useState(7); // days
 
   // Calculate date range for filtering
@@ -85,14 +83,6 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
     }
   };
 
-  const handleHistoricalImportComplete = () => {
-    // Refresh the page data after historical import
-    if (backgroundImport?.performManualRefresh) {
-      backgroundImport.performManualRefresh();
-    }
-    setShowHistoricalImport(false);
-  };
-
   const sortedDates = Object.keys(eventsByDate).sort();
 
   return (
@@ -107,7 +97,7 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
           </p>
         </div>
         
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex gap-2">
           <Button
             variant="outline"
             onClick={handleRefresh}
@@ -117,24 +107,8 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
             <RefreshCw className={`h-4 w-4 ${backgroundImport?.isImporting ? 'animate-spin' : ''}`} />
             Refresh Data
           </Button>
-          
-          <Button
-            variant="outline"
-            onClick={() => setShowHistoricalImport(!showHistoricalImport)}
-            className="flex items-center gap-2"
-          >
-            <Database className="h-4 w-4" />
-            Historical Import
-          </Button>
         </div>
       </div>
-
-      {/* Historical Import Controls */}
-      <Collapsible open={showHistoricalImport} onOpenChange={setShowHistoricalImport}>
-        <CollapsibleContent className="space-y-4">
-          <HistoricalImportControls onImportComplete={handleHistoricalImportComplete} />
-        </CollapsibleContent>
-      </Collapsible>
 
       {/* Bookings List */}
       <div className="space-y-4">
@@ -146,7 +120,7 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
               <p className="text-gray-500 text-center">
                 There are no bookings scheduled for the current date range.
                 <br />
-                Try refreshing the data or importing historical bookings.
+                Try refreshing the data or check a different date range.
               </p>
             </CardContent>
           </Card>
