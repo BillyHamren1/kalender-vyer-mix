@@ -23,13 +23,14 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
   onStaffDrop,
   onEventDrop
 }) => {
+  // Create a proper DOM element ref
   const elementRef = React.useRef<HTMLDivElement>(null);
 
-  // Enhanced time calculation with better boundary handling for bidirectional movement
+  // Fixed time calculation accounting for header offset
   const getTimeSlotFromPosition = (clientY: number) => {
     if (!elementRef.current) {
       console.warn('Element ref not available for time calculation');
-      return '12:00';
+      return '12:00'; // fallback time
     }
     
     const rect = elementRef.current.getBoundingClientRect();
@@ -38,27 +39,24 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
     const headerOffset = 160;
     const relativeY = clientY - rect.top - headerOffset;
     
-    console.log('Enhanced time calculation debug:', {
+    console.log('Time calculation debug:', {
       clientY,
       rectTop: rect.top,
       headerOffset,
       relativeY,
-      direction: relativeY < 0 ? 'upward' : 'downward'
+      adjustedY: Math.max(0, relativeY) // Ensure we don't go negative
     });
     
-    // Use 25px per hour for consistency
+    // Use 25px per hour (matching TimeGrid) for consistency
     const pixelsPerHour = 25;
     const startHour = 5; // Grid starts at 5 AM
     
-    // Calculate precise time with enhanced boundary handling
-    const totalHours = relativeY / pixelsPerHour;
-    const targetHour = startHour + totalHours;
-    
-    // Ensure we stay within calendar bounds (5 AM to 11 PM)
-    const clampedHour = Math.max(5, Math.min(23, targetHour));
+    // Calculate precise time with 5-minute granularity
+    const totalHours = Math.max(0, relativeY) / pixelsPerHour; // Prevent negative hours
+    const targetHour = Math.max(5, Math.min(23, startHour + totalHours));
     
     // Round to nearest 5-minute interval for smoother drops
-    const totalMinutes = clampedHour * 60;
+    const totalMinutes = targetHour * 60;
     const roundedMinutes = Math.round(totalMinutes / 5) * 5;
     
     const finalHour = Math.floor(roundedMinutes / 60);
@@ -66,7 +64,7 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
     
     const calculatedTime = `${finalHour.toString().padStart(2, '0')}:${finalMinutes.toString().padStart(2, '0')}`;
     
-    console.log('Enhanced calculated time:', calculatedTime, 'from position:', relativeY, 'direction:', relativeY < 0 ? 'UP' : 'DOWN');
+    console.log('Calculated time:', calculatedTime, 'from position:', relativeY);
     
     return calculatedTime;
   };
@@ -120,38 +118,36 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
     }
   };
 
-  const [{ isOver, dragType, canDrop }, drop] = useDrop({
+  const [{ isOver, dragType }, drop] = useDrop({
     accept: ['staff', 'calendar-event', 'STAFF'],
     drop: async (item: any, monitor) => {
       const clientOffset = monitor.getClientOffset();
       
-      console.log('Enhanced TimeSlots: Item dropped with bidirectional support', { 
+      console.log('TimeSlots: Item dropped', { 
         item, 
         day: format(day, 'yyyy-MM-dd'), 
         resourceId: resource.id,
         eventId: item.eventId,
-        staffId: item.id,
-        dropPosition: clientOffset?.y
+        staffId: item.id 
       });
       
       try {
-        // Handle event drops with enhanced time calculation
+        // Handle event drops with time calculation - NO MANUAL REFRESH
         if (item.eventId && clientOffset) {
           const targetTime = getTimeSlotFromPosition(clientOffset.y);
           
-          console.log('Enhanced event move with bidirectional support:', {
+          console.log('Moving event with corrected time calculation:', {
             eventId: item.eventId,
             fromResource: item.resourceId,
             toResource: resource.id,
             targetTime,
-            clientY: clientOffset.y,
-            direction: 'bidirectional'
+            clientY: clientOffset.y
           });
           
           await handleEventDropOptimized(item.eventId, resource.id, day, targetTime);
           toast.success('Event moved successfully');
         }
-        // Handle staff drops
+        // Handle staff drops - NO MANUAL REFRESH
         else if ((item.id || item.staffId) && onStaffDrop) {
           const staffId = item.id || item.staffId;
           console.log('Assigning staff', staffId, 'to', resource.id);
@@ -159,17 +155,12 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
           toast.success('Staff assigned successfully');
         }
       } catch (error) {
-        console.error('Error in enhanced drop operation:', error);
+        console.error('Error in drop operation:', error);
         toast.error(`Failed to complete operation: ${error.message || 'Unknown error'}`);
       }
     },
-    canDrop: (item) => {
-      // Enhanced drop validation - allow drops from any direction
-      return item && (item.eventId || item.id || item.staffId);
-    },
     collect: (monitor) => ({
       isOver: monitor.isOver(),
-      canDrop: monitor.canDrop(),
       dragType: monitor.getItemType(),
     }),
   });
@@ -207,32 +198,25 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
   return (
     <div
       ref={combinedRef}
-      className={`time-slots-container ${isOver ? 'drop-over' : ''} ${canDrop ? 'can-drop' : ''}`}
+      className={`time-slots-container ${isOver ? 'drop-over' : ''}`}
       style={{ 
         position: 'relative',
-        backgroundColor: isOver && canDrop ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
-        border: isOver && canDrop ? '2px dashed #3b82f6' : '2px solid transparent',
+        backgroundColor: isOver ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+        border: isOver ? '2px dashed #3b82f6' : '2px solid transparent',
         transition: 'all 0.2s ease',
-        minHeight: `${timeSlots.length * 25}px`,
-        // Enhanced drop zone coverage
-        minWidth: '100%',
-        zIndex: isOver ? 10 : 1
+        minHeight: `${timeSlots.length * 25}px` // Match TimeGrid's 25px per hour
       }}
     >
-      {/* Enhanced time slot grid with better visual indicators */}
+      {/* Time slot grid with improved visual indicators */}
       {timeSlots.map((time, index) => (
         <div
           key={time}
-          className={`time-slot ${isOver ? 'highlight' : ''} ${canDrop ? 'drop-ready' : ''}`}
+          className={`time-slot ${isOver ? 'highlight' : ''}`}
           style={{
-            height: '25px',
+            height: '25px', // Match TimeGrid's slot height
             position: 'relative',
             borderBottom: '1px solid #e5e7eb',
-            backgroundColor: isOver && canDrop && dragType === 'calendar-event' 
-              ? 'rgba(59, 130, 246, 0.05)' 
-              : 'transparent',
-            // Enhanced hover feedback
-            transition: 'background-color 0.1s ease'
+            backgroundColor: isOver && dragType === 'calendar-event' ? 'rgba(59, 130, 246, 0.05)' : 'transparent'
           }}
           data-time={time}
         />

@@ -1,82 +1,317 @@
-
-/* Enhanced bidirectional drag support styles */
-.time-slots-column.can-drop {
-  border-color: #3b82f6 !important;
-  background-color: rgba(59, 130, 246, 0.05) !important;
+.time-grid-with-staff-header {
+  @apply bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden;
+  display: grid;
+  min-height: 600px;
+  height: auto;
 }
 
-.time-slots-column.drop-over.can-drop {
-  background-color: rgba(59, 130, 246, 0.1) !important;
-  border-style: dashed !important;
-  border-width: 2px !important;
+/* Time Column Header */
+.time-column-header {
+  @apply bg-gray-100 border-r border-b border-gray-200 p-2 text-center flex items-center justify-center;
+  grid-column: 1;
+  grid-row: 1;
 }
 
-.time-slot.drop-ready {
+.time-title {
+  @apply text-sm font-medium text-gray-700;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+
+/* Day Header - Team Columns Only - Updated to use teal theme */
+.day-header-teams {
+  @apply bg-[#7BAEBF] border-b-2 border-[#6E9DAC] p-4 text-center;
+  grid-row: 1;
+}
+
+.day-title {
+  @apply text-lg font-bold text-white;
+}
+
+/* Empty cells for proper alignment */
+.time-empty-cell,
+.staff-row-time-cell {
+  grid-column: 1;
+  @apply bg-gray-50 border-r border-b border-gray-200;
+  height: 40px;
+}
+
+.staff-row-time-cell {
+  height: 80px; /* Taller for staff assignment space */
+}
+
+/* Team Headers Row - Responsive with thin teal borders */
+.team-header-cell {
+  @apply bg-gray-50 border-l border-r border-b border-[#7BAEBF] p-2;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  overflow: hidden; /* Prevent overflow */
+}
+
+.team-header-cell:first-of-type {
+  @apply border-l border-[#7BAEBF];
+}
+
+.team-header-cell:last-of-type {
+  @apply border-r border-[#7BAEBF];
+}
+
+.team-header-content {
+  @apply flex items-center justify-between w-full;
+  gap: 4px; /* Reduced gap for tighter layouts */
+  min-width: 0; /* Allow shrinking */
+}
+
+.team-title {
+  @apply text-sm font-medium text-gray-700;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Updated add staff button to use teal theme */
+.add-staff-button-header {
+  @apply bg-[#7BAEBF] hover:bg-[#6E9DAC] text-white rounded-full;
+  width: 18px; /* Slightly smaller for tight spaces */
+  height: 18px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+}
+
+/* Staff Assignment Header Row - Responsive with matching teal borders */
+.staff-assignment-header-row {
+  @apply border-l border-r border-b border-[#7BAEBF] bg-gray-50/50;
+  height: 80px;
+  position: relative;
+  overflow: hidden; /* Prevent overflow */
+}
+
+.staff-assignment-header-row:first-of-type {
+  @apply border-l border-[#7BAEBF];
+}
+
+.staff-assignment-header-row:last-of-type {
+  @apply border-r border-[#7BAEBF];
+}
+
+.staff-header-assignment-area {
+  @apply h-full w-full p-2 relative;
+  transition: background-color 0.2s;
+}
+
+.staff-header-assignment-area.drop-over {
+  @apply bg-[#7BAEBF]/20;
+  border: 2px dashed #7BAEBF;
+}
+
+.staff-count-info {
+  @apply text-xs text-gray-600 mb-2;
+  font-weight: 500;
+}
+
+.assigned-staff-header-list {
+  @apply flex flex-wrap gap-1;
+  max-height: 50px;
+  overflow-y: auto;
+}
+
+.staff-header-item {
+  @apply flex-shrink-0;
+}
+
+/* Time Labels Column - positioned below staff header */
+.time-labels-column {
+  @apply border-r border-gray-200 bg-gray-50;
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.time-label-slot {
+  @apply text-xs text-gray-600 p-2 border-b border-gray-200 text-center;
+  height: 25px; /* Increased from 15px to 25px for better visibility */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+}
+
+.time-label-slot:last-child {
+  @apply border-b-0;
+}
+
+/* Time Slot Columns - OPTIMIZED for hover functionality */
+.time-slots-column {
+  @apply border-r border-gray-200 relative bg-white;
+  position: relative;
+  overflow: visible; /* Critical for hover cards */
+}
+
+.time-slots-column:last-child {
+  @apply border-r-0;
+}
+
+.time-slots-grid {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+.time-slot-cell {
+  @apply border-b border-gray-100;
+  height: 25px; /* Increased from 15px to 25px for better visibility */
+  flex-shrink: 0;
+}
+
+.time-slot-cell:last-child {
+  @apply border-b-0;
+}
+
+/* Updated drop-over styling to use teal theme */
+.time-slots-column.drop-over {
+  background-color: rgba(123, 174, 191, 0.1) !important;
+}
+
+/* Hover container for proper event detection */
+.hover-container {
   position: relative;
 }
 
-.time-slot.drop-ready::before {
-  content: '';
+/* Individual booking events - OPTIMIZED for hover */
+.booking-event {
+  pointer-events: auto !important; /* Critical for hover detection */
+  border-radius: 4px;
+  font-size: 11px;
+  padding: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 30px;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  position: relative;
+  z-index: 20;
+}
+
+.booking-event:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+  z-index: 30;
+}
+
+/* Original staff assignment area styles (for reference/fallback) */
+.staff-assignment-area-aligned {
+  @apply relative h-full;
+  position: relative;
+  min-height: 400px;
+}
+
+.time-slot-grid-aligned {
   position: absolute;
+  top: 0;
   left: 0;
   right: 0;
-  top: 50%;
-  height: 1px;
-  background-color: rgba(59, 130, 246, 0.3);
-  transform: translateY(-50%);
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-.time-slot.highlight.drop-ready::before {
-  opacity: 1;
-}
-
-.time-slot-cell.enhanced-bidirectional {
-  transition: background-color 0.1s ease;
-}
-
-.time-slot-cell.enhanced-bidirectional:hover {
-  background-color: rgba(59, 130, 246, 0.02);
-}
-
-/* Enhanced drag preview styles */
-.custom-event.dragging-preview {
-  animation: dragPulse 1s ease-in-out infinite alternate;
-}
-
-@keyframes dragPulse {
-  from {
-    transform: rotate(1deg) scale(1);
-  }
-  to {
-    transform: rotate(1deg) scale(1.02);
-  }
-}
-
-/* Drop zone visual indicators */
-.time-slots-container.can-drop {
-  position: relative;
-}
-
-.time-slots-container.can-drop::after {
-  content: '↕️ Drop here';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background-color: rgba(59, 130, 246, 0.9);
-  color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: bold;
-  opacity: 0;
-  transition: opacity 0.2s ease;
+  bottom: 0;
   pointer-events: none;
-  z-index: 100;
+  z-index: 0;
 }
 
-.time-slots-container.drop-over.can-drop::after {
-  opacity: 1;
+.time-slot-aligned {
+  @apply border-b border-gray-100;
+  height: 25px; /* Increased from 15px to 25px for better visibility */
+}
+
+.time-slot-aligned:last-child {
+  @apply border-b-0;
+}
+
+.staff-drop-zone-aligned {
+  @apply absolute inset-0;
+  transition: background-color 0.2s;
+  z-index: 1;
+}
+
+.staff-drop-zone-aligned.drop-over {
+  @apply bg-[#7BAEBF]/20;
+  border: 2px dashed #7BAEBF;
+}
+
+.drop-info-aligned {
+  @apply p-2 text-xs text-gray-500 bg-gray-50/80 rounded border;
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  right: 5px;
+  z-index: 2;
+}
+
+.assigned-staff-list-aligned {
+  position: relative;
+  z-index: 3;
+  padding-top: 35px;
+}
+
+.staff-item-positioned {
+  position: relative;
+  margin-bottom: 4px;
+  padding: 0 5px;
+}
+
+/* Responsive design - Updated for better fitting */
+@media (max-width: 768px) {
+  .time-title {
+    writing-mode: horizontal-tb;
+    text-orientation: initial;
+    font-size: 11px;
+  }
+  
+  .day-title {
+    font-size: 14px;
+  }
+  
+  .team-title {
+    font-size: 11px;
+  }
+  
+  .add-staff-button-header {
+    width: 16px;
+    height: 16px;
+    font-size: 10px;
+  }
+  
+  .staff-count-info {
+    font-size: 10px;
+  }
+}
+
+/* Calendar container styles */
+.custom-calendar-container {
+  @apply w-full h-full;
+}
+
+.weekly-calendar-container {
+  @apply w-full;
+}
+
+.weekly-calendar-grid {
+  @apply gap-1;
+}
+
+.day-calendar-wrapper {
+  @apply border-r border-gray-300;
+}
+
+.day-calendar-wrapper:last-child {
+  @apply border-r-0;
 }

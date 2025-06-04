@@ -61,7 +61,7 @@ const DraggableEvent: React.FC<{
   );
 });
 
-// Enhanced Droppable Time Slot Component with better bidirectional support
+// Enhanced Droppable Time Slot Component with corrected precision
 const DroppableTimeSlot: React.FC<{
   resourceId: string;
   day: Date;
@@ -73,7 +73,7 @@ const DroppableTimeSlot: React.FC<{
   
   const elementRef = React.useRef<HTMLDivElement>(null);
   
-  // Enhanced time calculation with better bidirectional support
+  // Fixed time calculation with proper header offset
   const getDropTime = (clientY: number) => {
     if (!elementRef.current) {
       console.warn('Element ref not available for time calculation');
@@ -86,28 +86,24 @@ const DroppableTimeSlot: React.FC<{
     const headerOffset = 160;
     const relativeY = clientY - rect.top - headerOffset;
     
-    console.log('Enhanced TimeGrid drop calculation debug:', {
+    console.log('TimeGrid drop calculation debug:', {
       clientY,
       rectTop: rect.top,
       headerOffset,
       relativeY,
-      direction: relativeY < 0 ? 'upward' : 'downward',
-      bidirectional: true
+      adjustedY: Math.max(0, relativeY)
     });
     
     // Use consistent 25px per hour
     const pixelsPerHour = 25;
     const startHour = 5; // Grid starts at 5 AM
     
-    // Calculate precise time with enhanced bidirectional support
-    const totalHours = relativeY / pixelsPerHour;
-    const targetHour = startHour + totalHours;
-    
-    // Enhanced boundary handling for both directions
-    const clampedHour = Math.max(5, Math.min(23, targetHour));
+    // Calculate precise time with 5-minute granularity
+    const totalHours = Math.max(0, relativeY) / pixelsPerHour; // Prevent negative hours
+    const targetHour = Math.max(5, Math.min(23, startHour + totalHours));
     
     // Round to nearest 5-minute interval for smoother drops
-    const totalMinutes = clampedHour * 60;
+    const totalMinutes = targetHour * 60;
     const roundedMinutes = Math.round(totalMinutes / 5) * 5;
     
     const finalHour = Math.floor(roundedMinutes / 60);
@@ -115,37 +111,36 @@ const DroppableTimeSlot: React.FC<{
     
     const calculatedTime = `${finalHour.toString().padStart(2, '0')}:${finalMinutes.toString().padStart(2, '0')}`;
     
-    console.log('Enhanced TimeGrid calculated time:', calculatedTime, 'from position:', relativeY, 'direction:', relativeY < 0 ? 'UP' : 'DOWN');
+    console.log('TimeGrid calculated time:', calculatedTime, 'from position:', relativeY);
     
     return calculatedTime;
   };
 
-  const [{ isOver, dragType, canDrop }, drop] = useDrop({
+  const [{ isOver, dragType }, drop] = useDrop({
     accept: ['calendar-event', 'STAFF'],
     drop: async (item: any, monitor) => {
       const clientOffset = monitor.getClientOffset();
       
-      console.log('Enhanced DroppableTimeSlot: Handling bidirectional drop', { 
+      console.log('DroppableTimeSlot: Handling drop with corrected precision', { 
         item, 
         resourceId, 
         day: format(day, 'yyyy-MM-dd'),
         eventId: item.eventId,
-        staffId: item.id,
-        dropPosition: clientOffset?.y
+        staffId: item.id 
       });
       
       try {
-        // Handle event drops with enhanced bidirectional precision
+        // Handle event drops with corrected precision
         if (item.eventId && onEventDrop && clientOffset) {
           const targetTime = getDropTime(clientOffset.y);
           
-          console.log('Enhanced event move with bidirectional precision:', {
+          console.log('Moving event with corrected precision:', {
             eventId: item.eventId,
             fromResource: item.resourceId,
             toResource: resourceId,
             targetTime,
             clientY: clientOffset.y,
-            precision: '5-minute intervals with bidirectional support'
+            precision: '5-minute intervals with header offset correction'
           });
           
           await onEventDrop(item.eventId, resourceId, day, targetTime);
@@ -158,17 +153,12 @@ const DroppableTimeSlot: React.FC<{
           toast.success('Staff assigned successfully');
         }
       } catch (error) {
-        console.error('Error in enhanced drop operation:', error);
+        console.error('Error in drop operation:', error);
         toast.error(`Failed to complete operation: ${error.message || 'Unknown error'}`);
       }
     },
-    canDrop: (item) => {
-      // Enhanced drop validation for bidirectional movement
-      return item && (item.eventId || item.id);
-    },
     collect: (monitor) => ({
       isOver: monitor.isOver(),
-      canDrop: monitor.canDrop(),
       dragType: monitor.getItemType(),
     }),
   });
@@ -181,17 +171,14 @@ const DroppableTimeSlot: React.FC<{
   return (
     <div
       ref={combinedRef}
-      className={`time-slots-column hover-container ${isOver ? 'drop-over' : ''} ${canDrop ? 'can-drop' : ''}`}
+      className={`time-slots-column hover-container ${isOver ? 'drop-over' : ''}`}
       style={{ 
         width: `100%`,
         minWidth: `100%`,
         position: 'relative',
-        backgroundColor: isOver && canDrop ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
-        border: isOver && canDrop ? '2px dashed #3b82f6' : '2px solid transparent',
-        transition: 'all 0.2s ease',
-        // Enhanced drop zone coverage for bidirectional movement
-        minHeight: '100%',
-        zIndex: isOver ? 10 : 1
+        backgroundColor: isOver ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+        border: isOver ? '2px dashed #3b82f6' : '2px solid transparent',
+        transition: 'all 0.2s ease'
       }}
     >
       {children}
@@ -293,7 +280,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     }
   };
 
-  // Enhanced event drop handler with bidirectional precision
+  // Optimized event drop handler with improved precision
   const handleEventDropOptimized = async (
     eventId: string, 
     targetResourceId: string, 
@@ -301,12 +288,12 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     targetTime: string
   ) => {
     try {
-      console.log('Enhanced TimeGrid: Handling bidirectional event drop', {
+      console.log('TimeGrid: Handling optimized event drop with enhanced precision', {
         eventId,
         targetResourceId,
         targetDate: format(targetDate, 'yyyy-MM-dd'),
         targetTime,
-        precision: '5-minute intervals with bidirectional support'
+        precision: '5-minute intervals'
       });
 
       const [hours, minutes] = targetTime.split(':').map(Number);
@@ -324,24 +311,24 @@ const TimeGrid: React.FC<TimeGridProps> = ({
       
       const newEndTime = new Date(newStartTime.getTime() + duration);
       
-      // Update with enhanced bidirectional precision
+      // Update immediately with enhanced precision
       await updateCalendarEvent(eventId, {
         start: newStartTime.toISOString(),
         end: newEndTime.toISOString(),
         resourceId: targetResourceId
       });
 
-      console.log('Event updated successfully with bidirectional support');
+      console.log('Event updated successfully with 5-minute precision');
       
     } catch (error) {
-      console.error('Error handling enhanced event drop:', error);
+      console.error('Error handling event drop:', error);
       throw error;
     }
   };
 
   return (
     <>
-      {/* Enhanced drag layer for better visual feedback */}
+      {/* Add drag layer for smooth visual feedback */}
       <DragLayer />
       
       <div 
@@ -443,7 +430,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           ))}
         </div>
 
-        {/* Enhanced Time Slot Columns with bidirectional support */}
+        {/* Enhanced Time Slot Columns with improved precision */}
         {resources.map((resource, index) => {
           const resourceEvents = getEventsForDayAndResource(day, resource.id);
           
@@ -465,14 +452,14 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   position: 'relative'
                 }}
               >
-                {/* Enhanced time slots grid with bidirectional precision indicators */}
+                {/* Time slots grid with enhanced precision indicators */}
                 <div className="time-slots-grid">
                   {timeSlots.map((slot) => (
-                    <div key={slot.time} className="time-slot-cell enhanced-bidirectional" />
+                    <div key={slot.time} className="time-slot-cell" />
                   ))}
                 </div>
                 
-                {/* Events positioned absolutely with enhanced bidirectional precision */}
+                {/* Events positioned absolutely with enhanced precision */}
                 {resourceEvents.map((event) => {
                   const position = getEventPosition(event);
                   return (

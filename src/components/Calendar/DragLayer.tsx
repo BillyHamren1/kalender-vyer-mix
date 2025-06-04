@@ -3,7 +3,6 @@ import React from 'react';
 import { useDragLayer } from 'react-dnd';
 import { CalendarEvent, getEventColor } from './ResourceData';
 import { format } from 'date-fns';
-import { ArrowUp, ArrowDown } from 'lucide-react';
 
 const DragLayer: React.FC = () => {
   const {
@@ -44,42 +43,24 @@ const DragLayer: React.FC = () => {
         className="custom-event dragging-preview"
         style={{
           backgroundColor: eventColor,
-          opacity: 0.9,
-          borderRadius: '6px',
-          padding: '6px 10px',
-          minWidth: '140px',
-          minHeight: '35px',
-          border: '2px solid #3b82f6',
-          transform: 'rotate(1deg)',
-          boxShadow: '0 6px 20px rgba(0, 0, 0, 0.25)',
+          opacity: 0.8,
+          borderRadius: '4px',
+          padding: '4px 8px',
+          minWidth: '120px',
+          minHeight: '30px',
+          border: '2px dashed #3b82f6',
+          transform: 'rotate(2deg)',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
           cursor: 'grabbing',
-          position: 'relative',
         }}
       >
         <div className="event-content">
-          <div className="event-title" style={{ fontSize: '13px', fontWeight: 'bold', color: '#000000' }}>
+          <div className="event-title" style={{ fontSize: '12px', fontWeight: 'bold', color: '#000000' }}>
             {event.title}
           </div>
-          <div className="event-time" style={{ fontSize: '11px', color: '#000000', marginBottom: '2px' }}>
+          <div className="event-time" style={{ fontSize: '10px', color: '#000000' }}>
             {startTime} - {endTime}
           </div>
-        </div>
-        
-        {/* Bidirectional drag indicators */}
-        <div 
-          style={{
-            position: 'absolute',
-            right: '4px',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            opacity: 0.7
-          }}
-        >
-          <ArrowUp className="h-3 w-3 text-blue-600" />
-          <ArrowDown className="h-3 w-3 text-blue-600" />
         </div>
       </div>
     </div>
