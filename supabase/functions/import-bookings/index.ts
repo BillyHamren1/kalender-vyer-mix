@@ -157,8 +157,18 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { quiet = false, syncMode = 'incremental' } = await req.json()
-    console.log(`Starting import with sync mode: ${syncMode}`)
+    const { 
+      quiet = false, 
+      syncMode = 'incremental',
+      historicalMode = false,
+      forceHistoricalImport = false,
+      startDate,
+      endDate
+    } = await req.json()
+    
+    const isHistoricalImport = historicalMode || forceHistoricalImport;
+    
+    console.log(`Starting import with sync mode: ${syncMode}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
 
     // Get API key from secrets
     const importApiKey = Deno.env.get('IMPORT_API_KEY')
@@ -166,9 +176,9 @@ serve(async (req) => {
       throw new Error('IMPORT_API_KEY not configured')
     }
 
-    // Get the last sync timestamp for incremental sync
+    // Get the last sync timestamp for incremental sync (but not for historical)
     let lastSyncTimestamp = null;
-    if (syncMode === 'incremental') {
+    if (syncMode === 'incremental' && !isHistoricalImport) {
       const { data: syncState } = await supabase
         .from('sync_state')
         .select('last_sync_timestamp')
@@ -177,17 +187,32 @@ serve(async (req) => {
       
       lastSyncTimestamp = syncState?.last_sync_timestamp;
       console.log(`Last sync timestamp: ${lastSyncTimestamp}`);
+    } else if (isHistoricalImport) {
+      console.log('HISTORICAL MODE: Ignoring last sync timestamp, will import all bookings');
     }
 
     // Build API URL with timestamp filter for incremental sync
     let apiUrl = 'https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings';
-    if (syncMode === 'incremental' && lastSyncTimestamp) {
+    
+    // For incremental sync (non-historical), use timestamp filtering
+    if (syncMode === 'incremental' && lastSyncTimestamp && !isHistoricalImport) {
       const sinceDate = new Date(lastSyncTimestamp).toISOString();
       apiUrl += `?since=${encodeURIComponent(sinceDate)}`;
       console.log(`Fetching bookings modified since: ${sinceDate}`);
     }
+    
+    // For historical imports with date range
+    if (isHistoricalImport && (startDate || endDate)) {
+      const params = new URLSearchParams();
+      if (startDate) params.append('start_date', startDate);
+      if (endDate) params.append('end_date', endDate);
+      if (params.toString()) {
+        apiUrl += `?${params.toString()}`;
+        console.log(`Historical import with date range: ${startDate || 'beginning'} to ${endDate || 'end'}`);
+      }
+    }
 
-    // Fetch bookings from export-bookings function with timestamp filter
+    // Fetch bookings from export-bookings function
     const externalResponse = await fetch(apiUrl, {
       headers: {
         'Authorization': `Bearer ${importApiKey}`,
@@ -222,7 +247,7 @@ serve(async (req) => {
       duplicates_skipped: [],
       unchanged_bookings_skipped: [],
       errors: [],
-      sync_mode: syncMode,
+      sync_mode: isHistoricalImport ? 'historical' : syncMode,
       team_distribution: {
         'team-1': 0,
         'team-2': 0,
@@ -254,12 +279,17 @@ serve(async (req) => {
       try {
         results.total++
 
-        // FILTER OUT CANCELLED BOOKINGS - DO NOT IMPORT THEM AT ALL
+        // FILTER OUT CANCELLED BOOKINGS - DO NOT IMPORT THEM AT ALL (unless historical import)
         const bookingStatus = (externalBooking.status || 'PENDING').toUpperCase()
-        if (bookingStatus === 'CANCELLED') {
+        if (bookingStatus === 'CANCELLED' && !isHistoricalImport) {
           console.log(`Skipping CANCELLED booking: ${externalBooking.id}`)
           results.cancelled_bookings_skipped.push(externalBooking.id)
           continue
+        }
+
+        // For historical imports, log but still process cancelled bookings
+        if (bookingStatus === 'CANCELLED' && isHistoricalImport) {
+          console.log(`Historical mode: Processing CANCELLED booking: ${externalBooking.id}`)
         }
 
         // Check for existing booking
@@ -321,7 +351,7 @@ serve(async (req) => {
           version: 1
         }
 
-        console.log(`Processing booking ${bookingData.id} with status: ${bookingData.status}`)
+        console.log(`Processing booking ${bookingData.id} with status: ${bookingData.status}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
 
         if (existingBooking) {
           // EXISTING BOOKING - UPDATE ONLY IF ACTUALLY DIFFERENT
@@ -381,7 +411,7 @@ serve(async (req) => {
 
         } else {
           // NEW BOOKING - Insert only if truly new
-          console.log(`Inserting new booking ${bookingData.id}`)
+          console.log(`Inserting new booking ${bookingData.id}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
           
           const { error: insertError } = await supabase
             .from('bookings')
@@ -461,7 +491,7 @@ serve(async (req) => {
 
         results.imported++
 
-        // SMART CALENDAR EVENT HANDLING - ONLY CREATE NEW EVENTS, NEVER OVERRIDE MANUAL ASSIGNMENTS
+        // SMART CALENDAR EVENT HANDLING - CREATE EVENTS FOR ALL CONFIRMED BOOKINGS (INCLUDING HISTORICAL)
         if (bookingData.status === 'CONFIRMED') {
           // Check if calendar events already exist for this booking
           const { data: existingEvents } = await supabase
@@ -524,7 +554,7 @@ serve(async (req) => {
           }
 
           if (calendarEvents.length > 0) {
-            console.log(`Creating ${calendarEvents.length} new calendar events for booking ${bookingData.id}`)
+            console.log(`Creating ${calendarEvents.length} new calendar events for booking ${bookingData.id}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
 
             // Use smart team assignment for each event
             for (const event of calendarEvents) {
@@ -571,26 +601,31 @@ serve(async (req) => {
       }
     }
 
-    // SAVE SYNC TIMESTAMP - This is crucial for incremental sync
+    // SAVE SYNC TIMESTAMP - but only for non-historical imports
     const currentTimestamp = new Date().toISOString()
     console.log(`Saving sync timestamp: ${currentTimestamp}`)
     console.log(`Team distribution summary:`, results.team_distribution)
     console.log(`Unchanged bookings skipped: ${results.unchanged_bookings_skipped.length}`)
     
-    const { error: syncError } = await supabase
-      .from('sync_state')
-      .upsert({
-        sync_type: 'booking_import',
-        last_sync_timestamp: currentTimestamp,
-        last_sync_mode: syncMode,
-        last_sync_status: results.failed > 0 ? 'partial_success' : 'success',
-        metadata: { results }
-      })
+    // Only update sync timestamp for non-historical imports
+    if (!isHistoricalImport) {
+      const { error: syncError } = await supabase
+        .from('sync_state')
+        .upsert({
+          sync_type: 'booking_import',
+          last_sync_timestamp: currentTimestamp,
+          last_sync_mode: syncMode,
+          last_sync_status: results.failed > 0 ? 'partial_success' : 'success',
+          metadata: { results }
+        })
 
-    if (syncError) {
-      console.error('Error saving sync state:', syncError)
+      if (syncError) {
+        console.error('Error saving sync state:', syncError)
+      } else {
+        console.log('Sync timestamp saved successfully')
+      }
     } else {
-      console.log('Sync timestamp saved successfully')
+      console.log('Historical import: NOT updating sync timestamp to preserve incremental sync state')
     }
 
     console.log('Import results:', {
@@ -602,7 +637,8 @@ serve(async (req) => {
       duplicates_skipped: results.duplicates_skipped.length,
       cancelled_skipped: results.cancelled_bookings_skipped.length,
       calendar_events_created: results.calendar_events_created,
-      team_distribution: results.team_distribution
+      team_distribution: results.team_distribution,
+      mode: isHistoricalImport ? 'HISTORICAL' : syncMode
     })
 
     return new Response(

@@ -34,16 +34,18 @@ export interface ImportResults {
   status?: number;
 }
 
-// Type for filter options
+// Enhanced type for filter options with historical support
 export interface ImportFilters {
   startDate?: string;
   endDate?: string;
   clientName?: string;
-  syncMode?: SyncMode;
+  syncMode?: SyncMode | 'historical';
+  includeHistorical?: boolean;
+  forceHistoricalImport?: boolean;
 }
 
 /**
- * Enhanced import bookings with duplicate cleanup and proper timestamp handling
+ * Enhanced import bookings with historical support and duplicate cleanup
  */
 export const importBookings = async (filters: ImportFilters = {}): Promise<ImportResults> => {
   const syncType = 'booking_import';
@@ -55,15 +57,26 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
     console.log('Cleaning up existing duplicates before import...');
     await cleanupDuplicateCalendarEvents();
     
-    toast.info('Initializing booking synchronization...', {
-      duration: 3000,
-    });
+    // Handle historical import mode
+    const isHistoricalMode = filters.syncMode === 'historical' || filters.includeHistorical || filters.forceHistoricalImport;
+    
+    if (isHistoricalMode) {
+      syncMode = 'full';
+      console.log('Running in HISTORICAL import mode - will import all bookings regardless of date');
+      toast.info('Starting historical import - this may take longer...', {
+        duration: 5000,
+      });
+    } else {
+      toast.info('Initializing booking synchronization...', {
+        duration: 3000,
+      });
+    }
     
     // Get or determine sync mode
-    if (filters.syncMode) {
+    if (filters.syncMode && filters.syncMode !== 'historical') {
       syncMode = filters.syncMode;
       console.log(`Using manually specified sync mode: ${syncMode}`);
-    } else {
+    } else if (!isHistoricalMode) {
       syncMode = await getRecommendedSyncMode(syncType);
       console.log(`Using recommended sync mode: ${syncMode}`);
     }
@@ -75,7 +88,8 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
         metadata: { 
           started_at: new Date().toISOString(),
           sync_mode: syncMode,
-          filters 
+          filters,
+          historical_mode: isHistoricalMode
         }
       });
     } catch (error) {
@@ -83,9 +97,9 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
       await initializeSyncState(syncType, syncMode, 'in_progress');
     }
     
-    // Adjust filters for incremental sync
+    // Adjust filters for incremental sync (but not for historical mode)
     const enhancedFilters = { ...filters };
-    if (syncMode === 'incremental') {
+    if (syncMode === 'incremental' && !isHistoricalMode) {
       try {
         const syncState = await getSyncState(syncType);
         if (syncState?.last_sync_timestamp) {
@@ -100,7 +114,15 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
       }
     }
     
-    toast.info(`Starting ${syncMode} synchronization...`, {
+    // For historical imports, remove any date restrictions
+    if (isHistoricalMode) {
+      delete enhancedFilters.startDate;
+      delete enhancedFilters.endDate;
+      enhancedFilters.forceHistoricalImport = true;
+      console.log('Historical mode: removed all date restrictions');
+    }
+    
+    toast.info(`Starting ${isHistoricalMode ? 'historical' : syncMode} synchronization...`, {
       duration: 2000,
     });
     
@@ -114,7 +136,8 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
           syncMode, 
           handleStatusChanges: true,
           preventDuplicateEvents: true,
-          useTimestampFiltering: true
+          useTimestampFiltering: !isHistoricalMode,
+          historicalMode: isHistoricalMode
         }
       }
     );
@@ -129,7 +152,8 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
         metadata: { 
           error: functionError.message,
           sync_mode: syncMode,
-          duration_ms: syncDurationMs
+          duration_ms: syncDurationMs,
+          historical_mode: isHistoricalMode
         }
       });
       
@@ -152,7 +176,8 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
           details,
           status,
           sync_mode: syncMode,
-          duration_ms: syncDurationMs
+          duration_ms: syncDurationMs,
+          historical_mode: isHistoricalMode
         }
       });
       
@@ -178,7 +203,8 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
       last_sync_mode: syncMode,
       metadata: { 
         ...results,
-        completed_at: new Date().toISOString()
+        completed_at: new Date().toISOString(),
+        historical_mode: isHistoricalMode
       }
     });
     
@@ -207,7 +233,8 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
         description += ` • ${cancelledSkippedCount} CANCELLED skipped`;
       }
       
-      toast.success(`${syncMode.charAt(0).toUpperCase() + syncMode.slice(1)} sync completed`, {
+      const syncTypeDisplay = isHistoricalMode ? 'Historical' : syncMode.charAt(0).toUpperCase() + syncMode.slice(1);
+      toast.success(`${syncTypeDisplay} sync completed`, {
         description
       });
     } else {
@@ -219,7 +246,8 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
         description += ` • ${cancelledSkippedCount} CANCELLED skipped`;
       }
       
-      toast.success(`${syncMode.charAt(0).toUpperCase() + syncMode.slice(1)} sync completed`, {
+      const syncTypeDisplay = isHistoricalMode ? 'Historical' : syncMode.charAt(0).toUpperCase() + syncMode.slice(1);
+      toast.success(`${syncTypeDisplay} sync completed`, {
         description
       });
     }
@@ -249,6 +277,19 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
       error: error instanceof Error ? error.message : 'Unknown error during import',
     };
   }
+};
+
+/**
+ * Force a historical synchronization (imports ALL bookings regardless of date)
+ */
+export const forceHistoricalSync = async (filters: Omit<ImportFilters, 'syncMode'> = {}): Promise<ImportResults> => {
+  console.log('Starting HISTORICAL SYNC - will import all bookings regardless of age');
+  return importBookings({ 
+    ...filters, 
+    syncMode: 'historical',
+    forceHistoricalImport: true,
+    includeHistorical: true
+  });
 };
 
 /**

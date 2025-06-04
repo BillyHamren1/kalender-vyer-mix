@@ -1,6 +1,6 @@
 
 import { useEffect, useRef, useState } from 'react';
-import { quietImportBookings, importBookings, getSyncStatus } from '@/services/importService';
+import { quietImportBookings, importBookings, getSyncStatus, forceHistoricalSync } from '@/services/importService';
 import { useQueryClient } from '@tanstack/react-query';
 
 interface UseBackgroundImportOptions {
@@ -17,6 +17,7 @@ export const useBackgroundImport = (options: UseBackgroundImportOptions = {}) =>
   } = options;
 
   const [isImporting, setIsImporting] = useState(false);
+  const [isHistoricalImporting, setIsHistoricalImporting] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -45,6 +46,36 @@ export const useBackgroundImport = (options: UseBackgroundImportOptions = {}) =>
       throw error;
     } finally {
       setIsImporting(false);
+    }
+  };
+
+  // Historical import function
+  const performHistoricalImport = async (startDate?: string, endDate?: string) => {
+    try {
+      setIsHistoricalImporting(true);
+      const result = await forceHistoricalSync({
+        startDate,
+        endDate,
+        includeHistorical: true
+      });
+      
+      if (result.success) {
+        // Invalidate relevant queries to refresh data
+        await queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+        await queryClient.invalidateQueries({ queryKey: ['bookings'] });
+        await queryClient.invalidateQueries({ queryKey: ['bookings-for-status'] });
+        
+        if (onImportComplete) {
+          onImportComplete(result.results);
+        }
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Historical import failed:', error);
+      throw error;
+    } finally {
+      setIsHistoricalImporting(false);
     }
   };
 
@@ -119,9 +150,11 @@ export const useBackgroundImport = (options: UseBackgroundImportOptions = {}) =>
 
   return {
     isImporting,
+    isHistoricalImporting,
     lastSyncTime,
     syncStatus,
     performManualRefresh,
+    performHistoricalImport,
     updateSyncStatus
   };
 };
