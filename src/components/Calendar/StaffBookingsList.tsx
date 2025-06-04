@@ -4,9 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Clock, Users, Calendar, MapPin, Search, Filter, FileDown } from 'lucide-react';
-import { format, differenceInHours } from 'date-fns';
+import { Clock, Users, Calendar, MapPin, Search, Filter, FileDown, ChevronDown, ChevronUp } from 'lucide-react';
+import { format, differenceInHours, isWithinInterval, parseISO } from 'date-fns';
 import { CalendarEvent, Resource } from './ResourceData';
+import StatusChangeForm from '@/components/booking/StatusChangeForm';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 interface StaffAssignment {
   staffId: string;
@@ -27,6 +30,8 @@ interface BookingWithStaff {
   staffAssignments: StaffAssignment[];
   totalStaffHours: number;
   eventTypes: string[];
+  status?: string;
+  originalBookingData?: any;
 }
 
 interface StaffBookingsListProps {
@@ -47,6 +52,27 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEventType, setSelectedEventType] = useState<string>('all');
   const [selectedStaff, setSelectedStaff] = useState<string>('all');
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
+  const queryClient = useQueryClient();
+
+  // Fetch booking data to get status information
+  const { data: bookingsData = [] } = useQuery({
+    queryKey: ['bookings-for-status'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('id, status, client, booking_number, deliveryaddress')
+        .not('status', 'is', null);
+      
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 30000,
+  });
 
   // Extract client name from event title
   const extractClientName = (title: string): string => {
@@ -91,16 +117,21 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
         new Date(event.start)
       ) || [];
 
+      // Find booking data for status
+      const bookingData = bookingsData.find(b => b.id === bookingId);
+
       if (!bookingMap.has(bookingId)) {
         bookingMap.set(bookingId, {
           bookingId,
           client,
-          bookingNumber: event.extendedProps?.bookingNumber,
+          bookingNumber: event.extendedProps?.bookingNumber || bookingData?.booking_number,
           date: eventDate,
-          deliveryAddress: event.extendedProps?.deliveryAddress,
+          deliveryAddress: event.extendedProps?.deliveryAddress || bookingData?.deliveryaddress,
           staffAssignments: [],
           totalStaffHours: 0,
-          eventTypes: []
+          eventTypes: [],
+          status: bookingData?.status || 'PENDING',
+          originalBookingData: bookingData
         });
       }
 
@@ -131,7 +162,7 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
     });
 
     return Array.from(bookingMap.values()).sort((a, b) => a.date.localeCompare(b.date));
-  }, [events, weeklyStaffOperations]);
+  }, [events, weeklyStaffOperations, bookingsData]);
 
   // Get unique staff members for filter
   const allStaff = useMemo(() => {
@@ -168,14 +199,48 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
         if (!hasStaff) return false;
       }
 
+      // Status filter
+      if (selectedStatus !== 'all' && booking.status !== selectedStatus) {
+        return false;
+      }
+
+      // Date range filter
+      if (dateFrom || dateTo) {
+        const bookingDate = parseISO(booking.date);
+        
+        if (dateFrom && bookingDate < parseISO(dateFrom)) {
+          return false;
+        }
+        
+        if (dateTo && bookingDate > parseISO(dateTo)) {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [bookingsWithStaff, searchTerm, selectedEventType, selectedStaff]);
+  }, [bookingsWithStaff, searchTerm, selectedEventType, selectedStaff, selectedStatus, dateFrom, dateTo]);
 
   // Calculate summary statistics
   const totalBookings = filteredBookings.length;
   const totalStaffHours = filteredBookings.reduce((sum, booking) => sum + booking.totalStaffHours, 0);
   const unassignedBookings = filteredBookings.filter(booking => booking.staffAssignments.length === 0).length;
+
+  // Handle status change
+  const handleStatusChange = async (bookingId: string, newStatus: string) => {
+    // Refresh the bookings data to get updated status
+    await queryClient.invalidateQueries({ queryKey: ['bookings-for-status'] });
+  };
+
+  // Clear all filters
+  const clearFilters = () => {
+    setSearchTerm('');
+    setSelectedEventType('all');
+    setSelectedStaff('all');
+    setSelectedStatus('all');
+    setDateFrom('');
+    setDateTo('');
+  };
 
   return (
     <div className="space-y-4">
@@ -202,6 +267,7 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
           </div>
         </CardHeader>
         <CardContent>
+          {/* Basic Filters */}
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
@@ -216,27 +282,90 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
             </div>
             <div className="flex gap-2">
               <select
-                value={selectedEventType}
-                onChange={(e) => setSelectedEventType(e.target.value)}
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm"
               >
-                <option value="all">All Event Types</option>
-                <option value="rig">Rig Setup</option>
-                <option value="event">Event</option>
-                <option value="rigDown">Rig Down</option>
+                <option value="all">All Statuses</option>
+                <option value="CONFIRMED">Confirmed</option>
+                <option value="OFFER">Offer</option>
+                <option value="PENDING">Pending</option>
+                <option value="CANCELLED">Cancelled</option>
               </select>
-              <select
-                value={selectedStaff}
-                onChange={(e) => setSelectedStaff(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className="flex items-center gap-2"
               >
-                <option value="all">All Staff</option>
-                {allStaff.map(staff => (
-                  <option key={staff.id} value={staff.id}>{staff.name}</option>
-                ))}
-              </select>
+                <Filter className="h-4 w-4" />
+                Filters
+                {showAdvancedFilters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
             </div>
           </div>
+
+          {/* Advanced Filters */}
+          {showAdvancedFilters && (
+            <div className="mt-4 p-4 bg-gray-50 rounded-lg space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Event Type</label>
+                  <select
+                    value={selectedEventType}
+                    onChange={(e) => setSelectedEventType(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value="all">All Event Types</option>
+                    <option value="rig">Rig Setup</option>
+                    <option value="event">Event</option>
+                    <option value="rigDown">Rig Down</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Staff Member</label>
+                  <select
+                    value={selectedStaff}
+                    onChange={(e) => setSelectedStaff(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value="all">All Staff</option>
+                    {allStaff.map(staff => (
+                      <option key={staff.id} value={staff.id}>{staff.name}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date From</label>
+                  <Input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="text-sm"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date To</label>
+                  <Input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="text-sm"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex justify-end">
+                <Button variant="outline" size="sm" onClick={clearFilters}>
+                  Clear All Filters
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -253,7 +382,7 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
             <Card key={booking.bookingId} className="overflow-hidden">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
-                  <div>
+                  <div className="flex-1">
                     <h3 className="font-semibold text-gray-900">{booking.client}</h3>
                     <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
                       <div className="flex items-center gap-1">
@@ -272,6 +401,14 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    {/* Status Change Form */}
+                    {booking.originalBookingData && (
+                      <StatusChangeForm
+                        currentStatus={booking.status || 'PENDING'}
+                        bookingId={booking.bookingId}
+                        onStatusChange={(newStatus) => handleStatusChange(booking.bookingId, newStatus)}
+                      />
+                    )}
                     <Badge variant="outline" className="flex items-center gap-1">
                       <Users className="h-3 w-3" />
                       {booking.staffAssignments.length} staff
