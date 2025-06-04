@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Clock, Users, Calendar, MapPin, Search, Filter, FileDown, ChevronDown, ChevronUp } from 'lucide-react';
 import { format, differenceInHours, isWithinInterval, parseISO } from 'date-fns';
 import { CalendarEvent, Resource } from './ResourceData';
@@ -21,17 +22,16 @@ interface StaffAssignment {
   color?: string;
 }
 
-interface BookingWithStaff {
+interface EventRow {
   bookingId: string;
-  client: string;
   bookingNumber?: string;
+  client: string;
   date: string;
-  deliveryAddress?: string;
+  eventType: string;
   staffAssignments: StaffAssignment[];
-  totalStaffHours: number;
-  eventTypes: string[];
   status?: string;
   originalBookingData?: any;
+  deliveryAddress?: string;
 }
 
 interface StaffBookingsListProps {
@@ -89,19 +89,29 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
     }
   };
 
-  // Get event type color
-  const getEventTypeColor = (eventType: string): string => {
+  // Get event type color classes
+  const getEventTypeColorClasses = (eventType: string): string => {
     switch (eventType) {
-      case 'rig': return 'bg-green-100 text-green-800';
-      case 'event': return 'bg-yellow-100 text-yellow-800';
-      case 'rigDown': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'rig': return 'bg-green-50 text-green-800 border-l-4 border-green-500';
+      case 'event': return 'bg-yellow-50 text-yellow-800 border-l-4 border-yellow-500';
+      case 'rigDown': return 'bg-red-50 text-red-800 border-l-4 border-red-500';
+      default: return 'bg-gray-50 text-gray-800 border-l-4 border-gray-500';
     }
   };
 
-  // Process events into bookings with staff assignments
-  const bookingsWithStaff = useMemo(() => {
-    const bookingMap = new Map<string, BookingWithStaff>();
+  // Get event type badge color
+  const getEventTypeBadgeColor = (eventType: string): string => {
+    switch (eventType) {
+      case 'rig': return 'bg-green-500 text-white';
+      case 'event': return 'bg-yellow-500 text-white';
+      case 'rigDown': return 'bg-red-500 text-white';
+      default: return 'bg-gray-500 text-white';
+    }
+  };
+
+  // Process events into individual event rows
+  const eventRows = useMemo(() => {
+    const rows: EventRow[] = [];
 
     events.forEach(event => {
       if (!event.extendedProps?.bookingId && !event.id.includes('booking')) return;
@@ -120,28 +130,11 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
       // Find booking data for status
       const bookingData = bookingsData.find(b => b.id === bookingId);
 
-      if (!bookingMap.has(bookingId)) {
-        bookingMap.set(bookingId, {
-          bookingId,
-          client,
-          bookingNumber: event.extendedProps?.bookingNumber || bookingData?.booking_number,
-          date: eventDate,
-          deliveryAddress: event.extendedProps?.deliveryAddress || bookingData?.deliveryaddress,
-          staffAssignments: [],
-          totalStaffHours: 0,
-          eventTypes: [],
-          status: bookingData?.status || 'PENDING',
-          originalBookingData: bookingData
-        });
-      }
-
-      const booking = bookingMap.get(bookingId)!;
-
-      // Add staff assignments for this event
-      assignedStaff.forEach(staff => {
+      // Create staff assignments for this event
+      const staffAssignments: StaffAssignment[] = assignedStaff.map(staff => {
         const duration = differenceInHours(new Date(event.end), new Date(event.start));
         
-        const assignment: StaffAssignment = {
+        return {
           staffId: staff.id,
           staffName: staff.name,
           eventType,
@@ -150,25 +143,39 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
           duration,
           color: staff.color
         };
-
-        booking.staffAssignments.push(assignment);
-        booking.totalStaffHours += duration;
       });
 
-      // Track event types
-      if (!booking.eventTypes.includes(eventType)) {
-        booking.eventTypes.push(eventType);
-      }
+      // Create a row for this specific event
+      rows.push({
+        bookingId,
+        bookingNumber: event.extendedProps?.bookingNumber || bookingData?.booking_number,
+        client,
+        date: eventDate,
+        eventType,
+        staffAssignments,
+        status: bookingData?.status || 'PENDING',
+        originalBookingData: bookingData,
+        deliveryAddress: event.extendedProps?.deliveryAddress || bookingData?.deliveryaddress
+      });
     });
 
-    return Array.from(bookingMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+    return rows.sort((a, b) => {
+      // Sort by date first, then by event type priority (rig, event, rigDown)
+      const dateComparison = a.date.localeCompare(b.date);
+      if (dateComparison !== 0) return dateComparison;
+      
+      const eventTypeOrder = { 'rig': 1, 'event': 2, 'rigDown': 3 };
+      const aOrder = eventTypeOrder[a.eventType as keyof typeof eventTypeOrder] || 4;
+      const bOrder = eventTypeOrder[b.eventType as keyof typeof eventTypeOrder] || 4;
+      return aOrder - bOrder;
+    });
   }, [events, weeklyStaffOperations, bookingsData]);
 
   // Get unique staff members for filter
   const allStaff = useMemo(() => {
     const staffSet = new Set<string>();
-    bookingsWithStaff.forEach(booking => {
-      booking.staffAssignments.forEach(assignment => {
+    eventRows.forEach(row => {
+      row.staffAssignments.forEach(assignment => {
         staffSet.add(`${assignment.staffId}:${assignment.staffName}`);
       });
     });
@@ -176,55 +183,58 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
       const [id, name] = staff.split(':');
       return { id, name };
     });
-  }, [bookingsWithStaff]);
+  }, [eventRows]);
 
-  // Filter bookings based on search and filters
-  const filteredBookings = useMemo(() => {
-    return bookingsWithStaff.filter(booking => {
+  // Filter event rows based on search and filters
+  const filteredRows = useMemo(() => {
+    return eventRows.filter(row => {
       // Search filter
-      if (searchTerm && !booking.client.toLowerCase().includes(searchTerm.toLowerCase())) {
+      if (searchTerm && !row.client.toLowerCase().includes(searchTerm.toLowerCase()) && 
+          !(row.bookingNumber && row.bookingNumber.toLowerCase().includes(searchTerm.toLowerCase()))) {
         return false;
       }
 
       // Event type filter
-      if (selectedEventType !== 'all' && !booking.eventTypes.includes(selectedEventType)) {
+      if (selectedEventType !== 'all' && row.eventType !== selectedEventType) {
         return false;
       }
 
       // Staff filter
       if (selectedStaff !== 'all') {
-        const hasStaff = booking.staffAssignments.some(assignment => 
+        const hasStaff = row.staffAssignments.some(assignment => 
           assignment.staffId === selectedStaff
         );
         if (!hasStaff) return false;
       }
 
       // Status filter
-      if (selectedStatus !== 'all' && booking.status !== selectedStatus) {
+      if (selectedStatus !== 'all' && row.status !== selectedStatus) {
         return false;
       }
 
       // Date range filter
       if (dateFrom || dateTo) {
-        const bookingDate = parseISO(booking.date);
+        const rowDate = parseISO(row.date);
         
-        if (dateFrom && bookingDate < parseISO(dateFrom)) {
+        if (dateFrom && rowDate < parseISO(dateFrom)) {
           return false;
         }
         
-        if (dateTo && bookingDate > parseISO(dateTo)) {
+        if (dateTo && rowDate > parseISO(dateTo)) {
           return false;
         }
       }
 
       return true;
     });
-  }, [bookingsWithStaff, searchTerm, selectedEventType, selectedStaff, selectedStatus, dateFrom, dateTo]);
+  }, [eventRows, searchTerm, selectedEventType, selectedStaff, selectedStatus, dateFrom, dateTo]);
 
   // Calculate summary statistics
-  const totalBookings = filteredBookings.length;
-  const totalStaffHours = filteredBookings.reduce((sum, booking) => sum + booking.totalStaffHours, 0);
-  const unassignedBookings = filteredBookings.filter(booking => booking.staffAssignments.length === 0).length;
+  const totalRows = filteredRows.length;
+  const totalStaffHours = filteredRows.reduce((sum, row) => 
+    sum + row.staffAssignments.reduce((rowSum, assignment) => rowSum + assignment.duration, 0), 0
+  );
+  const unassignedRows = filteredRows.filter(row => row.staffAssignments.length === 0).length;
 
   // Handle status change
   const handleStatusChange = async (bookingId: string, newStatus: string) => {
@@ -251,10 +261,10 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
             <div>
               <CardTitle className="text-lg">Staff Assignments Overview</CardTitle>
               <div className="flex gap-4 text-sm text-gray-600 mt-2">
-                <span>{totalBookings} bookings</span>
+                <span>{totalRows} events</span>
                 <span>{totalStaffHours}h total</span>
-                {unassignedBookings > 0 && (
-                  <span className="text-red-600">{unassignedBookings} unassigned</span>
+                {unassignedRows > 0 && (
+                  <span className="text-red-600">{unassignedRows} unassigned</span>
                 )}
               </div>
             </div>
@@ -273,7 +283,7 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Search by client name..."
+                  placeholder="Search by client name or booking number..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -369,111 +379,95 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
         </CardContent>
       </Card>
 
-      {/* Bookings list */}
-      <div className="space-y-4">
-        {filteredBookings.length === 0 ? (
-          <Card>
-            <CardContent className="text-center py-8 text-gray-500">
-              No bookings found matching the current filters
-            </CardContent>
-          </Card>
-        ) : (
-          filteredBookings.map((booking) => (
-            <Card key={booking.bookingId} className="overflow-hidden">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">{booking.client}</h3>
-                    <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
+      {/* Table */}
+      <Card>
+        <CardContent className="p-0">
+          {filteredRows.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              No events found matching the current filters
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-32">Booking #</TableHead>
+                  <TableHead>Client</TableHead>
+                  <TableHead className="w-32">Date</TableHead>
+                  <TableHead className="w-32">Event Type</TableHead>
+                  <TableHead>Staff Assigned</TableHead>
+                  <TableHead className="w-32">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredRows.map((row, index) => (
+                  <TableRow 
+                    key={`${row.bookingId}-${row.eventType}-${index}`}
+                    className={`${getEventTypeColorClasses(row.eventType)} hover:opacity-80 transition-opacity`}
+                  >
+                    <TableCell className="font-medium">
+                      {row.bookingNumber ? `#${row.bookingNumber}` : '-'}
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{row.client}</div>
+                        {row.deliveryAddress && (
+                          <div className="text-sm text-gray-500 flex items-center gap-1 mt-1">
+                            <MapPin className="h-3 w-3" />
+                            <span className="truncate max-w-xs">{row.deliveryAddress}</span>
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
                       <div className="flex items-center gap-1">
                         <Calendar className="h-4 w-4" />
-                        <span>{format(new Date(booking.date), 'MMM d, yyyy')}</span>
+                        {format(new Date(row.date), 'MMM d, yyyy')}
                       </div>
-                      {booking.bookingNumber && (
-                        <span>#{booking.bookingNumber}</span>
-                      )}
-                      {booking.deliveryAddress && (
-                        <div className="flex items-center gap-1">
-                          <MapPin className="h-4 w-4" />
-                          <span className="truncate max-w-xs">{booking.deliveryAddress}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {/* Status Change Form */}
-                    {booking.originalBookingData && (
-                      <StatusChangeForm
-                        currentStatus={booking.status || 'PENDING'}
-                        bookingId={booking.bookingId}
-                        onStatusChange={(newStatus) => handleStatusChange(booking.bookingId, newStatus)}
-                      />
-                    )}
-                    <Badge variant="outline" className="flex items-center gap-1">
-                      <Users className="h-3 w-3" />
-                      {booking.staffAssignments.length} staff
-                    </Badge>
-                    <Badge variant="outline" className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {booking.totalStaffHours}h
-                    </Badge>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {booking.staffAssignments.length === 0 ? (
-                  <div className="text-center py-4 text-red-600">
-                    ⚠️ No staff assigned to this booking
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {/* Group staff assignments by event type */}
-                    {booking.eventTypes.map(eventType => {
-                      const eventAssignments = booking.staffAssignments.filter(
-                        assignment => assignment.eventType === eventType
-                      );
-                      
-                      if (eventAssignments.length === 0) return null;
-
-                      return (
-                        <div key={eventType} className="border-l-4 border-gray-200 pl-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge className={getEventTypeColor(eventType)}>
-                              {getEventTypeDisplayName(eventType)}
-                            </Badge>
-                            <span className="text-sm text-gray-500">
-                              {eventAssignments.length} staff member{eventAssignments.length !== 1 ? 's' : ''}
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                            {eventAssignments.map((assignment, index) => (
-                              <div 
-                                key={`${assignment.staffId}-${eventType}-${index}`}
-                                className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm"
-                                style={{ borderLeft: `3px solid ${assignment.color || '#E3F2FD'}` }}
-                              >
-                                <div>
-                                  <div className="font-medium">{assignment.staffName}</div>
-                                  <div className="text-gray-500">
-                                    {format(new Date(assignment.startTime), 'HH:mm')} - {format(new Date(assignment.endTime), 'HH:mm')}
-                                  </div>
-                                </div>
-                                <Badge variant="secondary" className="ml-2">
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={`${getEventTypeBadgeColor(row.eventType)} border-0`}>
+                        {getEventTypeDisplayName(row.eventType)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {row.staffAssignments.length === 0 ? (
+                        <span className="text-red-600 text-sm">⚠️ No staff assigned</span>
+                      ) : (
+                        <div className="space-y-1">
+                          {row.staffAssignments.map((assignment, staffIndex) => (
+                            <div 
+                              key={`${assignment.staffId}-${staffIndex}`}
+                              className="flex items-center justify-between text-sm bg-white/50 rounded px-2 py-1"
+                              style={{ borderLeft: `3px solid ${assignment.color || '#E3F2FD'}` }}
+                            >
+                              <span className="font-medium">{assignment.staffName}</span>
+                              <div className="flex items-center gap-2 text-xs text-gray-600">
+                                <span>{format(new Date(assignment.startTime), 'HH:mm')} - {format(new Date(assignment.endTime), 'HH:mm')}</span>
+                                <Badge variant="secondary" className="text-xs">
                                   {assignment.duration}h
                                 </Badge>
                               </div>
-                            ))}
-                          </div>
+                            </div>
+                          ))}
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {row.originalBookingData && (
+                        <StatusChangeForm
+                          currentStatus={row.status || 'PENDING'}
+                          bookingId={row.bookingId}
+                          onStatusChange={(newStatus) => handleStatusChange(row.bookingId, newStatus)}
+                        />
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
