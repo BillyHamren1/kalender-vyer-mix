@@ -26,7 +26,7 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
   // Create a proper DOM element ref
   const elementRef = React.useRef<HTMLDivElement>(null);
 
-  // Calculate which time slot was dropped on based on Y position
+  // Enhanced time calculation with 5-minute precision for smoother drops
   const getTimeSlotFromPosition = (clientY: number) => {
     if (!elementRef.current) {
       console.warn('Element ref not available for time calculation');
@@ -35,12 +35,23 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
     
     const rect = elementRef.current.getBoundingClientRect();
     const relativeY = clientY - rect.top;
-    const slotHeight = 60; // Each time slot is 60px high
-    const slotIndex = Math.floor(relativeY / slotHeight);
     
-    // Time slots start at 6 AM (index 0) and go to 22 PM
-    const hour = Math.max(6, Math.min(22, 6 + slotIndex));
-    return `${hour.toString().padStart(2, '0')}:00`;
+    // Use 25px per hour (matching TimeGrid) for consistency
+    const pixelsPerHour = 25;
+    const startHour = 5; // Grid starts at 5 AM
+    
+    // Calculate precise time with 5-minute granularity
+    const totalHours = relativeY / pixelsPerHour;
+    const targetHour = Math.max(5, Math.min(23, startHour + totalHours));
+    
+    // Round to nearest 5-minute interval for smoother drops
+    const totalMinutes = targetHour * 60;
+    const roundedMinutes = Math.round(totalMinutes / 5) * 5;
+    
+    const finalHour = Math.floor(roundedMinutes / 60);
+    const finalMinutes = roundedMinutes % 60;
+    
+    return `${finalHour.toString().padStart(2, '0')}:${finalMinutes.toString().padStart(2, '0')}`;
   };
 
   // Optimized event drop handler - NO MANUAL REFRESH
@@ -178,16 +189,16 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
         backgroundColor: isOver ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
         border: isOver ? '2px dashed #3b82f6' : '2px solid transparent',
         transition: 'all 0.2s ease',
-        minHeight: `${timeSlots.length * 60}px`
+        minHeight: `${timeSlots.length * 25}px` // Match TimeGrid's 25px per hour
       }}
     >
-      {/* Time slot grid with visual indicators */}
+      {/* Time slot grid with improved visual indicators */}
       {timeSlots.map((time, index) => (
         <div
           key={time}
           className={`time-slot ${isOver ? 'highlight' : ''}`}
           style={{
-            height: '60px',
+            height: '25px', // Match TimeGrid's slot height
             position: 'relative',
             borderBottom: '1px solid #e5e7eb',
             backgroundColor: isOver && dragType === 'calendar-event' ? 'rgba(59, 130, 246, 0.05)' : 'transparent'

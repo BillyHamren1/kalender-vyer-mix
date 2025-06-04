@@ -61,7 +61,7 @@ const DraggableEvent: React.FC<{
   );
 });
 
-// Enhanced Droppable Time Slot Component with optimized drop handling
+// Enhanced Droppable Time Slot Component with improved precision
 const DroppableTimeSlot: React.FC<{
   resourceId: string;
   day: Date;
@@ -73,7 +73,7 @@ const DroppableTimeSlot: React.FC<{
   
   const elementRef = React.useRef<HTMLDivElement>(null);
   
-  // Optimized time calculation for smoother drops
+  // Enhanced time calculation with 5-minute precision for smoother drops
   const getDropTime = (clientY: number) => {
     if (!elementRef.current) {
       console.warn('Element ref not available for time calculation');
@@ -82,18 +82,23 @@ const DroppableTimeSlot: React.FC<{
     
     const rect = elementRef.current.getBoundingClientRect();
     const relativeY = clientY - rect.top;
-    const hourHeight = 25;
-    const startHour = 5;
     
-    const hourOffset = relativeY / hourHeight;
-    const targetHour = Math.max(5, Math.min(23, startHour + hourOffset));
+    // Use consistent 25px per hour
+    const pixelsPerHour = 25;
+    const startHour = 5; // Grid starts at 5 AM
     
-    // Round to nearest 15-minute interval for better UX
-    const minutes = (targetHour % 1) * 60;
-    const roundedMinutes = Math.round(minutes / 15) * 15;
-    const finalHour = Math.floor(targetHour);
+    // Calculate precise time with 5-minute granularity
+    const totalHours = relativeY / pixelsPerHour;
+    const targetHour = Math.max(5, Math.min(23, startHour + totalHours));
     
-    return `${finalHour.toString().padStart(2, '0')}:${roundedMinutes.toString().padStart(2, '0')}`;
+    // Round to nearest 5-minute interval for smoother drops
+    const totalMinutes = targetHour * 60;
+    const roundedMinutes = Math.round(totalMinutes / 5) * 5;
+    
+    const finalHour = Math.floor(roundedMinutes / 60);
+    const finalMinutes = roundedMinutes % 60;
+    
+    return `${finalHour.toString().padStart(2, '0')}:${finalMinutes.toString().padStart(2, '0')}`;
   };
 
   const [{ isOver, dragType }, drop] = useDrop({
@@ -101,7 +106,7 @@ const DroppableTimeSlot: React.FC<{
     drop: async (item: any, monitor) => {
       const clientOffset = monitor.getClientOffset();
       
-      console.log('DroppableTimeSlot: Handling drop', { 
+      console.log('DroppableTimeSlot: Handling drop with enhanced precision', { 
         item, 
         resourceId, 
         day: format(day, 'yyyy-MM-dd'),
@@ -110,19 +115,19 @@ const DroppableTimeSlot: React.FC<{
       });
       
       try {
-        // Handle event drops with immediate visual feedback
+        // Handle event drops with enhanced precision
         if (item.eventId && onEventDrop && clientOffset) {
           const targetTime = getDropTime(clientOffset.y);
           
-          console.log('Moving event with precise time:', {
+          console.log('Moving event with enhanced precision:', {
             eventId: item.eventId,
             fromResource: item.resourceId,
             toResource: resourceId,
             targetTime,
-            clientY: clientOffset.y
+            clientY: clientOffset.y,
+            precision: '5-minute intervals'
           });
           
-          // Only call the drop handler, real-time updates will handle the refresh
           await onEventDrop(item.eventId, resourceId, day, targetTime);
           toast.success('Event moved successfully');
         }
@@ -260,7 +265,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     }
   };
 
-  // Optimized event drop handler with immediate visual feedback
+  // Optimized event drop handler with improved precision
   const handleEventDropOptimized = async (
     eventId: string, 
     targetResourceId: string, 
@@ -268,11 +273,12 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     targetTime: string
   ) => {
     try {
-      console.log('TimeGrid: Handling optimized event drop', {
+      console.log('TimeGrid: Handling optimized event drop with enhanced precision', {
         eventId,
         targetResourceId,
         targetDate: format(targetDate, 'yyyy-MM-dd'),
-        targetTime
+        targetTime,
+        precision: '5-minute intervals'
       });
 
       const [hours, minutes] = targetTime.split(':').map(Number);
@@ -290,14 +296,14 @@ const TimeGrid: React.FC<TimeGridProps> = ({
       
       const newEndTime = new Date(newStartTime.getTime() + duration);
       
-      // Update immediately with visual feedback
+      // Update immediately with enhanced precision
       await updateCalendarEvent(eventId, {
         start: newStartTime.toISOString(),
         end: newEndTime.toISOString(),
         resourceId: targetResourceId
       });
 
-      console.log('Event updated successfully - real-time will refresh UI');
+      console.log('Event updated successfully with 5-minute precision');
       
     } catch (error) {
       console.error('Error handling event drop:', error);
@@ -409,7 +415,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           ))}
         </div>
 
-        {/* Enhanced Time Slot Columns with optimized performance */}
+        {/* Enhanced Time Slot Columns with improved precision */}
         {resources.map((resource, index) => {
           const resourceEvents = getEventsForDayAndResource(day, resource.id);
           
@@ -431,14 +437,14 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   position: 'relative'
                 }}
               >
-                {/* Time slots grid */}
+                {/* Time slots grid with enhanced precision indicators */}
                 <div className="time-slots-grid">
                   {timeSlots.map((slot) => (
                     <div key={slot.time} className="time-slot-cell" />
                   ))}
                 </div>
                 
-                {/* Events positioned absolutely with optimized performance */}
+                {/* Events positioned absolutely with enhanced precision */}
                 {resourceEvents.map((event) => {
                   const position = getEventPosition(event);
                   return (
