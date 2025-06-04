@@ -31,7 +31,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   
   const eventRef = useRef<HTMLDivElement>(null);
 
-  // Optimized drag implementation for smooth movement
+  // Optimized drag implementation for smooth movement - FIXED to prevent jumping back
   const [{ isDragging }, drag, preview] = useDrag({
     type: 'calendar-event',
     item: { 
@@ -42,7 +42,17 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
-    canDrag: !isResizing,
+    canDrag: !isResizing, // Only allow dragging when not resizing
+    end: (item, monitor) => {
+      // This is crucial - handle the end of drag operation
+      const dropResult = monitor.getDropResult();
+      if (!dropResult) {
+        // If no valid drop target, the drag was cancelled - don't revert
+        console.log('Drag ended without valid drop target');
+        return;
+      }
+      console.log('Drag completed successfully:', dropResult);
+    },
     options: {
       dropEffect: 'move',
     },
@@ -64,6 +74,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   // Handle resize operations with real-time visual feedback - FIXED to use 25px per hour
   const handleResizeStart = (e: React.MouseEvent, direction: 'top' | 'bottom') => {
     e.stopPropagation();
+    e.preventDefault(); // Prevent drag from starting during resize
     setIsResizing(true);
     
     const startY = e.clientY;
@@ -73,6 +84,8 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     const pixelsPerHour = 25;
     
     const handleMouseMove = (moveEvent: MouseEvent) => {
+      moveEvent.preventDefault(); // Prevent any other interactions
+      
       const deltaY = moveEvent.clientY - startY;
       const deltaMinutes = (deltaY / pixelsPerHour) * 60;
       
@@ -127,11 +140,13 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       });
     };
     
-    const handleMouseUp = async () => {
+    const handleMouseUp = async (upEvent: MouseEvent) => {
+      upEvent.preventDefault();
       setIsResizing(false);
       
       if (tempResizeState && onEventResize) {
         try {
+          console.log('Finalizing resize operation');
           await onEventResize(event.id, tempResizeState.newStart, tempResizeState.newEnd);
         } catch (error) {
           console.error('Failed to resize event:', error);
@@ -154,15 +169,16 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     const baseStyles: React.CSSProperties = {
       ...style,
       backgroundColor: eventColor,
-      opacity: isDragging ? 0.3 : 1,
+      opacity: isDragging ? 0.3 : 1, // Show transparency when dragging
       cursor: isDragging ? 'grabbing' : (isResizing ? 'ns-resize' : 'grab'),
       border: isResizing ? '2px solid #3b82f6' : 'none',
       transform: 'none',
-      transition: isDragging || isResizing ? 'none' : 'opacity 0.2s ease',
+      transition: isDragging || isResizing ? 'none' : 'opacity 0.2s ease', // No transition during interaction
       position: 'relative' as const,
       willChange: 'transform, opacity',
       color: '#000000',
-      boxShadow: isResizing ? '0 4px 12px rgba(59, 130, 246, 0.3)' : 'none'
+      boxShadow: isResizing ? '0 4px 12px rgba(59, 130, 246, 0.3)' : 'none',
+      zIndex: isDragging ? 1000 : (isResizing ? 500 : 'auto') // Higher z-index when dragging
     };
 
     // Apply real-time resize visual feedback
@@ -190,6 +206,12 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         }}
         className={`custom-event ${isDragging ? 'dragging' : ''} ${isResizing ? 'resizing' : ''}`}
         style={getDynamicStyles()}
+        onMouseDown={(e) => {
+          // Prevent drag from starting if clicking on resize handles
+          if (isResizing || e.target !== e.currentTarget) {
+            e.stopPropagation();
+          }
+        }}
       >
         {/* Top resize handle */}
         <div
@@ -207,7 +229,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
           onMouseDown={(e) => handleResizeStart(e, 'top')}
         />
         
-        <div className="event-content" style={{ color: '#000000' }}>
+        <div className="event-content" style={{ color: '#000000', pointerEvents: isResizing ? 'none' : 'auto' }}>
           <div className="event-title" style={{ color: '#000000' }}>
             {event.title}
           </div>
