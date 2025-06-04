@@ -148,8 +148,8 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   };
 
   // Calculate dynamic styles with real-time resize feedback
-  const getDynamicStyles = () => {
-    const baseStyles = {
+  const getDynamicStyles = (): React.CSSProperties => {
+    const baseStyles: React.CSSProperties = {
       ...style,
       backgroundColor: eventColor,
       opacity: isDragging ? 0.3 : 1,
@@ -157,7 +157,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       border: isResizing ? '2px solid #3b82f6' : 'none',
       transform: 'none',
       transition: isDragging || isResizing ? 'none' : 'opacity 0.2s ease',
-      position: 'relative',
+      position: 'relative' as const,
       willChange: 'transform, opacity',
       color: '#000000',
       boxShadow: isResizing ? '0 4px 12px rgba(59, 130, 246, 0.3)' : 'none'
