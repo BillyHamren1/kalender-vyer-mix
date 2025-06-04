@@ -1,6 +1,4 @@
 
-# A string used to distinguish different Supabase projects on the same host. Defaults to the
-# working directory name when running `supabase init`.
 project_id = "lovable-planner"
 
 [api]
@@ -46,8 +44,6 @@ enable_signup = true
 [inbucket]
 enabled = false
 port = 54324
-smtp_port = 54325
-pop3_port = 54326
 
 [vector]
 enabled = false
@@ -79,4 +75,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.save-map-snapshot]
+verify_jwt = false
+
+[functions.time-reports]
 verify_jwt = false

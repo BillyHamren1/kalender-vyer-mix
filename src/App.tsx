@@ -1,4 +1,3 @@
-
 import React, { createContext, useState } from 'react';
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,6 +6,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import CustomCalendarPage from "./pages/CustomCalendarPage";
 import StaffManagement from "./pages/StaffManagement";
+import StaffDetail from "./pages/StaffDetail";
+import FinishedJobs from "./pages/FinishedJobs";
 
 const queryClient = new QueryClient();
 
@@ -47,6 +48,8 @@ const App = () => {
               <Route path="/calendar" element={<CustomCalendarPage />} />
               <Route path="/custom-calendar" element={<CustomCalendarPage />} />
               <Route path="/staff-management" element={<StaffManagement />} />
+              <Route path="/staff/:staffId" element={<StaffDetail />} />
+              <Route path="/finished-jobs" element={<FinishedJobs />} />
             </Routes>
           </BrowserRouter>
         </TooltipProvider>

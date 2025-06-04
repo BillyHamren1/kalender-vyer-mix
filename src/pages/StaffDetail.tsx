@@ -1,483 +1,236 @@
-import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Edit, Save, X, Calendar, User, MapPin, DollarSign, Phone, Mail, Key } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+
+import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Calendar, Clock, DollarSign, User, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { timeReportService } from '@/services/timeReportService';
+import TimeReportForm from '@/components/time-reports/TimeReportForm';
+import TimeReportList from '@/components/time-reports/TimeReportList';
+import DailyTimeView from '@/components/time-reports/DailyTimeView';
+import { TimeReport } from '@/types/timeReport';
 import { toast } from 'sonner';
-import StaffMemberCalendar from '@/components/staff/StaffMemberCalendar';
-
-interface ExtendedStaffMember {
-  id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  city?: string;
-  postal_code?: string;
-  role?: string;
-  department?: string;
-  salary?: number;
-  hire_date?: string;
-  emergency_contact_name?: string;
-  emergency_contact_phone?: string;
-  notes?: string;
-}
-
-interface StaffCredentials {
-  email: string;
-  password: string;
-}
 
 const StaffDetail: React.FC = () => {
-  const { staffId } = useParams();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState<ExtendedStaffMember | null>(null);
-  const [credentials, setCredentials] = useState<StaffCredentials>({ email: '', password: '' });
+  const { staffId } = useParams<{ staffId: string }>();
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [showTimeReportForm, setShowTimeReportForm] = useState(false);
+  const [timeReports, setTimeReports] = useState<TimeReport[]>([]);
 
   // Fetch staff member details
-  const { data: staffMember, isLoading } = useQuery({
-    queryKey: ['staffMember', staffId],
+  const { data: staffMember, isLoading: staffLoading } = useQuery({
+    queryKey: ['staff-member', staffId],
     queryFn: async () => {
+      if (!staffId) throw new Error('Staff ID is required');
+      
       const { data, error } = await supabase
         .from('staff_members')
         .select('*')
         .eq('id', staffId)
         .single();
-
-      if (error) throw error;
-      return data as ExtendedStaffMember;
-    },
-    enabled: !!staffId,
-  });
-
-  // Update staff member mutation
-  const updateStaffMutation = useMutation({
-    mutationFn: async (updatedData: ExtendedStaffMember) => {
-      const { data, error } = await supabase
-        .from('staff_members')
-        .update(updatedData)
-        .eq('id', staffId)
-        .select()
-        .single();
-
+      
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['staffMember', staffId] });
-      setIsEditing(false);
-      toast.success('Staff member updated successfully');
-    },
-    onError: (error) => {
-      toast.error('Failed to update staff member');
-      console.error('Update error:', error);
-    },
+    enabled: !!staffId
   });
 
-  // Create credentials mutation
-  const createCredentialsMutation = useMutation({
-    mutationFn: async (credentialsData: StaffCredentials) => {
-      // Here you would typically call your backend API to create user credentials
-      // For now, we'll just show a success message
-      console.log('Creating credentials for:', credentialsData);
-      return credentialsData;
-    },
-    onSuccess: () => {
-      toast.success('Credentials created successfully');
-      setCredentials({ email: '', password: '' });
-    },
-    onError: (error) => {
-      toast.error('Failed to create credentials');
-      console.error('Credentials error:', error);
-    },
-  });
-
-  React.useEffect(() => {
-    if (staffMember) {
-      setFormData(staffMember);
-      // Pre-populate email if it exists
-      setCredentials(prev => ({ ...prev, email: staffMember.email || '' }));
+  // Load time reports for current month
+  useEffect(() => {
+    if (staffId) {
+      loadTimeReports();
     }
-  }, [staffMember]);
+  }, [staffId, selectedDate]);
 
-  const handleSave = () => {
-    if (formData) {
-      updateStaffMutation.mutate(formData);
+  const loadTimeReports = async () => {
+    if (!staffId) return;
+    
+    try {
+      const monthStart = format(startOfMonth(selectedDate), 'yyyy-MM-dd');
+      const monthEnd = format(endOfMonth(selectedDate), 'yyyy-MM-dd');
+      
+      const reports = await timeReportService.getTimeReports({
+        staff_id: staffId,
+        start_date: monthStart,
+        end_date: monthEnd
+      });
+      
+      setTimeReports(reports);
+    } catch (error) {
+      console.error('Error loading time reports:', error);
+      toast.error('Failed to load time reports');
     }
   };
 
-  const handleCancel = () => {
-    setFormData(staffMember);
-    setIsEditing(false);
+  const handleTimeReportSubmit = (report: TimeReport) => {
+    setTimeReports(prev => [report, ...prev]);
+    setShowTimeReportForm(false);
+    toast.success('Time report submitted successfully');
   };
 
-  const handleCreateCredentials = () => {
-    if (credentials.email && credentials.password) {
-      createCredentialsMutation.mutate(credentials);
-    } else {
-      toast.error('Please fill in both email and password');
+  const handleDeleteTimeReport = async (reportId: string) => {
+    try {
+      await timeReportService.deleteTimeReport(reportId);
+      setTimeReports(prev => prev.filter(report => report.id !== reportId));
+      toast.success('Time report deleted');
+    } catch (error) {
+      console.error('Error deleting time report:', error);
+      toast.error('Failed to delete time report');
     }
   };
 
-  if (isLoading) {
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount);
+  };
+
+  // Calculate monthly stats
+  const monthlyStats = timeReports.reduce(
+    (acc, report) => {
+      const hourlyRate = report.staff_members?.hourly_rate || staffMember?.hourly_rate || 0;
+      const overtimeRate = report.staff_members?.overtime_rate || staffMember?.overtime_rate || hourlyRate;
+      const regularHours = report.hours_worked - (report.overtime_hours || 0);
+      const overtimeHours = report.overtime_hours || 0;
+      const earnings = (regularHours * hourlyRate) + (overtimeHours * overtimeRate);
+      
+      return {
+        totalHours: acc.totalHours + report.hours_worked,
+        totalEarnings: acc.totalEarnings + earnings,
+        totalReports: acc.totalReports + 1,
+        overtimeHours: acc.overtimeHours + overtimeHours
+      };
+    },
+    { totalHours: 0, totalEarnings: 0, totalReports: 0, overtimeHours: 0 }
+  );
+
+  if (staffLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="container mx-auto px-4 py-8">
         <div className="text-center">Loading staff details...</div>
       </div>
     );
   }
 
-  if (!staffMember || !formData) {
+  if (!staffMember) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">Staff member not found</p>
-          <Button onClick={() => navigate('/staff-management')}>
-            Back to Staff Management
-          </Button>
-        </div>
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">Staff member not found</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="container mx-auto px-4 py-8">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="mb-6">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => navigate('/staff-management')}
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-[#82b6c6] rounded-full flex items-center justify-center">
-                <User className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">{formData.name}</h1>
-                <p className="text-gray-600">{formData.role || 'Staff Member'}</p>
-              </div>
-            </div>
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              <User className="h-8 w-8" />
+              {staffMember.name}
+            </h1>
+            <p className="text-gray-600 mt-1">
+              {staffMember.role && `${staffMember.role} • `}
+              {staffMember.department && `${staffMember.department} • `}
+              {staffMember.hourly_rate && `${formatCurrency(staffMember.hourly_rate)}/hour`}
+            </p>
           </div>
-          <div className="flex items-center space-x-2">
-            {isEditing ? (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={handleCancel}
-                  disabled={updateStaffMutation.isPending}
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleSave}
-                  disabled={updateStaffMutation.isPending}
-                  className="bg-[#82b6c6] hover:bg-[#6a9fb0]"
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  {updateStaffMutation.isPending ? 'Saving...' : 'Save Changes'}
-                </Button>
-              </>
-            ) : (
-              <Button
-                onClick={() => setIsEditing(true)}
-                className="bg-[#82b6c6] hover:bg-[#6a9fb0]"
-              >
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
-              </Button>
-            )}
-          </div>
+          <Button onClick={() => setShowTimeReportForm(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Time Report
+          </Button>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="p-6">
-        <Tabs defaultValue="personal" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="personal">Personal Information</TabsTrigger>
-            <TabsTrigger value="employment">Employment Details</TabsTrigger>
-            <TabsTrigger value="credentials">App Credentials</TabsTrigger>
-            <TabsTrigger value="calendar">Calendar & Assignments</TabsTrigger>
-          </TabsList>
-
-          {/* Personal Information Tab */}
-          <TabsContent value="personal" className="space-y-6">
-            <div className="grid md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <User className="h-5 w-5 mr-2" />
-                    Basic Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="name">Full Name</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      disabled={!isEditing}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={formData.email || ''}
-                      onChange={(e) => setFormData({...formData, email: e.target.value})}
-                      disabled={!isEditing}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="phone">Phone Number</Label>
-                    <Input
-                      id="phone"
-                      value={formData.phone || ''}
-                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                      disabled={!isEditing}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <MapPin className="h-5 w-5 mr-2" />
-                    Address Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="address">Street Address</Label>
-                    <Input
-                      id="address"
-                      value={formData.address || ''}
-                      onChange={(e) => setFormData({...formData, address: e.target.value})}
-                      disabled={!isEditing}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="city">City</Label>
-                    <Input
-                      id="city"
-                      value={formData.city || ''}
-                      onChange={(e) => setFormData({...formData, city: e.target.value})}
-                      disabled={!isEditing}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="postal_code">Postal Code</Label>
-                    <Input
-                      id="postal_code"
-                      value={formData.postal_code || ''}
-                      onChange={(e) => setFormData({...formData, postal_code: e.target.value})}
-                      disabled={!isEditing}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
+      {/* Monthly Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-blue-600" />
+              <div>
+                <p className="text-sm text-gray-600">Hours This Month</p>
+                <p className="text-2xl font-bold">{monthlyStats.totalHours.toFixed(1)}</p>
+              </div>
             </div>
+          </CardContent>
+        </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Phone className="h-5 w-5 mr-2" />
-                  Emergency Contact
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="emergency_contact_name">Emergency Contact Name</Label>
-                  <Input
-                    id="emergency_contact_name"
-                    value={formData.emergency_contact_name || ''}
-                    onChange={(e) => setFormData({...formData, emergency_contact_name: e.target.value})}
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="emergency_contact_phone">Emergency Contact Phone</Label>
-                  <Input
-                    id="emergency_contact_phone"
-                    value={formData.emergency_contact_phone || ''}
-                    onChange={(e) => setFormData({...formData, emergency_contact_phone: e.target.value})}
-                    disabled={!isEditing}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Employment Details Tab */}
-          <TabsContent value="employment" className="space-y-6">
-            <div className="grid md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <User className="h-5 w-5 mr-2" />
-                    Role & Department
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="role">Role/Position</Label>
-                    <Select
-                      value={formData.role || ''}
-                      onValueChange={(value) => setFormData({...formData, role: value})}
-                      disabled={!isEditing}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="event-coordinator">Event Coordinator</SelectItem>
-                        <SelectItem value="logistics-manager">Logistics Manager</SelectItem>
-                        <SelectItem value="setup-crew">Setup Crew</SelectItem>
-                        <SelectItem value="technician">Technician</SelectItem>
-                        <SelectItem value="supervisor">Supervisor</SelectItem>
-                        <SelectItem value="driver">Driver</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="department">Department</Label>
-                    <Select
-                      value={formData.department || ''}
-                      onValueChange={(value) => setFormData({...formData, department: value})}
-                      disabled={!isEditing}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select department" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="events">Events</SelectItem>
-                        <SelectItem value="logistics">Logistics</SelectItem>
-                        <SelectItem value="operations">Operations</SelectItem>
-                        <SelectItem value="management">Management</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="hire_date">Hire Date</Label>
-                    <Input
-                      id="hire_date"
-                      type="date"
-                      value={formData.hire_date || ''}
-                      onChange={(e) => setFormData({...formData, hire_date: e.target.value})}
-                      disabled={!isEditing}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <DollarSign className="h-5 w-5 mr-2" />
-                    Compensation
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="salary">Monthly Salary (SEK)</Label>
-                    <Input
-                      id="salary"
-                      type="number"
-                      value={formData.salary || ''}
-                      onChange={(e) => setFormData({...formData, salary: Number(e.target.value)})}
-                      disabled={!isEditing}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-green-600" />
+              <div>
+                <p className="text-sm text-gray-600">Earnings This Month</p>
+                <p className="text-2xl font-bold">{formatCurrency(monthlyStats.totalEarnings)}</p>
+              </div>
             </div>
+          </CardContent>
+        </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Notes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={formData.notes || ''}
-                  onChange={(e) => setFormData({...formData, notes: e.target.value})}
-                  disabled={!isEditing}
-                  placeholder="Additional notes about this staff member..."
-                  rows={4}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-purple-600" />
+              <div>
+                <p className="text-sm text-gray-600">Reports Submitted</p>
+                <p className="text-2xl font-bold">{monthlyStats.totalReports}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* App Credentials Tab */}
-          <TabsContent value="credentials" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Key className="h-5 w-5 mr-2" />
-                  Create credentials for staff app
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="credential_email">Email</Label>
-                  <Input
-                    id="credential_email"
-                    type="email"
-                    value={credentials.email}
-                    onChange={(e) => setCredentials({...credentials, email: e.target.value})}
-                    placeholder="Enter email for staff app login"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="credential_password">Password</Label>
-                  <Input
-                    id="credential_password"
-                    type="password"
-                    value={credentials.password}
-                    onChange={(e) => setCredentials({...credentials, password: e.target.value})}
-                    placeholder="Enter password for staff app login"
-                  />
-                </div>
-                <Button
-                  onClick={handleCreateCredentials}
-                  disabled={createCredentialsMutation.isPending || !credentials.email || !credentials.password}
-                  className="bg-[#82b6c6] hover:bg-[#6a9fb0]"
-                >
-                  {createCredentialsMutation.isPending ? 'Creating...' : 'Create Credentials'}
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Calendar & Assignments Tab */}
-          <TabsContent value="calendar" className="space-y-6">
-            <StaffMemberCalendar 
-              staffId={staffMember.id} 
-              staffName={staffMember.name} 
-            />
-          </TabsContent>
-        </Tabs>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-orange-600" />
+              <div>
+                <p className="text-sm text-gray-600">Overtime Hours</p>
+                <p className="text-2xl font-bold">{monthlyStats.overtimeHours.toFixed(1)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Time Report Form */}
+      {showTimeReportForm && (
+        <div className="mb-6">
+          <TimeReportForm
+            staffId={staffId}
+            onSuccess={handleTimeReportSubmit}
+            onCancel={() => setShowTimeReportForm(false)}
+          />
+        </div>
+      )}
+
+      {/* Time Reports Tabs */}
+      <Tabs defaultValue="daily" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="daily">Daily View</TabsTrigger>
+          <TabsTrigger value="list">List View</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="daily">
+          <DailyTimeView reports={timeReports} selectedDate={selectedDate} />
+        </TabsContent>
+
+        <TabsContent value="list">
+          <TimeReportList
+            reports={timeReports}
+            onDelete={handleDeleteTimeReport}
+            showStaffName={false}
+            showBookingInfo={true}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

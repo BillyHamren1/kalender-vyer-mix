@@ -376,9 +376,11 @@ export type Database = {
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
           hire_date: string | null
+          hourly_rate: number | null
           id: string
           name: string
           notes: string | null
+          overtime_rate: number | null
           phone: string | null
           postal_code: string | null
           role: string | null
@@ -394,9 +396,11 @@ export type Database = {
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           hire_date?: string | null
+          hourly_rate?: number | null
           id: string
           name: string
           notes?: string | null
+          overtime_rate?: number | null
           phone?: string | null
           postal_code?: string | null
           role?: string | null
@@ -412,9 +416,11 @@ export type Database = {
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           hire_date?: string | null
+          hourly_rate?: number | null
           id?: string
           name?: string
           notes?: string | null
+          overtime_rate?: number | null
           phone?: string | null
           postal_code?: string | null
           role?: string | null
@@ -454,6 +460,73 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      time_reports: {
+        Row: {
+          booking_id: string
+          break_time: number | null
+          created_at: string
+          description: string | null
+          end_time: string | null
+          hours_worked: number
+          id: string
+          overtime_hours: number | null
+          report_date: string
+          staff_id: string
+          start_time: string | null
+          updated_at: string
+        }
+        Insert: {
+          booking_id: string
+          break_time?: number | null
+          created_at?: string
+          description?: string | null
+          end_time?: string | null
+          hours_worked?: number
+          id?: string
+          overtime_hours?: number | null
+          report_date: string
+          staff_id: string
+          start_time?: string | null
+          updated_at?: string
+        }
+        Update: {
+          booking_id?: string
+          break_time?: number | null
+          created_at?: string
+          description?: string | null
+          end_time?: string | null
+          hours_worked?: number
+          id?: string
+          overtime_hours?: number | null
+          report_date?: string
+          staff_id?: string
+          start_time?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_reports_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_reports_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "confirmed_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_reports_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       webhook_subscriptions: {
         Row: {
