@@ -20,6 +20,15 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   onEventResize
 }) => {
   const [isResizing, setIsResizing] = useState(false);
+  
+  // State for real-time visual feedback during resize
+  const [tempResizeState, setTempResizeState] = useState<{
+    newStart: Date;
+    newEnd: Date;
+    heightDelta: number;
+    topDelta: number;
+  } | null>(null);
+  
   const eventRef = useRef<HTMLDivElement>(null);
 
   // Optimized drag implementation for smooth movement
@@ -45,10 +54,14 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   }, [preview]);
 
   const eventColor = getEventColor(event.eventType);
-  const startTime = format(new Date(event.start), 'HH:mm');
-  const endTime = format(new Date(event.end), 'HH:mm');
+  
+  // Use temporary times if resizing, otherwise use original times
+  const displayStart = tempResizeState ? tempResizeState.newStart : new Date(event.start);
+  const displayEnd = tempResizeState ? tempResizeState.newEnd : new Date(event.end);
+  const startTime = format(displayStart, 'HH:mm');
+  const endTime = format(displayEnd, 'HH:mm');
 
-  // Handle resize operations
+  // Handle resize operations with real-time visual feedback
   const handleResizeStart = (e: React.MouseEvent, direction: 'top' | 'bottom') => {
     e.stopPropagation();
     setIsResizing(true);
@@ -64,68 +77,106 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       
       let newStart = originalStart;
       let newEnd = originalEnd;
+      let heightDelta = 0;
+      let topDelta = 0;
       
       if (direction === 'top') {
-        // Resizing from top changes start time
+        // Resizing from top changes start time and position
         newStart = addMinutes(originalStart, deltaMinutes);
         // Ensure minimum 15-minute duration
         if (newStart >= originalEnd) {
           newStart = addMinutes(originalEnd, -15);
         }
+        
+        // Calculate visual changes
+        const actualDeltaMinutes = (newStart.getTime() - originalStart.getTime()) / (1000 * 60);
+        topDelta = (actualDeltaMinutes / 60) * pixelsPerHour;
+        heightDelta = -topDelta; // Height decreases when top moves down
+        
       } else {
-        // Resizing from bottom changes end time
+        // Resizing from bottom changes end time and height
         newEnd = addMinutes(originalEnd, deltaMinutes);
         // Ensure minimum 15-minute duration
         if (newEnd <= originalStart) {
           newEnd = addMinutes(originalStart, 15);
         }
+        
+        // Calculate visual changes
+        const actualDeltaMinutes = (newEnd.getTime() - originalEnd.getTime()) / (1000 * 60);
+        heightDelta = (actualDeltaMinutes / 60) * pixelsPerHour;
+        topDelta = 0; // Top position doesn't change when resizing from bottom
       }
       
-      // Visual feedback could be added here
-      console.log('Resizing event:', { newStart, newEnd, direction, deltaMinutes });
+      // Update temporary visual state for immediate feedback
+      setTempResizeState({
+        newStart,
+        newEnd,
+        heightDelta,
+        topDelta
+      });
+      
+      console.log('Resizing event (real-time):', { 
+        newStart: newStart.toISOString(), 
+        newEnd: newEnd.toISOString(), 
+        direction, 
+        deltaMinutes,
+        heightDelta,
+        topDelta
+      });
     };
     
     const handleMouseUp = async () => {
       setIsResizing(false);
       
-      const deltaY = (window as any).lastMouseEvent?.clientY - startY || 0;
-      const deltaMinutes = (deltaY / pixelsPerHour) * 60;
-      
-      let newStart = originalStart;
-      let newEnd = originalEnd;
-      
-      if (direction === 'top') {
-        newStart = addMinutes(originalStart, deltaMinutes);
-        if (newStart >= originalEnd) {
-          newStart = addMinutes(originalEnd, -15);
-        }
-      } else {
-        newEnd = addMinutes(originalEnd, deltaMinutes);
-        if (newEnd <= originalStart) {
-          newEnd = addMinutes(originalStart, 15);
-        }
-      }
-      
-      if (onEventResize) {
+      if (tempResizeState && onEventResize) {
         try {
-          await onEventResize(event.id, newStart, newEnd);
+          await onEventResize(event.id, tempResizeState.newStart, tempResizeState.newEnd);
         } catch (error) {
           console.error('Failed to resize event:', error);
         }
       }
       
+      // Clear temporary state
+      setTempResizeState(null);
+      
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
     
-    // Store last mouse event for final calculation
-    const trackMouseMove = (e: MouseEvent) => {
-      (window as any).lastMouseEvent = e;
-      handleMouseMove(e);
-    };
-    
-    document.addEventListener('mousemove', trackMouseMove);
+    document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Calculate dynamic styles with real-time resize feedback
+  const getDynamicStyles = () => {
+    const baseStyles = {
+      ...style,
+      backgroundColor: eventColor,
+      opacity: isDragging ? 0.3 : 1,
+      cursor: isDragging ? 'grabbing' : (isResizing ? 'ns-resize' : 'grab'),
+      border: isResizing ? '2px solid #3b82f6' : 'none',
+      transform: 'none',
+      transition: isDragging || isResizing ? 'none' : 'opacity 0.2s ease',
+      position: 'relative',
+      willChange: 'transform, opacity',
+      color: '#000000',
+      boxShadow: isResizing ? '0 4px 12px rgba(59, 130, 246, 0.3)' : 'none'
+    };
+
+    // Apply real-time resize visual feedback
+    if (tempResizeState && isResizing) {
+      const currentHeight = parseFloat(style?.height as string) || 60;
+      const newHeight = Math.max(15, currentHeight + tempResizeState.heightDelta); // Minimum 15px height
+      
+      return {
+        ...baseStyles,
+        height: `${newHeight}px`,
+        transform: `translateY(${tempResizeState.topDelta}px)`,
+        backgroundColor: `${eventColor}dd`, // Slightly more transparent during resize
+      };
+    }
+
+    return baseStyles;
   };
 
   return (
@@ -136,18 +187,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
           eventRef.current = node;
         }}
         className={`custom-event ${isDragging ? 'dragging' : ''} ${isResizing ? 'resizing' : ''}`}
-        style={{
-          ...style,
-          backgroundColor: eventColor,
-          opacity: isDragging ? 0.3 : 1,
-          cursor: isDragging ? 'grabbing' : (isResizing ? 'ns-resize' : 'grab'),
-          border: 'none',
-          transform: 'none',
-          transition: isDragging || isResizing ? 'none' : 'opacity 0.2s ease',
-          position: 'relative',
-          willChange: 'transform, opacity',
-          color: '#000000'
-        }}
+        style={getDynamicStyles()}
       >
         {/* Top resize handle */}
         <div
@@ -159,7 +199,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             right: 0,
             height: '4px',
             cursor: 'ns-resize',
-            backgroundColor: 'transparent',
+            backgroundColor: isResizing ? 'rgba(59, 130, 246, 0.5)' : 'transparent',
             zIndex: 20
           }}
           onMouseDown={(e) => handleResizeStart(e, 'top')}
@@ -169,8 +209,18 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
           <div className="event-title" style={{ color: '#000000' }}>
             {event.title}
           </div>
-          <div className="event-time" style={{ color: '#000000' }}>
+          <div 
+            className="event-time" 
+            style={{ 
+              color: '#000000',
+              fontWeight: isResizing ? 'bold' : 'normal',
+              fontSize: isResizing ? '11px' : '10px'
+            }}
+          >
             {startTime} - {endTime}
+            {isResizing && tempResizeState && (
+              <span style={{ color: '#3b82f6', marginLeft: '4px' }}>●</span>
+            )}
           </div>
           {event.booking_number && (
             <div className="event-booking" style={{ color: '#000000' }}>
@@ -189,7 +239,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             right: 0,
             height: '4px',
             cursor: 'ns-resize',
-            backgroundColor: 'transparent',
+            backgroundColor: isResizing ? 'rgba(59, 130, 246, 0.5)' : 'transparent',
             zIndex: 20
           }}
           onMouseDown={(e) => handleResizeStart(e, 'bottom')}
