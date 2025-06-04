@@ -61,7 +61,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   const startTime = format(displayStart, 'HH:mm');
   const endTime = format(displayEnd, 'HH:mm');
 
-  // Handle resize operations with real-time visual feedback
+  // Handle resize operations with real-time visual feedback - FIXED to use 25px per hour
   const handleResizeStart = (e: React.MouseEvent, direction: 'top' | 'bottom') => {
     e.stopPropagation();
     setIsResizing(true);
@@ -69,7 +69,8 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     const startY = e.clientY;
     const originalStart = new Date(event.start);
     const originalEnd = new Date(event.end);
-    const pixelsPerHour = 60;
+    // FIXED: Use 25px per hour to match TimeGrid
+    const pixelsPerHour = 25;
     
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const deltaY = moveEvent.clientY - startY;
@@ -115,13 +116,14 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         topDelta
       });
       
-      console.log('Resizing event (real-time):', { 
+      console.log('Resizing event (real-time) with 25px/hour:', { 
         newStart: newStart.toISOString(), 
         newEnd: newEnd.toISOString(), 
         direction, 
         deltaMinutes,
         heightDelta,
-        topDelta
+        topDelta,
+        pixelsPerHour
       });
     };
     
