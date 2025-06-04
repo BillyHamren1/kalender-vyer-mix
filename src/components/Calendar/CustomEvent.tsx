@@ -3,6 +3,7 @@ import React, { useState, useRef } from 'react';
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
 import { format, addMinutes } from 'date-fns';
 import { useDrag } from 'react-dnd';
+import EventHoverCard from './EventHoverCard';
 import './CustomEvent.css';
 
 interface CustomEventProps {
@@ -128,71 +129,73 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   };
 
   return (
-    <div
-      ref={(node) => {
-        drag(node);
-        eventRef.current = node;
-      }}
-      className={`custom-event ${isDragging ? 'dragging' : ''} ${isResizing ? 'resizing' : ''}`}
-      style={{
-        ...style,
-        backgroundColor: eventColor,
-        opacity: isDragging ? 0.3 : 1,
-        cursor: isDragging ? 'grabbing' : (isResizing ? 'ns-resize' : 'grab'),
-        border: 'none',
-        transform: 'none',
-        transition: isDragging || isResizing ? 'none' : 'opacity 0.2s ease',
-        position: 'relative',
-        willChange: 'transform, opacity',
-        color: '#000000'
-      }}
-    >
-      {/* Top resize handle */}
+    <EventHoverCard event={event}>
       <div
-        className="resize-handle resize-handle-top"
-        style={{
-          position: 'absolute',
-          top: '-2px',
-          left: 0,
-          right: 0,
-          height: '4px',
-          cursor: 'ns-resize',
-          backgroundColor: 'transparent',
-          zIndex: 20
+        ref={(node) => {
+          drag(node);
+          eventRef.current = node;
         }}
-        onMouseDown={(e) => handleResizeStart(e, 'top')}
-      />
-      
-      <div className="event-content" style={{ color: '#000000' }}>
-        <div className="event-title" style={{ color: '#000000' }}>
-          {event.title}
-        </div>
-        <div className="event-time" style={{ color: '#000000' }}>
-          {startTime} - {endTime}
-        </div>
-        {event.booking_number && (
-          <div className="event-booking" style={{ color: '#000000' }}>
-            #{event.booking_number}
+        className={`custom-event ${isDragging ? 'dragging' : ''} ${isResizing ? 'resizing' : ''}`}
+        style={{
+          ...style,
+          backgroundColor: eventColor,
+          opacity: isDragging ? 0.3 : 1,
+          cursor: isDragging ? 'grabbing' : (isResizing ? 'ns-resize' : 'grab'),
+          border: 'none',
+          transform: 'none',
+          transition: isDragging || isResizing ? 'none' : 'opacity 0.2s ease',
+          position: 'relative',
+          willChange: 'transform, opacity',
+          color: '#000000'
+        }}
+      >
+        {/* Top resize handle */}
+        <div
+          className="resize-handle resize-handle-top"
+          style={{
+            position: 'absolute',
+            top: '-2px',
+            left: 0,
+            right: 0,
+            height: '4px',
+            cursor: 'ns-resize',
+            backgroundColor: 'transparent',
+            zIndex: 20
+          }}
+          onMouseDown={(e) => handleResizeStart(e, 'top')}
+        />
+        
+        <div className="event-content" style={{ color: '#000000' }}>
+          <div className="event-title" style={{ color: '#000000' }}>
+            {event.title}
           </div>
-        )}
+          <div className="event-time" style={{ color: '#000000' }}>
+            {startTime} - {endTime}
+          </div>
+          {event.booking_number && (
+            <div className="event-booking" style={{ color: '#000000' }}>
+              #{event.booking_number}
+            </div>
+          )}
+        </div>
+        
+        {/* Bottom resize handle */}
+        <div
+          className="resize-handle resize-handle-bottom"
+          style={{
+            position: 'absolute',
+            bottom: '-2px',
+            left: 0,
+            right: 0,
+            height: '4px',
+            cursor: 'ns-resize',
+            backgroundColor: 'transparent',
+            zIndex: 20
+          }}
+          onMouseDown={(e) => handleResizeStart(e, 'bottom')}
+        />
       </div>
-      
-      {/* Bottom resize handle */}
-      <div
-        className="resize-handle resize-handle-bottom"
-        style={{
-          position: 'absolute',
-          bottom: '-2px',
-          left: 0,
-          right: 0,
-          height: '4px',
-          cursor: 'ns-resize',
-          backgroundColor: 'transparent',
-          zIndex: 20
-        }}
-        onMouseDown={(e) => handleResizeStart(e, 'bottom')}
-      />
-    </div>
+    </EventHoverCard>
   );
 });
 
