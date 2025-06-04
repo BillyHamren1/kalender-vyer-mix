@@ -61,7 +61,7 @@ const DraggableEvent: React.FC<{
   );
 });
 
-// Enhanced Droppable Time Slot Component with improved precision
+// Enhanced Droppable Time Slot Component with corrected precision
 const DroppableTimeSlot: React.FC<{
   resourceId: string;
   day: Date;
@@ -73,7 +73,7 @@ const DroppableTimeSlot: React.FC<{
   
   const elementRef = React.useRef<HTMLDivElement>(null);
   
-  // Enhanced time calculation with 5-minute precision for smoother drops
+  // Fixed time calculation with proper header offset
   const getDropTime = (clientY: number) => {
     if (!elementRef.current) {
       console.warn('Element ref not available for time calculation');
@@ -81,14 +81,25 @@ const DroppableTimeSlot: React.FC<{
     }
     
     const rect = elementRef.current.getBoundingClientRect();
-    const relativeY = clientY - rect.top;
+    
+    // Account for header offset: day header (40px) + team header (40px) + staff row (80px) = 160px
+    const headerOffset = 160;
+    const relativeY = clientY - rect.top - headerOffset;
+    
+    console.log('TimeGrid drop calculation debug:', {
+      clientY,
+      rectTop: rect.top,
+      headerOffset,
+      relativeY,
+      adjustedY: Math.max(0, relativeY)
+    });
     
     // Use consistent 25px per hour
     const pixelsPerHour = 25;
     const startHour = 5; // Grid starts at 5 AM
     
     // Calculate precise time with 5-minute granularity
-    const totalHours = relativeY / pixelsPerHour;
+    const totalHours = Math.max(0, relativeY) / pixelsPerHour; // Prevent negative hours
     const targetHour = Math.max(5, Math.min(23, startHour + totalHours));
     
     // Round to nearest 5-minute interval for smoother drops
@@ -98,7 +109,11 @@ const DroppableTimeSlot: React.FC<{
     const finalHour = Math.floor(roundedMinutes / 60);
     const finalMinutes = roundedMinutes % 60;
     
-    return `${finalHour.toString().padStart(2, '0')}:${finalMinutes.toString().padStart(2, '0')}`;
+    const calculatedTime = `${finalHour.toString().padStart(2, '0')}:${finalMinutes.toString().padStart(2, '0')}`;
+    
+    console.log('TimeGrid calculated time:', calculatedTime, 'from position:', relativeY);
+    
+    return calculatedTime;
   };
 
   const [{ isOver, dragType }, drop] = useDrop({
@@ -106,7 +121,7 @@ const DroppableTimeSlot: React.FC<{
     drop: async (item: any, monitor) => {
       const clientOffset = monitor.getClientOffset();
       
-      console.log('DroppableTimeSlot: Handling drop with enhanced precision', { 
+      console.log('DroppableTimeSlot: Handling drop with corrected precision', { 
         item, 
         resourceId, 
         day: format(day, 'yyyy-MM-dd'),
@@ -115,17 +130,17 @@ const DroppableTimeSlot: React.FC<{
       });
       
       try {
-        // Handle event drops with enhanced precision
+        // Handle event drops with corrected precision
         if (item.eventId && onEventDrop && clientOffset) {
           const targetTime = getDropTime(clientOffset.y);
           
-          console.log('Moving event with enhanced precision:', {
+          console.log('Moving event with corrected precision:', {
             eventId: item.eventId,
             fromResource: item.resourceId,
             toResource: resourceId,
             targetTime,
             clientY: clientOffset.y,
-            precision: '5-minute intervals'
+            precision: '5-minute intervals with header offset correction'
           });
           
           await onEventDrop(item.eventId, resourceId, day, targetTime);

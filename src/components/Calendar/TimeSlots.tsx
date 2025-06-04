@@ -26,7 +26,7 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
   // Create a proper DOM element ref
   const elementRef = React.useRef<HTMLDivElement>(null);
 
-  // Enhanced time calculation with 5-minute precision for smoother drops
+  // Fixed time calculation accounting for header offset
   const getTimeSlotFromPosition = (clientY: number) => {
     if (!elementRef.current) {
       console.warn('Element ref not available for time calculation');
@@ -34,14 +34,25 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
     }
     
     const rect = elementRef.current.getBoundingClientRect();
-    const relativeY = clientY - rect.top;
+    
+    // Account for header offset: day header (40px) + team header (40px) + staff row (80px) = 160px
+    const headerOffset = 160;
+    const relativeY = clientY - rect.top - headerOffset;
+    
+    console.log('Time calculation debug:', {
+      clientY,
+      rectTop: rect.top,
+      headerOffset,
+      relativeY,
+      adjustedY: Math.max(0, relativeY) // Ensure we don't go negative
+    });
     
     // Use 25px per hour (matching TimeGrid) for consistency
     const pixelsPerHour = 25;
     const startHour = 5; // Grid starts at 5 AM
     
     // Calculate precise time with 5-minute granularity
-    const totalHours = relativeY / pixelsPerHour;
+    const totalHours = Math.max(0, relativeY) / pixelsPerHour; // Prevent negative hours
     const targetHour = Math.max(5, Math.min(23, startHour + totalHours));
     
     // Round to nearest 5-minute interval for smoother drops
@@ -51,7 +62,11 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
     const finalHour = Math.floor(roundedMinutes / 60);
     const finalMinutes = roundedMinutes % 60;
     
-    return `${finalHour.toString().padStart(2, '0')}:${finalMinutes.toString().padStart(2, '0')}`;
+    const calculatedTime = `${finalHour.toString().padStart(2, '0')}:${finalMinutes.toString().padStart(2, '0')}`;
+    
+    console.log('Calculated time:', calculatedTime, 'from position:', relativeY);
+    
+    return calculatedTime;
   };
 
   // Optimized event drop handler - NO MANUAL REFRESH
@@ -121,7 +136,7 @@ const TimeSlots: React.FC<TimeSlotsProps> = ({
         if (item.eventId && clientOffset) {
           const targetTime = getTimeSlotFromPosition(clientOffset.y);
           
-          console.log('Moving event with time:', {
+          console.log('Moving event with corrected time calculation:', {
             eventId: item.eventId,
             fromResource: item.resourceId,
             toResource: resource.id,
