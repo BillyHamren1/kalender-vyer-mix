@@ -1,4 +1,6 @@
+
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -26,6 +28,25 @@ const StaffList: React.FC<StaffListProps> = ({
   onRefresh,
   onColorEdit 
 }) => {
+  const navigate = useNavigate();
+
+  const handleStaffClick = (staffId: string) => {
+    navigate(`/staff/${staffId}`);
+  };
+
+  const handleColorEditClick = (e: React.MouseEvent, staff: StaffMember) => {
+    e.stopPropagation(); // Prevent card click navigation
+    if (onColorEdit) {
+      onColorEdit(staff);
+    }
+  };
+
+  const handleEditClick = (e: React.MouseEvent, staffId: string) => {
+    e.stopPropagation(); // Prevent card click navigation
+    // TODO: Implement edit functionality
+    console.log('Edit staff:', staffId);
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -66,7 +87,11 @@ const StaffList: React.FC<StaffListProps> = ({
         const textColor = getContrastTextColor(staffColor);
         
         return (
-          <Card key={staff.id} className="transition-shadow hover:shadow-md">
+          <Card 
+            key={staff.id} 
+            className="transition-shadow hover:shadow-md cursor-pointer"
+            onClick={() => handleStaffClick(staff.id)}
+          >
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4 flex-1">
@@ -111,7 +136,7 @@ const StaffList: React.FC<StaffListProps> = ({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => onColorEdit(staff)}
+                      onClick={(e) => handleColorEditClick(e, staff)}
                       className="text-xs"
                     >
                       <Palette className="h-3 w-3 mr-1" />
@@ -121,6 +146,7 @@ const StaffList: React.FC<StaffListProps> = ({
                   <Button
                     variant="outline"
                     size="sm"
+                    onClick={(e) => handleEditClick(e, staff.id)}
                     className="text-xs"
                   >
                     <Edit2 className="h-3 w-3 mr-1" />
