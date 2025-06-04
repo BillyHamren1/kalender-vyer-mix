@@ -1,13 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, DollarSign, User, Plus } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, DollarSign, User, Plus, Mail, Phone, MapPin, Briefcase } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { timeReportService } from '@/services/timeReportService';
 import TimeReportForm from '@/components/time-reports/TimeReportForm';
@@ -15,9 +15,11 @@ import TimeReportList from '@/components/time-reports/TimeReportList';
 import DailyTimeView from '@/components/time-reports/DailyTimeView';
 import { TimeReport } from '@/types/timeReport';
 import { toast } from 'sonner';
+import { getContrastTextColor } from '@/utils/staffColors';
 
 const StaffDetail: React.FC = () => {
   const { staffId } = useParams<{ staffId: string }>();
+  const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showTimeReportForm, setShowTimeReportForm] = useState(false);
   const [timeReports, setTimeReports] = useState<TimeReport[]>([]);
@@ -126,27 +128,152 @@ const StaffDetail: React.FC = () => {
     );
   }
 
+  const staffColor = staffMember.color || '#E3F2FD';
+  const textColor = getContrastTextColor(staffColor);
+
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-6">
+        <div className="flex items-center gap-4 mb-4">
+          <Button 
+            variant="outline" 
+            onClick={() => navigate('/staff-management')}
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Staff
+          </Button>
+        </div>
+        
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              <User className="h-8 w-8" />
-              {staffMember.name}
-            </h1>
-            <p className="text-gray-600 mt-1">
-              {staffMember.role && `${staffMember.role} • `}
-              {staffMember.department && `${staffMember.department} • `}
-              {staffMember.hourly_rate && `${formatCurrency(staffMember.hourly_rate)}/hour`}
-            </p>
+          <div className="flex items-center gap-4">
+            <div 
+              className="h-16 w-16 rounded-full flex items-center justify-center text-xl font-bold border-2"
+              style={{ 
+                backgroundColor: staffColor,
+                color: textColor,
+                borderColor: '#e5e7eb'
+              }}
+            >
+              {staffMember.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold">{staffMember.name}</h1>
+              <div className="flex items-center gap-2 mt-1">
+                {staffMember.role && (
+                  <Badge variant="secondary">{staffMember.role}</Badge>
+                )}
+                {staffMember.department && (
+                  <Badge variant="outline">{staffMember.department}</Badge>
+                )}
+              </div>
+            </div>
           </div>
           <Button onClick={() => setShowTimeReportForm(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Add Time Report
           </Button>
         </div>
+      </div>
+
+      {/* Staff Information Cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        {/* Contact Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-5 w-5" />
+              Contact Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {staffMember.email && (
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-gray-500" />
+                <span className="text-sm">{staffMember.email}</span>
+              </div>
+            )}
+            {staffMember.phone && (
+              <div className="flex items-center gap-2">
+                <Phone className="h-4 w-4 text-gray-500" />
+                <span className="text-sm">{staffMember.phone}</span>
+              </div>
+            )}
+            {staffMember.address && (
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-gray-500" />
+                <span className="text-sm">{staffMember.address}</span>
+              </div>
+            )}
+            {(!staffMember.email && !staffMember.phone && !staffMember.address) && (
+              <p className="text-sm text-gray-500">No contact information available</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Employment Details */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Briefcase className="h-5 w-5" />
+              Employment Details
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {staffMember.hire_date && (
+              <div>
+                <p className="text-sm text-gray-600">Hire Date</p>
+                <p className="font-medium">{format(new Date(staffMember.hire_date), 'PPP')}</p>
+              </div>
+            )}
+            {staffMember.employee_id && (
+              <div>
+                <p className="text-sm text-gray-600">Employee ID</p>
+                <p className="font-medium">{staffMember.employee_id}</p>
+              </div>
+            )}
+            {staffMember.status && (
+              <div>
+                <p className="text-sm text-gray-600">Status</p>
+                <Badge variant={staffMember.status === 'active' ? 'default' : 'secondary'}>
+                  {staffMember.status}
+                </Badge>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Rate Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5" />
+              Rate Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {staffMember.hourly_rate && (
+              <div>
+                <p className="text-sm text-gray-600">Hourly Rate</p>
+                <p className="text-xl font-bold text-green-600">
+                  {formatCurrency(staffMember.hourly_rate)}/hour
+                </p>
+              </div>
+            )}
+            {staffMember.overtime_rate && (
+              <div>
+                <p className="text-sm text-gray-600">Overtime Rate</p>
+                <p className="text-lg font-medium text-green-600">
+                  {formatCurrency(staffMember.overtime_rate)}/hour
+                </p>
+              </div>
+            )}
+            {(!staffMember.hourly_rate && !staffMember.overtime_rate) && (
+              <p className="text-sm text-gray-500">No rate information available</p>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Monthly Stats */}
