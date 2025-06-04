@@ -5,6 +5,7 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
+import { useBackgroundImport } from '@/hooks/useBackgroundImport';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ArrowLeft, Calendar as CalendarIcon, List } from 'lucide-react';
@@ -37,6 +38,15 @@ const CustomCalendarPage = () => {
 
   // Use the unified staff operations hook
   const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly');
+
+  // Add background import functionality
+  const backgroundImport = useBackgroundImport({
+    enableAutoImport: true,
+    onImportComplete: (results) => {
+      // Refresh calendar events after successful import
+      refreshEvents();
+    }
+  });
 
   // Staff curtain state - simplified with position
   const [staffCurtainOpen, setStaffCurtainOpen] = useState(false);
@@ -153,6 +163,7 @@ const CustomCalendarPage = () => {
                 resources={teamResources}
                 currentDate={currentWeekStart}
                 weeklyStaffOperations={staffOps}
+                backgroundImport={backgroundImport}
               />
             )}
           </div>

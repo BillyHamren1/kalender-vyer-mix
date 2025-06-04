@@ -5,12 +5,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Clock, Users, Calendar, MapPin, Search, Filter, FileDown, ChevronDown, ChevronUp } from 'lucide-react';
+import { Clock, Users, Calendar, MapPin, Search, Filter, FileDown, ChevronDown, ChevronUp, RefreshCcw } from 'lucide-react';
 import { format, differenceInHours, isWithinInterval, parseISO } from 'date-fns';
 import { CalendarEvent, Resource } from './ResourceData';
 import StatusChangeForm from '@/components/booking/StatusChangeForm';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface StaffAssignment {
   staffId: string;
@@ -41,13 +42,21 @@ interface StaffBookingsListProps {
   weeklyStaffOperations?: {
     getStaffForTeamAndDate: (teamId: string, date: Date) => Array<{id: string, name: string, color?: string}>;
   };
+  backgroundImport?: {
+    isImporting: boolean;
+    lastSyncTime: string | null;
+    syncStatus: string | null;
+    performManualRefresh: () => Promise<any>;
+    updateSyncStatus: () => Promise<void>;
+  };
 }
 
 const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
   events,
   resources,
   currentDate,
-  weeklyStaffOperations
+  weeklyStaffOperations,
+  backgroundImport
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEventType, setSelectedEventType] = useState<string>('all');
@@ -73,6 +82,26 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
     },
     staleTime: 30000,
   });
+
+  // Handle manual refresh
+  const handleManualRefresh = async () => {
+    if (!backgroundImport) {
+      toast.error('Refresh functionality not available');
+      return;
+    }
+
+    try {
+      const result = await backgroundImport.performManualRefresh();
+      if (result.success) {
+        toast.success('Bookings refreshed successfully');
+      } else {
+        toast.error('Failed to refresh bookings');
+      }
+    } catch (error) {
+      console.error('Manual refresh failed:', error);
+      toast.error('Failed to refresh bookings');
+    }
+  };
 
   // Extract client name from event title
   const extractClientName = (title: string): string => {
@@ -266,9 +295,26 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
                 {unassignedRows > 0 && (
                   <span className="text-red-600">{unassignedRows} unassigned</span>
                 )}
+                {backgroundImport?.lastSyncTime && (
+                  <span className="text-blue-600">
+                    Last sync: {format(new Date(backgroundImport.lastSyncTime), 'HH:mm')}
+                  </span>
+                )}
               </div>
             </div>
             <div className="flex gap-2">
+              {backgroundImport && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleManualRefresh}
+                  disabled={backgroundImport.isImporting}
+                  className="flex items-center gap-2"
+                >
+                  <RefreshCcw className={`h-4 w-4 ${backgroundImport.isImporting ? 'animate-spin' : ''}`} />
+                  {backgroundImport.isImporting ? 'Refreshing...' : 'Refresh'}
+                </Button>
+              )}
               <Button variant="outline" size="sm">
                 <FileDown className="h-4 w-4 mr-2" />
                 Export

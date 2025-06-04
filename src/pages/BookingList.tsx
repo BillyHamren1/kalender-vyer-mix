@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Command, CommandInput } from '@/components/ui/command';
-import { quietImportBookings } from '@/services/importService';
+import { useBackgroundImport } from '@/hooks/useBackgroundImport';
 import { Booking } from '../types/booking';
 import { 
   fetchBookings, 
@@ -36,8 +36,6 @@ const BookingList = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [isImporting, setIsImporting] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
   const [recentlyUpdatedBookingIds, setRecentlyUpdatedBookingIds] = useState<string[]>([]);
   const [statusChangedBookingIds, setStatusChangedBookingIds] = useState<string[]>([]);
   const [showPlannedBookings, setShowPlannedBookings] = useState(false);
@@ -49,12 +47,38 @@ const BookingList = () => {
   const [plannedDaysAhead, setPlannedDaysAhead] = useState<number>(30);
   const [plannedStatusFilter, setPlannedStatusFilter] = useState<string>("confirmed");
   const [includeTodayBookings, setIncludeTodayBookings] = useState<boolean>(true);
+
+  // Use the background import hook
+  const backgroundImport = useBackgroundImport({
+    enableAutoImport: true,
+    onImportComplete: (results) => {
+      // Track newly imported, updated, and status changed bookings
+      const newOrUpdatedIds = [...(results.new_bookings || []), ...(results.updated_bookings || [])];
+      const statusChangedIds = [...(results.status_changed_bookings || [])];
+      
+      if (newOrUpdatedIds.length > 0 || statusChangedIds.length > 0) {
+        setRecentlyUpdatedBookingIds(prevIds => {
+          const combined = [...prevIds, ...newOrUpdatedIds];
+          // Remove duplicates
+          return [...new Set(combined)];
+        });
+        
+        setStatusChangedBookingIds(prevIds => {
+          const combined = [...prevIds, ...statusChangedIds];
+          // Remove duplicates
+          return [...new Set(combined)];
+        });
+        
+        // Reload bookings to show the newly imported ones
+        loadBookings();
+      }
+    }
+  });
   
   // Function to load bookings - now loads ALL bookings, not just confirmed ones
   const loadBookings = async () => {
     try {
       setIsLoading(true);
-      setImportError(null);
       const data = await fetchBookings();
       setBookings(data);
       
@@ -150,44 +174,6 @@ const BookingList = () => {
       setShowPlannedBookings(false);
     }
   };
-
-  // Function for quiet background import
-  const performQuietImport = async () => {
-    try {
-      setIsImporting(true);
-      const result = await quietImportBookings();
-      
-      if (result.success && result.results) {
-        // Track newly imported, updated, and status changed bookings
-        const newOrUpdatedIds = [...(result.results.new_bookings || []), ...(result.results.updated_bookings || [])];
-        const statusChangedIds = [...(result.results.status_changed_bookings || [])];
-        
-        if (newOrUpdatedIds.length > 0 || statusChangedIds.length > 0) {
-          setRecentlyUpdatedBookingIds(prevIds => {
-            const combined = [...prevIds, ...newOrUpdatedIds];
-            // Remove duplicates
-            return [...new Set(combined)];
-          });
-          
-          setStatusChangedBookingIds(prevIds => {
-            const combined = [...prevIds, ...statusChangedIds];
-            // Remove duplicates
-            return [...new Set(combined)];
-          });
-          
-          // Reload bookings to show the newly imported ones
-          await loadBookings();
-        }
-      } else {
-        // Just log errors but don't show UI error messages
-        console.error('Quiet import failed:', result);
-      }
-    } catch (error) {
-      console.error('Error during quiet import:', error);
-    } finally {
-      setIsImporting(false);
-    }
-  };
   
   // Function to mark a booking as viewed
   const handleMarkAsViewed = async (id: string, event: React.MouseEvent) => {
@@ -226,26 +212,9 @@ const BookingList = () => {
     return content;
   };
   
-  // Auto-import and load bookings on initial component mount
+  // Load bookings on initial component mount
   useEffect(() => {
-    const initializeBookings = async () => {
-      setIsLoading(true);
-      
-      // Try to load existing bookings first
-      const hasExistingBookings = await loadBookings();
-      
-      // Perform a quiet import in the background
-      await performQuietImport();
-    };
-    
-    initializeBookings();
-    
-    // Set up periodic background imports more frequently (every 2 minutes instead of 5)
-    const intervalId = setInterval(performQuietImport, 2 * 60 * 1000);
-    
-    return () => {
-      clearInterval(intervalId);
-    };
+    loadBookings();
   }, []);
   
   const handleRowClick = (id: string) => {
@@ -288,29 +257,16 @@ const BookingList = () => {
               </Button>
             </Link>
             <Button 
-              onClick={() => loadBookings()} 
+              onClick={backgroundImport.performManualRefresh} 
               variant="outline" 
-              disabled={isLoading || isImporting}
+              disabled={isLoading || backgroundImport.isImporting}
               className="flex items-center gap-2"
             >
-              <RefreshCcw className={`h-4 w-4 ${isLoading || isImporting ? 'animate-spin' : ''}`} />
-              {isImporting ? 'Importing...' : 'Update'}
+              <RefreshCcw className={`h-4 w-4 ${isLoading || backgroundImport.isImporting ? 'animate-spin' : ''}`} />
+              {backgroundImport.isImporting ? 'Importing...' : 'Update'}
             </Button>
           </div>
         </div>
-        
-        {importError && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertTitle>Import Error</AlertTitle>
-            <AlertDescription>
-              {importError}
-              <div className="mt-2 text-sm">
-                Please verify that the API keys are correctly configured in the Supabase project settings
-                and that the export-bookings function is properly deployed.
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
 
         {/* New Search and Filter UI based on the provided image */}
         <div className="mb-6 flex justify-between items-center">
@@ -341,6 +297,18 @@ const BookingList = () => {
             </Button>
           </div>
         </div>
+
+        {/* Sync Status Display */}
+        {backgroundImport.lastSyncTime && (
+          <div className="mb-4 text-sm text-gray-600 flex items-center gap-2">
+            <span>Last sync: {new Date(backgroundImport.lastSyncTime).toLocaleTimeString()}</span>
+            {backgroundImport.syncStatus && (
+              <Badge variant={backgroundImport.syncStatus === 'success' ? 'default' : 'destructive'} className="text-xs">
+                {backgroundImport.syncStatus}
+              </Badge>
+            )}
+          </div>
+        )}
 
         {/* Planned Bookings Section with Filtering Controls */}
         {showPlannedBookings && (
