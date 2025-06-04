@@ -6,6 +6,7 @@ import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { useBackgroundImport } from '@/hooks/useBackgroundImport';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ArrowLeft, Calendar as CalendarIcon, List } from 'lucide-react';
@@ -13,11 +14,18 @@ import { useNavigate } from 'react-router-dom';
 import CustomCalendar from '@/components/Calendar/CustomCalendar';
 import SimpleStaffCurtain from '@/components/Calendar/SimpleStaffCurtain';
 import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
-import { startOfWeek } from 'date-fns';
+import MobileMonthlyCalendar from '@/components/Calendar/MobileMonthlyCalendar';
+import MobileDayDetailView from '@/components/Calendar/MobileDayDetailView';
+import { startOfWeek, startOfMonth } from 'date-fns';
 
 const CustomCalendarPage = () => {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+  
+  // Mobile-specific state
+  const [mobileView, setMobileView] = useState<'month' | 'day'>('month');
+  const [selectedMobileDate, setSelectedMobileDate] = useState<Date>(new Date());
   
   // Use existing hooks for data consistency
   const {
@@ -31,13 +39,20 @@ const CustomCalendarPage = () => {
   
   const { teamResources } = useTeamResources();
   
-  // Week navigation state
+  // Week navigation state (for desktop) and month state (for mobile)
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     return startOfWeek(new Date(hookCurrentDate), { weekStartsOn: 1 });
   });
 
+  const [currentMonthStart, setCurrentMonthStart] = useState(() => {
+    return startOfMonth(new Date(hookCurrentDate));
+  });
+
   // Use the unified staff operations hook
-  const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly');
+  const staffOps = useUnifiedStaffOperations(
+    isMobile ? selectedMobileDate : currentWeekStart, 
+    isMobile ? 'daily' : 'weekly'
+  );
 
   // Add background import functionality
   const backgroundImport = useBackgroundImport({
@@ -95,6 +110,20 @@ const CustomCalendarPage = () => {
     setSelectedTeam(null);
   };
 
+  // Mobile-specific handlers
+  const handleMobileDayClick = (date: Date) => {
+    setSelectedMobileDate(date);
+    setMobileView('day');
+  };
+
+  const handleBackToMonth = () => {
+    setMobileView('month');
+  };
+
+  const handleMobileMonthChange = (date: Date) => {
+    setCurrentMonthStart(date);
+  };
+
   return (
     <DndProvider backend={HTML5Backend}>
       <TooltipProvider>
@@ -115,53 +144,81 @@ const CustomCalendarPage = () => {
                 <h1 className="text-2xl font-bold text-gray-900">Staff Calendar</h1>
               </div>
               
-              {/* View Toggle */}
-              <div className="flex items-center gap-2">
-                <div className="flex bg-gray-100 rounded-lg p-1">
-                  <Button
-                    variant={viewMode === 'calendar' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('calendar')}
-                    className="flex items-center gap-2"
-                  >
-                    <CalendarIcon className="h-4 w-4" />
-                    Calendar View
-                  </Button>
-                  <Button
-                    variant={viewMode === 'list' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('list')}
-                    className="flex items-center gap-2"
-                  >
-                    <List className="h-4 w-4" />
-                    List View
-                  </Button>
+              {/* View Toggle - Hide on mobile when in day view */}
+              {!isMobile || mobileView === 'month' ? (
+                <div className="flex items-center gap-2">
+                  <div className="flex bg-gray-100 rounded-lg p-1">
+                    <Button
+                      variant={viewMode === 'calendar' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('calendar')}
+                      className="flex items-center gap-2"
+                    >
+                      <CalendarIcon className="h-4 w-4" />
+                      {isMobile ? 'Calendar' : 'Calendar View'}
+                    </Button>
+                    <Button
+                      variant={viewMode === 'list' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('list')}
+                      className="flex items-center gap-2"
+                    >
+                      <List className="h-4 w-4" />
+                      {isMobile ? 'List' : 'List View'}
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              ) : null}
             </div>
           </div>
 
           {/* Content */}
           <div className="p-6">
             {viewMode === 'calendar' ? (
-              <CustomCalendar
-                events={events}
-                resources={teamResources}
-                isLoading={isLoading}
-                isMounted={isMounted}
-                currentDate={currentWeekStart}
-                onDateSet={handleDatesSet}
-                refreshEvents={refreshEvents}
-                onStaffDrop={staffOps.handleStaffDrop}
-                onOpenStaffSelection={handleOpenStaffSelection}
-                viewMode="weekly"
-                weeklyStaffOperations={staffOps}
-              />
+              <>
+                {isMobile ? (
+                  // Mobile Calendar Views
+                  <>
+                    {mobileView === 'month' ? (
+                      <MobileMonthlyCalendar
+                        events={events}
+                        currentDate={currentMonthStart}
+                        onDateChange={handleMobileMonthChange}
+                        onDayClick={handleMobileDayClick}
+                      />
+                    ) : (
+                      <MobileDayDetailView
+                        selectedDate={selectedMobileDate}
+                        events={events}
+                        resources={teamResources}
+                        onBack={handleBackToMonth}
+                        onOpenStaffSelection={handleOpenStaffSelection}
+                        weeklyStaffOperations={staffOps}
+                      />
+                    )}
+                  </>
+                ) : (
+                  // Desktop Calendar View
+                  <CustomCalendar
+                    events={events}
+                    resources={teamResources}
+                    isLoading={isLoading}
+                    isMounted={isMounted}
+                    currentDate={currentWeekStart}
+                    onDateSet={handleDatesSet}
+                    refreshEvents={refreshEvents}
+                    onStaffDrop={staffOps.handleStaffDrop}
+                    onOpenStaffSelection={handleOpenStaffSelection}
+                    viewMode="weekly"
+                    weeklyStaffOperations={staffOps}
+                  />
+                )}
+              </>
             ) : (
               <StaffBookingsList
                 events={events}
                 resources={teamResources}
-                currentDate={currentWeekStart}
+                currentDate={isMobile ? selectedMobileDate : currentWeekStart}
                 weeklyStaffOperations={staffOps}
                 backgroundImport={backgroundImport}
               />
