@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
@@ -31,11 +30,14 @@ const StaffList: React.FC<StaffListProps> = ({
   const navigate = useNavigate();
 
   const handleStaffClick = (staffId: string) => {
+    console.log('Staff clicked:', staffId);
+    console.log('Navigating to:', `/staff/${staffId}`);
     navigate(`/staff/${staffId}`);
   };
 
   const handleColorEditClick = (e: React.MouseEvent, staff: StaffMember) => {
     e.stopPropagation(); // Prevent card click navigation
+    console.log('Color edit clicked for staff:', staff.id);
     if (onColorEdit) {
       onColorEdit(staff);
     }
@@ -43,8 +45,8 @@ const StaffList: React.FC<StaffListProps> = ({
 
   const handleEditClick = (e: React.MouseEvent, staffId: string) => {
     e.stopPropagation(); // Prevent card click navigation
+    console.log('Edit clicked for staff:', staffId);
     // TODO: Implement edit functionality
-    console.log('Edit staff:', staffId);
   };
 
   if (isLoading) {
@@ -90,7 +92,10 @@ const StaffList: React.FC<StaffListProps> = ({
           <Card 
             key={staff.id} 
             className="transition-shadow hover:shadow-md cursor-pointer"
-            onClick={() => handleStaffClick(staff.id)}
+            onClick={() => {
+              console.log('Card clicked for staff:', staff.id, staff.name);
+              handleStaffClick(staff.id);
+            }}
           >
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
