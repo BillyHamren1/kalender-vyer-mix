@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -6,12 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Calendar, Clock, DollarSign, User, Plus, Mail, Phone, MapPin, Briefcase } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, DollarSign, User, Plus, Mail, Phone, MapPin, Briefcase, Edit2, AlertTriangle, FileText, Building } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { timeReportService } from '@/services/timeReportService';
 import TimeReportForm from '@/components/time-reports/TimeReportForm';
 import TimeReportList from '@/components/time-reports/TimeReportList';
 import DailyTimeView from '@/components/time-reports/DailyTimeView';
+import EditStaffDialog from '@/components/staff/EditStaffDialog';
 import { TimeReport } from '@/types/timeReport';
 import { toast } from 'sonner';
 import { getContrastTextColor } from '@/utils/staffColors';
@@ -21,10 +23,11 @@ const StaffDetail: React.FC = () => {
   const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showTimeReportForm, setShowTimeReportForm] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [timeReports, setTimeReports] = useState<TimeReport[]>([]);
 
   // Fetch staff member details
-  const { data: staffMember, isLoading: staffLoading } = useQuery({
+  const { data: staffMember, isLoading: staffLoading, refetch: refetchStaff } = useQuery({
     queryKey: ['staff-member', staffId],
     queryFn: async () => {
       if (!staffId) throw new Error('Staff ID is required');
@@ -85,11 +88,25 @@ const StaffDetail: React.FC = () => {
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
+  const handleStaffUpdated = () => {
+    refetchStaff();
+    setShowEditDialog(false);
+    toast.success('Staff member updated successfully');
+  };
+
+  const formatCurrency = (amount?: number) => {
+    if (amount === undefined || amount === null) return 'Not set';
+    return `${amount} SEK`;
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'Not set';
+    return format(new Date(dateString), 'PPP');
+  };
+
+  const displayValue = (value?: string | number) => {
+    if (value === undefined || value === null || value === '') return 'Not set';
+    return value;
   };
 
   // Calculate monthly stats
@@ -169,45 +186,56 @@ const StaffDetail: React.FC = () => {
               </div>
             </div>
           </div>
-          <Button onClick={() => setShowTimeReportForm(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Time Report
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              onClick={() => setShowEditDialog(true)}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <Edit2 className="h-4 w-4" />
+              Edit Staff
+            </Button>
+            <Button onClick={() => setShowTimeReportForm(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Time Report
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Staff Information Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Contact Information */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
+              <Mail className="h-5 w-5" />
               Contact Information
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {staffMember.email && (
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-gray-500" />
-                <span className="text-sm">{staffMember.email}</span>
+          <CardContent className="space-y-4">
+            <div>
+              <p className="text-sm text-gray-600">Email</p>
+              <p className="font-medium">{displayValue(staffMember.email)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Phone</p>
+              <p className="font-medium">{displayValue(staffMember.phone)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Address</p>
+              <p className="font-medium">{displayValue(staffMember.address)}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-gray-600">City</p>
+                <p className="font-medium">{displayValue(staffMember.city)}</p>
               </div>
-            )}
-            {staffMember.phone && (
-              <div className="flex items-center gap-2">
-                <Phone className="h-4 w-4 text-gray-500" />
-                <span className="text-sm">{staffMember.phone}</span>
+              <div>
+                <p className="text-sm text-gray-600">Postal Code</p>
+                <p className="font-medium">{displayValue(staffMember.postal_code)}</p>
               </div>
-            )}
-            {staffMember.address && (
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-gray-500" />
-                <span className="text-sm">{staffMember.address}</span>
-              </div>
-            )}
-            {(!staffMember.email && !staffMember.phone && !staffMember.address) && (
-              <p className="text-sm text-gray-500">No contact information available</p>
-            )}
+            </div>
           </CardContent>
         </Card>
 
@@ -219,59 +247,89 @@ const StaffDetail: React.FC = () => {
               Employment Details
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {staffMember.hire_date && (
-              <div>
-                <p className="text-sm text-gray-600">Hire Date</p>
-                <p className="font-medium">{format(new Date(staffMember.hire_date), 'PPP')}</p>
-              </div>
-            )}
-            {staffMember.city && (
-              <div>
-                <p className="text-sm text-gray-600">City</p>
-                <p className="font-medium">{staffMember.city}</p>
-              </div>
-            )}
-            {staffMember.postal_code && (
-              <div>
-                <p className="text-sm text-gray-600">Postal Code</p>
-                <p className="font-medium">{staffMember.postal_code}</p>
-              </div>
-            )}
+          <CardContent className="space-y-4">
+            <div>
+              <p className="text-sm text-gray-600">Role/Position</p>
+              <p className="font-medium">{displayValue(staffMember.role)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Department</p>
+              <p className="font-medium">{displayValue(staffMember.department)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Hire Date</p>
+              <p className="font-medium">{formatDate(staffMember.hire_date)}</p>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Rate Information */}
+        {/* Financial Information */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <DollarSign className="h-5 w-5" />
-              Rate Information
+              Financial Information
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {staffMember.hourly_rate && (
-              <div>
-                <p className="text-sm text-gray-600">Hourly Rate</p>
-                <p className="text-xl font-bold text-green-600">
-                  {formatCurrency(staffMember.hourly_rate)}/hour
-                </p>
-              </div>
-            )}
-            {staffMember.overtime_rate && (
-              <div>
-                <p className="text-sm text-gray-600">Overtime Rate</p>
-                <p className="text-lg font-medium text-green-600">
-                  {formatCurrency(staffMember.overtime_rate)}/hour
-                </p>
-              </div>
-            )}
-            {(!staffMember.hourly_rate && !staffMember.overtime_rate) && (
-              <p className="text-sm text-gray-500">No rate information available</p>
-            )}
+          <CardContent className="space-y-4">
+            <div>
+              <p className="text-sm text-gray-600">Hourly Rate</p>
+              <p className="text-xl font-bold text-green-600">
+                {formatCurrency(staffMember.hourly_rate)}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Overtime Rate</p>
+              <p className="text-lg font-medium text-green-600">
+                {formatCurrency(staffMember.overtime_rate)}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Monthly Salary</p>
+              <p className="text-lg font-medium text-green-600">
+                {formatCurrency(staffMember.salary)}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Emergency Contact */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              Emergency Contact
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <p className="text-sm text-gray-600">Contact Name</p>
+              <p className="font-medium">{displayValue(staffMember.emergency_contact_name)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Contact Phone</p>
+              <p className="font-medium">{displayValue(staffMember.emergency_contact_phone)}</p>
+            </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Notes Card */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Notes
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="bg-gray-50 p-4 rounded-md min-h-[100px]">
+            <p className="text-gray-900">
+              {staffMember.notes || 'No notes available'}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Monthly Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -355,6 +413,16 @@ const StaffDetail: React.FC = () => {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Edit Staff Dialog */}
+      {showEditDialog && staffMember && (
+        <EditStaffDialog
+          staff={staffMember}
+          isOpen={showEditDialog}
+          onClose={() => setShowEditDialog(false)}
+          onStaffUpdated={handleStaffUpdated}
+        />
+      )}
     </div>
   );
 };
