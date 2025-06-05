@@ -72,7 +72,11 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
   // Handler for adding a new staff member
   const handleAddStaff = async (name: string, email: string, phone: string) => {
     try {
-      const newStaff = await addStaffMember(name, email || undefined, phone || undefined);
+      const newStaff = await addStaffMember({
+        name,
+        email: email || undefined,
+        phone: phone || undefined
+      });
       
       setStaffMembers(prev => [...prev, newStaff]);
       
