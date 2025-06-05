@@ -53,46 +53,46 @@ const TimeReportListView: React.FC<TimeReportListViewProps> = ({ reports, select
 
             return (
               <div key={day.toISOString()}>
-                <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="text-lg font-medium text-gray-900 w-6">
+                <div className="flex items-center justify-between p-2 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <div className="text-base font-medium text-gray-900 w-5">
                       {getDayNumber(day)}
                     </div>
-                    <div className="text-gray-600 w-12">
+                    <div className="text-gray-600 w-10 text-sm">
                       {getDayName(day)}
                     </div>
                   </div>
                   
-                  <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <div className="text-sm text-gray-500">Regular:</div>
-                      <div className="font-medium">
+                      <div className="text-xs text-gray-500">Regular:</div>
+                      <div className="font-medium text-sm">
                         {totalRegularHours.toFixed(2)}
                       </div>
                     </div>
                     
                     <div className="text-right">
-                      <div className="text-sm text-gray-500">Overtime:</div>
-                      <div className={`font-medium ${totalOvertimeHours > 0 ? 'text-orange-600' : 'text-gray-400'}`}>
+                      <div className="text-xs text-gray-500">Overtime:</div>
+                      <div className={`font-medium text-sm ${totalOvertimeHours > 0 ? 'text-orange-600' : 'text-gray-400'}`}>
                         {totalOvertimeHours.toFixed(2)}
                       </div>
                     </div>
 
                     {hasReports && (
-                      <ChevronDown className="h-4 w-4 text-gray-400" />
+                      <ChevronDown className="h-3 w-3 text-gray-400" />
                     )}
                   </div>
                 </div>
 
                 {/* Expanded content for days with reports */}
                 {hasReports && (
-                  <div className="px-4 pb-4 border-l-2 border-blue-200 ml-4">
-                    <div className="space-y-2">
+                  <div className="px-2 pb-2 border-l-2 border-blue-200 ml-2">
+                    <div className="space-y-1">
                       {dayReports.map((report) => (
-                        <div key={report.id} className="bg-gray-50 rounded-lg p-3">
+                        <div key={report.id} className="bg-gray-50 rounded p-2">
                           <div className="flex items-center justify-between">
                             <div>
-                              <div className="font-medium text-sm">
+                              <div className="font-medium text-xs">
                                 {report.bookings?.client || 'Unknown Client'}
                               </div>
                               {report.start_time && report.end_time && (
@@ -101,17 +101,17 @@ const TimeReportListView: React.FC<TimeReportListViewProps> = ({ reports, select
                                 </div>
                               )}
                               {report.description && (
-                                <div className="text-xs text-gray-600 mt-1">
+                                <div className="text-xs text-gray-600 mt-0.5">
                                   {report.description}
                                 </div>
                               )}
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="secondary" className="text-xs">
+                            <div className="flex items-center gap-1">
+                              <Badge variant="secondary" className="text-xs py-0 px-1 h-4">
                                 {report.hours_worked}h
                               </Badge>
                               {report.overtime_hours && report.overtime_hours > 0 && (
-                                <Badge variant="destructive" className="text-xs">
+                                <Badge variant="destructive" className="text-xs py-0 px-1 h-4">
                                   {report.overtime_hours}h OT
                                 </Badge>
                               )}
