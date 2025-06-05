@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 export interface StaffMember {
@@ -134,8 +135,8 @@ export const syncStaffMember = async (staffData: any): Promise<void> => {
   }
 };
 
-// Add a new staff member to the database
-export const addStaffMember = async (name: string, email?: string, phone?: string): Promise<StaffMember> => {
+// Add a new staff member to the database with complete information
+export const addStaffMember = async (staffData: Omit<StaffMember, 'id'>): Promise<StaffMember> => {
   try {
     // Generate a unique ID for the new staff member
     const id = `staff_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -144,9 +145,22 @@ export const addStaffMember = async (name: string, email?: string, phone?: strin
       .from('staff_members')
       .insert({
         id,
-        name,
-        email,
-        phone
+        name: staffData.name,
+        email: staffData.email,
+        phone: staffData.phone,
+        address: staffData.address,
+        city: staffData.city,
+        postal_code: staffData.postal_code,
+        role: staffData.role,
+        department: staffData.department,
+        salary: staffData.salary,
+        hire_date: staffData.hire_date,
+        emergency_contact_name: staffData.emergency_contact_name,
+        emergency_contact_phone: staffData.emergency_contact_phone,
+        notes: staffData.notes,
+        hourly_rate: staffData.hourly_rate,
+        overtime_rate: staffData.overtime_rate,
+        color: staffData.color || '#E3F2FD'
       })
       .select()
       .single();

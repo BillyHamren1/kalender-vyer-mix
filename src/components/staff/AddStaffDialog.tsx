@@ -80,7 +80,7 @@ const AddStaffDialog: React.FC<AddStaffDialogProps> = ({ isOpen, onClose, onStaf
         notes: data.notes || undefined,
       };
 
-      await addStaffMember(staffData.name, staffData.email, staffData.phone);
+      await addStaffMember(staffData);
       
       form.reset();
       onStaffAdded();
