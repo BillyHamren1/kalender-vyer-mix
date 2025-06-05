@@ -330,6 +330,41 @@ export type Database = {
           },
         ]
       }
+      staff_accounts: {
+        Row: {
+          created_at: string
+          id: string
+          password_hash: string
+          staff_id: string
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          password_hash: string
+          staff_id: string
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          password_hash?: string
+          staff_id?: string
+          updated_at?: string
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_accounts_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_assignments: {
         Row: {
           assignment_date: string

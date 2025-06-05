@@ -12,6 +12,7 @@ import AddStaffDialog from '@/components/staff/AddStaffDialog';
 import EditStaffDialog from '@/components/staff/EditStaffDialog';
 import StaffStats from '@/components/staff/StaffStats';
 import StaffColorSettings from '@/components/staff/StaffColorSettings';
+import CreateStaffAccountCard from '@/components/staff/CreateStaffAccountCard';
 
 const StaffManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -141,8 +142,12 @@ const StaffManagement: React.FC = () => {
             </Card>
           </div>
 
-          {/* Right side - Color Settings */}
+          {/* Right side - Staff Accounts and Color Settings */}
           <div className="space-y-6">
+            {/* Create Staff Account Card */}
+            <CreateStaffAccountCard />
+
+            {/* Color Settings */}
             {selectedStaffForColor ? (
               <StaffColorSettings
                 staff={selectedStaffForColor}

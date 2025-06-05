@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -7,7 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Calendar, Clock, DollarSign, User, Plus, Mail, Phone, MapPin, Briefcase, Edit2, AlertTriangle, FileText, Building } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { ArrowLeft, Calendar, Clock, DollarSign, User, Plus, Mail, Phone, MapPin, Briefcase, Edit2, AlertTriangle, FileText, Building, Save, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { timeReportService } from '@/services/timeReportService';
 import TimeReportForm from '@/components/time-reports/TimeReportForm';
@@ -25,6 +26,8 @@ const StaffDetail: React.FC = () => {
   const [showTimeReportForm, setShowTimeReportForm] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [timeReports, setTimeReports] = useState<TimeReport[]>([]);
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState<string>('');
 
   // Fetch staff member details
   const { data: staffMember, isLoading: staffLoading, refetch: refetchStaff } = useQuery({
@@ -94,6 +97,45 @@ const StaffDetail: React.FC = () => {
     toast.success('Staff member updated successfully');
   };
 
+  const handleFieldEdit = (fieldName: string, currentValue: string | number | null) => {
+    setEditingField(fieldName);
+    setEditValue(currentValue?.toString() || '');
+  };
+
+  const handleFieldSave = async (fieldName: string) => {
+    if (!staffMember) return;
+
+    try {
+      const updateData: any = {};
+      
+      // Convert value based on field type
+      if (['hourly_rate', 'overtime_rate', 'salary'].includes(fieldName)) {
+        updateData[fieldName] = editValue ? parseFloat(editValue) : null;
+      } else {
+        updateData[fieldName] = editValue || null;
+      }
+
+      const { error } = await supabase
+        .from('staff_members')
+        .update(updateData)
+        .eq('id', staffMember.id);
+
+      if (error) throw error;
+
+      await refetchStaff();
+      setEditingField(null);
+      toast.success('Field updated successfully');
+    } catch (error) {
+      console.error('Error updating field:', error);
+      toast.error('Failed to update field');
+    }
+  };
+
+  const handleFieldCancel = () => {
+    setEditingField(null);
+    setEditValue('');
+  };
+
   const formatCurrency = (amount?: number) => {
     if (amount === undefined || amount === null) return 'Not set';
     return `${amount} SEK`;
@@ -107,6 +149,66 @@ const StaffDetail: React.FC = () => {
   const displayValue = (value?: string | number) => {
     if (value === undefined || value === null || value === '') return 'Not set';
     return value;
+  };
+
+  const EditableField: React.FC<{
+    fieldName: string;
+    value: string | number | null | undefined;
+    label: string;
+    type?: 'text' | 'number' | 'textarea';
+    isCurrency?: boolean;
+  }> = ({ fieldName, value, label, type = 'text', isCurrency = false }) => {
+    const isEditing = editingField === fieldName;
+    const displayVal = isCurrency ? formatCurrency(value as number) : displayValue(value);
+
+    if (isEditing) {
+      return (
+        <div>
+          <p className="text-sm text-gray-600 mb-1">{label}</p>
+          <div className="flex items-center gap-2">
+            {type === 'textarea' ? (
+              <Textarea
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                className="flex-1"
+                rows={3}
+              />
+            ) : (
+              <Input
+                type={type}
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                className="flex-1"
+              />
+            )}
+            <Button size="sm" onClick={() => handleFieldSave(fieldName)}>
+              <Save className="h-3 w-3" />
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleFieldCancel}>
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        <p className="text-sm text-gray-600">{label}</p>
+        <div className="flex items-center justify-between">
+          <p className={`font-medium ${isCurrency ? 'text-green-600' : ''}`}>
+            {displayVal}
+          </p>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => handleFieldEdit(fieldName, value)}
+          >
+            <Edit2 className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+    );
   };
 
   // Calculate monthly stats
@@ -203,7 +305,7 @@ const StaffDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* Staff Information Cards */}
+      {/* Staff Information Cards with Inline Editing */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Contact Information */}
         <Card>
@@ -214,27 +316,12 @@ const StaffDetail: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm text-gray-600">Email</p>
-              <p className="font-medium">{displayValue(staffMember.email)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Phone</p>
-              <p className="font-medium">{displayValue(staffMember.phone)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Address</p>
-              <p className="font-medium">{displayValue(staffMember.address)}</p>
-            </div>
+            <EditableField fieldName="email" value={staffMember.email} label="Email" />
+            <EditableField fieldName="phone" value={staffMember.phone} label="Phone" />
+            <EditableField fieldName="address" value={staffMember.address} label="Address" />
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-600">City</p>
-                <p className="font-medium">{displayValue(staffMember.city)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Postal Code</p>
-                <p className="font-medium">{displayValue(staffMember.postal_code)}</p>
-              </div>
+              <EditableField fieldName="city" value={staffMember.city} label="City" />
+              <EditableField fieldName="postal_code" value={staffMember.postal_code} label="Postal Code" />
             </div>
           </CardContent>
         </Card>
@@ -248,14 +335,8 @@ const StaffDetail: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm text-gray-600">Role/Position</p>
-              <p className="font-medium">{displayValue(staffMember.role)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Department</p>
-              <p className="font-medium">{displayValue(staffMember.department)}</p>
-            </div>
+            <EditableField fieldName="role" value={staffMember.role} label="Role/Position" />
+            <EditableField fieldName="department" value={staffMember.department} label="Department" />
             <div>
               <p className="text-sm text-gray-600">Hire Date</p>
               <p className="font-medium">{formatDate(staffMember.hire_date)}</p>
@@ -272,24 +353,27 @@ const StaffDetail: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm text-gray-600">Hourly Rate</p>
-              <p className="text-xl font-bold text-green-600">
-                {formatCurrency(staffMember.hourly_rate)}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Overtime Rate</p>
-              <p className="text-lg font-medium text-green-600">
-                {formatCurrency(staffMember.overtime_rate)}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Monthly Salary</p>
-              <p className="text-lg font-medium text-green-600">
-                {formatCurrency(staffMember.salary)}
-              </p>
-            </div>
+            <EditableField 
+              fieldName="hourly_rate" 
+              value={staffMember.hourly_rate} 
+              label="Hourly Rate" 
+              type="number"
+              isCurrency={true}
+            />
+            <EditableField 
+              fieldName="overtime_rate" 
+              value={staffMember.overtime_rate} 
+              label="Overtime Rate" 
+              type="number"
+              isCurrency={true}
+            />
+            <EditableField 
+              fieldName="salary" 
+              value={staffMember.salary} 
+              label="Monthly Salary" 
+              type="number"
+              isCurrency={true}
+            />
           </CardContent>
         </Card>
 
@@ -302,14 +386,16 @@ const StaffDetail: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm text-gray-600">Contact Name</p>
-              <p className="font-medium">{displayValue(staffMember.emergency_contact_name)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Contact Phone</p>
-              <p className="font-medium">{displayValue(staffMember.emergency_contact_phone)}</p>
-            </div>
+            <EditableField 
+              fieldName="emergency_contact_name" 
+              value={staffMember.emergency_contact_name} 
+              label="Contact Name" 
+            />
+            <EditableField 
+              fieldName="emergency_contact_phone" 
+              value={staffMember.emergency_contact_phone} 
+              label="Contact Phone" 
+            />
           </CardContent>
         </Card>
       </div>
@@ -323,11 +409,12 @@ const StaffDetail: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-50 p-4 rounded-md min-h-[100px]">
-            <p className="text-gray-900">
-              {staffMember.notes || 'No notes available'}
-            </p>
-          </div>
+          <EditableField 
+            fieldName="notes" 
+            value={staffMember.notes} 
+            label="Notes" 
+            type="textarea"
+          />
         </CardContent>
       </Card>
 
