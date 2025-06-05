@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,6 +13,18 @@ interface StaffMember {
   email?: string;
   phone?: string;
   color?: string;
+  hourly_rate?: number;
+  role?: string;
+  address?: string;
+  city?: string;
+  postal_code?: string;
+  department?: string;
+  salary?: number;
+  hire_date?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  overtime_rate?: number;
+  notes?: string;
 }
 
 interface StaffListProps {
@@ -19,13 +32,15 @@ interface StaffListProps {
   isLoading: boolean;
   onRefresh: () => void;
   onColorEdit?: (staff: StaffMember) => void;
+  onEdit?: (staff: StaffMember) => void;
 }
 
 const StaffList: React.FC<StaffListProps> = ({ 
   staffMembers, 
   isLoading,
   onRefresh,
-  onColorEdit 
+  onColorEdit,
+  onEdit 
 }) => {
   const navigate = useNavigate();
 
@@ -43,10 +58,12 @@ const StaffList: React.FC<StaffListProps> = ({
     }
   };
 
-  const handleEditClick = (e: React.MouseEvent, staffId: string) => {
+  const handleEditClick = (e: React.MouseEvent, staff: StaffMember) => {
     e.stopPropagation(); // Prevent card click navigation
-    console.log('Edit clicked for staff:', staffId);
-    // TODO: Implement edit functionality
+    console.log('Edit clicked for staff:', staff.id);
+    if (onEdit) {
+      onEdit(staff);
+    }
   };
 
   if (isLoading) {
@@ -117,6 +134,9 @@ const StaffList: React.FC<StaffListProps> = ({
                       <h3 className="text-sm font-semibold text-gray-900 truncate">
                         {staff.name}
                       </h3>
+                      {staff.role && (
+                        <p className="text-xs text-gray-500">{staff.role}</p>
+                      )}
                     </div>
                     
                     <div className="space-y-1">
@@ -130,6 +150,11 @@ const StaffList: React.FC<StaffListProps> = ({
                         <div className="flex items-center text-xs text-gray-600">
                           <Phone className="h-3 w-3 mr-2" />
                           <span>{staff.phone}</span>
+                        </div>
+                      )}
+                      {staff.hourly_rate && (
+                        <div className="text-xs text-green-600 font-medium">
+                          {staff.hourly_rate} SEK/h
                         </div>
                       )}
                     </div>
@@ -151,7 +176,7 @@ const StaffList: React.FC<StaffListProps> = ({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={(e) => handleEditClick(e, staff.id)}
+                    onClick={(e) => handleEditClick(e, staff)}
                     className="text-xs"
                   >
                     <Edit2 className="h-3 w-3 mr-1" />

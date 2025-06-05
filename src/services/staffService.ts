@@ -16,7 +16,9 @@ export interface StaffMember {
   emergency_contact_phone?: string;
   notes?: string;
   assignedTeam?: string;
-  color?: string; // Add color property
+  color?: string;
+  hourly_rate?: number;
+  overtime_rate?: number;
 }
 
 export interface StaffAssignment {
@@ -29,7 +31,7 @@ export interface StaffAssignment {
     name: string;
     email?: string;
     phone?: string;
-    color?: string; // Add color property
+    color?: string;
   };
   // Alternative field names for backward compatibility
   staff_name?: string;
@@ -71,7 +73,19 @@ export const syncStaffMember = async (staffData: any): Promise<void> => {
         id: staffData.id,
         name: staffData.name,
         email: staffData.email,
-        phone: staffData.phone
+        phone: staffData.phone,
+        address: staffData.address,
+        city: staffData.city,
+        postal_code: staffData.postal_code,
+        role: staffData.role,
+        department: staffData.department,
+        salary: staffData.salary,
+        hire_date: staffData.hire_date,
+        emergency_contact_name: staffData.emergency_contact_name,
+        emergency_contact_phone: staffData.emergency_contact_phone,
+        notes: staffData.notes,
+        hourly_rate: staffData.hourly_rate,
+        overtime_rate: staffData.overtime_rate,
       }, {
         onConflict: 'id'
       });
@@ -88,7 +102,19 @@ export const syncStaffMember = async (staffData: any): Promise<void> => {
           .from('staff_members')
           .update({
             name: staffData.name,
-            phone: staffData.phone
+            phone: staffData.phone,
+            address: staffData.address,
+            city: staffData.city,
+            postal_code: staffData.postal_code,
+            role: staffData.role,
+            department: staffData.department,
+            salary: staffData.salary,
+            hire_date: staffData.hire_date,
+            emergency_contact_name: staffData.emergency_contact_name,
+            emergency_contact_phone: staffData.emergency_contact_phone,
+            notes: staffData.notes,
+            hourly_rate: staffData.hourly_rate,
+            overtime_rate: staffData.overtime_rate,
           })
           .eq('email', staffData.email);
         

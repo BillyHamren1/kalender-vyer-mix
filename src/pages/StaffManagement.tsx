@@ -9,6 +9,7 @@ import { fetchStaffMembers, updateStaffColor } from '@/services/staffService';
 import { toast } from 'sonner';
 import StaffList from '@/components/staff/StaffList';
 import AddStaffDialog from '@/components/staff/AddStaffDialog';
+import EditStaffDialog from '@/components/staff/EditStaffDialog';
 import StaffStats from '@/components/staff/StaffStats';
 import StaffColorSettings from '@/components/staff/StaffColorSettings';
 
@@ -16,6 +17,7 @@ const StaffManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedStaffForColor, setSelectedStaffForColor] = useState<any>(null);
+  const [selectedStaffForEdit, setSelectedStaffForEdit] = useState<any>(null);
 
   // Fetch staff members
   const { 
@@ -41,6 +43,12 @@ const StaffManagement: React.FC = () => {
     toast.success('Staff member added successfully');
   };
 
+  const handleStaffUpdated = () => {
+    setSelectedStaffForEdit(null);
+    refetch();
+    toast.success('Staff member updated successfully');
+  };
+
   const handleColorUpdate = async (staffId: string, color: string) => {
     await updateStaffColor(staffId, color);
     refetch(); // Refresh the list to show updated colors
@@ -50,7 +58,8 @@ const StaffManagement: React.FC = () => {
   const filteredStaff = staffMembers.filter(staff =>
     staff.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     staff.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    staff.phone?.includes(searchTerm)
+    staff.phone?.includes(searchTerm) ||
+    staff.role?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (error) {
@@ -112,7 +121,7 @@ const StaffManagement: React.FC = () => {
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                     <Input
-                      placeholder="Search by name, email, or phone..."
+                      placeholder="Search by name, email, phone, or role..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="pl-10"
@@ -126,6 +135,7 @@ const StaffManagement: React.FC = () => {
                   isLoading={isLoading}
                   onRefresh={refetch}
                   onColorEdit={setSelectedStaffForColor}
+                  onEdit={setSelectedStaffForEdit}
                 />
               </CardContent>
             </Card>
@@ -160,6 +170,16 @@ const StaffManagement: React.FC = () => {
         onClose={() => setIsAddDialogOpen(false)}
         onStaffAdded={handleStaffAdded}
       />
+
+      {/* Edit Staff Dialog */}
+      {selectedStaffForEdit && (
+        <EditStaffDialog
+          staff={selectedStaffForEdit}
+          isOpen={!!selectedStaffForEdit}
+          onClose={() => setSelectedStaffForEdit(null)}
+          onStaffUpdated={handleStaffUpdated}
+        />
+      )}
     </div>
   );
 };
