@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -227,18 +226,16 @@ const StaffDetail: React.FC = () => {
                 <p className="font-medium">{format(new Date(staffMember.hire_date), 'PPP')}</p>
               </div>
             )}
-            {staffMember.employee_id && (
+            {staffMember.city && (
               <div>
-                <p className="text-sm text-gray-600">Employee ID</p>
-                <p className="font-medium">{staffMember.employee_id}</p>
+                <p className="text-sm text-gray-600">City</p>
+                <p className="font-medium">{staffMember.city}</p>
               </div>
             )}
-            {staffMember.status && (
+            {staffMember.postal_code && (
               <div>
-                <p className="text-sm text-gray-600">Status</p>
-                <Badge variant={staffMember.status === 'active' ? 'default' : 'secondary'}>
-                  {staffMember.status}
-                </Badge>
+                <p className="text-sm text-gray-600">Postal Code</p>
+                <p className="font-medium">{staffMember.postal_code}</p>
               </div>
             )}
           </CardContent>
