@@ -145,7 +145,9 @@ const StaffDetail: React.FC = () => {
     label: string;
     type?: 'text' | 'number' | 'textarea' | 'date';
     isCurrency?: boolean;
-  }> = ({ fieldName, value, label, type = 'text', isCurrency = false }) => {
+    placeholder?: string;
+    icon?: React.ReactNode;
+  }> = ({ fieldName, value, label, type = 'text', isCurrency = false, placeholder, icon }) => {
     const [currentValue, setCurrentValue] = useState('');
     const [isEditing, setIsEditing] = useState(false);
 
@@ -183,34 +185,33 @@ const StaffDetail: React.FC = () => {
     };
 
     return (
-      <div>
-        <p className="text-sm text-gray-600 mb-1">{label}</p>
-        {type === 'textarea' ? (
-          <Textarea
-            value={currentValue}
-            onChange={(e) => setCurrentValue(e.target.value)}
-            onFocus={() => setIsEditing(true)}
-            onBlur={handleBlur}
-            onKeyDown={handleKeyDown}
-            placeholder={currentValue ? '' : 'Click to add...'}
-            className={`min-h-[80px] border-0 shadow-none bg-transparent hover:bg-gray-50 focus:bg-white focus:border focus:shadow-sm transition-all ${
-              !currentValue ? 'text-gray-400' : ''
-            }`}
-          />
-        ) : (
-          <Input
-            type={type}
-            value={currentValue}
-            onChange={(e) => setCurrentValue(e.target.value)}
-            onFocus={() => setIsEditing(true)}
-            onBlur={handleBlur}
-            onKeyDown={handleKeyDown}
-            placeholder={currentValue ? '' : 'Click to add...'}
-            className={`border-0 shadow-none bg-transparent hover:bg-gray-50 focus:bg-white focus:border focus:shadow-sm transition-all ${
-              !currentValue ? 'text-gray-400' : ''
-            } ${isCurrency ? 'text-green-600 font-medium' : ''}`}
-          />
-        )}
+      <div className="space-y-1">
+        <label className="text-sm font-medium text-gray-700">{label}</label>
+        <div className="flex items-center space-x-3">
+          {icon && <div className="text-gray-400">{icon}</div>}
+          {type === 'textarea' ? (
+            <Textarea
+              value={currentValue}
+              onChange={(e) => setCurrentValue(e.target.value)}
+              onFocus={() => setIsEditing(true)}
+              onBlur={handleBlur}
+              onKeyDown={handleKeyDown}
+              placeholder={placeholder || currentValue ? '' : 'Click to add...'}
+              className="min-h-[80px] border-gray-200 bg-white hover:border-gray-300 focus:border-blue-500 transition-colors"
+            />
+          ) : (
+            <Input
+              type={type}
+              value={currentValue}
+              onChange={(e) => setCurrentValue(e.target.value)}
+              onFocus={() => setIsEditing(true)}
+              onBlur={handleBlur}
+              onKeyDown={handleKeyDown}
+              placeholder={placeholder || currentValue ? '' : 'Click to add...'}
+              className="border-gray-200 bg-white hover:border-gray-300 focus:border-blue-500 transition-colors"
+            />
+          )}
+        </div>
       </div>
     );
   };
@@ -254,9 +255,9 @@ const StaffDetail: React.FC = () => {
   const textColor = getContrastTextColor(staffColor);
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="mb-6">
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center gap-4 mb-4">
           <Button 
             variant="outline" 
@@ -309,208 +310,289 @@ const StaffDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* Staff Information Cards with Direct Editing */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Contact Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Mail className="h-5 w-5" />
-              Contact Information
+      {/* Main Content */}
+      <div className="p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          {/* Personal Information */}
+          <Card className="bg-white shadow-sm border border-gray-200">
+            <CardHeader className="pb-4 border-b border-gray-100">
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                <User className="h-5 w-5 text-blue-600" />
+                Personal Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-6">
+              <DirectEditField 
+                fieldName="name" 
+                value={staffMember.name} 
+                label="Full Name"
+                icon={<User className="h-4 w-4" />}
+              />
+              <DirectEditField 
+                fieldName="email" 
+                value={staffMember.email} 
+                label="Email"
+                icon={<Mail className="h-4 w-4" />}
+                placeholder="Email address"
+              />
+              <DirectEditField 
+                fieldName="phone" 
+                value={staffMember.phone} 
+                label="Phone"
+                icon={<Phone className="h-4 w-4" />}
+                placeholder="Phone number"
+              />
+            </CardContent>
+          </Card>
+
+          {/* Employment Details */}
+          <Card className="bg-white shadow-sm border border-gray-200">
+            <CardHeader className="pb-4 border-b border-gray-100">
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                <Briefcase className="h-5 w-5 text-green-600" />
+                Employment Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-6">
+              <DirectEditField 
+                fieldName="role" 
+                value={staffMember.role} 
+                label="Role/Position"
+                icon={<Briefcase className="h-4 w-4" />}
+              />
+              <DirectEditField 
+                fieldName="department" 
+                value={staffMember.department} 
+                label="Department"
+                icon={<Building className="h-4 w-4" />}
+              />
+              <DirectEditField 
+                fieldName="hire_date" 
+                value={staffMember.hire_date} 
+                label="Hire Date" 
+                type="date"
+                icon={<Calendar className="h-4 w-4" />}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Financial Information */}
+          <Card className="bg-white shadow-sm border border-gray-200">
+            <CardHeader className="pb-4 border-b border-gray-100">
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                <DollarSign className="h-5 w-5 text-yellow-600" />
+                Financial Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-6">
+              <DirectEditField 
+                fieldName="hourly_rate" 
+                value={staffMember.hourly_rate} 
+                label="Hourly Rate (SEK)" 
+                type="number"
+                isCurrency={true}
+                icon={<DollarSign className="h-4 w-4" />}
+                placeholder="Hourly rate"
+              />
+              <DirectEditField 
+                fieldName="overtime_rate" 
+                value={staffMember.overtime_rate} 
+                label="Overtime Rate (SEK)" 
+                type="number"
+                isCurrency={true}
+                icon={<DollarSign className="h-4 w-4" />}
+                placeholder="Overtime rate"
+              />
+              <DirectEditField 
+                fieldName="salary" 
+                value={staffMember.salary} 
+                label="Monthly Salary (SEK)" 
+                type="number"
+                isCurrency={true}
+                icon={<DollarSign className="h-4 w-4" />}
+                placeholder="Monthly salary"
+              />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Address Information */}
+        <Card className="bg-white shadow-sm border border-gray-200 mb-6">
+          <CardHeader className="pb-4 border-b border-gray-100">
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+              <MapPin className="h-5 w-5 text-red-600" />
+              Address Information
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <DirectEditField fieldName="email" value={staffMember.email} label="Email" />
-            <DirectEditField fieldName="phone" value={staffMember.phone} label="Phone" />
-            <DirectEditField fieldName="address" value={staffMember.address} label="Address" />
-            <div className="grid grid-cols-2 gap-4">
-              <DirectEditField fieldName="city" value={staffMember.city} label="City" />
-              <DirectEditField fieldName="postal_code" value={staffMember.postal_code} label="Postal Code" />
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="space-y-6">
+                <DirectEditField 
+                  fieldName="address" 
+                  value={staffMember.address} 
+                  label="Address"
+                  icon={<MapPin className="h-4 w-4" />}
+                  placeholder="Street address"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <DirectEditField 
+                  fieldName="postal_code" 
+                  value={staffMember.postal_code} 
+                  label="Postal Code"
+                  placeholder="5-digit postal code"
+                />
+                <DirectEditField 
+                  fieldName="city" 
+                  value={staffMember.city} 
+                  label="City"
+                  placeholder="City name"
+                />
+              </div>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Employment Details */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Briefcase className="h-5 w-5" />
-              Employment Details
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <DirectEditField fieldName="role" value={staffMember.role} label="Role/Position" />
-            <DirectEditField fieldName="department" value={staffMember.department} label="Department" />
-            <DirectEditField fieldName="hire_date" value={staffMember.hire_date} label="Hire Date" type="date" />
-          </CardContent>
-        </Card>
-
-        {/* Financial Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Financial Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <DirectEditField 
-              fieldName="hourly_rate" 
-              value={staffMember.hourly_rate} 
-              label="Hourly Rate (SEK)" 
-              type="number"
-              isCurrency={true}
-            />
-            <DirectEditField 
-              fieldName="overtime_rate" 
-              value={staffMember.overtime_rate} 
-              label="Overtime Rate (SEK)" 
-              type="number"
-              isCurrency={true}
-            />
-            <DirectEditField 
-              fieldName="salary" 
-              value={staffMember.salary} 
-              label="Monthly Salary (SEK)" 
-              type="number"
-              isCurrency={true}
-            />
           </CardContent>
         </Card>
 
         {/* Emergency Contact */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5" />
+        <Card className="bg-white shadow-sm border border-gray-200 mb-6">
+          <CardHeader className="pb-4 border-b border-gray-100">
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+              <AlertTriangle className="h-5 w-5 text-orange-600" />
               Emergency Contact
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <DirectEditField 
+                fieldName="emergency_contact_name" 
+                value={staffMember.emergency_contact_name} 
+                label="Contact Name"
+                icon={<User className="h-4 w-4" />}
+                placeholder="Emergency contact name"
+              />
+              <DirectEditField 
+                fieldName="emergency_contact_phone" 
+                value={staffMember.emergency_contact_phone} 
+                label="Contact Phone"
+                icon={<Phone className="h-4 w-4" />}
+                placeholder="Emergency contact phone"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Notes */}
+        <Card className="bg-white shadow-sm border border-gray-200 mb-6">
+          <CardHeader className="pb-4 border-b border-gray-100">
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+              <FileText className="h-5 w-5 text-purple-600" />
+              Notes
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
             <DirectEditField 
-              fieldName="emergency_contact_name" 
-              value={staffMember.emergency_contact_name} 
-              label="Contact Name" 
-            />
-            <DirectEditField 
-              fieldName="emergency_contact_phone" 
-              value={staffMember.emergency_contact_phone} 
-              label="Contact Phone" 
+              fieldName="notes" 
+              value={staffMember.notes} 
+              label="Additional Notes" 
+              type="textarea"
+              placeholder="Add any additional notes about this staff member..."
             />
           </CardContent>
         </Card>
-      </div>
 
-      {/* Notes Card */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Notes
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DirectEditField 
-            fieldName="notes" 
-            value={staffMember.notes} 
-            label="Notes" 
-            type="textarea"
-          />
-        </CardContent>
-      </Card>
-
-      {/* Monthly Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-blue-600" />
-              <div>
-                <p className="text-sm text-gray-600">Hours This Month</p>
-                <p className="text-2xl font-bold">{monthlyStats.totalHours.toFixed(1)}</p>
+        {/* Monthly Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <Card className="bg-white shadow-sm border border-gray-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-blue-600" />
+                <div>
+                  <p className="text-sm text-gray-600">Hours This Month</p>
+                  <p className="text-2xl font-bold">{monthlyStats.totalHours.toFixed(1)}</p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-green-600" />
-              <div>
-                <p className="text-sm text-gray-600">Earnings This Month</p>
-                <p className="text-2xl font-bold">{monthlyStats.totalEarnings.toFixed(0)} SEK</p>
+          <Card className="bg-white shadow-sm border border-gray-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-green-600" />
+                <div>
+                  <p className="text-sm text-gray-600">Earnings This Month</p>
+                  <p className="text-2xl font-bold">{monthlyStats.totalEarnings.toFixed(0)} SEK</p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-purple-600" />
-              <div>
-                <p className="text-sm text-gray-600">Reports Submitted</p>
-                <p className="text-2xl font-bold">{monthlyStats.totalReports}</p>
+          <Card className="bg-white shadow-sm border border-gray-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-purple-600" />
+                <div>
+                  <p className="text-sm text-gray-600">Reports Submitted</p>
+                  <p className="text-2xl font-bold">{monthlyStats.totalReports}</p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-orange-600" />
-              <div>
-                <p className="text-sm text-gray-600">Overtime Hours</p>
-                <p className="text-2xl font-bold">{monthlyStats.overtimeHours.toFixed(1)}</p>
+          <Card className="bg-white shadow-sm border border-gray-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-orange-600" />
+                <div>
+                  <p className="text-sm text-gray-600">Overtime Hours</p>
+                  <p className="text-2xl font-bold">{monthlyStats.overtimeHours.toFixed(1)}</p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Time Report Form */}
-      {showTimeReportForm && (
-        <div className="mb-6">
-          <TimeReportForm
-            staffId={staffId}
-            onSuccess={handleTimeReportSubmit}
-            onCancel={() => setShowTimeReportForm(false)}
-          />
+            </CardContent>
+          </Card>
         </div>
-      )}
 
-      {/* Time Reports Tabs */}
-      <Tabs defaultValue="daily" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="daily">Daily View</TabsTrigger>
-          <TabsTrigger value="list">List View</TabsTrigger>
-        </TabsList>
+        {/* Time Report Form */}
+        {showTimeReportForm && (
+          <div className="mb-6">
+            <TimeReportForm
+              staffId={staffId}
+              onSuccess={handleTimeReportSubmit}
+              onCancel={() => setShowTimeReportForm(false)}
+            />
+          </div>
+        )}
 
-        <TabsContent value="daily">
-          <DailyTimeView reports={timeReports} selectedDate={selectedDate} />
-        </TabsContent>
+        {/* Time Reports Tabs */}
+        <Tabs defaultValue="daily" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="daily">Daily View</TabsTrigger>
+            <TabsTrigger value="list">List View</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="list">
-          <TimeReportList
-            reports={timeReports}
-            onDelete={handleDeleteTimeReport}
-            showStaffName={false}
-            showBookingInfo={true}
+          <TabsContent value="daily">
+            <DailyTimeView reports={timeReports} selectedDate={selectedDate} />
+          </TabsContent>
+
+          <TabsContent value="list">
+            <TimeReportList
+              reports={timeReports}
+              onDelete={handleDeleteTimeReport}
+              showStaffName={false}
+              showBookingInfo={true}
+            />
+          </TabsContent>
+        </Tabs>
+
+        {/* Edit Staff Dialog */}
+        {showEditDialog && staffMember && (
+          <EditStaffDialog
+            staff={staffMember}
+            isOpen={showEditDialog}
+            onClose={() => setShowEditDialog(false)}
+            onStaffUpdated={handleStaffUpdated}
           />
-        </TabsContent>
-      </Tabs>
-
-      {/* Edit Staff Dialog */}
-      {showEditDialog && staffMember && (
-        <EditStaffDialog
-          staff={staffMember}
-          isOpen={showEditDialog}
-          onClose={() => setShowEditDialog(false)}
-          onStaffUpdated={handleStaffUpdated}
-        />
-      )}
+        )}
+      </div>
     </div>
   );
 };
