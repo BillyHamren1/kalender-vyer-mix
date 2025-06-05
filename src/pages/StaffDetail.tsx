@@ -14,7 +14,7 @@ import { ArrowLeft, Calendar, Clock, DollarSign, User, Plus, Mail, Phone, MapPin
 import { supabase } from '@/integrations/supabase/client';
 import { timeReportService } from '@/services/timeReportService';
 import TimeReportForm from '@/components/time-reports/TimeReportForm';
-import TimeReportList from '@/components/time-reports/TimeReportList';
+import TimeReportListView from '@/components/time-reports/TimeReportListView';
 import DailyTimeView from '@/components/time-reports/DailyTimeView';
 import EditStaffDialog from '@/components/staff/EditStaffDialog';
 import { TimeReport } from '@/types/timeReport';
@@ -588,26 +588,8 @@ const StaffDetail: React.FC = () => {
               </div>
             )}
 
-            {/* Time Reports Tabs */}
-            <Tabs defaultValue="daily" className="space-y-4">
-              <TabsList>
-                <TabsTrigger value="daily">Daily View</TabsTrigger>
-                <TabsTrigger value="list">List View</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="daily">
-                <DailyTimeView reports={timeReports} selectedDate={selectedDate} />
-              </TabsContent>
-
-              <TabsContent value="list">
-                <TimeReportList
-                  reports={timeReports}
-                  onDelete={handleDeleteTimeReport}
-                  showStaffName={false}
-                  showBookingInfo={true}
-                />
-              </TabsContent>
-            </Tabs>
+            {/* Time Reports List View */}
+            <TimeReportListView reports={timeReports} selectedDate={selectedDate} />
           </>
         )}
 
