@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format, startOfDay, endOfDay, addDays, subDays, isWithinInterval } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,6 +24,7 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
   weeklyStaffOperations,
   backgroundImport
 }) => {
+  const navigate = useNavigate();
   const [dateRange, setDateRange] = useState(7); // days
 
   // Calculate date range for filtering
@@ -69,6 +71,33 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
   const getStaffForTeamAndDate = (teamId: string, date: Date) => {
     if (!weeklyStaffOperations?.getStaffForTeamAndDate) return [];
     return weeklyStaffOperations.getStaffForTeamAndDate(teamId, date);
+  };
+
+  // Extract booking ID from event and handle click
+  const handleBookingClick = (event: CalendarEvent) => {
+    console.log('Booking clicked:', event);
+    
+    // Try multiple ways to get the booking ID
+    const bookingId = event.extendedProps?.bookingId || 
+                     event.extendedProps?.booking_id ||
+                     event.bookingId ||
+                     event.id;
+    
+    console.log('Extracted booking ID:', bookingId);
+    
+    if (bookingId) {
+      try {
+        navigate(`/booking/${bookingId}`);
+      } catch (error) {
+        console.error('Navigation error:', error);
+        toast.error('Failed to open booking details');
+      }
+    } else {
+      console.warn('No booking ID found for event:', event);
+      toast.warning('Cannot open booking details', {
+        description: 'This event is not linked to a booking'
+      });
+    }
   };
 
   const handleRefresh = async () => {
@@ -144,7 +173,11 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
                       const teamStaff = getStaffForTeamAndDate(event.resourceId, eventDate);
                       
                       return (
-                        <div key={event.id} className="border rounded-lg p-4">
+                        <div 
+                          key={event.id} 
+                          className="border rounded-lg p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                          onClick={() => handleBookingClick(event)}
+                        >
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
