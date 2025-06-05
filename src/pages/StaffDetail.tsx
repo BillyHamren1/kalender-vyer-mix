@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -8,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Calendar, Clock, DollarSign, User, Plus, Mail, Phone, MapPin, Briefcase, Edit2, AlertTriangle, FileText, Building, Save, X } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, DollarSign, User, Plus, Mail, Phone, MapPin, Briefcase, Edit2, AlertTriangle, FileText, Building } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { timeReportService } from '@/services/timeReportService';
 import TimeReportForm from '@/components/time-reports/TimeReportForm';
@@ -26,8 +27,6 @@ const StaffDetail: React.FC = () => {
   const [showTimeReportForm, setShowTimeReportForm] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [timeReports, setTimeReports] = useState<TimeReport[]>([]);
-  const [editingField, setEditingField] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState<string>('');
 
   // Fetch staff member details
   const { data: staffMember, isLoading: staffLoading, refetch: refetchStaff } = useQuery({
@@ -97,12 +96,7 @@ const StaffDetail: React.FC = () => {
     toast.success('Staff member updated successfully');
   };
 
-  const handleFieldEdit = (fieldName: string, currentValue: string | number | null) => {
-    setEditingField(fieldName);
-    setEditValue(currentValue?.toString() || '');
-  };
-
-  const handleFieldSave = async (fieldName: string) => {
+  const handleFieldSave = async (fieldName: string, value: string) => {
     if (!staffMember) return;
 
     try {
@@ -110,9 +104,9 @@ const StaffDetail: React.FC = () => {
       
       // Convert value based on field type
       if (['hourly_rate', 'overtime_rate', 'salary'].includes(fieldName)) {
-        updateData[fieldName] = editValue ? parseFloat(editValue) : null;
+        updateData[fieldName] = value ? parseFloat(value) : null;
       } else {
-        updateData[fieldName] = editValue || null;
+        updateData[fieldName] = value || null;
       }
 
       const { error } = await supabase
@@ -123,7 +117,6 @@ const StaffDetail: React.FC = () => {
       if (error) throw error;
 
       await refetchStaff();
-      setEditingField(null);
       toast.success('Field updated successfully');
     } catch (error) {
       console.error('Error updating field:', error);
@@ -131,82 +124,93 @@ const StaffDetail: React.FC = () => {
     }
   };
 
-  const handleFieldCancel = () => {
-    setEditingField(null);
-    setEditValue('');
-  };
-
   const formatCurrency = (amount?: number) => {
-    if (amount === undefined || amount === null) return 'Not set';
-    return `${amount} SEK`;
+    if (amount === undefined || amount === null) return '';
+    return amount.toString();
   };
 
   const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Not set';
-    return format(new Date(dateString), 'PPP');
+    if (!dateString) return '';
+    return format(new Date(dateString), 'yyyy-MM-dd');
   };
 
   const displayValue = (value?: string | number) => {
-    if (value === undefined || value === null || value === '') return 'Not set';
-    return value;
+    if (value === undefined || value === null || value === '') return '';
+    return value.toString();
   };
 
-  const EditableField: React.FC<{
+  const DirectEditField: React.FC<{
     fieldName: string;
     value: string | number | null | undefined;
     label: string;
-    type?: 'text' | 'number' | 'textarea';
+    type?: 'text' | 'number' | 'textarea' | 'date';
     isCurrency?: boolean;
   }> = ({ fieldName, value, label, type = 'text', isCurrency = false }) => {
-    const isEditing = editingField === fieldName;
-    const displayVal = isCurrency ? formatCurrency(value as number) : displayValue(value);
+    const [currentValue, setCurrentValue] = useState('');
+    const [isEditing, setIsEditing] = useState(false);
 
-    if (isEditing) {
-      return (
-        <div>
-          <p className="text-sm text-gray-600 mb-1">{label}</p>
-          <div className="flex items-center gap-2">
-            {type === 'textarea' ? (
-              <Textarea
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                className="flex-1"
-                rows={3}
-              />
-            ) : (
-              <Input
-                type={type}
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                className="flex-1"
-              />
-            )}
-            <Button size="sm" onClick={() => handleFieldSave(fieldName)}>
-              <Save className="h-3 w-3" />
-            </Button>
-            <Button size="sm" variant="outline" onClick={handleFieldCancel}>
-              <X className="h-3 w-3" />
-            </Button>
-          </div>
-        </div>
-      );
-    }
+    useEffect(() => {
+      if (type === 'date') {
+        setCurrentValue(formatDate(value as string));
+      } else if (isCurrency) {
+        setCurrentValue(formatCurrency(value as number));
+      } else {
+        setCurrentValue(displayValue(value));
+      }
+    }, [value, type, isCurrency]);
+
+    const handleBlur = async () => {
+      setIsEditing(false);
+      if (currentValue !== (isCurrency ? formatCurrency(value as number) : displayValue(value))) {
+        await handleFieldSave(fieldName, currentValue);
+      }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' && type !== 'textarea') {
+        handleBlur();
+      }
+      if (e.key === 'Escape') {
+        setIsEditing(false);
+        if (type === 'date') {
+          setCurrentValue(formatDate(value as string));
+        } else if (isCurrency) {
+          setCurrentValue(formatCurrency(value as number));
+        } else {
+          setCurrentValue(displayValue(value));
+        }
+      }
+    };
 
     return (
       <div>
-        <p className="text-sm text-gray-600">{label}</p>
-        <div className="flex items-center justify-between">
-          <p className={`font-medium ${isCurrency ? 'text-green-600' : ''}`}>
-            {displayVal}
-          </p>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => handleFieldEdit(fieldName, value)}
-          >
-            <Edit2 className="h-3 w-3" />
-          </Button>
-        </div>
+        <p className="text-sm text-gray-600 mb-1">{label}</p>
+        {type === 'textarea' ? (
+          <Textarea
+            value={currentValue}
+            onChange={(e) => setCurrentValue(e.target.value)}
+            onFocus={() => setIsEditing(true)}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            placeholder={currentValue ? '' : 'Click to add...'}
+            className={`min-h-[80px] border-0 shadow-none bg-transparent hover:bg-gray-50 focus:bg-white focus:border focus:shadow-sm transition-all ${
+              !currentValue ? 'text-gray-400' : ''
+            }`}
+          />
+        ) : (
+          <Input
+            type={type}
+            value={currentValue}
+            onChange={(e) => setCurrentValue(e.target.value)}
+            onFocus={() => setIsEditing(true)}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            placeholder={currentValue ? '' : 'Click to add...'}
+            className={`border-0 shadow-none bg-transparent hover:bg-gray-50 focus:bg-white focus:border focus:shadow-sm transition-all ${
+              !currentValue ? 'text-gray-400' : ''
+            } ${isCurrency ? 'text-green-600 font-medium' : ''}`}
+          />
+        )}
       </div>
     );
   };
@@ -305,7 +309,7 @@ const StaffDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* Staff Information Cards with Inline Editing */}
+      {/* Staff Information Cards with Direct Editing */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Contact Information */}
         <Card>
@@ -316,12 +320,12 @@ const StaffDetail: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <EditableField fieldName="email" value={staffMember.email} label="Email" />
-            <EditableField fieldName="phone" value={staffMember.phone} label="Phone" />
-            <EditableField fieldName="address" value={staffMember.address} label="Address" />
+            <DirectEditField fieldName="email" value={staffMember.email} label="Email" />
+            <DirectEditField fieldName="phone" value={staffMember.phone} label="Phone" />
+            <DirectEditField fieldName="address" value={staffMember.address} label="Address" />
             <div className="grid grid-cols-2 gap-4">
-              <EditableField fieldName="city" value={staffMember.city} label="City" />
-              <EditableField fieldName="postal_code" value={staffMember.postal_code} label="Postal Code" />
+              <DirectEditField fieldName="city" value={staffMember.city} label="City" />
+              <DirectEditField fieldName="postal_code" value={staffMember.postal_code} label="Postal Code" />
             </div>
           </CardContent>
         </Card>
@@ -335,12 +339,9 @@ const StaffDetail: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <EditableField fieldName="role" value={staffMember.role} label="Role/Position" />
-            <EditableField fieldName="department" value={staffMember.department} label="Department" />
-            <div>
-              <p className="text-sm text-gray-600">Hire Date</p>
-              <p className="font-medium">{formatDate(staffMember.hire_date)}</p>
-            </div>
+            <DirectEditField fieldName="role" value={staffMember.role} label="Role/Position" />
+            <DirectEditField fieldName="department" value={staffMember.department} label="Department" />
+            <DirectEditField fieldName="hire_date" value={staffMember.hire_date} label="Hire Date" type="date" />
           </CardContent>
         </Card>
 
@@ -353,24 +354,24 @@ const StaffDetail: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <EditableField 
+            <DirectEditField 
               fieldName="hourly_rate" 
               value={staffMember.hourly_rate} 
-              label="Hourly Rate" 
+              label="Hourly Rate (SEK)" 
               type="number"
               isCurrency={true}
             />
-            <EditableField 
+            <DirectEditField 
               fieldName="overtime_rate" 
               value={staffMember.overtime_rate} 
-              label="Overtime Rate" 
+              label="Overtime Rate (SEK)" 
               type="number"
               isCurrency={true}
             />
-            <EditableField 
+            <DirectEditField 
               fieldName="salary" 
               value={staffMember.salary} 
-              label="Monthly Salary" 
+              label="Monthly Salary (SEK)" 
               type="number"
               isCurrency={true}
             />
@@ -386,12 +387,12 @@ const StaffDetail: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <EditableField 
+            <DirectEditField 
               fieldName="emergency_contact_name" 
               value={staffMember.emergency_contact_name} 
               label="Contact Name" 
             />
-            <EditableField 
+            <DirectEditField 
               fieldName="emergency_contact_phone" 
               value={staffMember.emergency_contact_phone} 
               label="Contact Phone" 
@@ -409,7 +410,7 @@ const StaffDetail: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <EditableField 
+          <DirectEditField 
             fieldName="notes" 
             value={staffMember.notes} 
             label="Notes" 
@@ -438,7 +439,7 @@ const StaffDetail: React.FC = () => {
               <DollarSign className="h-5 w-5 text-green-600" />
               <div>
                 <p className="text-sm text-gray-600">Earnings This Month</p>
-                <p className="text-2xl font-bold">{formatCurrency(monthlyStats.totalEarnings)}</p>
+                <p className="text-2xl font-bold">{monthlyStats.totalEarnings.toFixed(0)} SEK</p>
               </div>
             </div>
           </CardContent>
