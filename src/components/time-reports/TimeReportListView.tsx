@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ChevronDown } from 'lucide-react';
@@ -12,9 +12,9 @@ interface TimeReportListViewProps {
 }
 
 const TimeReportListView: React.FC<TimeReportListViewProps> = ({ reports, selectedDate }) => {
-  const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 }); // Monday
-  const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });
-  const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+  const monthStart = startOfMonth(selectedDate);
+  const monthEnd = endOfMonth(selectedDate);
+  const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
   const getReportsForDay = (day: Date) => {
     return reports.filter(report => 
@@ -46,7 +46,7 @@ const TimeReportListView: React.FC<TimeReportListViewProps> = ({ reports, select
     <Card className="bg-white shadow-sm border border-gray-200">
       <CardContent className="p-0">
         <div className="space-y-0">
-          {weekDays.map((day, index) => {
+          {monthDays.map((day, index) => {
             const { totalRegularHours, totalOvertimeHours } = getDayStats(day);
             const dayReports = getReportsForDay(day);
             const hasReports = dayReports.length > 0;
@@ -124,7 +124,7 @@ const TimeReportListView: React.FC<TimeReportListViewProps> = ({ reports, select
                 )}
 
                 {/* Divider line between days */}
-                {index < weekDays.length - 1 && (
+                {index < monthDays.length - 1 && (
                   <div className="border-b border-gray-100" />
                 )}
               </div>
