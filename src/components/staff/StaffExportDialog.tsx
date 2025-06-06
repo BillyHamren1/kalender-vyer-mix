@@ -31,16 +31,18 @@ const StaffExportDialog: React.FC<StaffExportDialogProps> = ({
   const [isExporting, setIsExporting] = useState(false);
   const [exportResult, setExportResult] = useState<any>(null);
 
-  const handleStaffSelection = (staffId: string, checked: boolean) => {
-    if (checked) {
+  const handleStaffSelection = (staffId: string, checked: string | boolean) => {
+    const isChecked = checked === true;
+    if (isChecked) {
       setSelectedStaffIds([...selectedStaffIds, staffId]);
     } else {
       setSelectedStaffIds(selectedStaffIds.filter(id => id !== staffId));
     }
   };
 
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
+  const handleSelectAll = (checked: string | boolean) => {
+    const isChecked = checked === true;
+    if (isChecked) {
       setSelectedStaffIds(staffMembers.map(staff => staff.id));
     } else {
       setSelectedStaffIds([]);
