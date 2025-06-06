@@ -1,160 +1,168 @@
 
-import { useEffect, useRef, useState } from 'react';
-import { quietImportBookings, importBookings, getSyncStatus, forceHistoricalSync } from '@/services/importService';
-import { useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { importBookings } from '@/services/importService';
 
-interface UseBackgroundImportOptions {
-  intervalMs?: number;
-  enableAutoImport?: boolean;
-  onImportComplete?: (results: any) => void;
+interface BackgroundImportState {
+  isRunning: boolean;
+  lastImport: Date | null;
+  nextImport: Date | null;
+  importCount: number;
 }
 
-export const useBackgroundImport = (options: UseBackgroundImportOptions = {}) => {
-  const {
-    intervalMs = 2 * 60 * 1000, // 2 minutes default
-    enableAutoImport = true,
-    onImportComplete
-  } = options;
+const IMPORT_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const MIN_IMPORT_GAP = 3 * 60 * 1000; // 3 minutes minimum between imports
+const STORAGE_KEY = 'background_import_state';
 
-  const [isImporting, setIsImporting] = useState(false);
-  const [isHistoricalImporting, setIsHistoricalImporting] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
-  const [syncStatus, setSyncStatus] = useState<string | null>(null);
-  const queryClient = useQueryClient();
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+export const useBackgroundImport = () => {
+  const [state, setState] = useState<BackgroundImportState>({
+    isRunning: false,
+    lastImport: null,
+    nextImport: null,
+    importCount: 0
+  });
+  
+  const intervalRef = useRef<NodeJS.Timeout>();
+  const isActiveRef = useRef(true);
 
-  // Manual refresh function
-  const performManualRefresh = async () => {
-    try {
-      setIsImporting(true);
-      const result = await importBookings();
-      
-      if (result.success) {
-        // Invalidate relevant queries to refresh data
-        await queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
-        await queryClient.invalidateQueries({ queryKey: ['bookings'] });
-        await queryClient.invalidateQueries({ queryKey: ['bookings-for-status'] });
-        
-        if (onImportComplete) {
-          onImportComplete(result.results);
-        }
+  // Load state from localStorage
+  useEffect(() => {
+    const savedState = localStorage.getItem(STORAGE_KEY);
+    if (savedState) {
+      try {
+        const parsed = JSON.parse(savedState);
+        setState(prev => ({
+          ...prev,
+          lastImport: parsed.lastImport ? new Date(parsed.lastImport) : null,
+          importCount: parsed.importCount || 0
+        }));
+      } catch (error) {
+        console.warn('Failed to parse background import state:', error);
       }
-      
-      return result;
-    } catch (error) {
-      console.error('Manual refresh failed:', error);
-      throw error;
-    } finally {
-      setIsImporting(false);
     }
-  };
+  }, []);
 
-  // Historical import function
-  const performHistoricalImport = async (startDate?: string, endDate?: string) => {
+  // Save state to localStorage
+  const saveState = useCallback((newState: Partial<BackgroundImportState>) => {
+    setState(prev => {
+      const updated = { ...prev, ...newState };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        lastImport: updated.lastImport?.toISOString(),
+        importCount: updated.importCount
+      }));
+      return updated;
+    });
+  }, []);
+
+  // Check if enough time has passed since last import
+  const canImport = useCallback(() => {
+    if (!state.lastImport) return true;
+    const timeSinceLastImport = Date.now() - state.lastImport.getTime();
+    return timeSinceLastImport >= MIN_IMPORT_GAP;
+  }, [state.lastImport]);
+
+  // Perform background import (silent, no UI feedback)
+  const performBackgroundImport = useCallback(async () => {
+    if (!isActiveRef.current || !canImport() || state.isRunning) {
+      return;
+    }
+
+    console.log('🔄 Background import starting...');
+    
+    saveState({ 
+      isRunning: true,
+      nextImport: new Date(Date.now() + IMPORT_INTERVAL)
+    });
+
     try {
-      setIsHistoricalImporting(true);
-      const result = await forceHistoricalSync({
-        startDate,
-        endDate,
-        includeHistorical: true
+      // Silent import - no user feedback
+      await importBookings({ syncMode: 'incremental' });
+      
+      const now = new Date();
+      saveState({
+        isRunning: false,
+        lastImport: now,
+        nextImport: new Date(now.getTime() + IMPORT_INTERVAL),
+        importCount: state.importCount + 1
       });
       
-      if (result.success) {
-        // Invalidate relevant queries to refresh data
-        await queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
-        await queryClient.invalidateQueries({ queryKey: ['bookings'] });
-        await queryClient.invalidateQueries({ queryKey: ['bookings-for-status'] });
-        
-        if (onImportComplete) {
-          onImportComplete(result.results);
-        }
+      console.log('✅ Background import completed successfully');
+    } catch (error) {
+      console.error('❌ Background import failed:', error);
+      saveState({ 
+        isRunning: false,
+        nextImport: new Date(Date.now() + IMPORT_INTERVAL)
+      });
+    }
+  }, [canImport, state.isRunning, state.importCount, saveState]);
+
+  // Start background import service
+  const startBackgroundImport = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+
+    // Run first import immediately if enough time has passed
+    if (canImport()) {
+      setTimeout(performBackgroundImport, 1000); // Small delay to avoid conflicts
+    }
+
+    // Set up periodic imports
+    intervalRef.current = setInterval(() => {
+      if (isActiveRef.current) {
+        performBackgroundImport();
       }
+    }, IMPORT_INTERVAL);
+
+    console.log('🚀 Background import service started');
+  }, [canImport, performBackgroundImport]);
+
+  // Stop background import service
+  const stopBackgroundImport = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = undefined;
+    }
+    console.log('🛑 Background import service stopped');
+  }, []);
+
+  // Manual import with user feedback (for manual refresh button)
+  const triggerManualImport = useCallback(async () => {
+    if (state.isRunning) return false;
+
+    try {
+      setState(prev => ({ ...prev, isRunning: true }));
+      const result = await importBookings({ syncMode: 'incremental' });
+      
+      const now = new Date();
+      saveState({
+        isRunning: false,
+        lastImport: now,
+        nextImport: new Date(now.getTime() + IMPORT_INTERVAL),
+        importCount: state.importCount + 1
+      });
       
       return result;
     } catch (error) {
-      console.error('Historical import failed:', error);
+      setState(prev => ({ ...prev, isRunning: false }));
       throw error;
-    } finally {
-      setIsHistoricalImporting(false);
     }
-  };
+  }, [state.isRunning, state.importCount, saveState]);
 
-  // Background quiet import function
-  const performQuietImport = async () => {
-    try {
-      const result = await quietImportBookings();
-      
-      if (result.success && result.results) {
-        const hasNewData = (result.results.new_bookings?.length || 0) > 0 || 
-                          (result.results.updated_bookings?.length || 0) > 0;
-        
-        if (hasNewData) {
-          // Invalidate queries in background to refresh data
-          await queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
-          await queryClient.invalidateQueries({ queryKey: ['bookings-for-status'] });
-        }
-      }
-    } catch (error) {
-      console.error('Background import failed:', error);
-    }
-  };
-
-  // Update sync status
-  const updateSyncStatus = async () => {
-    try {
-      const status = await getSyncStatus();
-      setLastSyncTime(status.lastSync);
-      setSyncStatus(status.status);
-    } catch (error) {
-      console.error('Failed to get sync status:', error);
-    }
-  };
-
-  // Setup background polling
+  // Initialize on mount
   useEffect(() => {
-    if (!enableAutoImport) return;
+    isActiveRef.current = true;
+    startBackgroundImport();
 
-    // Initial sync status check
-    updateSyncStatus();
-
-    // Setup interval for background imports
-    intervalRef.current = setInterval(() => {
-      // Only run if page is visible to save resources
-      if (!document.hidden) {
-        performQuietImport();
-        updateSyncStatus();
-      }
-    }, intervalMs);
-
-    // Cleanup on unmount
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
+      isActiveRef.current = false;
+      stopBackgroundImport();
     };
-  }, [enableAutoImport, intervalMs]);
-
-  // Handle visibility change - resume imports when page becomes visible
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden && enableAutoImport) {
-        // Immediately check for updates when page becomes visible
-        performQuietImport();
-        updateSyncStatus();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [enableAutoImport]);
+  }, [startBackgroundImport, stopBackgroundImport]);
 
   return {
-    isImporting,
-    isHistoricalImporting,
-    lastSyncTime,
-    syncStatus,
-    performManualRefresh,
-    performHistoricalImport,
-    updateSyncStatus
+    state,
+    triggerManualImport,
+    startBackgroundImport,
+    stopBackgroundImport
   };
 };

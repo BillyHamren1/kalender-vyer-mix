@@ -6,6 +6,7 @@ import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { useCalendarImport } from '@/hooks/useCalendarImport';
+import { useBackgroundImport } from '@/hooks/useBackgroundImport';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -27,10 +28,13 @@ const CustomCalendarPage = () => {
   const [mobileView, setMobileView] = useState<'month' | 'day'>('month');
   const [selectedMobileDate, setSelectedMobileDate] = useState<Date>(new Date());
   
-  // Import hook for fetching external data
-  const { isImporting, triggerImport, triggerSilentImport } = useCalendarImport();
+  // Background import service (runs automatically)
+  const backgroundImport = useBackgroundImport();
   
-  // Use existing hooks for data consistency - these fetch from internal database
+  // Manual import service (for user-triggered refresh)
+  const { isImporting, triggerImport } = useCalendarImport();
+  
+  // Real-time calendar events (these will update UI when background import updates DB)
   const {
     events,
     isLoading,
@@ -66,13 +70,7 @@ const CustomCalendarPage = () => {
     position: { top: number; left: number };
   } | null>(null);
 
-  // Auto-import on component mount
-  useEffect(() => {
-    console.log('CustomCalendarPage: Triggering initial import...');
-    triggerSilentImport();
-  }, [triggerSilentImport]);
-
-  // Handle manual refresh - triggers import then refreshes events
+  // Handle manual refresh - only triggers manual import with user feedback
   const handleManualRefresh = async () => {
     console.log('CustomCalendarPage: Manual refresh triggered');
     const importResult = await triggerImport();
@@ -151,17 +149,10 @@ const CustomCalendarPage = () => {
                   Back to Dashboard
                 </Button>
                 <h1 className="text-2xl font-bold text-gray-900">Staff Calendar</h1>
-                {/* Import status indicator */}
-                {isImporting && (
-                  <div className="flex items-center gap-2 text-sm text-blue-600">
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Fetching latest data...
-                  </div>
-                )}
               </div>
               
               <div className="flex items-center gap-2">
-                {/* Manual refresh button */}
+                {/* Manual refresh button - only shows loading when user manually refreshes */}
                 <Button
                   variant="outline"
                   size="sm"
@@ -230,7 +221,7 @@ const CustomCalendarPage = () => {
                   <CustomCalendar
                     events={events}
                     resources={teamResources}
-                    isLoading={isLoading || isImporting}
+                    isLoading={isLoading}
                     isMounted={isMounted}
                     currentDate={currentWeekStart}
                     onDateSet={handleDatesSet}
@@ -248,7 +239,7 @@ const CustomCalendarPage = () => {
                 resources={teamResources}
                 currentDate={isMobile ? selectedMobileDate : currentWeekStart}
                 weeklyStaffOperations={staffOps}
-                backgroundImport={{ isImporting, triggerImport }}
+                backgroundImport={backgroundImport}
               />
             )}
           </div>

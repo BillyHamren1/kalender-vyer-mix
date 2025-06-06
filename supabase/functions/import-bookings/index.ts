@@ -191,6 +191,27 @@ serve(async (req) => {
       console.log('HISTORICAL MODE: Ignoring last sync timestamp, will import all bookings');
     }
 
+    // Update sync state to "in_progress" using UPSERT to avoid constraint violations
+    const currentTimestamp = new Date().toISOString()
+    const { error: syncStateError } = await supabase
+      .from('sync_state')
+      .upsert({
+        sync_type: 'booking_import',
+        last_sync_status: 'in_progress',
+        last_sync_mode: syncMode,
+        metadata: { 
+          started_at: currentTimestamp,
+          sync_mode: syncMode,
+          filters: { startDate, endDate },
+          historical_mode: isHistoricalImport
+        },
+        updated_at: currentTimestamp
+      })
+
+    if (syncStateError) {
+      console.error('Error updating sync state:', syncStateError)
+    }
+
     // Build API URL with timestamp filter for incremental sync
     let apiUrl = 'https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings';
     
@@ -601,9 +622,9 @@ serve(async (req) => {
       }
     }
 
-    // SAVE SYNC TIMESTAMP - but only for non-historical imports
-    const currentTimestamp = new Date().toISOString()
-    console.log(`Saving sync timestamp: ${currentTimestamp}`)
+    // SAVE SYNC TIMESTAMP using UPSERT - but only for non-historical imports
+    const finalTimestamp = new Date().toISOString()
+    console.log(`Saving sync timestamp: ${finalTimestamp}`)
     console.log(`Team distribution summary:`, results.team_distribution)
     console.log(`Unchanged bookings skipped: ${results.unchanged_bookings_skipped.length}`)
     
@@ -613,10 +634,11 @@ serve(async (req) => {
         .from('sync_state')
         .upsert({
           sync_type: 'booking_import',
-          last_sync_timestamp: currentTimestamp,
+          last_sync_timestamp: finalTimestamp,
           last_sync_mode: syncMode,
           last_sync_status: results.failed > 0 ? 'partial_success' : 'success',
-          metadata: { results }
+          metadata: { results },
+          updated_at: finalTimestamp
         })
 
       if (syncError) {
