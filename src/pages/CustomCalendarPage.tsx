@@ -1,15 +1,15 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
-import { useBackgroundImport } from '@/hooks/useBackgroundImport';
+import { useCalendarImport } from '@/hooks/useCalendarImport';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { ArrowLeft, Calendar as CalendarIcon, List } from 'lucide-react';
+import { ArrowLeft, Calendar as CalendarIcon, List, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CustomCalendar from '@/components/Calendar/CustomCalendar';
 import SimpleStaffCurtain from '@/components/Calendar/SimpleStaffCurtain';
@@ -27,7 +27,10 @@ const CustomCalendarPage = () => {
   const [mobileView, setMobileView] = useState<'month' | 'day'>('month');
   const [selectedMobileDate, setSelectedMobileDate] = useState<Date>(new Date());
   
-  // Use existing hooks for data consistency
+  // Import hook for fetching external data
+  const { isImporting, triggerImport, triggerSilentImport } = useCalendarImport();
+  
+  // Use existing hooks for data consistency - these fetch from internal database
   const {
     events,
     isLoading,
@@ -54,15 +57,6 @@ const CustomCalendarPage = () => {
     isMobile ? 'daily' : 'weekly'
   );
 
-  // Add background import functionality
-  const backgroundImport = useBackgroundImport({
-    enableAutoImport: true,
-    onImportComplete: (results) => {
-      // Refresh calendar events after successful import
-      refreshEvents();
-    }
-  });
-
   // Staff curtain state - simplified with position
   const [staffCurtainOpen, setStaffCurtainOpen] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<{
@@ -71,6 +65,21 @@ const CustomCalendarPage = () => {
     targetDate: Date;
     position: { top: number; left: number };
   } | null>(null);
+
+  // Auto-import on component mount
+  useEffect(() => {
+    console.log('CustomCalendarPage: Triggering initial import...');
+    triggerSilentImport();
+  }, [triggerSilentImport]);
+
+  // Handle manual refresh - triggers import then refreshes events
+  const handleManualRefresh = async () => {
+    console.log('CustomCalendarPage: Manual refresh triggered');
+    const importResult = await triggerImport();
+    if (importResult?.success) {
+      await refreshEvents();
+    }
+  };
 
   // Handle opening staff curtain with position
   const handleOpenStaffSelection = (resourceId: string, resourceTitle: string, targetDate: Date, buttonElement?: HTMLElement) => {
@@ -142,11 +151,30 @@ const CustomCalendarPage = () => {
                   Back to Dashboard
                 </Button>
                 <h1 className="text-2xl font-bold text-gray-900">Staff Calendar</h1>
+                {/* Import status indicator */}
+                {isImporting && (
+                  <div className="flex items-center gap-2 text-sm text-blue-600">
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    Fetching latest data...
+                  </div>
+                )}
               </div>
               
-              {/* View Toggle - Hide on mobile when in day view */}
-              {!isMobile || mobileView === 'month' ? (
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
+                {/* Manual refresh button */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleManualRefresh}
+                  disabled={isImporting}
+                  className="flex items-center gap-2"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isImporting ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+                
+                {/* View Toggle - Hide on mobile when in day view */}
+                {!isMobile || mobileView === 'month' ? (
                   <div className="flex bg-gray-100 rounded-lg p-1">
                     <Button
                       variant={viewMode === 'calendar' ? 'default' : 'ghost'}
@@ -167,8 +195,8 @@ const CustomCalendarPage = () => {
                       {isMobile ? 'List' : 'List View'}
                     </Button>
                   </div>
-                </div>
-              ) : null}
+                ) : null}
+              </div>
             </div>
           </div>
 
@@ -202,7 +230,7 @@ const CustomCalendarPage = () => {
                   <CustomCalendar
                     events={events}
                     resources={teamResources}
-                    isLoading={isLoading}
+                    isLoading={isLoading || isImporting}
                     isMounted={isMounted}
                     currentDate={currentWeekStart}
                     onDateSet={handleDatesSet}
@@ -220,7 +248,7 @@ const CustomCalendarPage = () => {
                 resources={teamResources}
                 currentDate={isMobile ? selectedMobileDate : currentWeekStart}
                 weeklyStaffOperations={staffOps}
-                backgroundImport={backgroundImport}
+                backgroundImport={{ isImporting, triggerImport }}
               />
             )}
           </div>
