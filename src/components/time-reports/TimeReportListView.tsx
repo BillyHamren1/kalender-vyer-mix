@@ -79,7 +79,7 @@ const TimeReportListView: React.FC<TimeReportListViewProps> = ({ reports, select
                     </div>
 
                     {hasReports && (
-                      <ChevronDown className="h-3 w-3 text-gray-400" />
+                      <ChevronDown className="h-3 w-3 text-[#82b6c6]" />
                     )}
                   </div>
                 </div>

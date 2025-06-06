@@ -58,7 +58,7 @@ const StaffMemberCalendar: React.FC<StaffMemberCalendarProps> = ({ staffId, staf
       <div className="border-b border-gray-200 p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center">
+            <div className="w-10 h-10 bg-[#82b6c6] rounded-full flex items-center justify-center">
               <Calendar className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -99,7 +99,7 @@ const StaffMemberCalendar: React.FC<StaffMemberCalendarProps> = ({ staffId, staf
       <div className="p-6">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#82b6c6]"></div>
             <span className="ml-3 text-gray-600">Loading calendar...</span>
           </div>
         ) : (

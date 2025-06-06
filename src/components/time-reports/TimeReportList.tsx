@@ -40,7 +40,7 @@ const TimeReportList: React.FC<TimeReportListProps> = ({
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-8">
-          <Clock className="h-12 w-12 text-gray-400 mb-4" />
+          <Clock className="h-12 w-12 text-[#82b6c6] mb-4" />
           <h3 className="text-lg font-medium text-gray-600 mb-2">No time reports found</h3>
           <p className="text-gray-500 text-center">
             Time reports will appear here once they are submitted.
@@ -58,7 +58,7 @@ const TimeReportList: React.FC<TimeReportListProps> = ({
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
-                  <Calendar className="h-4 w-4 text-gray-500" />
+                  <Calendar className="h-4 w-4 text-[#82b6c6]" />
                   <span className="font-medium">
                     {format(new Date(report.report_date), 'EEEE, MMMM d, yyyy')}
                   </span>
@@ -104,7 +104,7 @@ const TimeReportList: React.FC<TimeReportListProps> = ({
 
                 {report.staff_members?.hourly_rate && (
                   <div className="flex items-center gap-2 mt-2">
-                    <DollarSign className="h-4 w-4 text-green-600" />
+                    <DollarSign className="h-4 w-4 text-[#82b6c6]" />
                     <span className="text-sm font-medium text-green-600">
                       Labor Cost: {formatCurrency(calculateCost(report))}
                     </span>

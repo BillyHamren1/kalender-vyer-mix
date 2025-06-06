@@ -190,7 +190,7 @@ const StaffDetail: React.FC = () => {
       <div className="space-y-1">
         <label className="text-sm font-medium text-gray-700">{label}</label>
         <div className="flex items-center space-x-3">
-          {icon && <div className="text-gray-400">{icon}</div>}
+          {icon && <div className="text-[#82b6c6]">{icon}</div>}
           {type === 'textarea' ? (
             <Textarea
               value={currentValue}
@@ -340,7 +340,7 @@ const StaffDetail: React.FC = () => {
               <Card className="bg-white shadow-sm border border-gray-200">
                 <CardHeader className="pb-4 border-b border-gray-100">
                   <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-                    <User className="h-5 w-5 text-blue-600" />
+                    <User className="h-5 w-5 text-[#82b6c6]" />
                     Personal Information
                   </CardTitle>
                 </CardHeader>
@@ -372,7 +372,7 @@ const StaffDetail: React.FC = () => {
               <Card className="bg-white shadow-sm border border-gray-200">
                 <CardHeader className="pb-4 border-b border-gray-100">
                   <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-                    <Briefcase className="h-5 w-5 text-green-600" />
+                    <Briefcase className="h-5 w-5 text-[#82b6c6]" />
                     Employment Details
                   </CardTitle>
                 </CardHeader>
@@ -403,7 +403,7 @@ const StaffDetail: React.FC = () => {
               <Card className="bg-white shadow-sm border border-gray-200">
                 <CardHeader className="pb-4 border-b border-gray-100">
                   <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-                    <DollarSign className="h-5 w-5 text-yellow-600" />
+                    <DollarSign className="h-5 w-5 text-[#82b6c6]" />
                     Financial Information
                   </CardTitle>
                 </CardHeader>
@@ -443,7 +443,7 @@ const StaffDetail: React.FC = () => {
             <Card className="bg-white shadow-sm border border-gray-200 mb-6">
               <CardHeader className="pb-4 border-b border-gray-100">
                 <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-                  <MapPin className="h-5 w-5 text-red-600" />
+                  <MapPin className="h-5 w-5 text-[#82b6c6]" />
                   Address Information
                 </CardTitle>
               </CardHeader>
@@ -480,7 +480,7 @@ const StaffDetail: React.FC = () => {
             <Card className="bg-white shadow-sm border border-gray-200 mb-6">
               <CardHeader className="pb-4 border-b border-gray-100">
                 <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-                  <AlertTriangle className="h-5 w-5 text-orange-600" />
+                  <AlertTriangle className="h-5 w-5 text-[#82b6c6]" />
                   Emergency Contact
                 </CardTitle>
               </CardHeader>
@@ -508,7 +508,7 @@ const StaffDetail: React.FC = () => {
             <Card className="bg-white shadow-sm border border-gray-200 mb-6">
               <CardHeader className="pb-4 border-b border-gray-100">
                 <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-                  <FileText className="h-5 w-5 text-purple-600" />
+                  <FileText className="h-5 w-5 text-[#82b6c6]" />
                   Notes
                 </CardTitle>
               </CardHeader>
@@ -531,7 +531,7 @@ const StaffDetail: React.FC = () => {
               <Card className="bg-white shadow-sm border border-gray-200">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2">
-                    <Clock className="h-5 w-5 text-blue-600" />
+                    <Clock className="h-5 w-5 text-[#82b6c6]" />
                     <div>
                       <p className="text-sm text-gray-600">Hours This Month</p>
                       <p className="text-2xl font-bold">{monthlyStats.totalHours.toFixed(1)}</p>
@@ -543,7 +543,7 @@ const StaffDetail: React.FC = () => {
               <Card className="bg-white shadow-sm border border-gray-200">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2">
-                    <DollarSign className="h-5 w-5 text-green-600" />
+                    <DollarSign className="h-5 w-5 text-[#82b6c6]" />
                     <div>
                       <p className="text-sm text-gray-600">Earnings This Month</p>
                       <p className="text-2xl font-bold">{monthlyStats.totalEarnings.toFixed(0)} SEK</p>
@@ -555,7 +555,7 @@ const StaffDetail: React.FC = () => {
               <Card className="bg-white shadow-sm border border-gray-200">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-purple-600" />
+                    <Calendar className="h-5 w-5 text-[#82b6c6]" />
                     <div>
                       <p className="text-sm text-gray-600">Reports Submitted</p>
                       <p className="text-2xl font-bold">{monthlyStats.totalReports}</p>
@@ -567,7 +567,7 @@ const StaffDetail: React.FC = () => {
               <Card className="bg-white shadow-sm border border-gray-200">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2">
-                    <Clock className="h-5 w-5 text-orange-600" />
+                    <Clock className="h-5 w-5 text-[#82b6c6]" />
                     <div>
                       <p className="text-sm text-gray-600">Overtime Hours</p>
                       <p className="text-2xl font-bold">{monthlyStats.overtimeHours.toFixed(1)}</p>

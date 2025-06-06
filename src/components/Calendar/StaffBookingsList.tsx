@@ -144,7 +144,7 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
         {sortedDates.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-8">
-              <Calendar className="h-12 w-12 text-gray-400 mb-4" />
+              <Calendar className="h-12 w-12 text-[#82b6c6] mb-4" />
               <h3 className="text-lg font-medium text-gray-600 mb-2">No bookings found</h3>
               <p className="text-gray-500 text-center">
                 There are no bookings scheduled for the current date range.
@@ -162,7 +162,7 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
               <Card key={dateKey}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5" />
+                    <Calendar className="h-5 w-5 text-[#82b6c6]" />
                     {format(eventDate, 'EEEE, MMMM d, yyyy')}
                     <Badge variant="secondary">{dayEvents.length} event{dayEvents.length !== 1 ? 's' : ''}</Badge>
                   </CardTitle>
@@ -205,7 +205,7 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
                           
                           {/* Staff Assignment */}
                           <div className="flex items-center gap-2 pt-3 border-t">
-                            <Users className="h-4 w-4 text-gray-500" />
+                            <Users className="h-4 w-4 text-[#82b6c6]" />
                             <span className="text-sm font-medium">Staff:</span>
                             {teamStaff.length > 0 ? (
                               <div className="flex flex-wrap gap-1">
