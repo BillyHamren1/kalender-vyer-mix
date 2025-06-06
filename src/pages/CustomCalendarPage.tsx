@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ArrowLeft, Calendar as CalendarIcon, List } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import UnifiedResourceCalendar from '@/components/Calendar/UnifiedResourceCalendar';
+import CustomCalendar from '@/components/Calendar/CustomCalendar';
 import SimpleStaffCurtain from '@/components/Calendar/SimpleStaffCurtain';
 import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
 import MobileMonthlyCalendar from '@/components/Calendar/MobileMonthlyCalendar';
@@ -198,8 +198,8 @@ const CustomCalendarPage = () => {
                     )}
                   </>
                 ) : (
-                  // Desktop Calendar View - Using proven UnifiedResourceCalendar
-                  <UnifiedResourceCalendar
+                  // Desktop Calendar View
+                  <CustomCalendar
                     events={events}
                     resources={teamResources}
                     isLoading={isLoading}
@@ -208,8 +208,9 @@ const CustomCalendarPage = () => {
                     onDateSet={handleDatesSet}
                     refreshEvents={refreshEvents}
                     onStaffDrop={staffOps.handleStaffDrop}
-                    onSelectStaff={handleOpenStaffSelection}
+                    onOpenStaffSelection={handleOpenStaffSelection}
                     viewMode="weekly"
+                    weeklyStaffOperations={staffOps}
                   />
                 )}
               </>
