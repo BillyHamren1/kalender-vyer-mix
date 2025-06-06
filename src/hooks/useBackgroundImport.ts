@@ -159,10 +159,21 @@ export const useBackgroundImport = () => {
     };
   }, [startBackgroundImport, stopBackgroundImport]);
 
+  // Backward compatibility properties
+  const isImporting = state.isRunning;
+  const lastSyncTime = state.lastImport;
+  const syncStatus = state.isRunning ? 'running' : 'idle';
+  const performManualRefresh = triggerManualImport;
+
   return {
     state,
     triggerManualImport,
     startBackgroundImport,
-    stopBackgroundImport
+    stopBackgroundImport,
+    // Backward compatibility
+    isImporting,
+    lastSyncTime,
+    syncStatus,
+    performManualRefresh
   };
 };

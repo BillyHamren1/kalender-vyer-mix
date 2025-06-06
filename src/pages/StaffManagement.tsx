@@ -1,11 +1,12 @@
 
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Users, Plus, Search, RotateCcw, Download } from 'lucide-react';
+import { Users, Plus, Search, RotateCcw, Download, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { fetchStaffMembers, updateStaffColor } from '@/services/staffService';
+import { importStaffData } from '@/services/staffImportService';
 import { toast } from 'sonner';
 import StaffList from '@/components/staff/StaffList';
 import AddStaffDialog from '@/components/staff/AddStaffDialog';
@@ -21,6 +22,7 @@ const StaffManagement: React.FC = () => {
   const [selectedStaffForColor, setSelectedStaffForColor] = useState<any>(null);
   const [selectedStaffForEdit, setSelectedStaffForEdit] = useState<any>(null);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [isImportingStaff, setIsImportingStaff] = useState(false);
 
   // Fetch staff members
   const { 
@@ -38,6 +40,20 @@ const StaffManagement: React.FC = () => {
   const handleRefresh = () => {
     refetch();
     toast.success('Staff list refreshed');
+  };
+
+  const handleStaffImport = async () => {
+    setIsImportingStaff(true);
+    try {
+      const result = await importStaffData();
+      if (result.success) {
+        refetch(); // Refresh the local staff list
+      }
+    } catch (error) {
+      console.error('Staff import failed:', error);
+    } finally {
+      setIsImportingStaff(false);
+    }
   };
 
   const handleStaffAdded = () => {
@@ -86,6 +102,15 @@ const StaffManagement: React.FC = () => {
             <h1 className="text-3xl font-bold text-gray-900">Staff Management</h1>
           </div>
           <div className="flex items-center space-x-4">
+            <Button 
+              onClick={handleStaffImport}
+              disabled={isImportingStaff}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <UserPlus className={`h-4 w-4 ${isImportingStaff ? 'animate-spin' : ''}`} />
+              Import Staff
+            </Button>
             <Button 
               onClick={() => setIsExportDialogOpen(true)}
               variant="outline"
