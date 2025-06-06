@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface StaffMember {
@@ -37,6 +36,11 @@ export interface StaffOperationResponse {
   error?: string;
   conflicts?: any[];
   affected_staff?: string[];
+}
+
+export interface StaffExportOptions {
+  headers?: Record<string, string>;
+  format?: 'json' | 'csv';
 }
 
 class UnifiedStaffService {
@@ -187,6 +191,35 @@ class UnifiedStaffService {
     
     return result.success ? result.data : [];
   }
+
+  // New Export Operations
+  async exportStaffToExternal(externalUrl: string, staffIds?: string[], options: StaffExportOptions = {}): Promise<StaffOperationResponse> {
+    return await this.callStaffFunction('export_staff_to_external', {
+      external_url: externalUrl,
+      staff_ids: staffIds
+    }, options);
+  }
+
+  async exportAllStaff(externalUrl: string, options: StaffExportOptions = {}): Promise<StaffOperationResponse> {
+    return await this.callStaffFunction('export_staff_to_external', {
+      external_url: externalUrl,
+      staff_ids: undefined // Export all staff
+    }, options);
+  }
+
+  async exportSelectedStaff(externalUrl: string, staffIds: string[], options: StaffExportOptions = {}): Promise<StaffOperationResponse> {
+    if (!staffIds || staffIds.length === 0) {
+      return {
+        success: false,
+        error: 'No staff members selected for export'
+      };
+    }
+    
+    return await this.callStaffFunction('export_staff_to_external', {
+      external_url: externalUrl,
+      staff_ids: staffIds
+    }, options);
+  }
 }
 
 // Export singleton instance
@@ -206,5 +239,8 @@ export const {
   removeStaffFromBooking,
   handleBookingMove,
   bulkAssignStaff,
-  getStaffSummary
+  getStaffSummary,
+  exportStaffToExternal,
+  exportAllStaff,
+  exportSelectedStaff
 } = unifiedStaffService;

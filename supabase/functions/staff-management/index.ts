@@ -52,6 +52,13 @@ interface OperationResponse {
   affected_staff?: string[];
 }
 
+interface StaffExportData {
+  uuid: string;
+  name: string;
+  email: string;
+  password_hash: string;
+}
+
 serve(async (req) => {
   // Handle CORS
   if (req.method === 'OPTIONS') {
@@ -120,6 +127,10 @@ serve(async (req) => {
       
       case 'get_staff_summary':
         response = await getStaffSummary(supabase, data.staff_ids, data.date)
+        break
+      
+      case 'export_staff_to_external':
+        response = await exportStaffToExternal(supabase, data.external_url, data.staff_ids, options)
         break
       
       default:
@@ -684,5 +695,122 @@ function getEventBorderColor(eventType: string): string {
       return '#9c27b0'
     default:
       return '#4caf50'
+  }
+}
+
+// New Export Function
+async function exportStaffToExternal(supabase: any, externalUrl: string, staffIds?: string[], options: any = {}): Promise<OperationResponse> {
+  try {
+    console.log(`Exporting staff to external system: ${externalUrl}`)
+    
+    // Build query to get staff with accounts
+    let query = supabase
+      .from('staff_members')
+      .select(`
+        id,
+        name,
+        email,
+        staff_accounts (
+          username,
+          password_hash
+        )
+      `)
+
+    // Filter by staff IDs if provided
+    if (staffIds && staffIds.length > 0) {
+      query = query.in('id', staffIds)
+    }
+
+    const { data: staffData, error: fetchError } = await query
+
+    if (fetchError) throw fetchError
+
+    if (!staffData || staffData.length === 0) {
+      return { success: false, error: 'No staff members found to export' }
+    }
+
+    // Transform data for export
+    const exportData: StaffExportData[] = staffData
+      .filter(staff => staff.staff_accounts && staff.staff_accounts.length > 0)
+      .map(staff => ({
+        uuid: staff.id,
+        name: staff.name,
+        email: staff.email || '',
+        password_hash: staff.staff_accounts[0].password_hash
+      }))
+
+    if (exportData.length === 0) {
+      return { success: false, error: 'No staff members with accounts found to export' }
+    }
+
+    // Get API key from environment
+    const apiKey = Deno.env.get('X_API_KEY')
+    if (!apiKey) {
+      return { success: false, error: 'X_API_KEY not configured' }
+    }
+
+    // Prepare request to external system
+    const requestHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-API-Key': apiKey,
+      ...corsHeaders
+    }
+
+    // Add any additional headers from options
+    if (options.headers) {
+      Object.assign(requestHeaders, options.headers)
+    }
+
+    const requestBody = {
+      staff_data: exportData,
+      export_timestamp: new Date().toISOString(),
+      total_count: exportData.length
+    }
+
+    console.log(`Sending ${exportData.length} staff records to ${externalUrl}`)
+
+    // Make request to external system
+    const externalResponse = await fetch(externalUrl, {
+      method: 'POST',
+      headers: requestHeaders,
+      body: JSON.stringify(requestBody)
+    })
+
+    const responseText = await externalResponse.text()
+    let responseData: any = {}
+
+    try {
+      responseData = JSON.parse(responseText)
+    } catch {
+      responseData = { raw_response: responseText }
+    }
+
+    if (!externalResponse.ok) {
+      console.error(`External API error: ${externalResponse.status} - ${responseText}`)
+      return {
+        success: false,
+        error: `External API error: ${externalResponse.status}`,
+        data: {
+          status: externalResponse.status,
+          response: responseData,
+          exported_count: exportData.length
+        }
+      }
+    }
+
+    console.log(`Successfully exported ${exportData.length} staff records`)
+
+    return {
+      success: true,
+      data: {
+        exported_count: exportData.length,
+        external_response: responseData,
+        exported_staff_ids: exportData.map(s => s.uuid)
+      }
+    }
+
+  } catch (error) {
+    console.error('Error in exportStaffToExternal:', error)
+    return { success: false, error: error.message }
   }
 }

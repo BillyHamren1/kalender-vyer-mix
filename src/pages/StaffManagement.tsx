@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Users, Plus, Search, RotateCcw } from 'lucide-react';
+import { Users, Plus, Search, RotateCcw, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,12 +13,14 @@ import EditStaffDialog from '@/components/staff/EditStaffDialog';
 import StaffStats from '@/components/staff/StaffStats';
 import StaffColorSettings from '@/components/staff/StaffColorSettings';
 import CreateStaffAccountCard from '@/components/staff/CreateStaffAccountCard';
+import StaffExportDialog from '@/components/staff/StaffExportDialog';
 
 const StaffManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedStaffForColor, setSelectedStaffForColor] = useState<any>(null);
   const [selectedStaffForEdit, setSelectedStaffForEdit] = useState<any>(null);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
 
   // Fetch staff members
   const { 
@@ -84,6 +86,14 @@ const StaffManagement: React.FC = () => {
             <h1 className="text-3xl font-bold text-gray-900">Staff Management</h1>
           </div>
           <div className="flex items-center space-x-4">
+            <Button 
+              onClick={() => setIsExportDialogOpen(true)}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Export Staff
+            </Button>
             <Button 
               onClick={() => setIsAddDialogOpen(true)}
               className="bg-[#82b6c6] hover:bg-[#6a9fb0] text-white"
@@ -185,6 +195,13 @@ const StaffManagement: React.FC = () => {
           onStaffUpdated={handleStaffUpdated}
         />
       )}
+
+      {/* Export Staff Dialog */}
+      <StaffExportDialog
+        isOpen={isExportDialogOpen}
+        onClose={() => setIsExportDialogOpen(false)}
+        staffMembers={staffMembers}
+      />
     </div>
   );
 };
