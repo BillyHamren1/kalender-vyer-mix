@@ -38,6 +38,9 @@ serve(async (req) => {
       case 'import':
         apiKey = Deno.env.get('IMPORT_API_KEY')
         break
+      case 'tracked-time':
+        apiKey = Deno.env.get('TRACKED_TIME_API_KEY')
+        break
       default:
         return new Response(
           JSON.stringify({ error: 'Invalid key type requested' }),

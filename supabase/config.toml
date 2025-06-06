@@ -79,3 +79,6 @@ verify_jwt = false
 
 [functions.time-reports]
 verify_jwt = false
+
+[functions.fetch-tracked-time]
+verify_jwt = false
