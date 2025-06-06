@@ -58,39 +58,46 @@ serve(async (req) => {
 
     console.log('Starting staff assignments export (confirmed bookings only)...')
 
-    // Step 1: Get all staff assignments for confirmed bookings
+    // Step 1: Get confirmed booking IDs first
+    const { data: confirmedBookings, error: confirmedError } = await supabase
+      .from('confirmed_bookings')
+      .select('id')
+
+    if (confirmedError) {
+      console.error('Error fetching confirmed bookings:', confirmedError)
+      throw confirmedError
+    }
+
+    const confirmedBookingIds = confirmedBookings?.map(b => b.id) || []
+    console.log(`Found ${confirmedBookingIds.length} confirmed bookings`)
+
+    if (confirmedBookingIds.length === 0) {
+      console.log('No confirmed bookings found')
+      return new Response(
+        JSON.stringify({
+          metadata: {
+            exportedAt: new Date().toISOString(),
+            totalAssignments: 0,
+            uniqueStaff: 0,
+            uniqueBookings: 0,
+            dateRange: { earliest: null, latest: null }
+          },
+          assignments: []
+        }, null, 2),
+        { 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json'
+          } 
+        }
+      )
+    }
+
+    // Step 2: Get staff assignments for confirmed bookings only
     const { data: assignments, error: assignmentsError } = await supabase
       .from('booking_staff_assignments')
-      .select(`
-        *,
-        bookings!inner (
-          id,
-          client,
-          booking_number,
-          status,
-          rigdaydate,
-          eventdate,
-          rigdowndate,
-          deliveryaddress,
-          delivery_city,
-          delivery_postal_code,
-          delivery_latitude,
-          delivery_longitude,
-          carry_more_than_10m,
-          ground_nails_allowed,
-          exact_time_needed,
-          exact_time_info,
-          contact_name,
-          contact_phone,
-          contact_email,
-          internalnotes,
-          created_at,
-          updated_at,
-          confirmed_bookings!inner (
-            id
-          )
-        )
-      `)
+      .select('*')
+      .in('booking_id', confirmedBookingIds)
       .order('assignment_date', { ascending: false })
 
     if (assignmentsError) {
@@ -100,7 +107,41 @@ serve(async (req) => {
 
     console.log(`Found ${assignments?.length || 0} staff assignments for confirmed bookings`)
 
-    // Step 2: Get unique staff IDs and fetch staff members separately
+    // Step 3: Get bookings data separately
+    const { data: bookings, error: bookingsError } = await supabase
+      .from('bookings')
+      .select(`
+        id,
+        client,
+        booking_number,
+        status,
+        rigdaydate,
+        eventdate,
+        rigdowndate,
+        deliveryaddress,
+        delivery_city,
+        delivery_postal_code,
+        delivery_latitude,
+        delivery_longitude,
+        carry_more_than_10m,
+        ground_nails_allowed,
+        exact_time_needed,
+        exact_time_info,
+        contact_name,
+        contact_phone,
+        contact_email,
+        internalnotes,
+        created_at,
+        updated_at
+      `)
+      .in('id', confirmedBookingIds)
+
+    if (bookingsError) {
+      console.error('Error fetching bookings:', bookingsError)
+      throw bookingsError
+    }
+
+    // Step 4: Get unique staff IDs and fetch staff members separately
     const staffIds = [...new Set(assignments?.map(a => a.staff_id) || [])]
     
     let staffMembers = []
@@ -118,19 +159,11 @@ serve(async (req) => {
       }
     }
 
-    // Create a lookup map for staff members
-    const staffLookup = new Map()
-    staffMembers.forEach(staff => {
-      staffLookup.set(staff.id, staff)
-    })
-
-    // Get booking products, attachments, and events
-    const bookingIds = [...new Set(assignments?.map(a => a.booking_id) || [])]
-    
+    // Step 5: Get booking products, attachments, and events
     const { data: products, error: productsError } = await supabase
       .from('booking_products')
       .select('*')
-      .in('booking_id', bookingIds)
+      .in('booking_id', confirmedBookingIds)
 
     if (productsError) {
       console.error('Error fetching booking products:', productsError)
@@ -140,7 +173,7 @@ serve(async (req) => {
     const { data: attachments, error: attachmentsError } = await supabase
       .from('booking_attachments')
       .select('*')
-      .in('booking_id', bookingIds)
+      .in('booking_id', confirmedBookingIds)
 
     if (attachmentsError) {
       console.error('Error fetching booking attachments:', attachmentsError)
@@ -150,7 +183,7 @@ serve(async (req) => {
     const { data: events, error: eventsError } = await supabase
       .from('calendar_events')
       .select('*')
-      .in('booking_id', bookingIds)
+      .in('booking_id', confirmedBookingIds)
 
     if (eventsError) {
       console.error('Error fetching calendar events:', eventsError)
@@ -158,6 +191,16 @@ serve(async (req) => {
     }
 
     // Create lookup maps for efficient data joining
+    const staffLookup = new Map()
+    staffMembers.forEach(staff => {
+      staffLookup.set(staff.id, staff)
+    })
+
+    const bookingsLookup = new Map()
+    bookings?.forEach(booking => {
+      bookingsLookup.set(booking.id, booking)
+    })
+
     const productsMap = new Map()
     products?.forEach(product => {
       if (!productsMap.has(product.booking_id)) {
@@ -185,7 +228,7 @@ serve(async (req) => {
     // Process and enrich the data
     const enrichedAssignments = (assignments || []).map(assignment => {
       const staff = staffLookup.get(assignment.staff_id)
-      const booking = assignment.bookings
+      const booking = bookingsLookup.get(assignment.booking_id)
       const bookingProducts = productsMap.get(assignment.booking_id) || []
       const bookingAttachments = attachmentsMap.get(assignment.booking_id) || []
       const bookingEvents = eventsMap.get(assignment.booking_id) || []
