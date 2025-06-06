@@ -1,3 +1,4 @@
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -57,17 +58,11 @@ serve(async (req) => {
 
     console.log('Starting staff assignments export (confirmed bookings only)...')
 
-    // Get all staff assignments with booking information - ONLY for confirmed bookings
+    // Step 1: Get all staff assignments for confirmed bookings
     const { data: assignments, error: assignmentsError } = await supabase
       .from('booking_staff_assignments')
       .select(`
         *,
-        staff_members (
-          id,
-          name,
-          email,
-          phone
-        ),
         bookings!inner (
           id,
           client,
@@ -105,7 +100,31 @@ serve(async (req) => {
 
     console.log(`Found ${assignments?.length || 0} staff assignments for confirmed bookings`)
 
-    // Get booking products for all confirmed bookings
+    // Step 2: Get unique staff IDs and fetch staff members separately
+    const staffIds = [...new Set(assignments?.map(a => a.staff_id) || [])]
+    
+    let staffMembers = []
+    if (staffIds.length > 0) {
+      const { data: staffData, error: staffError } = await supabase
+        .from('staff_members')
+        .select('id, name, email, phone')
+        .in('id', staffIds)
+
+      if (staffError) {
+        console.error('Error fetching staff members:', staffError)
+        // Continue without staff details rather than failing
+      } else {
+        staffMembers = staffData || []
+      }
+    }
+
+    // Create a lookup map for staff members
+    const staffLookup = new Map()
+    staffMembers.forEach(staff => {
+      staffLookup.set(staff.id, staff)
+    })
+
+    // Get booking products, attachments, and events
     const bookingIds = [...new Set(assignments?.map(a => a.booking_id) || [])]
     
     const { data: products, error: productsError } = await supabase
@@ -118,7 +137,6 @@ serve(async (req) => {
       // Continue without products rather than failing
     }
 
-    // Get booking attachments
     const { data: attachments, error: attachmentsError } = await supabase
       .from('booking_attachments')
       .select('*')
@@ -129,7 +147,6 @@ serve(async (req) => {
       // Continue without attachments rather than failing
     }
 
-    // Get calendar events for these bookings
     const { data: events, error: eventsError } = await supabase
       .from('calendar_events')
       .select('*')
@@ -167,7 +184,7 @@ serve(async (req) => {
 
     // Process and enrich the data
     const enrichedAssignments = (assignments || []).map(assignment => {
-      const staff = assignment.staff_members
+      const staff = staffLookup.get(assignment.staff_id)
       const booking = assignment.bookings
       const bookingProducts = productsMap.get(assignment.booking_id) || []
       const bookingAttachments = attachmentsMap.get(assignment.booking_id) || []
