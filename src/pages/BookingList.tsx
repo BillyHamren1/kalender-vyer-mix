@@ -48,33 +48,9 @@ const BookingList = () => {
   const [plannedStatusFilter, setPlannedStatusFilter] = useState<string>("confirmed");
   const [includeTodayBookings, setIncludeTodayBookings] = useState<boolean>(true);
 
-  // Use the background import hook
-  const backgroundImport = useBackgroundImport({
-    enableAutoImport: true,
-    onImportComplete: (results) => {
-      // Track newly imported, updated, and status changed bookings
-      const newOrUpdatedIds = [...(results.new_bookings || []), ...(results.updated_bookings || [])];
-      const statusChangedIds = [...(results.status_changed_bookings || [])];
-      
-      if (newOrUpdatedIds.length > 0 || statusChangedIds.length > 0) {
-        setRecentlyUpdatedBookingIds(prevIds => {
-          const combined = [...prevIds, ...newOrUpdatedIds];
-          // Remove duplicates
-          return [...new Set(combined)];
-        });
-        
-        setStatusChangedBookingIds(prevIds => {
-          const combined = [...prevIds, ...statusChangedIds];
-          // Remove duplicates
-          return [...new Set(combined)];
-        });
-        
-        // Reload bookings to show the newly imported ones
-        loadBookings();
-      }
-    }
-  });
-  
+  // Use the background import hook - now takes no parameters
+  const backgroundImport = useBackgroundImport();
+
   // Function to load bookings - now loads ALL bookings, not just confirmed ones
   const loadBookings = async () => {
     try {

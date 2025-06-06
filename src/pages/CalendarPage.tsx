@@ -39,14 +39,8 @@ const CalendarPage = () => {
   // Use the unified staff operations hook
   const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly');
 
-  // Add background import functionality
-  const backgroundImport = useBackgroundImport({
-    enableAutoImport: true,
-    onImportComplete: (results) => {
-      // Refresh calendar events after successful import
-      refreshEvents();
-    }
-  });
+  // Use background import functionality - now takes no parameters
+  const backgroundImport = useBackgroundImport();
 
   // Staff curtain state
   const [staffCurtainOpen, setStaffCurtainOpen] = useState(false);
