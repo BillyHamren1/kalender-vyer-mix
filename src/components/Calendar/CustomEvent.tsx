@@ -68,8 +68,6 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   // Use temporary times if resizing, otherwise use original times
   const displayStart = tempResizeState ? tempResizeState.newStart : new Date(event.start);
   const displayEnd = tempResizeState ? tempResizeState.newEnd : new Date(event.end);
-  const startTime = format(displayStart, 'HH:mm');
-  const endTime = format(displayEnd, 'HH:mm');
 
   // Handle resize operations with real-time visual feedback - FIXED to use 25px per hour
   const handleResizeStart = (e: React.MouseEvent, direction: 'top' | 'bottom') => {
@@ -197,6 +195,10 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     return baseStyles;
   };
 
+  // Get booking number and delivery city from event
+  const bookingNumber = event.bookingNumber || event.extendedProps?.bookingNumber || event.extendedProps?.booking_id || 'No ID';
+  const deliveryCity = event.extendedProps?.deliveryCity || event.extendedProps?.delivery_city || '';
+
   return (
     <EventHoverCard event={event}>
       <div
@@ -234,21 +236,25 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             {event.title}
           </div>
           <div 
-            className="event-time" 
+            className="event-booking" 
             style={{ 
               color: '#000000',
               fontWeight: isResizing ? 'bold' : 'normal',
               fontSize: isResizing ? '11px' : '10px'
             }}
           >
-            {startTime} - {endTime}
-            {isResizing && tempResizeState && (
-              <span style={{ color: '#3b82f6', marginLeft: '4px' }}>●</span>
-            )}
+            #{bookingNumber}
           </div>
-          {event.booking_number && (
-            <div className="event-booking" style={{ color: '#000000' }}>
-              #{event.booking_number}
+          {deliveryCity && (
+            <div 
+              className="event-city" 
+              style={{ 
+                color: '#000000',
+                fontSize: '10px',
+                opacity: 0.8
+              }}
+            >
+              {deliveryCity}
             </div>
           )}
         </div>
