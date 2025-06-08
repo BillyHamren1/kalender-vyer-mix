@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { MapControls } from './MapControls';
 import { MapMarkers } from './MapMarkers';
+import { WallSelectionDialog } from './WallSelectionDialog';
 import { calculateDistance, formatDistance, createDrawStyles } from './MapUtils';
 
 interface MapComponentProps {
@@ -70,6 +71,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
     mousemove?: (e: MouseEvent) => void;
     mouseup?: (e: MouseEvent) => void;
   }>({});
+
+  // New state for wall selection
+  const [showWallDialog, setShowWallDialog] = useState(false);
+  const [pendingRectangle, setPendingRectangle] = useState<any>(null);
+  const [currentSide, setCurrentSide] = useState(1);
+  const [wallChoices, setWallChoices] = useState<('transparent' | 'white')[]>([]);
 
   // Handle window messages for iframe resize
   useEffect(() => {
@@ -285,8 +292,26 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }, 100);
 
     map.current.on('draw.create', (e: DrawEvent) => {
-      console.log('Created feature:', e.features[0]);
-      toast.success(`${e.features[0].geometry.type} created`);
+      const feature = e.features[0];
+      console.log('Created feature:', feature);
+      
+      // Check if it's a polygon (rectangle)
+      if (feature.geometry.type === 'Polygon') {
+        console.log('Rectangle created, starting wall selection...');
+        
+        // Remove the feature temporarily
+        if (draw.current) {
+          draw.current.delete(feature.id);
+        }
+        
+        // Store the rectangle for wall selection
+        setPendingRectangle(feature);
+        setCurrentSide(1);
+        setWallChoices([]);
+        setShowWallDialog(true);
+      } else {
+        toast.success(`${feature.geometry.type} created`);
+      }
     });
 
     map.current.on('draw.update', (e: DrawEvent) => {
@@ -1006,6 +1031,55 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   };
 
+  const handleWallChoice = (choice: 'transparent' | 'white') => {
+    const newChoices = [...wallChoices, choice];
+    setWallChoices(newChoices);
+    
+    if (currentSide < 4) {
+      setCurrentSide(currentSide + 1);
+    } else {
+      // All sides chosen, create the walls
+      createWallsFromChoices(newChoices);
+      setShowWallDialog(false);
+      setPendingRectangle(null);
+      setCurrentSide(1);
+      setWallChoices([]);
+    }
+  };
+
+  const createWallsFromChoices = (choices: ('transparent' | 'white')[]) => {
+    if (!pendingRectangle || !draw.current) return;
+    
+    const coordinates = pendingRectangle.geometry.coordinates[0];
+    
+    // Create individual lines for each side
+    for (let i = 0; i < 4; i++) {
+      const startPoint = coordinates[i];
+      const endPoint = coordinates[i + 1] || coordinates[0]; // Last point connects to first
+      const choice = choices[i];
+      
+      const lineColor = choice === 'transparent' ? '#3b82f6' : '#000000'; // Blue for transparent, black for white
+      
+      const lineFeature = {
+        type: "Feature" as const,
+        geometry: {
+          type: "LineString" as const,
+          coordinates: [startPoint, endPoint]
+        },
+        properties: {
+          color: lineColor,
+          wallType: choice,
+          id: Date.now() + i
+        }
+      };
+      
+      // Add the line with the chosen color
+      draw.current.add(lineFeature);
+    }
+    
+    toast.success('Rectangle with wall choices created!');
+  };
+
   if (isLoadingToken) {
     return (
       <div className="flex items-center justify-center h-full w-full bg-gray-100 rounded-lg">
@@ -1045,6 +1119,15 @@ const MapComponent: React.FC<MapComponentProps> = ({
           {liveMeasurement.distance}
         </div>
       )}
+
+      {/* Wall Selection Dialog */}
+      <WallSelectionDialog
+        open={showWallDialog}
+        currentSide={currentSide}
+        totalSides={4}
+        onTransparentChoice={() => handleWallChoice('transparent')}
+        onWhiteChoice={() => handleWallChoice('white')}
+      />
 
       {/* Enhanced Map Controls */}
       <MapControls
