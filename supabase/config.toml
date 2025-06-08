@@ -53,9 +53,6 @@ port = 54327
 enabled = true
 port = 54324
 
-[functions.staff-assignments]
-verify_jwt = false
-
 [functions.export-bookings]
 verify_jwt = false
 

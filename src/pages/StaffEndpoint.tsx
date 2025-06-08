@@ -1,12 +1,171 @@
 
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { fetchStaffAssignment, StaffAssignmentResponse } from "@/services/staffAssignmentService";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MapPin } from "lucide-react";
 import { toast } from "sonner";
+
+// Define types for the API response
+interface StaffAssignmentResponse {
+  staffId: string;
+  date: string;
+  teamId: string | null;
+  teamName: string | null;
+  bookings: Array<{
+    id: string;
+    client: string;
+    bookingNumber?: string;
+    deliveryAddress?: string;
+    coordinates?: {
+      latitude?: number | null;
+      longitude?: number | null;
+    };
+    events: Array<{
+      id: string;
+      type: string;
+      start: string;
+      end: string;
+      title: string;
+    }>;
+    products?: Array<{
+      id: string;
+      name: string;
+      quantity: number;
+      notes?: string;
+    }>;
+    internalNotes?: string;
+  }>;
+  summary?: {
+    totalBookings: number;
+    eventsByType: {
+      rig: number;
+      event: number;
+      rigDown: number;
+    };
+  };
+}
+
+// Function to fetch staff assignment using export-bookings function
+const fetchStaffAssignment = async (staffId: string, date: Date): Promise<StaffAssignmentResponse> => {
+  const dateString = date.toISOString().split('T')[0];
+  
+  try {
+    // Call the export-bookings function to get all bookings for the date
+    const { data, error } = await supabase.functions.invoke('export-bookings', {
+      body: { 
+        startDate: dateString,
+        endDate: dateString 
+      }
+    });
+
+    if (error) {
+      console.error('Error calling export-bookings function:', error);
+      throw error;
+    }
+
+    // Filter bookings that have the specific staff member assigned
+    const staffBookings = (data?.bookings || []).filter((booking: any) => {
+      const hasStaffInRig = booking.rigStaff?.some((staff: any) => staff.staff.id === staffId);
+      const hasStaffInEvent = booking.eventStaff?.some((staff: any) => staff.staff.id === staffId);
+      const hasStaffInRigDown = booking.rigDownStaff?.some((staff: any) => staff.staff.id === staffId);
+      
+      return hasStaffInRig || hasStaffInEvent || hasStaffInRigDown;
+    });
+
+    // Transform the data to match the expected format
+    const transformedBookings = staffBookings.map((booking: any) => {
+      // Create events from the booking dates
+      const events = [];
+      
+      if (booking.rigdaydate === dateString) {
+        events.push({
+          id: `rig-${booking.id}`,
+          type: 'rig',
+          start: `${booking.rigdaydate}T08:00:00`,
+          end: `${booking.rigdaydate}T12:00:00`,
+          title: 'Rig Setup'
+        });
+      }
+      
+      if (booking.eventdate === dateString) {
+        events.push({
+          id: `event-${booking.id}`,
+          type: 'event',
+          start: `${booking.eventdate}T10:00:00`,
+          end: `${booking.eventdate}T18:00:00`,
+          title: 'Event'
+        });
+      }
+      
+      if (booking.rigdowndate === dateString) {
+        events.push({
+          id: `rigdown-${booking.id}`,
+          type: 'rigDown',
+          start: `${booking.rigdowndate}T19:00:00`,
+          end: `${booking.rigdowndate}T23:00:00`,
+          title: 'Rig Down'
+        });
+      }
+
+      return {
+        id: booking.id,
+        client: booking.client,
+        bookingNumber: booking.bookingNumber,
+        deliveryAddress: booking.deliveryaddress,
+        coordinates: {
+          latitude: booking.deliveryLatitude,
+          longitude: booking.deliveryLongitude
+        },
+        events,
+        products: booking.products || [],
+        internalNotes: booking.internalnotes
+      };
+    });
+
+    // Get team ID from first booking's staff assignment
+    const firstBooking = staffBookings[0];
+    let teamId = null;
+    let teamName = null;
+    
+    if (firstBooking) {
+      const staffAssignment = 
+        firstBooking.rigStaff?.find((staff: any) => staff.staff.id === staffId) ||
+        firstBooking.eventStaff?.find((staff: any) => staff.staff.id === staffId) ||
+        firstBooking.rigDownStaff?.find((staff: any) => staff.staff.id === staffId);
+      
+      if (staffAssignment) {
+        teamId = staffAssignment.team_id;
+        teamName = `Team-${teamId}`;
+      }
+    }
+
+    // Calculate summary
+    const allEvents = transformedBookings.flatMap(b => b.events);
+    const eventsByType = {
+      rig: allEvents.filter(e => e.type === 'rig').length,
+      event: allEvents.filter(e => e.type === 'event').length,
+      rigDown: allEvents.filter(e => e.type === 'rigDown').length
+    };
+
+    return {
+      staffId,
+      date: dateString,
+      teamId,
+      teamName,
+      bookings: transformedBookings,
+      summary: {
+        totalBookings: transformedBookings.length,
+        eventsByType
+      }
+    };
+  } catch (error) {
+    console.error('Error fetching staff assignment:', error);
+    throw error;
+  }
+};
 
 const StaffEndpoint = () => {
   const { staffId } = useParams<{ staffId: string }>();
@@ -146,7 +305,6 @@ const StaffEndpoint = () => {
                       <h3 className="font-medium">Delivery Address</h3>
                       <p className="text-gray-600">{booking.deliveryAddress}</p>
                       
-                      {/* Fix the type checking for coordinates */}
                       {booking.coordinates && (
                         <div className="flex items-center gap-1.5 mt-1">
                           <Badge variant="outline" className="flex items-center gap-1 bg-blue-50">
