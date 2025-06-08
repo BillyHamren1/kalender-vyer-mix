@@ -13,22 +13,62 @@ import { InternalNotes } from '../InternalNotes';
 
 interface BookingDetailContentProps {
   booking: Booking;
-  isChanged?: boolean;
+  bookingId: string;
+  rigDates: string[];
+  eventDates: string[];
+  rigDownDates: string[];
+  isSaving: boolean;
+  autoSync: boolean;
+  lastViewedDate: Date;
+  onAddDate: (date: Date, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
+  onRemoveDate: (date: string, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
+  onDeliveryDetailsChange: (deliveryData: any) => Promise<void>;
+  onLogisticsChange: (field: string, value: any) => Promise<void>;
+  onInternalNotesChange: (notes: string) => Promise<void>;
+  onReloadData: () => void;
+  isSavingInternalNotes: boolean;
 }
 
 const BookingDetailContent: React.FC<BookingDetailContentProps> = ({ 
   booking, 
-  isChanged = false 
+  bookingId,
+  rigDates,
+  eventDates,
+  rigDownDates,
+  isSaving,
+  autoSync,
+  onAddDate,
+  onRemoveDate,
+  onDeliveryDetailsChange,
+  onInternalNotesChange,
+  isSavingInternalNotes
 }) => {
   return (
     <div className="space-y-6">
-      <BookingDetailHeader booking={booking} isChanged={isChanged} />
-      
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-6">
           <ClientInformation client={booking.client} />
-          <DeliveryInformationCard booking={booking} />
-          <EventInformationCard booking={booking} />
+          <DeliveryInformationCard 
+            contactName={booking.contactName}
+            contactPhone={booking.contactPhone}
+            contactEmail={booking.contactEmail}
+            initialAddress={booking.deliveryAddress || ''}
+            initialCity={booking.deliveryCity || ''}
+            initialPostalCode={booking.deliveryPostalCode || ''}
+            deliveryLatitude={booking.deliveryLatitude}
+            deliveryLongitude={booking.deliveryLongitude}
+            bookingId={bookingId}
+            isSaving={isSaving}
+            onSave={onDeliveryDetailsChange}
+          />
+          <EventInformationCard 
+            rigDates={rigDates}
+            eventDates={eventDates}
+            rigDownDates={rigDownDates}
+            onAddDate={onAddDate}
+            onRemoveDate={onRemoveDate}
+            autoSync={autoSync}
+          />
           <ProjectAssignmentCard 
             assignedProjectId={booking.assignedProjectId}
             assignedProjectName={booking.assignedProjectName}
@@ -37,12 +77,23 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
         </div>
         
         <div className="space-y-6">
-          <ScheduleCard booking={booking} />
+          <ScheduleCard 
+            bookingId={bookingId}
+            rigDates={rigDates}
+            eventDates={eventDates}
+            rigDownDates={rigDownDates}
+            autoSync={autoSync}
+            onAutoSyncChange={() => {}} // Will be implemented later
+            onAddDate={onAddDate}
+            onRemoveDate={onRemoveDate}
+          />
           <ProductsList products={booking.products || []} />
           <AttachmentsList attachments={booking.attachments || []} />
           <InternalNotes 
-            bookingId={booking.id} 
-            initialNotes={booking.internalNotes || ''} 
+            notes={booking.internalNotes || ''}
+            bookingId={bookingId}
+            isSaving={isSavingInternalNotes}
+            onSave={onInternalNotesChange}
           />
         </div>
       </div>

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useContext, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { CalendarContext } from '@/App';
@@ -108,20 +109,22 @@ const BookingDetail = () => {
     );
   }
 
+  if (!booking) {
+    return <BookingDetailLoading onBack={handleBack} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      {booking && (
-        <BookingDetailHeader
-          bookingNumber={booking.bookingNumber}
-          client={booking.client}
-          status={booking.status}
-          bookingId={actualBookingId}
-          isSaving={isSaving}
-          onBack={handleBack}
-          onStatusChange={handleStatusChange}
-        />
-      )}
+      <BookingDetailHeader
+        bookingNumber={booking.bookingNumber}
+        client={booking.client}
+        status={booking.status}
+        bookingId={actualBookingId}
+        isSaving={isSaving}
+        onBack={handleBack}
+        onStatusChange={handleStatusChange}
+      />
 
       {/* Content */}
       <BookingDetailContent

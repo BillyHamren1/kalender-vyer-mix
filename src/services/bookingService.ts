@@ -3,7 +3,8 @@
 export {
   fetchBookings,
   fetchBookingById,
-  fetchConfirmedBookings
+  fetchConfirmedBookings,
+  fetchUpcomingBookings
 } from './booking/bookingFetchService';
 
 export {

@@ -101,3 +101,26 @@ export const fetchConfirmedBookings = async () => {
 
   return data?.map(transformBookingData) || [];
 };
+
+export const fetchUpcomingBookings = async () => {
+  console.log('Fetching upcoming bookings');
+  
+  const today = new Date().toISOString().split('T')[0];
+  
+  const { data, error } = await supabase
+    .from('bookings')
+    .select(`
+      *,
+      booking_products (*),
+      booking_attachments (*)
+    `)
+    .gte('eventdate', today)
+    .order('eventdate', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching upcoming bookings:', error);
+    throw error;
+  }
+
+  return data?.map(transformBookingData) || [];
+};
