@@ -24,6 +24,46 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({
 }) => {
   const markers = useRef<mapboxgl.Marker[]>([]);
 
+  // Function to create modern pin SVG
+  const createPinElement = (isSelected: boolean) => {
+    const color = isSelected ? '#3b82f6' : '#ef4444';
+    const shadowColor = isSelected ? 'rgba(59, 130, 246, 0.4)' : 'rgba(239, 68, 68, 0.4)';
+    
+    const el = document.createElement('div');
+    el.className = 'marker-pin';
+    el.style.width = '32px';
+    el.style.height = '40px';
+    el.style.cursor = 'pointer';
+    el.style.transition = 'all 0.2s ease';
+    el.style.filter = `drop-shadow(0 4px 8px ${shadowColor})`;
+    
+    el.innerHTML = `
+      <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path 
+          d="M16 0C7.163 0 0 7.163 0 16c0 12 16 24 16 24s16-12 16-24c0-8.837-7.163-16-16-16z" 
+          fill="${color}"
+          stroke="white"
+          stroke-width="2"
+        />
+        <circle cx="16" cy="16" r="6" fill="white" />
+        <circle cx="16" cy="16" r="3" fill="${color}" />
+      </svg>
+    `;
+    
+    // Add hover effect
+    el.addEventListener('mouseenter', () => {
+      el.style.transform = 'scale(1.1) translateY(-2px)';
+      el.style.filter = `drop-shadow(0 6px 12px ${shadowColor})`;
+    });
+    
+    el.addEventListener('mouseleave', () => {
+      el.style.transform = 'scale(1) translateY(0)';
+      el.style.filter = `drop-shadow(0 4px 8px ${shadowColor})`;
+    });
+    
+    return el;
+  };
+
   // Add or update markers when bookings change
   useEffect(() => {
     if (!map.current || !mapInitialized) return;
@@ -39,26 +79,8 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({
     bookings.forEach(booking => {
       if (!booking.deliveryLatitude || !booking.deliveryLongitude) return;
       
-      // Create marker element
-      const el = document.createElement('div');
-      el.className = 'marker';
-      el.style.width = '25px';
-      el.style.height = '25px';
-      el.style.borderRadius = '50%';
-      el.style.backgroundColor = selectedBooking?.id === booking.id ? '#3b82f6' : '#ef4444';
-      el.style.cursor = 'pointer';
-      el.style.border = '2px solid white';
-      el.style.boxShadow = '0 0 0 2px rgba(0, 0, 0, 0.1)';
-      el.style.transition = 'all 0.2s ease';
-      
-      // Add hover effect
-      el.addEventListener('mouseenter', () => {
-        el.style.transform = 'scale(1.1)';
-      });
-      
-      el.addEventListener('mouseleave', () => {
-        el.style.transform = 'scale(1)';
-      });
+      // Create modern pin element
+      const el = createPinElement(selectedBooking?.id === booking.id);
       
       // Add click handler directly to marker element
       el.addEventListener('click', () => {
