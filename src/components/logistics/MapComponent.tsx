@@ -1135,51 +1135,17 @@ const MapComponent: React.FC<MapComponentProps> = ({
         highlightCurrentWall(coordinates, nextSide - 1); // Convert to 0-based index
       }
     } else {
-      // All sides chosen, create final rectangle with mixed colors
+      // All sides chosen - just clean up and hide dialog
       setShowWallDialog(false);
       clearWallHighlight();
       
-      // Create a final rectangle feature with all wall choices
-      if (pendingRectangle && draw.current) {
-        const finalRectangle = {
-          ...pendingRectangle,
-          properties: {
-            ...pendingRectangle.properties,
-            wallChoices: newChoices,
-            completed: true,
-            id: Date.now()
-          }
-        };
-        
-        // Add the final rectangle with a subtle fill to show it's completed
-        draw.current.add({
-          type: "Feature" as const,
-          geometry: {
-            type: "Polygon" as const,
-            coordinates: pendingRectangle.geometry.coordinates
-          },
-          properties: {
-            ...finalRectangle.properties,
-            fill: '#3b82f6',
-            'fill-opacity': 0.1,
-            stroke: '#3b82f6',
-            'stroke-opacity': 0.5,
-            'stroke-width': 2
-          }
-        });
-      }
-      
+      // Clear the pending rectangle - we don't need it anymore since we have the individual wall lines
       setPendingRectangle(null);
       setCurrentSide(1);
       setWallChoices([]);
       
       toast.success('Rectangle with wall choices completed!');
     }
-  };
-
-  // This function is no longer needed since we create lines immediately
-  const createWallsFromChoices = (choices: ('transparent' | 'white')[]) => {
-    // Intentionally left blank
   };
 
   return (
