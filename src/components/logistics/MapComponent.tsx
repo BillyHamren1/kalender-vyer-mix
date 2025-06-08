@@ -1135,14 +1135,45 @@ const MapComponent: React.FC<MapComponentProps> = ({
         highlightCurrentWall(coordinates, nextSide - 1); // Convert to 0-based index
       }
     } else {
-      // All sides chosen, clean up
+      // All sides chosen, create final rectangle with mixed colors
       setShowWallDialog(false);
+      clearWallHighlight();
+      
+      // Create a final rectangle feature with all wall choices
+      if (pendingRectangle && draw.current) {
+        const finalRectangle = {
+          ...pendingRectangle,
+          properties: {
+            ...pendingRectangle.properties,
+            wallChoices: newChoices,
+            completed: true,
+            id: Date.now()
+          }
+        };
+        
+        // Add the final rectangle with a subtle fill to show it's completed
+        draw.current.add({
+          type: "Feature" as const,
+          geometry: {
+            type: "Polygon" as const,
+            coordinates: pendingRectangle.geometry.coordinates
+          },
+          properties: {
+            ...finalRectangle.properties,
+            fill: '#3b82f6',
+            'fill-opacity': 0.1,
+            stroke: '#3b82f6',
+            'stroke-opacity': 0.5,
+            'stroke-width': 2
+          }
+        });
+      }
+      
       setPendingRectangle(null);
       setCurrentSide(1);
       setWallChoices([]);
-      clearWallHighlight();
       
-      toast.success('Rectangle with wall choices created!');
+      toast.success('Rectangle with wall choices completed!');
     }
   };
 
