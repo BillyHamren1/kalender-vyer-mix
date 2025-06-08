@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { Booking } from '@/types/booking';
@@ -24,29 +23,27 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({
 }) => {
   const markers = useRef<mapboxgl.Marker[]>([]);
 
-  // Function to create modern pin SVG
+  // Function to create classic pin SVG
   const createPinElement = (isSelected: boolean) => {
     const color = isSelected ? '#3b82f6' : '#ef4444';
     const shadowColor = isSelected ? 'rgba(59, 130, 246, 0.4)' : 'rgba(239, 68, 68, 0.4)';
     
     const el = document.createElement('div');
     el.className = 'marker-pin';
-    el.style.width = '32px';
-    el.style.height = '40px';
+    el.style.width = '24px';
+    el.style.height = '36px';
     el.style.cursor = 'pointer';
     el.style.transition = 'all 0.2s ease';
     el.style.filter = `drop-shadow(0 4px 8px ${shadowColor})`;
     
     el.innerHTML = `
-      <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path 
-          d="M16 0C7.163 0 0 7.163 0 16c0 12 16 24 16 24s16-12 16-24c0-8.837-7.163-16-16-16z" 
-          fill="${color}"
-          stroke="white"
-          stroke-width="2"
-        />
-        <circle cx="16" cy="16" r="6" fill="white" />
-        <circle cx="16" cy="16" r="3" fill="${color}" />
+      <svg width="24" height="36" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Pin stem -->
+        <rect x="11" y="18" width="2" height="18" fill="${color}" />
+        <!-- Pin head (circle) -->
+        <circle cx="12" cy="12" r="10" fill="${color}" stroke="white" stroke-width="2" />
+        <!-- Inner white circle -->
+        <circle cx="12" cy="12" r="4" fill="white" />
       </svg>
     `;
     
@@ -87,7 +84,7 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({
         onBookingSelect(booking);
       });
       
-      const marker = new mapboxgl.Marker(el)
+      const marker = new mapboxgl.Marker(el, { anchor: 'bottom' })
         .setLngLat([booking.deliveryLongitude, booking.deliveryLatitude])
         .addTo(map.current!);
       
