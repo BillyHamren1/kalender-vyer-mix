@@ -1,15 +1,15 @@
 
 import React from 'react';
 import { Booking } from '@/types/booking';
-import BookingDetailHeader from './BookingDetailHeader';
-import ClientInformation from '../ClientInformation';
-import DeliveryInformationCard from '../DeliveryInformationCard';
-import EventInformationCard from '../EventInformationCard';
+import { BookingDetailHeader } from './BookingDetailHeader';
+import { ClientInformation } from '../ClientInformation';
+import { DeliveryInformationCard } from '../DeliveryInformationCard';
+import { EventInformationCard } from '../EventInformationCard';
 import ProjectAssignmentCard from '../ProjectAssignmentCard';
-import ScheduleCard from '../ScheduleCard';
-import ProductsList from '../ProductsList';
-import AttachmentsList from '../AttachmentsList';
-import InternalNotes from '../InternalNotes';
+import { ScheduleCard } from '../ScheduleCard';
+import { ProductsList } from '../ProductsList';
+import { AttachmentsList } from '../AttachmentsList';
+import { InternalNotes } from '../InternalNotes';
 
 interface BookingDetailContentProps {
   booking: Booking;
@@ -26,7 +26,7 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-6">
-          <ClientInformation booking={booking} />
+          <ClientInformation client={booking.client} />
           <DeliveryInformationCard booking={booking} />
           <EventInformationCard booking={booking} />
           <ProjectAssignmentCard 

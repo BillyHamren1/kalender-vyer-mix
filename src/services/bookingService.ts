@@ -3,7 +3,6 @@
 export {
   fetchBookings,
   fetchBookingById,
-  fetchUpcomingBookings,
   fetchConfirmedBookings
 } from './booking/bookingFetchService';
 
@@ -19,10 +18,6 @@ export {
   updateBookingStatusWithCalendarSync,
   type BookingStatus
 } from './booking/bookingStatusService';
-
-export {
-  extractClientName
-} from './booking/bookingUtils';
 
 export {
   createBooking,

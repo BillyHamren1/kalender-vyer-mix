@@ -1,4 +1,3 @@
-
 import React, { useEffect, useContext, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { CalendarContext } from '@/App';
@@ -9,7 +8,7 @@ import { BookingDetailHeader } from '@/components/booking/detail/BookingDetailHe
 import { BookingDetailError } from '@/components/booking/detail/BookingDetailError';
 import { BookingDetailLoading } from '@/components/booking/detail/BookingDetailLoading';
 import { BookingDetailMissingId } from '@/components/booking/detail/BookingDetailMissingId';
-import { BookingDetailContent } from '@/components/booking/detail/BookingDetailContent';
+import BookingDetailContent from '@/components/booking/detail/BookingDetailContent';
 
 const BookingDetail = () => {
   const { id, bookingId } = useParams<{ id?: string; bookingId?: string }>();
