@@ -13,7 +13,6 @@ import { InternalNotes } from '../InternalNotes';
 
 interface BookingDetailContentProps {
   booking: Booking;
-  bookingId: string;
   rigDates: string[];
   eventDates: string[];
   rigDownDates: string[];
@@ -23,15 +22,19 @@ interface BookingDetailContentProps {
   onAddDate: (date: Date, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
   onRemoveDate: (date: string, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
   onDeliveryDetailsChange: (deliveryData: any) => Promise<void>;
-  onLogisticsChange: (field: string, value: any) => Promise<void>;
+  onLogisticsChange: (logisticsData: {
+    carryMoreThan10m: boolean;
+    groundNailsAllowed: boolean;
+    exactTimeNeeded: boolean;
+    exactTimeInfo: string;
+  }) => Promise<void>;
   onInternalNotesChange: (notes: string) => Promise<void>;
   onReloadData: () => void;
   isSavingInternalNotes: boolean;
 }
 
 const BookingDetailContent: React.FC<BookingDetailContentProps> = ({ 
-  booking, 
-  bookingId,
+  booking,
   rigDates,
   eventDates,
   rigDownDates,
@@ -40,6 +43,7 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
   onAddDate,
   onRemoveDate,
   onDeliveryDetailsChange,
+  onLogisticsChange,
   onInternalNotesChange,
   isSavingInternalNotes
 }) => {
@@ -57,7 +61,7 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
             initialPostalCode={booking.deliveryPostalCode || ''}
             deliveryLatitude={booking.deliveryLatitude}
             deliveryLongitude={booking.deliveryLongitude}
-            bookingId={bookingId}
+            bookingId={booking.id}
             isSaving={isSaving}
             onSave={onDeliveryDetailsChange}
           />
@@ -78,7 +82,7 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
         
         <div className="space-y-6">
           <ScheduleCard 
-            bookingId={bookingId}
+            bookingId={booking.id}
             rigDates={rigDates}
             eventDates={eventDates}
             rigDownDates={rigDownDates}
@@ -91,7 +95,7 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
           <AttachmentsList attachments={booking.attachments || []} />
           <InternalNotes 
             notes={booking.internalNotes || ''}
-            bookingId={bookingId}
+            bookingId={booking.id}
             isSaving={isSavingInternalNotes}
             onSave={onInternalNotesChange}
           />

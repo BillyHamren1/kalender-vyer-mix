@@ -1,4 +1,3 @@
-
 import React, { useEffect, useContext, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { CalendarContext } from '@/App';
@@ -129,7 +128,6 @@ const BookingDetail = () => {
       {/* Content */}
       <BookingDetailContent
         booking={booking}
-        bookingId={actualBookingId}
         rigDates={rigDates}
         eventDates={eventDates}
         rigDownDates={rigDownDates}
