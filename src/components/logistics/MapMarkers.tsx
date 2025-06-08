@@ -102,14 +102,14 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({
     }
   }, [bookings, selectedBooking, mapInitialized, centerLat, centerLng, onBookingSelect]);
 
-  // Fly to selected booking location
+  // Fly to selected booking location with close zoom
   useEffect(() => {
     if (!map.current || !selectedBooking || !mapInitialized) return;
     
     if (selectedBooking.deliveryLatitude && selectedBooking.deliveryLongitude) {
       map.current.flyTo({
         center: [selectedBooking.deliveryLongitude, selectedBooking.deliveryLatitude],
-        zoom: 12, // Use the same zoom level as the initial zoom
+        zoom: 18, // Increased from 12 to 18 for detailed 30m scale view
         duration: 1000
       });
     }
