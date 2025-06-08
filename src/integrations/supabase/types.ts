@@ -173,6 +173,9 @@ export type Database = {
       }
       bookings: {
         Row: {
+          assigned_project_id: string | null
+          assigned_project_name: string | null
+          assigned_to_project: boolean | null
           booking_number: string | null
           carry_more_than_10m: boolean | null
           client: string
@@ -206,6 +209,9 @@ export type Database = {
           viewed: boolean
         }
         Insert: {
+          assigned_project_id?: string | null
+          assigned_project_name?: string | null
+          assigned_to_project?: boolean | null
           booking_number?: string | null
           carry_more_than_10m?: boolean | null
           client: string
@@ -239,6 +245,9 @@ export type Database = {
           viewed?: boolean
         }
         Update: {
+          assigned_project_id?: string | null
+          assigned_project_name?: string | null
+          assigned_to_project?: boolean | null
           booking_number?: string | null
           carry_more_than_10m?: boolean | null
           client?: string

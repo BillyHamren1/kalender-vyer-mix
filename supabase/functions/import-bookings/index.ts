@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -26,6 +25,9 @@ interface BookingData {
   status?: string;
   booking_number?: string;
   version?: number;
+  assigned_project_id?: string;
+  assigned_project_name?: string;
+  assigned_to_project?: boolean;
 }
 
 interface ProductData {
@@ -131,7 +133,8 @@ const getNextTeamAssignment = async (supabase: any, eventType: string, eventDate
 const hasBookingChanged = (externalBooking: any, existingBooking: any): boolean => {
   const fields = [
     'client', 'rigdaydate', 'eventdate', 'rigdowndate', 'deliveryaddress',
-    'delivery_city', 'delivery_postal_code', 'status', 'booking_number'
+    'delivery_city', 'delivery_postal_code', 'status', 'booking_number',
+    'assigned_project_id', 'assigned_project_name', 'assigned_to_project'
   ];
   
   for (const field of fields) {
@@ -369,10 +372,13 @@ serve(async (req) => {
           internalnotes: externalBooking.internal_notes,
           status: bookingStatus,
           booking_number: externalBooking.booking_number,
-          version: 1
+          version: 1,
+          assigned_project_id: externalBooking.assigned_project_id,
+          assigned_project_name: externalBooking.assigned_project_name,
+          assigned_to_project: externalBooking.assigned_to_project
         }
 
-        console.log(`Processing booking ${bookingData.id} with status: ${bookingData.status}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
+        console.log(`Processing booking ${bookingData.id} with status: ${bookingData.status} and project: ${bookingData.assigned_project_name || 'No project'}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
 
         if (existingBooking) {
           // EXISTING BOOKING - UPDATE ONLY IF ACTUALLY DIFFERENT

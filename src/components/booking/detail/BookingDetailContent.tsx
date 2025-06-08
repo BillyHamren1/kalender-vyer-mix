@@ -1,151 +1,53 @@
 
 import React from 'react';
-import { Button } from '@/components/ui/button';
 import { Booking } from '@/types/booking';
-import { ProductsList } from '@/components/booking/ProductsList';
-import { EventInformationCard } from '@/components/booking/EventInformationCard';
-import { DeliveryInformationCard } from '@/components/booking/DeliveryInformationCard';
-import { LogisticsOptionsForm } from '@/components/booking/LogisticsOptionsForm';
-import { AttachmentsList } from '@/components/booking/AttachmentsList';
-import { InternalNotes } from '@/components/booking/InternalNotes';
+import BookingDetailHeader from './BookingDetailHeader';
+import ClientInformation from '../ClientInformation';
+import DeliveryInformationCard from '../DeliveryInformationCard';
+import EventInformationCard from '../EventInformationCard';
+import ProjectAssignmentCard from '../ProjectAssignmentCard';
+import ScheduleCard from '../ScheduleCard';
+import ProductsList from '../ProductsList';
+import AttachmentsList from '../AttachmentsList';
+import InternalNotes from '../InternalNotes';
 
 interface BookingDetailContentProps {
   booking: Booking;
-  bookingId: string;
-  rigDates: string[];
-  eventDates: string[];
-  rigDownDates: string[];
-  isSaving: boolean;
-  autoSync: boolean;
-  lastViewedDate?: Date;
-  onAddDate: (date: Date, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
-  onRemoveDate: (date: string, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
-  onDeliveryDetailsChange: (deliveryData: any) => Promise<void>;
-  onLogisticsChange: (logisticsData: any) => Promise<void>;
-  onInternalNotesChange: (notes: string) => Promise<void>;
-  onReloadData: () => void;
-  isSavingInternalNotes: boolean;
+  isChanged?: boolean;
 }
 
-export const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
-  booking,
-  bookingId,
-  rigDates,
-  eventDates,
-  rigDownDates,
-  isSaving,
-  autoSync,
-  lastViewedDate,
-  onAddDate,
-  onRemoveDate,
-  onDeliveryDetailsChange,
-  onLogisticsChange,
-  onInternalNotesChange,
-  onReloadData,
-  isSavingInternalNotes
+const BookingDetailContent: React.FC<BookingDetailContentProps> = ({ 
+  booking, 
+  isChanged = false 
 }) => {
-  const handleAttachmentDeleted = (attachmentId: string) => {
-    console.log('📎 Attachment deleted, reloading booking data...');
-    onReloadData();
-  };
-
-  const handleAttachmentRenamed = (attachmentId: string, newName: string) => {
-    console.log('✏️ Attachment renamed, reloading booking data...');
-    onReloadData();
-  };
-
-  if (!booking) {
-    return (
-      <div className="p-3">
-        <div className="text-center py-8">
-          <p className="text-gray-500 text-sm">No booking data available.</p>
-          <Button 
-            onClick={onReloadData} 
-            className="mt-2"
-            variant="outline"
-            size="sm"
-          >
-            Reload Booking Data
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="p-2 md:p-3">
-      {/* Three equal cards in a grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mb-2">
-        {/* Products Card - ALWAYS display */}
-        <div className="h-full">
+    <div className="space-y-6">
+      <BookingDetailHeader booking={booking} isChanged={isChanged} />
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-6">
+          <ClientInformation booking={booking} />
+          <DeliveryInformationCard booking={booking} />
+          <EventInformationCard booking={booking} />
+          <ProjectAssignmentCard 
+            assignedProjectId={booking.assignedProjectId}
+            assignedProjectName={booking.assignedProjectName}
+            assignedToProject={booking.assignedToProject}
+          />
+        </div>
+        
+        <div className="space-y-6">
+          <ScheduleCard booking={booking} />
           <ProductsList products={booking.products || []} />
-        </div>
-        
-        {/* Event Information Card */}
-        <div className="h-full">
-          <EventInformationCard
-            rigDates={rigDates}
-            eventDates={eventDates}
-            rigDownDates={rigDownDates}
-            onAddDate={onAddDate}
-            onRemoveDate={onRemoveDate}
-            autoSync={autoSync}
+          <AttachmentsList attachments={booking.attachments || []} />
+          <InternalNotes 
+            bookingId={booking.id} 
+            initialNotes={booking.internalNotes || ''} 
           />
         </div>
-        
-        {/* Delivery Information Card */}
-        <div className="h-full">
-          <DeliveryInformationCard
-            contactName={booking.contactName}
-            contactPhone={booking.contactPhone}
-            contactEmail={booking.contactEmail}
-            initialAddress={booking.deliveryAddress || ''}
-            initialCity={booking.deliveryCity || ''}
-            initialPostalCode={booking.deliveryPostalCode || ''}
-            deliveryLatitude={booking.deliveryLatitude}
-            deliveryLongitude={booking.deliveryLongitude}
-            bookingId={bookingId}
-            isSaving={isSaving}
-            onSave={onDeliveryDetailsChange}
-          />
-        </div>
-      </div>
-
-      {/* Full width sections */}
-      <div className="space-y-2">
-        {/* Logistics Options - now full width */}
-        <LogisticsOptionsForm
-          initialCarryMoreThan10m={booking.carryMoreThan10m || false}
-          initialGroundNailsAllowed={booking.groundNailsAllowed || false}
-          initialExactTimeNeeded={booking.exactTimeNeeded || false}
-          initialExactTimeInfo={booking.exactTimeInfo || ''}
-          isSaving={isSaving}
-          onSave={onLogisticsChange}
-        />
-
-        {/* Always display Attachments - even if empty */}
-        <AttachmentsList 
-          attachments={booking.attachments || []} 
-          onAttachmentDeleted={handleAttachmentDeleted}
-          onAttachmentRenamed={handleAttachmentRenamed}
-        />
-
-        {/* Internal Notes - always displayed */}
-        <InternalNotes 
-          notes={booking.internalNotes || ''} 
-          bookingId={bookingId}
-          isSaving={isSavingInternalNotes}
-          onSave={onInternalNotesChange}
-        />
-
-        {lastViewedDate && (
-          <div className="p-2 bg-blue-50 border border-blue-200 rounded-lg text-xs">
-            <p className="text-blue-700">
-              You came from calendar view on: {lastViewedDate.toLocaleDateString()}
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );
 };
+
+export default BookingDetailContent;

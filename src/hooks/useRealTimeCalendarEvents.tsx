@@ -38,7 +38,7 @@ export const useRealTimeCalendarEvents = () => {
             
             if (event.bookingId) {
               try {
-                // Fetch booking details for enhanced hover data
+                // Fetch booking details for enhanced hover data including project info
                 const { data: booking } = await supabase
                   .from('bookings')
                   .select(`
@@ -56,7 +56,8 @@ export const useRealTimeCalendarEvents = () => {
                   console.log('Enhanced event with booking data:', {
                     eventId: event.id,
                     bookingNumber: booking.booking_number,
-                    deliveryCity: booking.delivery_city
+                    deliveryCity: booking.delivery_city,
+                    projectName: booking.assigned_project_name
                   });
 
                   return {
@@ -75,7 +76,10 @@ export const useRealTimeCalendarEvents = () => {
                       groundNailsAllowed: booking.ground_nails_allowed,
                       products: booking.booking_products || [],
                       bookingNumber: booking.booking_number,
-                      booking_id: booking.id
+                      booking_id: booking.id,
+                      assignedProjectId: booking.assigned_project_id,
+                      assignedProjectName: booking.assigned_project_name,
+                      assignedToProject: booking.assigned_to_project
                     }
                   };
                 }

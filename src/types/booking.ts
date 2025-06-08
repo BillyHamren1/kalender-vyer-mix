@@ -15,7 +15,7 @@ export interface BookingAttachment {
 
 export interface Booking {
   id: string;
-  bookingNumber?: string; // Add the booking number field
+  bookingNumber?: string;
   client: string;
   rigDayDate: string;
   eventDate: string;
@@ -37,4 +37,7 @@ export interface Booking {
   attachments?: BookingAttachment[];
   viewed: boolean;
   status: string;
+  assignedProjectId?: string;
+  assignedProjectName?: string;
+  assignedToProject?: boolean;
 }
