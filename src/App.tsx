@@ -10,6 +10,7 @@ import StaffManagement from "./pages/StaffManagement";
 import StaffDetail from "./pages/StaffDetail";
 import FinishedJobs from "./pages/FinishedJobs";
 import BookingDetail from "./pages/BookingDetail";
+import LogisticsMap from "./pages/LogisticsMap";
 
 const queryClient = new QueryClient();
 
@@ -53,6 +54,7 @@ const App = () => {
               <Route path="/staff/:staffId" element={<StaffDetail />} />
               <Route path="/finished-jobs" element={<FinishedJobs />} />
               <Route path="/booking/:bookingId" element={<BookingDetail />} />
+              <Route path="/logistics-map" element={<LogisticsMap />} />
             </Routes>
           </BrowserRouter>
         </TooltipProvider>
