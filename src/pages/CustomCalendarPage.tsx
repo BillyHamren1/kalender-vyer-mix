@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -9,7 +10,7 @@ import { useBackgroundImport } from '@/hooks/useBackgroundImport';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { ArrowLeft, Calendar as CalendarIcon, List, RefreshCw, Sync } from 'lucide-react';
+import { ArrowLeft, Calendar as CalendarIcon, List, RefreshCw, RotateCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CustomCalendar from '@/components/Calendar/CustomCalendar';
 import SimpleStaffCurtain from '@/components/Calendar/SimpleStaffCurtain';
@@ -178,7 +179,7 @@ const CustomCalendarPage = () => {
                   disabled={isSyncing}
                   className="flex items-center gap-2"
                 >
-                  <Sync className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                  <RotateCcw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
                   Sync Bookings
                 </Button>
                 

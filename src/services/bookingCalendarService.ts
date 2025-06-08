@@ -1,6 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { addCalendarEvent, removeCalendarEvent } from './eventService';
+import { addCalendarEvent, deleteCalendarEvent } from './eventService';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { format } from 'date-fns';
 

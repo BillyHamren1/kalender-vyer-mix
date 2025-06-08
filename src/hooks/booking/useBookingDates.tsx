@@ -4,8 +4,8 @@ import { toast } from 'sonner';
 import { Booking } from '@/types/booking';
 import { updateBookingDates } from '@/services/bookingService';
 import { 
-  resyncBookingToCalendar, 
-  deleteAllBookingEvents 
+  syncSingleBookingToCalendar, 
+  removeAllBookingEvents 
 } from '@/services/bookingCalendarService';
 
 export const useBookingDates = (
@@ -36,8 +36,8 @@ export const useBookingDates = (
     setIsSyncingToCalendar(true);
     
     try {
-      // Use the resync function without the force parameter
-      await resyncBookingToCalendar(id);
+      // Use the syncSingleBookingToCalendar function
+      await syncSingleBookingToCalendar(id);
       
       // Removed success toast - only show errors
     } catch (err) {

@@ -16,5 +16,8 @@ export {
 } from './teamService';
 
 export {
-  syncBookingEvents
+  smartUpdateBookingCalendar,
+  syncSingleBookingToCalendar,
+  removeAllBookingEvents,
+  forceFullBookingSync
 } from './bookingCalendarService';

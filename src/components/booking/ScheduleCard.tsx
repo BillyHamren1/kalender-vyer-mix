@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { DatesSection } from './DatesSection';
 import { Button } from '@/components/ui/button';
-import { resyncBookingCalendarEvents } from '@/services/importService';
+import { syncSingleBookingToCalendar } from '@/services/bookingCalendarService';
 
 interface ScheduleCardProps {
   bookingId: string;
@@ -31,7 +31,7 @@ export const ScheduleCard = ({
 }: ScheduleCardProps) => {
   // Function to handle manual resync to calendar
   const handleManualResync = async () => {
-    await resyncBookingCalendarEvents(bookingId);
+    await syncSingleBookingToCalendar(bookingId);
   };
 
   return (

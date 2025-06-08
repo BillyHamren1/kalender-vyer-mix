@@ -4,7 +4,7 @@ import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { fetchCalendarEvents } from '@/services/eventService';
 import { toast } from 'sonner';
 import { CalendarContext } from '@/App';
-import { resyncBookingToCalendar } from '@/services/bookingCalendarService';
+import { syncSingleBookingToCalendar } from '@/services/bookingCalendarService';
 import { supabase } from '@/integrations/supabase/client';
 
 export const useCalendarEvents = () => {
@@ -61,7 +61,7 @@ export const useCalendarEvents = () => {
       // Sync each confirmed booking to calendar
       for (const booking of confirmedBookings) {
         try {
-          await resyncBookingToCalendar(booking.id);
+          await syncSingleBookingToCalendar(booking.id);
           syncedCount++;
         } catch (error) {
           console.error(`Error syncing booking ${booking.id}:`, error);
