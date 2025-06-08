@@ -2,7 +2,6 @@
 import React from 'react';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogHeader,
@@ -18,6 +17,16 @@ interface WallSelectionDialogProps {
   onWhiteChoice: () => void;
 }
 
+const getSideDescription = (side: number): string => {
+  switch (side) {
+    case 1: return "Top Wall";
+    case 2: return "Right Wall";
+    case 3: return "Bottom Wall";
+    case 4: return "Left Wall";
+    default: return `Wall ${side}`;
+  }
+};
+
 export const WallSelectionDialog: React.FC<WallSelectionDialogProps> = ({
   open,
   currentSide,
@@ -29,14 +38,18 @@ export const WallSelectionDialog: React.FC<WallSelectionDialogProps> = ({
     <AlertDialog open={open}>
       <AlertDialogContent className="sm:max-w-md">
         <AlertDialogHeader>
-          <AlertDialogTitle>
-            Wall Selection - Side {currentSide} of {totalSides}
+          <AlertDialogTitle className="text-center">
+            {getSideDescription(currentSide)}
           </AlertDialogTitle>
-          <AlertDialogDescription>
-            Choose the type for this wall:
+          <AlertDialogDescription className="text-center">
+            Choose the wall type for the <strong>{getSideDescription(currentSide).toLowerCase()}</strong>
+            <br />
+            <span className="text-sm text-gray-500">
+              ({currentSide} of {totalSides} walls)
+            </span>
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <div className="flex gap-4 justify-center">
+        <div className="flex gap-4 justify-center mt-4">
           <Button
             onClick={onTransparentChoice}
             variant="outline"

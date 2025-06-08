@@ -72,11 +72,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
     mouseup?: (e: MouseEvent) => void;
   }>({});
 
-  // New state for wall selection
+  // New state for wall selection with highlighting
   const [showWallDialog, setShowWallDialog] = useState(false);
   const [pendingRectangle, setPendingRectangle] = useState<any>(null);
   const [currentSide, setCurrentSide] = useState(1);
   const [wallChoices, setWallChoices] = useState<('transparent' | 'white')[]>([]);
+  const [highlightedWallId, setHighlightedWallId] = useState<string | null>(null);
 
   // Handle window messages for iframe resize
   useEffect(() => {
@@ -264,6 +265,32 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
+      // Add highlight source and layer for wall selection
+      if (!map.current.getSource('wall-highlight')) {
+        map.current.addSource('wall-highlight', {
+          'type': 'geojson',
+          'data': {
+            'type': 'FeatureCollection',
+            'features': []
+          }
+        });
+
+        map.current.addLayer({
+          'id': 'wall-highlight-layer',
+          'type': 'line',
+          'source': 'wall-highlight',
+          'layout': {
+            'line-cap': 'round',
+            'line-join': 'round'
+          },
+          'paint': {
+            'line-color': '#ff0000',
+            'line-width': 6,
+            'line-opacity': 0.8
+          }
+        });
+      }
+
       map.current?.on('mousedown', 'measure-points-layer', handleMeasurePointMouseDown);
 
       map.current?.on('mouseenter', 'measure-points-layer', () => {
@@ -308,6 +335,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
         setPendingRectangle(feature);
         setCurrentSide(1);
         setWallChoices([]);
+        
+        // Highlight the first wall (top wall)
+        const coordinates = feature.geometry.coordinates[0];
+        highlightCurrentWall(coordinates, 0); // First wall (index 0)
+        
         setShowWallDialog(true);
       } else {
         toast.success(`${feature.geometry.type} created`);
@@ -1031,34 +1063,50 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   };
 
+  const highlightCurrentWall = (rectangleCoords: number[][], sideIndex: number) => {
+    if (!map.current || !map.current.getSource('wall-highlight')) return;
+
+    const startPoint = rectangleCoords[sideIndex];
+    const endPoint = rectangleCoords[sideIndex + 1] || rectangleCoords[0];
+
+    const highlightFeature = {
+      type: "Feature" as const,
+      geometry: {
+        type: "LineString" as const,
+        coordinates: [startPoint, endPoint]
+      },
+      properties: {}
+    };
+
+    const source = map.current.getSource('wall-highlight') as mapboxgl.GeoJSONSource;
+    source.setData({
+      type: 'FeatureCollection',
+      features: [highlightFeature]
+    });
+  };
+
+  const clearWallHighlight = () => {
+    if (!map.current || !map.current.getSource('wall-highlight')) return;
+
+    const source = map.current.getSource('wall-highlight') as mapboxgl.GeoJSONSource;
+    source.setData({
+      type: 'FeatureCollection',
+      features: []
+    });
+  };
+
   const handleWallChoice = (choice: 'transparent' | 'white') => {
     const newChoices = [...wallChoices, choice];
     setWallChoices(newChoices);
     
-    if (currentSide < 4) {
-      setCurrentSide(currentSide + 1);
-    } else {
-      // All sides chosen, create the walls
-      createWallsFromChoices(newChoices);
-      setShowWallDialog(false);
-      setPendingRectangle(null);
-      setCurrentSide(1);
-      setWallChoices([]);
-    }
-  };
-
-  const createWallsFromChoices = (choices: ('transparent' | 'white')[]) => {
-    if (!pendingRectangle || !draw.current) return;
-    
-    const coordinates = pendingRectangle.geometry.coordinates[0];
-    
-    // Create individual lines for each side
-    for (let i = 0; i < 4; i++) {
-      const startPoint = coordinates[i];
-      const endPoint = coordinates[i + 1] || coordinates[0]; // Last point connects to first
-      const choice = choices[i];
+    // Create the line immediately with the chosen color
+    if (pendingRectangle && draw.current) {
+      const coordinates = pendingRectangle.geometry.coordinates[0];
+      const currentIndex = currentSide - 1; // Convert to 0-based index
+      const startPoint = coordinates[currentIndex];
+      const endPoint = coordinates[currentIndex + 1] || coordinates[0];
       
-      const lineColor = choice === 'transparent' ? '#3b82f6' : '#000000'; // Blue for transparent, black for white
+      const lineColor = choice === 'transparent' ? '#3b82f6' : '#000000';
       
       const lineFeature = {
         type: "Feature" as const,
@@ -1069,38 +1117,39 @@ const MapComponent: React.FC<MapComponentProps> = ({
         properties: {
           color: lineColor,
           wallType: choice,
-          id: Date.now() + i
+          id: Date.now() + currentIndex
         }
       };
       
-      // Add the line with the chosen color
+      // Add the line immediately
       draw.current.add(lineFeature);
     }
     
-    toast.success('Rectangle with wall choices created!');
+    if (currentSide < 4) {
+      const nextSide = currentSide + 1;
+      setCurrentSide(nextSide);
+      
+      // Highlight the next wall
+      if (pendingRectangle) {
+        const coordinates = pendingRectangle.geometry.coordinates[0];
+        highlightCurrentWall(coordinates, nextSide - 1); // Convert to 0-based index
+      }
+    } else {
+      // All sides chosen, clean up
+      setShowWallDialog(false);
+      setPendingRectangle(null);
+      setCurrentSide(1);
+      setWallChoices([]);
+      clearWallHighlight();
+      
+      toast.success('Rectangle with wall choices created!');
+    }
   };
 
-  if (isLoadingToken) {
-    return (
-      <div className="flex items-center justify-center h-full w-full bg-gray-100 rounded-lg">
-        <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
-        <span className="ml-2">Loading map...</span>
-      </div>
-    );
-  }
-
-  if (!mapboxToken) {
-    return (
-      <div className="flex items-center justify-center h-full w-full bg-gray-100 rounded-lg">
-        <div className="text-center p-6">
-          <h3 className="text-lg font-medium text-gray-900">Mapbox API Key Required</h3>
-          <p className="mt-2 text-sm text-gray-500">
-            Please add the MAPBOX_PUBLIC_TOKEN secret to your Supabase project.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // This function is no longer needed since we create lines immediately
+  const createWallsFromChoices = (choices: ('transparent' | 'white')[]) => {
+    // Intentionally left blank
+  };
 
   return (
     <div className="h-full w-full rounded-lg overflow-hidden relative">
