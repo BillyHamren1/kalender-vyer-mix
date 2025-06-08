@@ -97,35 +97,34 @@ export const MapControls: React.FC<MapControlsProps> = ({
         </Button>
       </div>
 
-      {/* Booking-specific Controls - Only show when user comes from a booking */}
-      {isFromBooking && (
-        <div className="flex flex-col gap-1 border-t border-white/20 pt-2">
-          {/* Snapshot Button - Only show when a booking is selected and from booking context */}
-          {selectedBooking && (
-            <Button
-              onClick={takeMapSnapshot}
-              size="sm"
-              variant="outline"
-              disabled={isCapturingSnapshot}
-              className="bg-white/90 backdrop-blur-sm shadow-md"
-            >
-              <Camera className="h-4 w-4 mr-1" />
-              {isCapturingSnapshot ? 'Capturing...' : 'Snapshot'}
-            </Button>
-          )}
+      {/* Drawing Controls - Now always visible */}
+      <div className="flex flex-col gap-1 border-t border-white/20 pt-2">
+        <MapDrawingControls
+          isDrawingOpen={isDrawingOpen}
+          setIsDrawingOpen={setIsDrawingOpen}
+          selectedColor={selectedColor}
+          setSelectedColor={setSelectedColor}
+          drawMode={drawMode}
+          setDrawingMode={setDrawingMode}
+          isFreehandDrawing={isFreehandDrawing}
+          toggleFreehandDrawing={toggleFreehandDrawing}
+          clearAllDrawings={clearAllDrawings}
+        />
+      </div>
 
-          {/* Drawing Controls - Only in booking context */}
-          <MapDrawingControls
-            isDrawingOpen={isDrawingOpen}
-            setIsDrawingOpen={setIsDrawingOpen}
-            selectedColor={selectedColor}
-            setSelectedColor={setSelectedColor}
-            drawMode={drawMode}
-            setDrawingMode={setDrawingMode}
-            isFreehandDrawing={isFreehandDrawing}
-            toggleFreehandDrawing={toggleFreehandDrawing}
-            clearAllDrawings={clearAllDrawings}
-          />
+      {/* Booking-specific Controls - Only show when user comes from a booking */}
+      {isFromBooking && selectedBooking && (
+        <div className="flex flex-col gap-1 border-t border-white/20 pt-2">
+          <Button
+            onClick={takeMapSnapshot}
+            size="sm"
+            variant="outline"
+            disabled={isCapturingSnapshot}
+            className="bg-white/90 backdrop-blur-sm shadow-md"
+          >
+            <Camera className="h-4 w-4 mr-1" />
+            {isCapturingSnapshot ? 'Capturing...' : 'Snapshot'}
+          </Button>
         </div>
       )}
 
