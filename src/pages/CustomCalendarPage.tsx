@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -10,7 +9,7 @@ import { useBackgroundImport } from '@/hooks/useBackgroundImport';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { ArrowLeft, Calendar as CalendarIcon, List, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Calendar as CalendarIcon, List, RefreshCw, Sync } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CustomCalendar from '@/components/Calendar/CustomCalendar';
 import SimpleStaffCurtain from '@/components/Calendar/SimpleStaffCurtain';
@@ -18,11 +17,14 @@ import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
 import MobileMonthlyCalendar from '@/components/Calendar/MobileMonthlyCalendar';
 import MobileDayDetailView from '@/components/Calendar/MobileDayDetailView';
 import { startOfWeek, startOfMonth } from 'date-fns';
+import { forceFullBookingSync } from '@/services/bookingCalendarService';
+import { toast } from 'sonner';
 
 const CustomCalendarPage = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+  const [isSyncing, setIsSyncing] = useState(false);
   
   // Mobile-specific state
   const [mobileView, setMobileView] = useState<'month' | 'day'>('month');
@@ -76,6 +78,22 @@ const CustomCalendarPage = () => {
     const importResult = await triggerImport();
     if (importResult?.success) {
       await refreshEvents();
+    }
+  };
+
+  // Handle force sync of bookings to calendar
+  const handleForceSync = async () => {
+    console.log('CustomCalendarPage: Force sync triggered');
+    setIsSyncing(true);
+    try {
+      const syncedCount = await forceFullBookingSync();
+      toast.success(`Synced ${syncedCount} confirmed bookings to calendar`);
+      await refreshEvents(); // Refresh to show new events
+    } catch (error) {
+      console.error('Error during force sync:', error);
+      toast.error('Failed to sync bookings to calendar');
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -152,6 +170,18 @@ const CustomCalendarPage = () => {
               </div>
               
               <div className="flex items-center gap-2">
+                {/* Force Sync Button */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleForceSync}
+                  disabled={isSyncing}
+                  className="flex items-center gap-2"
+                >
+                  <Sync className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                  Sync Bookings
+                </Button>
+                
                 {/* Manual refresh button - only shows loading when user manually refreshes */}
                 <Button
                   variant="outline"
