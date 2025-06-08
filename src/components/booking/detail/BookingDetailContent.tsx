@@ -47,17 +47,6 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
   onInternalNotesChange,
   isSavingInternalNotes
 }) => {
-  // Debug logging for booking data
-  console.log('BookingDetailContent - booking data:', {
-    id: booking.id,
-    rigDayDate: booking.rigDayDate,
-    eventDate: booking.eventDate,
-    rigDownDate: booking.rigDownDate,
-    rigDates,
-    eventDates,
-    rigDownDates
-  });
-
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -83,9 +72,6 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
             onAddDate={onAddDate}
             onRemoveDate={onRemoveDate}
             autoSync={autoSync}
-            bookingRigDate={booking.rigDayDate}
-            bookingEventDate={booking.eventDate}
-            bookingRigDownDate={booking.rigDownDate}
           />
           <ProjectAssignmentCard 
             assignedProjectId={booking.assignedProjectId}
