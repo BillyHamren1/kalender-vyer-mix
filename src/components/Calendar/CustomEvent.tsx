@@ -3,6 +3,7 @@ import React, { useState, useRef } from 'react';
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
 import { format, addMinutes } from 'date-fns';
 import { useDrag } from 'react-dnd';
+import { useEventNavigation } from '@/hooks/useEventNavigation';
 import EventHoverCard from './EventHoverCard';
 import './CustomEvent.css';
 
@@ -30,6 +31,9 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   } | null>(null);
   
   const eventRef = useRef<HTMLDivElement>(null);
+
+  // Add event navigation hook for click handling
+  const { handleEventClick } = useEventNavigation();
 
   // Optimized drag implementation for smooth movement - FIXED to prevent jumping back
   const [{ isDragging }, drag, preview] = useDrag({
@@ -68,6 +72,48 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   // Use temporary times if resizing, otherwise use original times
   const displayStart = tempResizeState ? tempResizeState.newStart : new Date(event.start);
   const displayEnd = tempResizeState ? tempResizeState.newEnd : new Date(event.end);
+
+  // Handle event click for navigation - only if not dragging or resizing
+  const handleClick = (e: React.MouseEvent) => {
+    // Prevent click during drag or resize operations
+    if (isDragging || isResizing) {
+      e.stopPropagation();
+      return;
+    }
+
+    // Don't handle clicks on resize handles
+    const target = e.target as HTMLElement;
+    if (target.classList.contains('resize-handle') || target.closest('.resize-handle')) {
+      e.stopPropagation();
+      return;
+    }
+
+    // Create mock event info object matching the expected interface
+    const mockEventInfo = {
+      event: {
+        id: event.id,
+        title: event.title,
+        start: new Date(event.start),
+        end: new Date(event.end),
+        extendedProps: {
+          bookingId: event.bookingId,
+          booking_id: event.bookingId,
+          resourceId: event.resourceId,
+          ...event.extendedProps
+        },
+        _def: {
+          extendedProps: {
+            bookingId: event.bookingId,
+            booking_id: event.bookingId
+          }
+        }
+      },
+      el: eventRef.current
+    };
+
+    console.log('CustomEvent clicked, calling handleEventClick with:', mockEventInfo);
+    handleEventClick(mockEventInfo);
+  };
 
   // Handle resize operations with real-time visual feedback - FIXED to use 25px per hour
   const handleResizeStart = (e: React.MouseEvent, direction: 'top' | 'bottom') => {
@@ -168,10 +214,10 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       ...style,
       backgroundColor: eventColor,
       opacity: isDragging ? 0.3 : 1, // Show transparency when dragging
-      cursor: isDragging ? 'grabbing' : (isResizing ? 'ns-resize' : 'grab'),
+      cursor: isDragging ? 'grabbing' : (isResizing ? 'ns-resize' : 'pointer'), // Changed from 'grab' to 'pointer' to indicate clickability
       border: isResizing ? '2px solid #3b82f6' : 'none',
       transform: 'none',
-      transition: isDragging || isResizing ? 'none' : 'opacity 0.2s ease', // No transition during interaction
+      transition: isDragging || isResizing ? 'none' : 'opacity 0.2s ease, transform 0.2s ease', // Added transform transition for hover effects
       position: 'relative' as const,
       willChange: 'transform, opacity',
       color: '#000000',
@@ -215,8 +261,9 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
           drag(node);
           eventRef.current = node;
         }}
-        className={`custom-event ${isDragging ? 'dragging' : ''} ${isResizing ? 'resizing' : ''}`}
+        className={`custom-event ${isDragging ? 'dragging' : ''} ${isResizing ? 'resizing' : ''} hover:scale-105`}
         style={getDynamicStyles()}
+        onClick={handleClick}
         onMouseDown={(e) => {
           // Prevent drag from starting if clicking on resize handles
           if (isResizing || e.target !== e.currentTarget) {
