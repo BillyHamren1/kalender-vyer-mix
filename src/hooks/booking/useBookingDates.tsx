@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Booking } from '@/types/booking';
@@ -165,11 +164,11 @@ export const useBookingDates = (
       }
       
       // Delete all calendar events for this booking and recreate them without this date
-      await deleteAllBookingEvents(id);
+      await removeAllBookingEvents(id);
       
       // Resync the remaining dates to calendar
       if (booking.status === 'CONFIRMED') {
-        await resyncBookingToCalendar(id);
+        await syncSingleBookingToCalendar(id);
       }
       
       // Removed success toast - only show errors

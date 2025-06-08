@@ -433,9 +433,9 @@ export const resyncBookingCalendarEvents = async (bookingId: string): Promise<bo
   try {
     toast.info(`Resyncing booking ${bookingId} to calendar...`);
     
-    // Import the resync function and call it properly
-    const { resyncBookingToCalendar } = await import('./bookingCalendarService');
-    await resyncBookingToCalendar(bookingId); // Remove the force parameter
+    // Import the sync function and call it properly
+    const { syncSingleBookingToCalendar } = await import('./bookingCalendarService');
+    await syncSingleBookingToCalendar(bookingId);
     
     toast.success(`Successfully resynced booking ${bookingId} calendar events`);
     return true;
