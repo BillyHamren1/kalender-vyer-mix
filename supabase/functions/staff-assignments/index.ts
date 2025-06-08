@@ -1,3 +1,4 @@
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -46,31 +47,6 @@ async function getStaffName(staffId: string): Promise<string> {
   return staff.name
 }
 
-// Helper function to get team name by ID
-async function getTeamName(teamId: string): Promise<string> {
-  // Since we don't have a teams table, we'll use the team ID as the name
-  // This can be enhanced later if team names are stored elsewhere
-  return `Team-${teamId}`
-}
-
-// Helper function to get booking IDs for a team on a specific date
-async function getTeamBookings(teamId: string, date: string): Promise<string[]> {
-  const { data: events, error } = await supabase
-    .from('calendar_events')
-    .select('booking_id')
-    .eq('resource_id', teamId)
-    .gte('start_time', `${date}T00:00:00`)
-    .lt('start_time', `${date}T23:59:59`)
-    .not('booking_id', 'is', null)
-
-  if (error) {
-    console.warn(`Could not fetch bookings for team ${teamId}:`, error)
-    return []
-  }
-
-  return [...new Set(events.map(event => event.booking_id).filter(Boolean))]
-}
-
 // Function to log assignment changes
 async function logAssignmentChange(changeData: {
   staffId: string
@@ -78,20 +54,13 @@ async function logAssignmentChange(changeData: {
   newTeamId?: string | null
   date: string
   changeType: 'assign' | 'remove' | 'move'
+  bookingId?: string
 }) {
-  const { staffId, oldTeamId, newTeamId, date, changeType } = changeData
+  const { staffId, oldTeamId, newTeamId, date, changeType, bookingId } = changeData
 
   try {
     // Get staff name
     const staffName = await getStaffName(staffId)
-    
-    // Get team names
-    const oldTeamName = oldTeamId ? await getTeamName(oldTeamId) : null
-    const newTeamName = newTeamId ? await getTeamName(newTeamId) : null
-    
-    // Get booking information for relevant teams
-    const oldTeamBookings = oldTeamId ? await getTeamBookings(oldTeamId, date) : []
-    const newTeamBookings = newTeamId ? await getTeamBookings(newTeamId, date) : []
     
     let logMessage = ''
     let detailedInfo = {
@@ -99,34 +68,21 @@ async function logAssignmentChange(changeData: {
       staffName,
       oldTeamId,
       newTeamId,
-      oldTeamName,
-      newTeamName,
       date,
       changeType,
-      oldTeamBookings,
-      newTeamBookings,
+      bookingId,
       timestamp: new Date().toISOString()
     }
 
     switch (changeType) {
       case 'assign':
-        logMessage = `${staffName} assigned to ${newTeamName} for ${date}`
-        if (newTeamBookings.length > 0) {
-          logMessage += ` (bookings: ${newTeamBookings.join(', ')})`
-        }
+        logMessage = `${staffName} assigned to booking ${bookingId} for ${date}`
         break
       case 'remove':
-        logMessage = `${staffName} removed from ${oldTeamName} for ${date}`
-        if (oldTeamBookings.length > 0) {
-          logMessage += ` (was on bookings: ${oldTeamBookings.join(', ')})`
-        }
+        logMessage = `${staffName} removed from booking ${bookingId} for ${date}`
         break
       case 'move':
-        logMessage = `${staffName} moved from ${oldTeamName} to ${newTeamName} for ${date}`
-        const allBookings = [...new Set([...oldTeamBookings, ...newTeamBookings])]
-        if (allBookings.length > 0) {
-          logMessage += ` (bookings: ${allBookings.join(', ')})`
-        }
+        logMessage = `${staffName} moved to different assignment for ${date}`
         break
     }
 
@@ -148,39 +104,105 @@ async function logAssignmentChange(changeData: {
   }
 }
 
-// Function to get staff assignment and related bookings
+// Function to get staff assignment and related bookings using booking assignments
 async function getStaffAssignment(staffId: string, date: string) {
-  // First, get the team assignment for the staff member on the specified date
-  const { data: assignment, error: assignmentError } = await supabase
-    .from('staff_assignments')
-    .select('team_id')
+  console.log(`Fetching staff assignment for ${staffId} on ${date} using booking assignments`)
+
+  // Get direct booking assignments for the staff member on the specified date
+  const { data: bookingAssignments, error: assignmentError } = await supabase
+    .from('booking_staff_assignments')
+    .select('booking_id, team_id, assignment_date')
     .eq('staff_id', staffId)
     .eq('assignment_date', date)
-    .maybeSingle()
 
   if (assignmentError) {
-    console.error('Error fetching team assignment:', assignmentError)
+    console.error('Error fetching booking assignments:', assignmentError)
     throw assignmentError
   }
 
-  // If no assignment found, return an empty response
-  if (!assignment) {
+  // If no assignments found, return an empty response
+  if (!bookingAssignments || bookingAssignments.length === 0) {
     return {
       staffId,
       date,
       teamId: null,
+      teamName: null,
       bookings: [],
-      eventsCount: 0
+      summary: {
+        totalBookings: 0,
+        eventsByType: { rig: 0, event: 0, rigDown: 0 }
+      }
     }
   }
 
-  const teamId = assignment.team_id
+  const bookingIds = bookingAssignments.map(ba => ba.booking_id)
+  
+  // Get booking details for confirmed bookings only
+  const { data: confirmedBookings, error: confirmedError } = await supabase
+    .from('confirmed_bookings')
+    .select('id')
+    .in('id', bookingIds)
 
-  // Get all events for the team on the specified date
+  if (confirmedError) {
+    console.error('Error fetching confirmed bookings:', confirmedError)
+    throw confirmedError
+  }
+
+  const confirmedBookingIds = confirmedBookings?.map(cb => cb.id) || []
+  
+  if (confirmedBookingIds.length === 0) {
+    return {
+      staffId,
+      date,
+      teamId: bookingAssignments[0]?.team_id || null,
+      teamName: `Team-${bookingAssignments[0]?.team_id || 'Unknown'}`,
+      bookings: [],
+      summary: {
+        totalBookings: 0,
+        eventsByType: { rig: 0, event: 0, rigDown: 0 }
+      }
+    }
+  }
+
+  // Fetch booking details
+  const { data: bookings, error: bookingsError } = await supabase
+    .from('bookings')
+    .select(`
+      id,
+      client,
+      booking_number,
+      status,
+      rigdaydate,
+      eventdate,
+      rigdowndate,
+      deliveryaddress,
+      delivery_city,
+      delivery_postal_code,
+      delivery_latitude,
+      delivery_longitude,
+      carry_more_than_10m,
+      ground_nails_allowed,
+      exact_time_needed,
+      exact_time_info,
+      contact_name,
+      contact_phone,
+      contact_email,
+      internalnotes,
+      created_at,
+      updated_at
+    `)
+    .in('id', confirmedBookingIds)
+
+  if (bookingsError) {
+    console.error('Error fetching bookings:', bookingsError)
+    throw bookingsError
+  }
+
+  // Get events for these bookings on the specified date
   const { data: events, error: eventsError } = await supabase
     .from('calendar_events')
     .select('*')
-    .eq('resource_id', teamId)
+    .in('booking_id', confirmedBookingIds)
     .gte('start_time', `${date}T00:00:00`)
     .lt('start_time', `${date}T23:59:59`)
 
@@ -189,25 +211,19 @@ async function getStaffAssignment(staffId: string, date: string) {
     throw eventsError
   }
 
-  // Group events by booking
-  const bookingIds = [...new Set(events
-    .filter(event => event.booking_id)
-    .map(event => event.booking_id))]
-
-  // Fetch booking details for all relevant bookings
-  const { data: bookings, error: bookingsError } = await supabase
-    .from('bookings')
+  // Get products for these bookings
+  const { data: products, error: productsError } = await supabase
+    .from('booking_products')
     .select('*')
-    .in('id', bookingIds)
+    .in('booking_id', confirmedBookingIds)
 
-  if (bookingsError) {
-    console.error('Error fetching bookings:', bookingsError)
-    throw bookingsError
+  if (productsError) {
+    console.error('Error fetching products:', productsError)
   }
 
   // Process bookings to include events and format according to our response structure
-  const processedBookings = bookings.map(booking => {
-    const bookingEvents = events
+  const processedBookings = (bookings || []).map(booking => {
+    const bookingEvents = (events || [])
       .filter(event => event.booking_id === booking.id)
       .map(event => ({
         id: event.id,
@@ -217,22 +233,45 @@ async function getStaffAssignment(staffId: string, date: string) {
         title: event.title
       }))
 
-    // Return an enhanced booking object with events and coordinates
+    const bookingProducts = (products || [])
+      .filter(product => product.booking_id === booking.id)
+      .map(product => ({
+        id: product.id,
+        name: product.name,
+        quantity: product.quantity,
+        notes: product.notes
+      }))
+
+    const assignment = bookingAssignments.find(ba => ba.booking_id === booking.id)
+
     return {
       id: booking.id,
       client: booking.client,
+      bookingNumber: booking.booking_number,
+      status: booking.status,
       rigDayDate: booking.rigdaydate,
       eventDate: booking.eventdate,
       rigDownDate: booking.rigdowndate,
       deliveryAddress: booking.deliveryaddress,
       deliveryCity: booking.delivery_city,
       deliveryPostalCode: booking.delivery_postal_code,
-      teamId,
+      teamId: assignment?.team_id,
       events: bookingEvents,
+      products: bookingProducts,
       coordinates: {
         latitude: booking.delivery_latitude,
         longitude: booking.delivery_longitude
-      }
+      },
+      contactName: booking.contact_name,
+      contactPhone: booking.contact_phone,
+      contactEmail: booking.contact_email,
+      carryMoreThan10m: booking.carry_more_than_10m,
+      groundNailsAllowed: booking.ground_nails_allowed,
+      exactTimeNeeded: booking.exact_time_needed,
+      exactTimeInfo: booking.exact_time_info,
+      internalNotes: booking.internalnotes,
+      createdAt: booking.created_at,
+      updatedAt: booking.updated_at
     }
   })
 
@@ -258,67 +297,76 @@ async function getStaffAssignment(staffId: string, date: string) {
       .filter(c => c && (c.latitude || c.longitude))
   }
 
+  const teamId = bookingAssignments[0]?.team_id || null
+  const teamName = teamId ? `Team-${teamId}` : null
+
   return {
     staffId,
     date,
     teamId,
+    teamName,
     bookings: processedBookings,
     eventsCount: allEvents.length,
     summary
   }
 }
 
-// Function to get all bookings across all teams for a given date
-async function getAllBookings(date: string) {
-  // Get all teams with events on the specified date
-  const { data: events, error: eventsError } = await supabase
-    .from('calendar_events')
-    .select('*')
-    .gte('start_time', `${date}T00:00:00`)
-    .lt('start_time', `${date}T23:59:59`)
+// Function to get all confirmed bookings for a date with their staff assignments
+async function getAllBookingsForDate(date: string) {
+  console.log(`Fetching all confirmed bookings for ${date} with staff assignments`)
 
-  if (eventsError) {
-    console.error('Error fetching events:', eventsError)
-    throw eventsError
+  // Get all booking assignments for the date
+  const { data: bookingAssignments, error: assignmentError } = await supabase
+    .from('booking_staff_assignments')
+    .select('booking_id, staff_id, team_id, assignment_date')
+    .eq('assignment_date', date)
+
+  if (assignmentError) {
+    console.error('Error fetching booking assignments:', assignmentError)
+    throw assignmentError
   }
 
-  // Extract unique booking IDs and team IDs
-  const bookingIds = [...new Set(events
-    .filter(event => event.booking_id)
-    .map(event => event.booking_id))]
-  
-  const teamIds = [...new Set(events.map(event => event.resource_id))]
-
-  // If no bookings found, return an empty array
-  if (bookingIds.length === 0) {
+  if (!bookingAssignments || bookingAssignments.length === 0) {
     return []
   }
 
-  // Fetch all relevant bookings
-  const { data: bookings, error: bookingsError } = await supabase
-    .from('bookings')
-    .select('*')
+  const bookingIds = [...new Set(bookingAssignments.map(ba => ba.booking_id))]
+  
+  // Get confirmed bookings only
+  const { data: confirmedBookings, error: confirmedError } = await supabase
+    .from('confirmed_bookings')
+    .select('id')
     .in('id', bookingIds)
 
-  if (bookingsError) {
-    console.error('Error fetching bookings:', bookingsError)
-    throw bookingsError
+  if (confirmedError) {
+    console.error('Error fetching confirmed bookings:', confirmedError)
+    throw confirmedError
   }
 
-  // Create a mapping of team IDs to bookings
-  const teamBookings = {}
-  teamIds.forEach(teamId => {
-    const teamEvents = events.filter(event => event.resource_id === teamId)
-    const teamBookingIds = [...new Set(teamEvents
-      .filter(event => event.booking_id)
-      .map(event => event.booking_id))]
-    
-    teamBookings[teamId] = teamBookingIds
-  })
+  const confirmedBookingIds = confirmedBookings?.map(cb => cb.id) || []
+  
+  if (confirmedBookingIds.length === 0) {
+    return []
+  }
 
-  // Process bookings to include events and format according to our response structure
-  const processedBookings = bookings.flatMap(booking => {
-    const bookingEvents = events
+  // Get booking details, events, products, and staff info
+  const [bookingsResult, eventsResult, productsResult, staffResult] = await Promise.all([
+    supabase.from('bookings').select('*').in('id', confirmedBookingIds),
+    supabase.from('calendar_events').select('*').in('booking_id', confirmedBookingIds)
+      .gte('start_time', `${date}T00:00:00`).lt('start_time', `${date}T23:59:59`),
+    supabase.from('booking_products').select('*').in('booking_id', confirmedBookingIds),
+    supabase.from('staff_members').select('id, name, email').in('id', 
+      [...new Set(bookingAssignments.map(ba => ba.staff_id))])
+  ])
+
+  const { data: bookings } = bookingsResult
+  const { data: events } = eventsResult
+  const { data: products } = productsResult
+  const { data: staff } = staffResult
+
+  // Process and return the data
+  return (bookings || []).map(booking => {
+    const bookingEvents = (events || [])
       .filter(event => event.booking_id === booking.id)
       .map(event => ({
         id: event.id,
@@ -327,48 +375,71 @@ async function getAllBookings(date: string) {
         end: event.end_time,
         title: event.title
       }))
-    
-    // Find which team this booking belongs to
-    const assignedTeamIds = Object.entries(teamBookings)
-      .filter(([_, bookingIds]) => (bookingIds as string[]).includes(booking.id))
-      .map(([teamId, _]) => teamId)
 
-    // If booking is assigned to multiple teams, create one entry per team
-    return assignedTeamIds.map(teamId => ({
+    const bookingProducts = (products || [])
+      .filter(product => product.booking_id === booking.id)
+      .map(product => ({
+        id: product.id,
+        name: product.name,
+        quantity: product.quantity,
+        notes: product.notes
+      }))
+
+    const staffAssignments = bookingAssignments
+      .filter(ba => ba.booking_id === booking.id)
+      .map(ba => {
+        const staffMember = staff?.find(s => s.id === ba.staff_id)
+        return {
+          staffId: ba.staff_id,
+          staffName: staffMember?.name || `Staff-${ba.staff_id}`,
+          staffEmail: staffMember?.email,
+          teamId: ba.team_id
+        }
+      })
+
+    return {
       id: booking.id,
       client: booking.client,
+      bookingNumber: booking.booking_number,
+      status: booking.status,
       rigDayDate: booking.rigdaydate,
       eventDate: booking.eventdate,
       rigDownDate: booking.rigdowndate,
       deliveryAddress: booking.deliveryaddress,
       deliveryCity: booking.delivery_city,
       deliveryPostalCode: booking.delivery_postal_code,
-      teamId,
-      events: bookingEvents.filter(event => 
-        events.find(e => e.id === event.id)?.resource_id === teamId),
+      events: bookingEvents,
+      products: bookingProducts,
+      staffAssignments,
       coordinates: {
         latitude: booking.delivery_latitude,
         longitude: booking.delivery_longitude
-      }
-    }))
+      },
+      contactName: booking.contact_name,
+      contactPhone: booking.contact_phone,
+      contactEmail: booking.contact_email,
+      carryMoreThan10m: booking.carry_more_than_10m,
+      groundNailsAllowed: booking.ground_nails_allowed,
+      exactTimeNeeded: booking.exact_time_needed,
+      exactTimeInfo: booking.exact_time_info,
+      internalNotes: booking.internalnotes,
+      createdAt: booking.created_at,
+      updatedAt: booking.updated_at
+    }
   })
-
-  return processedBookings
 }
 
 // NEW: Function to get all staff assignments without date restriction
 async function getAllStaffAssignments() {
   try {
-    // Get all staff assignments with their staff member details
+    // Get all booking assignments with their staff member details
     const { data: assignments, error: assignmentsError } = await supabase
-      .from('staff_assignments')
+      .from('booking_staff_assignments')
       .select(`
+        booking_id,
         staff_id,
         team_id,
-        assignment_date,
-        staff_members (
-          name
-        )
+        assignment_date
       `)
       .order('assignment_date', { ascending: false })
 
@@ -377,13 +448,24 @@ async function getAllStaffAssignments() {
       throw assignmentsError
     }
 
+    // Get staff details
+    const staffIds = [...new Set(assignments?.map(a => a.staff_id) || [])]
+    const { data: staff, error: staffError } = await supabase
+      .from('staff_members')
+      .select('id, name')
+      .in('id', staffIds)
+
+    if (staffError) {
+      console.error('Error fetching staff members:', staffError)
+    }
+
     // Group assignments by staff member
     const staffAssignments = {}
     
     for (const assignment of assignments || []) {
       const staffId = assignment.staff_id
-      const staffName = assignment.staff_members?.name || `Staff-${staffId}`
-      const teamName = await getTeamName(assignment.team_id)
+      const staffMember = staff?.find(s => s.id === staffId)
+      const staffName = staffMember?.name || `Staff-${staffId}`
       
       if (!staffAssignments[staffId]) {
         staffAssignments[staffId] = {
@@ -395,60 +477,14 @@ async function getAllStaffAssignments() {
       
       staffAssignments[staffId].assignments.push({
         date: assignment.assignment_date,
-        teamId: assignment.team_id,
-        teamName
+        bookingId: assignment.booking_id,
+        teamId: assignment.team_id
       })
     }
     
     return Object.values(staffAssignments)
   } catch (error) {
     console.error('Error in getAllStaffAssignments:', error)
-    throw error
-  }
-}
-
-// NEW: Function to get staff assignments for a date range
-async function getStaffAssignmentsForDateRange(startDate: string, endDate: string) {
-  try {
-    // Get all unique staff members who have assignments in the date range
-    const { data: assignments, error: assignmentsError } = await supabase
-      .from('staff_assignments')
-      .select('staff_id')
-      .gte('assignment_date', startDate)
-      .lte('assignment_date', endDate)
-
-    if (assignmentsError) {
-      console.error('Error fetching staff assignments for date range:', assignmentsError)
-      throw assignmentsError
-    }
-
-    const uniqueStaffIds = [...new Set(assignments?.map(a => a.staff_id) || [])]
-    const results = []
-
-    // For each staff member, get their detailed assignments for each date in the range
-    for (const staffId of uniqueStaffIds) {
-      const currentDate = new Date(startDate)
-      const endDateObj = new Date(endDate)
-      
-      while (currentDate <= endDateObj) {
-        try {
-          const dateStr = currentDate.toISOString().split('T')[0]
-          const staffAssignment = await getStaffAssignment(staffId, dateStr)
-          
-          if (staffAssignment.teamId) {
-            results.push(staffAssignment)
-          }
-        } catch (error) {
-          console.warn(`No assignment found for staff ${staffId} on ${currentDate.toISOString().split('T')[0]}`)
-        }
-        
-        currentDate.setDate(currentDate.getDate() + 1)
-      }
-    }
-
-    return results
-  } catch (error) {
-    console.error('Error in getStaffAssignmentsForDateRange:', error)
     throw error
   }
 }
@@ -498,7 +534,7 @@ serve(async (req) => {
     }
 
     // Handle main staff assignments endpoint
-    const { staffId, date, fetchAllStaff, fetchAllAssignments, fetchDateRange, startDate, endDate } = await req.json()
+    const { staffId, date, fetchAllStaff, fetchAllAssignments } = await req.json()
 
     let responseData
 
@@ -506,18 +542,15 @@ serve(async (req) => {
     if (fetchAllAssignments) {
       // Fetch all staff assignments without date restriction
       responseData = await getAllStaffAssignments()
-    } else if (fetchDateRange && startDate && endDate) {
-      // Fetch assignments for a date range
-      responseData = await getStaffAssignmentsForDateRange(startDate, endDate)
     } else if (fetchAllStaff && date) {
-      // Fetch all bookings for a specific date
-      responseData = await getAllBookings(date)
+      // Fetch all confirmed bookings for a specific date with staff assignments
+      responseData = await getAllBookingsForDate(date)
     } else if (staffId && date) {
       // Fetch specific staff assignment for a date
       responseData = await getStaffAssignment(staffId, date)
     } else {
       return new Response(
-        JSON.stringify({ error: 'Invalid parameters. Provide either: staffId+date, fetchAllStaff+date, fetchAllAssignments, or fetchDateRange+startDate+endDate' }),
+        JSON.stringify({ error: 'Invalid parameters. Provide either: staffId+date, fetchAllStaff+date, or fetchAllAssignments' }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
