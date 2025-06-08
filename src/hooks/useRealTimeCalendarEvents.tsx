@@ -34,6 +34,8 @@ export const useRealTimeCalendarEvents = () => {
         // Enhance events with booking data for better hover information
         const enhancedEvents = await Promise.all(
           calendarEvents.map(async (event) => {
+            console.log('Processing event:', event.id, 'with booking ID:', event.bookingId);
+            
             if (event.bookingId) {
               try {
                 // Fetch booking details for enhanced hover data
@@ -51,8 +53,15 @@ export const useRealTimeCalendarEvents = () => {
                   .single();
 
                 if (booking) {
+                  console.log('Enhanced event with booking data:', {
+                    eventId: event.id,
+                    bookingNumber: booking.booking_number,
+                    deliveryCity: booking.delivery_city
+                  });
+
                   return {
                     ...event,
+                    bookingNumber: booking.booking_number,
                     extendedProps: {
                       ...event.extendedProps,
                       client: booking.client,
@@ -65,7 +74,8 @@ export const useRealTimeCalendarEvents = () => {
                       carryMoreThan10m: booking.carry_more_than_10m,
                       groundNailsAllowed: booking.ground_nails_allowed,
                       products: booking.booking_products || [],
-                      bookingNumber: booking.booking_number
+                      bookingNumber: booking.booking_number,
+                      booking_id: booking.id
                     }
                   };
                 }
@@ -148,7 +158,8 @@ export const useRealTimeCalendarEvents = () => {
                 resourceId: mapDatabaseToAppResourceId(newRecord.resource_id),
                 deliveryAddress: newRecord.delivery_address,
                 bookingNumber: newRecord.booking_number,
-                eventType: newRecord.event_type
+                eventType: newRecord.event_type,
+                deliveryCity: newRecord.delivery_city
               }
             };
             updatedEvents.push(newEvent);
@@ -178,7 +189,8 @@ export const useRealTimeCalendarEvents = () => {
                   resourceId: mapDatabaseToAppResourceId(newRecord.resource_id),
                   deliveryAddress: newRecord.delivery_address,
                   bookingNumber: newRecord.booking_number,
-                  eventType: newRecord.event_type
+                  eventType: newRecord.event_type,
+                  deliveryCity: newRecord.delivery_city
                 }
               };
               console.log('Updated event:', newRecord.title, 'moved to team:', updatedEvents[index].resourceId);

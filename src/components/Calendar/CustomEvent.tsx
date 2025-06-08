@@ -199,6 +199,15 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   const bookingNumber = event.bookingNumber || event.extendedProps?.bookingNumber || event.extendedProps?.booking_id || 'No ID';
   const deliveryCity = event.extendedProps?.deliveryCity || event.extendedProps?.delivery_city || '';
 
+  // Debug logging to see what data we have
+  console.log('CustomEvent data:', {
+    eventId: event.id,
+    title: event.title,
+    bookingNumber,
+    deliveryCity,
+    extendedProps: event.extendedProps
+  });
+
   return (
     <EventHoverCard event={event}>
       <div
