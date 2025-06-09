@@ -29,19 +29,26 @@ export const useWallSelection = () => {
     console.log('Pending line geometry type:', pendingLine?.geometry.type);
 
     let startPoint: number[], endPoint: number[];
-    let actualCoords = coordinates;
+    let actualCoords: number[][];
 
     // Fix: Handle Polygon coordinates correctly - they are nested arrays
     if (pendingLine?.geometry.type === 'Polygon') {
       // Polygon coordinates are [[[x,y], [x,y], [x,y], [x,y], [x,y]]]
       // We need the first (and only) ring: coordinates[0]
-      actualCoords = coordinates[0] || coordinates;
+      // Check if coordinates is properly nested
+      if (Array.isArray(coordinates[0]) && Array.isArray(coordinates[0][0])) {
+        actualCoords = coordinates[0] as number[][];
+      } else {
+        // If it's already flattened, use as is
+        actualCoords = coordinates;
+      }
       console.log('Extracted polygon ring coordinates:', actualCoords);
       
       startPoint = actualCoords[segmentIndex];
       endPoint = actualCoords[segmentIndex + 1] || actualCoords[0];
     } else if (pendingLine?.geometry.type === 'LineString') {
       // LineString coordinates are [[x,y], [x,y], [x,y]]
+      actualCoords = coordinates;
       if (segmentIndex < coordinates.length - 1) {
         startPoint = coordinates[segmentIndex];
         endPoint = coordinates[segmentIndex + 1];
@@ -211,11 +218,15 @@ export const useWallSelection = () => {
     if (pendingLine && wallLinesSource.current) {
       const coordinates = pendingLine.geometry.coordinates;
       let startPoint: number[], endPoint: number[];
-      let actualCoords = coordinates;
+      let actualCoords: number[][];
 
       if (pendingLine.geometry.type === 'Polygon') {
         // Fix: Handle Polygon coordinates correctly
-        actualCoords = coordinates[0] || coordinates;
+        if (Array.isArray(coordinates[0]) && Array.isArray(coordinates[0][0])) {
+          actualCoords = coordinates[0] as number[][];
+        } else {
+          actualCoords = coordinates;
+        }
         const currentIndex = currentSegment - 1;
         startPoint = actualCoords[currentIndex];
         endPoint = actualCoords[currentIndex + 1] || actualCoords[0];
