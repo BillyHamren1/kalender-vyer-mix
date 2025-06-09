@@ -2,11 +2,12 @@
 import { useState, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { toast } from 'sonner';
+import { calculateDistance, formatDistance } from '../MapUtils';
 
 export const useWallSelection = () => {
   const [showWallDialog, setShowWallDialog] = useState(false);
-  const [pendingRectangle, setPendingRectangle] = useState<any>(null);
-  const [currentSide, setCurrentSide] = useState(1);
+  const [pendingLine, setPendingLine] = useState<any>(null);
+  const [currentSegment, setCurrentSegment] = useState(1);
   const [wallChoices, setWallChoices] = useState<('transparent' | 'white')[]>([]);
   const [highlightedWallId, setHighlightedWallId] = useState<string | null>(null);
   const wallLinesSource = useRef<mapboxgl.GeoJSONSource | null>(null);
@@ -15,12 +16,32 @@ export const useWallSelection = () => {
   const [isDraggingWallLine, setIsDraggingWallLine] = useState(false);
   const [dragWallLineIndex, setDragWallLineIndex] = useState<number | null>(null);
   const [dragWallPointIndex, setDragWallPointIndex] = useState<number | null>(null);
+  const [segmentDistance, setSegmentDistance] = useState<string>('');
 
-  const highlightCurrentWall = (rectangleCoords: number[][], sideIndex: number, map: mapboxgl.Map) => {
+  const highlightCurrentWall = (coordinates: number[][], segmentIndex: number, map: mapboxgl.Map) => {
     if (!map || !map.getSource('wall-highlight')) return;
 
-    const startPoint = rectangleCoords[sideIndex];
-    const endPoint = rectangleCoords[sideIndex + 1] || rectangleCoords[0];
+    let startPoint: number[], endPoint: number[];
+
+    if (pendingLine?.geometry.type === 'Polygon') {
+      // For rectangles/polygons
+      startPoint = coordinates[segmentIndex];
+      endPoint = coordinates[segmentIndex + 1] || coordinates[0];
+    } else if (pendingLine?.geometry.type === 'LineString') {
+      // For line strings
+      if (segmentIndex < coordinates.length - 1) {
+        startPoint = coordinates[segmentIndex];
+        endPoint = coordinates[segmentIndex + 1];
+      } else {
+        return; // No more segments
+      }
+    } else {
+      return;
+    }
+
+    // Calculate and display distance
+    const distance = calculateDistance(startPoint, endPoint);
+    setSegmentDistance(formatDistance(distance));
 
     const highlightFeature = {
       type: "Feature" as const,
@@ -46,17 +67,39 @@ export const useWallSelection = () => {
       type: 'FeatureCollection',
       features: []
     });
+    setSegmentDistance('');
+  };
+
+  const getTotalSegments = () => {
+    if (!pendingLine) return 0;
+    
+    if (pendingLine.geometry.type === 'Polygon') {
+      return 4; // Rectangle has 4 sides
+    } else if (pendingLine.geometry.type === 'LineString') {
+      return pendingLine.geometry.coordinates.length - 1; // Number of segments
+    }
+    return 0;
   };
 
   const handleWallChoice = (choice: 'transparent' | 'white') => {
     const newChoices = [...wallChoices, choice];
     setWallChoices(newChoices);
     
-    if (pendingRectangle && wallLinesSource.current) {
-      const coordinates = pendingRectangle.geometry.coordinates[0];
-      const currentIndex = currentSide - 1;
-      const startPoint = coordinates[currentIndex];
-      const endPoint = coordinates[currentIndex + 1] || coordinates[0];
+    if (pendingLine && wallLinesSource.current) {
+      const coordinates = pendingLine.geometry.coordinates;
+      let startPoint: number[], endPoint: number[];
+
+      if (pendingLine.geometry.type === 'Polygon') {
+        const currentIndex = currentSegment - 1;
+        startPoint = coordinates[0][currentIndex];
+        endPoint = coordinates[0][currentIndex + 1] || coordinates[0][0];
+      } else if (pendingLine.geometry.type === 'LineString') {
+        const currentIndex = currentSegment - 1;
+        startPoint = coordinates[currentIndex];
+        endPoint = coordinates[currentIndex + 1];
+      } else {
+        return;
+      }
       
       const lineColor = choice === 'transparent' ? '#3b82f6' : '#000000';
       
@@ -69,7 +112,7 @@ export const useWallSelection = () => {
         properties: {
           color: lineColor,
           wallType: choice,
-          id: `wall-${Date.now()}-${currentIndex}`
+          id: `wall-${Date.now()}-${currentSegment}`
         }
       };
       
@@ -81,18 +124,21 @@ export const useWallSelection = () => {
         features: updatedWallLines
       });
       
-      console.log(`Added ${choice} wall line with color ${lineColor}`);
+      console.log(`Added ${choice} wall line with color ${lineColor}, distance: ${segmentDistance}`);
     }
     
-    if (currentSide < 4) {
-      const nextSide = currentSide + 1;
-      setCurrentSide(nextSide);
+    const totalSegments = getTotalSegments();
+    if (currentSegment < totalSegments) {
+      const nextSegment = currentSegment + 1;
+      setCurrentSegment(nextSegment);
     } else {
       setShowWallDialog(false);
-      setPendingRectangle(null);
-      setCurrentSide(1);
+      setPendingLine(null);
+      setCurrentSegment(1);
       setWallChoices([]);
-      toast.success('Rectangle with wall choices completed!');
+      setSegmentDistance('');
+      const shapeType = pendingLine?.geometry.type === 'Polygon' ? 'Rectangle' : 'Line';
+      toast.success(`${shapeType} with wall choices completed!`);
     }
   };
 
@@ -119,10 +165,10 @@ export const useWallSelection = () => {
   return {
     showWallDialog,
     setShowWallDialog,
-    pendingRectangle,
-    setPendingRectangle,
-    currentSide,
-    setCurrentSide,
+    pendingLine,
+    setPendingLine,
+    currentSegment,
+    setCurrentSegment,
     wallChoices,
     setWallChoices,
     highlightedWallId,
@@ -138,6 +184,8 @@ export const useWallSelection = () => {
     setDragWallLineIndex,
     dragWallPointIndex,
     setDragWallPointIndex,
+    segmentDistance,
+    getTotalSegments,
     highlightCurrentWall,
     clearWallHighlight,
     handleWallChoice,

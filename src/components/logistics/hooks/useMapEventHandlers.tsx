@@ -13,8 +13,8 @@ export const useMapEventHandlers = (
   map: React.MutableRefObject<mapboxgl.Map | null>,
   draw: React.MutableRefObject<MapboxDraw | null>,
   mapInitialized: boolean,
-  setPendingRectangle: (rectangle: any) => void,
-  setCurrentSide: (side: number) => void,
+  setPendingLine: (line: any) => void,
+  setCurrentSegment: (segment: number) => void,
   setWallChoices: (choices: ('transparent' | 'white')[]) => void,
   setShowWallDialog: (show: boolean) => void,
   highlightCurrentWall: (coords: number[][], index: number, map: mapboxgl.Map) => void,
@@ -38,14 +38,31 @@ export const useMapEventHandlers = (
           draw.current.delete(feature.id);
         }
         
-        setPendingRectangle(feature);
-        setCurrentSide(1);
+        setPendingLine(feature);
+        setCurrentSegment(1);
         setWallChoices([]);
         
         const coordinates = feature.geometry.coordinates[0];
         highlightCurrentWall(coordinates, 0, map.current!);
         
         setShowWallDialog(true);
+      } else if (feature.geometry.type === 'LineString') {
+        console.log('Line created, starting wall selection...');
+        
+        if (draw.current) {
+          draw.current.delete(feature.id);
+        }
+        
+        setPendingLine(feature);
+        setCurrentSegment(1);
+        setWallChoices([]);
+        
+        const coordinates = feature.geometry.coordinates;
+        // For line strings, we treat each segment as a wall
+        if (coordinates.length > 1) {
+          highlightCurrentWall(coordinates, 0, map.current!);
+          setShowWallDialog(true);
+        }
       } else {
         toast.success(`${feature.geometry.type} created`);
       }

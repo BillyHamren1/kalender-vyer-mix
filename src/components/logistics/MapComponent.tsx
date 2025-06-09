@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
@@ -82,10 +81,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const {
     showWallDialog,
     setShowWallDialog,
-    pendingRectangle,
-    setPendingRectangle,
-    currentSide,
-    setCurrentSide,
+    pendingLine,
+    setPendingLine,
+    currentSegment,
+    setCurrentSegment,
     wallChoices,
     setWallChoices,
     highlightedWallId,
@@ -101,6 +100,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
     setDragWallLineIndex,
     dragWallPointIndex,
     setDragWallPointIndex,
+    segmentDistance,
+    getTotalSegments,
     highlightCurrentWall,
     clearWallHighlight,
     handleWallChoice,
@@ -341,8 +342,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
     map,
     draw,
     mapInitialized,
-    setPendingRectangle,
-    setCurrentSide,
+    setPendingLine,
+    setCurrentSegment,
     setWallChoices,
     setShowWallDialog,
     highlightCurrentWall,
@@ -722,8 +723,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
       {/* Wall Selection Dialog */}
       <WallSelectionDialog
         open={showWallDialog}
-        currentSide={currentSide}
-        totalSides={4}
+        currentSegment={currentSegment}
+        totalSegments={getTotalSegments()}
+        segmentDistance={segmentDistance}
         onTransparentChoice={() => handleWallChoice('transparent')}
         onWhiteChoice={() => handleWallChoice('white')}
       />
