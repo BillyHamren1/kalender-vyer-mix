@@ -1284,7 +1284,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       }
     }));
 
-    // Update the source with point features for the selected line
+    // Update the source with both wall lines and point features for the selected line
     wallLinesSource.current.setData({
       type: 'FeatureCollection',
       features: [...wallLinesData, ...pointFeatures]
