@@ -22,7 +22,8 @@ export const useMapEventHandlers = (
   handleWallLineClick: (e: mapboxgl.MapMouseEvent) => void,
   handleWallPointMouseDown: (e: mapboxgl.MapMouseEvent) => void,
   selectedWallLineId: string | null,
-  deleteSelectedWallLine: () => void
+  deleteSelectedWallLine: () => void,
+  setPendingFeatureId: (id: string | null) => void
 ) => {
   useEffect(() => {
     if (!map.current || !draw.current || !mapInitialized) return;
@@ -34,10 +35,8 @@ export const useMapEventHandlers = (
       if (feature.geometry.type === 'Polygon') {
         console.log('Rectangle created, starting wall selection...');
         
-        if (draw.current) {
-          draw.current.delete(feature.id);
-        }
-        
+        // Store the feature ID but don't delete it yet
+        setPendingFeatureId(feature.id);
         setPendingLine(feature);
         setCurrentSegment(1);
         setWallChoices([]);
@@ -49,10 +48,8 @@ export const useMapEventHandlers = (
       } else if (feature.geometry.type === 'LineString') {
         console.log('Line created, starting wall selection...');
         
-        if (draw.current) {
-          draw.current.delete(feature.id);
-        }
-        
+        // Store the feature ID but don't delete it yet
+        setPendingFeatureId(feature.id);
         setPendingLine(feature);
         setCurrentSegment(1);
         setWallChoices([]);

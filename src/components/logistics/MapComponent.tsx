@@ -83,6 +83,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
     setShowWallDialog,
     pendingLine,
     setPendingLine,
+    pendingFeatureId,
+    setPendingFeatureId,
     currentSegment,
     setCurrentSegment,
     wallChoices,
@@ -105,6 +107,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     highlightCurrentWall,
     clearWallHighlight,
     handleWallChoice,
+    cancelWallSelection,
     deleteSelectedWallLine
   } = useWallSelection();
 
@@ -351,7 +354,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
     handleWallLineClick,
     handleWallPointMouseDown,
     selectedWallLineId,
-    deleteSelectedWallLine
+    deleteSelectedWallLine,
+    setPendingFeatureId
   );
 
   // Initialize map
@@ -726,8 +730,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
         currentSegment={currentSegment}
         totalSegments={getTotalSegments()}
         segmentDistance={segmentDistance}
-        onTransparentChoice={() => handleWallChoice('transparent')}
-        onWhiteChoice={() => handleWallChoice('white')}
+        onTransparentChoice={() => handleWallChoice('transparent', map.current!, draw)}
+        onWhiteChoice={() => handleWallChoice('white', map.current!, draw)}
+        onCancel={() => cancelWallSelection(map.current!)}
       />
 
       {/* Map Controls */}

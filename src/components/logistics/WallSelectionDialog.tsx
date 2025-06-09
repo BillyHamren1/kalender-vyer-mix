@@ -10,6 +10,7 @@ interface WallSelectionDialogProps {
   segmentDistance?: string;
   onTransparentChoice: () => void;
   onWhiteChoice: () => void;
+  onCancel: () => void;
 }
 
 export const WallSelectionDialog: React.FC<WallSelectionDialogProps> = ({
@@ -18,7 +19,8 @@ export const WallSelectionDialog: React.FC<WallSelectionDialogProps> = ({
   totalSegments,
   segmentDistance,
   onTransparentChoice,
-  onWhiteChoice
+  onWhiteChoice,
+  onCancel
 }) => {
   if (!open) return null;
 
@@ -32,7 +34,7 @@ export const WallSelectionDialog: React.FC<WallSelectionDialogProps> = ({
           variant="ghost"
           size="sm"
           className="h-6 w-6 p-0"
-          onClick={() => {}} // This will be handled by the parent component
+          onClick={onCancel}
         >
           <X className="h-4 w-4" />
         </Button>

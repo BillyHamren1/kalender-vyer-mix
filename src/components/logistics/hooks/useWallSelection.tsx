@@ -7,6 +7,7 @@ import { calculateDistance, formatDistance } from '../MapUtils';
 export const useWallSelection = () => {
   const [showWallDialog, setShowWallDialog] = useState(false);
   const [pendingLine, setPendingLine] = useState<any>(null);
+  const [pendingFeatureId, setPendingFeatureId] = useState<string | null>(null);
   const [currentSegment, setCurrentSegment] = useState(1);
   const [wallChoices, setWallChoices] = useState<('transparent' | 'white')[]>([]);
   const [highlightedWallId, setHighlightedWallId] = useState<string | null>(null);
@@ -81,7 +82,7 @@ export const useWallSelection = () => {
     return 0;
   };
 
-  const handleWallChoice = (choice: 'transparent' | 'white') => {
+  const handleWallChoice = (choice: 'transparent' | 'white', map: mapboxgl.Map, draw: React.MutableRefObject<any>) => {
     const newChoices = [...wallChoices, choice];
     setWallChoices(newChoices);
     
@@ -131,15 +132,41 @@ export const useWallSelection = () => {
     if (currentSegment < totalSegments) {
       const nextSegment = currentSegment + 1;
       setCurrentSegment(nextSegment);
+      
+      // Highlight the next segment
+      if (pendingLine) {
+        const coordinates = pendingLine.geometry.coordinates;
+        highlightCurrentWall(coordinates, nextSegment - 1, map);
+      }
     } else {
+      // All segments processed, clean up
       setShowWallDialog(false);
+      clearWallHighlight(map);
+      
+      // Now remove the original drawn feature
+      if (pendingFeatureId && draw.current) {
+        draw.current.delete(pendingFeatureId);
+      }
+      
       setPendingLine(null);
+      setPendingFeatureId(null);
       setCurrentSegment(1);
       setWallChoices([]);
       setSegmentDistance('');
       const shapeType = pendingLine?.geometry.type === 'Polygon' ? 'Rectangle' : 'Line';
       toast.success(`${shapeType} with wall choices completed!`);
     }
+  };
+
+  const cancelWallSelection = (map: mapboxgl.Map) => {
+    setShowWallDialog(false);
+    clearWallHighlight(map);
+    setPendingLine(null);
+    setPendingFeatureId(null);
+    setCurrentSegment(1);
+    setWallChoices([]);
+    setSegmentDistance('');
+    toast.info('Wall selection cancelled');
   };
 
   const deleteSelectedWallLine = () => {
@@ -167,6 +194,8 @@ export const useWallSelection = () => {
     setShowWallDialog,
     pendingLine,
     setPendingLine,
+    pendingFeatureId,
+    setPendingFeatureId,
     currentSegment,
     setCurrentSegment,
     wallChoices,
@@ -189,6 +218,7 @@ export const useWallSelection = () => {
     highlightCurrentWall,
     clearWallHighlight,
     handleWallChoice,
+    cancelWallSelection,
     deleteSelectedWallLine
   };
 };
