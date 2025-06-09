@@ -543,81 +543,22 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
-      // ENHANCED segment numbers - much larger and more prominent
+      // Simple arrow pointing to current wall - just a large arrow symbol
       map.current?.addLayer({
-        'id': 'segment-numbers-layer',
-        'type': 'circle',
-        'source': 'segment-numbers',
-        'paint': {
-          'circle-radius': [
-            'case',
-            ['get', 'isCurrent'],
-            24, // Much larger for current segment
-            16  // Larger for other segments
-          ],
-          'circle-color': [
-            'case',
-            ['get', 'isCurrent'],
-            '#FF1493', // Bright pink for current
-            '#3b82f6'  // Blue for others
-          ],
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 3,
-          'circle-opacity': [
-            'case',
-            ['get', 'isCurrent'],
-            1.0,
-            0.8
-          ]
-        }
-      });
-
-      // ENHANCED segment number labels - larger and more visible
-      map.current?.addLayer({
-        'id': 'segment-numbers-text',
+        'id': 'wall-arrow-layer',
         'type': 'symbol',
         'source': 'segment-numbers',
         'layout': {
-          'text-field': ['to-string', ['get', 'segmentNumber']],
+          'text-field': '→',
           'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-          'text-size': [
-            'case',
-            ['get', 'isCurrent'],
-            18, // Much larger for current segment
-            14  // Larger for other segments
-          ],
-          'text-anchor': 'center'
+          'text-size': 32,
+          'text-anchor': 'center',
+          'text-offset': [0, -2]
         },
         'paint': {
-          'text-color': '#ffffff',
-          'text-halo-color': 'rgba(0,0,0,0.9)',
-          'text-halo-width': 2
-        }
-      });
-
-      // Add pulsing animation layer for current segment
-      map.current?.addLayer({
-        'id': 'wall-highlight-pulse',
-        'type': 'line',
-        'source': 'wall-highlight',
-        'layout': { 'line-cap': 'round', 'line-join': 'round' },
-        'paint': {
-          'line-color': '#FFD700', // Gold color for pulse
-          'line-width': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            10, 8,
-            18, 16
-          ],
-          'line-opacity': [
-            'interpolate',
-            ['linear'],
-            ['+', ['*', ['get', 'segmentNumber'], 0.5], ['%', ['*', ['get', 'segmentNumber'], ['get', 'time']], 1]],
-            0, 0.3,
-            0.5, 0.8,
-            1, 0.3
-          ]
+          'text-color': '#FF1493',
+          'text-halo-color': '#ffffff',
+          'text-halo-width': 3
         }
       });
 

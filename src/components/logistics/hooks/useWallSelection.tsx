@@ -40,7 +40,7 @@ export const useWallSelection = () => {
         actualCoords = coordinates[0] as number[][];
       } else {
         // If it's already flattened, use as is
-        actualCoords = coordinates;
+        actualCoords = coordinates as number[][];
       }
       console.log('Extracted polygon ring coordinates:', actualCoords);
       
@@ -48,7 +48,7 @@ export const useWallSelection = () => {
       endPoint = actualCoords[segmentIndex + 1] || actualCoords[0];
     } else if (pendingLine?.geometry.type === 'LineString') {
       // LineString coordinates are [[x,y], [x,y], [x,y]]
-      actualCoords = coordinates;
+      actualCoords = coordinates as number[][];
       if (segmentIndex < coordinates.length - 1) {
         startPoint = coordinates[segmentIndex];
         endPoint = coordinates[segmentIndex + 1];
@@ -96,81 +96,54 @@ export const useWallSelection = () => {
       console.error('Error setting highlight feature:', error);
     }
 
-    // Add all segment numbers for context
-    addAllSegmentNumbers(actualCoords, map);
+    // Add simple arrow pointing to the current wall
+    addWallArrow(actualCoords, segmentIndex, map);
   };
 
-  const addAllSegmentNumbers = (coordinates: number[][], map: mapboxgl.Map) => {
+  const addWallArrow = (coordinates: number[][], segmentIndex: number, map: mapboxgl.Map) => {
     if (!map || !map.getSource('segment-numbers')) {
       console.error('Map or segment-numbers source not available');
       return;
     }
 
-    const features: any[] = [];
+    const startPoint = coordinates[segmentIndex];
+    const endPoint = coordinates[segmentIndex + 1] || coordinates[0];
     
-    if (pendingLine?.geometry.type === 'Polygon') {
-      // For rectangles - 4 segments
-      for (let i = 0; i < 4; i++) {
-        const startPoint = coordinates[i];
-        const endPoint = coordinates[i + 1] || coordinates[0];
-        
-        if (!startPoint || !endPoint) {
-          console.error(`Invalid points for segment ${i}:`, { startPoint, endPoint });
-          continue;
-        }
-        
-        const midPoint = [
-          (startPoint[0] + endPoint[0]) / 2,
-          (startPoint[1] + endPoint[1]) / 2
-        ];
-        
-        features.push({
-          type: "Feature",
-          geometry: {
-            type: "Point",
-            coordinates: midPoint
-          },
-          properties: {
-            segmentNumber: i + 1,
-            isCurrent: i === currentSegment - 1
-          }
-        });
-      }
-    } else if (pendingLine?.geometry.type === 'LineString') {
-      // For line strings
-      for (let i = 0; i < coordinates.length - 1; i++) {
-        const startPoint = coordinates[i];
-        const endPoint = coordinates[i + 1];
-        const midPoint = [
-          (startPoint[0] + endPoint[0]) / 2,
-          (startPoint[1] + endPoint[1]) / 2
-        ];
-        
-        features.push({
-          type: "Feature",
-          geometry: {
-            type: "Point",
-            coordinates: midPoint
-          },
-          properties: {
-            segmentNumber: i + 1,
-            isCurrent: i === currentSegment - 1
-          }
-        });
-      }
+    if (!startPoint || !endPoint) {
+      console.error(`Invalid points for segment ${segmentIndex}:`, { startPoint, endPoint });
+      return;
     }
+    
+    // Calculate the midpoint of the current wall segment
+    const midPoint = [
+      (startPoint[0] + endPoint[0]) / 2,
+      (startPoint[1] + endPoint[1]) / 2
+    ];
+    
+    // Create a single arrow feature pointing to the current wall
+    const arrowFeature = {
+      type: "Feature",
+      geometry: {
+        type: "Point",
+        coordinates: midPoint
+      },
+      properties: {
+        segmentNumber: segmentIndex + 1,
+        isCurrent: true
+      }
+    };
 
-    console.log(`Adding ${features.length} segment number features`, features);
+    console.log(`Adding arrow for segment ${segmentIndex + 1}`, arrowFeature);
 
     try {
       const source = map.getSource('segment-numbers') as mapboxgl.GeoJSONSource;
       source.setData({
         type: 'FeatureCollection',
-        features
+        features: [arrowFeature]
       });
-      console.log('Segment numbers set successfully');
+      console.log('Arrow set successfully');
     } catch (error) {
-      console.error('Error setting segment numbers:', error);
+      console.error('Error setting arrow:', error);
     }
   };
 
@@ -225,7 +198,7 @@ export const useWallSelection = () => {
         if (Array.isArray(coordinates[0]) && Array.isArray(coordinates[0][0])) {
           actualCoords = coordinates[0] as number[][];
         } else {
-          actualCoords = coordinates;
+          actualCoords = coordinates as number[][];
         }
         const currentIndex = currentSegment - 1;
         startPoint = actualCoords[currentIndex];
