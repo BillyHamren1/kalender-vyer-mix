@@ -78,6 +78,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [currentSide, setCurrentSide] = useState(1);
   const [wallChoices, setWallChoices] = useState<('transparent' | 'white')[]>([]);
   const [highlightedWallId, setHighlightedWallId] = useState<string | null>(null);
+  
+  // New refs for wall lines sources
+  const wallLinesSource = useRef<mapboxgl.GeoJSONSource | null>(null);
 
   // Handle window messages for iframe resize
   useEffect(() => {
@@ -201,8 +204,18 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
+      // Add wall lines source for colored wall lines
+      map.current?.addSource('wall-lines', {
+        'type': 'geojson',
+        'data': {
+          'type': 'FeatureCollection',
+          'features': []
+        }
+      });
+
       measureSource.current = map.current?.getSource('measure-points') as mapboxgl.GeoJSONSource;
       freehandSource.current = map.current?.getSource('freehand-lines') as mapboxgl.GeoJSONSource;
+      wallLinesSource.current = map.current?.getSource('wall-lines') as mapboxgl.GeoJSONSource;
 
       map.current?.addLayer({
         'id': 'measure-lines',
@@ -262,6 +275,21 @@ const MapComponent: React.FC<MapComponentProps> = ({
         'paint': {
           'line-color': selectedColor,
           'line-width': 3
+        }
+      });
+
+      // Add wall lines layer for colored wall lines
+      map.current?.addLayer({
+        'id': 'wall-lines-layer',
+        'type': 'line',
+        'source': 'wall-lines',
+        'layout': {
+          'line-cap': 'round',
+          'line-join': 'round'
+        },
+        'paint': {
+          'line-color': ['get', 'color'],
+          'line-width': 4
         }
       });
 
@@ -1099,8 +1127,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
     const newChoices = [...wallChoices, choice];
     setWallChoices(newChoices);
     
-    // Create the line immediately with the chosen color
-    if (pendingRectangle && draw.current) {
+    // Create the wall line as a proper map layer feature with correct color
+    if (pendingRectangle && wallLinesSource.current) {
       const coordinates = pendingRectangle.geometry.coordinates[0];
       const currentIndex = currentSide - 1; // Convert to 0-based index
       const startPoint = coordinates[currentIndex];
@@ -1108,7 +1136,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
       
       const lineColor = choice === 'transparent' ? '#3b82f6' : '#000000';
       
-      const lineFeature = {
+      // Get existing wall lines
+      const existingData = wallLinesSource.current._data || {
+        type: 'FeatureCollection',
+        features: []
+      };
+      
+      const newLineFeature = {
         type: "Feature" as const,
         geometry: {
           type: "LineString" as const,
@@ -1121,8 +1155,16 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       };
       
-      // Add the line immediately
-      draw.current.add(lineFeature);
+      // Add the new line to existing features
+      const updatedFeatures = [...existingData.features, newLineFeature];
+      
+      // Update the wall lines source
+      wallLinesSource.current.setData({
+        type: 'FeatureCollection',
+        features: updatedFeatures
+      });
+      
+      console.log(`Added ${choice} wall line with color ${lineColor}`);
     }
     
     if (currentSide < 4) {
