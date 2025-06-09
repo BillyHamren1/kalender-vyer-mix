@@ -19,8 +19,17 @@ export const useWallSelection = () => {
   const [segmentDistance, setSegmentDistance] = useState<string>('');
 
   const highlightCurrentWall = (coordinates: number[][][] | number[][], segmentIndex: number, map: mapboxgl.Map) => {
-    if (!map || !map.getSource('wall-highlight')) {
-      console.error('Map or wall-highlight source not available');
+    console.log('highlightCurrentWall called with segmentIndex:', segmentIndex);
+    
+    if (!map) {
+      console.error('Map not available');
+      return;
+    }
+
+    // Wait for map to be fully loaded if sources don't exist yet
+    if (!map.getSource('wall-highlight') || !map.getSource('segment-numbers')) {
+      console.log('Sources not ready, waiting for map load...');
+      setTimeout(() => highlightCurrentWall(coordinates, segmentIndex, map), 100);
       return;
     }
 
@@ -241,7 +250,7 @@ export const useWallSelection = () => {
       const nextSegment = currentSegment + 1;
       setCurrentSegment(nextSegment);
       
-      // Highlight the next segment
+      // Highlight the next segment immediately
       if (pendingLine) {
         const coordinates = pendingLine.geometry.coordinates;
         highlightCurrentWall(coordinates, nextSegment - 1, map);
