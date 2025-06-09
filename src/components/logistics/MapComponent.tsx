@@ -14,8 +14,7 @@ import { useMapState } from './hooks/useMapState';
 import { useMeasurement } from './hooks/useMeasurement';
 import { useWallSelection } from './hooks/useWallSelection';
 import { useFreehandDrawing } from './hooks/useFreehandDrawing';
-import { useMapEventHandlers } from './hooks/useMapEventHandlers';
-import { useMapSnapshot } from './hooks/useMapSnapshot';
+import { useMapEventHandlers } from './hooks/useMapSnapshot';
 
 interface MapComponentProps {
   bookings: Booking[];
@@ -435,6 +434,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
         'data': { 'type': 'FeatureCollection', 'features': [] }
       });
 
+      map.current?.addSource('segment-numbers', {
+        'type': 'geojson',
+        'data': { 'type': 'FeatureCollection', 'features': [] }
+      });
+
       measureSource.current = map.current?.getSource('measure-points') as mapboxgl.GeoJSONSource;
       freehandSource.current = map.current?.getSource('freehand-lines') as mapboxgl.GeoJSONSource;
       wallLinesSource.current = map.current?.getSource('wall-lines') as mapboxgl.GeoJSONSource;
@@ -524,15 +528,74 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
+      // Enhanced wall highlight layer with pulsing animation
       map.current?.addLayer({
         'id': 'wall-highlight-layer',
         'type': 'line',
         'source': 'wall-highlight',
         'layout': { 'line-cap': 'round', 'line-join': 'round' },
         'paint': {
-          'line-color': '#ff0000',
-          'line-width': 6,
-          'line-opacity': 0.8
+          'line-color': '#FFD700', // Bright gold/yellow color
+          'line-width': 10,
+          'line-opacity': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            10, 0.8,
+            18, 0.9
+          ]
+        }
+      });
+
+      // Add segment numbers layer
+      map.current?.addLayer({
+        'id': 'segment-numbers-layer',
+        'type': 'circle',
+        'source': 'segment-numbers',
+        'paint': {
+          'circle-radius': [
+            'case',
+            ['get', 'isCurrent'],
+            16,
+            12
+          ],
+          'circle-color': [
+            'case',
+            ['get', 'isCurrent'],
+            '#FFD700',
+            '#3b82f6'
+          ],
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2,
+          'circle-opacity': [
+            'case',
+            ['get', 'isCurrent'],
+            1.0,
+            0.8
+          ]
+        }
+      });
+
+      // Add segment number labels
+      map.current?.addLayer({
+        'id': 'segment-numbers-text',
+        'type': 'symbol',
+        'source': 'segment-numbers',
+        'layout': {
+          'text-field': ['to-string', ['get', 'segmentNumber']],
+          'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+          'text-size': [
+            'case',
+            ['get', 'isCurrent'],
+            14,
+            12
+          ],
+          'text-anchor': 'center'
+        },
+        'paint': {
+          'text-color': '#ffffff',
+          'text-halo-color': 'rgba(0,0,0,0.8)',
+          'text-halo-width': 1
         }
       });
 

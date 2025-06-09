@@ -1,4 +1,3 @@
-
 import { useState, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { toast } from 'sonner';
@@ -44,30 +43,122 @@ export const useWallSelection = () => {
     const distance = calculateDistance(startPoint, endPoint);
     setSegmentDistance(formatDistance(distance));
 
+    // Create highlight with segment number label
+    const midPoint = [
+      (startPoint[0] + endPoint[0]) / 2,
+      (startPoint[1] + endPoint[1]) / 2
+    ];
+
     const highlightFeature = {
       type: "Feature" as const,
       geometry: {
         type: "LineString" as const,
         coordinates: [startPoint, endPoint]
       },
-      properties: {}
+      properties: {
+        segmentNumber: segmentIndex + 1
+      }
+    };
+
+    const labelFeature = {
+      type: "Feature" as const,
+      geometry: {
+        type: "Point" as const,
+        coordinates: midPoint
+      },
+      properties: {
+        segmentNumber: segmentIndex + 1,
+        isLabel: true
+      }
     };
 
     const source = map.getSource('wall-highlight') as mapboxgl.GeoJSONSource;
     source.setData({
       type: 'FeatureCollection',
-      features: [highlightFeature]
+      features: [highlightFeature, labelFeature]
+    });
+
+    // Add all segment numbers for context
+    addAllSegmentNumbers(coordinates, map);
+  };
+
+  const addAllSegmentNumbers = (coordinates: number[][], map: mapboxgl.Map) => {
+    if (!map || !map.getSource('segment-numbers')) return;
+
+    const features: any[] = [];
+    
+    if (pendingLine?.geometry.type === 'Polygon') {
+      // For rectangles - 4 segments
+      for (let i = 0; i < 4; i++) {
+        const startPoint = coordinates[i];
+        const endPoint = coordinates[i + 1] || coordinates[0];
+        const midPoint = [
+          (startPoint[0] + endPoint[0]) / 2,
+          (startPoint[1] + endPoint[1]) / 2
+        ];
+        
+        features.push({
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: midPoint
+          },
+          properties: {
+            segmentNumber: i + 1,
+            isCurrent: i === currentSegment - 1
+          }
+        });
+      }
+    } else if (pendingLine?.geometry.type === 'LineString') {
+      // For line strings
+      for (let i = 0; i < coordinates.length - 1; i++) {
+        const startPoint = coordinates[i];
+        const endPoint = coordinates[i + 1];
+        const midPoint = [
+          (startPoint[0] + endPoint[0]) / 2,
+          (startPoint[1] + endPoint[1]) / 2
+        ];
+        
+        features.push({
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: midPoint
+          },
+          properties: {
+            segmentNumber: i + 1,
+            isCurrent: i === currentSegment - 1
+          }
+        });
+      }
+    }
+
+    const source = map.getSource('segment-numbers') as mapboxgl.GeoJSONSource;
+    source.setData({
+      type: 'FeatureCollection',
+      features
     });
   };
 
   const clearWallHighlight = (map: mapboxgl.Map) => {
-    if (!map || !map.getSource('wall-highlight')) return;
+    if (!map) return;
 
-    const source = map.getSource('wall-highlight') as mapboxgl.GeoJSONSource;
-    source.setData({
-      type: 'FeatureCollection',
-      features: []
-    });
+    if (map.getSource('wall-highlight')) {
+      const source = map.getSource('wall-highlight') as mapboxgl.GeoJSONSource;
+      source.setData({
+        type: 'FeatureCollection',
+        features: []
+      });
+    }
+
+    if (map.getSource('segment-numbers')) {
+      const source = map.getSource('segment-numbers') as mapboxgl.GeoJSONSource;
+      source.setData({
+        type: 'FeatureCollection',
+        features: []
+      });
+    }
+
     setSegmentDistance('');
   };
 
