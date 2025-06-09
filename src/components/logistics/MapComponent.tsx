@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
@@ -14,7 +15,8 @@ import { useMapState } from './hooks/useMapState';
 import { useMeasurement } from './hooks/useMeasurement';
 import { useWallSelection } from './hooks/useWallSelection';
 import { useFreehandDrawing } from './hooks/useFreehandDrawing';
-import { useMapEventHandlers } from './hooks/useMapSnapshot';
+import { useMapEventHandlers } from './hooks/useMapEventHandlers';
+import { useMapSnapshot } from './hooks/useMapSnapshot';
 
 interface MapComponentProps {
   bookings: Booking[];
