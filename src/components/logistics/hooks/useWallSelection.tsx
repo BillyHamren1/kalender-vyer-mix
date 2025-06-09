@@ -1,3 +1,4 @@
+
 import { useState, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { toast } from 'sonner';
@@ -26,113 +27,104 @@ export const useWallSelection = () => {
       return;
     }
 
-    // For initial highlight (segmentIndex 0), ensure we wait for sources to be ready
-    const ensureSourcesReady = () => {
-      if (!map.getSource('wall-highlight') || !map.getSource('segment-numbers')) {
-        console.log('Sources not ready, retrying...');
-        return false;
-      }
-      return true;
-    };
+    // FORCE immediate highlighting - don't wait for sources
+    const forceHighlight = () => {
+      console.log('Raw coordinates received:', coordinates);
+      console.log('Pending line geometry type:', pendingLine?.geometry.type);
 
-    if (!ensureSourcesReady()) {
-      // For initial highlight, try multiple times with increasing delays
-      const maxRetries = 10;
-      let retryCount = 0;
-      
-      const retryHighlight = () => {
-        retryCount++;
-        if (ensureSourcesReady()) {
-          highlightCurrentWall(coordinates, segmentIndex, map);
-        } else if (retryCount < maxRetries) {
-          setTimeout(retryHighlight, 50 * retryCount); // Increasing delay
+      let startPoint: number[], endPoint: number[];
+      let actualCoords: number[][];
+
+      // Handle different coordinate structures properly
+      if (pendingLine?.geometry.type === 'Polygon') {
+        // Polygon coordinates are [[[x,y], [x,y], [x,y], [x,y], [x,y]]]
+        // We need the first (and only) ring: coordinates[0]
+        if (Array.isArray(coordinates) && Array.isArray(coordinates[0]) && Array.isArray(coordinates[0][0])) {
+          // coordinates is number[][][] - extract first ring
+          actualCoords = (coordinates as number[][][])[0];
         } else {
-          console.error('Failed to highlight wall after maximum retries');
+          console.error('Invalid polygon coordinate structure');
+          return;
+        }
+        console.log('Extracted polygon ring coordinates:', actualCoords);
+        
+        startPoint = actualCoords[segmentIndex];
+        endPoint = actualCoords[segmentIndex + 1] || actualCoords[0];
+      } else if (pendingLine?.geometry.type === 'LineString') {
+        // LineString coordinates are [[x,y], [x,y], [x,y]]
+        actualCoords = coordinates as number[][];
+        if (segmentIndex < actualCoords.length - 1) {
+          startPoint = actualCoords[segmentIndex];
+          endPoint = actualCoords[segmentIndex + 1];
+        } else {
+          console.warn('No more segments to highlight');
+          return;
+        }
+      } else {
+        console.warn('Unknown geometry type for highlighting');
+        return;
+      }
+
+      console.log(`Highlighting segment ${segmentIndex + 1}:`, { startPoint, endPoint });
+
+      if (!startPoint || !endPoint) {
+        console.error('Invalid start or end point:', { startPoint, endPoint });
+        return;
+      }
+
+      // Calculate and display distance
+      const distance = calculateDistance(startPoint, endPoint);
+      setSegmentDistance(formatDistance(distance));
+
+      // Create very prominent highlight
+      const highlightFeature = {
+        type: "Feature" as const,
+        geometry: {
+          type: "LineString" as const,
+          coordinates: [startPoint, endPoint]
+        },
+        properties: {
+          segmentNumber: segmentIndex + 1,
+          isCurrent: true
         }
       };
-      
-      setTimeout(retryHighlight, 50);
-      return;
-    }
 
-    console.log('Raw coordinates received:', coordinates);
-    console.log('Pending line geometry type:', pendingLine?.geometry.type);
-
-    let startPoint: number[], endPoint: number[];
-    let actualCoords: number[][];
-
-    // Handle different coordinate structures properly
-    if (pendingLine?.geometry.type === 'Polygon') {
-      // Polygon coordinates are [[[x,y], [x,y], [x,y], [x,y], [x,y]]]
-      // We need the first (and only) ring: coordinates[0]
-      if (Array.isArray(coordinates) && Array.isArray(coordinates[0]) && Array.isArray(coordinates[0][0])) {
-        // coordinates is number[][][] - extract first ring
-        actualCoords = (coordinates as number[][][])[0];
-      } else {
-        console.error('Invalid polygon coordinate structure');
-        return;
+      // FORCE set the highlight - create source if it doesn't exist
+      try {
+        let highlightSource = map.getSource('wall-highlight') as mapboxgl.GeoJSONSource;
+        if (!highlightSource) {
+          console.log('Creating wall-highlight source');
+          map.addSource('wall-highlight', {
+            'type': 'geojson',
+            'data': { 'type': 'FeatureCollection', 'features': [] }
+          });
+          highlightSource = map.getSource('wall-highlight') as mapboxgl.GeoJSONSource;
+        }
+        
+        highlightSource.setData({
+          type: 'FeatureCollection',
+          features: [highlightFeature]
+        });
+        console.log('Highlight feature set successfully:', highlightFeature);
+      } catch (error) {
+        console.error('Error setting highlight feature:', error);
       }
-      console.log('Extracted polygon ring coordinates:', actualCoords);
-      
-      startPoint = actualCoords[segmentIndex];
-      endPoint = actualCoords[segmentIndex + 1] || actualCoords[0];
-    } else if (pendingLine?.geometry.type === 'LineString') {
-      // LineString coordinates are [[x,y], [x,y], [x,y]]
-      actualCoords = coordinates as number[][];
-      if (segmentIndex < actualCoords.length - 1) {
-        startPoint = actualCoords[segmentIndex];
-        endPoint = actualCoords[segmentIndex + 1];
-      } else {
-        console.warn('No more segments to highlight');
-        return;
-      }
-    } else {
-      console.warn('Unknown geometry type for highlighting');
-      return;
-    }
 
-    console.log(`Highlighting segment ${segmentIndex + 1}:`, { startPoint, endPoint });
-
-    if (!startPoint || !endPoint) {
-      console.error('Invalid start or end point:', { startPoint, endPoint });
-      return;
-    }
-
-    // Calculate and display distance
-    const distance = calculateDistance(startPoint, endPoint);
-    setSegmentDistance(formatDistance(distance));
-
-    // Create very prominent highlight
-    const highlightFeature = {
-      type: "Feature" as const,
-      geometry: {
-        type: "LineString" as const,
-        coordinates: [startPoint, endPoint]
-      },
-      properties: {
-        segmentNumber: segmentIndex + 1,
-        isCurrent: true
-      }
+      // Add arrow pointing AT the current wall
+      addWallArrow(startPoint, endPoint, segmentIndex, map);
     };
 
-    try {
-      const source = map.getSource('wall-highlight') as mapboxgl.GeoJSONSource;
-      source.setData({
-        type: 'FeatureCollection',
-        features: [highlightFeature]
-      });
-      console.log('Highlight feature set successfully:', highlightFeature);
-    } catch (error) {
-      console.error('Error setting highlight feature:', error);
-    }
-
-    // Add arrow pointing AT the current wall
-    addWallArrow(startPoint, endPoint, segmentIndex, map);
+    // Try immediately, then retry if needed
+    forceHighlight();
+    
+    // Also retry after a short delay to ensure it works
+    setTimeout(forceHighlight, 100);
+    setTimeout(forceHighlight, 300);
   };
 
   const addWallArrow = (startPoint: number[], endPoint: number[], segmentIndex: number, map: mapboxgl.Map) => {
-    if (!map || !map.getSource('segment-numbers')) {
-      console.error('Map or segment-numbers source not available');
+    if (!map) {
+      console.error('Map not available for arrow');
       return;
     }
     
@@ -181,9 +173,19 @@ export const useWallSelection = () => {
 
     console.log(`Adding arrow for segment ${segmentIndex + 1}`, arrowFeature);
 
+    // FORCE set the arrow - create source if it doesn't exist
     try {
-      const source = map.getSource('segment-numbers') as mapboxgl.GeoJSONSource;
-      source.setData({
+      let segmentSource = map.getSource('segment-numbers') as mapboxgl.GeoJSONSource;
+      if (!segmentSource) {
+        console.log('Creating segment-numbers source');
+        map.addSource('segment-numbers', {
+          'type': 'geojson',
+          'data': { 'type': 'FeatureCollection', 'features': [] }
+        });
+        segmentSource = map.getSource('segment-numbers') as mapboxgl.GeoJSONSource;
+      }
+      
+      segmentSource.setData({
         type: 'FeatureCollection',
         features: [arrowFeature]
       });
