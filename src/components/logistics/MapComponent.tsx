@@ -82,6 +82,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
   // New refs for wall lines sources and data
   const wallLinesSource = useRef<mapboxgl.GeoJSONSource | null>(null);
   const [wallLinesData, setWallLinesData] = useState<any[]>([]);
+  
+  // New state for wall line editing
+  const [selectedWallLineId, setSelectedWallLineId] = useState<string | null>(null);
+  const [isDraggingWallLine, setIsDraggingWallLine] = useState(false);
+  const [dragWallLineIndex, setDragWallLineIndex] = useState<number | null>(null);
+  const [dragWallPointIndex, setDragWallPointIndex] = useState<number | null>(null);
 
   // Handle window messages for iframe resize
   useEffect(() => {
@@ -279,7 +285,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
-      // Add wall lines layer for colored wall lines
+      // Add wall lines layer for colored wall lines with selection highlighting
       map.current?.addLayer({
         'id': 'wall-lines-layer',
         'type': 'line',
@@ -290,7 +296,32 @@ const MapComponent: React.FC<MapComponentProps> = ({
         },
         'paint': {
           'line-color': ['get', 'color'],
-          'line-width': 4
+          'line-width': [
+            'case',
+            ['==', ['get', 'id'], selectedWallLineId || ''],
+            6, // Selected line is thicker
+            4  // Normal line width
+          ],
+          'line-opacity': [
+            'case',
+            ['==', ['get', 'id'], selectedWallLineId || ''],
+            1.0, // Selected line is fully opaque
+            0.8  // Normal opacity
+          ]
+        }
+      });
+
+      // Add wall line points layer for editing
+      map.current?.addLayer({
+        'id': 'wall-line-points',
+        'type': 'circle',
+        'source': 'wall-lines',
+        'filter': ['==', ['get', 'id'], selectedWallLineId || ''],
+        'paint': {
+          'circle-radius': 6,
+          'circle-color': '#ffffff',
+          'circle-stroke-color': '#333333',
+          'circle-stroke-width': 2
         }
       });
 
@@ -331,6 +362,30 @@ const MapComponent: React.FC<MapComponentProps> = ({
       map.current?.on('mouseleave', 'measure-points-layer', () => {
         if (map.current && !isDraggingMeasurePoint) {
           map.current.getCanvas().style.cursor = isMeasuring ? 'crosshair' : '';
+        }
+      });
+
+      map.current?.on('click', 'wall-lines-layer', handleWallLineClick);
+      map.current?.on('mouseenter', 'wall-lines-layer', () => {
+        if (map.current) {
+          map.current.getCanvas().style.cursor = 'pointer';
+        }
+      });
+      map.current?.on('mouseleave', 'wall-lines-layer', () => {
+        if (map.current) {
+          map.current.getCanvas().style.cursor = '';
+        }
+      });
+
+      map.current?.on('mousedown', 'wall-line-points', handleWallPointMouseDown);
+      map.current?.on('mouseenter', 'wall-line-points', () => {
+        if (map.current) {
+          map.current.getCanvas().style.cursor = 'grab';
+        }
+      });
+      map.current?.on('mouseleave', 'wall-line-points', () => {
+        if (map.current && !isDraggingWallLine) {
+          map.current.getCanvas().style.cursor = '';
         }
       });
 
@@ -390,7 +445,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       map.current?.remove();
       map.current = null;
     };
-  }, [mapboxToken, isLoadingToken, centerLat, centerLng, currentMapStyle]);
+  }, [mapboxToken, isLoadingToken, centerLat, centerLng, currentMapStyle, selectedWallLineId]);
 
   const cleanupDragListeners = () => {
     if (dragHandlers.current.mousemove) {
@@ -1152,7 +1207,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         properties: {
           color: lineColor,
           wallType: choice,
-          id: Date.now() + currentIndex
+          id: `wall-${Date.now()}-${currentIndex}`
         }
       };
       
@@ -1193,6 +1248,169 @@ const MapComponent: React.FC<MapComponentProps> = ({
       
       toast.success('Rectangle with wall choices completed!');
     }
+  };
+
+  const handleWallLineClick = (e: mapboxgl.MapMouseEvent) => {
+    const features = e.features;
+    if (features && features.length > 0) {
+      const wallLineId = features[0].properties?.id;
+      if (wallLineId) {
+        setSelectedWallLineId(wallLineId);
+        
+        // Update the wall line points layer to show edit points
+        updateWallLinePointsDisplay(wallLineId);
+        
+        toast.info('Wall line selected. Drag the end points to edit or press Delete to remove.');
+      }
+    }
+  };
+
+  const updateWallLinePointsDisplay = (wallLineId: string) => {
+    if (!wallLinesSource.current) return;
+
+    const wallLine = wallLinesData.find(line => line.properties.id === wallLineId);
+    if (!wallLine) return;
+
+    const coordinates = wallLine.geometry.coordinates;
+    const pointFeatures = coordinates.map((coord: number[], index: number) => ({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: coord
+      },
+      properties: {
+        id: wallLineId,
+        pointIndex: index
+      }
+    }));
+
+    // Update the source with point features for the selected line
+    wallLinesSource.current.setData({
+      type: 'FeatureCollection',
+      features: [...wallLinesData, ...pointFeatures]
+    });
+  };
+
+  const handleWallPointMouseDown = (e: mapboxgl.MapMouseEvent) => {
+    e.preventDefault();
+    
+    const features = map.current?.queryRenderedFeatures(e.point, {
+      layers: ['wall-line-points']
+    });
+    
+    if (features && features.length > 0) {
+      const wallLineId = features[0].properties?.id;
+      const pointIndex = features[0].properties?.pointIndex;
+      
+      if (typeof wallLineId === 'string' && typeof pointIndex === 'number') {
+        console.log('Starting drag for wall point:', wallLineId, pointIndex);
+        setIsDraggingWallLine(true);
+        setDragWallLineIndex(wallLinesData.findIndex(line => line.properties.id === wallLineId));
+        setDragWallPointIndex(pointIndex);
+        
+        if (map.current) {
+          map.current.dragPan.disable();
+          map.current.getCanvas().style.cursor = 'grabbing';
+        }
+        
+        const handleMouseMove = (mouseEvent: MouseEvent) => {
+          if (!map.current || dragWallLineIndex === null || dragWallPointIndex === null) return;
+          
+          const rect = map.current.getContainer().getBoundingClientRect();
+          const point = new mapboxgl.Point(
+            mouseEvent.clientX - rect.left,
+            mouseEvent.clientY - rect.top
+          );
+          const lngLat = map.current.unproject(point);
+          const coords = [lngLat.lng, lngLat.lat];
+          
+          // Update the wall line coordinates
+          const updatedWallLines = [...wallLinesData];
+          if (updatedWallLines[dragWallLineIndex]) {
+            updatedWallLines[dragWallLineIndex].geometry.coordinates[dragWallPointIndex] = coords;
+            setWallLinesData(updatedWallLines);
+            
+            // Update the display
+            wallLinesSource.current?.setData({
+              type: 'FeatureCollection',
+              features: updatedWallLines
+            });
+            
+            // Update the points display for the selected line
+            updateWallLinePointsDisplay(wallLineId);
+          }
+        };
+        
+        const handleMouseUp = () => {
+          console.log('Ending drag for wall point');
+          setIsDraggingWallLine(false);
+          setDragWallLineIndex(null);
+          setDragWallPointIndex(null);
+          
+          if (map.current) {
+            map.current.dragPan.enable();
+            map.current.getCanvas().style.cursor = '';
+          }
+          
+          cleanupDragListeners();
+          toast.success('Wall line updated');
+        };
+        
+        dragHandlers.current.mousemove = handleMouseMove;
+        dragHandlers.current.mouseup = handleMouseUp;
+        
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+      }
+    }
+  };
+
+  // Add keyboard handler for deleting selected wall lines
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedWallLineId) {
+          deleteSelectedWallLine();
+        }
+      }
+      if (e.key === 'Escape') {
+        setSelectedWallLineId(null);
+        if (wallLinesSource.current) {
+          wallLinesSource.current.setData({
+            type: 'FeatureCollection',
+            features: wallLinesData
+          });
+        }
+      }
+    };
+
+    if (mapInitialized) {
+      document.addEventListener('keydown', handleKeyDown);
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedWallLineId, wallLinesData, mapInitialized]);
+
+  const deleteSelectedWallLine = () => {
+    if (!selectedWallLineId) return;
+
+    const updatedWallLines = wallLinesData.filter(
+      line => line.properties.id !== selectedWallLineId
+    );
+    
+    setWallLinesData(updatedWallLines);
+    setSelectedWallLineId(null);
+    
+    if (wallLinesSource.current) {
+      wallLinesSource.current.setData({
+        type: 'FeatureCollection',
+        features: updatedWallLines
+      });
+    }
+    
+    toast.success('Wall line deleted');
   };
 
   return (
