@@ -543,17 +543,18 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
-      // Simple arrow pointing to current wall - just a large arrow symbol
+      // Simple arrow pointing to current wall - rotated to point at the wall
       map.current?.addLayer({
         'id': 'wall-arrow-layer',
         'type': 'symbol',
         'source': 'segment-numbers',
         'layout': {
-          'text-field': '→',
+          'text-field': '▼', // Use downward arrow that will be rotated
           'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-          'text-size': 32,
+          'text-size': 24,
           'text-anchor': 'center',
-          'text-offset': [0, -2]
+          'text-rotate': ['get', 'rotation'], // Use the rotation from properties
+          'text-rotation-alignment': 'map'
         },
         'paint': {
           'text-color': '#FF1493',

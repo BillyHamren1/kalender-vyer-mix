@@ -26,10 +26,32 @@ export const useWallSelection = () => {
       return;
     }
 
-    // Wait for map to be fully loaded if sources don't exist yet
-    if (!map.getSource('wall-highlight') || !map.getSource('segment-numbers')) {
-      console.log('Sources not ready, waiting for map load...');
-      setTimeout(() => highlightCurrentWall(coordinates, segmentIndex, map), 100);
+    // For initial highlight (segmentIndex 0), ensure we wait for sources to be ready
+    const ensureSourcesReady = () => {
+      if (!map.getSource('wall-highlight') || !map.getSource('segment-numbers')) {
+        console.log('Sources not ready, retrying...');
+        return false;
+      }
+      return true;
+    };
+
+    if (!ensureSourcesReady()) {
+      // For initial highlight, try multiple times with increasing delays
+      const maxRetries = 10;
+      let retryCount = 0;
+      
+      const retryHighlight = () => {
+        retryCount++;
+        if (ensureSourcesReady()) {
+          highlightCurrentWall(coordinates, segmentIndex, map);
+        } else if (retryCount < maxRetries) {
+          setTimeout(retryHighlight, 50 * retryCount); // Increasing delay
+        } else {
+          console.error('Failed to highlight wall after maximum retries');
+        }
+      };
+      
+      setTimeout(retryHighlight, 50);
       return;
     }
 
@@ -104,18 +126,15 @@ export const useWallSelection = () => {
       console.error('Error setting highlight feature:', error);
     }
 
-    // Add simple arrow pointing to the current wall
-    addWallArrow(actualCoords, segmentIndex, map);
+    // Add arrow pointing AT the current wall
+    addWallArrow(startPoint, endPoint, segmentIndex, map);
   };
 
-  const addWallArrow = (coordinates: number[][], segmentIndex: number, map: mapboxgl.Map) => {
+  const addWallArrow = (startPoint: number[], endPoint: number[], segmentIndex: number, map: mapboxgl.Map) => {
     if (!map || !map.getSource('segment-numbers')) {
       console.error('Map or segment-numbers source not available');
       return;
     }
-
-    const startPoint = coordinates[segmentIndex];
-    const endPoint = coordinates[segmentIndex + 1] || coordinates[0];
     
     if (!startPoint || !endPoint) {
       console.error(`Invalid points for segment ${segmentIndex}:`, { startPoint, endPoint });
@@ -128,16 +147,35 @@ export const useWallSelection = () => {
       (startPoint[1] + endPoint[1]) / 2
     ];
     
-    // Create a single arrow feature pointing to the current wall
+    // Calculate the angle of the wall segment
+    const dx = endPoint[0] - startPoint[0];
+    const dy = endPoint[1] - startPoint[1];
+    const wallAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+    
+    // Calculate perpendicular angle (pointing toward the wall from outside)
+    const arrowAngle = wallAngle + 90;
+    
+    // Calculate offset position (place arrow outside the wall, pointing toward it)
+    const offsetDistance = 0.0001; // Small offset in degrees
+    const offsetX = Math.cos((arrowAngle + 180) * Math.PI / 180) * offsetDistance;
+    const offsetY = Math.sin((arrowAngle + 180) * Math.PI / 180) * offsetDistance;
+    
+    const arrowPosition = [
+      midPoint[0] + offsetX,
+      midPoint[1] + offsetY
+    ];
+    
+    // Create arrow feature pointing AT the wall
     const arrowFeature = {
       type: "Feature" as const,
       geometry: {
         type: "Point" as const,
-        coordinates: midPoint
+        coordinates: arrowPosition
       },
       properties: {
         segmentNumber: segmentIndex + 1,
-        isCurrent: true
+        isCurrent: true,
+        rotation: arrowAngle // Store rotation for the symbol layer
       }
     };
 
