@@ -79,8 +79,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [wallChoices, setWallChoices] = useState<('transparent' | 'white')[]>([]);
   const [highlightedWallId, setHighlightedWallId] = useState<string | null>(null);
   
-  // New refs for wall lines sources
+  // New refs for wall lines sources and data
   const wallLinesSource = useRef<mapboxgl.GeoJSONSource | null>(null);
+  const [wallLinesData, setWallLinesData] = useState<any[]>([]);
 
   // Handle window messages for iframe resize
   useEffect(() => {
@@ -1163,6 +1164,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
         type: 'FeatureCollection',
         features: updatedFeatures
       });
+      
+      // Update the wall lines data state
+      const updatedWallLines = [...wallLinesData, newLineFeature];
+      setWallLinesData(updatedWallLines);
       
       console.log(`Added ${choice} wall line with color ${lineColor}`);
     }
