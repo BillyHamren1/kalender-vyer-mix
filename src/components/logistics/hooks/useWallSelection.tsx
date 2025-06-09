@@ -25,14 +25,23 @@ export const useWallSelection = () => {
       return;
     }
 
-    let startPoint: number[], endPoint: number[];
+    console.log('Raw coordinates received:', coordinates);
+    console.log('Pending line geometry type:', pendingLine?.geometry.type);
 
+    let startPoint: number[], endPoint: number[];
+    let actualCoords = coordinates;
+
+    // Fix: Handle Polygon coordinates correctly - they are nested arrays
     if (pendingLine?.geometry.type === 'Polygon') {
-      // For rectangles/polygons
-      startPoint = coordinates[segmentIndex];
-      endPoint = coordinates[segmentIndex + 1] || coordinates[0];
+      // Polygon coordinates are [[[x,y], [x,y], [x,y], [x,y], [x,y]]]
+      // We need the first (and only) ring: coordinates[0]
+      actualCoords = coordinates[0] || coordinates;
+      console.log('Extracted polygon ring coordinates:', actualCoords);
+      
+      startPoint = actualCoords[segmentIndex];
+      endPoint = actualCoords[segmentIndex + 1] || actualCoords[0];
     } else if (pendingLine?.geometry.type === 'LineString') {
-      // For line strings
+      // LineString coordinates are [[x,y], [x,y], [x,y]]
       if (segmentIndex < coordinates.length - 1) {
         startPoint = coordinates[segmentIndex];
         endPoint = coordinates[segmentIndex + 1];
@@ -46,6 +55,11 @@ export const useWallSelection = () => {
     }
 
     console.log(`Highlighting segment ${segmentIndex + 1}:`, { startPoint, endPoint });
+
+    if (!startPoint || !endPoint) {
+      console.error('Invalid start or end point:', { startPoint, endPoint });
+      return;
+    }
 
     // Calculate and display distance
     const distance = calculateDistance(startPoint, endPoint);
@@ -70,13 +84,13 @@ export const useWallSelection = () => {
         type: 'FeatureCollection',
         features: [highlightFeature]
       });
-      console.log('Highlight feature set successfully');
+      console.log('Highlight feature set successfully:', highlightFeature);
     } catch (error) {
       console.error('Error setting highlight feature:', error);
     }
 
     // Add all segment numbers for context
-    addAllSegmentNumbers(coordinates, map);
+    addAllSegmentNumbers(actualCoords, map);
   };
 
   const addAllSegmentNumbers = (coordinates: number[][], map: mapboxgl.Map) => {
@@ -92,6 +106,12 @@ export const useWallSelection = () => {
       for (let i = 0; i < 4; i++) {
         const startPoint = coordinates[i];
         const endPoint = coordinates[i + 1] || coordinates[0];
+        
+        if (!startPoint || !endPoint) {
+          console.error(`Invalid points for segment ${i}:`, { startPoint, endPoint });
+          continue;
+        }
+        
         const midPoint = [
           (startPoint[0] + endPoint[0]) / 2,
           (startPoint[1] + endPoint[1]) / 2
@@ -191,11 +211,14 @@ export const useWallSelection = () => {
     if (pendingLine && wallLinesSource.current) {
       const coordinates = pendingLine.geometry.coordinates;
       let startPoint: number[], endPoint: number[];
+      let actualCoords = coordinates;
 
       if (pendingLine.geometry.type === 'Polygon') {
+        // Fix: Handle Polygon coordinates correctly
+        actualCoords = coordinates[0] || coordinates;
         const currentIndex = currentSegment - 1;
-        startPoint = coordinates[0][currentIndex];
-        endPoint = coordinates[0][currentIndex + 1] || coordinates[0][0];
+        startPoint = actualCoords[currentIndex];
+        endPoint = actualCoords[currentIndex + 1] || actualCoords[0];
       } else if (pendingLine.geometry.type === 'LineString') {
         const currentIndex = currentSegment - 1;
         startPoint = coordinates[currentIndex];
