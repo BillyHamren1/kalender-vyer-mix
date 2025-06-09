@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Eye, Square, X, ArrowRight } from 'lucide-react';
+import { Eye, Square, X, ArrowRight, MapPin } from 'lucide-react';
 
 interface WallSelectionDialogProps {
   open: boolean;
@@ -37,7 +37,7 @@ export const WallSelectionDialog: React.FC<WallSelectionDialogProps> = ({
               <div 
                 className={`
                   w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300
-                  ${isCurrent ? 'bg-primary text-primary-foreground animate-pulse scale-125 ring-2 ring-primary ring-offset-2' : ''}
+                  ${isCurrent ? 'bg-pink-500 text-white animate-pulse scale-125 ring-4 ring-pink-300 ring-offset-2 shadow-lg' : ''}
                   ${isCompleted ? 'bg-green-500 text-white' : ''}
                   ${!isCurrent && !isCompleted ? 'bg-muted text-muted-foreground' : ''}
                 `}
@@ -74,19 +74,27 @@ export const WallSelectionDialog: React.FC<WallSelectionDialogProps> = ({
         {renderSegmentIndicator()}
         
         <div className="text-center">
-          <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 mb-3">
-            <p className="text-sm font-medium text-primary mb-1">
-              Current Segment: #{currentSegment}
+          <div className="bg-pink-50 border border-pink-200 rounded-lg p-3 mb-3">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <MapPin className="h-5 w-5 text-pink-600" />
+              <p className="text-lg font-bold text-pink-600">
+                Wall #{currentSegment}
+              </p>
+            </div>
+            <p className="text-sm text-pink-700 font-medium mb-1">
+              Look for the BRIGHT PINK highlighted wall on the map
             </p>
-            <p className="text-xs text-muted-foreground">
-              Look for the pulsing yellow highlight on the map
+            <p className="text-xs text-pink-600">
+              It should be pulsing and much thicker than other lines
             </p>
           </div>
           
           {segmentDistance && (
-            <p className="text-lg font-semibold text-primary">
-              Length: {segmentDistance}
-            </p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 mb-3">
+              <p className="text-lg font-semibold text-blue-700">
+                Length: {segmentDistance}
+              </p>
+            </div>
           )}
         </div>
         

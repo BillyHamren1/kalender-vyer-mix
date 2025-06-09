@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
@@ -445,7 +444,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       freehandSource.current = map.current?.getSource('freehand-lines') as mapboxgl.GeoJSONSource;
       wallLinesSource.current = map.current?.getSource('wall-lines') as mapboxgl.GeoJSONSource;
 
-      // Add layers
+      // Add layers in proper order (highlights should be on top)
       map.current?.addLayer({
         'id': 'measure-lines',
         'type': 'line',
@@ -530,26 +529,21 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
-      // Enhanced wall highlight layer with pulsing animation
+      // ENHANCED wall highlight layer - much more prominent and on top
       map.current?.addLayer({
         'id': 'wall-highlight-layer',
         'type': 'line',
         'source': 'wall-highlight',
         'layout': { 'line-cap': 'round', 'line-join': 'round' },
         'paint': {
-          'line-color': '#FFD700', // Bright gold/yellow color
-          'line-width': 10,
-          'line-opacity': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            10, 0.8,
-            18, 0.9
-          ]
+          'line-color': '#FF1493', // Bright deep pink - very visible
+          'line-width': 12, // Much thicker
+          'line-opacity': 0.9,
+          'line-blur': 2 // Add glow effect
         }
       });
 
-      // Add segment numbers layer
+      // ENHANCED segment numbers - much larger and more prominent
       map.current?.addLayer({
         'id': 'segment-numbers-layer',
         'type': 'circle',
@@ -558,17 +552,17 @@ const MapComponent: React.FC<MapComponentProps> = ({
           'circle-radius': [
             'case',
             ['get', 'isCurrent'],
-            16,
-            12
+            24, // Much larger for current segment
+            16  // Larger for other segments
           ],
           'circle-color': [
             'case',
             ['get', 'isCurrent'],
-            '#FFD700',
-            '#3b82f6'
+            '#FF1493', // Bright pink for current
+            '#3b82f6'  // Blue for others
           ],
           'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 2,
+          'circle-stroke-width': 3,
           'circle-opacity': [
             'case',
             ['get', 'isCurrent'],
@@ -578,7 +572,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
-      // Add segment number labels
+      // ENHANCED segment number labels - larger and more visible
       map.current?.addLayer({
         'id': 'segment-numbers-text',
         'type': 'symbol',
@@ -589,15 +583,41 @@ const MapComponent: React.FC<MapComponentProps> = ({
           'text-size': [
             'case',
             ['get', 'isCurrent'],
-            14,
-            12
+            18, // Much larger for current segment
+            14  // Larger for other segments
           ],
           'text-anchor': 'center'
         },
         'paint': {
           'text-color': '#ffffff',
-          'text-halo-color': 'rgba(0,0,0,0.8)',
-          'text-halo-width': 1
+          'text-halo-color': 'rgba(0,0,0,0.9)',
+          'text-halo-width': 2
+        }
+      });
+
+      // Add pulsing animation layer for current segment
+      map.current?.addLayer({
+        'id': 'wall-highlight-pulse',
+        'type': 'line',
+        'source': 'wall-highlight',
+        'layout': { 'line-cap': 'round', 'line-join': 'round' },
+        'paint': {
+          'line-color': '#FFD700', // Gold color for pulse
+          'line-width': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            10, 8,
+            18, 16
+          ],
+          'line-opacity': [
+            'interpolate',
+            ['linear'],
+            ['+', ['*', ['get', 'segmentNumber'], 0.5], ['%', ['*', ['get', 'segmentNumber'], ['get', 'time']], 1]],
+            0, 0.3,
+            0.5, 0.8,
+            1, 0.3
+          ]
         }
       });
 

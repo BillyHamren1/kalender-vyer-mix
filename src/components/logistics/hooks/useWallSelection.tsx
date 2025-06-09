@@ -1,3 +1,4 @@
+
 import { useState, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { toast } from 'sonner';
@@ -19,7 +20,10 @@ export const useWallSelection = () => {
   const [segmentDistance, setSegmentDistance] = useState<string>('');
 
   const highlightCurrentWall = (coordinates: number[][], segmentIndex: number, map: mapboxgl.Map) => {
-    if (!map || !map.getSource('wall-highlight')) return;
+    if (!map || !map.getSource('wall-highlight')) {
+      console.error('Map or wall-highlight source not available');
+      return;
+    }
 
     let startPoint: number[], endPoint: number[];
 
@@ -33,22 +37,21 @@ export const useWallSelection = () => {
         startPoint = coordinates[segmentIndex];
         endPoint = coordinates[segmentIndex + 1];
       } else {
-        return; // No more segments
+        console.warn('No more segments to highlight');
+        return;
       }
     } else {
+      console.warn('Unknown geometry type for highlighting');
       return;
     }
+
+    console.log(`Highlighting segment ${segmentIndex + 1}:`, { startPoint, endPoint });
 
     // Calculate and display distance
     const distance = calculateDistance(startPoint, endPoint);
     setSegmentDistance(formatDistance(distance));
 
-    // Create highlight with segment number label
-    const midPoint = [
-      (startPoint[0] + endPoint[0]) / 2,
-      (startPoint[1] + endPoint[1]) / 2
-    ];
-
+    // Create very prominent highlight
     const highlightFeature = {
       type: "Feature" as const,
       geometry: {
@@ -56,34 +59,31 @@ export const useWallSelection = () => {
         coordinates: [startPoint, endPoint]
       },
       properties: {
-        segmentNumber: segmentIndex + 1
-      }
-    };
-
-    const labelFeature = {
-      type: "Feature" as const,
-      geometry: {
-        type: "Point" as const,
-        coordinates: midPoint
-      },
-      properties: {
         segmentNumber: segmentIndex + 1,
-        isLabel: true
+        isCurrent: true
       }
     };
 
-    const source = map.getSource('wall-highlight') as mapboxgl.GeoJSONSource;
-    source.setData({
-      type: 'FeatureCollection',
-      features: [highlightFeature, labelFeature]
-    });
+    try {
+      const source = map.getSource('wall-highlight') as mapboxgl.GeoJSONSource;
+      source.setData({
+        type: 'FeatureCollection',
+        features: [highlightFeature]
+      });
+      console.log('Highlight feature set successfully');
+    } catch (error) {
+      console.error('Error setting highlight feature:', error);
+    }
 
     // Add all segment numbers for context
     addAllSegmentNumbers(coordinates, map);
   };
 
   const addAllSegmentNumbers = (coordinates: number[][], map: mapboxgl.Map) => {
-    if (!map || !map.getSource('segment-numbers')) return;
+    if (!map || !map.getSource('segment-numbers')) {
+      console.error('Map or segment-numbers source not available');
+      return;
+    }
 
     const features: any[] = [];
     
@@ -133,15 +133,24 @@ export const useWallSelection = () => {
       }
     }
 
-    const source = map.getSource('segment-numbers') as mapboxgl.GeoJSONSource;
-    source.setData({
-      type: 'FeatureCollection',
-      features
-    });
+    console.log(`Adding ${features.length} segment number features`, features);
+
+    try {
+      const source = map.getSource('segment-numbers') as mapboxgl.GeoJSONSource;
+      source.setData({
+        type: 'FeatureCollection',
+        features
+      });
+      console.log('Segment numbers set successfully');
+    } catch (error) {
+      console.error('Error setting segment numbers:', error);
+    }
   };
 
   const clearWallHighlight = (map: mapboxgl.Map) => {
     if (!map) return;
+
+    console.log('Clearing wall highlights');
 
     if (map.getSource('wall-highlight')) {
       const source = map.getSource('wall-highlight') as mapboxgl.GeoJSONSource;
@@ -174,6 +183,8 @@ export const useWallSelection = () => {
   };
 
   const handleWallChoice = (choice: 'transparent' | 'white', map: mapboxgl.Map, draw: React.MutableRefObject<any>) => {
+    console.log(`Wall choice made: ${choice} for segment ${currentSegment}`);
+    
     const newChoices = [...wallChoices, choice];
     setWallChoices(newChoices);
     
@@ -250,6 +261,7 @@ export const useWallSelection = () => {
   };
 
   const cancelWallSelection = (map: mapboxgl.Map) => {
+    console.log('Canceling wall selection');
     setShowWallDialog(false);
     clearWallHighlight(map);
     setPendingLine(null);
