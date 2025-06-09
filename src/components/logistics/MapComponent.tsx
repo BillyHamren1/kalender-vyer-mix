@@ -1192,12 +1192,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
       
       const lineColor = choice === 'transparent' ? '#3b82f6' : '#000000';
       
-      // Get existing wall lines
-      const existingData = wallLinesSource.current._data || {
-        type: 'FeatureCollection',
-        features: []
-      };
-      
       const newLineFeature = {
         type: "Feature" as const,
         geometry: {
@@ -1211,18 +1205,15 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       };
       
-      // Add the new line to existing features
-      const updatedFeatures = [...existingData.features, newLineFeature];
+      // Add the new line to existing wall lines data
+      const updatedWallLines = [...wallLinesData, newLineFeature];
+      setWallLinesData(updatedWallLines);
       
       // Update the wall lines source
       wallLinesSource.current.setData({
         type: 'FeatureCollection',
-        features: updatedFeatures
+        features: updatedWallLines
       });
-      
-      // Update the wall lines data state
-      const updatedWallLines = [...wallLinesData, newLineFeature];
-      setWallLinesData(updatedWallLines);
       
       console.log(`Added ${choice} wall line with color ${lineColor}`);
     }
