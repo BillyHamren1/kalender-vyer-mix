@@ -1,4 +1,3 @@
-
 import { useState, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { toast } from 'sonner';
@@ -19,7 +18,7 @@ export const useWallSelection = () => {
   const [dragWallPointIndex, setDragWallPointIndex] = useState<number | null>(null);
   const [segmentDistance, setSegmentDistance] = useState<string>('');
 
-  const highlightCurrentWall = (coordinates: number[][], segmentIndex: number, map: mapboxgl.Map) => {
+  const highlightCurrentWall = (coordinates: number[][][] | number[][], segmentIndex: number, map: mapboxgl.Map) => {
     if (!map || !map.getSource('wall-highlight')) {
       console.error('Map or wall-highlight source not available');
       return;
@@ -31,16 +30,16 @@ export const useWallSelection = () => {
     let startPoint: number[], endPoint: number[];
     let actualCoords: number[][];
 
-    // Fix: Handle Polygon coordinates correctly - they are nested arrays
+    // Handle different coordinate structures properly
     if (pendingLine?.geometry.type === 'Polygon') {
       // Polygon coordinates are [[[x,y], [x,y], [x,y], [x,y], [x,y]]]
       // We need the first (and only) ring: coordinates[0]
-      // Check if coordinates is properly nested
-      if (Array.isArray(coordinates[0]) && Array.isArray(coordinates[0][0])) {
-        actualCoords = coordinates[0] as number[][];
+      if (Array.isArray(coordinates) && Array.isArray(coordinates[0]) && Array.isArray(coordinates[0][0])) {
+        // coordinates is number[][][] - extract first ring
+        actualCoords = (coordinates as number[][][])[0];
       } else {
-        // If it's already flattened, use as is
-        actualCoords = coordinates as number[][];
+        console.error('Invalid polygon coordinate structure');
+        return;
       }
       console.log('Extracted polygon ring coordinates:', actualCoords);
       
@@ -49,9 +48,9 @@ export const useWallSelection = () => {
     } else if (pendingLine?.geometry.type === 'LineString') {
       // LineString coordinates are [[x,y], [x,y], [x,y]]
       actualCoords = coordinates as number[][];
-      if (segmentIndex < coordinates.length - 1) {
-        startPoint = coordinates[segmentIndex];
-        endPoint = coordinates[segmentIndex + 1];
+      if (segmentIndex < actualCoords.length - 1) {
+        startPoint = actualCoords[segmentIndex];
+        endPoint = actualCoords[segmentIndex + 1];
       } else {
         console.warn('No more segments to highlight');
         return;
@@ -122,9 +121,9 @@ export const useWallSelection = () => {
     
     // Create a single arrow feature pointing to the current wall
     const arrowFeature = {
-      type: "Feature",
+      type: "Feature" as const,
       geometry: {
-        type: "Point",
+        type: "Point" as const,
         coordinates: midPoint
       },
       properties: {
@@ -194,8 +193,8 @@ export const useWallSelection = () => {
       let actualCoords: number[][];
 
       if (pendingLine.geometry.type === 'Polygon') {
-        // Fix: Handle Polygon coordinates correctly
-        if (Array.isArray(coordinates[0]) && Array.isArray(coordinates[0][0])) {
+        // Handle Polygon coordinates correctly
+        if (Array.isArray(coordinates) && Array.isArray(coordinates[0]) && Array.isArray(coordinates[0][0])) {
           actualCoords = coordinates[0] as number[][];
         } else {
           actualCoords = coordinates as number[][];
