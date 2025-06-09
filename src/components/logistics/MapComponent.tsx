@@ -1,4 +1,5 @@
-import React, { useRef, useEffect, useState } from 'react';
+
+import React, { useRef, useEffect } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -9,7 +10,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { MapControls } from './MapControls';
 import { MapMarkers } from './MapMarkers';
 import { WallSelectionDialog } from './WallSelectionDialog';
-import { calculateDistance, formatDistance, createDrawStyles } from './MapUtils';
+import { createDrawStyles } from './MapUtils';
+import { useMapState } from './hooks/useMapState';
+import { useMeasurement } from './hooks/useMeasurement';
+import { useWallSelection } from './hooks/useWallSelection';
+import { useFreehandDrawing } from './hooks/useFreehandDrawing';
+import { useMapEventHandlers } from './hooks/useMapEventHandlers';
+import { useMapSnapshot } from './hooks/useMapSnapshot';
 
 interface MapComponentProps {
   bookings: Booking[];
@@ -21,12 +28,6 @@ interface MapComponentProps {
   isFromBooking?: boolean;
 }
 
-// Define proper types for Mapbox Draw events
-interface DrawEvent {
-  features: any[];
-  type: string;
-}
-
 const MapComponent: React.FC<MapComponentProps> = ({ 
   bookings, 
   selectedBooking,
@@ -36,58 +37,92 @@ const MapComponent: React.FC<MapComponentProps> = ({
   onSnapshotSaved,
   isFromBooking = false
 }) => {
-  const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const draw = useRef<MapboxDraw | null>(null);
-  const [mapInitialized, setMapInitialized] = useState(false);
-  const [mapboxToken, setMapboxToken] = useState<string | null>(null);
-  const [isLoadingToken, setIsLoadingToken] = useState(true);
-  const [is3DEnabled, setIs3DEnabled] = useState(false);
-  const [isMeasuring, setIsMeasuring] = useState(false);
-  const [drawMode, setDrawMode] = useState<string>('simple_select');
-  const [selectedColor, setSelectedColor] = useState<string>('#3bb2d0');
-  const [isDrawingOpen, setIsDrawingOpen] = useState(true);
-  const [isFreehandDrawing, setIsFreehandDrawing] = useState(false);
-  const [freehandPoints, setFreehandPoints] = useState<number[][]>([]);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [currentMapStyle, setCurrentMapStyle] = useState<string>('mapbox://styles/mapbox/satellite-streets-v12');
-  const measurePoints = useRef<number[][]>([]);
-  const measureSource = useRef<mapboxgl.GeoJSONSource | null>(null);
-  const freehandSource = useRef<mapboxgl.GeoJSONSource | null>(null);
-  const [isCapturingSnapshot, setIsCapturingSnapshot] = useState(false);
-  const [isDraggingMeasurePoint, setIsDraggingMeasurePoint] = useState(false);
-  const [dragPointIndex, setDragPointIndex] = useState<number | null>(null);
-  
-  // Fixed live measurement state
-  const [liveMeasurement, setLiveMeasurement] = useState<{
-    distance: string;
-    x: number;
-    y: number;
-    visible: boolean;
-  }>({ distance: '', x: 0, y: 0, visible: false });
+  const {
+    mapContainer,
+    map,
+    draw,
+    mapInitialized,
+    setMapInitialized,
+    mapboxToken,
+    setMapboxToken,
+    isLoadingToken,
+    setIsLoadingToken,
+    is3DEnabled,
+    setIs3DEnabled,
+    drawMode,
+    setDrawMode,
+    selectedColor,
+    setSelectedColor,
+    isDrawingOpen,
+    setIsDrawingOpen,
+    currentMapStyle,
+    setCurrentMapStyle,
+    isCapturingSnapshot,
+    setIsCapturingSnapshot
+  } = useMapState();
 
-  // Refs for dynamic event listeners
-  const dragHandlers = useRef<{
-    mousemove?: (e: MouseEvent) => void;
-    mouseup?: (e: MouseEvent) => void;
-  }>({});
+  const {
+    isMeasuring,
+    setIsMeasuring,
+    isDraggingMeasurePoint,
+    setIsDraggingMeasurePoint,
+    dragPointIndex,
+    setDragPointIndex,
+    measurePoints,
+    measureSource,
+    liveMeasurement,
+    setLiveMeasurement,
+    dragHandlers,
+    cleanupDragListeners,
+    updateMeasureDisplay,
+    handleMeasureClick,
+    toggleMeasuring
+  } = useMeasurement(map);
 
-  // New state for wall selection with highlighting
-  const [showWallDialog, setShowWallDialog] = useState(false);
-  const [pendingRectangle, setPendingRectangle] = useState<any>(null);
-  const [currentSide, setCurrentSide] = useState(1);
-  const [wallChoices, setWallChoices] = useState<('transparent' | 'white')[]>([]);
-  const [highlightedWallId, setHighlightedWallId] = useState<string | null>(null);
-  
-  // New refs for wall lines sources and data
-  const wallLinesSource = useRef<mapboxgl.GeoJSONSource | null>(null);
-  const [wallLinesData, setWallLinesData] = useState<any[]>([]);
-  
-  // New state for wall line editing
-  const [selectedWallLineId, setSelectedWallLineId] = useState<string | null>(null);
-  const [isDraggingWallLine, setIsDraggingWallLine] = useState(false);
-  const [dragWallLineIndex, setDragWallLineIndex] = useState<number | null>(null);
-  const [dragWallPointIndex, setDragWallPointIndex] = useState<number | null>(null);
+  const {
+    showWallDialog,
+    setShowWallDialog,
+    pendingRectangle,
+    setPendingRectangle,
+    currentSide,
+    setCurrentSide,
+    wallChoices,
+    setWallChoices,
+    highlightedWallId,
+    setHighlightedWallId,
+    wallLinesSource,
+    wallLinesData,
+    setWallLinesData,
+    selectedWallLineId,
+    setSelectedWallLineId,
+    isDraggingWallLine,
+    setIsDraggingWallLine,
+    dragWallLineIndex,
+    setDragWallLineIndex,
+    dragWallPointIndex,
+    setDragWallPointIndex,
+    highlightCurrentWall,
+    clearWallHighlight,
+    handleWallChoice,
+    deleteSelectedWallLine
+  } = useWallSelection();
+
+  const {
+    isFreehandDrawing,
+    setIsFreehandDrawing,
+    freehandPoints,
+    setFreehandPoints,
+    isDrawing,
+    setIsDrawing,
+    freehandSource,
+    updateFreehandDisplay,
+    handleFreehandStart,
+    handleFreehandMove,
+    handleFreehandEnd,
+    toggleFreehandDrawing
+  } = useFreehandDrawing(map, draw, selectedColor);
+
+  const { takeMapSnapshot } = useMapSnapshot(map, selectedBooking, onSnapshotSaved);
 
   // Handle window messages for iframe resize
   useEffect(() => {
@@ -95,11 +130,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
       if (event.origin !== window.location.origin) return;
       
       if (event.data.type === 'RESIZE_MAP' && map.current && mapInitialized) {
-        console.log('Received resize message, resizing map...');
         setTimeout(() => {
           if (map.current) {
             map.current.resize();
-            console.log('Map resized successfully');
           }
         }, 100);
       }
@@ -109,7 +142,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     return () => window.removeEventListener('message', handleMessage);
   }, [mapInitialized]);
 
-  // Fetch Mapbox token from edge function
+  // Fetch Mapbox token
   useEffect(() => {
     const fetchMapboxToken = async () => {
       try {
@@ -117,7 +150,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
         const { data, error } = await supabase.functions.invoke('mapbox-token');
         
         if (error) {
-          console.error('Error fetching Mapbox token:', error);
           toast.error('Failed to load map: Could not get access token');
           return;
         }
@@ -125,7 +157,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
         setMapboxToken(data.token);
         mapboxgl.accessToken = data.token;
       } catch (error) {
-        console.error('Error in token fetch:', error);
         toast.error('Failed to load map');
       } finally {
         setIsLoadingToken(false);
@@ -135,7 +166,194 @@ const MapComponent: React.FC<MapComponentProps> = ({
     fetchMapboxToken();
   }, []);
 
-  // Initialize map with drawing capabilities
+  // Handle measure point dragging
+  const handleMeasurePointMouseDown = (e: mapboxgl.MapMouseEvent) => {
+    if (isMeasuring) return;
+    
+    e.preventDefault();
+    
+    const features = map.current?.queryRenderedFeatures(e.point, {
+      layers: ['measure-points-layer']
+    });
+    
+    if (features && features.length > 0) {
+      const pointId = features[0].properties?.id;
+      if (typeof pointId === 'number') {
+        setIsDraggingMeasurePoint(true);
+        setDragPointIndex(pointId);
+        
+        if (map.current) {
+          map.current.dragPan.disable();
+          map.current.getCanvas().style.cursor = 'grabbing';
+        }
+        
+        const handleMouseMove = (mouseEvent: MouseEvent) => {
+          if (!map.current || dragPointIndex === null) return;
+          
+          const rect = map.current.getContainer().getBoundingClientRect();
+          const point = new mapboxgl.Point(
+            mouseEvent.clientX - rect.left,
+            mouseEvent.clientY - rect.top
+          );
+          const lngLat = map.current.unproject(point);
+          const coords = [lngLat.lng, lngLat.lat];
+          
+          if (pointId < measurePoints.current.length) {
+            measurePoints.current[pointId] = coords;
+            updateMeasureDisplay();
+          }
+        };
+        
+        const handleMouseUp = () => {
+          setIsDraggingMeasurePoint(false);
+          setDragPointIndex(null);
+          
+          setLiveMeasurement(prev => ({ ...prev, visible: false }));
+          
+          if (map.current) {
+            map.current.dragPan.enable();
+            map.current.getCanvas().style.cursor = '';
+          }
+          
+          cleanupDragListeners();
+          toast.success('Point position updated');
+        };
+        
+        dragHandlers.current.mousemove = handleMouseMove;
+        dragHandlers.current.mouseup = handleMouseUp;
+        
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+      }
+    }
+  };
+
+  // Handle wall line click
+  const handleWallLineClick = (e: mapboxgl.MapMouseEvent) => {
+    const features = e.features;
+    if (features && features.length > 0) {
+      const wallLineId = features[0].properties?.id;
+      if (wallLineId) {
+        setSelectedWallLineId(wallLineId);
+        updateWallLinePointsDisplay(wallLineId);
+        toast.info('Wall line selected. Drag the end points to edit or press Delete to remove.');
+      }
+    }
+  };
+
+  // Handle wall point dragging
+  const handleWallPointMouseDown = (e: mapboxgl.MapMouseEvent) => {
+    e.preventDefault();
+    
+    const features = map.current?.queryRenderedFeatures(e.point, {
+      layers: ['wall-line-points']
+    });
+    
+    if (features && features.length > 0) {
+      const wallLineId = features[0].properties?.id;
+      const pointIndex = features[0].properties?.pointIndex;
+      
+      if (typeof wallLineId === 'string' && typeof pointIndex === 'number') {
+        setIsDraggingWallLine(true);
+        setDragWallLineIndex(wallLinesData.findIndex(line => line.properties.id === wallLineId));
+        setDragWallPointIndex(pointIndex);
+        
+        if (map.current) {
+          map.current.dragPan.disable();
+          map.current.getCanvas().style.cursor = 'grabbing';
+        }
+        
+        const handleMouseMove = (mouseEvent: MouseEvent) => {
+          if (!map.current || dragWallLineIndex === null || dragWallPointIndex === null) return;
+          
+          const rect = map.current.getContainer().getBoundingClientRect();
+          const point = new mapboxgl.Point(
+            mouseEvent.clientX - rect.left,
+            mouseEvent.clientY - rect.top
+          );
+          const lngLat = map.current.unproject(point);
+          const coords = [lngLat.lng, lngLat.lat];
+          
+          const updatedWallLines = [...wallLinesData];
+          if (updatedWallLines[dragWallLineIndex]) {
+            updatedWallLines[dragWallLineIndex].geometry.coordinates[dragWallPointIndex] = coords;
+            setWallLinesData(updatedWallLines);
+            
+            wallLinesSource.current?.setData({
+              type: 'FeatureCollection',
+              features: updatedWallLines
+            });
+            
+            updateWallLinePointsDisplay(wallLineId);
+          }
+        };
+        
+        const handleMouseUp = () => {
+          setIsDraggingWallLine(false);
+          setDragWallLineIndex(null);
+          setDragWallPointIndex(null);
+          
+          if (map.current) {
+            map.current.dragPan.enable();
+            map.current.getCanvas().style.cursor = '';
+          }
+          
+          cleanupDragListeners();
+          toast.success('Wall line updated');
+        };
+        
+        dragHandlers.current.mousemove = handleMouseMove;
+        dragHandlers.current.mouseup = handleMouseUp;
+        
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+      }
+    }
+  };
+
+  const updateWallLinePointsDisplay = (wallLineId: string) => {
+    if (!wallLinesSource.current) return;
+
+    const wallLine = wallLinesData.find(line => line.properties.id === wallLineId);
+    if (!wallLine) return;
+
+    const coordinates = wallLine.geometry.coordinates;
+    const pointFeatures = coordinates.map((coord: number[], index: number) => ({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: coord
+      },
+      properties: {
+        id: wallLineId,
+        pointIndex: index
+      }
+    }));
+
+    wallLinesSource.current.setData({
+      type: 'FeatureCollection',
+      features: [...wallLinesData, ...pointFeatures]
+    });
+  };
+
+  // Use the event handlers hook
+  useMapEventHandlers(
+    map,
+    draw,
+    mapInitialized,
+    setPendingRectangle,
+    setCurrentSide,
+    setWallChoices,
+    setShowWallDialog,
+    highlightCurrentWall,
+    handleMeasurePointMouseDown,
+    handleWallLineClick,
+    handleWallPointMouseDown,
+    selectedWallLineId,
+    deleteSelectedWallLine
+  );
+
+  // Initialize map
   useEffect(() => {
     if (!mapContainer.current || map.current || !mapboxToken || isLoadingToken) return;
 
@@ -143,8 +361,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
       ? [centerLng, centerLat] 
       : [18, 60];
     const initialZoom = centerLng && centerLat ? 12 : 4;
-
-    console.log('🗺️ Initializing map with WebGL canvas capture enabled...');
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
@@ -160,8 +376,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
       preserveDrawingBuffer: true,
       failIfMajorPerformanceCaveat: false
     });
-
-    console.log('🎨 Map canvas configured for capture with preserveDrawingBuffer: true');
 
     draw.current = new MapboxDraw({
       displayControlsDefault: false,
@@ -185,9 +399,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
     map.current.addControl(draw.current, 'top-right');
 
     map.current.on('load', () => {
-      console.log('✅ Map loaded successfully with canvas capture enabled');
       setMapInitialized(true);
       
+      // Add terrain source
       map.current?.addSource('mapbox-dem', {
         'type': 'raster-dem',
         'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
@@ -195,47 +409,38 @@ const MapComponent: React.FC<MapComponentProps> = ({
         'maxzoom': 14
       });
 
+      // Add sources
       map.current?.addSource('measure-points', {
         'type': 'geojson',
-        'data': {
-          'type': 'FeatureCollection',
-          'features': []
-        }
+        'data': { 'type': 'FeatureCollection', 'features': [] }
       });
 
       map.current?.addSource('freehand-lines', {
         'type': 'geojson',
-        'data': {
-          'type': 'FeatureCollection',
-          'features': []
-        }
+        'data': { 'type': 'FeatureCollection', 'features': [] }
       });
 
-      // Add wall lines source for colored wall lines
       map.current?.addSource('wall-lines', {
         'type': 'geojson',
-        'data': {
-          'type': 'FeatureCollection',
-          'features': []
-        }
+        'data': { 'type': 'FeatureCollection', 'features': [] }
+      });
+
+      map.current?.addSource('wall-highlight', {
+        'type': 'geojson',
+        'data': { 'type': 'FeatureCollection', 'features': [] }
       });
 
       measureSource.current = map.current?.getSource('measure-points') as mapboxgl.GeoJSONSource;
       freehandSource.current = map.current?.getSource('freehand-lines') as mapboxgl.GeoJSONSource;
       wallLinesSource.current = map.current?.getSource('wall-lines') as mapboxgl.GeoJSONSource;
 
+      // Add layers
       map.current?.addLayer({
         'id': 'measure-lines',
         'type': 'line',
         'source': 'measure-points',
-        'layout': {
-          'line-cap': 'round',
-          'line-join': 'round'
-        },
-        'paint': {
-          'line-color': '#ff0000',
-          'line-width': 3
-        }
+        'layout': { 'line-cap': 'round', 'line-join': 'round' },
+        'paint': { 'line-color': '#ff0000', 'line-width': 3 }
       });
 
       map.current?.addLayer({
@@ -275,43 +480,32 @@ const MapComponent: React.FC<MapComponentProps> = ({
         'id': 'freehand-lines-layer',
         'type': 'line',
         'source': 'freehand-lines',
-        'layout': {
-          'line-cap': 'round',
-          'line-join': 'round'
-        },
-        'paint': {
-          'line-color': selectedColor,
-          'line-width': 3
-        }
+        'layout': { 'line-cap': 'round', 'line-join': 'round' },
+        'paint': { 'line-color': selectedColor, 'line-width': 3 }
       });
 
-      // Add wall lines layer for colored wall lines with selection highlighting
       map.current?.addLayer({
         'id': 'wall-lines-layer',
         'type': 'line',
         'source': 'wall-lines',
-        'layout': {
-          'line-cap': 'round',
-          'line-join': 'round'
-        },
+        'layout': { 'line-cap': 'round', 'line-join': 'round' },
         'paint': {
           'line-color': ['get', 'color'],
           'line-width': [
             'case',
             ['==', ['get', 'id'], selectedWallLineId || ''],
-            6, // Selected line is thicker
-            4  // Normal line width
+            6,
+            4
           ],
           'line-opacity': [
             'case',
             ['==', ['get', 'id'], selectedWallLineId || ''],
-            1.0, // Selected line is fully opaque
-            0.8  // Normal opacity
+            1.0,
+            0.8
           ]
         }
       });
 
-      // Add wall line points layer for editing
       map.current?.addLayer({
         'id': 'wall-line-points',
         'type': 'circle',
@@ -325,34 +519,19 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
-      // Add highlight source and layer for wall selection
-      if (!map.current.getSource('wall-highlight')) {
-        map.current.addSource('wall-highlight', {
-          'type': 'geojson',
-          'data': {
-            'type': 'FeatureCollection',
-            'features': []
-          }
-        });
+      map.current?.addLayer({
+        'id': 'wall-highlight-layer',
+        'type': 'line',
+        'source': 'wall-highlight',
+        'layout': { 'line-cap': 'round', 'line-join': 'round' },
+        'paint': {
+          'line-color': '#ff0000',
+          'line-width': 6,
+          'line-opacity': 0.8
+        }
+      });
 
-        map.current.addLayer({
-          'id': 'wall-highlight-layer',
-          'type': 'line',
-          'source': 'wall-highlight',
-          'layout': {
-            'line-cap': 'round',
-            'line-join': 'round'
-          },
-          'paint': {
-            'line-color': '#ff0000',
-            'line-width': 6,
-            'line-opacity': 0.8
-          }
-        });
-      }
-
-      map.current?.on('mousedown', 'measure-points-layer', handleMeasurePointMouseDown);
-
+      // Add event listeners for mouse interactions
       map.current?.on('mouseenter', 'measure-points-layer', () => {
         if (map.current && !isMeasuring) {
           map.current.getCanvas().style.cursor = 'grab';
@@ -365,24 +544,24 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
-      map.current?.on('click', 'wall-lines-layer', handleWallLineClick);
       map.current?.on('mouseenter', 'wall-lines-layer', () => {
         if (map.current) {
           map.current.getCanvas().style.cursor = 'pointer';
         }
       });
+
       map.current?.on('mouseleave', 'wall-lines-layer', () => {
         if (map.current) {
           map.current.getCanvas().style.cursor = '';
         }
       });
 
-      map.current?.on('mousedown', 'wall-line-points', handleWallPointMouseDown);
       map.current?.on('mouseenter', 'wall-line-points', () => {
         if (map.current) {
           map.current.getCanvas().style.cursor = 'grab';
         }
       });
+
       map.current?.on('mouseleave', 'wall-line-points', () => {
         if (map.current && !isDraggingWallLine) {
           map.current.getCanvas().style.cursor = '';
@@ -396,50 +575,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
       }, 200);
     });
 
-    setTimeout(() => {
-      if (map.current) {
-        map.current.resize();
-      }
-    }, 100);
-
-    map.current.on('draw.create', (e: DrawEvent) => {
-      const feature = e.features[0];
-      console.log('Created feature:', feature);
-      
-      // Check if it's a polygon (rectangle)
-      if (feature.geometry.type === 'Polygon') {
-        console.log('Rectangle created, starting wall selection...');
-        
-        // Remove the feature temporarily
-        if (draw.current) {
-          draw.current.delete(feature.id);
-        }
-        
-        // Store the rectangle for wall selection
-        setPendingRectangle(feature);
-        setCurrentSide(1);
-        setWallChoices([]);
-        
-        // Highlight the first wall (top wall)
-        const coordinates = feature.geometry.coordinates[0];
-        highlightCurrentWall(coordinates, 0); // First wall (index 0)
-        
-        setShowWallDialog(true);
-      } else {
-        toast.success(`${feature.geometry.type} created`);
-      }
-    });
-
-    map.current.on('draw.update', (e: DrawEvent) => {
-      console.log('Updated feature:', e.features[0]);
-      toast.success(`${e.features[0].geometry.type} updated`);
-    });
-
-    map.current.on('draw.delete', (e: DrawEvent) => {
-      console.log('Deleted features:', e.features);
-      toast.success(`${e.features.length} feature(s) deleted`);
-    });
-
     return () => {
       cleanupDragListeners();
       map.current?.remove();
@@ -447,32 +582,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
     };
   }, [mapboxToken, isLoadingToken, centerLat, centerLng, currentMapStyle, selectedWallLineId]);
 
-  const cleanupDragListeners = () => {
-    if (dragHandlers.current.mousemove) {
-      document.removeEventListener('mousemove', dragHandlers.current.mousemove);
-      dragHandlers.current.mousemove = undefined;
-    }
-    if (dragHandlers.current.mouseup) {
-      document.removeEventListener('mouseup', dragHandlers.current.mouseup);
-      dragHandlers.current.mouseup = undefined;
-    }
-  };
-
-  useEffect(() => {
-    if (map.current && mapInitialized) {
-      const resizeTimer = setTimeout(() => {
-        map.current?.resize();
-      }, 100);
-      
-      return () => clearTimeout(resizeTimer);
-    }
-  }, [mapInitialized]);
-
+  // Update draw styles when color changes
   useEffect(() => {
     if (!draw.current || !map.current || !mapInitialized) return;
 
-    console.log('🎨 Updating draw styles for color:', selectedColor);
-    
     try {
       const newStyles = createDrawStyles(selectedColor);
       
@@ -486,12 +599,28 @@ const MapComponent: React.FC<MapComponentProps> = ({
         draw.current.deleteAll();
         draw.current.add(currentFeatures);
       }
-      
-      console.log('✅ Draw styles updated successfully');
     } catch (error) {
-      console.error('❌ Error updating draw styles:', error);
+      console.error('Error updating draw styles:', error);
     }
   }, [selectedColor, mapInitialized]);
+
+  // Update freehand line color
+  useEffect(() => {
+    if (!map.current || !mapInitialized) return;
+    
+    map.current.setPaintProperty('freehand-lines-layer', 'line-color', selectedColor);
+  }, [selectedColor, mapInitialized]);
+
+  // Resize handler
+  useEffect(() => {
+    if (map.current && mapInitialized) {
+      const resizeTimer = setTimeout(() => {
+        map.current?.resize();
+      }, 100);
+      
+      return () => clearTimeout(resizeTimer);
+    }
+  }, [mapInitialized]);
 
   const toggleMapStyle = () => {
     if (!map.current || !mapInitialized) return;
@@ -512,234 +641,16 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     if (!is3DEnabled) {
       map.current.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.5 });
-      map.current.easeTo({
-        pitch: 60,
-        bearing: 45,
-        duration: 1000
-      });
+      map.current.easeTo({ pitch: 60, bearing: 45, duration: 1000 });
       setIs3DEnabled(true);
       toast.success('3D terrain enabled');
     } else {
       map.current.setTerrain(null);
-      map.current.easeTo({
-        pitch: 0,
-        bearing: 0,
-        duration: 1000
-      });
+      map.current.easeTo({ pitch: 0, bearing: 0, duration: 1000 });
       setIs3DEnabled(false);
       toast.success('3D terrain disabled');
     }
   };
-
-  const toggleMeasuring = () => {
-    if (!map.current || !mapInitialized) return;
-
-    if (!isMeasuring) {
-      if (draw.current) {
-        draw.current.changeMode('simple_select');
-        setDrawMode('simple_select');
-      }
-      
-      setIsMeasuring(true);
-      map.current.getCanvas().style.cursor = 'crosshair';
-      toast.info('Click on the map to start measuring. Click again to add points. Drag points to adjust lengths.');
-      map.current.on('click', handleMeasureClick);
-    } else {
-      setIsMeasuring(false);
-      map.current.getCanvas().style.cursor = '';
-      map.current.off('click', handleMeasureClick);
-      measurePoints.current = [];
-      updateMeasureDisplay();
-      toast.info('Measuring disabled');
-    }
-  };
-
-  const handleMeasureClick = (e: mapboxgl.MapMouseEvent) => {
-    if (isDraggingMeasurePoint) return;
-    
-    const coords = [e.lngLat.lng, e.lngLat.lat];
-    measurePoints.current.push(coords);
-    
-    if (measurePoints.current.length > 1) {
-      const segmentDistance = calculateDistance(
-        measurePoints.current[measurePoints.current.length - 2], 
-        measurePoints.current[measurePoints.current.length - 1]
-      );
-      
-      const totalDistance = measurePoints.current.reduce((total, point, index) => {
-        if (index === 0) return 0;
-        return total + calculateDistance(measurePoints.current[index - 1], point);
-      }, 0);
-      
-      toast.success(`Segment: ${formatDistance(segmentDistance)} | Total: ${formatDistance(totalDistance)}`);
-    }
-    
-    updateMeasureDisplay();
-  };
-
-  const updateMeasureDisplay = () => {
-    if (!measureSource.current) return;
-
-    const features = [];
-    
-    measurePoints.current.forEach((point, index) => {
-      features.push({
-        type: 'Feature',
-        geometry: {
-          type: 'Point',
-          coordinates: point
-        },
-        properties: {
-          id: index
-        }
-      });
-    });
-
-    if (measurePoints.current.length > 1) {
-      for (let i = 1; i < measurePoints.current.length; i++) {
-        const startPoint = measurePoints.current[i - 1];
-        const endPoint = measurePoints.current[i];
-        const distance = calculateDistance(startPoint, endPoint);
-
-        features.push({
-          type: 'Feature',
-          geometry: {
-            type: 'LineString',
-            coordinates: [startPoint, endPoint]
-          },
-          properties: {
-            segmentId: i,
-            distance: formatDistance(distance)
-          }
-        });
-      }
-    }
-
-    if (measurePoints.current.length >= 2) {
-      const lastIndex = measurePoints.current.length - 1;
-      const lastDistance = calculateDistance(
-        measurePoints.current[lastIndex - 1], 
-        measurePoints.current[lastIndex]
-      );
-
-      const canvas = map.current?.getCanvas();
-      if (canvas && map.current) {
-        const rect = canvas.getBoundingClientRect();
-        const lastPoint = measurePoints.current[lastIndex];
-        const midpoint = map.current.project([lastPoint[0], lastPoint[1]] as [number, number]);
-
-        setLiveMeasurement({
-          visible: true,
-          distance: formatDistance(lastDistance),
-          x: midpoint.x + rect.left,
-          y: midpoint.y + rect.top - 30
-        });
-      }
-    }
-
-    measureSource.current.setData({
-      type: 'FeatureCollection',
-      features: features
-    });
-  };
-
-  const toggleFreehandDrawing = () => {
-    if (!map.current || !mapInitialized) return;
-
-    if (!isFreehandDrawing) {
-      if (draw.current) {
-        draw.current.changeMode('simple_select');
-        setDrawMode('simple_select');
-      }
-      
-      if (isMeasuring) {
-        toggleMeasuring();
-      }
-      
-      setIsFreehandDrawing(true);
-      map.current.getCanvas().style.cursor = 'crosshair';
-      toast.info('Freehand drawing enabled. Click and drag to draw.');
-      
-      map.current.on('mousedown', handleFreehandStart);
-      map.current.on('mousemove', handleFreehandMove);
-      map.current.on('mouseup', handleFreehandEnd);
-    } else {
-      setIsFreehandDrawing(false);
-      setIsDrawing(false);
-      map.current.getCanvas().style.cursor = '';
-      
-      map.current.off('mousedown', handleFreehandStart);
-      map.current.off('mousemove', handleFreehandMove);
-      map.current.off('mouseup', handleFreehandEnd);
-      
-      toast.info('Freehand drawing disabled');
-    }
-  };
-
-  const handleFreehandStart = (e: mapboxgl.MapMouseEvent) => {
-    if (!isFreehandDrawing) return;
-    setIsDrawing(true);
-    const coords = [e.lngLat.lng, e.lngLat.lat];
-    setFreehandPoints([coords]);
-  };
-
-  const handleFreehandMove = (e: mapboxgl.MapMouseEvent) => {
-    if (!isFreehandDrawing || !isDrawing) return;
-    const coords = [e.lngLat.lng, e.lngLat.lat];
-    setFreehandPoints(prev => [...prev, coords]);
-    updateFreehandDisplay([...freehandPoints, coords]);
-  };
-
-  const handleFreehandEnd = () => {
-    if (!isFreehandDrawing || !isDrawing) return;
-    setIsDrawing(false);
-    
-    if (freehandPoints.length > 1) {
-      const lineFeature = {
-        type: "Feature" as const,
-        geometry: {
-          type: "LineString" as const,
-          coordinates: freehandPoints
-        },
-        properties: {
-          color: selectedColor,
-          id: Date.now()
-        }
-      };
-      
-      if (draw.current) {
-        draw.current.add(lineFeature);
-      }
-      
-      toast.success('Freehand line created');
-    }
-    
-    setFreehandPoints([]);
-  };
-
-  const updateFreehandDisplay = (points: number[][]) => {
-    if (!freehandSource.current || points.length < 2) return;
-
-    const lineFeature = {
-      type: "Feature" as const,
-      geometry: {
-        type: "LineString" as const,
-        coordinates: points
-      },
-      properties: {}
-    };
-
-    freehandSource.current.setData({
-      type: 'FeatureCollection',
-      features: [lineFeature]
-    });
-  };
-
-  useEffect(() => {
-    if (!map.current || !mapInitialized) return;
-    
-    map.current.setPaintProperty('freehand-lines-layer', 'line-color', selectedColor);
-  }, [selectedColor, mapInitialized]);
 
   const setDrawingMode = (mode: string) => {
     if (!draw.current) return;
@@ -763,7 +674,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
     };
     
     toast.success(`${modeNames[mode]} mode activated`);
-    console.log(`Drawing mode changed to: ${mode}`);
   };
 
   const clearAllDrawings = () => {
@@ -789,619 +699,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
     setIsMeasuring(false);
     map.current.getCanvas().style.cursor = '';
     map.current.off('click', handleMeasureClick);
-  };
-
-  const validateCanvasContent = (canvas: HTMLCanvasElement): boolean => {
-    console.log('🔍 Validating canvas content with improved logic...');
-    
-    try {
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        console.error('❌ Cannot get 2D context from canvas');
-        return false;
-      }
-
-      const width = canvas.width;
-      const height = canvas.height;
-      
-      console.log('📏 Canvas dimensions:', { width, height });
-
-      const sampleSize = 20;
-      const samplePoints: [number, number][] = [];
-      
-      for (let i = 0; i < sampleSize; i++) {
-        const x = (width / sampleSize) * i + (width / (sampleSize * 2));
-        const y = (height / sampleSize) * i + (height / (sampleSize * 2));
-        samplePoints.push([x, y]);
-        
-        const diagX = (width / sampleSize) * i;
-        const diagY = (height / sampleSize) * (sampleSize - 1 - i);
-        samplePoints.push([diagX, diagY]);
-      }
-
-      let nonTransparentPixels = 0;
-      let colorVariation = 0;
-      const colors: number[][] = [];
-
-      for (const [x, y] of samplePoints) {
-        const imageData = ctx.getImageData(Math.floor(x), Math.floor(y), 1, 1);
-        const [r, g, b, a] = imageData.data;
-        
-        if (a > 0) {
-          nonTransparentPixels++;
-          colors.push([r, g, b]);
-        }
-      }
-
-      if (colors.length > 1) {
-        for (let i = 1; i < colors.length; i++) {
-          const [r1, g1, b1] = colors[i - 1];
-          const [r2, g2, b2] = colors[i];
-          const diff = Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2);
-          colorVariation += diff;
-        }
-        colorVariation = colorVariation / colors.length;
-      }
-
-      const transparencyRatio = nonTransparentPixels / samplePoints.length;
-      
-      const hasContent = (
-        nonTransparentPixels >= 5 ||
-        transparencyRatio > 0.1 ||
-        colorVariation > 10
-      );
-
-      console.log(`📊 Improved canvas validation result:`, {
-        totalSamplePoints: samplePoints.length,
-        nonTransparentPixels,
-        transparencyRatio: Math.round(transparencyRatio * 100) + '%',
-        colorVariation: Math.round(colorVariation),
-        hasContent,
-        canvasDimensions: { width, height }
-      });
-
-      if (!hasContent) {
-        console.log('🔍 Detailed pixel analysis (first 10 samples):');
-        for (let i = 0; i < Math.min(10, samplePoints.length); i++) {
-          const [x, y] = samplePoints[i];
-          const imageData = ctx.getImageData(Math.floor(x), Math.floor(y), 1, 1);
-          const [r, g, b, a] = imageData.data;
-          console.log(`  Point ${i}: (${Math.floor(x)}, ${Math.floor(y)}) = rgba(${r}, ${g}, ${b}, ${a})`);
-        }
-      }
-
-      return hasContent;
-    } catch (error) {
-      console.error('❌ Error validating canvas content:', error);
-      console.log('⚠️ Validation error occurred, proceeding with snapshot anyway');
-      return true;
-    }
-  };
-
-  const takeMapSnapshot = async () => {
-    if (!map.current || !selectedBooking) {
-      console.error('❌ Cannot take snapshot: missing map or booking');
-      toast.error('No booking selected for snapshot');
-      return;
-    }
-
-    try {
-      setIsCapturingSnapshot(true);
-      console.log('📸 Starting direct map snapshot capture for booking:', selectedBooking.bookingNumber);
-      
-      toast.info('Capturing map snapshot...');
-      
-      const isMapReady = await waitForMapReady();
-      
-      if (!isMapReady) {
-        console.warn('⚠️ Map may not be fully ready, but proceeding...');
-        toast.info('Map may still be loading, but capturing anyway...');
-      }
-
-      for (let i = 0; i < 3; i++) {
-        map.current.resize();
-        map.current.triggerRepaint();
-        await new Promise(resolve => setTimeout(resolve, 800));
-      }
-
-      const canvas = map.current.getCanvas();
-      console.log('📏 Canvas dimensions:', {
-        width: canvas.width,
-        height: canvas.height,
-        clientWidth: canvas.clientWidth,
-        clientHeight: canvas.clientHeight
-      });
-
-      const hasValidContent = validateCanvasContent(canvas);
-      
-      if (!hasValidContent) {
-        console.warn('⚠️ Canvas validation suggests empty content, but proceeding anyway');
-        toast.info('Canvas appears empty but attempting capture...');
-      } else {
-        console.log('✅ Canvas validation passed - content detected');
-        toast.info('Canvas content validated, capturing...');
-      }
-
-      let dataURL = '';
-      let attempts = 0;
-      const maxAttempts = 3;
-
-      while (attempts < maxAttempts) {
-        attempts++;
-        console.log(`📸 Step 5: Canvas capture attempt ${attempts}/${maxAttempts}...`);
-        
-        try {
-          map.current.triggerRepaint();
-          await new Promise(resolve => setTimeout(resolve, 500));
-          
-          dataURL = canvas.toDataURL('image/png', 1.0);
-          
-          if (dataURL && dataURL.length > 100) {
-            console.log('✅ Canvas capture successful on attempt', attempts);
-            break;
-          } else {
-            console.warn(`⚠️ Captured data seems too small on attempt ${attempts}:`, {
-              dataURLLength: dataURL.length,
-              preview: dataURL.substring(0, 50) + '...'
-            });
-            if (attempts < maxAttempts) {
-              console.log('⏳ Waiting 1 second before retry...');
-              await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-          }
-        } catch (error) {
-          console.error(`❌ Canvas capture error on attempt ${attempts}:`, error);
-          if (attempts < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-        }
-      }
-
-      if (!dataURL || dataURL.length < 50) {
-        console.error('❌ Failed to capture any canvas data after all attempts');
-        toast.error('Failed to capture map image - no data available');
-        return;
-      }
-
-      console.log('🖼️ Captured image data preview:', dataURL.substring(0, 100) + '...');
-      console.log('📏 Captured image size:', Math.round(dataURL.length / 1024), 'KB');
-
-      console.log('☁️ Step 7: Uploading snapshot directly to server...');
-      toast.info('Saving map snapshot...');
-      
-      const { data, error } = await supabase.functions.invoke('save-map-snapshot', {
-        body: {
-          image: dataURL,
-          bookingId: selectedBooking.id,
-          bookingNumber: selectedBooking.bookingNumber
-        }
-      });
-
-      if (error) {
-        console.error('❌ Error saving snapshot:', error);
-        toast.error('Failed to save map snapshot');
-        return;
-      }
-
-      console.log('✅ Snapshot saved successfully:', {
-        hasUrl: !!data?.url,
-        hasAttachment: !!data?.attachment,
-        url: data?.url
-      });
-
-      toast.success('Map snapshot saved successfully!');
-      
-      if (onSnapshotSaved && data.attachment) {
-        console.log('📋 Notifying parent component of snapshot save');
-        onSnapshotSaved(data.attachment);
-      }
-
-    } catch (error) {
-      console.error('💥 Fatal error taking snapshot:', error);
-      toast.error('Failed to capture map snapshot');
-    } finally {
-      setIsCapturingSnapshot(false);
-      console.log('🏁 Direct snapshot capture process completed');
-    }
-  };
-
-  const waitForMapReady = async (): Promise<boolean> => {
-    if (!map.current) return false;
-
-    return new Promise((resolve) => {
-      let attempts = 0;
-      const maxAttempts = 10;
-      const checkInterval = 500;
-
-      const checkMapReady = () => {
-        attempts++;
-        console.log(`🔍 Map readiness check attempt ${attempts}/${maxAttempts}`);
-        
-        if (!map.current) {
-          console.log('❌ Map instance not available');
-          resolve(false);
-          return;
-        }
-
-        const isStyleLoaded = map.current.isStyleLoaded();
-        console.log('🎨 Style loaded:', isStyleLoaded);
-
-        const isMapIdle = map.current.loaded();
-        console.log('⏸️ Map idle/loaded:', isMapIdle);
-
-        const canvas = map.current.getCanvas();
-        const canvasValid = canvas && canvas.width > 0 && canvas.height > 0;
-        console.log('🖼️ Canvas valid:', canvasValid, {
-          width: canvas?.width || 0,
-          height: canvas?.height || 0
-        });
-
-        if (isStyleLoaded && isMapIdle && canvasValid) {
-          console.log('✅ Map is fully ready for snapshot');
-          resolve(true);
-          return;
-        }
-
-        if (attempts >= maxAttempts) {
-          console.log('⚠️ Max attempts reached, proceeding anyway');
-          resolve(false);
-          return;
-        }
-
-        setTimeout(checkMapReady, checkInterval);
-      };
-
-      checkMapReady();
-    });
-  };
-
-  const handleMeasurePointMouseDown = (e: mapboxgl.MapMouseEvent) => {
-    if (isMeasuring) return;
-    
-    e.preventDefault();
-    
-    const features = map.current?.queryRenderedFeatures(e.point, {
-      layers: ['measure-points-layer']
-    });
-    
-    if (features && features.length > 0) {
-      const pointId = features[0].properties?.id;
-      if (typeof pointId === 'number') {
-        console.log('Starting drag for point:', pointId);
-        setIsDraggingMeasurePoint(true);
-        setDragPointIndex(pointId);
-        
-        if (map.current) {
-          map.current.dragPan.disable();
-          map.current.getCanvas().style.cursor = 'grabbing';
-        }
-        
-        const handleMouseMove = (mouseEvent: MouseEvent) => {
-          if (!map.current || dragPointIndex === null) return;
-          
-          const rect = map.current.getContainer().getBoundingClientRect();
-          const point = new mapboxgl.Point(
-            mouseEvent.clientX - rect.left,
-            mouseEvent.clientY - rect.top
-          );
-          const lngLat = map.current.unproject(point);
-          const coords = [lngLat.lng, lngLat.lat];
-          
-          if (pointId < measurePoints.current.length) {
-            measurePoints.current[pointId] = coords;
-            updateMeasureDisplay();
-            
-            let liveMeasurementText = '';
-            
-            if (measurePoints.current.length > 1) {
-              const totalDistance = measurePoints.current.reduce((total, point, index) => {
-                if (index === 0) return 0;
-                return total + calculateDistance(measurePoints.current[index - 1], point);
-              }, 0);
-              
-              let segmentInfo = '';
-              if (pointId > 0) {
-                const prevDistance = calculateDistance(measurePoints.current[pointId - 1], coords);
-                segmentInfo += `${formatDistance(prevDistance)}`;
-              }
-              if (pointId < measurePoints.current.length - 1) {
-                const nextDistance = calculateDistance(coords, measurePoints.current[pointId + 1]);
-                segmentInfo += segmentInfo ? ` | ${formatDistance(nextDistance)}` : `${formatDistance(nextDistance)}`;
-              }
-              
-              liveMeasurementText = `${segmentInfo} | Total: ${formatDistance(totalDistance)}`;
-            }
-            
-            setLiveMeasurement({
-              distance: liveMeasurementText,
-              x: mouseEvent.clientX,
-              y: mouseEvent.clientY - 30,
-              visible: true
-            });
-          }
-        };
-        
-        const handleMouseUp = () => {
-          console.log('Ending drag for point:', pointId);
-          setIsDraggingMeasurePoint(false);
-          setDragPointIndex(null);
-          
-          setLiveMeasurement(prev => ({ ...prev, visible: false }));
-          
-          if (map.current) {
-            map.current.dragPan.enable();
-            map.current.getCanvas().style.cursor = '';
-          }
-          
-          cleanupDragListeners();
-          
-          toast.success('Point position updated');
-        };
-        
-        dragHandlers.current.mousemove = handleMouseMove;
-        dragHandlers.current.mouseup = handleMouseUp;
-        
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
-      }
-    }
-  };
-
-  const highlightCurrentWall = (rectangleCoords: number[][], sideIndex: number) => {
-    if (!map.current || !map.current.getSource('wall-highlight')) return;
-
-    const startPoint = rectangleCoords[sideIndex];
-    const endPoint = rectangleCoords[sideIndex + 1] || rectangleCoords[0];
-
-    const highlightFeature = {
-      type: "Feature" as const,
-      geometry: {
-        type: "LineString" as const,
-        coordinates: [startPoint, endPoint]
-      },
-      properties: {}
-    };
-
-    const source = map.current.getSource('wall-highlight') as mapboxgl.GeoJSONSource;
-    source.setData({
-      type: 'FeatureCollection',
-      features: [highlightFeature]
-    });
-  };
-
-  const clearWallHighlight = () => {
-    if (!map.current || !map.current.getSource('wall-highlight')) return;
-
-    const source = map.current.getSource('wall-highlight') as mapboxgl.GeoJSONSource;
-    source.setData({
-      type: 'FeatureCollection',
-      features: []
-    });
-  };
-
-  const handleWallChoice = (choice: 'transparent' | 'white') => {
-    const newChoices = [...wallChoices, choice];
-    setWallChoices(newChoices);
-    
-    // Create the wall line as a proper map layer feature with correct color
-    if (pendingRectangle && wallLinesSource.current) {
-      const coordinates = pendingRectangle.geometry.coordinates[0];
-      const currentIndex = currentSide - 1; // Convert to 0-based index
-      const startPoint = coordinates[currentIndex];
-      const endPoint = coordinates[currentIndex + 1] || coordinates[0];
-      
-      const lineColor = choice === 'transparent' ? '#3b82f6' : '#000000';
-      
-      const newLineFeature = {
-        type: "Feature" as const,
-        geometry: {
-          type: "LineString" as const,
-          coordinates: [startPoint, endPoint]
-        },
-        properties: {
-          color: lineColor,
-          wallType: choice,
-          id: `wall-${Date.now()}-${currentIndex}`
-        }
-      };
-      
-      // Add the new line to existing wall lines data
-      const updatedWallLines = [...wallLinesData, newLineFeature];
-      setWallLinesData(updatedWallLines);
-      
-      // Update the wall lines source
-      wallLinesSource.current.setData({
-        type: 'FeatureCollection',
-        features: updatedWallLines
-      });
-      
-      console.log(`Added ${choice} wall line with color ${lineColor}`);
-    }
-    
-    if (currentSide < 4) {
-      const nextSide = currentSide + 1;
-      setCurrentSide(nextSide);
-      
-      // Highlight the next wall
-      if (pendingRectangle) {
-        const coordinates = pendingRectangle.geometry.coordinates[0];
-        highlightCurrentWall(coordinates, nextSide - 1); // Convert to 0-based index
-      }
-    } else {
-      // All sides chosen - just clean up and hide dialog
-      setShowWallDialog(false);
-      clearWallHighlight();
-      
-      // Clear the pending rectangle - we don't need it anymore since we have the individual wall lines
-      setPendingRectangle(null);
-      setCurrentSide(1);
-      setWallChoices([]);
-      
-      toast.success('Rectangle with wall choices completed!');
-    }
-  };
-
-  const handleWallLineClick = (e: mapboxgl.MapMouseEvent) => {
-    const features = e.features;
-    if (features && features.length > 0) {
-      const wallLineId = features[0].properties?.id;
-      if (wallLineId) {
-        setSelectedWallLineId(wallLineId);
-        
-        // Update the wall line points layer to show edit points
-        updateWallLinePointsDisplay(wallLineId);
-        
-        toast.info('Wall line selected. Drag the end points to edit or press Delete to remove.');
-      }
-    }
-  };
-
-  const updateWallLinePointsDisplay = (wallLineId: string) => {
-    if (!wallLinesSource.current) return;
-
-    const wallLine = wallLinesData.find(line => line.properties.id === wallLineId);
-    if (!wallLine) return;
-
-    const coordinates = wallLine.geometry.coordinates;
-    const pointFeatures = coordinates.map((coord: number[], index: number) => ({
-      type: 'Feature',
-      geometry: {
-        type: 'Point',
-        coordinates: coord
-      },
-      properties: {
-        id: wallLineId,
-        pointIndex: index
-      }
-    }));
-
-    // Update the source with both wall lines and point features for the selected line
-    wallLinesSource.current.setData({
-      type: 'FeatureCollection',
-      features: [...wallLinesData, ...pointFeatures]
-    });
-  };
-
-  const handleWallPointMouseDown = (e: mapboxgl.MapMouseEvent) => {
-    e.preventDefault();
-    
-    const features = map.current?.queryRenderedFeatures(e.point, {
-      layers: ['wall-line-points']
-    });
-    
-    if (features && features.length > 0) {
-      const wallLineId = features[0].properties?.id;
-      const pointIndex = features[0].properties?.pointIndex;
-      
-      if (typeof wallLineId === 'string' && typeof pointIndex === 'number') {
-        console.log('Starting drag for wall point:', wallLineId, pointIndex);
-        setIsDraggingWallLine(true);
-        setDragWallLineIndex(wallLinesData.findIndex(line => line.properties.id === wallLineId));
-        setDragWallPointIndex(pointIndex);
-        
-        if (map.current) {
-          map.current.dragPan.disable();
-          map.current.getCanvas().style.cursor = 'grabbing';
-        }
-        
-        const handleMouseMove = (mouseEvent: MouseEvent) => {
-          if (!map.current || dragWallLineIndex === null || dragWallPointIndex === null) return;
-          
-          const rect = map.current.getContainer().getBoundingClientRect();
-          const point = new mapboxgl.Point(
-            mouseEvent.clientX - rect.left,
-            mouseEvent.clientY - rect.top
-          );
-          const lngLat = map.current.unproject(point);
-          const coords = [lngLat.lng, lngLat.lat];
-          
-          // Update the wall line coordinates
-          const updatedWallLines = [...wallLinesData];
-          if (updatedWallLines[dragWallLineIndex]) {
-            updatedWallLines[dragWallLineIndex].geometry.coordinates[dragWallPointIndex] = coords;
-            setWallLinesData(updatedWallLines);
-            
-            // Update the display
-            wallLinesSource.current?.setData({
-              type: 'FeatureCollection',
-              features: updatedWallLines
-            });
-            
-            // Update the points display for the selected line
-            updateWallLinePointsDisplay(wallLineId);
-          }
-        };
-        
-        const handleMouseUp = () => {
-          console.log('Ending drag for wall point');
-          setIsDraggingWallLine(false);
-          setDragWallLineIndex(null);
-          setDragWallPointIndex(null);
-          
-          if (map.current) {
-            map.current.dragPan.enable();
-            map.current.getCanvas().style.cursor = '';
-          }
-          
-          cleanupDragListeners();
-          toast.success('Wall line updated');
-        };
-        
-        dragHandlers.current.mousemove = handleMouseMove;
-        dragHandlers.current.mouseup = handleMouseUp;
-        
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
-      }
-    }
-  };
-
-  // Add keyboard handler for deleting selected wall lines
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedWallLineId) {
-          deleteSelectedWallLine();
-        }
-      }
-      if (e.key === 'Escape') {
-        setSelectedWallLineId(null);
-        if (wallLinesSource.current) {
-          wallLinesSource.current.setData({
-            type: 'FeatureCollection',
-            features: wallLinesData
-          });
-        }
-      }
-    };
-
-    if (mapInitialized) {
-      document.addEventListener('keydown', handleKeyDown);
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [selectedWallLineId, wallLinesData, mapInitialized]);
-
-  const deleteSelectedWallLine = () => {
-    if (!selectedWallLineId) return;
-
-    const updatedWallLines = wallLinesData.filter(
-      line => line.properties.id !== selectedWallLineId
-    );
-    
-    setWallLinesData(updatedWallLines);
-    setSelectedWallLineId(null);
-    
-    if (wallLinesSource.current) {
-      wallLinesSource.current.setData({
-        type: 'FeatureCollection',
-        features: updatedWallLines
-      });
-    }
-    
-    toast.success('Wall line deleted');
   };
 
   return (
@@ -1431,7 +728,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         onWhiteChoice={() => handleWallChoice('white')}
       />
 
-      {/* Enhanced Map Controls */}
+      {/* Map Controls */}
       <MapControls
         is3DEnabled={is3DEnabled}
         toggle3D={toggle3D}
