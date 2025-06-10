@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
@@ -9,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { MapControls } from './MapControls';
 import { MapMarkers } from './MapMarkers';
 import { WallSelectionDialog } from './WallSelectionDialog';
-import { createDrawStyles } from './MapUtils';
+import { createDrawStyles, calculateDistance, formatDistance } from './MapUtils';
 import { useMapState } from './hooks/useMapState';
 import { useMeasurement } from './hooks/useMeasurement';
 import { useWallSelection } from './hooks/useWallSelection';

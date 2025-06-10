@@ -2,6 +2,7 @@
 import mapboxgl from 'mapbox-gl';
 import { toast } from 'sonner';
 import { WallLineFeature } from '../types/wallSelectionTypes';
+import { calculateDistance, formatDistance } from '../../MapUtils';
 
 export const handleWallChoice = (
   choice: 'transparent' | 'white',
@@ -55,6 +56,10 @@ export const handleWallChoice = (
     
     const lineColor = choice === 'transparent' ? '#3b82f6' : '#000000';
     
+    // Calculate distance for this segment
+    const distance = calculateDistance(startPoint, endPoint);
+    const formattedDistance = formatDistance(distance);
+    
     const newLineFeature: WallLineFeature = {
       type: "Feature",
       geometry: {
@@ -64,19 +69,18 @@ export const handleWallChoice = (
       properties: {
         color: lineColor,
         wallType: choice,
-        id: `wall-${Date.now()}-${currentSegment}`
+        id: `wall-${Date.now()}-${currentSegment}`,
+        distance: formattedDistance
       }
     };
     
     const updatedWallLines = [...wallLinesData, newLineFeature];
     setWallLinesData(updatedWallLines);
     
-    wallLinesSource.current.setData({
-      type: 'FeatureCollection',
-      features: updatedWallLines
-    });
+    // Update wall lines and distance labels
+    updateWallLinesAndLabels(updatedWallLines, wallLinesSource, map);
     
-    console.log(`Added ${choice} wall line with color ${lineColor}, distance: ${segmentDistance}`);
+    console.log(`Added ${choice} wall line with color ${lineColor}, distance: ${formattedDistance}`);
   }
   
   const totalSegments = getTotalSegments();
@@ -106,6 +110,50 @@ export const handleWallChoice = (
     setSegmentDistance('');
     const shapeType = pendingLine?.geometry.type === 'Polygon' ? 'Rectangle' : 'Line';
     toast.success(`${shapeType} with wall choices completed!`);
+  }
+};
+
+export const updateWallLinesAndLabels = (
+  wallLinesData: any[],
+  wallLinesSource: React.MutableRefObject<mapboxgl.GeoJSONSource | null>,
+  map: mapboxgl.Map
+) => {
+  if (!wallLinesSource.current || !map) return;
+
+  // Update wall lines
+  wallLinesSource.current.setData({
+    type: 'FeatureCollection',
+    features: wallLinesData
+  });
+
+  // Create distance label features
+  const labelFeatures = wallLinesData.map((wallLine) => {
+    const coordinates = wallLine.geometry.coordinates;
+    const midPoint = [
+      (coordinates[0][0] + coordinates[1][0]) / 2,
+      (coordinates[0][1] + coordinates[1][1]) / 2
+    ];
+
+    return {
+      type: "Feature",
+      geometry: {
+        type: "Point",
+        coordinates: midPoint
+      },
+      properties: {
+        id: wallLine.properties.id,
+        distance: wallLine.properties.distance
+      }
+    };
+  });
+
+  // Update distance labels
+  const distanceLabelsSource = map.getSource('wall-distance-labels') as mapboxgl.GeoJSONSource;
+  if (distanceLabelsSource) {
+    distanceLabelsSource.setData({
+      type: 'FeatureCollection',
+      features: labelFeatures
+    });
   }
 };
 

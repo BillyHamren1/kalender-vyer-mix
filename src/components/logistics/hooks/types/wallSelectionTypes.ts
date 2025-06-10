@@ -24,6 +24,7 @@ export interface WallLineFeature {
     color: string;
     wallType: 'transparent' | 'white';
     id: string;
+    distance: string;
   };
 }
 
@@ -49,5 +50,17 @@ export interface HighlightFeature {
   properties: {
     segmentNumber: number;
     isCurrent: boolean;
+  };
+}
+
+export interface WallDistanceLabelFeature {
+  type: "Feature";
+  geometry: {
+    type: "Point";
+    coordinates: number[];
+  };
+  properties: {
+    id: string;
+    distance: string;
   };
 }

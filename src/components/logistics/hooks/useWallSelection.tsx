@@ -4,7 +4,7 @@ import mapboxgl from 'mapbox-gl';
 import { toast } from 'sonner';
 import { highlightWallSegment, clearWallHighlight } from './utils/wallHighlighting';
 import { addWallArrow } from './utils/wallArrows';
-import { handleWallChoice as handleWallChoiceUtil, cancelWallSelection as cancelWallSelectionUtil } from './utils/wallChoiceHandler';
+import { handleWallChoice as handleWallChoiceUtil, cancelWallSelection as cancelWallSelectionUtil, updateWallLinesAndLabels } from './utils/wallChoiceHandler';
 
 export const useWallSelection = () => {
   const [showWallDialog, setShowWallDialog] = useState(false);
@@ -77,7 +77,7 @@ export const useWallSelection = () => {
     );
   };
 
-  const deleteSelectedWallLine = () => {
+  const deleteSelectedWallLine = (map: mapboxgl.Map) => {
     if (!selectedWallLineId) return;
 
     const updatedWallLines = wallLinesData.filter(
@@ -87,14 +87,15 @@ export const useWallSelection = () => {
     setWallLinesData(updatedWallLines);
     setSelectedWallLineId(null);
     
-    if (wallLinesSource.current) {
-      wallLinesSource.current.setData({
-        type: 'FeatureCollection',
-        features: updatedWallLines
-      });
-    }
+    // Update both wall lines and distance labels
+    updateWallLinesAndLabels(updatedWallLines, wallLinesSource, map);
     
     toast.success('Wall line deleted');
+  };
+
+  const updateWallLineData = (updatedWallLines: any[], map: mapboxgl.Map) => {
+    setWallLinesData(updatedWallLines);
+    updateWallLinesAndLabels(updatedWallLines, wallLinesSource, map);
   };
 
   return {
@@ -127,6 +128,7 @@ export const useWallSelection = () => {
     clearWallHighlight: (map: mapboxgl.Map) => clearWallHighlight(map, setSegmentDistance),
     handleWallChoice,
     cancelWallSelection,
-    deleteSelectedWallLine
+    deleteSelectedWallLine,
+    updateWallLineData
   };
 };
