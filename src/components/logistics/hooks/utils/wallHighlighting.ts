@@ -24,11 +24,18 @@ export const ensureHighlightLayersExist = (map: mapboxgl.Map) => {
       'layout': { 'line-cap': 'round', 'line-join': 'round' },
       'paint': {
         'line-color': '#FF1493', // Bright deep pink - very visible
-        'line-width': 12, // Much thicker
-        'line-opacity': 0.9,
-        'line-blur': 2 // Add glow effect
+        'line-width': 16, // EVEN THICKER for maximum visibility
+        'line-opacity': 1.0, // Full opacity
+        'line-blur': 0 // Remove blur for crisp visibility
       }
     });
+    
+    // Ensure this layer is on top of everything
+    const layers = map.getStyle().layers;
+    if (layers && layers.length > 0) {
+      // Move to the very top
+      map.moveLayer('wall-highlight-layer');
+    }
   }
   
   // Check and create segment-numbers source and layer
@@ -49,7 +56,7 @@ export const ensureHighlightLayersExist = (map: mapboxgl.Map) => {
       'layout': {
         'text-field': '▼', // Use downward arrow that will be rotated
         'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-        'text-size': 24,
+        'text-size': 28, // Bigger arrow
         'text-anchor': 'center',
         'text-rotate': ['get', 'rotation'], // Use the rotation from properties
         'text-rotation-alignment': 'map'
@@ -57,7 +64,7 @@ export const ensureHighlightLayersExist = (map: mapboxgl.Map) => {
       'paint': {
         'text-color': '#FF1493',
         'text-halo-color': '#ffffff',
-        'text-halo-width': 3
+        'text-halo-width': 4 // Thicker halo for better visibility
       }
     });
   }
@@ -72,10 +79,11 @@ export const highlightWallSegment = (
   pendingLine: any,
   setSegmentDistance: (distance: string) => void
 ) => {
+  console.log('=== HIGHLIGHTING WALL SEGMENT ===');
   console.log('highlightWallSegment called with segmentIndex:', segmentIndex);
   
   if (!map) {
-    console.error('Map not available');
+    console.error('Map not available for highlighting');
     return;
   }
 
@@ -118,7 +126,7 @@ export const highlightWallSegment = (
     return;
   }
 
-  console.log(`Highlighting segment ${segmentIndex + 1}:`, { startPoint, endPoint });
+  console.log(`HIGHLIGHTING segment ${segmentIndex + 1}:`, { startPoint, endPoint });
 
   if (!startPoint || !endPoint) {
     console.error('Invalid start or end point:', { startPoint, endPoint });
@@ -129,7 +137,7 @@ export const highlightWallSegment = (
   const distance = calculateDistance(startPoint, endPoint);
   setSegmentDistance(formatDistance(distance));
 
-  // Create very prominent highlight
+  // Create VERY PROMINENT highlight
   const highlightFeature: HighlightFeature = {
     type: "Feature",
     geometry: {
@@ -142,16 +150,26 @@ export const highlightWallSegment = (
     }
   };
 
+  console.log('SETTING HIGHLIGHT FEATURE:', highlightFeature);
+
   // Set the highlight - layers are guaranteed to exist now
   try {
     const highlightSource = map.getSource('wall-highlight') as mapboxgl.GeoJSONSource;
-    highlightSource.setData({
-      type: 'FeatureCollection',
-      features: [highlightFeature]
-    });
-    console.log('Highlight feature set successfully:', highlightFeature);
+    if (highlightSource) {
+      highlightSource.setData({
+        type: 'FeatureCollection',
+        features: [highlightFeature]
+      });
+      console.log('✅ Highlight feature set successfully!');
+      
+      // Force immediate render
+      map.triggerRepaint();
+      console.log('✅ Map repaint triggered!');
+    } else {
+      console.error('❌ Highlight source not found!');
+    }
   } catch (error) {
-    console.error('Error setting highlight feature:', error);
+    console.error('❌ Error setting highlight feature:', error);
   }
 
   return { startPoint, endPoint };

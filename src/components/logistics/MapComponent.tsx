@@ -463,7 +463,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       freehandSource.current = map.current?.getSource('freehand-lines') as mapboxgl.GeoJSONSource;
       wallLinesSource.current = map.current?.getSource('wall-lines') as mapboxgl.GeoJSONSource;
 
-      // Add layers in proper order (highlights should be on top)
+      // Add layers in proper order (background layers first, then highlights on top)
       map.current?.addLayer({
         'id': 'measure-lines',
         'type': 'line',
@@ -566,7 +566,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       });
 
-      // ENHANCED wall highlight layer - much more prominent and on top
+      // CRITICAL: PINK HIGHLIGHT LAYER - ALWAYS ON TOP!
       map.current?.addLayer({
         'id': 'wall-highlight-layer',
         'type': 'line',
@@ -574,13 +574,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
         'layout': { 'line-cap': 'round', 'line-join': 'round' },
         'paint': {
           'line-color': '#FF1493', // Bright deep pink - very visible
-          'line-width': 12, // Much thicker
-          'line-opacity': 0.9,
-          'line-blur': 2 // Add glow effect
+          'line-width': 16, // VERY THICK for maximum visibility
+          'line-opacity': 1.0, // Full opacity
+          'line-blur': 0 // No blur for crisp visibility
         }
       });
 
-      // Simple arrow pointing to current wall - rotated to point at the wall
+      // Arrow pointing to current wall - also on top
       map.current?.addLayer({
         'id': 'wall-arrow-layer',
         'type': 'symbol',
@@ -588,7 +588,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         'layout': {
           'text-field': '▼', // Use downward arrow that will be rotated
           'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-          'text-size': 24,
+          'text-size': 28, // Bigger arrow
           'text-anchor': 'center',
           'text-rotate': ['get', 'rotation'], // Use the rotation from properties
           'text-rotation-alignment': 'map'
@@ -596,7 +596,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         'paint': {
           'text-color': '#FF1493',
           'text-halo-color': '#ffffff',
-          'text-halo-width': 3
+          'text-halo-width': 4 // Thicker halo
         }
       });
 

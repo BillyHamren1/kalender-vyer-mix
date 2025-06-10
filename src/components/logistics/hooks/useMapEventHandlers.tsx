@@ -41,27 +41,23 @@ export const useMapEventHandlers = (
         setCurrentSegment(1);
         setWallChoices([]);
         
-        // IMMEDIATELY highlight the first wall BEFORE opening dialog
+        // CRITICAL: Highlight first wall IMMEDIATELY and SYNCHRONOUSLY
         const coordinates = feature.geometry.coordinates;
-        console.log('IMMEDIATELY highlighting first wall segment...');
+        console.log('IMMEDIATELY highlighting first wall segment synchronously...');
         
-        // Force immediate highlight with multiple attempts
-        const forceHighlight = () => {
-          if (map.current) {
-            highlightCurrentWall(coordinates, 0, map.current);
-          }
-        };
-        
-        // Try immediately and with delays to ensure it works
-        forceHighlight();
-        setTimeout(forceHighlight, 10);
-        setTimeout(forceHighlight, 50);
-        setTimeout(forceHighlight, 100);
-        
-        // THEN open the dialog
-        setTimeout(() => {
-          setShowWallDialog(true);
-        }, 150);
+        if (map.current) {
+          // Force immediate highlight with NO delays - do it right now!
+          highlightCurrentWall(coordinates, 0, map.current);
+          
+          // Force a map render to ensure the highlight appears
+          map.current.triggerRepaint();
+          
+          // THEN open the dialog after a small delay to ensure highlight is visible
+          setTimeout(() => {
+            console.log('Opening wall selection dialog...');
+            setShowWallDialog(true);
+          }, 200);
+        }
         
       } else if (feature.geometry.type === 'LineString') {
         console.log('Line created, starting wall selection...');
@@ -75,25 +71,21 @@ export const useMapEventHandlers = (
         const coordinates = feature.geometry.coordinates;
         // For line strings, we treat each segment as a wall
         if (coordinates.length > 1) {
-          // IMMEDIATELY highlight the first wall BEFORE opening dialog
-          console.log('IMMEDIATELY highlighting first line segment...');
+          console.log('IMMEDIATELY highlighting first line segment synchronously...');
           
-          const forceHighlight = () => {
-            if (map.current) {
-              highlightCurrentWall(coordinates, 0, map.current);
-            }
-          };
-          
-          // Try immediately and with delays to ensure it works
-          forceHighlight();
-          setTimeout(forceHighlight, 10);
-          setTimeout(forceHighlight, 50);
-          setTimeout(forceHighlight, 100);
-          
-          // THEN open the dialog
-          setTimeout(() => {
-            setShowWallDialog(true);
-          }, 150);
+          if (map.current) {
+            // Force immediate highlight with NO delays
+            highlightCurrentWall(coordinates, 0, map.current);
+            
+            // Force a map render to ensure the highlight appears
+            map.current.triggerRepaint();
+            
+            // THEN open the dialog after a small delay
+            setTimeout(() => {
+              console.log('Opening wall selection dialog...');
+              setShowWallDialog(true);
+            }, 200);
+          }
         }
       } else {
         toast.success(`${feature.geometry.type} created`);
