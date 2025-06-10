@@ -128,10 +128,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   const { takeMapSnapshot } = useMapSnapshot(map, selectedBooking, onSnapshotSaved);
 
-  // Create a wrapper function that matches the expected signature
+  // Create a wrapper function that matches the expected signature for clearWallHighlight
   const clearWallHighlightWrapper = () => {
     if (map.current) {
-      clearWallHighlight(map.current);
+      // Pass both required arguments: map and the wall lines source
+      clearWallHighlight(map.current, wallLinesSource.current);
     }
   };
 
@@ -347,7 +348,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     });
   };
 
-  // Use the event handlers hook
+  // Use the event handlers hook with correct number of arguments (14)
   useMapEventHandlers(
     map,
     draw,
@@ -362,8 +363,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     handleWallPointMouseDown,
     selectedWallLineId,
     deleteSelectedWallLine,
-    setPendingFeatureId,
-    clearWallHighlightWrapper
+    setPendingFeatureId
   );
 
   // Initialize map
