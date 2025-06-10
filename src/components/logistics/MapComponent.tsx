@@ -128,6 +128,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   const { takeMapSnapshot } = useMapSnapshot(map, selectedBooking, onSnapshotSaved);
 
+  // Create a wrapper function that matches the expected signature for useMapEventHandlers
+  const clearWallHighlightWrapper = () => {
+    if (map.current) {
+      clearWallHighlight(map.current, setSegmentDistance);
+    }
+  };
+
   // Handle window messages for iframe resize
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -355,7 +362,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
     handleWallPointMouseDown,
     selectedWallLineId,
     deleteSelectedWallLine,
-    setPendingFeatureId
+    setPendingFeatureId,
+    clearWallHighlightWrapper
   );
 
   // Initialize map
