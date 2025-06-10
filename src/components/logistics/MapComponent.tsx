@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
@@ -431,6 +430,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
         'data': { 'type': 'FeatureCollection', 'features': [] }
       });
 
+      map.current?.addSource('wall-distance-labels', {
+        'type': 'geojson',
+        'data': { 'type': 'FeatureCollection', 'features': [] }
+      });
+
       map.current?.addSource('wall-highlight', {
         'type': 'geojson',
         'data': { 'type': 'FeatureCollection', 'features': [] }
@@ -527,6 +531,24 @@ const MapComponent: React.FC<MapComponentProps> = ({
           'circle-color': '#ffffff',
           'circle-stroke-color': '#333333',
           'circle-stroke-width': 2
+        }
+      });
+
+      // Add wall distance labels layer
+      map.current?.addLayer({
+        'id': 'wall-distance-labels',
+        'type': 'symbol',
+        'source': 'wall-distance-labels',
+        'layout': {
+          'text-field': ['get', 'distance'],
+          'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+          'text-size': 14,
+          'text-anchor': 'center'
+        },
+        'paint': {
+          'text-color': '#000000',
+          'text-halo-color': '#ffffff',
+          'text-halo-width': 2
         }
       });
 

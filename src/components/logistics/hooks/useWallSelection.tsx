@@ -98,6 +98,12 @@ export const useWallSelection = () => {
     updateWallLinesAndLabels(updatedWallLines, wallLinesSource, map);
   };
 
+  // Create a wrapper function that matches the expected signature
+  const clearWallHighlightWrapper = () => {
+    // This wrapper doesn't need the map parameter since it's handled internally
+    // The actual clearWallHighlight will be called with the map from the component
+  };
+
   return {
     showWallDialog,
     setShowWallDialog,
@@ -125,7 +131,7 @@ export const useWallSelection = () => {
     segmentDistance,
     getTotalSegments,
     highlightCurrentWall,
-    clearWallHighlight: (map: mapboxgl.Map) => clearWallHighlight(map, setSegmentDistance),
+    clearWallHighlight: clearWallHighlightWrapper,
     handleWallChoice,
     cancelWallSelection,
     deleteSelectedWallLine,

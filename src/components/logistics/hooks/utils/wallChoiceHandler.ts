@@ -1,7 +1,7 @@
 
 import mapboxgl from 'mapbox-gl';
 import { toast } from 'sonner';
-import { WallLineFeature } from '../types/wallSelectionTypes';
+import { WallLineFeature, WallDistanceLabelFeature } from '../types/wallSelectionTypes';
 import { calculateDistance, formatDistance } from '../../MapUtils';
 
 export const handleWallChoice = (
@@ -126,8 +126,8 @@ export const updateWallLinesAndLabels = (
     features: wallLinesData
   });
 
-  // Create distance label features
-  const labelFeatures = wallLinesData.map((wallLine) => {
+  // Create distance label features with proper typing
+  const labelFeatures: WallDistanceLabelFeature[] = wallLinesData.map((wallLine) => {
     const coordinates = wallLine.geometry.coordinates;
     const midPoint = [
       (coordinates[0][0] + coordinates[1][0]) / 2,
