@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { importBookings } from '@/services/importService';
 
@@ -9,8 +8,8 @@ interface BackgroundImportState {
   importCount: number;
 }
 
-const IMPORT_INTERVAL = 5 * 60 * 1000; // 5 minutes
-const MIN_IMPORT_GAP = 3 * 60 * 1000; // 3 minutes minimum between imports
+const IMPORT_INTERVAL = 30 * 1000; // 30 seconds
+const MIN_IMPORT_GAP = 25 * 1000; // 25 seconds minimum between imports
 const STORAGE_KEY = 'background_import_state';
 
 export const useBackgroundImport = () => {
@@ -66,7 +65,7 @@ export const useBackgroundImport = () => {
       return;
     }
 
-    console.log('🔄 Background import starting...');
+    console.log('🔄 Background import starting (30s interval)...');
     
     saveState({ 
       isRunning: true,
@@ -85,7 +84,7 @@ export const useBackgroundImport = () => {
         importCount: state.importCount + 1
       });
       
-      console.log('✅ Background import completed successfully');
+      console.log('✅ Background import completed successfully (30s interval)');
     } catch (error) {
       console.error('❌ Background import failed:', error);
       saveState({ 
@@ -106,14 +105,14 @@ export const useBackgroundImport = () => {
       setTimeout(performBackgroundImport, 1000); // Small delay to avoid conflicts
     }
 
-    // Set up periodic imports
+    // Set up periodic imports every 30 seconds
     intervalRef.current = setInterval(() => {
       if (isActiveRef.current) {
         performBackgroundImport();
       }
     }, IMPORT_INTERVAL);
 
-    console.log('🚀 Background import service started');
+    console.log('🚀 Background import service started (30s interval)');
   }, [canImport, performBackgroundImport]);
 
   // Stop background import service
