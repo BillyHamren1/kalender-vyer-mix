@@ -18,7 +18,7 @@ export const handleWallChoice = (
   setCurrentSegment: (segment: number) => void,
   highlightCurrentWall: (coords: number[][][] | number[][], index: number, map: mapboxgl.Map) => void,
   setShowWallDialog: (show: boolean) => void,
-  clearWallHighlight: (map: mapboxgl.Map) => void,
+  clearWallHighlight: (map: mapboxgl.Map, setSegmentDistance: (distance: string) => void) => void,
   pendingFeatureId: string | null,
   draw: React.MutableRefObject<any>,
   setPendingLine: (line: any) => void,
@@ -96,7 +96,7 @@ export const handleWallChoice = (
   } else {
     // All segments processed, clean up
     setShowWallDialog(false);
-    clearWallHighlight(map);
+    clearWallHighlight(map, setSegmentDistance);
     
     // Now remove the original drawn feature
     if (pendingFeatureId && draw.current) {
@@ -135,7 +135,7 @@ export const updateWallLinesAndLabels = (
     ];
 
     return {
-      type: "Feature",
+      type: "Feature" as const,
       geometry: {
         type: "Point",
         coordinates: midPoint
@@ -154,12 +154,15 @@ export const updateWallLinesAndLabels = (
       type: 'FeatureCollection',
       features: labelFeatures
     });
+    console.log('Updated distance labels:', labelFeatures);
+  } else {
+    console.error('Distance labels source not found');
   }
 };
 
 export const cancelWallSelection = (
   setShowWallDialog: (show: boolean) => void,
-  clearWallHighlight: (map: mapboxgl.Map) => void,
+  clearWallHighlight: (map: mapboxgl.Map, setSegmentDistance: (distance: string) => void) => void,
   setPendingLine: (line: any) => void,
   setPendingFeatureId: (id: string | null) => void,
   setCurrentSegment: (segment: number) => void,
@@ -169,7 +172,7 @@ export const cancelWallSelection = (
 ) => {
   console.log('Canceling wall selection');
   setShowWallDialog(false);
-  clearWallHighlight(map);
+  clearWallHighlight(map, setSegmentDistance);
   setPendingLine(null);
   setPendingFeatureId(null);
   setCurrentSegment(1);
