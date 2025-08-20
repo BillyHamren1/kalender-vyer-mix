@@ -14,14 +14,14 @@ export const ProductsList = ({ products }: ProductsListProps) => {
   const hasProducts = products && products.length > 0;
 
   return (
-    <Card className="shadow-sm h-full flex flex-col">
+    <Card className="shadow-sm">
       <CardHeader className="py-3 px-4">
         <CardTitle className="flex items-center gap-1.5 text-base">
           <Package className="h-4 w-4" />
           <span>Products ({hasProducts ? products.length : 0})</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-0 px-4 pb-3 flex-1">
+      <CardContent className="pt-0 px-4 pb-3">
         {hasProducts ? (
           <ul className="divide-y divide-gray-100">
             {products.map(product => {
@@ -46,8 +46,8 @@ export const ProductsList = ({ products }: ProductsListProps) => {
             })}
           </ul>
         ) : (
-          <div className="flex items-center justify-center h-full text-gray-500">
-            <p className="text-sm text-center">No products added yet</p>
+          <div className="text-center py-4 text-gray-500">
+            <p className="text-sm">No products added yet</p>
           </div>
         )}
       </CardContent>
