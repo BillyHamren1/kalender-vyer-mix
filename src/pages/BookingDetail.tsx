@@ -141,6 +141,26 @@ const BookingDetail = () => {
         onInternalNotesChange={handleInternalNotesChange}
         onReloadData={loadBookingData}
         isSavingInternalNotes={isSavingInternalNotes}
+        onAttachmentAdded={(attachment) => {
+          setBooking(prev => prev ? {
+            ...prev,
+            attachments: [...(prev.attachments || []), attachment]
+          } : null);
+        }}
+        onAttachmentDeleted={(attachmentId) => {
+          setBooking(prev => prev ? {
+            ...prev,
+            attachments: (prev.attachments || []).filter(a => a.id !== attachmentId)
+          } : null);
+        }}
+        onAttachmentRenamed={(attachmentId, newName) => {
+          setBooking(prev => prev ? {
+            ...prev,
+            attachments: (prev.attachments || []).map(a => 
+              a.id === attachmentId ? { ...a, fileName: newName } : a
+            )
+          } : null);
+        }}
       />
     </div>
   );

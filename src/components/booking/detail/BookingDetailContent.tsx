@@ -31,6 +31,9 @@ interface BookingDetailContentProps {
   onInternalNotesChange: (notes: string) => Promise<void>;
   onReloadData: () => void;
   isSavingInternalNotes: boolean;
+  onAttachmentAdded?: (attachment: any) => void;
+  onAttachmentDeleted?: (attachmentId: string) => void;
+  onAttachmentRenamed?: (attachmentId: string, newName: string) => void;
 }
 
 const BookingDetailContent: React.FC<BookingDetailContentProps> = ({ 
@@ -45,7 +48,10 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
   onDeliveryDetailsChange,
   onLogisticsChange,
   onInternalNotesChange,
-  isSavingInternalNotes
+  isSavingInternalNotes,
+  onAttachmentAdded,
+  onAttachmentDeleted,
+  onAttachmentRenamed
 }) => {
   return (
     <div className="space-y-6">
@@ -92,7 +98,13 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
             onRemoveDate={onRemoveDate}
           />
           <ProductsList products={booking.products || []} />
-          <AttachmentsList attachments={booking.attachments || []} />
+          <AttachmentsList 
+            bookingId={booking.id}
+            attachments={booking.attachments || []} 
+            onAttachmentAdded={onAttachmentAdded}
+            onAttachmentDeleted={onAttachmentDeleted}
+            onAttachmentRenamed={onAttachmentRenamed}
+          />
           <InternalNotes 
             notes={booking.internalNotes || ''}
             bookingId={booking.id}

@@ -9,14 +9,17 @@ import { BookingAttachment } from '@/types/booking';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import ConfirmationDialog from '@/components/ConfirmationDialog';
+import { FileUpload } from './FileUpload';
 
 interface AttachmentsListProps {
+  bookingId: string;
   attachments: BookingAttachment[];
   onAttachmentDeleted?: (attachmentId: string) => void;
   onAttachmentRenamed?: (attachmentId: string, newName: string) => void;
+  onAttachmentAdded?: (attachment: BookingAttachment) => void;
 }
 
-export const AttachmentsList = ({ attachments, onAttachmentDeleted, onAttachmentRenamed }: AttachmentsListProps) => {
+export const AttachmentsList = ({ bookingId, attachments, onAttachmentDeleted, onAttachmentRenamed, onAttachmentAdded }: AttachmentsListProps) => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmDeleteMultiple, setConfirmDeleteMultiple] = useState(false);
@@ -181,43 +184,50 @@ export const AttachmentsList = ({ attachments, onAttachmentDeleted, onAttachment
             <span>Attachments</span>
           </div>
           
-          {attachments.length > 0 && (
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5">
-                <Checkbox
-                  checked={allSelected}
-                  onCheckedChange={handleSelectAll}
-                  className="data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground"
-                  {...(someSelected ? { 'data-state': 'indeterminate' } : {})}
-                />
-                <span className="text-xs text-gray-500">
-                  {selectedAttachments.size > 0 ? `${selectedAttachments.size} valda` : 'Välj alla'}
-                </span>
-              </div>
-              
-              {selectedAttachments.size > 0 && (
-                <ConfirmationDialog
-                  title="Ta bort bilagor"
-                  description={`Är du säker på att du vill ta bort ${selectedAttachments.size} bilagor? Denna åtgärd kan inte ångras.`}
-                  confirmLabel="Ta bort alla"
-                  cancelLabel="Avbryt"
-                  onConfirm={handleDeleteMultiple}
-                  open={confirmDeleteMultiple}
-                  onOpenChange={setConfirmDeleteMultiple}
-                >
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setConfirmDeleteMultiple(true)}
-                    disabled={deletingMultiple}
+          <div className="flex items-center gap-2">
+            <FileUpload 
+              bookingId={bookingId}
+              onFileUploaded={onAttachmentAdded}
+            />
+            
+            {attachments.length > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <Checkbox
+                    checked={allSelected}
+                    onCheckedChange={handleSelectAll}
+                    className="data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground"
+                    {...(someSelected ? { 'data-state': 'indeterminate' } : {})}
+                  />
+                  <span className="text-xs text-gray-500">
+                    {selectedAttachments.size > 0 ? `${selectedAttachments.size} valda` : 'Välj alla'}
+                  </span>
+                </div>
+                
+                {selectedAttachments.size > 0 && (
+                  <ConfirmationDialog
+                    title="Ta bort bilagor"
+                    description={`Är du säker på att du vill ta bort ${selectedAttachments.size} bilagor? Denna åtgärd kan inte ångras.`}
+                    confirmLabel="Ta bort alla"
+                    cancelLabel="Avbryt"
+                    onConfirm={handleDeleteMultiple}
+                    open={confirmDeleteMultiple}
+                    onOpenChange={setConfirmDeleteMultiple}
                   >
-                    <Trash2 className="h-3 w-3 mr-1" />
-                    Ta bort ({selectedAttachments.size})
-                  </Button>
-                </ConfirmationDialog>
-              )}
-            </div>
-          )}
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setConfirmDeleteMultiple(true)}
+                      disabled={deletingMultiple}
+                    >
+                      <Trash2 className="h-3 w-3 mr-1" />
+                      Ta bort ({selectedAttachments.size})
+                    </Button>
+                  </ConfirmationDialog>
+                )}
+              </div>
+            )}
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0 px-4 pb-3">
