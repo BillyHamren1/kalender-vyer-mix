@@ -8,6 +8,10 @@ export const getCalendarViews = () => {
       type: 'resourceTimeGrid',
       duration: { days: 1 }
     },
+    resourceTimeGridWeek: {
+      type: 'resourceTimeGrid',
+      duration: { weeks: 1 }
+    },
     timeGridWeek: {
       type: 'timeGrid',
       duration: { weeks: 1 }
@@ -43,7 +47,7 @@ export const getHeaderToolbar = () => {
   return {
     left: 'prev,next today',
     center: 'title',
-    right: 'resourceTimeGridDay,timeGridWeek,dayGridMonth'
+    right: 'resourceTimeGridDay,resourceTimeGridWeek,timeGridWeek,dayGridMonth'
   };
 };
 

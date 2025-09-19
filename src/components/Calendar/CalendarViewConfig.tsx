@@ -22,7 +22,7 @@ export const useCalendarView = () => {
     return {
       left: 'prev,next today',
       center: 'title',
-      right: 'resourceTimeGridDay,timeGridWeek,dayGridMonth'
+      right: 'resourceTimeGridDay,resourceTimeGridWeek,timeGridWeek,dayGridMonth'
     };
   };
   
