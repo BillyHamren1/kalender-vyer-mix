@@ -21,6 +21,9 @@ interface UnifiedResourceCalendarProps {
   onSelectStaff?: (resourceId: string, resourceTitle: string, targetDate?: Date) => void;
   forceRefresh?: number | boolean;
   viewMode: 'weekly' | 'monthly';
+  staffOperations?: {
+    getStaffForTeamAndDate: (teamId: string, date: Date) => any[];
+  };
 }
 
 const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
@@ -34,7 +37,8 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   onStaffDrop,
   onSelectStaff,
   forceRefresh,
-  viewMode
+  viewMode,
+  staffOperations
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const todayRef = useRef<HTMLDivElement>(null);
@@ -247,6 +251,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
                   droppableScope={`${viewMode}-calendar`}
                   calendarProps={getCommonCalendarProps(index)}
                   targetDate={date}
+                  staffOperations={staffOperations}
                 />
               </div>
             </div>

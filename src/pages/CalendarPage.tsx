@@ -138,6 +138,7 @@ const CalendarPage = () => {
                 onStaffDrop={staffOps.handleStaffDrop}
                 onSelectStaff={handleOpenStaffSelection}
                 viewMode="weekly"
+                staffOperations={staffOps}
               />
             ) : (
               <StaffBookingsList
