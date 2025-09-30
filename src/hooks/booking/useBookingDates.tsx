@@ -61,52 +61,47 @@ export const useBookingDates = (
       // Format the date as YYYY-MM-DD without timezone conversion
       const formattedDate = formatDateToLocalString(date);
       
-      // Get the current state for this type of date
-      let currentDates: string[];
-      switch (dateType) {
-        case 'rig':
-          currentDates = [...rigDates];
-          if (!currentDates.includes(formattedDate)) {
-            currentDates.push(formattedDate);
-            setRigDates(currentDates);
-          }
-          break;
-        case 'event':
-          currentDates = [...eventDates];
-          if (!currentDates.includes(formattedDate)) {
-            currentDates.push(formattedDate);
-            setEventDates(currentDates);
-          }
-          break;
-        case 'rigDown':
-          currentDates = [...rigDownDates];
-          if (!currentDates.includes(formattedDate)) {
-            currentDates.push(formattedDate);
-            setRigDownDates(currentDates);
-          }
-          break;
+      console.log(`Adding ${dateType} date:`, formattedDate, 'for booking:', id);
+      
+      // Check if date already exists
+      const existingDates = dateType === 'rig' ? rigDates : 
+                           dateType === 'event' ? eventDates : rigDownDates;
+      
+      if (existingDates.includes(formattedDate)) {
+        console.log('Date already exists, skipping');
+        return;
       }
       
-      // Also update the single date field for backward compatibility
-      // if this is the first date of its type
+      // Update the legacy field in the database FIRST (always update to latest date)
       const legacyFieldName = dateType === 'rig' ? 'rigDayDate' : 
                             dateType === 'event' ? 'eventDate' : 'rigDownDate';
       
-      // If this is the first date or there's no existing date, update the legacy field
-      if ((!booking[legacyFieldName] && currentDates.length === 1) || currentDates.length === 0) {
-        await updateBookingDates(id, legacyFieldName, formattedDate);
-        
-        // Update local booking state
-        setBooking({
-          ...booking,
-          [legacyFieldName]: formattedDate
-        });
+      await updateBookingDates(id, legacyFieldName, formattedDate);
+      console.log(`Updated ${legacyFieldName} in database to:`, formattedDate);
+      
+      // Update local state
+      const updatedBooking = {
+        ...booking,
+        [legacyFieldName]: formattedDate
+      };
+      setBooking(updatedBooking);
+      
+      // Update dates array
+      switch (dateType) {
+        case 'rig':
+          setRigDates([...rigDates, formattedDate]);
+          break;
+        case 'event':
+          setEventDates([...eventDates, formattedDate]);
+          break;
+        case 'rigDown':
+          setRigDownDates([...rigDownDates, formattedDate]);
+          break;
       }
       
-      // Removed success toast - only show errors
-      
-      // If autoSync is enabled, automatically sync all dates to calendar
-      if (autoSync) {
+      // If autoSync is enabled and booking is confirmed, sync to calendar
+      if (autoSync && booking.status === 'CONFIRMED') {
+        console.log('Auto-syncing to calendar...');
         await syncWithCalendar();
       }
     } catch (err) {
