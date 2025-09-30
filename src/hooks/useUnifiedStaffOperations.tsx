@@ -28,10 +28,13 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
   // Get the date range based on mode
   const getDateRange = useCallback(() => {
     if (mode === 'daily') {
+      console.log('🔍 [getDateRange] Mode: daily, Date:', format(currentDate, 'yyyy-MM-dd'));
       return [currentDate];
     } else {
       const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-      return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+      const dates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+      console.log('🔍 [getDateRange] Mode: weekly, Week start:', format(weekStart, 'yyyy-MM-dd'), 'Dates:', dates.map(d => format(d, 'yyyy-MM-dd')));
+      return dates;
     }
   }, [currentDate, mode]);
 
@@ -42,10 +45,12 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
       const dates = getDateRange();
       const allAssignments: StaffAssignment[] = [];
       
-      console.log(`🔄 Fetching ${mode} assignments for ${dates.length} days`);
+      console.log(`🔄 [fetchAssignments] Fetching ${mode} assignments for ${dates.length} days`);
       
       for (const date of dates) {
         const dateStr = format(date, 'yyyy-MM-dd');
+        
+        console.log(`📥 [fetchAssignments] Querying DB for date: ${dateStr}`);
         
         const { data, error } = await supabase
           .from('staff_assignments')
@@ -61,28 +66,39 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
           .order('created_at', { ascending: true });
 
         if (error) {
-          console.error(`Error fetching assignments for ${dateStr}:`, error);
+          console.error(`❌ [fetchAssignments] Error fetching assignments for ${dateStr}:`, error);
           continue;
         }
 
+        console.log(`📥 [fetchAssignments] Raw DB data for ${dateStr}:`, data?.length || 0, 'rows', data);
+
         if (data) {
-          const formattedAssignments = data.map(assignment => ({
-            staffId: assignment.staff_id,
-            staffName: assignment.staff_members?.name || `Staff ${assignment.staff_id}`,
-            teamId: toFrontendTeamId(assignment.team_id), // Convert DB format to frontend format
-            date: dateStr,
-            color: assignment.staff_members?.color || '#E3F2FD'
-          }));
+          const formattedAssignments = data.map(assignment => {
+            const formatted = {
+              staffId: assignment.staff_id,
+              staffName: assignment.staff_members?.name || `Staff ${assignment.staff_id}`,
+              teamId: toFrontendTeamId(assignment.team_id), // Convert DB format to frontend format
+              date: dateStr,
+              color: assignment.staff_members?.color || '#E3F2FD'
+            };
+            console.log(`🔄 [fetchAssignments] Formatted assignment:`, { 
+              db_team_id: assignment.team_id, 
+              frontend_team_id: formatted.teamId,
+              staff: formatted.staffName,
+              date: dateStr
+            });
+            return formatted;
+          });
           
           allAssignments.push(...formattedAssignments);
         }
       }
       
-      console.log(`✅ Fetched ${allAssignments.length} assignments`);
+      console.log(`✅ [fetchAssignments] Total assignments fetched: ${allAssignments.length}`, allAssignments);
       setAssignments(allAssignments);
       
     } catch (error) {
-      console.error('Error in fetchAssignments:', error);
+      console.error('❌ [fetchAssignments] Error in fetchAssignments:', error);
       toast.error('Failed to load staff assignments');
     } finally {
       setIsLoading(false);
@@ -117,6 +133,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
 
   // Initial load
   useEffect(() => {
+    console.log('🚀 [useUnifiedStaffOps] Initial load triggered, refreshTrigger:', refreshTrigger);
     fetchAssignments();
     fetchAvailableStaff();
   }, [fetchAssignments, fetchAvailableStaff, refreshTrigger]);
@@ -127,7 +144,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
     const startDate = format(dates[0], 'yyyy-MM-dd');
     const endDate = format(dates[dates.length - 1], 'yyyy-MM-dd');
     
-    console.log(`🔔 Setting up real-time subscription from ${startDate} to ${endDate}`);
+    console.log(`🔔 [Real-time] Setting up subscription from ${startDate} to ${endDate}`);
     
     const channel = supabase
       .channel('unified-staff-assignments-changes')
@@ -140,14 +157,16 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
           filter: `assignment_date.gte.${startDate},assignment_date.lte.${endDate}`
         },
         (payload) => {
-          console.log(`🔔 Real-time change: ${payload.eventType}`);
+          console.log(`🔔 [Real-time] Change detected:`, payload.eventType, payload);
+          const payloadDate = (payload.new as any)?.assignment_date || (payload.old as any)?.assignment_date;
+          console.log(`🔔 [Real-time] Payload date: ${payloadDate}, in range: ${startDate} to ${endDate}`);
           fetchAssignments();
         }
       )
       .subscribe();
 
     return () => {
-      console.log('🔔 Cleaning up real-time subscription');
+      console.log('🔔 [Real-time] Cleaning up subscription');
       supabase.removeChannel(channel);
     };
   }, [getDateRange, fetchAssignments]);
@@ -246,13 +265,34 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
   // Get staff for a specific team and date
   const getStaffForTeamAndDate = useCallback((teamId: string, date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
-    return assignments
-      .filter(a => a.teamId === teamId && a.date === dateStr)
-      .map(a => ({
-        id: a.staffId,
-        name: a.staffName,
-        color: a.color || '#E3F2FD'
-      }));
+    console.log(`🔎 [getStaffForTeamAndDate] Called with teamId: ${teamId}, date: ${dateStr}`);
+    console.log(`🔎 [getStaffForTeamAndDate] Total assignments in state:`, assignments.length, assignments);
+    
+    const filtered = assignments.filter(a => {
+      const teamMatch = a.teamId === teamId;
+      const dateMatch = a.date === dateStr;
+      console.log(`🔎 [getStaffForTeamAndDate] Checking assignment:`, { 
+        staff: a.staffName, 
+        assignmentTeamId: a.teamId, 
+        assignmentDate: a.date,
+        requestedTeamId: teamId,
+        requestedDate: dateStr,
+        teamMatch, 
+        dateMatch 
+      });
+      return teamMatch && dateMatch;
+    });
+    
+    console.log(`🔎 [getStaffForTeamAndDate] Filtered assignments:`, filtered.length, filtered);
+    
+    const result = filtered.map(a => ({
+      id: a.staffId,
+      name: a.staffName,
+      color: a.color || '#E3F2FD'
+    }));
+    
+    console.log(`✅ [getStaffForTeamAndDate] Returning:`, result);
+    return result;
   }, [assignments]);
 
   // Get available staff for a specific date
