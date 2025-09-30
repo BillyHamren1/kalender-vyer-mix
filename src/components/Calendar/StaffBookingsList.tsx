@@ -2,10 +2,12 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CalendarEvent, Resource } from './ResourceData';
-import { format, startOfDay, endOfDay, addDays, subDays, isWithinInterval } from 'date-fns';
+import { format, startOfDay, endOfDay, addDays, subDays, isWithinInterval, startOfWeek, endOfWeek } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Users, RefreshCw, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -25,11 +27,14 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
   backgroundImport
 }) => {
   const navigate = useNavigate();
-  const [dateRange, setDateRange] = useState(7); // days
-
-  // Calculate date range for filtering
-  const startDate = subDays(currentDate, Math.floor(dateRange / 2));
-  const endDate = addDays(currentDate, Math.floor(dateRange / 2));
+  
+  // Default to current week (Monday to Sunday)
+  const [startDate, setStartDate] = useState(() => 
+    startOfWeek(new Date(), { weekStartsOn: 1 })
+  );
+  const [endDate, setEndDate] = useState(() => 
+    endOfWeek(new Date(), { weekStartsOn: 1 })
+  );
 
   // Filter events within the date range
   const filteredEvents = useMemo(() => {
@@ -117,26 +122,92 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
   return (
     <div className="space-y-6">
       {/* Header with controls */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold">Staff Bookings</h2>
-          <p className="text-gray-600">
-            Showing {filteredEvents.length} booking{filteredEvents.length !== 1 ? 's' : ''} 
-            {' '}from {format(startDate, 'MMM d')} to {format(endDate, 'MMM d')}
-          </p>
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h2 className="text-2xl font-bold">Staff Bookings</h2>
+            <p className="text-gray-600">
+              Showing {filteredEvents.length} booking{filteredEvents.length !== 1 ? 's' : ''} 
+            </p>
+          </div>
+          
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleRefresh}
+              disabled={backgroundImport?.isImporting}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${backgroundImport?.isImporting ? 'animate-spin' : ''}`} />
+              Refresh Data
+            </Button>
+          </div>
         </div>
-        
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={handleRefresh}
-            disabled={backgroundImport?.isImporting}
-            className="flex items-center gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${backgroundImport?.isImporting ? 'animate-spin' : ''}`} />
-            Refresh Data
-          </Button>
-        </div>
+
+        {/* Date Range Filters */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="start-date">From Date</Label>
+                <Input
+                  id="start-date"
+                  type="date"
+                  value={format(startDate, 'yyyy-MM-dd')}
+                  onChange={(e) => setStartDate(new Date(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="end-date">To Date</Label>
+                <Input
+                  id="end-date"
+                  type="date"
+                  value={format(endDate, 'yyyy-MM-dd')}
+                  onChange={(e) => setEndDate(new Date(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const today = new Date();
+                  setStartDate(startOfWeek(today, { weekStartsOn: 1 }));
+                  setEndDate(endOfWeek(today, { weekStartsOn: 1 }));
+                }}
+              >
+                This Week
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const today = new Date();
+                  setStartDate(startOfDay(today));
+                  setEndDate(endOfDay(today));
+                }}
+              >
+                Today
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const today = new Date();
+                  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+                  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                  setStartDate(firstDay);
+                  setEndDate(lastDay);
+                }}
+              >
+                This Month
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Bookings List */}
