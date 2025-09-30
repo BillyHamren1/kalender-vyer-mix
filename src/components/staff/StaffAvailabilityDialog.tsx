@@ -89,18 +89,43 @@ const StaffAvailabilityDialog: React.FC<StaffAvailabilityDialogProps> = ({
     try {
       setIsLoading(true);
       const today = new Date();
-      const oneYearAhead = new Date();
-      oneYearAhead.setFullYear(oneYearAhead.getFullYear() + 1);
+      const tenYearsAhead = new Date();
+      tenYearsAhead.setFullYear(tenYearsAhead.getFullYear() + 10);
 
       await createAvailability({
         staff_id: staffId,
         start_date: today,
-        end_date: oneYearAhead,
+        end_date: tenYearsAhead,
         availability_type: 'available',
-        notes: 'Available indefinitely (1 year period)',
+        notes: 'Available indefinitely',
       });
 
-      toast.success('Staff set as available for the next year');
+      toast.success('Staff set as available indefinitely');
+      await loadAvailabilities();
+    } catch (error) {
+      toast.error('Failed to set availability');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSetUnavailableIndefinitely = async () => {
+    try {
+      setIsLoading(true);
+      const today = new Date();
+      const tenYearsAhead = new Date();
+      tenYearsAhead.setFullYear(tenYearsAhead.getFullYear() + 10);
+
+      await createAvailability({
+        staff_id: staffId,
+        start_date: today,
+        end_date: tenYearsAhead,
+        availability_type: 'unavailable',
+        notes: 'Unavailable indefinitely',
+      });
+
+      toast.success('Staff set as unavailable indefinitely');
       await loadAvailabilities();
     } catch (error) {
       toast.error('Failed to set availability');
@@ -159,14 +184,22 @@ const StaffAvailabilityDialog: React.FC<StaffAvailabilityDialogProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
           {/* Left side - Calendar and form */}
           <div className="space-y-4">
-            <div className="space-y-3">
+            <div className="space-y-2">
               <Button
                 onClick={handleSetAvailableIndefinitely}
                 disabled={isLoading}
                 className="w-full"
                 variant="secondary"
               >
-                ✅ Set Available Indefinitely (1 Year)
+                ✅ Set Available Indefinitely
+              </Button>
+              <Button
+                onClick={handleSetUnavailableIndefinitely}
+                disabled={isLoading}
+                className="w-full"
+                variant="secondary"
+              >
+                ❌ Set Unavailable Indefinitely
               </Button>
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
