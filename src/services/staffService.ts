@@ -1,5 +1,5 @@
-
 import { supabase } from "@/integrations/supabase/client";
+import { toFrontendTeamId } from "@/utils/teamIdMapping";
 
 export interface StaffMember {
   id: string;
@@ -229,8 +229,14 @@ export const fetchStaffAssignments = async (date: Date, teamId?: string): Promis
       throw error;
     }
 
-    console.log(`Retrieved ${data?.length || 0} staff assignments`, data);
-    return data || [];
+    // Convert team_id from database format (a, b, c) to app format (team-1, team-2, team-3)
+    const convertedData = (data || []).map(assignment => ({
+      ...assignment,
+      team_id: toFrontendTeamId(assignment.team_id)
+    }));
+
+    console.log(`Retrieved ${convertedData.length} staff assignments (team IDs converted)`, convertedData);
+    return convertedData;
   } catch (error) {
     console.error('Error in fetchStaffAssignments:', error);
     throw error;
@@ -243,11 +249,16 @@ export const assignStaffToTeam = async (staffId: string, teamId: string, date: D
     const dateStr = date.toISOString().split('T')[0];
     console.log(`Assigning staff ${staffId} to team ${teamId} for date ${dateStr}`);
 
+    // Convert team ID from app format to database format if needed
+    const { normalizeToDbId } = await import('@/utils/teamIdMapping');
+    const dbTeamId = normalizeToDbId(teamId);
+    console.log(`Team ID converted: ${teamId} -> ${dbTeamId}`);
+
     const { data, error } = await supabase
       .from('staff_assignments')
       .upsert({
         staff_id: staffId,
-        team_id: teamId,
+        team_id: dbTeamId,
         assignment_date: dateStr
       }, {
         onConflict: 'staff_id,assignment_date'
