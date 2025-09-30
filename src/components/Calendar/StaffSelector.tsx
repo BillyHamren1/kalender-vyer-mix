@@ -17,20 +17,24 @@ import {
 } from '@/components/ui/popover';
 import { useQuery } from '@tanstack/react-query';
 import { getStaffResources, StaffResource } from '@/services/staffCalendarService';
+import { getAvailableStaffForDate } from '@/services/staffAvailabilityService';
 import { cn } from '@/lib/utils';
 
 interface StaffSelectorProps {
   selectedStaffIds: string[];
   onSelectionChange: (staffIds: string[]) => void;
   disabled?: boolean;
+  filterByDate?: Date; // Optional: filter staff by availability for specific date
 }
 
 const StaffSelector: React.FC<StaffSelectorProps> = ({
   selectedStaffIds,
   onSelectionChange,
-  disabled = false
+  disabled = false,
+  filterByDate
 }) => {
   const [open, setOpen] = useState(false);
+  const [availableStaffIds, setAvailableStaffIds] = useState<string[]>([]);
 
   // Fetch staff resources with proper error handling
   const { 
@@ -42,8 +46,26 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
     queryFn: getStaffResources,
   });
 
-  // Ensure we always have a valid array
+  // Fetch available staff for the specific date if filterByDate is provided
+  useEffect(() => {
+    if (filterByDate) {
+      getAvailableStaffForDate(filterByDate)
+        .then(ids => setAvailableStaffIds(ids))
+        .catch(err => {
+          console.error('Error fetching available staff:', err);
+          setAvailableStaffIds([]);
+        });
+    } else {
+      // If no date filter, all active staff are available
+      setAvailableStaffIds([]);
+    }
+  }, [filterByDate]);
+
+  // Filter staff based on availability
   const safeStaffResources = Array.isArray(staffResources) ? staffResources : [];
+  const filteredStaffResources = filterByDate && availableStaffIds.length > 0
+    ? safeStaffResources.filter(staff => availableStaffIds.includes(staff.id))
+    : safeStaffResources;
 
   const handleStaffToggle = (staffId: string) => {
     const currentSelection = selectedStaffIds || [];
@@ -58,9 +80,9 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
   };
 
   const handleSelectAll = () => {
-    if (safeStaffResources.length === 0) return;
+    if (filteredStaffResources.length === 0) return;
     
-    onSelectionChange(safeStaffResources.map(staff => staff.id));
+    onSelectionChange(filteredStaffResources.map(staff => staff.id));
   };
 
   const handleSelectNone = () => {
@@ -68,15 +90,16 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
   };
 
   const getButtonText = () => {
-    if (isLoading) return 'Loading staff...';
+    if (isLoading) return 'Laddar personal...';
     if (error) return 'Error loading staff';
-    if (!selectedStaffIds || selectedStaffIds.length === 0) return 'Select staff members';
-    if (selectedStaffIds.length === safeStaffResources.length) return 'All staff selected';
+    if (filterByDate && availableStaffIds.length === 0) return 'Ingen tillgänglig personal';
+    if (!selectedStaffIds || selectedStaffIds.length === 0) return 'Välj personal';
+    if (selectedStaffIds.length === filteredStaffResources.length) return 'All personal vald';
     if (selectedStaffIds.length === 1) {
-      const selectedStaff = safeStaffResources.find(staff => staff.id === selectedStaffIds[0]);
-      return selectedStaff ? selectedStaff.name : '1 staff member';
+      const selectedStaff = filteredStaffResources.find(staff => staff.id === selectedStaffIds[0]);
+      return selectedStaff ? selectedStaff.name : '1 person vald';
     }
-    return `${selectedStaffIds.length} staff members`;
+    return `${selectedStaffIds.length} personer valda`;
   };
 
   // Don't render the selector if there's an error or no data
@@ -109,18 +132,18 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
           <CommandInput placeholder="Search staff members..." />
           <CommandList>
             <CommandEmpty>
-              {isLoading ? 'Loading...' : 'No staff members found.'}
+              {isLoading ? 'Laddar...' : filterByDate && availableStaffIds.length === 0 ? 'Ingen personal tillgänglig för detta datum' : 'Ingen personal hittades'}
             </CommandEmpty>
-            {!isLoading && safeStaffResources.length > 0 && (
+            {!isLoading && filteredStaffResources.length > 0 && (
               <CommandGroup>
                 <CommandItem onSelect={handleSelectAll}>
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      selectedStaffIds.length === safeStaffResources.length ? "opacity-100" : "opacity-0"
+                      selectedStaffIds.length === filteredStaffResources.length ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  Select All ({safeStaffResources.length})
+                  Välj alla ({filteredStaffResources.length})
                 </CommandItem>
                 <CommandItem onSelect={handleSelectNone}>
                   <Check
@@ -129,9 +152,9 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
                       selectedStaffIds.length === 0 ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  Select None
+                  Avmarkera alla
                 </CommandItem>
-                {safeStaffResources.map((staff) => (
+                {filteredStaffResources.map((staff) => (
                   <CommandItem
                     key={staff.id}
                     value={staff.name}
