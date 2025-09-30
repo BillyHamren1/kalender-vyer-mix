@@ -17,6 +17,7 @@ import SimpleStaffCurtain from '@/components/Calendar/SimpleStaffCurtain';
 import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
 import MobileMonthlyCalendar from '@/components/Calendar/MobileMonthlyCalendar';
 import MobileDayDetailView from '@/components/Calendar/MobileDayDetailView';
+import SimpleMonthlyCalendar from '@/components/Calendar/SimpleMonthlyCalendar';
 import { startOfWeek, startOfMonth } from 'date-fns';
 import { forceFullBookingSync } from '@/services/bookingCalendarService';
 import { toast } from 'sonner';
@@ -24,12 +25,15 @@ import { toast } from 'sonner';
 const CustomCalendarPage = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+  const [viewMode, setViewMode] = useState<'weekly' | 'monthly' | 'list'>('weekly');
   const [isSyncing, setIsSyncing] = useState(false);
   
   // Mobile-specific state
   const [mobileView, setMobileView] = useState<'month' | 'day'>('month');
   const [selectedMobileDate, setSelectedMobileDate] = useState<Date>(new Date());
+  
+  // Monthly view state (for desktop)
+  const [monthlyDate, setMonthlyDate] = useState<Date>(new Date());
   
   // Background import service (runs automatically)
   const backgroundImport = useBackgroundImport();
@@ -150,6 +154,16 @@ const CustomCalendarPage = () => {
     setCurrentMonthStart(date);
   };
 
+  // Desktop monthly view handlers
+  const handleMonthlyDayClick = (date: Date) => {
+    setCurrentWeekStart(startOfWeek(date, { weekStartsOn: 1 }));
+    setViewMode('weekly');
+  };
+
+  const handleMonthChange = (date: Date) => {
+    setMonthlyDate(date);
+  };
+
   return (
     <DndProvider backend={HTML5Backend}>
       <TooltipProvider>
@@ -199,13 +213,22 @@ const CustomCalendarPage = () => {
                 {!isMobile || mobileView === 'month' ? (
                   <div className="flex bg-gray-100 rounded-lg p-1">
                     <Button
-                      variant={viewMode === 'calendar' ? 'default' : 'ghost'}
+                      variant={viewMode === 'weekly' ? 'default' : 'ghost'}
                       size="sm"
-                      onClick={() => setViewMode('calendar')}
+                      onClick={() => setViewMode('weekly')}
                       className="flex items-center gap-2"
                     >
                       <CalendarIcon className="h-4 w-4" />
-                      {isMobile ? 'Calendar' : 'Calendar View'}
+                      Weekly
+                    </Button>
+                    <Button
+                      variant={viewMode === 'monthly' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('monthly')}
+                      className="flex items-center gap-2"
+                    >
+                      <CalendarIcon className="h-4 w-4" />
+                      Monthly
                     </Button>
                     <Button
                       variant={viewMode === 'list' ? 'default' : 'ghost'}
@@ -214,7 +237,7 @@ const CustomCalendarPage = () => {
                       className="flex items-center gap-2"
                     >
                       <List className="h-4 w-4" />
-                      {isMobile ? 'List' : 'List View'}
+                      List
                     </Button>
                   </div>
                 ) : null}
@@ -224,7 +247,7 @@ const CustomCalendarPage = () => {
 
           {/* Content */}
           <div className="p-6">
-            {viewMode === 'calendar' ? (
+            {viewMode === 'weekly' ? (
               <>
                 {isMobile ? (
                   // Mobile Calendar Views
@@ -248,7 +271,7 @@ const CustomCalendarPage = () => {
                     )}
                   </>
                 ) : (
-                  // Desktop Calendar View
+                  // Desktop Weekly View
                   <CustomCalendar
                     events={events}
                     resources={teamResources}
@@ -264,7 +287,16 @@ const CustomCalendarPage = () => {
                   />
                 )}
               </>
+            ) : viewMode === 'monthly' ? (
+              // Desktop Monthly View
+              <SimpleMonthlyCalendar
+                events={events}
+                currentDate={monthlyDate}
+                onDateChange={handleMonthChange}
+                onDayClick={handleMonthlyDayClick}
+              />
             ) : (
+              // List View
               <StaffBookingsList
                 events={events}
                 resources={teamResources}
