@@ -33,7 +33,7 @@ const StaffAvailabilityDialog: React.FC<StaffAvailabilityDialogProps> = ({
 }) => {
   const [availabilities, setAvailabilities] = useState<StaffAvailability[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedRange, setSelectedRange] = useState<{ from?: Date; to?: Date }>({ from: undefined, to: undefined });
+  const [selectedRange, setSelectedRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
   const [availabilityType, setAvailabilityType] = useState<AvailabilityType>('available');
   const [notes, setNotes] = useState('');
 
@@ -140,9 +140,9 @@ const StaffAvailabilityDialog: React.FC<StaffAvailabilityDialogProps> = ({
               </Label>
               <Calendar
                 mode="range"
-                selected={selectedRange}
-                onSelect={(range) => setSelectedRange(range || { from: undefined, to: undefined })}
-                className="rounded-md border"
+                selected={selectedRange as any}
+                onSelect={(range: any) => setSelectedRange(range || { from: undefined, to: undefined })}
+                className="rounded-md border pointer-events-auto"
                 numberOfMonths={1}
               />
             </div>
