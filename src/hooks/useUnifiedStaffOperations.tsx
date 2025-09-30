@@ -25,74 +25,48 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
   const [isLoading, setIsLoading] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Get the date range based on mode
-  const getDateRange = useCallback(() => {
-    if (mode === 'daily') {
-      console.log('🔍 [getDateRange] Mode: daily, Date:', format(currentDate, 'yyyy-MM-dd'));
-      return [currentDate];
-    } else {
-      const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-      const dates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-      console.log('🔍 [getDateRange] Mode: weekly, Week start:', format(weekStart, 'yyyy-MM-dd'), 'Dates:', dates.map(d => format(d, 'yyyy-MM-dd')));
-      return dates;
-    }
-  }, [currentDate, mode]);
-
-  // Fetch assignments for the date range
+  // Fetch ALL assignments (no date filtering)
   const fetchAssignments = useCallback(async () => {
     try {
       setIsLoading(true);
-      const dates = getDateRange();
-      const allAssignments: StaffAssignment[] = [];
       
-      console.log(`🔄 [fetchAssignments] Fetching ${mode} assignments for ${dates.length} days`);
+      console.log('🔄 [fetchAssignments] Fetching ALL staff assignments from database');
       
-      for (const date of dates) {
-        const dateStr = format(date, 'yyyy-MM-dd');
-        
-        console.log(`📥 [fetchAssignments] Querying DB for date: ${dateStr}`);
-        
-        const { data, error } = await supabase
-          .from('staff_assignments')
-          .select(`
-            *,
-            staff_members (
-              id,
-              name,
-              color
-            )
-          `)
-          .eq('assignment_date', dateStr)
-          .order('created_at', { ascending: true });
+      const { data, error } = await supabase
+        .from('staff_assignments')
+        .select(`
+          *,
+          staff_members (
+            id,
+            name,
+            color
+          )
+        `)
+        .order('assignment_date', { ascending: true });
 
-        if (error) {
-          console.error(`❌ [fetchAssignments] Error fetching assignments for ${dateStr}:`, error);
-          continue;
-        }
-
-        console.log(`📥 [fetchAssignments] Raw DB data for ${dateStr}:`, data?.length || 0, 'rows', data);
-
-        if (data) {
-          const formattedAssignments = data.map(assignment => {
-            const formatted = {
-              staffId: assignment.staff_id,
-              staffName: assignment.staff_members?.name || `Staff ${assignment.staff_id}`,
-              teamId: toFrontendTeamId(assignment.team_id), // Convert DB format to frontend format
-              date: dateStr,
-              color: assignment.staff_members?.color || '#E3F2FD'
-            };
-            console.log(`🔄 [fetchAssignments] Formatted assignment:`, { 
-              db_team_id: assignment.team_id, 
-              frontend_team_id: formatted.teamId,
-              staff: formatted.staffName,
-              date: dateStr
-            });
-            return formatted;
-          });
-          
-          allAssignments.push(...formattedAssignments);
-        }
+      if (error) {
+        console.error('❌ [fetchAssignments] Error fetching assignments:', error);
+        throw error;
       }
+
+      console.log(`📥 [fetchAssignments] Raw DB data:`, data?.length || 0, 'rows', data);
+
+      const allAssignments: StaffAssignment[] = (data || []).map(assignment => {
+        const formatted = {
+          staffId: assignment.staff_id,
+          staffName: assignment.staff_members?.name || `Staff ${assignment.staff_id}`,
+          teamId: toFrontendTeamId(assignment.team_id), // Convert DB format to frontend format
+          date: assignment.assignment_date,
+          color: assignment.staff_members?.color || '#E3F2FD'
+        };
+        console.log(`🔄 [fetchAssignments] Formatted assignment:`, { 
+          db_team_id: assignment.team_id, 
+          frontend_team_id: formatted.teamId,
+          staff: formatted.staffName,
+          date: formatted.date
+        });
+        return formatted;
+      });
       
       console.log(`✅ [fetchAssignments] Total assignments fetched: ${allAssignments.length}`, allAssignments);
       setAssignments(allAssignments);
@@ -103,7 +77,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
     } finally {
       setIsLoading(false);
     }
-  }, [getDateRange, mode]);
+  }, []);
 
   // Fetch available staff
   const fetchAvailableStaff = useCallback(async () => {
@@ -138,13 +112,9 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
     fetchAvailableStaff();
   }, [fetchAssignments, fetchAvailableStaff, refreshTrigger]);
 
-  // Real-time subscription
+  // Real-time subscription for ALL assignments
   useEffect(() => {
-    const dates = getDateRange();
-    const startDate = format(dates[0], 'yyyy-MM-dd');
-    const endDate = format(dates[dates.length - 1], 'yyyy-MM-dd');
-    
-    console.log(`🔔 [Real-time] Setting up subscription from ${startDate} to ${endDate}`);
+    console.log('🔔 [Real-time] Setting up subscription for ALL staff assignments');
     
     const channel = supabase
       .channel('unified-staff-assignments-changes')
@@ -153,13 +123,10 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
         {
           event: '*',
           schema: 'public',
-          table: 'staff_assignments',
-          filter: `assignment_date.gte.${startDate},assignment_date.lte.${endDate}`
+          table: 'staff_assignments'
         },
         (payload) => {
-          console.log(`🔔 [Real-time] Change detected:`, payload.eventType, payload);
-          const payloadDate = (payload.new as any)?.assignment_date || (payload.old as any)?.assignment_date;
-          console.log(`🔔 [Real-time] Payload date: ${payloadDate}, in range: ${startDate} to ${endDate}`);
+          console.log('🔔 [Real-time] Change detected:', payload.eventType, payload);
           fetchAssignments();
         }
       )
@@ -169,7 +136,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
       console.log('🔔 [Real-time] Cleaning up subscription');
       supabase.removeChannel(channel);
     };
-  }, [getDateRange, fetchAssignments]);
+  }, [fetchAssignments]);
 
   // Handle staff drop operations
   const handleStaffDrop = useCallback(async (staffId: string, resourceId: string | null, targetDate?: Date) => {
