@@ -121,7 +121,7 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[75vw] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Staff Member</DialogTitle>
         </DialogHeader>
