@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CalendarEvent, Resource } from './ResourceData';
-import { format, startOfDay, endOfDay, addDays, subDays, isWithinInterval, startOfWeek, endOfWeek } from 'date-fns';
+import { format, startOfDay, endOfDay, addDays, subDays, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -35,6 +35,7 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
   const [endDate, setEndDate] = useState(() => 
     endOfWeek(new Date(), { weekStartsOn: 1 })
   );
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
 
   // Filter events within the date range
   const filteredEvents = useMemo(() => {
@@ -125,7 +126,7 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h2 className="text-2xl font-bold">Staff Bookings</h2>
+            <h2 className="text-2xl font-bold">All Jobs</h2>
             <p className="text-gray-600">
               Showing {filteredEvents.length} booking{filteredEvents.length !== 1 ? 's' : ''} 
             </p>
@@ -169,42 +170,41 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
                 />
               </div>
             </div>
-            <div className="flex gap-2 mt-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const today = new Date();
-                  setStartDate(startOfWeek(today, { weekStartsOn: 1 }));
-                  setEndDate(endOfWeek(today, { weekStartsOn: 1 }));
-                }}
-              >
-                This Week
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const today = new Date();
-                  setStartDate(startOfDay(today));
-                  setEndDate(endOfDay(today));
-                }}
-              >
-                Today
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const today = new Date();
-                  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-                  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-                  setStartDate(firstDay);
-                  setEndDate(lastDay);
-                }}
-              >
-                This Month
-              </Button>
+            <div className="mt-4">
+              <Label className="mb-2 block">Quick Month Filter</Label>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { month: 0, label: 'Jan' },
+                  { month: 1, label: 'Feb' },
+                  { month: 2, label: 'Mar' },
+                  { month: 3, label: 'Apr' },
+                  { month: 4, label: 'May' },
+                  { month: 5, label: 'Jun' },
+                  { month: 6, label: 'Jul' },
+                  { month: 7, label: 'Aug' },
+                  { month: 8, label: 'Sep' },
+                  { month: 9, label: 'Oct' },
+                  { month: 10, label: 'Nov' },
+                  { month: 11, label: 'Dec' }
+                ].map(({ month, label }) => (
+                  <Button
+                    key={month}
+                    variant={selectedMonth === month ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      const year = new Date().getFullYear();
+                      const firstDay = startOfMonth(new Date(year, month, 1));
+                      const lastDay = endOfMonth(new Date(year, month, 1));
+                      setStartDate(firstDay);
+                      setEndDate(lastDay);
+                      setSelectedMonth(month);
+                    }}
+                    className="min-w-[60px]"
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
             </div>
           </CardContent>
         </Card>
