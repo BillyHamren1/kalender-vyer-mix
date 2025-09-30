@@ -27,7 +27,7 @@ export interface StaffAvailabilityInput {
  */
 export const getStaffAvailability = async (staffId: string): Promise<StaffAvailability[]> => {
   const { data, error } = await supabase
-    .from('staff_availability')
+    .from('staff_availability' as any)
     .select('*')
     .eq('staff_id', staffId)
     .order('start_date', { ascending: true });
@@ -37,7 +37,7 @@ export const getStaffAvailability = async (staffId: string): Promise<StaffAvaila
     throw error;
   }
 
-  return data || [];
+  return (data as any) || [];
 };
 
 /**
@@ -47,7 +47,7 @@ export const createAvailability = async (
   availability: StaffAvailabilityInput
 ): Promise<StaffAvailability> => {
   const { data, error } = await supabase
-    .from('staff_availability')
+    .from('staff_availability' as any)
     .insert({
       staff_id: availability.staff_id,
       start_date: format(availability.start_date, 'yyyy-MM-dd'),
@@ -63,7 +63,7 @@ export const createAvailability = async (
     throw error;
   }
 
-  return data;
+  return data as any;
 };
 
 /**
@@ -89,7 +89,7 @@ export const updateAvailability = async (
   }
 
   const { data, error } = await supabase
-    .from('staff_availability')
+    .from('staff_availability' as any)
     .update(updateData)
     .eq('id', id)
     .select()
@@ -100,7 +100,7 @@ export const updateAvailability = async (
     throw error;
   }
 
-  return data;
+  return data as any;
 };
 
 /**
@@ -108,7 +108,7 @@ export const updateAvailability = async (
  */
 export const deleteAvailability = async (id: string): Promise<void> => {
   const { error } = await supabase
-    .from('staff_availability')
+    .from('staff_availability' as any)
     .delete()
     .eq('id', id);
 
@@ -128,7 +128,7 @@ export const isStaffAvailableOnDate = async (
   const dateStr = format(date, 'yyyy-MM-dd');
 
   const { data, error } = await supabase
-    .from('staff_availability')
+    .from('staff_availability' as any)
     .select('*')
     .eq('staff_id', staffId)
     .lte('start_date', dateStr)
@@ -144,9 +144,9 @@ export const isStaffAvailableOnDate = async (
   }
 
   // Check if any period marks this date as available
-  const hasAvailable = data.some(period => period.availability_type === 'available');
-  const hasUnavailable = data.some(
-    period => period.availability_type === 'unavailable' || period.availability_type === 'blocked'
+  const hasAvailable = (data as any[]).some((period: any) => period.availability_type === 'available');
+  const hasUnavailable = (data as any[]).some(
+    (period: any) => period.availability_type === 'unavailable' || period.availability_type === 'blocked'
   );
 
   // If there's an unavailable/blocked period, staff is not available
@@ -165,7 +165,7 @@ export const getAvailableStaffForDate = async (date: Date): Promise<string[]> =>
 
   // Get all active staff members
   const { data: activeStaff, error: staffError } = await supabase
-    .from('staff_members')
+    .from('staff_members' as any)
     .select('id')
     .eq('is_active', true);
 
@@ -178,11 +178,11 @@ export const getAvailableStaffForDate = async (date: Date): Promise<string[]> =>
     return [];
   }
 
-  const activeStaffIds = activeStaff.map(s => s.id);
+  const activeStaffIds = (activeStaff as any[]).map((s: any) => s.id);
 
   // Get availability periods that cover this date
   const { data: availabilityData, error: availError } = await supabase
-    .from('staff_availability')
+    .from('staff_availability' as any)
     .select('*')
     .in('staff_id', activeStaffIds)
     .lte('start_date', dateStr)
@@ -197,7 +197,7 @@ export const getAvailableStaffForDate = async (date: Date): Promise<string[]> =>
   const availableStaffIds: string[] = [];
 
   for (const staffId of activeStaffIds) {
-    const staffPeriods = (availabilityData || []).filter(p => p.staff_id === staffId);
+    const staffPeriods = ((availabilityData as any[]) || []).filter((p: any) => p.staff_id === staffId);
 
     if (staffPeriods.length === 0) {
       // No availability records - staff is not available
@@ -205,9 +205,9 @@ export const getAvailableStaffForDate = async (date: Date): Promise<string[]> =>
     }
 
     const hasUnavailable = staffPeriods.some(
-      p => p.availability_type === 'unavailable' || p.availability_type === 'blocked'
+      (p: any) => p.availability_type === 'unavailable' || p.availability_type === 'blocked'
     );
-    const hasAvailable = staffPeriods.some(p => p.availability_type === 'available');
+    const hasAvailable = staffPeriods.some((p: any) => p.availability_type === 'available');
 
     if (!hasUnavailable && hasAvailable) {
       availableStaffIds.push(staffId);
@@ -225,8 +225,8 @@ export const updateStaffActiveStatus = async (
   isActive: boolean
 ): Promise<void> => {
   const { error } = await supabase
-    .from('staff_members')
-    .update({ is_active: isActive })
+    .from('staff_members' as any)
+    .update({ is_active: isActive } as any)
     .eq('id', staffId);
 
   if (error) {
