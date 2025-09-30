@@ -14,10 +14,12 @@ import { startOfWeek } from 'date-fns';
 import UnifiedResourceCalendar from '@/components/Calendar/UnifiedResourceCalendar';
 import StaffCurtain from '@/components/Calendar/StaffCurtain';
 import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
+import SimpleMonthlyCalendar from '@/components/Calendar/SimpleMonthlyCalendar';
 
 const CalendarPage = () => {
   const navigate = useNavigate();
-  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+  const [viewMode, setViewMode] = useState<'weekly' | 'monthly' | 'list'>('weekly');
+  const [monthlyDate, setMonthlyDate] = useState(new Date());
   
   // Use existing hooks for data consistency
   const {
@@ -78,6 +80,17 @@ const CalendarPage = () => {
     }
   };
 
+  // Handle day click in monthly view - switch to weekly view
+  const handleMonthlyDayClick = (date: Date) => {
+    setCurrentWeekStart(startOfWeek(date, { weekStartsOn: 1 }));
+    setViewMode('weekly');
+  };
+
+  // Handle month change in monthly view
+  const handleMonthChange = (date: Date) => {
+    setMonthlyDate(date);
+  };
+
   return (
     <DndProvider backend={HTML5Backend}>
       <TooltipProvider>
@@ -100,15 +113,24 @@ const CalendarPage = () => {
               
               {/* View Toggle */}
               <div className="flex items-center gap-2">
-                <div className="flex bg-gray-100 rounded-lg p-1">
+                <div className="flex bg-muted rounded-lg p-1">
                   <Button
-                    variant={viewMode === 'calendar' ? 'default' : 'ghost'}
+                    variant={viewMode === 'weekly' ? 'default' : 'ghost'}
                     size="sm"
-                    onClick={() => setViewMode('calendar')}
+                    onClick={() => setViewMode('weekly')}
                     className="flex items-center gap-2"
                   >
                     <CalendarIcon className="h-4 w-4" />
-                    Calendar View
+                    Weekly
+                  </Button>
+                  <Button
+                    variant={viewMode === 'monthly' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setViewMode('monthly')}
+                    className="flex items-center gap-2"
+                  >
+                    <CalendarIcon className="h-4 w-4" />
+                    Monthly
                   </Button>
                   <Button
                     variant={viewMode === 'list' ? 'default' : 'ghost'}
@@ -117,7 +139,7 @@ const CalendarPage = () => {
                     className="flex items-center gap-2"
                   >
                     <List className="h-4 w-4" />
-                    List View
+                    List
                   </Button>
                 </div>
               </div>
@@ -126,7 +148,7 @@ const CalendarPage = () => {
 
           {/* Content */}
           <div className="p-6">
-            {viewMode === 'calendar' ? (
+            {viewMode === 'weekly' ? (
               <UnifiedResourceCalendar
                 events={events}
                 resources={teamResources}
@@ -139,6 +161,13 @@ const CalendarPage = () => {
                 onSelectStaff={handleOpenStaffSelection}
                 viewMode="weekly"
                 staffOperations={staffOps}
+              />
+            ) : viewMode === 'monthly' ? (
+              <SimpleMonthlyCalendar
+                events={events}
+                currentDate={monthlyDate}
+                onDateChange={handleMonthChange}
+                onDayClick={handleMonthlyDayClick}
               />
             ) : (
               <StaffBookingsList
