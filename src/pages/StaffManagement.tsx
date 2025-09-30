@@ -11,7 +11,6 @@ import { toast } from 'sonner';
 import StaffList from '@/components/staff/StaffList';
 import AddStaffDialog from '@/components/staff/AddStaffDialog';
 import EditStaffDialog from '@/components/staff/EditStaffDialog';
-import StaffStats from '@/components/staff/StaffStats';
 import StaffColorSettings from '@/components/staff/StaffColorSettings';
 import CreateStaffAccountCard from '@/components/staff/CreateStaffAccountCard';
 import StaffExportDialog from '@/components/staff/StaffExportDialog';
@@ -144,9 +143,6 @@ const StaffManagement: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left side - Staff Directory */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Stats Cards */}
-            <StaffStats staffMembers={staffMembers} isLoading={isLoading} />
-
             {/* Search and Filters */}
             <Card>
               <CardHeader className="py-4">
