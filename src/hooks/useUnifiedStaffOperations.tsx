@@ -3,6 +3,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfWeek, addDays } from 'date-fns';
+import { normalizeToDbId, toFrontendTeamId } from '@/utils/teamIdMapping';
 
 export interface StaffAssignment {
   staffId: string;
@@ -68,7 +69,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
           const formattedAssignments = data.map(assignment => ({
             staffId: assignment.staff_id,
             staffName: assignment.staff_members?.name || `Staff ${assignment.staff_id}`,
-            teamId: assignment.team_id,
+            teamId: toFrontendTeamId(assignment.team_id), // Convert DB format to frontend format
             date: dateStr,
             color: assignment.staff_members?.color || '#E3F2FD'
           }));
@@ -161,12 +162,15 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
     const effectiveDate = targetDate || currentDate;
     const effectiveDateStr = format(effectiveDate, 'yyyy-MM-dd');
 
-    console.log(`🎯 Staff drop: ${staffId} to ${resourceId || 'unassigned'} on ${effectiveDateStr}`);
+    // Convert frontend team ID to database team ID
+    const dbTeamId = resourceId ? normalizeToDbId(resourceId) : null;
+    
+    console.log(`🎯 Staff drop: ${staffId} to ${resourceId || 'unassigned'} (DB: ${dbTeamId || 'null'}) on ${effectiveDateStr}`);
     
     // Get staff info for optimistic update
     const staffMember = availableStaff.find(s => s.id === staffId);
     
-    // Optimistic update
+    // Optimistic update (use frontend ID for local state)
     setAssignments(prevAssignments => {
       const filteredAssignments = prevAssignments.filter(
         a => !(a.staffId === staffId && a.date === effectiveDateStr)
@@ -176,7 +180,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
         const newAssignment: StaffAssignment = {
           staffId,
           staffName: staffMember?.name || `Staff ${staffId}`,
-          teamId: resourceId,
+          teamId: resourceId, // Keep frontend format for display
           date: effectiveDateStr,
           color: staffMember?.color || '#E3F2FD'
         };
@@ -189,30 +193,42 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
     setIsLoading(true);
     
     try {
-      if (resourceId) {
-        // Assign staff to team
-        const { error } = await supabase
+      if (dbTeamId) {
+        // Assign staff to team (use database format)
+        console.log(`💾 Saving to DB: staff_id=${staffId}, team_id=${dbTeamId}, date=${effectiveDateStr}`);
+        
+        const { data, error } = await supabase
           .from('staff_assignments')
           .upsert({
             staff_id: staffId,
-            team_id: resourceId,
+            team_id: dbTeamId, // Use database format
             assignment_date: effectiveDateStr
           }, {
             onConflict: 'staff_id,assignment_date'
-          });
+          })
+          .select();
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Database error:', error);
+          throw error;
+        }
         
+        console.log('✅ Saved to database:', data);
         toast.success(`Staff assigned to ${resourceId} successfully`);
       } else {
         // Remove assignment
+        console.log(`🗑️ Removing from DB: staff_id=${staffId}, date=${effectiveDateStr}`);
+        
         const { error } = await supabase
           .from('staff_assignments')
           .delete()
           .eq('staff_id', staffId)
           .eq('assignment_date', effectiveDateStr);
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Database error:', error);
+          throw error;
+        }
         
         toast.success(`Staff assignment removed successfully`);
       }
