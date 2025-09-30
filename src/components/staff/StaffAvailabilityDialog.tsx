@@ -85,6 +85,31 @@ const StaffAvailabilityDialog: React.FC<StaffAvailabilityDialogProps> = ({
     }
   };
 
+  const handleSetAvailableIndefinitely = async () => {
+    try {
+      setIsLoading(true);
+      const today = new Date();
+      const oneYearAhead = new Date();
+      oneYearAhead.setFullYear(oneYearAhead.getFullYear() + 1);
+
+      await createAvailability({
+        staff_id: staffId,
+        start_date: today,
+        end_date: oneYearAhead,
+        availability_type: 'available',
+        notes: 'Available indefinitely (1 year period)',
+      });
+
+      toast.success('Staff set as available for the next year');
+      await loadAvailabilities();
+    } catch (error) {
+      toast.error('Failed to set availability');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleDeleteAvailability = async (id: string) => {
     try {
       setIsLoading(true);
@@ -113,11 +138,11 @@ const StaffAvailabilityDialog: React.FC<StaffAvailabilityDialogProps> = ({
   const getAvailabilityLabel = (type: AvailabilityType) => {
     switch (type) {
       case 'available':
-        return 'Tillgänglig';
+        return 'Available';
       case 'unavailable':
-        return 'Otillgänglig';
+        return 'Unavailable';
       case 'blocked':
-        return 'Blockerad';
+        return 'Blocked';
     }
   };
 
@@ -127,16 +152,37 @@ const StaffAvailabilityDialog: React.FC<StaffAvailabilityDialogProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarIcon className="h-5 w-5" />
-            Hantera tillgänglighet - {staffName}
+            Manage Availability - {staffName}
           </DialogTitle>
         </DialogHeader>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
           {/* Left side - Calendar and form */}
           <div className="space-y-4">
+            <div className="space-y-3">
+              <Button
+                onClick={handleSetAvailableIndefinitely}
+                disabled={isLoading}
+                className="w-full"
+                variant="secondary"
+              >
+                ✅ Set Available Indefinitely (1 Year)
+              </Button>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    Or select specific period
+                  </span>
+                </div>
+              </div>
+            </div>
+
             <div>
               <Label className="text-base font-semibold mb-2 block">
-                Välj period
+                Select Period
               </Label>
               <Calendar
                 mode="range"
@@ -148,7 +194,7 @@ const StaffAvailabilityDialog: React.FC<StaffAvailabilityDialogProps> = ({
             </div>
 
             <div className="space-y-3">
-              <Label className="text-base font-semibold">Tillgänglighetstyp</Label>
+              <Label className="text-base font-semibold">Availability Type</Label>
               <RadioGroup
                 value={availabilityType}
                 onValueChange={(value) => setAvailabilityType(value as AvailabilityType)}
@@ -156,31 +202,31 @@ const StaffAvailabilityDialog: React.FC<StaffAvailabilityDialogProps> = ({
                 <div className="flex items-center space-x-2 p-3 rounded-lg border border-green-300 bg-green-50">
                   <RadioGroupItem value="available" id="available" />
                   <Label htmlFor="available" className="cursor-pointer font-normal">
-                    ✅ Tillgänglig - Personal kan tilldelas jobb
+                    ✅ Available - Staff can be assigned to jobs
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2 p-3 rounded-lg border border-red-300 bg-red-50">
                   <RadioGroupItem value="unavailable" id="unavailable" />
                   <Label htmlFor="unavailable" className="cursor-pointer font-normal">
-                    ❌ Otillgänglig - Personal är ej tillgänglig
+                    ❌ Unavailable - Staff is not available
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2 p-3 rounded-lg border border-yellow-300 bg-yellow-50">
                   <RadioGroupItem value="blocked" id="blocked" />
                   <Label htmlFor="blocked" className="cursor-pointer font-normal">
-                    🚫 Blockerad - Specifikt blockerad under aktiv period
+                    🚫 Blocked - Specifically blocked during active period
                   </Label>
                 </div>
               </RadioGroup>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="notes">Anteckningar (valfritt)</Label>
+              <Label htmlFor="notes">Notes (optional)</Label>
               <Textarea
                 id="notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="T.ex. semester, sjukdom, utbildning..."
+                placeholder="e.g. vacation, sick leave, training..."
                 rows={3}
               />
             </div>
@@ -190,24 +236,24 @@ const StaffAvailabilityDialog: React.FC<StaffAvailabilityDialogProps> = ({
               disabled={!selectedRange.from || !selectedRange.to || isLoading}
               className="w-full"
             >
-              Spara period
+              Save Period
             </Button>
           </div>
 
           {/* Right side - List of existing periods */}
           <div className="space-y-3">
             <Label className="text-base font-semibold block">
-              Befintliga perioder
+              Existing Periods
             </Label>
             
             <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
               {isLoading && availabilities.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">
-                  Laddar...
+                  Loading...
                 </p>
               ) : availabilities.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">
-                  Inga perioder tillagda än
+                  No periods added yet
                 </p>
               ) : (
                 availabilities.map((availability) => (
