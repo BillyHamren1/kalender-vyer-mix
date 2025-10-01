@@ -6,8 +6,8 @@ import { format, addMinutes } from 'date-fns';
 
 // Calculate drop time based on mouse position
 const calculateDropTime = (mouseY: number): string => {
-  // Find the closest time grid element to calculate relative position
-  const timeGrids = document.querySelectorAll('.time-slots-container, .droppable-time-slot');
+  // Find the time grid elements - look for the actual .time-slots-grid containers
+  const timeGrids = document.querySelectorAll('.time-slots-grid');
   
   for (const grid of Array.from(timeGrids)) {
     const rect = grid.getBoundingClientRect();
@@ -16,7 +16,7 @@ const calculateDropTime = (mouseY: number): string => {
     if (mouseY >= rect.top && mouseY <= rect.bottom) {
       const relativeY = mouseY - rect.top;
       
-      // Calendar starts at 5 AM, 25px per hour, 5-minute intervals
+      // Calendar starts at 5 AM, 25px per hour (each time-slot-cell is 25px)
       const startHour = 5;
       const pixelsPerHour = 25;
       const pixelsPerMinute = pixelsPerHour / 60;
@@ -35,8 +35,8 @@ const calculateDropTime = (mouseY: number): string => {
     }
   }
   
-  // Default fallback
-  return format(new Date(), 'HH:mm');
+  // Fallback to a default time if no grid found
+  return '09:00';
 };
 
 const DragLayer: React.FC = () => {
