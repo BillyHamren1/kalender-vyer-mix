@@ -4,27 +4,14 @@ import { useDragLayer } from 'react-dnd';
 import { CalendarEvent, getEventColor } from './ResourceData';
 import { format, addMinutes } from 'date-fns';
 
-// Calculate drop time based on mouse position with collapsible early and late hours support
+// Calculate drop time based on mouse position with collapsible late hours support
 const calculateDropTime = (mouseY: number): string => {
-  // Find the time grid elements - look for the actual .time-slots-grid containers
+  // Find the time grid elements
   const timeGrids = document.querySelectorAll('.time-slots-grid');
   
-  // Check if early hours and late hours are expanded by looking for expanded collapsible content
-  const collapsibleContents = document.querySelectorAll('[data-state="open"]');
-  
-  // Determine which sections are expanded
-  let isEarlyHoursExpanded = false;
-  let isLateHoursExpanded = false;
-  
-  collapsibleContents.forEach(content => {
-    const parent = content.closest('.time-labels-column');
-    if (parent) {
-      const trigger = parent.querySelector('.early-hours-trigger');
-      if (trigger) isEarlyHoursExpanded = true;
-      const lateTrigger = parent.querySelector('.late-hours-trigger');
-      if (lateTrigger) isLateHoursExpanded = true;
-    }
-  });
+  // Check if late hours are expanded
+  const lateHoursTrigger = document.querySelector('.late-hours-trigger');
+  const isLateHoursExpanded = lateHoursTrigger?.parentElement?.querySelector('[data-state="open"]') !== null;
   
   for (const grid of Array.from(timeGrids)) {
     const rect = grid.getBoundingClientRect();
@@ -33,17 +20,13 @@ const calculateDropTime = (mouseY: number): string => {
     if (mouseY >= rect.top && mouseY <= rect.bottom) {
       const relativeY = mouseY - rect.top;
       
-      // Calendar starts at 00:00 if expanded, 05:00 if collapsed
-      // Account for the 36px trigger button height when calculating
-      const triggerHeight = 36; // 32px button + 4px margin
-      let adjustedY = relativeY - triggerHeight;
-      
-      const startHour = isEarlyHoursExpanded ? 0 : 5;
+      // Calendar starts at 05:00
+      const startHour = 5;
       const pixelsPerHour = 25;
       const pixelsPerMinute = pixelsPerHour / 60;
       
       // Calculate total minutes from the start
-      const minutesFromStart = Math.max(0, adjustedY) / pixelsPerMinute;
+      const minutesFromStart = Math.max(0, relativeY) / pixelsPerMinute;
       const totalMinutes = startHour * 60 + minutesFromStart;
       
       // Round to nearest 5-minute interval
@@ -51,9 +34,9 @@ const calculateDropTime = (mouseY: number): string => {
       let hours = Math.floor(roundedMinutes / 60);
       const minutes = roundedMinutes % 60;
       
-      // Extended range: 0:00 - 28:55 (04:55 next day) when late hours are expanded
+      // Extended range up to 28:55 (04:55 next day) when late hours are expanded
       const maxHours = isLateHoursExpanded ? 28 : 23;
-      const clampedHours = Math.max(0, Math.min(maxHours, hours));
+      const clampedHours = Math.max(5, Math.min(maxHours, hours));
       const clampedMinutes = clampedHours === maxHours ? Math.min(55, minutes) : minutes;
       
       return `${clampedHours.toString().padStart(2, '0')}:${clampedMinutes.toString().padStart(2, '0')}`;

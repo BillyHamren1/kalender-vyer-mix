@@ -27,17 +27,17 @@ export const getCalendarViews = () => {
 export const getCalendarOptions = () => {
   return {
     height: "auto",
-    slotMinTime: "00:00:00", // Include early hours (00:00-05:00)
+    slotMinTime: "05:00:00", // Start from 05:00
     slotMaxTime: "24:00:00",
-    scrollTime: "05:00:00", // Still scroll to 5 AM by default
-    slotDuration: "01:00:00", // One hour per slot
-    slotLabelInterval: "01:00", // Keep at 1 hour
+    scrollTime: "05:00:00",
+    slotDuration: "01:00:00",
+    slotLabelInterval: "01:00",
     allDaySlot: false,
     slotLabelFormat: {
       hour: "2-digit" as "2-digit", 
       minute: "2-digit" as "2-digit",
-      hour12: false,   // Use 24-hour format
-      omitZeroMinute: false // Always show minutes even if 00
+      hour12: false,
+      omitZeroMinute: false
     }
   };
 };
