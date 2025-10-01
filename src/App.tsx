@@ -5,7 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
-import CalendarPage from "./pages/CalendarPage";
+import CustomCalendarPage from "./pages/CustomCalendarPage";
 import StaffManagement from "./pages/StaffManagement";
 import StaffDetail from "./pages/StaffDetail";
 import FinishedJobs from "./pages/FinishedJobs";
@@ -48,7 +48,8 @@ const App = () => {
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index />} />
-              <Route path="/calendar" element={<CalendarPage />} />
+              <Route path="/calendar" element={<CustomCalendarPage />} />
+              <Route path="/custom-calendar" element={<CustomCalendarPage />} />
               <Route path="/staff-management" element={<StaffManagement />} />
               <Route path="/staff/:staffId" element={<StaffDetail />} />
               <Route path="/finished-jobs" element={<FinishedJobs />} />
