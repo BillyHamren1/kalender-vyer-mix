@@ -4,7 +4,7 @@ import { useDragLayer } from 'react-dnd';
 import { CalendarEvent, getEventColor } from './ResourceData';
 import { format, addMinutes } from 'date-fns';
 
-// Calculate drop time based on mouse position with continuous 24-hour grid
+// Calculate drop time - matches TimeGrid's getDropTime logic exactly
 const calculateDropTime = (mouseY: number): string => {
   // Find the time grid elements
   const timeGrids = document.querySelectorAll('.time-slots-grid');
@@ -14,28 +14,31 @@ const calculateDropTime = (mouseY: number): string => {
     
     // Check if mouse is within this grid's vertical bounds
     if (mouseY >= rect.top && mouseY <= rect.bottom) {
-      const relativeY = mouseY - rect.top;
+      // Account for scroll offset (match TimeGrid logic)
+      const parentElement = grid.parentElement;
+      const parentScroll = parentElement?.scrollTop || 0;
+      const relativeY = mouseY - rect.top + parentScroll;
       
-      // Calendar starts at 05:00
-      const startHour = 5;
+      // Use consistent 25px per hour to match visual rendering
       const pixelsPerHour = 25;
-      const pixelsPerMinute = pixelsPerHour / 60;
+      const startHour = 5; // Always start from 05:00
       
-      // Calculate total minutes from the start
-      const minutesFromStart = Math.max(0, relativeY) / pixelsPerMinute;
-      const totalMinutes = startHour * 60 + minutesFromStart;
+      // Calculate time from pixel position
+      const hoursFromStart = Math.max(0, relativeY) / pixelsPerHour;
+      const totalMinutes = (startHour * 60) + (hoursFromStart * 60);
       
       // Round to nearest 5-minute interval
       const roundedMinutes = Math.round(totalMinutes / 5) * 5;
-      let hours = Math.floor(roundedMinutes / 60);
-      const minutes = roundedMinutes % 60;
       
-      // Extended range up to 28:55 (04:55 next day)
-      const maxHours = 28;
-      const clampedHours = Math.max(5, Math.min(maxHours, hours));
-      const clampedMinutes = clampedHours === maxHours ? Math.min(55, minutes) : minutes;
+      const finalHour = Math.floor(roundedMinutes / 60);
+      const finalMinutes = roundedMinutes % 60;
       
-      return `${clampedHours.toString().padStart(2, '0')}:${clampedMinutes.toString().padStart(2, '0')}`;
+      // Extended range: 05:00 to 28:55 (04:55 next day)
+      const maxHour = 28;
+      const clampedHour = Math.max(5, Math.min(maxHour, finalHour));
+      const clampedMinutes = clampedHour === maxHour ? Math.min(55, finalMinutes) : finalMinutes;
+      
+      return `${clampedHour.toString().padStart(2, '0')}:${clampedMinutes.toString().padStart(2, '0')}`;
     }
   }
   
@@ -106,33 +109,35 @@ const DragLayer: React.FC = () => {
 
   return (
     <>
-      {/* Digital Clock Popup */}
+      {/* Digital Clock Popup - Compact and High Z-Index */}
       <div
         style={{
           position: 'fixed',
           pointerEvents: 'none',
-          zIndex: 150,
-          left: currentOffset.x + 20,
-          top: currentOffset.y - 60,
+          zIndex: 9999,
+          left: currentOffset.x + 15,
+          top: currentOffset.y - 45,
         }}
       >
-        <div className="bg-primary text-primary-foreground rounded-lg shadow-lg px-4 py-3 border-2 border-primary/20">
-          <div className="text-xs font-medium opacity-80 mb-1">Drop Time</div>
-          <div className="text-2xl font-bold font-mono tracking-wider">
+        <div className="bg-primary text-primary-foreground rounded shadow-lg px-2 py-1 border border-primary/20">
+          <div className="text-[10px] font-medium opacity-70">Drop Time</div>
+          <div className="text-sm font-bold font-mono">
             {dropTime}
           </div>
-          <div className="text-xs font-medium opacity-80 mt-1">
-            {dropEndTime && `to ${dropEndTime}`}
-          </div>
+          {dropEndTime && (
+            <div className="text-[10px] font-medium opacity-70">
+              to {dropEndTime}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Event Preview */}
+      {/* Event Preview - High Z-Index */}
       <div
         style={{
           position: 'fixed',
           pointerEvents: 'none',
-          zIndex: 100,
+          zIndex: 9998,
           left: 0,
           top: 0,
           transform: `translate(${currentOffset.x}px, ${currentOffset.y}px)`,
