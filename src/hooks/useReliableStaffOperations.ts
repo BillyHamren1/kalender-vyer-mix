@@ -175,7 +175,8 @@ export const useReliableStaffOperations = (currentDate: Date) => {
       await fetchAssignments();
     } catch (error) {
       console.error('Error in handleStaffDrop:', error);
-      toast.error('Failed to update staff assignment');
+      const errorMessage = (error as any)?.message || 'Failed to update staff assignment';
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }

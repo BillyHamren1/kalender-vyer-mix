@@ -221,7 +221,8 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
       
     } catch (error) {
       console.error('Error in staff drop:', error);
-      toast.error('Failed to update staff assignment');
+      const errorMessage = (error as any)?.message || 'Failed to update staff assignment';
+      toast.error(errorMessage);
       // Revert optimistic update on error
       fetchAssignments();
     } finally {

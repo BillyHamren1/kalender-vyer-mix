@@ -32,7 +32,8 @@ export const useDateAwareStaffOperations = () => {
       }));
 
     } catch (error) {
-      toast.error(`Failed to update assignment for ${dateStr}`);
+      const errorMessage = (error as any)?.message || `Failed to update assignment for ${dateStr}`;
+      toast.error(errorMessage);
       console.error(error);
     } finally {
       setProcessingStaffIds(prev => prev.filter(id => id !== staffId));

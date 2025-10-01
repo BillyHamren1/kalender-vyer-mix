@@ -261,6 +261,32 @@ async function getStaffAssignments(supabase: any, date: string, teamId?: string)
 
 async function assignStaffToTeam(supabase: any, staffId: string, teamId: string, date: string): Promise<OperationResponse> {
   try {
+    // Check staff availability first
+    const { data: availabilityData, error: availError } = await supabase
+      .from('staff_availability')
+      .select('*')
+      .eq('staff_id', staffId)
+      .lte('start_date', date)
+      .gte('end_date', date)
+
+    if (availError) {
+      console.error('Error checking availability:', availError)
+    }
+
+    // Check if staff has any blocked or unavailable periods on this date
+    if (availabilityData && availabilityData.length > 0) {
+      const hasBlocked = availabilityData.some(
+        (period: any) => period.availability_type === 'blocked' || period.availability_type === 'unavailable'
+      )
+      
+      if (hasBlocked) {
+        return { 
+          success: false, 
+          error: `Staff member is not available on ${date} (blocked or unavailable period)` 
+        }
+      }
+    }
+
     // Start transaction
     const { data, error } = await supabase
       .from('staff_assignments')

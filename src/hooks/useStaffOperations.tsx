@@ -27,8 +27,9 @@ export const useStaffOperations = (currentDate: Date) => {
       // Reload calendar data directly after operation (important!)
       window.dispatchEvent(new Event("staff-assignment-updated"));
 
-    } catch (error) {
-      toast.error('Failed to update assignment');
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Failed to update assignment';
+      toast.error(errorMessage);
       console.error(error);
     } finally {
       setProcessingStaffIds(prev => prev.filter(id => id !== staffId));

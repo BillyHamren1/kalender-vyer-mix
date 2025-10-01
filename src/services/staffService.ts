@@ -249,6 +249,14 @@ export const assignStaffToTeam = async (staffId: string, teamId: string, date: D
     const dateStr = date.toISOString().split('T')[0];
     console.log(`Assigning staff ${staffId} to team ${teamId} for date ${dateStr}`);
 
+    // Check staff availability first
+    const { isStaffAvailableOnDate } = await import('@/services/staffAvailabilityService');
+    const isAvailable = await isStaffAvailableOnDate(staffId, date);
+    
+    if (!isAvailable) {
+      throw new Error('Staff member is not available on this date (blocked or unavailable period)');
+    }
+
     // Convert team ID from app format to database format if needed
     const { normalizeToDbId } = await import('@/utils/teamIdMapping');
     const dbTeamId = normalizeToDbId(teamId);
