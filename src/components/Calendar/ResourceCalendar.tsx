@@ -5,6 +5,9 @@ import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceHeaderDropZone from './ResourceHeaderDropZone';
+import { useEventMarking } from '@/hooks/useEventMarking';
+import { useEventNavigation } from '@/hooks/useEventNavigation';
+import MarkedEventOverlay from './MarkedEventOverlay';
 
 interface ResourceCalendarProps {
   events: CalendarEvent[];
@@ -44,6 +47,41 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
 }) => {
   const calendarRef = useRef<FullCalendar>(null);
   const effectiveDate = targetDate || currentDate;
+  
+  // Use event marking hook
+  const {
+    markedEvent,
+    timeSelection,
+    isUpdating,
+    markEvent,
+    unmarkEvent,
+    handleTimeSlotClick
+  } = useEventMarking();
+
+  // Use event navigation with marking mode
+  const { handleEventClick: navigationHandler } = useEventNavigation(
+    !!markedEvent,
+    markEvent
+  );
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && markedEvent) {
+        unmarkEvent();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [markedEvent, unmarkEvent]);
+
+  // Refresh events after update
+  useEffect(() => {
+    if (!isUpdating && refreshEvents) {
+      refreshEvents();
+    }
+  }, [isUpdating]);
 
   // Custom header content that includes staff assignments with colors
   const customResourceLabelContent = useCallback((arg: any) => {
@@ -75,6 +113,24 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     );
   }, [currentDate, effectiveDate, onStaffDrop, onSelectStaff, staffOperations]);
 
+  // Handle time slot clicks on the time axis
+  const handleDateClick = useCallback((info: any) => {
+    if (!markedEvent) return;
+    
+    // Get the clicked time
+    const clickedTime = info.date;
+    handleTimeSlotClick(clickedTime);
+  }, [markedEvent, handleTimeSlotClick]);
+
+  // Custom event class names to highlight marked event
+  const eventClassNames = useCallback((info: any) => {
+    const classes = [];
+    if (markedEvent && info.event.id === markedEvent.id) {
+      classes.push('marked-event');
+    }
+    return classes;
+  }, [markedEvent]);
+
   // Calendar configuration
   const calendarOptions = {
     plugins: [resourceTimeGridPlugin, interactionPlugin],
@@ -92,6 +148,9 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     resourceAreaHeaderContent: 'Teams',
     eventDisplay: 'block',
     datesSet: onDateSet,
+    dateClick: handleDateClick,
+    eventClick: navigationHandler,
+    eventClassNames: eventClassNames,
     ...calendarProps
   };
 
@@ -104,18 +163,41 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   }, [forceRefresh]);
 
   return (
-    <div className="resource-calendar-container">
-      {isLoading ? (
-        <div className="flex items-center justify-center h-32">
-          <div className="text-gray-500">Loading calendar...</div>
-        </div>
-      ) : (
-        <FullCalendar
-          ref={calendarRef}
-          {...calendarOptions}
+    <>
+      {markedEvent && (
+        <MarkedEventOverlay
+          markedEvent={markedEvent}
+          timeSelection={timeSelection}
+          onCancel={unmarkEvent}
         />
       )}
-    </div>
+      
+      <div className="resource-calendar-container">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-32">
+            <div className="text-gray-500">Loading calendar...</div>
+          </div>
+        ) : (
+          <FullCalendar
+            ref={calendarRef}
+            {...calendarOptions}
+          />
+        )}
+      </div>
+      
+      <style>{`
+        .marked-event {
+          border: 3px solid hsl(var(--primary)) !important;
+          box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--primary)) !important;
+          z-index: 100 !important;
+        }
+        
+        .fc-timegrid-slot:hover {
+          background-color: hsl(var(--accent)) !important;
+          cursor: pointer;
+        }
+      `}</style>
+    </>
   );
 };
 
