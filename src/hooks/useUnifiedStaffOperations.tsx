@@ -25,7 +25,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
   const [isLoading, setIsLoading] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Fetch ALL assignments (no date filtering)
+  // Fetch ALL assignments (no date filtering) and filter out blocked staff
   const fetchAssignments = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -49,26 +49,48 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
         throw error;
       }
 
-      console.log(`📥 [fetchAssignments] Raw DB data:`, data?.length || 0, 'rows', data);
+      console.log(`📥 [fetchAssignments] Raw DB data:`, data?.length || 0, 'rows');
 
-      const allAssignments: StaffAssignment[] = (data || []).map(assignment => {
-        const formatted = {
-          staffId: assignment.staff_id,
-          staffName: assignment.staff_members?.name || `Staff ${assignment.staff_id}`,
-          teamId: toFrontendTeamId(assignment.team_id), // Convert DB format to frontend format
-          date: assignment.assignment_date,
-          color: assignment.staff_members?.color || '#E3F2FD'
-        };
-        console.log(`🔄 [fetchAssignments] Formatted assignment:`, { 
-          db_team_id: assignment.team_id, 
-          frontend_team_id: formatted.teamId,
-          staff: formatted.staffName,
-          date: formatted.date
+      // Fetch all blocked/unavailable periods
+      const { data: blockedData, error: blockedError } = await supabase
+        .from('staff_availability')
+        .select('staff_id, start_date, end_date')
+        .in('availability_type', ['blocked', 'unavailable']);
+
+      if (blockedError) {
+        console.error('Error fetching blocked periods:', blockedError);
+      }
+
+      // Create a map to check if a staff member is blocked on a given date
+      const isStaffBlocked = (staffId: string, dateStr: string): boolean => {
+        if (!blockedData) return false;
+        return blockedData.some(blocked => 
+          blocked.staff_id === staffId &&
+          dateStr >= blocked.start_date &&
+          dateStr <= blocked.end_date
+        );
+      };
+
+      const allAssignments: StaffAssignment[] = (data || [])
+        .filter(assignment => {
+          const isBlocked = isStaffBlocked(assignment.staff_id, assignment.assignment_date);
+          if (isBlocked) {
+            console.log(`🚫 Filtering out blocked staff: ${assignment.staff_members?.name} on ${assignment.assignment_date}`);
+          }
+          return !isBlocked;
+        })
+        .map(assignment => {
+          const formatted = {
+            staffId: assignment.staff_id,
+            staffName: assignment.staff_members?.name || `Staff ${assignment.staff_id}`,
+            teamId: toFrontendTeamId(assignment.team_id),
+            date: assignment.assignment_date,
+            color: assignment.staff_members?.color || '#E3F2FD'
+          };
+          return formatted;
         });
-        return formatted;
-      });
       
-      console.log(`✅ [fetchAssignments] Total assignments fetched: ${allAssignments.length}`, allAssignments);
+      console.log(`✅ [fetchAssignments] Total available assignments: ${allAssignments.length}`);
       setAssignments(allAssignments);
       
     } catch (error) {
@@ -85,6 +107,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
       const { data, error } = await supabase
         .from('staff_members')
         .select('id, name, color')
+        .eq('is_active', true)
         .order('name');
 
       if (error) {
@@ -92,18 +115,34 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
         return;
       }
 
-      const staff = (data || []).map(member => ({
-        id: member.id,
-        name: member.name,
-        color: member.color || '#E3F2FD'
-      }));
+      // Filter out staff who are blocked/unavailable on the current date
+      const dateStr = format(currentDate, 'yyyy-MM-dd');
+      const { data: blockedData, error: blockedError } = await supabase
+        .from('staff_availability')
+        .select('staff_id')
+        .in('availability_type', ['blocked', 'unavailable'])
+        .lte('start_date', dateStr)
+        .gte('end_date', dateStr);
 
-      console.log(`📋 Fetched ${staff.length} available staff members`);
+      if (blockedError) {
+        console.error('Error checking blocked staff:', blockedError);
+      }
+
+      const blockedStaffIds = new Set(blockedData?.map(b => b.staff_id) || []);
+      const staff = (data || [])
+        .filter(member => !blockedStaffIds.has(member.id))
+        .map(member => ({
+          id: member.id,
+          name: member.name,
+          color: member.color || '#E3F2FD'
+        }));
+
+      console.log(`📋 Fetched ${staff.length} available staff members (filtered ${blockedStaffIds.size} blocked)`);
       setAvailableStaff(staff);
     } catch (error) {
       console.error('Error fetching available staff:', error);
     }
-  }, []);
+  }, [currentDate]);
 
   // Initial load
   useEffect(() => {
@@ -230,37 +269,24 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
     }
   }, [currentDate, availableStaff, fetchAssignments]);
 
-  // Get staff for a specific team and date
-  const getStaffForTeamAndDate = useCallback((teamId: string, date: Date) => {
+  // Get staff for a specific team and date (now sync - filtering happens at fetch time)
+  const getStaffForTeamAndDate = useCallback((teamId: string, date: Date): StaffMember[] => {
     const dateStr = format(date, 'yyyy-MM-dd');
     console.log(`🔎 [getStaffForTeamAndDate] Called with teamId: ${teamId}, date: ${dateStr}`);
-    console.log(`🔎 [getStaffForTeamAndDate] Total assignments in state:`, assignments.length, assignments);
     
     const filtered = assignments.filter(a => {
       const teamMatch = a.teamId === teamId;
       const dateMatch = a.date === dateStr;
-      console.log(`🔎 [getStaffForTeamAndDate] Checking assignment:`, { 
-        staff: a.staffName, 
-        assignmentTeamId: a.teamId, 
-        assignmentDate: a.date,
-        requestedTeamId: teamId,
-        requestedDate: dateStr,
-        teamMatch, 
-        dateMatch 
-      });
       return teamMatch && dateMatch;
     });
     
-    console.log(`🔎 [getStaffForTeamAndDate] Filtered assignments:`, filtered.length, filtered);
-    
-    const result = filtered.map(a => ({
+    console.log(`✅ [getStaffForTeamAndDate] Returning ${filtered.length} staff (already filtered for availability)`);
+
+    return filtered.map(a => ({
       id: a.staffId,
       name: a.staffName,
       color: a.color || '#E3F2FD'
     }));
-    
-    console.log(`✅ [getStaffForTeamAndDate] Returning:`, result);
-    return result;
   }, [assignments]);
 
   // Get available staff for a specific date
