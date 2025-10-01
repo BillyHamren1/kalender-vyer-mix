@@ -115,29 +115,44 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
         return;
       }
 
-      // Filter out staff who are blocked/unavailable on the current date
+      // Filter out staff who are blocked/unavailable OR don't have an available period on the current date
       const dateStr = format(currentDate, 'yyyy-MM-dd');
-      const { data: blockedData, error: blockedError } = await supabase
+      
+      // Get all availability periods that cover this date
+      const { data: availabilityData, error: availError } = await supabase
         .from('staff_availability')
-        .select('staff_id')
-        .in('availability_type', ['blocked', 'unavailable'])
+        .select('staff_id, availability_type')
         .lte('start_date', dateStr)
         .gte('end_date', dateStr);
 
-      if (blockedError) {
-        console.error('Error checking blocked staff:', blockedError);
+      if (availError) {
+        console.error('Error checking availability:', availError);
       }
 
-      const blockedStaffIds = new Set(blockedData?.map(b => b.staff_id) || []);
+      // Filter staff: must have an 'available' period AND no 'blocked'/'unavailable' periods
+      const availableStaffIds = new Set<string>();
+      const blockedStaffIds = new Set<string>();
+      
+      (availabilityData || []).forEach(period => {
+        if (period.availability_type === 'available') {
+          availableStaffIds.add(period.staff_id);
+        } else if (period.availability_type === 'blocked' || period.availability_type === 'unavailable') {
+          blockedStaffIds.add(period.staff_id);
+        }
+      });
+
       const staff = (data || [])
-        .filter(member => !blockedStaffIds.has(member.id))
+        .filter(member => {
+          // Must have an available period AND not be blocked
+          return availableStaffIds.has(member.id) && !blockedStaffIds.has(member.id);
+        })
         .map(member => ({
           id: member.id,
           name: member.name,
           color: member.color || '#E3F2FD'
         }));
 
-      console.log(`📋 Fetched ${staff.length} available staff members (filtered ${blockedStaffIds.size} blocked)`);
+      console.log(`📋 Fetched ${staff.length} available staff members (${availableStaffIds.size} have available periods, ${blockedStaffIds.size} blocked)`);
       setAvailableStaff(staff);
     } catch (error) {
       console.error('Error fetching available staff:', error);

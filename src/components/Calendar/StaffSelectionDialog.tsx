@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { fetchStaffMembers } from '@/services/staffService';
 import { StaffMember } from './StaffAssignmentRow';
 import { toast } from 'sonner';
+import { getAvailableStaffForDate } from '@/services/staffAvailabilityService';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   Dialog, 
   DialogContent, 
@@ -58,17 +59,34 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
 
   const dateStr = format(currentDate, 'yyyy-MM-dd');
   
-  // Load all staff members
+  // Load staff members filtered by availability for this specific date
   useEffect(() => {
     if (open) {
       const loadStaffData = async () => {
         try {
           setLoading(true);
-          const staffData = await fetchStaffMembers();
-          setAllStaff(staffData);
           
-          console.log('StaffSelectionDialog: Loaded staff members:', staffData);
-          console.log('StaffSelectionDialog: Using reliable assignments for date:', dateStr);
+          // Get staff IDs who are available on this specific date
+          const availableStaffIds = await getAvailableStaffForDate(currentDate);
+          
+          console.log('StaffSelectionDialog: Available staff IDs for', dateStr, ':', availableStaffIds);
+          
+          // Fetch full staff details for available staff only
+          if (availableStaffIds.length > 0) {
+            const { data: staffData, error } = await supabase
+              .from('staff_members')
+              .select('id, name, color, email, phone')
+              .in('id', availableStaffIds)
+              .eq('is_active', true);
+            
+            if (error) throw error;
+            
+            setAllStaff(staffData || []);
+            console.log('StaffSelectionDialog: Loaded', staffData?.length || 0, 'available staff members');
+          } else {
+            setAllStaff([]);
+            console.log('StaffSelectionDialog: No staff available for this date');
+          }
           
           if (reliableStaffOperations) {
             console.log('StaffSelectionDialog: Current reliable assignments:', reliableStaffOperations.assignments);
