@@ -173,13 +173,14 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         topDelta
       });
       
-      console.log('Resizing event (real-time) with 25px/hour:', { 
-        newStart: newStart.toISOString(), 
-        newEnd: newEnd.toISOString(), 
-        direction, 
+      console.log('🔄 RESIZING EVENT (real-time):', { 
+        direction,
+        deltaY,
         deltaMinutes,
-        heightDelta,
-        topDelta,
+        newStart: format(newStart, 'HH:mm'),
+        newEnd: format(newEnd, 'HH:mm'),
+        heightDelta: `${heightDelta}px`,
+        topDelta: `${topDelta}px`,
         pixelsPerHour
       });
     };
@@ -267,20 +268,23 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         style={getDynamicStyles()}
         onDoubleClick={handleDoubleClick}
       >
-        {/* Top resize handle */}
+        {/* Top resize handle - Made more visible and easier to grab */}
         <div
-          className="resize-handle resize-handle-top"
+          className="resize-handle resize-handle-top group/handle"
           style={{
             position: 'absolute',
-            top: '-2px',
+            top: '-4px',
             left: 0,
             right: 0,
-            height: '4px',
+            height: '10px',
             cursor: 'ns-resize',
-            backgroundColor: isResizing ? 'rgba(59, 130, 246, 0.5)' : 'transparent',
-            zIndex: 20
+            backgroundColor: isResizing ? 'rgba(59, 130, 246, 0.6)' : 'rgba(0, 0, 0, 0.1)',
+            borderTop: '2px solid rgba(59, 130, 246, 0.4)',
+            zIndex: 20,
+            transition: 'all 0.2s ease'
           }}
           onMouseDown={(e) => handleResizeStart(e, 'top')}
+          title="Drag to resize start time"
         />
         
         <div className="event-content" style={{ color: '#000000', pointerEvents: isResizing ? 'none' : 'auto' }}>
@@ -311,20 +315,23 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
           )}
         </div>
         
-        {/* Bottom resize handle */}
+        {/* Bottom resize handle - Made more visible and easier to grab */}
         <div
-          className="resize-handle resize-handle-bottom"
+          className="resize-handle resize-handle-bottom group/handle"
           style={{
             position: 'absolute',
-            bottom: '-2px',
+            bottom: '-4px',
             left: 0,
             right: 0,
-            height: '4px',
+            height: '10px',
             cursor: 'ns-resize',
-            backgroundColor: isResizing ? 'rgba(59, 130, 246, 0.5)' : 'transparent',
-            zIndex: 20
+            backgroundColor: isResizing ? 'rgba(59, 130, 246, 0.6)' : 'rgba(0, 0, 0, 0.1)',
+            borderBottom: '2px solid rgba(59, 130, 246, 0.4)',
+            zIndex: 20,
+            transition: 'all 0.2s ease'
           }}
           onMouseDown={(e) => handleResizeStart(e, 'bottom')}
+          title="Drag to resize end time"
         />
       </div>
     </EventHoverCard>

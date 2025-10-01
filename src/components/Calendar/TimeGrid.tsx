@@ -73,7 +73,7 @@ const DroppableTimeSlot: React.FC<{
   
   const elementRef = React.useRef<HTMLDivElement>(null);
   
-  // Fixed time calculation - rect.top already accounts for all headers
+  // Fixed time calculation with detailed debugging
   const getDropTime = (clientY: number) => {
     if (!elementRef.current) {
       console.warn('Element ref not available for time calculation');
@@ -81,26 +81,30 @@ const DroppableTimeSlot: React.FC<{
     }
     
     const rect = elementRef.current.getBoundingClientRect();
+    const parentScroll = elementRef.current.parentElement?.scrollTop || 0;
     
-    // No header offset needed - rect.top already accounts for grid positioning
-    const relativeY = clientY - rect.top;
+    // Account for any scroll offset
+    const relativeY = clientY - rect.top + parentScroll;
     
-    console.log('TimeGrid drop calculation:', {
+    console.log('🎯 DROP TIME CALCULATION:', {
       clientY,
       rectTop: rect.top,
-      relativeY
+      rectBottom: rect.bottom,
+      rectHeight: rect.height,
+      parentScroll,
+      relativeY,
+      calculationMethod: '25px per hour from 5 AM'
     });
     
-    // Use consistent 25px per hour
+    // Use consistent 25px per hour to match visual rendering
     const pixelsPerHour = 25;
     const startHour = 5; // Grid starts at 5 AM
     
-    // Calculate precise time with 5-minute granularity
-    const totalHours = Math.max(0, relativeY) / pixelsPerHour;
-    const targetHour = startHour + totalHours;
+    // Calculate time from pixel position
+    const hoursFromStart = Math.max(0, relativeY) / pixelsPerHour;
+    const totalMinutes = (startHour * 60) + (hoursFromStart * 60);
     
     // Round to nearest 5-minute interval
-    const totalMinutes = targetHour * 60;
     const roundedMinutes = Math.round(totalMinutes / 5) * 5;
     
     const finalHour = Math.floor(roundedMinutes / 60);
@@ -112,7 +116,13 @@ const DroppableTimeSlot: React.FC<{
     
     const calculatedTime = `${clampedHour.toString().padStart(2, '0')}:${clampedMinutes.toString().padStart(2, '0')}`;
     
-    console.log('TimeGrid calculated time:', calculatedTime, 'from relativeY:', relativeY);
+    console.log('✅ CALCULATED TIME:', {
+      time: calculatedTime,
+      hour: clampedHour,
+      minutes: clampedMinutes,
+      hoursFromStart,
+      pixelPosition: relativeY
+    });
     
     return calculatedTime;
   };
