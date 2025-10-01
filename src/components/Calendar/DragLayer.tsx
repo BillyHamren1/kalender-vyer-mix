@@ -4,34 +4,45 @@ import { useDragLayer } from 'react-dnd';
 import { CalendarEvent, getEventColor } from './ResourceData';
 import { format, addMinutes } from 'date-fns';
 
-// Calculate drop time based on mouse position
+// Calculate drop time based on mouse position with collapsible early hours support
 const calculateDropTime = (mouseY: number): string => {
   // Find the time grid elements - look for the actual .time-slots-grid containers
   const timeGrids = document.querySelectorAll('.time-slots-grid');
   
+  // Check if early hours are expanded by looking for expanded collapsible content
+  const earlyHoursContent = document.querySelector('[data-state="open"]');
+  const isEarlyHoursExpanded = earlyHoursContent !== null;
+  
   for (const grid of Array.from(timeGrids)) {
     const rect = grid.getBoundingClientRect();
     
-    // Check if mouse is over this grid
+    // Check if mouse is within this grid's vertical bounds
     if (mouseY >= rect.top && mouseY <= rect.bottom) {
       const relativeY = mouseY - rect.top;
       
-      // Calendar starts at 5 AM, 25px per hour (each time-slot-cell is 25px)
-      const startHour = 5;
+      // Calendar starts at 00:00 if expanded, 05:00 if collapsed
+      // Account for the 36px trigger button height when calculating
+      const triggerHeight = 36; // 32px button + 4px margin
+      let adjustedY = relativeY - triggerHeight;
+      
+      const startHour = isEarlyHoursExpanded ? 0 : 5;
       const pixelsPerHour = 25;
       const pixelsPerMinute = pixelsPerHour / 60;
       
-      // Calculate hours and minutes from position
-      const totalMinutes = Math.floor(relativeY / pixelsPerMinute);
-      const roundedMinutes = Math.round(totalMinutes / 5) * 5; // Round to 5-minute intervals
+      // Calculate total minutes from the start
+      const minutesFromStart = Math.max(0, adjustedY) / pixelsPerMinute;
+      const totalMinutes = startHour * 60 + minutesFromStart;
       
-      const hours = Math.floor(roundedMinutes / 60) + startHour;
+      // Round to nearest 5-minute interval
+      const roundedMinutes = Math.round(totalMinutes / 5) * 5;
+      const hours = Math.floor(roundedMinutes / 60);
       const minutes = roundedMinutes % 60;
       
-      // Clamp to valid range (5 AM - 11 PM)
-      const clampedHours = Math.max(5, Math.min(23, hours));
+      // Clamp to valid range (0:00 - 23:55)
+      const clampedHours = Math.max(0, Math.min(23, hours));
+      const clampedMinutes = clampedHours === 23 ? Math.min(55, minutes) : minutes;
       
-      return `${String(clampedHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+      return `${clampedHours.toString().padStart(2, '0')}:${clampedMinutes.toString().padStart(2, '0')}`;
     }
   }
   

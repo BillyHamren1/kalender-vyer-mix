@@ -27,9 +27,9 @@ export const getCalendarViews = () => {
 export const getCalendarOptions = () => {
   return {
     height: "auto",
-    slotMinTime: "05:00:00", // Changed from 00:00:00 to 05:00:00
+    slotMinTime: "00:00:00", // Include early hours (00:00-05:00)
     slotMaxTime: "24:00:00",
-    scrollTime: "05:00:00", // Changed from 00:00:00 to 05:00:00
+    scrollTime: "05:00:00", // Still scroll to 5 AM by default
     slotDuration: "01:00:00", // One hour per slot
     slotLabelInterval: "01:00", // Keep at 1 hour
     allDaySlot: false,
