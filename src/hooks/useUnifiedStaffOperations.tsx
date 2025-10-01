@@ -316,17 +316,73 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
     }));
   }, [assignments]);
 
-  // Get available staff for a specific date
-  const getAvailableStaffForDate = useCallback((targetDate: Date) => {
+  // Get available staff for a specific date - queries DB for correct date-specific availability
+  const getAvailableStaffForDate = useCallback(async (targetDate: Date): Promise<StaffMember[]> => {
     const dateStr = format(targetDate, 'yyyy-MM-dd');
-    const assignedStaffIdsForDate = new Set(
-      assignments
-        .filter(a => a.date === dateStr)
-        .map(a => a.staffId)
-    );
     
-    return availableStaff.filter(staff => !assignedStaffIdsForDate.has(staff.id));
-  }, [assignments, availableStaff]);
+    try {
+      // Get all active staff
+      const { data: allStaff, error: staffError } = await supabase
+        .from('staff_members')
+        .select('id, name, color')
+        .eq('is_active', true);
+      
+      if (staffError || !allStaff) {
+        console.error('Error fetching staff:', staffError);
+        return [];
+      }
+      
+      // Get availability periods covering this specific date
+      const { data: availabilityData, error: availError } = await supabase
+        .from('staff_availability')
+        .select('staff_id, availability_type')
+        .lte('start_date', dateStr)
+        .gte('end_date', dateStr);
+      
+      if (availError) {
+        console.error('Error fetching availability:', availError);
+      }
+      
+      // Create sets for filtering
+      const availableStaffIds = new Set<string>();
+      const blockedStaffIds = new Set<string>();
+      
+      (availabilityData || []).forEach(period => {
+        if (period.availability_type === 'available') {
+          availableStaffIds.add(period.staff_id);
+        } else if (period.availability_type === 'blocked' || period.availability_type === 'unavailable') {
+          blockedStaffIds.add(period.staff_id);
+        }
+      });
+      
+      // Get already assigned staff IDs for this date
+      const assignedStaffIds = new Set(
+        assignments
+          .filter(a => a.date === dateStr)
+          .map(a => a.staffId)
+      );
+      
+      // Filter: must have available period, no blocked period, and not already assigned
+      const available = allStaff
+        .filter(staff => {
+          const hasAvailable = availableStaffIds.has(staff.id);
+          const isBlocked = blockedStaffIds.has(staff.id);
+          const isAssigned = assignedStaffIds.has(staff.id);
+          return hasAvailable && !isBlocked && !isAssigned;
+        })
+        .map(staff => ({
+          id: staff.id,
+          name: staff.name,
+          color: staff.color || '#E3F2FD'
+        }));
+      
+      console.log(`✅ [getAvailableStaffForDate] ${dateStr}: ${available.length} staff available`);
+      return available;
+    } catch (error) {
+      console.error('Error in getAvailableStaffForDate:', error);
+      return [];
+    }
+  }, [assignments]);
 
   // Force refresh
   const forceRefresh = useCallback(() => {

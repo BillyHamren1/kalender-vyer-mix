@@ -141,7 +141,7 @@ const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({
               <Users className="h-8 w-8 mx-auto mb-2 text-gray-300" />
               <div className="text-sm font-medium mb-1">No Staff Available</div>
               <div className="text-xs">
-                All staff are assigned for {currentDate.toLocaleDateString()}
+                No staff are available for {currentDate.toLocaleDateString()}
               </div>
             </div>
           )}

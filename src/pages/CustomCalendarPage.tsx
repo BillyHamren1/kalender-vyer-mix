@@ -22,6 +22,46 @@ import { startOfWeek, startOfMonth } from 'date-fns';
 import { forceFullBookingSync } from '@/services/bookingCalendarService';
 import { toast } from 'sonner';
 
+// Wrapper component to handle async loading of available staff
+const SimpleStaffCurtainWrapper: React.FC<{
+  currentDate: Date;
+  onClose: () => void;
+  onAssignStaff: (staffId: string, teamId: string) => Promise<void>;
+  selectedTeamId: string | null;
+  selectedTeamName: string;
+  staffOps: ReturnType<typeof useUnifiedStaffOperations>;
+  position: { top: number; left: number };
+}> = (props) => {
+  const [availableStaff, setAvailableStaff] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    const loadStaff = async () => {
+      setLoading(true);
+      const staff = await props.staffOps.getAvailableStaffForDate(props.currentDate);
+      setAvailableStaff(staff);
+      setLoading(false);
+    };
+    loadStaff();
+  }, [props.currentDate, props.staffOps]);
+  
+  if (loading) {
+    return null; // Or a loading spinner
+  }
+  
+  return (
+    <SimpleStaffCurtain
+      currentDate={props.currentDate}
+      onClose={props.onClose}
+      onAssignStaff={props.onAssignStaff}
+      selectedTeamId={props.selectedTeamId}
+      selectedTeamName={props.selectedTeamName}
+      availableStaff={availableStaff}
+      position={props.position}
+    />
+  );
+};
+
 const CustomCalendarPage = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -309,13 +349,13 @@ const CustomCalendarPage = () => {
 
           {/* Compact Staff Curtain - positioned relative to the + button */}
           {staffCurtainOpen && selectedTeam && (
-            <SimpleStaffCurtain
+            <SimpleStaffCurtainWrapper
               currentDate={selectedTeam.targetDate}
               onClose={handleCloseCurtain}
               onAssignStaff={handleStaffAssigned}
               selectedTeamId={selectedTeam.resourceId}
               selectedTeamName={selectedTeam.resourceTitle}
-              availableStaff={staffOps.getAvailableStaffForDate(selectedTeam.targetDate)}
+              staffOps={staffOps}
               position={selectedTeam.position}
             />
           )}
