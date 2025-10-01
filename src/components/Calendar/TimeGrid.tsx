@@ -73,7 +73,7 @@ const DroppableTimeSlot: React.FC<{
   
   const elementRef = React.useRef<HTMLDivElement>(null);
   
-  // Fixed time calculation with proper header offset
+  // Fixed time calculation - rect.top already accounts for all headers
   const getDropTime = (clientY: number) => {
     if (!elementRef.current) {
       console.warn('Element ref not available for time calculation');
@@ -82,16 +82,13 @@ const DroppableTimeSlot: React.FC<{
     
     const rect = elementRef.current.getBoundingClientRect();
     
-    // Account for header offset: day header (40px) + team header (40px) + staff row (80px) = 160px
-    const headerOffset = 160;
-    const relativeY = clientY - rect.top - headerOffset;
+    // No header offset needed - rect.top already accounts for grid positioning
+    const relativeY = clientY - rect.top;
     
-    console.log('TimeGrid drop calculation debug:', {
+    console.log('TimeGrid drop calculation:', {
       clientY,
       rectTop: rect.top,
-      headerOffset,
-      relativeY,
-      adjustedY: Math.max(0, relativeY)
+      relativeY
     });
     
     // Use consistent 25px per hour
@@ -99,19 +96,23 @@ const DroppableTimeSlot: React.FC<{
     const startHour = 5; // Grid starts at 5 AM
     
     // Calculate precise time with 5-minute granularity
-    const totalHours = Math.max(0, relativeY) / pixelsPerHour; // Prevent negative hours
-    const targetHour = Math.max(5, Math.min(23, startHour + totalHours));
+    const totalHours = Math.max(0, relativeY) / pixelsPerHour;
+    const targetHour = startHour + totalHours;
     
-    // Round to nearest 5-minute interval for smoother drops
+    // Round to nearest 5-minute interval
     const totalMinutes = targetHour * 60;
     const roundedMinutes = Math.round(totalMinutes / 5) * 5;
     
     const finalHour = Math.floor(roundedMinutes / 60);
     const finalMinutes = roundedMinutes % 60;
     
-    const calculatedTime = `${finalHour.toString().padStart(2, '0')}:${finalMinutes.toString().padStart(2, '0')}`;
+    // Clamp to valid time range (05:00 - 23:00)
+    const clampedHour = Math.max(5, Math.min(23, finalHour));
+    const clampedMinutes = clampedHour === 23 ? 0 : finalMinutes;
     
-    console.log('TimeGrid calculated time:', calculatedTime, 'from position:', relativeY);
+    const calculatedTime = `${clampedHour.toString().padStart(2, '0')}:${clampedMinutes.toString().padStart(2, '0')}`;
+    
+    console.log('TimeGrid calculated time:', calculatedTime, 'from relativeY:', relativeY);
     
     return calculatedTime;
   };
