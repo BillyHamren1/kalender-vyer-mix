@@ -10,8 +10,6 @@ import { useDrag, useDrop } from 'react-dnd';
 import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
 import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/eventService';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, ChevronRight } from 'lucide-react';
 import './TimeGrid.css';
 
 interface TimeGridProps {
@@ -71,13 +69,12 @@ const DroppableTimeSlot: React.FC<{
   onEventDrop?: (eventId: string, targetResourceId: string, targetDate: Date, targetTime: string) => Promise<void>;
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
   children: React.ReactNode;
-  isLateHoursExpanded?: boolean;
-}> = React.memo(({ resourceId, day, timeSlot, onEventDrop, onStaffDrop, children, isLateHoursExpanded = false }) => {
+}> = React.memo(({ resourceId, day, timeSlot, onEventDrop, onStaffDrop, children }) => {
   
   const elementRef = React.useRef<HTMLDivElement>(null);
   
-  // Fixed time calculation with collapsible late hours support
-  const getDropTime = (clientY: number, isLateExpanded: boolean) => {
+  // Fixed time calculation for continuous 24-hour grid
+  const getDropTime = (clientY: number) => {
     if (!elementRef.current) {
       console.warn('Element ref not available for time calculation');
       return '12:00';
@@ -103,8 +100,8 @@ const DroppableTimeSlot: React.FC<{
     const finalHour = Math.floor(roundedMinutes / 60);
     const finalMinutes = roundedMinutes % 60;
     
-    // Extended range: 00:00 to 28:55 (04:55 next day) when late hours are expanded
-    const maxHour = isLateExpanded ? 28 : 23;
+    // Extended range: 00:00 to 28:55 (04:55 next day)
+    const maxHour = 28;
     const clampedHour = Math.max(0, Math.min(maxHour, finalHour));
     const clampedMinutes = clampedHour === maxHour ? Math.min(55, finalMinutes) : finalMinutes;
     
@@ -129,7 +126,7 @@ const DroppableTimeSlot: React.FC<{
       try {
         // Handle event drops with corrected precision
         if (item.eventId && onEventDrop && clientOffset) {
-          const targetTime = getDropTime(clientOffset.y, isLateHoursExpanded);
+          const targetTime = getDropTime(clientOffset.y);
           
           console.log('Moving event with corrected precision:', {
             eventId: item.eventId,
@@ -137,8 +134,7 @@ const DroppableTimeSlot: React.FC<{
             toResource: resourceId,
             targetTime,
             clientY: clientOffset.y,
-            isLateHoursExpanded,
-            precision: '5-minute intervals with collapsible late hours support'
+            precision: '5-minute intervals with continuous 24-hour grid'
           });
           
           await onEventDrop(item.eventId, resourceId, day, targetTime);
@@ -197,38 +193,35 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   onEventResize
 }) => {
   const { handleEventClick } = useEventNavigation();
-  const [isLateHoursExpanded, setIsLateHoursExpanded] = useState(false);
-
-  // Generate regular hours (05:00-23:00) and late hours (24:00-28:00, representing next day 00:00-04:00)
+  // Generate continuous 24-hour time slots from 05:00 to 05:00 (next day)
   const generateTimeSlots = () => {
-    const regularSlots = [];
-    const lateSlots = [];
+    const slots = [];
     
-    // Regular hours: 05:00 to 23:00
+    // Hours 05:00 to 23:00
     for (let hour = 5; hour <= 23; hour++) {
       const time = hour.toString().padStart(2, '0') + ':00';
-      regularSlots.push({ time, displayTime: time });
+      slots.push({ time, displayTime: time });
     }
     
-    // Late hours: 24:00-28:00 (00:00-04:00 next day)
+    // Hours 24:00-28:00 (displayed as 00:00-04:00 next day)
     for (let hour = 24; hour < 29; hour++) {
       const displayHour = hour - 24;
       const time = hour.toString();
       const displayTime = displayHour.toString().padStart(2, '0') + ':00';
-      lateSlots.push({ time, displayTime });
+      slots.push({ time, displayTime });
     }
     
-    return { regularSlots, lateSlots };
+    return slots;
   };
 
-  const { regularSlots, lateSlots } = generateTimeSlots();
+  const timeSlots = generateTimeSlots();
 
   // Calculate responsive column widths with better spacing
   const timeColumnWidth = 80;
   const availableWidth = dayWidth - timeColumnWidth - 24;
   const teamColumnWidth = Math.max(120, Math.floor(availableWidth / resources.length));
 
-  // Calculate event position based on time - Updated for collapsible early and late hours
+  // Calculate event position based on time - Continuous 24-hour grid
   const getEventPosition = (event: CalendarEvent) => {
     const startTime = new Date(event.start);
     const endTime = new Date(event.end);
@@ -242,18 +235,9 @@ const TimeGrid: React.FC<TimeGridProps> = ({
       endHour += 24;
     }
     
-    // Calculate position from midnight (00:00) with support for hours beyond 23
-    const gridStartHour = 0;
-    const gridEndHour = 28; // Extended to support late hours
-    
     // Calculate position in pixels (25px per hour)
     // Offset by 5 hours since we start from 05:00
     let top = (startHour - 5) * 25;
-    
-    // If event is in late hours (24:00+) and they're collapsed, hide it
-    if (startHour >= 24 && !isLateHoursExpanded) {
-      return null;
-    }
     
     const height = Math.max(12, (endHour - startHour) * 25);
     
@@ -443,69 +427,12 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         })}
 
         <div className="time-labels-column" style={{ gridRow: 4 }}>
-          {/* Regular hours labels */}
-          {regularSlots.map((slot) => (
+          {/* Continuous 24-hour time labels from 05:00 to 05:00 (next day) */}
+          {timeSlots.map((slot) => (
             <div key={slot.time} className="time-label-slot">
               {slot.displayTime}
             </div>
           ))}
-          
-          {/* Late hours section - collapsible with enhanced styling */}
-          <Collapsible open={isLateHoursExpanded} onOpenChange={setIsLateHoursExpanded}>
-            <CollapsibleTrigger asChild>
-              <button 
-                className="late-hours-trigger"
-                style={{
-                  width: '100%',
-                  height: '40px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  background: 'linear-gradient(135deg, hsl(var(--primary) / 0.1), hsl(var(--primary) / 0.05))',
-                  border: '2px solid hsl(var(--primary) / 0.3)',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  color: 'hsl(var(--primary))',
-                  marginTop: '12px',
-                  marginBottom: '4px',
-                  transition: 'all 0.3s ease',
-                  boxShadow: '0 2px 4px hsl(var(--primary) / 0.1)'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'linear-gradient(135deg, hsl(var(--primary) / 0.15), hsl(var(--primary) / 0.08))';
-                  e.currentTarget.style.borderColor = 'hsl(var(--primary) / 0.5)';
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                  e.currentTarget.style.boxShadow = '0 4px 8px hsl(var(--primary) / 0.2)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'linear-gradient(135deg, hsl(var(--primary) / 0.1), hsl(var(--primary) / 0.05))';
-                  e.currentTarget.style.borderColor = 'hsl(var(--primary) / 0.3)';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 2px 4px hsl(var(--primary) / 0.1)';
-                }}
-              >
-                {isLateHoursExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                <span>{isLateHoursExpanded ? 'Hide' : 'Show'}</span>
-              </button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              {lateSlots.map((slot, index) => (
-                <div 
-                  key={slot.time} 
-                  className="time-label-slot"
-                  style={{
-                    background: 'hsl(var(--primary) / 0.05)',
-                    borderLeft: '3px solid hsl(var(--primary) / 0.3)'
-                  }}
-                >
-                  {slot.displayTime}
-                </div>
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
         </div>
 
         {/* Enhanced Time Slot Columns with improved precision */}
@@ -520,7 +447,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               timeSlot="any"
               onEventDrop={handleEventDropOptimized}
               onStaffDrop={onStaffDrop}
-              isLateHoursExpanded={isLateHoursExpanded}
             >
               <div 
                 style={{ 
@@ -531,26 +457,10 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   position: 'relative'
                 }}
               >
-                {/* Time slots grid */}
+                {/* Time slots grid - continuous 24-hour */}
                 <div className="time-slots-grid">
-                  {/* Regular hours slots */}
-                  {regularSlots.map((slot) => (
+                  {timeSlots.map((slot) => (
                     <div key={slot.time} className="time-slot-cell" />
-                  ))}
-                  
-                  {/* Late hours trigger placeholder */}
-                  <div style={{ height: '52px', marginTop: '12px', marginBottom: '4px' }} />
-                  
-                  {/* Late hours slots */}
-                  {isLateHoursExpanded && lateSlots.map((slot) => (
-                    <div 
-                      key={slot.time} 
-                      className="time-slot-cell"
-                      style={{
-                        background: 'hsl(var(--primary) / 0.02)',
-                        borderLeft: '2px solid hsl(var(--primary) / 0.2)'
-                      }}
-                    />
                   ))}
                 </div>
                 

@@ -4,14 +4,10 @@ import { useDragLayer } from 'react-dnd';
 import { CalendarEvent, getEventColor } from './ResourceData';
 import { format, addMinutes } from 'date-fns';
 
-// Calculate drop time based on mouse position with collapsible late hours support
+// Calculate drop time based on mouse position with continuous 24-hour grid
 const calculateDropTime = (mouseY: number): string => {
   // Find the time grid elements
   const timeGrids = document.querySelectorAll('.time-slots-grid');
-  
-  // Check if late hours are expanded
-  const lateHoursTrigger = document.querySelector('.late-hours-trigger');
-  const isLateHoursExpanded = lateHoursTrigger?.parentElement?.querySelector('[data-state="open"]') !== null;
   
   for (const grid of Array.from(timeGrids)) {
     const rect = grid.getBoundingClientRect();
@@ -34,8 +30,8 @@ const calculateDropTime = (mouseY: number): string => {
       let hours = Math.floor(roundedMinutes / 60);
       const minutes = roundedMinutes % 60;
       
-      // Extended range up to 28:55 (04:55 next day) when late hours are expanded
-      const maxHours = isLateHoursExpanded ? 28 : 23;
+      // Extended range up to 28:55 (04:55 next day)
+      const maxHours = 28;
       const clampedHours = Math.max(5, Math.min(maxHours, hours));
       const clampedMinutes = clampedHours === maxHours ? Math.min(55, minutes) : minutes;
       
