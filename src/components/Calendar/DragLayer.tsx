@@ -109,30 +109,34 @@ const DragLayer: React.FC = () => {
 
   return (
     <>
-      {/* Digital Clock Popup - Compact and High Z-Index */}
+      {/* Ultra-Minimal Clock Popup - Maximum Z-Index */}
       <div
         style={{
           position: 'fixed',
           pointerEvents: 'none',
-          zIndex: 9999,
-          left: currentOffset.x + 15,
-          top: currentOffset.y - 45,
+          zIndex: 999999,
+          left: currentOffset.x + 10,
+          top: currentOffset.y - 30,
         }}
       >
-        <div className="bg-primary text-primary-foreground rounded shadow-lg px-2 py-1 border border-primary/20">
-          <div className="text-[10px] font-medium opacity-70">Drop Time</div>
-          <div className="text-sm font-bold font-mono">
-            {dropTime}
-          </div>
-          {dropEndTime && (
-            <div className="text-[10px] font-medium opacity-70">
-              to {dropEndTime}
-            </div>
-          )}
+        <div 
+          style={{
+            backgroundColor: 'hsl(var(--primary))',
+            color: 'hsl(var(--primary-foreground))',
+            borderRadius: '4px',
+            padding: '2px 6px',
+            fontSize: '11px',
+            fontWeight: '600',
+            fontFamily: 'monospace',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+            border: '1px solid hsl(var(--primary) / 0.3)',
+          }}
+        >
+          {dropTime}
         </div>
       </div>
 
-      {/* Event Preview - High Z-Index */}
+      {/* Event Preview */}
       <div
         style={{
           position: 'fixed',
