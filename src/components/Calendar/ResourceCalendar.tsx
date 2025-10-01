@@ -5,6 +5,9 @@ import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceHeaderDropZone from './ResourceHeaderDropZone';
+import { updateCalendarEvent } from '@/services/eventService';
+import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 interface ResourceCalendarProps {
   events: CalendarEvent[];
@@ -44,6 +47,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
 }) => {
   const calendarRef = useRef<FullCalendar>(null);
   const effectiveDate = targetDate || currentDate;
+  const navigate = useNavigate();
 
   // Custom header content that includes staff assignments with colors
   const customResourceLabelContent = useCallback((arg: any) => {
@@ -75,6 +79,77 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     );
   }, [currentDate, effectiveDate, onStaffDrop, onSelectStaff, staffOperations]);
 
+  // Handle event drop (drag and drop)
+  const handleEventDrop = useCallback(async (info: any) => {
+    const eventId = info.event.id;
+    const newStart = info.event.start;
+    const newEnd = info.event.end;
+    const newResourceId = info.event.getResources()[0]?.id;
+
+    console.log('ResourceCalendar: Event dropped', {
+      eventId,
+      newStart: newStart?.toISOString(),
+      newEnd: newEnd?.toISOString(),
+      newResourceId
+    });
+
+    try {
+      await updateCalendarEvent(eventId, {
+        start: newStart.toISOString(),
+        end: newEnd.toISOString(),
+        resourceId: newResourceId
+      });
+
+      const eventTitle = info.event.title;
+      const resourceTitle = resources.find(r => r.id === newResourceId)?.title || 'Unknown';
+      toast.success(`"${eventTitle}" moved to ${resourceTitle}`);
+    } catch (error) {
+      console.error('Error dropping event:', error);
+      toast.error('Failed to move event');
+      info.revert(); // Revert the drag if it failed
+    }
+  }, [resources]);
+
+  // Handle event resize
+  const handleEventResize = useCallback(async (info: any) => {
+    const eventId = info.event.id;
+    const newStart = info.event.start;
+    const newEnd = info.event.end;
+
+    console.log('ResourceCalendar: Event resized', {
+      eventId,
+      newStart: newStart?.toISOString(),
+      newEnd: newEnd?.toISOString()
+    });
+
+    try {
+      await updateCalendarEvent(eventId, {
+        start: newStart.toISOString(),
+        end: newEnd.toISOString()
+      });
+
+      toast.success('Event resized successfully');
+    } catch (error) {
+      console.error('Error resizing event:', error);
+      toast.error('Failed to resize event');
+      info.revert(); // Revert the resize if it failed
+    }
+  }, []);
+
+  // Handle event click
+  const handleEventClick = useCallback((info: any) => {
+    const eventId = info.event.id;
+    const bookingId = info.event.extendedProps?.bookingId || eventId;
+    
+    console.log('ResourceCalendar: Event clicked', { eventId, bookingId });
+    
+    if (bookingId) {
+      navigate(`/booking/${bookingId}`);
+    } else {
+      toast.error('Could not find booking details');
+    }
+  }, [navigate]);
+
   // Calendar configuration
   const calendarOptions = {
     plugins: [resourceTimeGridPlugin, interactionPlugin],
@@ -87,11 +162,23 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     slotMinTime: '06:00:00',
     slotMaxTime: '22:00:00',
     slotDuration: '01:00:00',
+    snapDuration: '00:05:00', // Snap to 5-minute intervals
     height: 'auto',
     resourceAreaWidth: '80px',
     resourceAreaHeaderContent: 'Teams',
     eventDisplay: 'block',
     datesSet: onDateSet,
+    // Enable drag and drop
+    editable: true,
+    droppable: true,
+    eventResizableFromStart: true,
+    // Event handlers
+    eventDrop: handleEventDrop,
+    eventResize: handleEventResize,
+    eventClick: handleEventClick,
+    // Visual feedback
+    eventOverlap: true,
+    selectOverlap: true,
     ...calendarProps
   };
 
