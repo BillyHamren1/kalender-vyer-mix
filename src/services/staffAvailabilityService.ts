@@ -162,23 +162,27 @@ export const isStaffAvailableOnDate = async (
  */
 export const getAvailableStaffForDate = async (date: Date): Promise<string[]> => {
   const dateStr = format(date, 'yyyy-MM-dd');
+  
+  console.log('🔍 [getAvailableStaffForDate] Checking availability for date:', dateStr);
 
   // Get all active staff members
   const { data: activeStaff, error: staffError } = await supabase
     .from('staff_members' as any)
-    .select('id')
+    .select('id, name')
     .eq('is_active', true);
 
   if (staffError) {
-    console.error('Error fetching active staff:', staffError);
+    console.error('❌ [getAvailableStaffForDate] Error fetching active staff:', staffError);
     return [];
   }
 
   if (!activeStaff || activeStaff.length === 0) {
+    console.log('⚠️ [getAvailableStaffForDate] No active staff found');
     return [];
   }
 
   const activeStaffIds = (activeStaff as any[]).map((s: any) => s.id);
+  console.log('📋 [getAvailableStaffForDate] Active staff:', activeStaff.map((s: any) => s.name).join(', '));
 
   // Get availability periods that cover this date
   const { data: availabilityData, error: availError } = await supabase
@@ -189,18 +193,23 @@ export const getAvailableStaffForDate = async (date: Date): Promise<string[]> =>
     .gte('end_date', dateStr);
 
   if (availError) {
-    console.error('Error fetching availability:', availError);
+    console.error('❌ [getAvailableStaffForDate] Error fetching availability:', availError);
     return [];
   }
+
+  console.log('📅 [getAvailableStaffForDate] Found', availabilityData?.length || 0, 'availability periods covering this date:', availabilityData);
 
   // Filter staff based on availability
   const availableStaffIds: string[] = [];
 
   for (const staffId of activeStaffIds) {
+    const staffName = (activeStaff as any[]).find((s: any) => s.id === staffId)?.name || staffId;
     const staffPeriods = ((availabilityData as any[]) || []).filter((p: any) => p.staff_id === staffId);
 
+    console.log(`👤 [getAvailableStaffForDate] Checking ${staffName}:`, staffPeriods.length, 'periods');
+
     if (staffPeriods.length === 0) {
-      // No availability records - staff is not available
+      console.log(`  ⚠️ No availability records for ${staffName} - NOT AVAILABLE`);
       continue;
     }
 
@@ -209,11 +218,17 @@ export const getAvailableStaffForDate = async (date: Date): Promise<string[]> =>
     );
     const hasAvailable = staffPeriods.some((p: any) => p.availability_type === 'available');
 
+    console.log(`  📊 ${staffName}: hasAvailable=${hasAvailable}, hasUnavailable=${hasUnavailable}`);
+
     if (!hasUnavailable && hasAvailable) {
+      console.log(`  ✅ ${staffName} is AVAILABLE`);
       availableStaffIds.push(staffId);
+    } else {
+      console.log(`  ❌ ${staffName} is NOT AVAILABLE (blocked or no available period)`);
     }
   }
 
+  console.log('✅ [getAvailableStaffForDate] Final result:', availableStaffIds.length, 'staff available');
   return availableStaffIds;
 };
 

@@ -118,16 +118,21 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
       // Filter out staff who are blocked/unavailable OR don't have an available period on the current date
       const dateStr = format(currentDate, 'yyyy-MM-dd');
       
+      console.log('🔍 [fetchAvailableStaff] Checking availability for date:', dateStr);
+      console.log('📋 [fetchAvailableStaff] Total active staff before filtering:', data?.length || 0);
+      
       // Get all availability periods that cover this date
       const { data: availabilityData, error: availError } = await supabase
         .from('staff_availability')
-        .select('staff_id, availability_type')
+        .select('staff_id, availability_type, start_date, end_date')
         .lte('start_date', dateStr)
         .gte('end_date', dateStr);
 
       if (availError) {
-        console.error('Error checking availability:', availError);
+        console.error('❌ [fetchAvailableStaff] Error checking availability:', availError);
       }
+
+      console.log('📅 [fetchAvailableStaff] Availability periods found:', availabilityData?.length || 0, availabilityData);
 
       // Filter staff: must have an 'available' period AND no 'blocked'/'unavailable' periods
       const availableStaffIds = new Set<string>();
@@ -136,15 +141,22 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
       (availabilityData || []).forEach(period => {
         if (period.availability_type === 'available') {
           availableStaffIds.add(period.staff_id);
+          console.log(`  ✅ Staff ${period.staff_id} has AVAILABLE period`);
         } else if (period.availability_type === 'blocked' || period.availability_type === 'unavailable') {
           blockedStaffIds.add(period.staff_id);
+          console.log(`  ❌ Staff ${period.staff_id} has BLOCKED/UNAVAILABLE period`);
         }
       });
 
+      console.log(`📊 [fetchAvailableStaff] Summary: ${availableStaffIds.size} with available periods, ${blockedStaffIds.size} blocked`);
+
       const staff = (data || [])
         .filter(member => {
-          // Must have an available period AND not be blocked
-          return availableStaffIds.has(member.id) && !blockedStaffIds.has(member.id);
+          const isAvailable = availableStaffIds.has(member.id);
+          const isBlocked = blockedStaffIds.has(member.id);
+          const passes = isAvailable && !isBlocked;
+          console.log(`  👤 ${member.name}: available=${isAvailable}, blocked=${isBlocked}, passes=${passes}`);
+          return passes;
         })
         .map(member => ({
           id: member.id,
@@ -152,7 +164,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
           color: member.color || '#E3F2FD'
         }));
 
-      console.log(`📋 Fetched ${staff.length} available staff members (${availableStaffIds.size} have available periods, ${blockedStaffIds.size} blocked)`);
+      console.log(`✅ [fetchAvailableStaff] Final result: ${staff.length} staff available`);
       setAvailableStaff(staff);
     } catch (error) {
       console.error('Error fetching available staff:', error);
