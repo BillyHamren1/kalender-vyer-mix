@@ -76,7 +76,8 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
 
   const getStaffForTeamAndDate = (teamId: string, date: Date) => {
     if (!weeklyStaffOperations?.getStaffForTeamAndDate) return [];
-    return weeklyStaffOperations.getStaffForTeamAndDate(teamId, date);
+    const staff = weeklyStaffOperations.getStaffForTeamAndDate(teamId, date);
+    return Array.isArray(staff) ? staff : [];
   };
 
   // Extract booking ID from event and handle click

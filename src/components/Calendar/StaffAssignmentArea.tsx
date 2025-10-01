@@ -47,9 +47,10 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
   });
 
   // Get assigned staff for this team on this specific day using weekly operations
-  const assignedStaff = weeklyStaffOperations 
+  const assignedStaffRaw = weeklyStaffOperations 
     ? weeklyStaffOperations.getStaffForTeamAndDate(resource.id, day)
     : [];
+  const assignedStaff = Array.isArray(assignedStaffRaw) ? assignedStaffRaw : [];
 
   const handleRemoveStaff = (staffId: string) => {
     if (onStaffDrop) {

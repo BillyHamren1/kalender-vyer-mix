@@ -50,7 +50,8 @@ const MobileDayDetailView: React.FC<MobileDayDetailViewProps> = ({
   // Get staff for a team on this date
   const getTeamStaff = (teamId: string) => {
     if (!weeklyStaffOperations) return [];
-    return weeklyStaffOperations.getStaffForTeamAndDate(teamId, selectedDate);
+    const staff = weeklyStaffOperations.getStaffForTeamAndDate(teamId, selectedDate);
+    return Array.isArray(staff) ? staff : [];
   };
 
   const handleAddStaff = (teamId: string, teamTitle: string, event: React.MouseEvent) => {

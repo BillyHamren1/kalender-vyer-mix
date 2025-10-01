@@ -51,9 +51,10 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     const resourceTitle = arg.resource.title;
     
     // Get staff with color information for this team using passed-in operations
-    const assignedStaff = staffOperations 
+    const assignedStaffRaw = staffOperations 
       ? staffOperations.getStaffForTeamAndDate(resourceId, effectiveDate)
       : [];
+    const assignedStaff = Array.isArray(assignedStaffRaw) ? assignedStaffRaw : [];
     
     console.log(`ResourceCalendar: Staff for team ${resourceId}:`, assignedStaff);
     

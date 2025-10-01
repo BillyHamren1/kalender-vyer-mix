@@ -264,7 +264,9 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   const getAssignedStaffForTeam = (teamId: string) => {
     if (!weeklyStaffOperations) return [];
-    return weeklyStaffOperations.getStaffForTeamAndDate(teamId, day) || [];
+    const staff = weeklyStaffOperations.getStaffForTeamAndDate(teamId, day);
+    // Ensure we always return an array
+    return Array.isArray(staff) ? staff : [];
   };
 
   const handleStaffSelectionClick = (resourceId: string, resourceTitle: string, event: React.MouseEvent<HTMLButtonElement>) => {
