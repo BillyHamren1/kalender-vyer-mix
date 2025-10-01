@@ -214,7 +214,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     const baseStyles: React.CSSProperties = {
       ...style,
       backgroundColor: eventColor,
-      opacity: isDragging ? 0.3 : 1, // Show transparency when dragging
+      opacity: isDragging ? 0 : 1, // Completely hide original when dragging
       cursor: isDragging ? 'grabbing' : (isResizing ? 'ns-resize' : 'grab'), // Grab cursor to indicate draggability
       border: isResizing ? '2px solid #3b82f6' : 'none',
       transform: 'none',

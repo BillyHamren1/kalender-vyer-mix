@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { useDragLayer } from 'react-dnd';
 import { CalendarEvent, getEventColor } from './ResourceData';
 import { format, addMinutes } from 'date-fns';
@@ -107,9 +108,14 @@ const DragLayer: React.FC = () => {
   
   const dropEndTime = dropTime ? formatTime(String(endHour), endMinute) : endTime;
 
-  return (
+  if (!isDragging || itemType !== 'calendar-event' || !currentOffset) {
+    return null;
+  }
+
+  // Render clock in a portal to bypass all stacking contexts
+  return ReactDOM.createPortal(
     <>
-      {/* Ultra-Minimal Clock Popup - Maximum Z-Index */}
+      {/* Ultra-Minimal Clock Popup - In Portal for Maximum Z-Index */}
       <div
         style={{
           position: 'fixed',
@@ -172,7 +178,8 @@ const DragLayer: React.FC = () => {
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 };
 
