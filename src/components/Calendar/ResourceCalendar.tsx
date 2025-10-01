@@ -8,6 +8,8 @@ import ResourceHeaderDropZone from './ResourceHeaderDropZone';
 import { useEventMarking } from '@/hooks/useEventMarking';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
 import MarkedEventOverlay from './MarkedEventOverlay';
+import TimeAxisOverlay from './TimeAxisOverlay';
+import MarkingModeIndicator from './MarkingModeIndicator';
 
 interface ResourceCalendarProps {
   events: CalendarEvent[];
@@ -165,23 +167,36 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   return (
     <>
       {markedEvent && (
-        <MarkedEventOverlay
-          markedEvent={markedEvent}
-          timeSelection={timeSelection}
-          onCancel={unmarkEvent}
-        />
+        <>
+          <MarkedEventOverlay
+            markedEvent={markedEvent}
+            timeSelection={timeSelection}
+            onCancel={unmarkEvent}
+          />
+          <MarkingModeIndicator 
+            step={timeSelection.startTime ? 'end' : 'start'} 
+          />
+        </>
       )}
       
-      <div className="resource-calendar-container">
+      <div className="resource-calendar-container relative">
         {isLoading ? (
           <div className="flex items-center justify-center h-32">
-            <div className="text-gray-500">Loading calendar...</div>
+            <div className="text-muted-foreground">Loading calendar...</div>
           </div>
         ) : (
-          <FullCalendar
-            ref={calendarRef}
-            {...calendarOptions}
-          />
+          <>
+            <FullCalendar
+              ref={calendarRef}
+              {...calendarOptions}
+            />
+            {markedEvent && (
+              <TimeAxisOverlay 
+                onTimeClick={handleTimeSlotClick}
+                currentDate={effectiveDate}
+              />
+            )}
+          </>
         )}
       </div>
       
@@ -190,11 +205,26 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           border: 3px solid hsl(var(--primary)) !important;
           box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--primary)) !important;
           z-index: 100 !important;
+          animation: pulse-border 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse-border {
+          0%, 100% {
+            border-color: hsl(var(--primary));
+          }
+          50% {
+            border-color: hsl(var(--primary) / 0.5);
+          }
         }
         
         .fc-timegrid-slot:hover {
           background-color: hsl(var(--accent)) !important;
           cursor: pointer;
+        }
+        
+        .resource-calendar-container.marking-mode .fc-timegrid-axis {
+          background-color: hsl(var(--primary) / 0.1) !important;
+          border-left: 3px solid hsl(var(--primary)) !important;
         }
       `}</style>
     </>

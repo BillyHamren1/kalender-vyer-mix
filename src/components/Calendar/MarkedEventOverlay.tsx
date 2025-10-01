@@ -23,15 +23,21 @@ const MarkedEventOverlay: React.FC<MarkedEventOverlayProps> = ({
   onCancel
 }) => {
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-primary text-primary-foreground px-6 py-3 rounded-lg shadow-lg border border-border flex items-center gap-4 animate-in slide-in-from-top">
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-primary text-primary-foreground px-8 py-4 rounded-lg shadow-2xl border-2 border-primary-foreground/20 flex items-center gap-4 animate-in slide-in-from-top">
       <div className="flex-1">
-        <div className="font-semibold">{markedEvent.title}</div>
-        <div className="text-sm opacity-90">
-          {!timeSelection.startTime && "Click a time slot to set start time"}
+        <div className="font-bold text-lg mb-1">{markedEvent.title}</div>
+        <div className="text-sm font-medium">
+          {!timeSelection.startTime && (
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-2 h-2 bg-primary-foreground rounded-full animate-pulse" />
+              Click a time on the LEFT to set START time
+            </div>
+          )}
           {timeSelection.startTime && !timeSelection.endTime && (
-            <>
-              Start: {format(timeSelection.startTime, 'HH:mm')} - Click to set end time
-            </>
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-2 h-2 bg-primary-foreground rounded-full animate-pulse" />
+              Start: {format(timeSelection.startTime, 'HH:mm')} → Now click END time
+            </div>
           )}
         </div>
       </div>
