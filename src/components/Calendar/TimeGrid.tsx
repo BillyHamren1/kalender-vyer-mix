@@ -177,51 +177,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     }
   };
 
-  // Optimized event drop handler with improved precision
-  const handleEventDropOptimized = async (
-    eventId: string, 
-    targetResourceId: string, 
-    targetDate: Date, 
-    targetTime: string
-  ) => {
-    try {
-      console.log('TimeGrid: Handling optimized event drop with enhanced precision', {
-        eventId,
-        targetResourceId,
-        targetDate: format(targetDate, 'yyyy-MM-dd'),
-        targetTime,
-        precision: '5-minute intervals'
-      });
-
-      const [hours, minutes] = targetTime.split(':').map(Number);
-      const newStartTime = new Date(targetDate);
-      newStartTime.setHours(hours, minutes, 0, 0);
-      
-      const originalEvent = events.find(e => e.id === eventId);
-      if (!originalEvent) {
-        throw new Error('Original event not found');
-      }
-      
-      const originalStart = new Date(originalEvent.start);
-      const originalEnd = new Date(originalEvent.end);
-      const duration = originalEnd.getTime() - originalStart.getTime();
-      
-      const newEndTime = new Date(newStartTime.getTime() + duration);
-      
-      // Update immediately with enhanced precision
-      await updateCalendarEvent(eventId, {
-        start: newStartTime.toISOString(),
-        end: newEndTime.toISOString(),
-        resourceId: targetResourceId
-      });
-
-      console.log('Event updated successfully with 5-minute precision');
-      
-    } catch (error) {
-      console.error('Error handling event drop:', error);
-      throw error;
-    }
-  };
+  // Event drop handler removed - using click-based event marking system instead
 
   return (
     <div 
@@ -358,7 +314,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             </SimpleTimeSlot>
           );
         })}
-      </div>
     </div>
   );
 };
