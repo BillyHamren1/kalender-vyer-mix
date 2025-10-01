@@ -488,10 +488,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 }}
               >
                 {isLateHoursExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                <span>{isLateHoursExpanded ? 'Hide' : 'Show'} Next Day Hours</span>
-                <span className="text-[11px] font-bold bg-primary/20 px-2 py-0.5 rounded-full">
-                  00-04
-                </span>
+                <span>{isLateHoursExpanded ? 'Hide' : 'Show'}</span>
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent>
@@ -505,7 +502,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   }}
                 >
                   {slot.displayTime}
-                  {index === 0 && <span className="ml-2 text-[10px] font-bold text-primary">+1 day</span>}
                 </div>
               ))}
             </CollapsibleContent>
