@@ -2,7 +2,6 @@
 import React, { useState, useRef } from 'react';
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
 import { format, addMinutes } from 'date-fns';
-import { useDrag } from 'react-dnd';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
 import EventHoverCard from './EventHoverCard';
 import './CustomEvent.css';
@@ -35,38 +34,6 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   // Add event navigation hook for click handling
   const { handleEventClick } = useEventNavigation();
 
-  // Optimized drag implementation for smooth movement - FIXED to prevent jumping back
-  const [{ isDragging }, drag, preview] = useDrag({
-    type: 'calendar-event',
-    item: { 
-      eventId: event.id,
-      resourceId: event.resourceId,
-      originalEvent: event
-    },
-    collect: (monitor) => ({
-      isDragging: monitor.isDragging(),
-    }),
-    canDrag: !isResizing, // Only allow dragging when not resizing
-    end: (item, monitor) => {
-      // This is crucial - handle the end of drag operation
-      const dropResult = monitor.getDropResult();
-      if (!dropResult) {
-        // If no valid drop target, the drag was cancelled - don't revert
-        console.log('Drag ended without valid drop target');
-        return;
-      }
-      console.log('Drag completed successfully:', dropResult);
-    },
-    options: {
-      dropEffect: 'move',
-    },
-  });
-
-  // Use empty preview to hide default preview (we use custom drag layer)
-  React.useEffect(() => {
-    preview(null, { captureDraggingState: true });
-  }, [preview]);
-
   const eventColor = getEventColor(event.eventType);
   
   // Use temporary times if resizing, otherwise use original times
@@ -75,8 +42,8 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
 
   // Handle double click for navigation
   const handleDoubleClick = (e: React.MouseEvent) => {
-    // Prevent double-click during drag or resize operations
-    if (isDragging || isResizing) {
+    // Prevent double-click during resize operations
+    if (isResizing) {
       e.stopPropagation();
       return;
     }
@@ -214,16 +181,15 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     const baseStyles: React.CSSProperties = {
       ...style,
       backgroundColor: eventColor,
-      opacity: isDragging ? 0 : 1, // Completely hide original when dragging
-      cursor: isDragging ? 'grabbing' : (isResizing ? 'ns-resize' : 'grab'), // Grab cursor to indicate draggability
+      cursor: isResizing ? 'ns-resize' : 'pointer',
       border: isResizing ? '2px solid #3b82f6' : 'none',
       transform: 'none',
-      transition: isDragging || isResizing ? 'none' : 'opacity 0.2s ease, transform 0.2s ease', // Added transform transition for hover effects
+      transition: isResizing ? 'none' : 'opacity 0.2s ease, transform 0.2s ease',
       position: 'relative' as const,
       willChange: 'transform, opacity',
       color: '#000000',
       boxShadow: isResizing ? '0 4px 12px rgba(59, 130, 246, 0.3)' : 'none',
-      zIndex: isDragging ? 1000 : (isResizing ? 500 : 'auto') // Higher z-index when dragging
+      zIndex: isResizing ? 500 : 'auto'
     };
 
     // Apply real-time resize visual feedback
@@ -260,11 +226,8 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   return (
     <EventHoverCard event={event}>
       <div
-        ref={(node) => {
-          drag(node);
-          eventRef.current = node;
-        }}
-        className={`custom-event ${isDragging ? 'dragging' : ''} ${isResizing ? 'resizing' : ''} hover:scale-105`}
+        ref={eventRef}
+        className={`custom-event ${isResizing ? 'resizing' : ''} hover:scale-105`}
         style={getDynamicStyles()}
         onDoubleClick={handleDoubleClick}
       >

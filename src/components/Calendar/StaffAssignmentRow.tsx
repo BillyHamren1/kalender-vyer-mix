@@ -10,7 +10,6 @@ import {
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import TeamDropZone from './TeamDropZone';
 import StaffForm from './StaffForm';
 import StaffSelectionDialog from './StaffSelectionDialog';
 import { StaffMember, StaffAssignment } from './StaffTypes';
@@ -214,18 +213,33 @@ const StaffAssignmentRow: React.FC<StaffAssignmentRowProps> = ({
         </Dialog>
       </div>
       <div className="grid gap-2 p-2" style={{ gridTemplateColumns: `repeat(${resources.length}, 1fr)` }}>
-        {resources.map(resource => (
-          <TeamDropZone
-            key={resource.id}
-            resource={resource}
-            staffMembers={staffMembers}
-            assignments={assignments}
-            onDrop={handleStaffDrop}
-            onAddStaff={handleAddStaffToTeam}
-            onSelectStaff={handleSelectStaffForTeam}
-            currentDate={currentDate}
-          />
-        ))}
+        {resources.map(resource => {
+          const teamAssignments = assignments.filter(assignment => assignment.team_id === resource.id);
+          const teamStaff = teamAssignments.map(assignment => {
+            const staffMember = staffMembers.find(staff => staff.id === assignment.staff_id);
+            return staffMember;
+          }).filter(Boolean);
+          
+          return (
+            <div key={resource.id} className="border border-gray-200 rounded-md p-2">
+              <div className="text-sm font-medium mb-2">{resource.title}</div>
+              <div className="space-y-1">
+                {teamStaff.map(staff => staff && (
+                  <div 
+                    key={staff.id}
+                    className="text-xs px-2 py-1 rounded"
+                    style={{ 
+                      backgroundColor: staff.color || '#E3F2FD',
+                      color: '#000'
+                    }}
+                  >
+                    {staff.name}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
       
       {/* Staff Selection Dialog */}

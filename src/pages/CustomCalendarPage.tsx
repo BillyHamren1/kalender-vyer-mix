@@ -1,7 +1,5 @@
 
 import React, { useState, useEffect } from 'react';
-import { DndProvider } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
@@ -205,8 +203,7 @@ const CustomCalendarPage = () => {
   };
 
   return (
-    <DndProvider backend={HTML5Backend}>
-      <TooltipProvider>
+    <TooltipProvider>
         <div className="min-h-screen bg-gray-50">
           {/* Header */}
           <div className="bg-white border-b border-gray-200 px-6 py-4">
@@ -361,7 +358,6 @@ const CustomCalendarPage = () => {
           )}
         </div>
       </TooltipProvider>
-    </DndProvider>
   );
 };
 

@@ -1,7 +1,5 @@
 
 import React, { useState, useCallback } from 'react';
-import { DndProvider } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ArrowLeft, Calendar as CalendarIcon, List } from 'lucide-react';
@@ -92,8 +90,7 @@ const CalendarPage = () => {
   };
 
   return (
-    <DndProvider backend={HTML5Backend}>
-      <TooltipProvider>
+    <TooltipProvider>
         <div className="min-h-screen bg-gray-50">
           {/* Header */}
           <div className="bg-white border-b border-gray-200 px-6 py-4">
@@ -193,7 +190,6 @@ const CalendarPage = () => {
           )}
         </div>
       </TooltipProvider>
-    </DndProvider>
   );
 };
 

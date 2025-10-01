@@ -4,7 +4,6 @@ import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { CalendarEvent, Resource } from './ResourceData';
-import ResourceHeaderDropZone from './ResourceHeaderDropZone';
 import { useEventMarking } from '@/hooks/useEventMarking';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
 import MarkedEventOverlay from './MarkedEventOverlay';
@@ -85,35 +84,37 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     }
   }, [isUpdating]);
 
-  // Custom header content that includes staff assignments with colors
+  // Custom header content - simplified without drop zones
   const customResourceLabelContent = useCallback((arg: any) => {
     const resourceId = arg.resource.id;
     const resourceTitle = arg.resource.title;
     
-    // Get staff with color information for this team using passed-in operations
+    // Get staff with color information for this team
     const assignedStaffRaw = staffOperations 
       ? staffOperations.getStaffForTeamAndDate(resourceId, effectiveDate)
       : [];
     const assignedStaff = Array.isArray(assignedStaffRaw) ? assignedStaffRaw : [];
     
-    console.log(`ResourceCalendar: Staff for team ${resourceId}:`, assignedStaff);
-    
     return (
-      <ResourceHeaderDropZone
-        resource={{ 
-          id: resourceId, 
-          title: resourceTitle,
-          eventColor: arg.resource.eventColor || '#3b82f6'
-        }}
-        currentDate={currentDate}
-        targetDate={effectiveDate}
-        onStaffDrop={onStaffDrop}
-        onSelectStaff={onSelectStaff}
-        assignedStaff={assignedStaff}
-        minHeight={100}
-      />
+      <div className="resource-header-simple" style={{ padding: '8px', minHeight: '100px' }}>
+        <div className="text-sm font-medium mb-2">{resourceTitle}</div>
+        <div className="space-y-1">
+          {assignedStaff.map((staff: any) => (
+            <div 
+              key={staff.id}
+              className="text-xs px-2 py-1 rounded"
+              style={{ 
+                backgroundColor: staff.color || '#E3F2FD',
+                color: '#000'
+              }}
+            >
+              {staff.name}
+            </div>
+          ))}
+        </div>
+      </div>
     );
-  }, [currentDate, effectiveDate, onStaffDrop, onSelectStaff, staffOperations]);
+  }, [currentDate, effectiveDate, staffOperations]);
 
   // Handle time slot clicks on the time axis
   const handleDateClick = useCallback((info: any) => {

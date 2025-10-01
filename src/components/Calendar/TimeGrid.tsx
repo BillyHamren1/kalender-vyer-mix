@@ -1,15 +1,9 @@
 import React, { useState } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
-import BookingEvent from './BookingEvent';
-import EventHoverCard from './EventHoverCard';
 import CustomEvent from './CustomEvent';
-import DragLayer from './DragLayer';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
-import { useDrag, useDrop } from 'react-dnd';
 import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
-import { toast } from 'sonner';
-import { updateCalendarEvent } from '@/services/eventService';
 import './TimeGrid.css';
 
 interface TimeGridProps {
@@ -61,118 +55,17 @@ const DraggableEvent: React.FC<{
   );
 });
 
-// Enhanced Droppable Time Slot Component with corrected precision
-const DroppableTimeSlot: React.FC<{
-  resourceId: string;
-  day: Date;
-  timeSlot: string;
-  onEventDrop?: (eventId: string, targetResourceId: string, targetDate: Date, targetTime: string) => Promise<void>;
-  onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
+// Simple Time Slot Component - no drag-and-drop
+const SimpleTimeSlot: React.FC<{
   children: React.ReactNode;
-}> = React.memo(({ resourceId, day, timeSlot, onEventDrop, onStaffDrop, children }) => {
-  
-  const elementRef = React.useRef<HTMLDivElement>(null);
-  
-  // Fixed time calculation for continuous 24-hour grid
-  const getDropTime = (clientY: number) => {
-    if (!elementRef.current) {
-      console.warn('Element ref not available for time calculation');
-      return '12:00';
-    }
-    
-    const rect = elementRef.current.getBoundingClientRect();
-    const parentScroll = elementRef.current.parentElement?.scrollTop || 0;
-    
-    // Account for any scroll offset
-    const relativeY = clientY - rect.top + parentScroll;
-    
-    // Use consistent 25px per hour to match visual rendering
-    const pixelsPerHour = 25;
-    const startHour = 5; // Always start from 05:00
-    
-    // Calculate time from pixel position
-    const hoursFromStart = Math.max(0, relativeY) / pixelsPerHour;
-    const totalMinutes = (startHour * 60) + (hoursFromStart * 60);
-    
-    // Round to nearest 5-minute interval
-    const roundedMinutes = Math.round(totalMinutes / 5) * 5;
-    
-    const finalHour = Math.floor(roundedMinutes / 60);
-    const finalMinutes = roundedMinutes % 60;
-    
-    // Extended range: 00:00 to 28:55 (04:55 next day)
-    const maxHour = 28;
-    const clampedHour = Math.max(0, Math.min(maxHour, finalHour));
-    const clampedMinutes = clampedHour === maxHour ? Math.min(55, finalMinutes) : finalMinutes;
-    
-    const calculatedTime = `${clampedHour.toString().padStart(2, '0')}:${clampedMinutes.toString().padStart(2, '0')}`;
-    
-    return calculatedTime;
-  };
-
-  const [{ isOver, dragType }, drop] = useDrop({
-    accept: ['calendar-event', 'STAFF'],
-    drop: async (item: any, monitor) => {
-      const clientOffset = monitor.getClientOffset();
-      
-      console.log('DroppableTimeSlot: Handling drop with corrected precision', { 
-        item, 
-        resourceId, 
-        day: format(day, 'yyyy-MM-dd'),
-        eventId: item.eventId,
-        staffId: item.id 
-      });
-      
-      try {
-        // Handle event drops with corrected precision
-        if (item.eventId && onEventDrop && clientOffset) {
-          const targetTime = getDropTime(clientOffset.y);
-          
-          console.log('Moving event with corrected precision:', {
-            eventId: item.eventId,
-            fromResource: item.resourceId,
-            toResource: resourceId,
-            targetTime,
-            clientY: clientOffset.y,
-            precision: '5-minute intervals with continuous 24-hour grid'
-          });
-          
-          await onEventDrop(item.eventId, resourceId, day, targetTime);
-          toast.success('Event moved successfully');
-        }
-        // Handle staff drops
-        else if (item.id && onStaffDrop) {
-          console.log('Assigning staff', item.id, 'to resource', resourceId);
-          await onStaffDrop(item.id, resourceId, day);
-          toast.success('Staff assigned successfully');
-        }
-      } catch (error) {
-        console.error('Error in drop operation:', error);
-        toast.error(`Failed to complete operation: ${error.message || 'Unknown error'}`);
-      }
-    },
-    collect: (monitor) => ({
-      isOver: monitor.isOver(),
-      dragType: monitor.getItemType(),
-    }),
-  });
-
-  const combinedRef = (node: HTMLDivElement) => {
-    elementRef.current = node;
-    drop(node);
-  };
-
+}> = React.memo(({ children }) => {
   return (
     <div
-      ref={combinedRef}
-      className={`time-slots-column hover-container ${isOver ? 'drop-over' : ''}`}
+      className="time-slots-column hover-container"
       style={{ 
         width: `100%`,
         minWidth: `100%`,
-        position: 'relative',
-        backgroundColor: isOver ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
-        border: isOver ? '2px dashed #3b82f6' : '2px solid transparent',
-        transition: 'all 0.2s ease'
+        position: 'relative'
       }}
     >
       {children}
@@ -331,18 +224,14 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   };
 
   return (
-    <>
-      {/* Add drag layer for smooth visual feedback */}
-      <DragLayer />
-      
-      <div 
-        className="time-grid-with-staff-header"
-        style={{
-          gridTemplateColumns: `${timeColumnWidth}px repeat(${resources.length}, ${teamColumnWidth}px)`,
-          gridTemplateRows: 'auto auto auto 1fr',
-          width: `${dayWidth}px`
-        }}
-      >
+    <div 
+      className="time-grid-with-staff-header"
+      style={{
+        gridTemplateColumns: `${timeColumnWidth}px repeat(${resources.length}, ${teamColumnWidth}px)`,
+        gridTemplateRows: 'auto auto auto 1fr',
+        width: `${dayWidth}px`
+      }}
+    >
         {/* Time Column Header */}
         <div className="time-column-header">
           <div className="time-title">Time</div>
@@ -390,13 +279,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           const assignedStaff = getAssignedStaffForTeam(resource.id);
           
           return (
-            <DroppableTimeSlot
-              key={`staff-${resource.id}`}
-              resourceId={resource.id}
-              day={day}
-              timeSlot="staff-assignment"
-              onStaffDrop={onStaffDrop}
-            >
+            <SimpleTimeSlot key={`staff-${resource.id}`}>
               <div 
                 className="staff-assignment-header-row"
                 style={{ 
@@ -422,7 +305,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   </div>
                 </div>
               </div>
-            </DroppableTimeSlot>
+            </SimpleTimeSlot>
           );
         })}
 
@@ -435,19 +318,12 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           ))}
         </div>
 
-        {/* Enhanced Time Slot Columns with improved precision */}
+        {/* Simplified Time Slot Columns */}
         {resources.map((resource, index) => {
           const resourceEvents = getEventsForDayAndResource(day, resource.id);
           
           return (
-            <DroppableTimeSlot
-              key={`timeslots-${resource.id}`}
-              resourceId={resource.id}
-              day={day}
-              timeSlot="any"
-              onEventDrop={handleEventDropOptimized}
-              onStaffDrop={onStaffDrop}
-            >
+            <SimpleTimeSlot key={`timeslots-${resource.id}`}>
               <div 
                 style={{ 
                   gridColumn: index + 2,
@@ -479,11 +355,11 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   );
                 })}
               </div>
-            </DroppableTimeSlot>
+            </SimpleTimeSlot>
           );
         })}
       </div>
-    </>
+    </div>
   );
 };
 
