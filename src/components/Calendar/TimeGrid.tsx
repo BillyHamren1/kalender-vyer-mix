@@ -72,12 +72,13 @@ const DroppableTimeSlot: React.FC<{
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
   children: React.ReactNode;
   isEarlyHoursExpanded?: boolean;
-}> = React.memo(({ resourceId, day, timeSlot, onEventDrop, onStaffDrop, children, isEarlyHoursExpanded = false }) => {
+  isLateHoursExpanded?: boolean;
+}> = React.memo(({ resourceId, day, timeSlot, onEventDrop, onStaffDrop, children, isEarlyHoursExpanded = false, isLateHoursExpanded = false }) => {
   
   const elementRef = React.useRef<HTMLDivElement>(null);
   
-  // Fixed time calculation with collapsible early hours support
-  const getDropTime = (clientY: number, isEarlyExpanded: boolean) => {
+  // Fixed time calculation with collapsible early and late hours support
+  const getDropTime = (clientY: number, isEarlyExpanded: boolean, isLateExpanded: boolean) => {
     if (!elementRef.current) {
       console.warn('Element ref not available for time calculation');
       return '12:00';
@@ -103,9 +104,10 @@ const DroppableTimeSlot: React.FC<{
     const finalHour = Math.floor(roundedMinutes / 60);
     const finalMinutes = roundedMinutes % 60;
     
-    // Clamp to valid time range (00:00 - 23:59)
-    const clampedHour = Math.max(0, Math.min(23, finalHour));
-    const clampedMinutes = clampedHour === 23 ? Math.min(55, finalMinutes) : finalMinutes;
+    // Extended range: 00:00 to 28:55 (04:55 next day) when late hours are expanded
+    const maxHour = isLateExpanded ? 28 : 23;
+    const clampedHour = Math.max(0, Math.min(maxHour, finalHour));
+    const clampedMinutes = clampedHour === maxHour ? Math.min(55, finalMinutes) : finalMinutes;
     
     const calculatedTime = `${clampedHour.toString().padStart(2, '0')}:${clampedMinutes.toString().padStart(2, '0')}`;
     
@@ -128,7 +130,7 @@ const DroppableTimeSlot: React.FC<{
       try {
         // Handle event drops with corrected precision
         if (item.eventId && onEventDrop && clientOffset) {
-          const targetTime = getDropTime(clientOffset.y, isEarlyHoursExpanded);
+          const targetTime = getDropTime(clientOffset.y, isEarlyHoursExpanded, isLateHoursExpanded);
           
           console.log('Moving event with corrected precision:', {
             eventId: item.eventId,
@@ -197,11 +199,13 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 }) => {
   const { handleEventClick } = useEventNavigation();
   const [isEarlyHoursExpanded, setIsEarlyHoursExpanded] = useState(false);
+  const [isLateHoursExpanded, setIsLateHoursExpanded] = useState(false);
 
-  // Generate early hours (00:00-04:00) and regular hours (05:00-23:00)
+  // Generate early hours (00:00-04:00), regular hours (05:00-23:00), and late hours (24:00-28:00)
   const generateTimeSlots = () => {
     const earlySlots = [];
     const regularSlots = [];
+    const lateSlots = [];
     
     // Early hours: 00:00 to 04:00
     for (let hour = 0; hour <= 4; hour++) {
@@ -215,38 +219,56 @@ const TimeGrid: React.FC<TimeGridProps> = ({
       regularSlots.push({ time, displayTime: time });
     }
     
-    return { earlySlots, regularSlots };
+    // Late hours: 24:00-28:00 (00:00-04:00 next day)
+    for (let hour = 24; hour < 29; hour++) {
+      const displayHour = hour - 24;
+      const time = hour.toString();
+      const displayTime = displayHour.toString().padStart(2, '0') + ':00';
+      lateSlots.push({ time, displayTime });
+    }
+    
+    return { earlySlots, regularSlots, lateSlots };
   };
 
-  const { earlySlots, regularSlots } = generateTimeSlots();
+  const { earlySlots, regularSlots, lateSlots } = generateTimeSlots();
 
   // Calculate responsive column widths with better spacing
   const timeColumnWidth = 80;
   const availableWidth = dayWidth - timeColumnWidth - 24;
   const teamColumnWidth = Math.max(120, Math.floor(availableWidth / resources.length));
 
-  // Calculate event position based on time - Updated for collapsible early hours
+  // Calculate event position based on time - Updated for collapsible early and late hours
   const getEventPosition = (event: CalendarEvent) => {
     const startTime = new Date(event.start);
     const endTime = new Date(event.end);
     
     // Get hours and minutes as decimal
-    const startHour = startTime.getHours() + startTime.getMinutes() / 60;
-    const endHour = endTime.getHours() + endTime.getMinutes() / 60;
+    let startHour = startTime.getHours() + startTime.getMinutes() / 60;
+    let endHour = endTime.getHours() + endTime.getMinutes() / 60;
     
-    // Calculate position from midnight (00:00)
+    // Handle events that span into next day (convert to 24+ hour format)
+    if (endHour < startHour) {
+      endHour += 24;
+    }
+    
+    // Calculate position from midnight (00:00) with support for hours beyond 23
     const gridStartHour = 0;
-    const gridEndHour = 23;
-    
-    // Ensure event is within our time range
-    const clampedStartHour = Math.max(gridStartHour, Math.min(gridEndHour, startHour));
-    const clampedEndHour = Math.max(gridStartHour, Math.min(gridEndHour, endHour));
+    const gridEndHour = 28; // Extended to support late hours
     
     // Calculate position in pixels (25px per hour)
-    // If early hours are collapsed, offset by -125px (5 hours * 25px)
-    const earlyHoursOffset = isEarlyHoursExpanded ? 0 : -125;
-    const top = (clampedStartHour * 25) + earlyHoursOffset;
-    const height = Math.max(12, (clampedEndHour - clampedStartHour) * 25);
+    let top = startHour * 25;
+    
+    // Apply early hours offset if event starts at or after 05:00 and early hours are collapsed
+    if (startHour >= 5 && !isEarlyHoursExpanded) {
+      top -= 125; // 5 hours * 25px
+    }
+    
+    // Apply late hours offset if event extends into late hours (24:00+) and late hours are collapsed
+    if (startHour >= 24 && !isLateHoursExpanded) {
+      top -= 125; // 5 hours * 25px
+    }
+    
+    const height = Math.max(12, (endHour - startHour) * 25);
     
     return { top, height };
   };
@@ -474,6 +496,41 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               {slot.displayTime}
             </div>
           ))}
+          
+          {/* Late hours collapsible trigger */}
+          <Collapsible open={isLateHoursExpanded} onOpenChange={setIsLateHoursExpanded}>
+            <CollapsibleTrigger asChild>
+              <button 
+                className="late-hours-trigger"
+                style={{
+                  width: '100%',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px',
+                  background: 'hsl(var(--muted))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  color: 'hsl(var(--muted-foreground))',
+                  marginTop: '4px',
+                  transition: 'all 0.2s'
+                }}
+              >
+                {isLateHoursExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                <span>{isLateHoursExpanded ? 'Hide' : 'Show'} 00:00-04:00</span>
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              {lateSlots.map((slot) => (
+                <div key={slot.time} className="time-label-slot">
+                  {slot.displayTime}
+                </div>
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
         </div>
 
         {/* Enhanced Time Slot Columns with improved precision */}
@@ -489,6 +546,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               onEventDrop={handleEventDropOptimized}
               onStaffDrop={onStaffDrop}
               isEarlyHoursExpanded={isEarlyHoursExpanded}
+              isLateHoursExpanded={isLateHoursExpanded}
             >
               <div 
                 style={{ 
@@ -515,6 +573,18 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   {regularSlots.map((slot) => (
                     <div key={slot.time} className="time-slot-cell" />
                   ))}
+                  
+                  {/* Late hours slots */}
+                  <Collapsible open={isLateHoursExpanded}>
+                    <CollapsibleTrigger asChild>
+                      <div style={{ height: '32px', marginTop: '4px' }} />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      {lateSlots.map((slot) => (
+                        <div key={slot.time} className="time-slot-cell" />
+                      ))}
+                    </CollapsibleContent>
+                  </Collapsible>
                 </div>
                 
                 {/* Events positioned absolutely with enhanced precision */}

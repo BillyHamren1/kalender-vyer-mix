@@ -4,14 +4,27 @@ import { useDragLayer } from 'react-dnd';
 import { CalendarEvent, getEventColor } from './ResourceData';
 import { format, addMinutes } from 'date-fns';
 
-// Calculate drop time based on mouse position with collapsible early hours support
+// Calculate drop time based on mouse position with collapsible early and late hours support
 const calculateDropTime = (mouseY: number): string => {
   // Find the time grid elements - look for the actual .time-slots-grid containers
   const timeGrids = document.querySelectorAll('.time-slots-grid');
   
-  // Check if early hours are expanded by looking for expanded collapsible content
-  const earlyHoursContent = document.querySelector('[data-state="open"]');
-  const isEarlyHoursExpanded = earlyHoursContent !== null;
+  // Check if early hours and late hours are expanded by looking for expanded collapsible content
+  const collapsibleContents = document.querySelectorAll('[data-state="open"]');
+  
+  // Determine which sections are expanded
+  let isEarlyHoursExpanded = false;
+  let isLateHoursExpanded = false;
+  
+  collapsibleContents.forEach(content => {
+    const parent = content.closest('.time-labels-column');
+    if (parent) {
+      const trigger = parent.querySelector('.early-hours-trigger');
+      if (trigger) isEarlyHoursExpanded = true;
+      const lateTrigger = parent.querySelector('.late-hours-trigger');
+      if (lateTrigger) isLateHoursExpanded = true;
+    }
+  });
   
   for (const grid of Array.from(timeGrids)) {
     const rect = grid.getBoundingClientRect();
@@ -35,12 +48,13 @@ const calculateDropTime = (mouseY: number): string => {
       
       // Round to nearest 5-minute interval
       const roundedMinutes = Math.round(totalMinutes / 5) * 5;
-      const hours = Math.floor(roundedMinutes / 60);
+      let hours = Math.floor(roundedMinutes / 60);
       const minutes = roundedMinutes % 60;
       
-      // Clamp to valid range (0:00 - 23:55)
-      const clampedHours = Math.max(0, Math.min(23, hours));
-      const clampedMinutes = clampedHours === 23 ? Math.min(55, minutes) : minutes;
+      // Extended range: 0:00 - 28:55 (04:55 next day) when late hours are expanded
+      const maxHours = isLateHoursExpanded ? 28 : 23;
+      const clampedHours = Math.max(0, Math.min(maxHours, hours));
+      const clampedMinutes = clampedHours === maxHours ? Math.min(55, minutes) : minutes;
       
       return `${clampedHours.toString().padStart(2, '0')}:${clampedMinutes.toString().padStart(2, '0')}`;
     }
@@ -89,12 +103,27 @@ const DragLayer: React.FC = () => {
   const eventEnd = new Date(event.end);
   const durationMinutes = Math.floor((eventEnd.getTime() - eventStart.getTime()) / (1000 * 60));
   
-  // Calculate end time based on drop time
+  const formatTime = (hour: string, minute: number) => {
+    const hourNum = parseInt(hour);
+    // Handle hours beyond 23 (next day hours)
+    const displayHour = hourNum >= 24 ? hourNum - 24 : hourNum;
+    const dayIndicator = hourNum >= 24 ? ' +1' : '';
+    return `${displayHour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}${dayIndicator}`;
+  };
+  
   const [dropHours, dropMinutes] = dropTime.split(':').map(Number);
-  const dropEndTime = dropTime ? format(
-    addMinutes(new Date().setHours(dropHours, dropMinutes, 0, 0), durationMinutes),
-    'HH:mm'
-  ) : endTime;
+  
+  // Calculate end time properly handling hour overflow
+  let endHour = dropHours;
+  let endMinute = dropMinutes + durationMinutes;
+  
+  // Handle minute overflow
+  if (endMinute >= 60) {
+    endHour += Math.floor(endMinute / 60);
+    endMinute = endMinute % 60;
+  }
+  
+  const dropEndTime = dropTime ? formatTime(String(endHour), endMinute) : endTime;
 
   return (
     <>
