@@ -469,7 +469,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   fontSize: '13px',
                   fontWeight: '600',
                   color: 'hsl(var(--primary))',
-                  marginTop: '8px',
+                  marginTop: '12px',
+                  marginBottom: '4px',
                   transition: 'all 0.3s ease',
                   boxShadow: '0 2px 4px hsl(var(--primary) / 0.1)'
                 }}
@@ -494,7 +495,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              {lateSlots.map((slot) => (
+              {lateSlots.map((slot, index) => (
                 <div 
                   key={slot.time} 
                   className="time-label-slot"
@@ -504,7 +505,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   }}
                 >
                   {slot.displayTime}
-                  <span className="ml-2 text-[10px] font-bold text-primary">+1</span>
+                  {index === 0 && <span className="ml-2 text-[10px] font-bold text-primary">+1 day</span>}
                 </div>
               ))}
             </CollapsibleContent>
@@ -542,7 +543,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   ))}
                   
                   {/* Late hours trigger placeholder */}
-                  <div style={{ height: '40px', marginTop: '8px' }} />
+                  <div style={{ height: '52px', marginTop: '12px', marginBottom: '4px' }} />
                   
                   {/* Late hours slots */}
                   {isLateHoursExpanded && lateSlots.map((slot) => (
