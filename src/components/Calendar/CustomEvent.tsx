@@ -21,8 +21,6 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   onEventResize
 }) => {
   const [isResizing, setIsResizing] = useState(false);
-  const [isDraggingEvent, setIsDraggingEvent] = useState(false);
-  const mouseDownPos = useRef<{ x: number; y: number } | null>(null);
   
   // State for real-time visual feedback during resize
   const [tempResizeState, setTempResizeState] = useState<{
@@ -75,35 +73,10 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   const displayStart = tempResizeState ? tempResizeState.newStart : new Date(event.start);
   const displayEnd = tempResizeState ? tempResizeState.newEnd : new Date(event.end);
 
-  // Handle mouse down to track drag start
-  const handleMouseDown = (e: React.MouseEvent) => {
-    // Don't track if clicking on resize handles
-    const target = e.target as HTMLElement;
-    if (target.classList.contains('resize-handle') || target.closest('.resize-handle')) {
-      return;
-    }
-    
-    mouseDownPos.current = { x: e.clientX, y: e.clientY };
-    setIsDraggingEvent(false);
-  };
-
-  // Handle mouse move to detect drag
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!mouseDownPos.current) return;
-    
-    const deltaX = Math.abs(e.clientX - mouseDownPos.current.x);
-    const deltaY = Math.abs(e.clientY - mouseDownPos.current.y);
-    
-    // If moved more than 5 pixels, consider it a drag
-    if (deltaX > 5 || deltaY > 5) {
-      setIsDraggingEvent(true);
-    }
-  };
-
   // Handle double click for navigation
   const handleDoubleClick = (e: React.MouseEvent) => {
     // Prevent double-click during drag or resize operations
-    if (isDragging || isResizing || isDraggingEvent) {
+    if (isDragging || isResizing) {
       e.stopPropagation();
       return;
     }
@@ -140,12 +113,6 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
 
     console.log('CustomEvent double-clicked, calling handleEventClick with:', mockEventInfo);
     handleEventClick(mockEventInfo);
-  };
-
-  // Reset drag tracking on mouse up
-  const handleMouseUp = () => {
-    mouseDownPos.current = null;
-    setIsDraggingEvent(false);
   };
 
   // Handle resize operations with real-time visual feedback - FIXED to use 25px per hour
@@ -275,7 +242,9 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   };
 
   // Get booking number and delivery city from event
-  const bookingNumber = event.bookingNumber || event.extendedProps?.bookingNumber || event.extendedProps?.booking_id || 'No ID';
+  // Format booking ID to show only last 8 characters if it's a UUID
+  const rawBookingId = event.bookingNumber || event.extendedProps?.bookingNumber || event.extendedProps?.booking_id || 'No ID';
+  const bookingNumber = rawBookingId.length > 20 ? rawBookingId.slice(-8) : rawBookingId;
   const deliveryCity = event.extendedProps?.deliveryCity || event.extendedProps?.delivery_city || '';
 
   // Debug logging to see what data we have
@@ -297,9 +266,6 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         className={`custom-event ${isDragging ? 'dragging' : ''} ${isResizing ? 'resizing' : ''} hover:scale-105`}
         style={getDynamicStyles()}
         onDoubleClick={handleDoubleClick}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
       >
         {/* Top resize handle */}
         <div
