@@ -5,10 +5,10 @@ import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { CalendarEvent, Resource } from './ResourceData';
 import { useEventMarking } from '@/hooks/useEventMarking';
-import { useEventNavigation } from '@/hooks/useEventNavigation';
 import MarkedEventOverlay from './MarkedEventOverlay';
 import TimeAxisOverlay from './TimeAxisOverlay';
 import MarkingModeIndicator from './MarkingModeIndicator';
+import CustomEvent from './CustomEvent';
 
 interface ResourceCalendarProps {
   events: CalendarEvent[];
@@ -58,12 +58,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     unmarkEvent,
     handleTimeSlotClick
   } = useEventMarking();
-
-  // Use event navigation with marking mode
-  const { handleEventClick: navigationHandler } = useEventNavigation(
-    !!markedEvent,
-    markEvent
-  );
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -134,6 +128,27 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     return classes;
   }, [markedEvent]);
 
+  // Custom event content to pass markEvent function
+  const eventContent = useCallback((eventInfo: any) => {
+    return (
+      <CustomEvent
+        event={{
+          id: eventInfo.event.id,
+          title: eventInfo.event.title,
+          start: eventInfo.event.start,
+          end: eventInfo.event.end,
+          resourceId: eventInfo.event._def.resourceIds?.[0] || '',
+          bookingId: eventInfo.event.extendedProps?.bookingId,
+          bookingNumber: eventInfo.event.extendedProps?.bookingNumber,
+          eventType: eventInfo.event.extendedProps?.eventType,
+          extendedProps: eventInfo.event.extendedProps
+        }}
+        resource={{ id: eventInfo.event._def.resourceIds?.[0] || '', title: '', eventColor: '' }}
+        markEvent={markEvent}
+      />
+    );
+  }, [markEvent]);
+
   // Calendar configuration
   const calendarOptions = {
     plugins: [resourceTimeGridPlugin, interactionPlugin],
@@ -141,6 +156,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     resources: resources,
     events: events,
     resourceLabelContent: customResourceLabelContent,
+    eventContent: eventContent,
     headerToolbar: false,
     allDaySlot: false,
     slotMinTime: '06:00:00',
@@ -152,7 +168,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     eventDisplay: 'block',
     datesSet: onDateSet,
     dateClick: handleDateClick,
-    eventClick: navigationHandler,
     eventClassNames: eventClassNames,
     ...calendarProps
   };

@@ -11,13 +11,15 @@ interface CustomEventProps {
   resource: Resource;
   style?: React.CSSProperties;
   onEventResize?: (eventId: string, newStartTime: Date, newEndTime: Date) => Promise<void>;
+  markEvent?: (eventInfo: any) => void;
 }
 
 const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   event,
   resource,
   style,
-  onEventResize
+  onEventResize,
+  markEvent
 }) => {
   const [isResizing, setIsResizing] = useState(false);
   
@@ -40,8 +42,46 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   const displayStart = tempResizeState ? tempResizeState.newStart : new Date(event.start);
   const displayEnd = tempResizeState ? tempResizeState.newEnd : new Date(event.end);
 
-  // Handle click for navigation
+  // Handle single click to mark event for moving
   const handleClick = (e: React.MouseEvent) => {
+    // Prevent click during resize operations
+    if (isResizing) {
+      e.stopPropagation();
+      return;
+    }
+
+    // Don't handle clicks on resize handles
+    const target = e.target as HTMLElement;
+    if (target.classList.contains('resize-handle') || target.closest('.resize-handle')) {
+      e.stopPropagation();
+      return;
+    }
+
+    // Mark the event for moving
+    if (markEvent) {
+      const mockEventInfo = {
+        event: {
+          id: event.id,
+          title: event.title,
+          start: new Date(event.start),
+          end: new Date(event.end),
+          extendedProps: {
+            bookingId: event.bookingId,
+            resourceId: event.resourceId,
+            ...event.extendedProps
+          },
+          _def: {
+            resourceIds: [event.resourceId]
+          }
+        }
+      };
+      console.log('CustomEvent single-clicked, marking event:', mockEventInfo);
+      markEvent(mockEventInfo);
+    }
+  };
+
+  // Handle double click for navigation to booking details
+  const handleDoubleClick = (e: React.MouseEvent) => {
     // Prevent double-click during resize operations
     if (isResizing) {
       e.stopPropagation();
@@ -55,7 +95,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       return;
     }
 
-    // Create mock event info object matching the expected interface
+    // Create mock event info object for navigation
     const mockEventInfo = {
       event: {
         id: event.id,
@@ -78,7 +118,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       el: eventRef.current
     };
 
-    console.log('CustomEvent clicked, calling handleEventClick with:', mockEventInfo);
+    console.log('CustomEvent double-clicked, navigating to booking:', mockEventInfo);
     handleEventClick(mockEventInfo);
   };
 
@@ -230,6 +270,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         className={`custom-event ${isResizing ? 'resizing' : ''} hover:scale-105`}
         style={getDynamicStyles()}
         onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
       >
         {/* Top resize handle - Made more visible and easier to grab */}
         <div

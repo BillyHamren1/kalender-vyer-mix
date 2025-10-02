@@ -4,19 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CalendarContext } from '@/App';
 
-export const useEventNavigation = (
-  markingMode?: boolean,
-  onMarkEvent?: (info: any) => void
-) => {
+export const useEventNavigation = () => {
   const navigate = useNavigate();
   const { setLastViewedDate, setLastPath } = useContext(CalendarContext);
 
   const handleEventClick = (info: any) => {
-    // If in marking mode, mark the event instead of navigating
-    if (markingMode && onMarkEvent) {
-      onMarkEvent(info);
-      return;
-    }
     console.log('Event clicked - full info:', info);
     console.log('Event object:', info.event);
     console.log('Extended props:', info.event.extendedProps);
