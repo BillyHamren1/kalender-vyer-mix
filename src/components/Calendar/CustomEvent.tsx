@@ -40,8 +40,8 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   const displayStart = tempResizeState ? tempResizeState.newStart : new Date(event.start);
   const displayEnd = tempResizeState ? tempResizeState.newEnd : new Date(event.end);
 
-  // Handle double click for navigation
-  const handleDoubleClick = (e: React.MouseEvent) => {
+  // Handle click for navigation
+  const handleClick = (e: React.MouseEvent) => {
     // Prevent double-click during resize operations
     if (isResizing) {
       e.stopPropagation();
@@ -78,7 +78,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       el: eventRef.current
     };
 
-    console.log('CustomEvent double-clicked, calling handleEventClick with:', mockEventInfo);
+    console.log('CustomEvent clicked, calling handleEventClick with:', mockEventInfo);
     handleEventClick(mockEventInfo);
   };
 
@@ -229,7 +229,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         ref={eventRef}
         className={`custom-event ${isResizing ? 'resizing' : ''} hover:scale-105`}
         style={getDynamicStyles()}
-        onDoubleClick={handleDoubleClick}
+        onClick={handleClick}
       >
         {/* Top resize handle - Made more visible and easier to grab */}
         <div
