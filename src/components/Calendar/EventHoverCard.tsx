@@ -7,9 +7,11 @@ import { Package, MapPin, FileText, AlertTriangle, User, Building } from 'lucide
 interface EventHoverCardProps {
   children: React.ReactNode;
   event: CalendarEvent;
+  onClick?: (e: React.MouseEvent) => void;
+  onDoubleClick?: (e: React.MouseEvent) => void;
 }
 
-const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event }) => {
+const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event, onClick, onDoubleClick }) => {
   // Debug logging to see what data we're receiving
   console.log('EventHoverCard - Event data:', event);
   console.log('EventHoverCard - Extended props:', event.extendedProps);
@@ -40,7 +42,13 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event }) => {
   return (
     <HoverCard openDelay={0} closeDelay={100}>
       <HoverCardTrigger asChild>
-        {children}
+        <div 
+          onClick={onClick}
+          onDoubleClick={onDoubleClick}
+          style={{ display: 'contents' }}
+        >
+          {children}
+        </div>
       </HoverCardTrigger>
       <HoverCardContent 
         className="w-80 max-w-80 p-3 bg-white border shadow-lg max-h-96 overflow-y-auto" 

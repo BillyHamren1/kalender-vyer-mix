@@ -264,13 +264,15 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   });
 
   return (
-    <EventHoverCard event={event}>
+    <EventHoverCard 
+      event={event}
+      onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
+    >
       <div
         ref={eventRef}
         className={`custom-event ${isResizing ? 'resizing' : ''} hover:scale-105`}
         style={getDynamicStyles()}
-        onClick={handleClick}
-        onDoubleClick={handleDoubleClick}
       >
         {/* Top resize handle - Made more visible and easier to grab */}
         <div
