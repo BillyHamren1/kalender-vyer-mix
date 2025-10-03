@@ -119,13 +119,11 @@ const DayCalendar: React.FC<DayCalendarProps> = ({
           right: 'dayGridMonth,timeGridWeek,timeGridDay'
         }}
         events={events}
-        editable={true}
-        droppable={true}
+        editable={false}
+        droppable={false}
         selectable={true}
-        eventDurationEditable={true}
-        eventResizableFromStart={true}
-        eventDrop={handleEventChange}
-        eventResize={handleEventChange}
+        eventDurationEditable={false}
+        eventResizableFromStart={false}
         eventClick={handleEventClick}
         datesSet={onDateSet}
         initialDate={currentDate}
