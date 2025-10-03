@@ -87,7 +87,10 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
 
   return (
     <>
-      <EventHoverCard event={event}>
+      <EventHoverCard 
+        event={event}
+        onDoubleClick={handleViewDetails}
+      >
         <ContextMenu>
           <ContextMenuTrigger asChild>
             <div
