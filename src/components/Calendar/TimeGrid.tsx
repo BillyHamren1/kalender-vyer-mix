@@ -119,9 +119,9 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     const startTime = new Date(event.start);
     const endTime = new Date(event.end);
     
-    // Get hours and minutes as decimal
-    let startHour = startTime.getHours() + startTime.getMinutes() / 60;
-    let endHour = endTime.getHours() + endTime.getMinutes() / 60;
+    // Get hours and minutes as decimal (using UTC to match database times)
+    let startHour = startTime.getUTCHours() + startTime.getUTCMinutes() / 60;
+    let endHour = endTime.getUTCHours() + endTime.getUTCMinutes() / 60;
     
     // Handle events that span into next day (convert to 24+ hour format)
     if (endHour < startHour) {
