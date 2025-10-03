@@ -102,7 +102,7 @@ export const syncSingleBookingToCalendar = async (bookingId: string, booking?: a
     // Check if events already exist for this booking
     const { data: existingEvents, error: checkError } = await supabase
       .from('calendar_events')
-      .select('id, event_type')
+      .select('id, event_type, start_time, end_time')
       .eq('booking_id', bookingId);
 
     if (checkError) {
@@ -110,70 +110,117 @@ export const syncSingleBookingToCalendar = async (bookingId: string, booking?: a
       throw checkError;
     }
 
-    if (existingEvents && existingEvents.length > 0) {
-      console.log(`Booking ${bookingId} already has ${existingEvents.length} calendar events - updating them`);
-      // Remove existing events first, then recreate
-      await removeAllBookingEvents(bookingId);
+    // Build map of existing events by type
+    const existingEventMap = new Map(
+      existingEvents?.map(e => [e.event_type, e]) || []
+    );
+
+    // Process each date type and UPDATE or CREATE as needed
+    const processEventType = async (
+      dateField: string | null,
+      startTimeField: string | null,
+      endTimeField: string | null,
+      eventType: 'rig' | 'event' | 'rigDown',
+      title: string,
+      resourceId: string
+    ) => {
+      if (!dateField) return;
+
+      // Use actual times from booking, or fall back to defaults only if truly null
+      const startTime = startTimeField || `${dateField}T08:00:00`;
+      const endTime = endTimeField || `${dateField}T14:00:00`;
+
+      const eventData = {
+        title,
+        start_time: startTime,
+        end_time: endTime,
+        resource_id: resourceId,
+        event_type: eventType,
+        booking_id: booking.id,
+        booking_number: booking.booking_number || booking.id,
+        delivery_address: [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || 'No address provided'
+      };
+
+      const existingEvent = existingEventMap.get(eventType);
+
+      if (existingEvent) {
+        // UPDATE existing event to preserve manual edits
+        console.log(`Updating existing ${eventType} event for booking ${bookingId}`);
+        const { error: updateError } = await supabase
+          .from('calendar_events')
+          .update({
+            title: eventData.title,
+            start_time: eventData.start_time,
+            end_time: eventData.end_time,
+            resource_id: eventData.resource_id,
+            booking_number: eventData.booking_number,
+            delivery_address: eventData.delivery_address
+          })
+          .eq('id', existingEvent.id);
+
+        if (updateError) {
+          console.error(`Error updating ${eventType} event:`, updateError);
+          throw updateError;
+        }
+      } else {
+        // CREATE new event
+        console.log(`Creating new ${eventType} event for booking ${bookingId}`);
+        const { error: insertError } = await supabase
+          .from('calendar_events')
+          .insert([eventData]);
+
+        if (insertError) {
+          console.error(`Error creating ${eventType} event:`, insertError);
+          throw insertError;
+        }
+      }
+    };
+
+    // Process each event type
+    await processEventType(
+      booking.rigdaydate,
+      booking.rig_start_time,
+      booking.rig_end_time,
+      'rig',
+      `Rig Day - ${booking.client}`,
+      'team-1'
+    );
+
+    await processEventType(
+      booking.eventdate,
+      booking.event_start_time,
+      booking.event_end_time,
+      'event',
+      `Event - ${booking.client}`,
+      'team-6'
+    );
+
+    await processEventType(
+      booking.rigdowndate,
+      booking.rigdown_start_time,
+      booking.rigdown_end_time,
+      'rigDown',
+      `Rig Down - ${booking.client}`,
+      'team-1'
+    );
+
+    // Delete any events that no longer have corresponding dates in the booking
+    const validEventTypes = new Set<string>();
+    if (booking.rigdaydate) validEventTypes.add('rig');
+    if (booking.eventdate) validEventTypes.add('event');
+    if (booking.rigdowndate) validEventTypes.add('rigDown');
+
+    for (const [eventType, existingEvent] of existingEventMap) {
+      if (!validEventTypes.has(eventType)) {
+        console.log(`Removing obsolete ${eventType} event for booking ${bookingId}`);
+        await supabase
+          .from('calendar_events')
+          .delete()
+          .eq('id', existingEvent.id);
+      }
     }
 
-    // Create events for each date with proper times
-    const eventsToCreate = [];
-
-    if (booking.rigdaydate) {
-      const rigStartTime = booking.rig_start_time || `${booking.rigdaydate}T08:00:00`;
-      const rigEndTime = booking.rig_end_time || `${booking.rigdaydate}T12:00:00`;
-      
-      eventsToCreate.push({
-        title: `Rig Day - ${booking.client}`,
-        start: rigStartTime,
-        end: rigEndTime,
-        resourceId: 'team-1',
-        eventType: 'rig' as const,
-        bookingId: booking.id,
-        bookingNumber: booking.booking_number || booking.id,
-        deliveryAddress: [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || 'No address provided'
-      });
-    }
-
-    if (booking.eventdate) {
-      const eventStartTime = booking.event_start_time || `${booking.eventdate}T08:00:00`;
-      const eventEndTime = booking.event_end_time || `${booking.eventdate}T11:00:00`;
-      
-      eventsToCreate.push({
-        title: `Event - ${booking.client}`,
-        start: eventStartTime,
-        end: eventEndTime,
-        resourceId: 'team-6', // Events go to team-6
-        eventType: 'event' as const,
-        bookingId: booking.id,
-        bookingNumber: booking.booking_number || booking.id,
-        deliveryAddress: [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || 'No address provided'
-      });
-    }
-
-    if (booking.rigdowndate) {
-      const rigdownStartTime = booking.rigdown_start_time || `${booking.rigdowndate}T08:00:00`;
-      const rigdownEndTime = booking.rigdown_end_time || `${booking.rigdowndate}T12:00:00`;
-      
-      eventsToCreate.push({
-        title: `Rig Down - ${booking.client}`,
-        start: rigdownStartTime,
-        end: rigdownEndTime,
-        resourceId: 'team-1',
-        eventType: 'rigDown' as const,
-        bookingId: booking.id,
-        bookingNumber: booking.booking_number || booking.id,
-        deliveryAddress: [booking.deliveryaddress, booking.delivery_city].filter(Boolean).join(', ') || 'No address provided'
-      });
-    }
-
-    // Create all events
-    for (const eventData of eventsToCreate) {
-      await addCalendarEvent(eventData);
-      console.log(`Created ${eventData.eventType} event for booking ${bookingId}`);
-    }
-
-    console.log(`Successfully synced ${eventsToCreate.length} events for booking ${bookingId}`);
+    console.log(`Successfully synced events for booking ${bookingId}`);
 
   } catch (error) {
     console.error(`Error syncing booking ${bookingId}:`, error);
