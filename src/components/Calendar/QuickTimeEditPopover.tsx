@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
+import { supabase } from '@/integrations/supabase/client';
 import { format, parse, isAfter } from 'date-fns';
 import { Clock, Calendar as CalendarIcon } from 'lucide-react';
 
@@ -14,6 +15,8 @@ interface QuickTimeEditPopoverProps {
     title: string;
     start: string | Date;
     end: string | Date;
+    bookingId?: string;
+    eventType?: 'rig' | 'event' | 'rigDown';
   };
   children: React.ReactNode;
   onUpdate?: () => void;
@@ -65,11 +68,32 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
       const [endHours, endMinutes] = endTime.split(':').map(Number);
       newEnd.setHours(endHours, endMinutes, 0, 0);
 
-      // Update event in database
+      // Update calendar event in database
       await updateCalendarEvent(event.id, {
         start: newStart.toISOString(),
         end: newEnd.toISOString()
       });
+
+      // CRITICAL: Also update the booking time fields
+      if (event.bookingId && event.eventType) {
+        const bookingTimeField = {
+          'rig': { start: 'rig_start_time', end: 'rig_end_time' },
+          'event': { start: 'event_start_time', end: 'event_end_time' },
+          'rigDown': { start: 'rigdown_start_time', end: 'rigdown_end_time' }
+        }[event.eventType];
+
+        if (bookingTimeField) {
+          await supabase
+            .from('bookings')
+            .update({
+              [bookingTimeField.start]: newStart.toISOString(),
+              [bookingTimeField.end]: newEnd.toISOString()
+            })
+            .eq('id', event.bookingId);
+          
+          console.log(`✅ Updated booking ${event.bookingId} time fields:`, bookingTimeField);
+        }
+      }
 
       toast.success('Time updated');
       setOpen(false);
