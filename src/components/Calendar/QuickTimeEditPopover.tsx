@@ -68,6 +68,20 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
       const [endHours, endMinutes] = endTime.split(':').map(Number);
       newEnd.setHours(endHours, endMinutes, 0, 0);
 
+      console.log('🕐 [QuickTimeEditPopover] Time update details:', {
+        eventId: event.id,
+        bookingId: event.bookingId,
+        eventType: event.eventType,
+        inputStartTime: startTime,
+        inputEndTime: endTime,
+        originalStart: event.start,
+        originalEnd: event.end,
+        newStartLocal: newStart.toString(),
+        newEndLocal: newEnd.toString(),
+        newStartUTC: newStart.toISOString(),
+        newEndUTC: newEnd.toISOString()
+      });
+
       // Update calendar event in database
       await updateCalendarEvent(event.id, {
         start: newStart.toISOString(),
@@ -83,7 +97,7 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
         }[event.eventType];
 
         if (bookingTimeField) {
-          await supabase
+          const { error: bookingUpdateError } = await supabase
             .from('bookings')
             .update({
               [bookingTimeField.start]: newStart.toISOString(),
@@ -91,8 +105,20 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
             })
             .eq('id', event.bookingId);
           
-          console.log(`✅ Updated booking ${event.bookingId} time fields:`, bookingTimeField);
+          if (bookingUpdateError) {
+            console.error('❌ Error updating booking times:', bookingUpdateError);
+          } else {
+            console.log(`✅ Updated booking ${event.bookingId} ${event.eventType} times:`, {
+              [bookingTimeField.start]: newStart.toISOString(),
+              [bookingTimeField.end]: newEnd.toISOString()
+            });
+          }
         }
+      } else {
+        console.warn('⚠️ Event missing bookingId or eventType, skipping booking table update:', {
+          bookingId: event.bookingId,
+          eventType: event.eventType
+        });
       }
 
       toast.success('Time updated');

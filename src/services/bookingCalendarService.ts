@@ -76,7 +76,7 @@ export const removeAllBookingEvents = async (bookingId: string): Promise<void> =
 
 // Sync a single confirmed booking to calendar events
 export const syncSingleBookingToCalendar = async (bookingId: string, booking?: any): Promise<void> => {
-  console.log(`Syncing booking ${bookingId} to calendar...`);
+  console.log(`🔄 [syncSingleBookingToCalendar] Starting sync for booking ${bookingId}`);
   
   try {
     // Fetch booking if not provided
@@ -93,9 +93,21 @@ export const syncSingleBookingToCalendar = async (bookingId: string, booking?: a
       }
       booking = fetchedBooking;
     }
+    
+    console.log(`📋 [syncSingleBookingToCalendar] Booking data:`, {
+      id: booking.id,
+      client: booking.client,
+      status: booking.status,
+      rig_start_time: booking.rig_start_time,
+      rig_end_time: booking.rig_end_time,
+      event_start_time: booking.event_start_time,
+      event_end_time: booking.event_end_time,
+      rigdown_start_time: booking.rigdown_start_time,
+      rigdown_end_time: booking.rigdown_end_time
+    });
 
     if (booking.status !== 'CONFIRMED') {
-      console.log(`Booking ${bookingId} is not confirmed, skipping sync`);
+      console.log(`⏭️ [syncSingleBookingToCalendar] Booking ${bookingId} is not confirmed (status: ${booking.status}), skipping sync`);
       return;
     }
 
@@ -126,9 +138,18 @@ export const syncSingleBookingToCalendar = async (bookingId: string, booking?: a
     ) => {
       if (!dateField) return;
 
-      // Use actual times from booking, or fall back to defaults only if truly null
+      // CRITICAL: Use actual times from booking, with proper defaults
+      // These times should already be in ISO format from the database
       const startTime = startTimeField || `${dateField}T08:00:00`;
       const endTime = endTimeField || `${dateField}T14:00:00`;
+      
+      console.log(`📅 [syncSingleBookingToCalendar] ${eventType} times:`, {
+        bookingId: booking.id,
+        startTimeField,
+        endTimeField,
+        finalStartTime: startTime,
+        finalEndTime: endTime
+      });
 
       const eventData = {
         title,
