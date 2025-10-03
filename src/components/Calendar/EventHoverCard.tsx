@@ -46,12 +46,14 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event, onClic
           <div 
             onClick={onClick}
             onDoubleClick={onDoubleClick}
-            style={{ display: 'contents' }}
+            style={{ width: '100%', height: '100%' }}
           >
             {children}
           </div>
         ) : (
-          <>{children}</>
+          <div style={{ width: '100%', height: '100%' }}>
+            {children}
+          </div>
         )}
       </HoverCardTrigger>
       <HoverCardContent 
