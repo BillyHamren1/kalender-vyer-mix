@@ -18,7 +18,7 @@ interface TimeGridProps {
     getStaffForTeamAndDate: (teamId: string, date: Date) => Array<{id: string, name: string, color?: string}>;
   };
   onEventDrop?: (eventId: string, targetResourceId: string, targetDate: Date, targetTime: string) => Promise<void>;
-  onEventResize?: (eventId: string, newStartTime: Date, newEndTime: Date) => Promise<void>;
+  onEventResize?: () => Promise<void>;
 }
 
 // Enhanced Draggable Event Wrapper Component with performance optimization
@@ -27,7 +27,7 @@ const DraggableEvent: React.FC<{
   position: { top: number; height: number };
   teamColumnWidth: number;
   onEventClick: (event: CalendarEvent) => void;
-  onEventResize?: (eventId: string, newStartTime: Date, newEndTime: Date) => Promise<void>;
+  onEventResize?: () => Promise<void>;
 }> = React.memo(({ event, position, teamColumnWidth, onEventClick, onEventResize }) => {
   return (
     <div

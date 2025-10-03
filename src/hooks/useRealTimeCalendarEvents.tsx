@@ -317,8 +317,7 @@ export const useRealTimeCalendarEvents = () => {
   const refreshEvents = useCallback(async () => {
     console.log('Manual refresh requested');
     await loadEvents();
-    return events;
-  }, [loadEvents, events]);
+  }, [loadEvents]);
 
   return {
     events,

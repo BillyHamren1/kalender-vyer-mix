@@ -15,7 +15,7 @@ interface CustomCalendarProps {
   isMounted: boolean;
   currentDate: Date;
   onDateSet: (dateInfo: any) => void;
-  refreshEvents: () => Promise<void | CalendarEvent[]>;
+  refreshEvents: () => Promise<void>;
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
   onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date, buttonElement?: HTMLElement) => void;
   viewMode: 'weekly' | 'monthly';
@@ -132,35 +132,10 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     }
   };
 
-  // Optimized event resize handler - NO loading toast, NO manual refresh
-  const handleEventResize = async (eventId: string, newStartTime: Date, newEndTime: Date) => {
-    console.log('CustomCalendar: Event resize detected', {
-      eventId,
-      newStartTime: newStartTime.toISOString(),
-      newEndTime: newEndTime.toISOString()
-    });
-
-    try {
-      const eventToResize = events.find(event => event.id === eventId);
-      if (!eventToResize) {
-        toast.error('Event not found');
-        return;
-      }
-
-      // NO loading toast - just update the event
-      await updateCalendarEvent(eventId, {
-        start: newStartTime.toISOString(),
-        end: newEndTime.toISOString()
-      });
-
-      toast.success(`Event "${eventToResize.title}" resized successfully`);
-      
-      // NO manual refresh - real-time subscription handles this
-      
-    } catch (error) {
-      console.error('Error resizing event:', error);
-      toast.error('Failed to resize event. Please try again.');
-    }
+  // Optimized event resize handler - update and refresh
+  const handleEventResize = async () => {
+    console.log('CustomCalendar: Manual refresh after resize');
+    await refreshEvents();
   };
 
   // Calculate day width

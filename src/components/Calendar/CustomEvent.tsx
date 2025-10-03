@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
 import { format, addMinutes } from 'date-fns';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
+import { updateCalendarEvent } from '@/services/eventService';
 import EventHoverCard from './EventHoverCard';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Clock, Calendar, Eye } from 'lucide-react';
@@ -13,7 +14,7 @@ interface CustomEventProps {
   event: CalendarEvent;
   resource: Resource;
   style?: React.CSSProperties;
-  onEventResize?: (eventId: string, newStartTime: Date, newEndTime: Date) => Promise<void>;
+  onEventResize?: () => Promise<void>;
 }
 
 const CustomEvent: React.FC<CustomEventProps> = React.memo(({
@@ -144,7 +145,13 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       if (tempResizeState && onEventResize) {
         try {
           console.log('Finalizing resize operation');
-          await onEventResize(event.id, tempResizeState.newStart, tempResizeState.newEnd);
+          // Update the database with new times
+          await updateCalendarEvent(event.id, {
+            start: tempResizeState.newStart.toISOString(),
+            end: tempResizeState.newEnd.toISOString()
+          });
+          // Refresh the calendar
+          await onEventResize();
         } catch (error) {
           console.error('Failed to resize event:', error);
         }
@@ -306,11 +313,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         open={showTimeDialog}
         onOpenChange={setShowTimeDialog}
         event={event}
-        onUpdate={onEventResize ? async () => {
-          if (onEventResize) {
-            await onEventResize(event.id, new Date(event.start), new Date(event.end));
-          }
-        } : undefined}
+        onUpdate={onEventResize}
       />
       
       {/* Date Move Dialog */}
@@ -318,11 +321,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         open={showDateDialog}
         onOpenChange={setShowDateDialog}
         event={event}
-        onUpdate={onEventResize ? async () => {
-          if (onEventResize) {
-            await onEventResize(event.id, new Date(event.start), new Date(event.end));
-          }
-        } : undefined}
+        onUpdate={onEventResize}
       />
     </>
   );

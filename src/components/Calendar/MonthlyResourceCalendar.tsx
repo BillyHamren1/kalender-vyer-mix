@@ -12,7 +12,7 @@ interface MonthlyResourceCalendarProps {
   isMounted: boolean;
   currentDate: Date;
   onDateSet: (dateInfo: any) => void;
-  refreshEvents: () => Promise<void | CalendarEvent[]>;
+  refreshEvents: () => Promise<void>;
   onStaffDrop?: (staffId: string, resourceId: string | null) => Promise<void>;
   onSelectStaff?: (resourceId: string, resourceTitle: string) => void;
   forceRefresh?: boolean;

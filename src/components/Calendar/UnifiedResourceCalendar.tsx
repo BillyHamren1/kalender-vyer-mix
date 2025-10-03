@@ -16,7 +16,7 @@ interface UnifiedResourceCalendarProps {
   isMounted: boolean;
   currentDate: Date;
   onDateSet: (dateInfo: any) => void;
-  refreshEvents: () => Promise<void | CalendarEvent[]>;
+  refreshEvents: () => Promise<void>;
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
   onSelectStaff?: (resourceId: string, resourceTitle: string, targetDate?: Date) => void;
   forceRefresh?: number | boolean;
