@@ -2,8 +2,6 @@ import React, { useState, useRef, useCallback } from 'react';
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
 import EventHoverCard from './EventHoverCard';
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
-import { Clock, Calendar, Eye } from 'lucide-react';
 import EditEventTimeDialog from './EditEventTimeDialog';
 import MoveEventDateDialog from './MoveEventDateDialog';
 import './CustomEvent.css';
@@ -91,58 +89,43 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         event={event}
         onDoubleClick={handleViewDetails}
       >
-        <ContextMenu>
-          <ContextMenuTrigger asChild>
-            <div
-              ref={eventRef}
-              className="custom-event hover:scale-105"
-              style={getDynamicStyles()}
-            >
-              <div className="event-content" style={{ color: '#000000', pointerEvents: 'auto' }}>
-                <div className="event-title" style={{ color: '#000000' }}>
-                  {event.title}
-                </div>
-                <div 
-                  className="event-booking" 
-                  style={{ 
-                    color: '#000000',
-                    fontSize: '10px'
-                  }}
-                >
-                  #{bookingNumber}
-                </div>
-                {deliveryCity && (
-                  <div 
-                    className="event-city" 
-                    style={{ 
-                      color: '#000000',
-                      fontSize: '10px',
-                      opacity: 0.8
-                    }}
-                  >
-                    {deliveryCity}
-                  </div>
-                )}
-              </div>
+        <div
+          ref={eventRef}
+          className="custom-event hover:scale-105"
+          style={getDynamicStyles()}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setShowTimeDialog(true);
+            setShowDateDialog(true);
+          }}
+        >
+          <div className="event-content" style={{ color: '#000000', pointerEvents: 'auto' }}>
+            <div className="event-title" style={{ color: '#000000' }}>
+              {event.title}
             </div>
-          </ContextMenuTrigger>
-          
-          <ContextMenuContent className="w-48">
-            <ContextMenuItem onClick={() => setShowTimeDialog(true)}>
-              <Clock className="mr-2 h-4 w-4" />
-              Edit Time
-            </ContextMenuItem>
-            <ContextMenuItem onClick={() => setShowDateDialog(true)}>
-              <Calendar className="mr-2 h-4 w-4" />
-              Move to Date
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem onClick={handleViewDetails}>
-              <Eye className="mr-2 h-4 w-4" />
-              View Details
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
+            <div 
+              className="event-booking" 
+              style={{ 
+                color: '#000000',
+                fontSize: '10px'
+              }}
+            >
+              #{bookingNumber}
+            </div>
+            {deliveryCity && (
+              <div 
+                className="event-city" 
+                style={{ 
+                  color: '#000000',
+                  fontSize: '10px',
+                  opacity: 0.8
+                }}
+              >
+                {deliveryCity}
+              </div>
+            )}
+          </div>
+        </div>
       </EventHoverCard>
 
       {/* Time Edit Dialog */}
