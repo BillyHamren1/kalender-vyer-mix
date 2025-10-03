@@ -11,7 +11,7 @@ interface EventHoverCardProps {
   onDoubleClick?: (e: React.MouseEvent) => void;
 }
 
-const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event, onClick, onDoubleClick }) => {
+const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event, onClick = undefined, onDoubleClick = undefined }) => {
   // Debug logging to see what data we're receiving
   console.log('EventHoverCard - Event data:', event);
   console.log('EventHoverCard - Extended props:', event.extendedProps);
@@ -42,13 +42,17 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event, onClic
   return (
     <HoverCard openDelay={0} closeDelay={100}>
       <HoverCardTrigger asChild>
-        <div 
-          onClick={onClick}
-          onDoubleClick={onDoubleClick}
-          style={{ display: 'contents' }}
-        >
-          {children}
-        </div>
+        {onClick || onDoubleClick ? (
+          <div 
+            onClick={onClick}
+            onDoubleClick={onDoubleClick}
+            style={{ display: 'contents' }}
+          >
+            {children}
+          </div>
+        ) : (
+          <>{children}</>
+        )}
       </HoverCardTrigger>
       <HoverCardContent 
         className="w-80 max-w-80 p-3 bg-white border shadow-lg max-h-96 overflow-y-auto" 

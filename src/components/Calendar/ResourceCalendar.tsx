@@ -4,10 +4,6 @@ import FullCalendar from '@fullcalendar/react';
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { CalendarEvent, Resource } from './ResourceData';
-import { useEventMarking } from '@/hooks/useEventMarking';
-import MarkedEventOverlay from './MarkedEventOverlay';
-import TimeAxisOverlay from './TimeAxisOverlay';
-import MarkingModeIndicator from './MarkingModeIndicator';
 import CustomEvent from './CustomEvent';
 
 interface ResourceCalendarProps {
@@ -48,35 +44,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
 }) => {
   const calendarRef = useRef<FullCalendar>(null);
   const effectiveDate = targetDate || currentDate;
-  
-  // Use event marking hook
-  const {
-    markedEvent,
-    timeSelection,
-    isUpdating,
-    markEvent,
-    unmarkEvent,
-    handleTimeSlotClick
-  } = useEventMarking();
-
-  // Handle keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && markedEvent) {
-        unmarkEvent();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [markedEvent, unmarkEvent]);
-
-  // Refresh events after update
-  useEffect(() => {
-    if (!isUpdating && refreshEvents) {
-      refreshEvents();
-    }
-  }, [isUpdating]);
 
   // Custom header content - simplified without drop zones
   const customResourceLabelContent = useCallback((arg: any) => {
@@ -110,25 +77,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     );
   }, [currentDate, effectiveDate, staffOperations]);
 
-  // Handle time slot clicks on the time axis
-  const handleDateClick = useCallback((info: any) => {
-    if (!markedEvent) return;
-    
-    // Get the clicked time
-    const clickedTime = info.date;
-    handleTimeSlotClick(clickedTime);
-  }, [markedEvent, handleTimeSlotClick]);
-
-  // Custom event class names to highlight marked event
-  const eventClassNames = useCallback((info: any) => {
-    const classes = [];
-    if (markedEvent && info.event.id === markedEvent.id) {
-      classes.push('marked-event');
-    }
-    return classes;
-  }, [markedEvent]);
-
-  // Custom event content to pass markEvent function
+  // Custom event content
   const eventContent = useCallback((eventInfo: any) => {
     return (
       <CustomEvent
@@ -144,10 +93,12 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
           extendedProps: eventInfo.event.extendedProps
         }}
         resource={{ id: eventInfo.event._def.resourceIds?.[0] || '', title: '', eventColor: '' }}
-        markEvent={markEvent}
+        onEventResize={async () => {
+          await refreshEvents();
+        }}
       />
     );
-  }, [markEvent]);
+  }, [refreshEvents]);
 
   // Calendar configuration
   const calendarOptions = {
@@ -167,8 +118,6 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     resourceAreaHeaderContent: 'Teams',
     eventDisplay: 'block',
     datesSet: onDateSet,
-    dateClick: handleDateClick,
-    eventClassNames: eventClassNames,
     ...calendarProps
   };
 
@@ -181,69 +130,18 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   }, [forceRefresh]);
 
   return (
-    <>
-      {markedEvent && (
-        <>
-          <MarkedEventOverlay
-            markedEvent={markedEvent}
-            timeSelection={timeSelection}
-            onCancel={unmarkEvent}
-          />
-          <MarkingModeIndicator 
-            step={timeSelection.startTime ? 'end' : 'start'} 
-          />
-        </>
-      )}
-      
-      <div className="resource-calendar-container relative">
+    <div className="resource-calendar-container relative">
         {isLoading ? (
           <div className="flex items-center justify-center h-32">
             <div className="text-muted-foreground">Loading calendar...</div>
           </div>
         ) : (
-          <>
-            <FullCalendar
-              ref={calendarRef}
-              {...calendarOptions}
-            />
-            {markedEvent && (
-              <TimeAxisOverlay 
-                onTimeClick={handleTimeSlotClick}
-                currentDate={effectiveDate}
-              />
-            )}
-          </>
+          <FullCalendar
+            ref={calendarRef}
+            {...calendarOptions}
+          />
         )}
-      </div>
-      
-      <style>{`
-        .marked-event {
-          border: 3px solid hsl(var(--primary)) !important;
-          box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--primary)) !important;
-          z-index: 100 !important;
-          animation: pulse-border 2s ease-in-out infinite;
-        }
-        
-        @keyframes pulse-border {
-          0%, 100% {
-            border-color: hsl(var(--primary));
-          }
-          50% {
-            border-color: hsl(var(--primary) / 0.5);
-          }
-        }
-        
-        .fc-timegrid-slot:hover {
-          background-color: hsl(var(--accent)) !important;
-          cursor: pointer;
-        }
-        
-        .resource-calendar-container.marking-mode .fc-timegrid-axis {
-          background-color: hsl(var(--primary) / 0.1) !important;
-          border-left: 3px solid hsl(var(--primary)) !important;
-        }
-      `}</style>
-    </>
+    </div>
   );
 };
 
