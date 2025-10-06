@@ -24,8 +24,15 @@ const CalendarPage = () => {
   const [visibleTeams, setVisibleTeams] = useState<string[]>(() => {
     // Clear any old localStorage values and set default
     localStorage.removeItem('visibleTeams');
-    return ['team-1', 'team-2', 'team-11'];
+    const defaultTeams = ['team-1', 'team-2', 'team-11'];
+    console.log('🎯 Initializing visibleTeams with:', defaultTeams);
+    return defaultTeams;
   });
+
+  // Debug log for visibleTeams changes
+  useEffect(() => {
+    console.log('🔄 visibleTeams updated:', visibleTeams);
+  }, [visibleTeams]);
 
   // Save visible teams to localStorage whenever it changes
   useEffect(() => {

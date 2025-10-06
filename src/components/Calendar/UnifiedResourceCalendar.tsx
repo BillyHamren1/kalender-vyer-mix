@@ -77,11 +77,24 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 
   // Filter resources based on visibleTeams only (strict filtering)
   const getFilteredResourcesForDay = (date: Date): Resource[] => {
+    console.log('🔍 getFilteredResourcesForDay called:', {
+      visibleTeams,
+      totalResources: resources.length,
+      resourceIds: resources.map(r => r.id)
+    });
+
     if (!visibleTeams || visibleTeams.length === 0) {
+      console.log('⚠️ No visibleTeams defined, showing all resources');
       return resources;
     }
 
-    return resources.filter(resource => visibleTeams.includes(resource.id));
+    const filtered = resources.filter(resource => visibleTeams.includes(resource.id));
+    console.log('✅ Filtered resources:', {
+      filtered: filtered.length,
+      filteredIds: filtered.map(r => r.id)
+    });
+    
+    return filtered;
   };
 
   console.log(`UnifiedResourceCalendar: ${viewMode} view with ${events.length} events, forceRefresh: ${numericForceRefresh}`);
