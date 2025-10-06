@@ -93,6 +93,16 @@
   font-weight: 700;
 }
 
+/* Selected date styling for day headers - highlighted when clicked from monthly view */
+.day-header.selected-date {
+  background: #fef3c7;
+  border: 2px solid #f59e0b;
+  border-bottom: 3px solid #f59e0b;
+  color: #92400e;
+  font-weight: 700;
+  box-shadow: 0 4px 6px rgba(245, 158, 11, 0.3);
+}
+
 /* Other month styling for monthly view */
 .day-header.other-month {
   background: #f8f9fa;

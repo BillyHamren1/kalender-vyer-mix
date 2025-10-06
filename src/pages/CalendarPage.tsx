@@ -19,6 +19,7 @@ const CalendarPage = () => {
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'weekly' | 'monthly' | 'list'>('weekly');
   const [monthlyDate, setMonthlyDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   
   // Visible teams state - default to Team 1, 2, and Live (team-11)
   const [visibleTeams, setVisibleTeams] = useState<string[]>(() => {
@@ -98,9 +99,11 @@ const CalendarPage = () => {
     }
   };
 
-  // Handle day click in monthly view - switch to weekly view
+  // Handle day click in monthly view - switch to weekly view and center the clicked day
   const handleMonthlyDayClick = (date: Date) => {
-    setCurrentWeekStart(startOfWeek(date, { weekStartsOn: 1 }));
+    const weekStart = startOfWeek(date, { weekStartsOn: 1 });
+    setCurrentWeekStart(weekStart);
+    setSelectedDate(date);
     setViewMode('weekly');
   };
 
@@ -201,6 +204,7 @@ const CalendarPage = () => {
                 viewMode="weekly"
                 staffOperations={staffOps}
                 visibleTeams={visibleTeams}
+                selectedDate={selectedDate}
               />
             ) : viewMode === 'monthly' ? (
               <SimpleMonthlyCalendar

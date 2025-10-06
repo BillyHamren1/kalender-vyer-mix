@@ -25,6 +25,7 @@ interface UnifiedResourceCalendarProps {
     getStaffForTeamAndDate: (teamId: string, date: Date) => any[];
   };
   visibleTeams?: string[];
+  selectedDate?: Date | null;
 }
 
 const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
@@ -40,10 +41,12 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   forceRefresh,
   viewMode,
   staffOperations,
-  visibleTeams
+  visibleTeams,
+  selectedDate
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const todayRef = useRef<HTMLDivElement>(null);
+  const selectedDateRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { setLastViewedDate } = useContext(CalendarContext);
 
@@ -199,6 +202,20 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     return dayEvents;
   };
 
+  // Scroll to selected date when switching from monthly to weekly view
+  useEffect(() => {
+    if (viewMode === 'weekly' && selectedDate && selectedDateRef.current) {
+      const timer = setTimeout(() => {
+        selectedDateRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'center'
+        });
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedDate, viewMode]);
+
   // Scroll to today for monthly view
   useEffect(() => {
     if (viewMode === 'monthly' && todayRef.current) {
@@ -238,6 +255,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
           const dayEvents = getEventsForDay(date);
           const filteredResources = getFilteredResourcesForDay(date);
           const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+          const isSelectedDate = selectedDate && format(date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd');
           const isCurrentMonth = viewMode === 'monthly' ? isSameMonth(date, currentDate) : true;
           
           // Convert forceRefresh to boolean for ResourceCalendar
@@ -249,12 +267,12 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
             <div 
               key={format(date, 'yyyy-MM-dd')} 
               className={viewMode === 'weekly' ? 'day-calendar-wrapper' : 'monthly-day-wrapper'}
-              ref={isToday ? todayRef : null}
+              ref={isToday ? todayRef : (isSelectedDate ? selectedDateRef : null)}
               style={viewMode === 'weekly' ? { width: `${getDayWidth()}px` } : {}}
             >
               {/* Clickable day header */}
               <div 
-                className={`day-header ${isToday ? 'today' : ''} ${!isCurrentMonth ? 'other-month' : ''} cursor-pointer hover:bg-blue-50 transition-colors`}
+                className={`day-header ${isToday ? 'today' : ''} ${isSelectedDate ? 'selected-date' : ''} ${!isCurrentMonth ? 'other-month' : ''} cursor-pointer hover:bg-blue-50 transition-colors`}
                 onClick={() => handleDayHeaderClick(date)}
                 title="Click to view resource schedule"
               >
