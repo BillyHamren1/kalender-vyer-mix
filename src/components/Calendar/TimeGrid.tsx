@@ -126,15 +126,16 @@ const TimeGrid: React.FC<TimeGridProps> = ({
       parsedEnd: endTime.toISOString()
     });
     
-    // Get hours and minutes as decimal
-    let startHour = startTime.getHours() + startTime.getMinutes() / 60;
-    let endHour = endTime.getHours() + endTime.getMinutes() / 60;
+    // CRITICAL: Use UTC hours, not local hours!
+    let startHour = startTime.getUTCHours() + startTime.getUTCMinutes() / 60;
+    let endHour = endTime.getUTCHours() + endTime.getUTCMinutes() / 60;
     
-    console.log('🔍 Calculated hours:', { startHour, endHour, duration: endHour - startHour });
+    console.log('🔍 Calculated hours (UTC):', { startHour, endHour, duration: endHour - startHour });
     
     // Handle events that span into next day (convert to 24+ hour format)
     if (endHour < startHour) {
       endHour += 24;
+      console.log('🔍 Event spans midnight, adjusted endHour:', endHour);
     }
     
     // Calculate position in pixels (25px per hour)
@@ -143,7 +144,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     
     const height = Math.max(12, (endHour - startHour) * 25);
     
-    console.log('🔍 Final position:', { top, height });
+    console.log('🔍 Final position:', { top, height, duration: endHour - startHour });
     
     return { top, height };
   };
