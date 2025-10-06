@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -6,7 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Calendar } from '@/components/ui/calendar';
 import { toast } from 'sonner';
 import { createCalendarEvent } from '@/services/eventService';
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
+import { cn } from '@/lib/utils';
 
 interface AddRiggDayDialogProps {
   open: boolean;
@@ -35,6 +37,31 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [eventType, setEventType] = useState<'rig' | 'event' | 'rigDown'>('rig');
   const [isCreating, setIsCreating] = useState(false);
+  const [bookingDates, setBookingDates] = useState<Date[]>([]);
+  const [defaultMonth, setDefaultMonth] = useState<Date | undefined>();
+
+  // Fetch all dates for this booking when dialog opens
+  useEffect(() => {
+    if (open && event.bookingId) {
+      const fetchBookingDates = async () => {
+        const { data, error } = await supabase
+          .from('calendar_events')
+          .select('start_time')
+          .eq('booking_id', event.bookingId);
+
+        if (!error && data) {
+          const dates = data.map(e => new Date(e.start_time));
+          setBookingDates(dates);
+        }
+      };
+
+      fetchBookingDates();
+
+      // Set default month to the clicked event's date
+      const eventDate = typeof event.start === 'string' ? new Date(event.start) : event.start;
+      setDefaultMonth(eventDate);
+    }
+  }, [open, event.bookingId, event.start]);
 
   const handleCreate = async () => {
     if (!selectedDate) {
@@ -113,7 +140,19 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
               mode="single"
               selected={selectedDate}
               onSelect={setSelectedDate}
-              className="rounded-md border"
+              month={defaultMonth}
+              onMonthChange={setDefaultMonth}
+              className={cn("rounded-md border pointer-events-auto")}
+              modifiers={{
+                booked: bookingDates,
+              }}
+              modifiersStyles={{
+                booked: {
+                  backgroundColor: 'hsl(var(--primary) / 0.2)',
+                  fontWeight: 'bold',
+                  border: '2px solid hsl(var(--primary))',
+                }
+              }}
             />
           </div>
 
