@@ -108,11 +108,6 @@
   transition: background-color 0.2s;
 }
 
-.staff-header-assignment-area.drop-over {
-  @apply bg-[#7BAEBF]/20;
-  border: 2px dashed #7BAEBF;
-}
-
 .staff-count-info {
   @apply text-xs text-gray-600 mb-2;
   font-weight: 500;
@@ -178,11 +173,6 @@
   @apply border-b-0;
 }
 
-/* Updated drop-over styling to use teal theme */
-.time-slots-column.drop-over {
-  background-color: rgba(123, 174, 191, 0.1) !important;
-}
-
 /* Hover container for proper event detection */
 .hover-container {
   position: relative;
@@ -240,11 +230,6 @@
   @apply absolute inset-0;
   transition: background-color 0.2s;
   z-index: 1;
-}
-
-.staff-drop-zone-aligned.drop-over {
-  @apply bg-[#7BAEBF]/20;
-  border: 2px dashed #7BAEBF;
 }
 
 .drop-info-aligned {

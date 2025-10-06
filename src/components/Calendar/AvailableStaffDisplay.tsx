@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Calendar, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
+import StaffItem from './StaffItem';
 import { format } from 'date-fns';
 
 interface StaffMember {
@@ -83,7 +83,7 @@ const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({
           ) : (
             <div className="space-y-1">
               {availableStaff.map((staff) => (
-                <UnifiedDraggableStaffItem
+                <StaffItem
                   key={staff.id}
                   staff={{
                     id: staff.id,

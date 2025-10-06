@@ -2,8 +2,7 @@
 import React from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
-import { useDrop } from 'react-dnd';
-import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
+import StaffItem from './StaffItem';
 
 interface TimeSlot {
   time: string;
@@ -33,18 +32,7 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
   isHeaderRow = false,
   weeklyStaffOperations
 }) => {
-  const [{ isOver }, drop] = useDrop({
-    accept: ['STAFF'],
-    drop: (item: any) => {
-      console.log('StaffAssignmentArea: Item dropped', item, 'on', format(day, 'yyyy-MM-dd'), resource.id);
-      if (item.id && onStaffDrop) {
-        onStaffDrop(item.id, resource.id, day);
-      }
-    },
-    collect: (monitor) => ({
-      isOver: monitor.isOver(),
-    }),
-  });
+  // Drag-and-drop removed - staff assignment now via click
 
   // Get assigned staff for this team on this specific day using weekly operations
   const assignedStaffRaw = weeklyStaffOperations 
@@ -61,20 +49,17 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
   // Render header row version (above time slots)
   if (isHeaderRow) {
     return (
-      <div
-        ref={drop}
-        className={`staff-header-assignment-area ${isOver ? 'drop-over' : ''}`}
-      >
-        {/* Staff count or drop instruction */}
+      <div className="staff-header-assignment-area">
+        {/* Staff count info */}
         <div className="staff-count-info">
-          {assignedStaff.length === 0 ? 'Drop staff here' : `${assignedStaff.length} staff`}
+          {assignedStaff.length === 0 ? 'Click + to assign' : `${assignedStaff.length} staff`}
         </div>
         
         {/* Assigned Staff List - compact header version */}
         <div className="assigned-staff-header-list">
           {assignedStaff.map((staff, index) => (
             <div key={staff.id} className="staff-header-item">
-              <UnifiedDraggableStaffItem
+              <StaffItem
                 staff={{
                   id: staff.id,
                   name: staff.name,
@@ -103,19 +88,16 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
         ))}
       </div>
 
-      {/* Staff Assignment Drop Zone */}
-      <div
-        ref={drop}
-        className={`staff-drop-zone-aligned ${isOver ? 'drop-over' : ''}`}
-      >
+      {/* Staff Assignment Area */}
+      <div className="staff-drop-zone-aligned">
         <div className="drop-info-aligned">
-          {assignedStaff.length === 0 ? 'Drop staff here' : `${assignedStaff.length} staff assigned`}
+          {assignedStaff.length === 0 ? 'Click + to assign' : `${assignedStaff.length} staff assigned`}
         </div>
         
         <div className="assigned-staff-list-aligned">
           {assignedStaff.map((staff, index) => (
             <div key={staff.id} className="staff-item-positioned" style={{ top: `${index * 30}px` }}>
-              <UnifiedDraggableStaffItem
+              <StaffItem
                 staff={{
                   id: staff.id,
                   name: staff.name,

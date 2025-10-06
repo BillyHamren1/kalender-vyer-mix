@@ -12,7 +12,7 @@ const getInitials = (fullName: string): string => {
   return fullName.trim().split(' ').map(name => name.charAt(0).toUpperCase()).join('').slice(0, 2);
 };
 
-interface UnifiedDraggableStaffItemProps {
+interface StaffItemProps {
   staff: StaffMember & { assignedTeam?: string | null };
   onRemove?: () => void;
   currentDate: Date;
@@ -21,7 +21,7 @@ interface UnifiedDraggableStaffItemProps {
   showRemoveDialog?: boolean;
 }
 
-const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({ 
+const StaffItem: React.FC<StaffItemProps> = ({ 
   staff, 
   onRemove, 
   currentDate,
@@ -150,4 +150,4 @@ const UnifiedDraggableStaffItem: React.FC<UnifiedDraggableStaffItemProps> = ({
   );
 };
 
-export default UnifiedDraggableStaffItem;
+export default StaffItem;

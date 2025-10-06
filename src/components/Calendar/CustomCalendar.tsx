@@ -81,68 +81,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     });
   };
 
-  // Optimized event drop handler - NO loading toast, NO manual refresh
-  const handleEventDrop = async (eventId: string, targetResourceId: string, targetDate: Date, targetTime: string) => {
-    console.log('CustomCalendar: Event drop detected', {
-      eventId,
-      targetResourceId,
-      targetDate,
-      targetTime
-    });
-
-    try {
-      const eventToMove = events.find(event => event.id === eventId);
-      if (!eventToMove) {
-        toast.error('Event not found');
-        return;
-      }
-
-      const sourceTeam = resources.find(r => r.id === eventToMove.resourceId)?.title || 'Unknown';
-      const targetTeam = resources.find(r => r.id === targetResourceId)?.title || 'Unknown';
-      
-      // Calculate new start and end times
-      const originalStart = new Date(eventToMove.start);
-      const originalEnd = new Date(eventToMove.end);
-      const duration = originalEnd.getTime() - originalStart.getTime(); // Duration in milliseconds
-      
-      // Parse target time (e.g., "14:00") and create new start time
-      const [targetHour, targetMinute] = targetTime.split(':').map(Number);
-      const newStart = new Date(targetDate);
-      newStart.setHours(targetHour, targetMinute || 0, 0, 0);
-      
-      // Calculate new end time maintaining the same duration
-      const newEnd = new Date(newStart.getTime() + duration);
-      
-      console.log('Updating event with new time:', {
-        eventId,
-        originalStart: originalStart.toISOString(),
-        originalEnd: originalEnd.toISOString(),
-        newStart: newStart.toISOString(),
-        newEnd: newEnd.toISOString(),
-        targetTime
-      });
-
-      // NO loading toast - just update the event, real-time will handle UI updates
-      await updateCalendarEvent(eventId, {
-        resourceId: targetResourceId,
-        start: newStart.toISOString(),
-        end: newEnd.toISOString()
-      });
-      
-      // Show success message with move details
-      if (eventToMove.resourceId !== targetResourceId) {
-        toast.success(`Event "${eventToMove.title}" moved from ${sourceTeam} to ${targetTeam} at ${targetTime}`);
-      } else {
-        toast.success(`Event "${eventToMove.title}" moved to ${targetTime}`);
-      }
-      
-      // NO manual refresh - real-time subscription handles this
-      
-    } catch (error) {
-      console.error('Error moving event:', error);
-      toast.error('Failed to move event. Please try again.');
-    }
-  };
+  // Event drop handler removed - events are now moved via click-based marking system
 
   // Optimized event resize handler - update and refresh
   const handleEventResize = async () => {
@@ -213,7 +152,6 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                 onOpenStaffSelection={onOpenStaffSelection}
                 dayWidth={getDayWidth()}
                 weeklyStaffOperations={weeklyStaffOperations}
-                onEventDrop={handleEventDrop}
                 onEventResize={handleEventResize}
               />
             </div>

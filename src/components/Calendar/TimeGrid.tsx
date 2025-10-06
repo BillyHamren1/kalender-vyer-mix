@@ -3,7 +3,7 @@ import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import CustomEvent from './CustomEvent';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
-import UnifiedDraggableStaffItem from './UnifiedDraggableStaffItem';
+import StaffItem from './StaffItem';
 import './TimeGrid.css';
 
 interface TimeGridProps {
@@ -17,12 +17,11 @@ interface TimeGridProps {
   weeklyStaffOperations?: {
     getStaffForTeamAndDate: (teamId: string, date: Date) => Array<{id: string, name: string, color?: string}>;
   };
-  onEventDrop?: (eventId: string, targetResourceId: string, targetDate: Date, targetTime: string) => Promise<void>;
   onEventResize?: () => Promise<void>;
 }
 
-// Enhanced Draggable Event Wrapper Component with performance optimization
-const DraggableEvent: React.FC<{
+// Event Wrapper Component
+const EventWrapper: React.FC<{
   event: CalendarEvent;
   position: { top: number; height: number };
   teamColumnWidth: number;
@@ -82,7 +81,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   onOpenStaffSelection,
   dayWidth = 800,
   weeklyStaffOperations,
-  onEventDrop,
   onEventResize
 }) => {
   const { handleEventClick } = useEventNavigation();
@@ -261,7 +259,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 <div className="staff-header-assignment-area">
                   <div className="assigned-staff-header-list">
                     {assignedStaff.map((staff) => (
-                      <UnifiedDraggableStaffItem
+                      <StaffItem
                         key={staff.id}
                         staff={staff}
                         onRemove={() => handleStaffRemoval(staff.id, resource.id)}
@@ -313,7 +311,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 {resourceEvents.map((event) => {
                   const position = getEventPosition(event);
                   return (
-                    <DraggableEvent
+                    <EventWrapper
                       key={`event-wrapper-${event.id}`}
                       event={event}
                       position={position}

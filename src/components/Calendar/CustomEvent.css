@@ -6,25 +6,8 @@
   color: #000000 !important; /* FORCE BLACK TEXT */
   font-size: 12px;
   overflow: hidden;
-  cursor: grab;
+  cursor: pointer;
   user-select: none;
-  will-change: transform, opacity;
-}
-
-.custom-event:active {
-  cursor: grabbing;
-}
-
-.custom-event.dragging {
-  opacity: 0.3;
-  cursor: grabbing;
-  transition: none;
-  transform: none;
-}
-
-.custom-event.resizing {
-  cursor: ns-resize;
-  transition: none;
 }
 
 .custom-event .event-content {
@@ -64,26 +47,6 @@
 
 .resize-handle:hover {
   background-color: rgba(255, 255, 255, 0.3) !important;
-}
-
-/* Drag preview styles */
-.dragging-preview {
-  pointer-events: none;
-  user-select: none;
-  transform-origin: center;
-}
-
-/* Performance optimization classes */
-.gpu-accelerated {
-  will-change: transform, opacity;
-  transform: translateZ(0);
-}
-
-/* Smooth drop zone highlighting */
-.drop-over {
-  background-color: rgba(59, 130, 246, 0.1) !important;
-  border: 2px dashed #3b82f6 !important;
-  transition: all 0.2s ease;
 }
 
 /* Ensure all text in FullCalendar events is black */
