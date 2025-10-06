@@ -10,6 +10,21 @@ import { format, parse } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 
+// Generate time options in 30-minute intervals
+const generateTimeOptions = (): string[] => {
+  const options: string[] = [];
+  for (let hour = 0; hour < 24; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      const hourStr = hour.toString().padStart(2, '0');
+      const minuteStr = minute.toString().padStart(2, '0');
+      options.push(`${hourStr}:${minuteStr}`);
+    }
+  }
+  return options;
+};
+
+const timeOptions = generateTimeOptions();
+
 interface AddRiggDayDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -41,6 +56,14 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
   const [eventDates, setEventDates] = useState<Date[]>([]);
   const [rigDownDates, setRigDownDates] = useState<Date[]>([]);
   const [defaultMonth, setDefaultMonth] = useState<Date | undefined>();
+  const [startTime, setStartTime] = useState(defaultStartTime);
+  const [endTime, setEndTime] = useState(defaultEndTime);
+
+  // Update times when props change
+  useEffect(() => {
+    setStartTime(defaultStartTime);
+    setEndTime(defaultEndTime);
+  }, [defaultStartTime, defaultEndTime]);
 
   // Fetch all dates for this booking when dialog opens
   useEffect(() => {
@@ -99,8 +122,8 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       
       // Create UTC datetime strings
-      const startDateTime = `${dateStr}T${defaultStartTime}:00Z`;
-      const endDateTime = `${dateStr}T${defaultEndTime}:00Z`;
+      const startDateTime = `${dateStr}T${startTime}:00Z`;
+      const endDateTime = `${dateStr}T${endTime}:00Z`;
 
       await createCalendarEvent({
         title: event.title,
@@ -188,8 +211,33 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
 
           <div className="space-y-2">
             <Label>Time</Label>
-            <div className="text-sm text-muted-foreground">
-              {defaultStartTime} - {defaultEndTime}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="start-time" className="text-xs text-muted-foreground">Start</Label>
+                <Select value={startTime} onValueChange={setStartTime}>
+                  <SelectTrigger id="start-time">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {timeOptions.map(time => (
+                      <SelectItem key={`start-${time}`} value={time}>{time}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="end-time" className="text-xs text-muted-foreground">End</Label>
+                <Select value={endTime} onValueChange={setEndTime}>
+                  <SelectTrigger id="end-time">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {timeOptions.map(time => (
+                      <SelectItem key={`end-${time}`} value={time}>{time}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         </div>
