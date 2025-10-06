@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ArrowLeft, Calendar as CalendarIcon, List } from 'lucide-react';
@@ -13,11 +13,23 @@ import UnifiedResourceCalendar from '@/components/Calendar/UnifiedResourceCalend
 import StaffCurtain from '@/components/Calendar/StaffCurtain';
 import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
 import SimpleMonthlyCalendar from '@/components/Calendar/SimpleMonthlyCalendar';
+import TeamVisibilityControl from '@/components/Calendar/TeamVisibilityControl';
 
 const CalendarPage = () => {
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'weekly' | 'monthly' | 'list'>('weekly');
   const [monthlyDate, setMonthlyDate] = useState(new Date());
+  
+  // Visible teams state - default to Team 1, 2, and Live (team-11)
+  const [visibleTeams, setVisibleTeams] = useState<string[]>(() => {
+    const stored = localStorage.getItem('visibleTeams');
+    return stored ? JSON.parse(stored) : ['team-1', 'team-2', 'team-11'];
+  });
+
+  // Save visible teams to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('visibleTeams', JSON.stringify(visibleTeams));
+  }, [visibleTeams]);
   
   // Use existing hooks for data consistency
   const {
@@ -89,6 +101,21 @@ const CalendarPage = () => {
     setMonthlyDate(date);
   };
 
+  // Toggle team visibility
+  const handleToggleTeam = (teamId: string) => {
+    setVisibleTeams(prev => {
+      if (prev.includes(teamId)) {
+        // Don't allow hiding Team 1, 2, and Live
+        if (['team-1', 'team-2', 'team-11'].includes(teamId)) {
+          return prev;
+        }
+        return prev.filter(id => id !== teamId);
+      } else {
+        return [...prev, teamId];
+      }
+    });
+  };
+
   return (
     <TooltipProvider>
         <div className="min-h-screen bg-gray-50">
@@ -108,8 +135,15 @@ const CalendarPage = () => {
                 <h1 className="text-2xl font-bold text-gray-900">Staff Planning Calendar</h1>
               </div>
               
-              {/* View Toggle */}
-              <div className="flex items-center gap-2">
+              {/* View Toggle and Team Visibility */}
+              <div className="flex items-center gap-4">
+                {/* Team Visibility Control */}
+                <TeamVisibilityControl
+                  allTeams={teamResources}
+                  visibleTeams={visibleTeams}
+                  onToggleTeam={handleToggleTeam}
+                />
+                
                 <div className="flex bg-muted rounded-lg p-1">
                   <Button
                     variant={viewMode === 'weekly' ? 'default' : 'ghost'}
@@ -158,6 +192,7 @@ const CalendarPage = () => {
                 onSelectStaff={handleOpenStaffSelection}
                 viewMode="weekly"
                 staffOperations={staffOps}
+                visibleTeams={visibleTeams}
               />
             ) : viewMode === 'monthly' ? (
               <SimpleMonthlyCalendar

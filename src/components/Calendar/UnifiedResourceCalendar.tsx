@@ -24,6 +24,7 @@ interface UnifiedResourceCalendarProps {
   staffOperations?: {
     getStaffForTeamAndDate: (teamId: string, date: Date) => any[];
   };
+  visibleTeams?: string[];
 }
 
 const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
@@ -38,7 +39,8 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   onSelectStaff,
   forceRefresh,
   viewMode,
-  staffOperations
+  staffOperations,
+  visibleTeams
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const todayRef = useRef<HTMLDivElement>(null);
@@ -72,6 +74,27 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 
   // Convert forceRefresh to number for consistent handling
   const numericForceRefresh = typeof forceRefresh === 'boolean' ? (forceRefresh ? 1 : 0) : (forceRefresh || 0);
+
+  // Filter resources based on visibleTeams, but always show teams with events on the given day
+  const getFilteredResourcesForDay = (date: Date): Resource[] => {
+    if (!visibleTeams || visibleTeams.length === 0) {
+      return resources;
+    }
+
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const teamsWithEvents = new Set(
+      events
+        .filter(event => {
+          const eventStart = new Date(event.start);
+          return format(eventStart, 'yyyy-MM-dd') === dateStr;
+        })
+        .map(event => event.resourceId)
+    );
+
+    return resources.filter(resource => 
+      visibleTeams.includes(resource.id) || teamsWithEvents.has(resource.id)
+    );
+  };
 
   console.log(`UnifiedResourceCalendar: ${viewMode} view with ${events.length} events, forceRefresh: ${numericForceRefresh}`);
 
@@ -212,13 +235,14 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
         {days.map((date, index) => {
           // Get only the events for this specific day
           const dayEvents = getEventsForDay(date);
+          const filteredResources = getFilteredResourcesForDay(date);
           const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
           const isCurrentMonth = viewMode === 'monthly' ? isSameMonth(date, currentDate) : true;
           
           // Convert forceRefresh to boolean for ResourceCalendar
           const resourceCalendarForceRefresh = numericForceRefresh > 0;
           
-          console.log(`UnifiedResourceCalendar: Rendering calendar for ${format(date, 'yyyy-MM-dd')} with ${dayEvents.length} events`);
+          console.log(`UnifiedResourceCalendar: Rendering calendar for ${format(date, 'yyyy-MM-dd')} with ${dayEvents.length} events and ${filteredResources.length} visible teams`);
           
           return (
             <div 
@@ -238,7 +262,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
               <div className={viewMode === 'weekly' ? 'weekly-view-calendar' : 'monthly-view-calendar'}>
                 <ResourceCalendar
                   events={dayEvents}
-                  resources={resources}
+                  resources={filteredResources}
                   isLoading={isLoading}
                   isMounted={isMounted}
                   currentDate={date}

@@ -12,6 +12,11 @@ export const toDbTeamId = (frontendId: string): string => {
     'team-4': 'd',
     'team-5': 'e',
     'team-6': 'f',
+    'team-7': 'g',
+    'team-8': 'h',
+    'team-9': 'i',
+    'team-10': 'j',
+    'team-11': 'k',
   };
   
   return mapping[frontendId] || frontendId;
@@ -26,6 +31,11 @@ export const toFrontendTeamId = (dbId: string): string => {
     'd': 'team-4',
     'e': 'team-5',
     'f': 'team-6',
+    'g': 'team-7',
+    'h': 'team-8',
+    'i': 'team-9',
+    'j': 'team-10',
+    'k': 'team-11',
   };
   
   return mapping[dbId] || dbId;
