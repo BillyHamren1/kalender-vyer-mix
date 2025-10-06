@@ -8,7 +8,7 @@ import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { useBackgroundImport } from '@/hooks/useBackgroundImport';
-import { startOfWeek } from 'date-fns';
+import { startOfWeek, subDays } from 'date-fns';
 import UnifiedResourceCalendar from '@/components/Calendar/UnifiedResourceCalendar';
 import StaffCurtain from '@/components/Calendar/StaffCurtain';
 import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
@@ -99,10 +99,11 @@ const CalendarPage = () => {
     }
   };
 
-  // Handle day click in monthly view - switch to weekly view and center the clicked day
+  // Handle day click in monthly view - switch to weekly view with clicked date centered
   const handleMonthlyDayClick = (date: Date) => {
-    const weekStart = startOfWeek(date, { weekStartsOn: 1 });
-    setCurrentWeekStart(weekStart);
+    // Center the week around the clicked date by starting 3 days before
+    const centeredWeekStart = subDays(date, 3);
+    setCurrentWeekStart(centeredWeekStart);
     setSelectedDate(date);
     setViewMode('weekly');
   };
