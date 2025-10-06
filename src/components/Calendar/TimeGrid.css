@@ -42,20 +42,12 @@
 
 /* Team Headers Row - Responsive with thin teal borders */
 .team-header-cell {
-  @apply bg-gray-50 border-l border-r border-b border-[#7BAEBF];
+  @apply bg-gray-50 border-r border-b border-[#7BAEBF];
   height: 24px;
   padding: 0 4px;
   display: flex;
   align-items: center;
   overflow: hidden; /* Prevent overflow */
-}
-
-.team-header-cell:first-of-type {
-  @apply border-l border-[#7BAEBF];
-}
-
-.team-header-cell:last-of-type {
-  @apply border-r border-[#7BAEBF];
 }
 
 .team-header-content {
@@ -90,18 +82,10 @@
 
 /* Staff Assignment Header Row - Responsive with matching teal borders */
 .staff-assignment-header-row {
-  @apply border-l border-r border-b border-[#7BAEBF] bg-gray-50/50;
+  @apply border-r border-b border-[#7BAEBF] bg-gray-50/50;
   height: 50px;
   position: relative;
   overflow: hidden; /* Prevent overflow */
-}
-
-.staff-assignment-header-row:first-of-type {
-  @apply border-l border-[#7BAEBF];
-}
-
-.staff-assignment-header-row:last-of-type {
-  @apply border-r border-[#7BAEBF];
 }
 
 .staff-header-assignment-area {
