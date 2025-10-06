@@ -64,9 +64,9 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
         ? event.start.split('T')[0] 
         : event.start.toISOString().split('T')[0];
 
-      // Create NEW Date objects directly from local time strings
-      const newStart = new Date(`${eventDate}T${startTime}:00`);
-      const newEnd = new Date(`${eventDate}T${endTime}:00`);
+      // Create UTC Date objects (Z = UTC, no timezone conversion)
+      const newStart = new Date(`${eventDate}T${startTime}:00Z`);
+      const newEnd = new Date(`${eventDate}T${endTime}:00Z`);
 
       // Update calendar event in database
       await updateCalendarEvent(event.id, {
