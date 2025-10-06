@@ -52,10 +52,18 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
   // Initialize times when popover opens
   useEffect(() => {
     if (open && event) {
-      const eventStart = typeof event.start === 'string' ? new Date(event.start) : event.start;
-      const eventEnd = typeof event.end === 'string' ? new Date(event.end) : event.end;
-      setStartTime(format(eventStart, 'HH:mm'));
-      setEndTime(format(eventEnd, 'HH:mm'));
+      // Extract time directly from ISO string to avoid timezone conversion
+      const startStr = typeof event.start === 'string' ? event.start : event.start.toISOString();
+      const endStr = typeof event.end === 'string' ? event.end : event.end.toISOString();
+      
+      // Extract HH:mm from "YYYY-MM-DDTHH:mm:ssZ" format
+      const extractTime = (isoString: string) => {
+        const timePart = isoString.split('T')[1]; // Get "HH:mm:ssZ"
+        return timePart.substring(0, 5); // Get "HH:mm"
+      };
+      
+      setStartTime(extractTime(startStr));
+      setEndTime(extractTime(endStr));
     }
   }, [open, event]);
 
