@@ -106,11 +106,8 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     const timeColumnWidth = 80;
     const minTeamColumnWidth = 128; // Synkad med TimeGrid teamColumnWidth
     const padding = 24;
-    const totalDefaultTeams = 11; // Team 1-10 + Live
     
-    // Använd minst bredden för alla default teams, växer om fler teams läggs till
-    const effectiveTeams = Math.max(numTeams, totalDefaultTeams);
-    return timeColumnWidth + (effectiveTeams * minTeamColumnWidth) + padding;
+    return timeColumnWidth + (numTeams * minTeamColumnWidth) + padding;
   };
 
   if (isLoading) {
