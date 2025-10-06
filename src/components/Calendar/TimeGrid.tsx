@@ -107,10 +107,9 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   const timeSlots = generateTimeSlots();
 
-  // Calculate responsive column widths with better spacing
+  // Fixed column width for team columns
   const timeColumnWidth = 80;
-  const availableWidth = dayWidth - timeColumnWidth - 24;
-  const teamColumnWidth = Math.max(42, Math.floor(availableWidth / resources.length)); // Halverad bredd
+  const teamColumnWidth = 42;
 
   // Calculate event position based on time - Continuous 24-hour grid
   const getEventPosition = (event: CalendarEvent) => {
