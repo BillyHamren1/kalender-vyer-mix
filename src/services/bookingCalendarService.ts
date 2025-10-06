@@ -203,7 +203,7 @@ export const syncSingleBookingToCalendar = async (bookingId: string, booking?: a
       booking.rig_start_time,
       booking.rig_end_time,
       'rig',
-      `Rig Day - ${booking.client}`,
+      booking.booking_number ? `${booking.booking_number}: ${booking.client}` : booking.client,
       'team-1'
     );
 
@@ -212,8 +212,8 @@ export const syncSingleBookingToCalendar = async (bookingId: string, booking?: a
       booking.event_start_time,
       booking.event_end_time,
       'event',
-      `Event - ${booking.client}`,
-      'team-6'
+      booking.booking_number ? `${booking.booking_number}: ${booking.client}` : booking.client,
+      'team-11'
     );
 
     await processEventType(
@@ -221,7 +221,7 @@ export const syncSingleBookingToCalendar = async (bookingId: string, booking?: a
       booking.rigdown_start_time,
       booking.rigdown_end_time,
       'rigDown',
-      `Rig Down - ${booking.client}`,
+      booking.booking_number ? `${booking.booking_number}: ${booking.client}` : booking.client,
       'team-1'
     );
 
