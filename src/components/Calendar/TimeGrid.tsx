@@ -116,20 +116,12 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   // Calculate event position based on time - Continuous 24-hour grid
   const getEventPosition = (event: CalendarEvent) => {
-    // Convert Supabase format "YYYY-MM-DD HH:MM:SS+00" to ISO 8601 "YYYY-MM-DDTHH:MM:SSZ"
-    const startStr = typeof event.start === 'string' 
-      ? event.start.replace(' ', 'T').replace('+00', 'Z')
-      : event.start;
-    const endStr = typeof event.end === 'string'
-      ? event.end.replace(' ', 'T').replace('+00', 'Z')
-      : event.end;
+    const startTime = new Date(event.start);
+    const endTime = new Date(event.end);
     
-    const startTime = new Date(startStr);
-    const endTime = new Date(endStr);
-    
-    // Use UTC methods to display exact UTC time from database
-    let startHour = startTime.getUTCHours() + startTime.getUTCMinutes() / 60;
-    let endHour = endTime.getUTCHours() + endTime.getUTCMinutes() / 60;
+    // Get hours and minutes as decimal
+    let startHour = startTime.getHours() + startTime.getMinutes() / 60;
+    let endHour = endTime.getHours() + endTime.getMinutes() / 60;
     
     // Handle events that span into next day (convert to 24+ hour format)
     if (endHour < startHour) {
