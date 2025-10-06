@@ -1,13 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parse, isAfter } from 'date-fns';
 import { Clock, Calendar as CalendarIcon } from 'lucide-react';
+
+// Generate time options in 30-minute intervals
+const generateTimeOptions = (): string[] => {
+  const options: string[] = [];
+  for (let hour = 0; hour < 24; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      const hourStr = hour.toString().padStart(2, '0');
+      const minuteStr = minute.toString().padStart(2, '0');
+      options.push(`${hourStr}:${minuteStr}`);
+    }
+  }
+  return options;
+};
+
+const timeOptions = generateTimeOptions();
 
 interface QuickTimeEditPopoverProps {
   event: {
@@ -130,24 +145,30 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
           <div className="space-y-2">
             <div className="space-y-1">
               <Label htmlFor="quick-start" className="text-xs">Start</Label>
-              <Input
-                id="quick-start"
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="h-8 text-sm"
-              />
+              <Select value={startTime} onValueChange={setStartTime}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Välj tid" />
+                </SelectTrigger>
+                <SelectContent>
+                  {timeOptions.map(time => (
+                    <SelectItem key={`start-${time}`} value={time}>{time}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1">
               <Label htmlFor="quick-end" className="text-xs">End</Label>
-              <Input
-                id="quick-end"
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="h-8 text-sm"
-              />
+              <Select value={endTime} onValueChange={setEndTime}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Välj tid" />
+                </SelectTrigger>
+                <SelectContent>
+                  {timeOptions.map(time => (
+                    <SelectItem key={`end-${time}`} value={time}>{time}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
