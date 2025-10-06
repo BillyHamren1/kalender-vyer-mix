@@ -69,6 +69,13 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         : event.start;
       
       const eventStart = new Date(startStr);
+      
+      // Validate date is valid before formatting
+      if (isNaN(eventStart.getTime())) {
+        console.warn('Invalid date for event:', event.id, 'start:', event.start);
+        return false;
+      }
+      
       const eventDateStr = format(eventStart, 'yyyy-MM-dd');
       return eventDateStr === dateStr && event.resourceId === resourceId;
     });
