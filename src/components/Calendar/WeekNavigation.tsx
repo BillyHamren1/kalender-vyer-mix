@@ -52,14 +52,14 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
   })();
 
   return (
-    <div className="flex items-center justify-center mb-8 w-full">
+    <div className="flex items-center justify-center mb-4 w-full">
       <div className="flex items-center">
         <button
           onClick={goToPreviousWeek}
-          className="bg-[#7BAEBF] hover:bg-[#6E9DAC] transition-colors duration-300 rounded-lg p-2.5 mr-7"
+          className="bg-[#7BAEBF] hover:bg-[#6E9DAC] transition-colors duration-300 rounded-lg p-1.5 mr-4"
         >
           <ChevronLeft 
-            className="h-7 w-7 text-white"
+            className="h-5 w-5 text-white"
             strokeWidth={3}
           />
         </button>
@@ -70,12 +70,12 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
             <Button
               variant="ghost"
               className={cn(
-                "text-4xl font-bold text-slate-800 px-8 py-4 min-w-[360px] text-center tracking-wider h-auto",
+                "text-2xl font-bold text-slate-800 px-4 py-2 min-w-[280px] text-center tracking-wider h-auto",
                 "hover:bg-slate-100 transition-colors duration-200 cursor-pointer"
               )}
             >
-              <div className="flex items-center justify-center gap-3">
-                <CalendarIcon className="h-8 w-8" />
+              <div className="flex items-center justify-center gap-2">
+                <CalendarIcon className="h-6 w-6" />
                 {weekRangeText}
               </div>
             </Button>
@@ -93,10 +93,10 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
         
         <button
           onClick={goToNextWeek}
-          className="bg-[#7BAEBF] hover:bg-[#6E9DAC] transition-colors duration-300 rounded-lg p-2.5 ml-7"
+          className="bg-[#7BAEBF] hover:bg-[#6E9DAC] transition-colors duration-300 rounded-lg p-1.5 ml-4"
         >
           <ChevronRight 
-            className="h-7 w-7 text-white"
+            className="h-5 w-5 text-white"
             strokeWidth={3}
           />
         </button>

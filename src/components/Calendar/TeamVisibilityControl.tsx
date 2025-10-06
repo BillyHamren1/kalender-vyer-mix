@@ -26,14 +26,14 @@ const TeamVisibilityControl: React.FC<TeamVisibilityControlProps> = ({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="flex items-center gap-2">
-          <Users className="h-4 w-4" />
+        <Button variant="outline" className="h-8 px-2 text-xs flex items-center gap-1.5">
+          <Users className="h-3.5 w-3.5" />
           Teams ({visibleCount})
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-3">
-        <div className="space-y-3">
-          <p className="text-sm font-medium mb-2">Välj teams att visa:</p>
+      <PopoverContent className="w-64 p-2">
+        <div className="space-y-2">
+          <p className="text-xs font-medium mb-1.5">Välj teams att visa:</p>
           {allTeams.map(team => {
             const isVisible = visibleTeams.includes(team.id);
             const isRequired = ['team-1', 'team-2', 'team-11'].includes(team.id);
@@ -48,7 +48,7 @@ const TeamVisibilityControl: React.FC<TeamVisibilityControlProps> = ({
                 />
                 <Label
                   htmlFor={team.id}
-                  className={`text-sm cursor-pointer ${isRequired ? 'text-muted-foreground' : ''}`}
+                  className={`text-xs cursor-pointer ${isRequired ? 'text-muted-foreground' : ''}`}
                 >
                   {team.title}
                   {isRequired && ' (obligatorisk)'}
