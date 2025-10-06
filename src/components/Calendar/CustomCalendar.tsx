@@ -63,7 +63,19 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     const dateStr = format(date, 'yyyy-MM-dd');
     
     return events.filter(event => {
+      if (!event.start) {
+        console.warn('Event missing start time:', event.id);
+        return false;
+      }
+      
       const eventStart = new Date(event.start);
+      
+      // Validate date before formatting
+      if (isNaN(eventStart.getTime())) {
+        console.error('Invalid event start date:', event.id, event.start);
+        return false;
+      }
+      
       const eventDateStr = format(eventStart, 'yyyy-MM-dd');
       return eventDateStr === dateStr && event.resourceId === resourceId;
     });
