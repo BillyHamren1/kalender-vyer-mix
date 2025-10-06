@@ -185,26 +185,12 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
           <div className="flex gap-2 pt-2">
             <Button 
               size="sm" 
-              className="flex-1 h-8 text-xs"
+              className="h-8 px-3 text-xs"
               onClick={handleSave}
               disabled={isSubmitting}
             >
               {isSubmitting ? 'Saving...' : 'Save'}
             </Button>
-            {event.bookingId && (
-              <Button 
-                size="sm" 
-                variant="outline"
-                className="h-8 px-2"
-                onClick={() => {
-                  setOpen(false);
-                  setShowAddRiggDay(true);
-                }}
-                title="Add rigg day"
-              >
-                <Plus className="h-3 w-3" />
-              </Button>
-            )}
             {onMoveDate && (
               <Button 
                 size="sm" 
@@ -216,6 +202,19 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
                 }}
               >
                 <CalendarIcon className="h-3 w-3" />
+              </Button>
+            )}
+            {event.bookingId && (
+              <Button 
+                size="sm" 
+                variant="outline"
+                className="h-8 px-3 text-xs ml-auto"
+                onClick={() => {
+                  setOpen(false);
+                  setShowAddRiggDay(true);
+                }}
+              >
+                Add rig day
               </Button>
             )}
           </div>
