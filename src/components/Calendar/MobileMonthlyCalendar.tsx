@@ -29,13 +29,13 @@ const MobileMonthlyCalendar: React.FC<MobileMonthlyCalendarProps> = ({
     return acc;
   }, {} as Record<string, CalendarEvent[]>);
 
-  // Get event color based on type
+  // Get event color based on type (matching main calendar)
   const getEventColor = (eventType: string) => {
     switch (eventType) {
-      case 'rig': return 'bg-green-500';
-      case 'event': return 'bg-yellow-500';
-      case 'rigDown': return 'bg-red-500';
-      default: return 'bg-blue-500';
+      case 'rig': return '#F2FCE2';
+      case 'event': return '#FEF7CD';
+      case 'rigDown': return '#FFDEE2';
+      default: return '#E2F5FC';
     }
   };
 
@@ -110,12 +110,13 @@ const MobileMonthlyCalendar: React.FC<MobileMonthlyCalendarProps> = ({
               {/* Events */}
               <div className="space-y-1">
                 {dayEvents.slice(0, 3).map((event, index) => (
-                  <div
+                <div
                     key={`${event.id}-${index}`}
-                    className={`
-                      text-xs p-1 rounded text-white truncate
-                      ${getEventColor(event.eventType || 'event')}
-                    `}
+                    className="text-xs p-1 rounded truncate"
+                    style={{
+                      backgroundColor: getEventColor(event.eventType || 'event'),
+                      color: '#333'
+                    }}
                     title={`${event.title} - ${event.extendedProps?.client || 'Unknown Client'}`}
                   >
                     {event.extendedProps?.client || event.title}
