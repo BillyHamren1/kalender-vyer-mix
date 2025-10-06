@@ -63,7 +63,19 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     const dateStr = format(date, 'yyyy-MM-dd');
     
     return events.filter(event => {
-      const eventStart = new Date(event.start);
+      // Convert Supabase format "YYYY-MM-DD HH:MM:SS+00" to ISO 8601 "YYYY-MM-DDTHH:MM:SSZ"
+      const startStr = typeof event.start === 'string' 
+        ? event.start.replace(' ', 'T').replace('+00', 'Z')
+        : event.start;
+      
+      const eventStart = new Date(startStr);
+      
+      // Validate date is valid before formatting
+      if (isNaN(eventStart.getTime())) {
+        console.warn('Invalid date for event:', event.id, 'start:', event.start);
+        return false;
+      }
+      
       const eventDateStr = format(eventStart, 'yyyy-MM-dd');
       return eventDateStr === dateStr && event.resourceId === resourceId;
     });
