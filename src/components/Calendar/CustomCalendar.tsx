@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
-import { format, addDays } from 'date-fns';
+import { format } from 'date-fns';
 import TimeGrid from './TimeGrid';
 import WeekNavigation from './WeekNavigation';
+import TeamVisibilityControl from './TeamVisibilityControl';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
@@ -23,7 +24,9 @@ interface CustomCalendarProps {
     getStaffForTeamAndDate: (teamId: string, date: Date) => Array<{id: string, name: string, color?: string}>;
     forceRefresh: () => void;
   };
-  visibleTeams?: string[];
+  getVisibleTeamsForDay?: (date: Date) => string[];
+  onToggleTeamForDay?: (teamId: string, date: Date) => void;
+  allTeams?: Resource[];
 }
 
 const CustomCalendar: React.FC<CustomCalendarProps> = ({
@@ -38,15 +41,12 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   onOpenStaffSelection,
   viewMode,
   weeklyStaffOperations,
-  visibleTeams
+  getVisibleTeamsForDay,
+  onToggleTeamForDay,
+  allTeams
 }) => {
   const [currentWeekStart, setCurrentWeekStart] = useState(currentDate);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // Filter resources based on visibleTeams
-  const filteredResources = visibleTeams && visibleTeams.length > 0
-    ? resources.filter(resource => visibleTeams.includes(resource.id))
-    : resources;
 
   // Generate days for the week
   const getDaysToRender = () => {
@@ -88,23 +88,27 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     });
   };
 
-  // Event drop handler removed - events are now moved via click-based marking system
-
   // Optimized event resize handler - update and refresh
   const handleEventResize = async () => {
     console.log('CustomCalendar: Manual refresh after resize');
     await refreshEvents();
   };
 
-  // Calculate day width
-  const getDayWidth = () => {
-    const numberOfTeams = filteredResources.length;
+  // Get filtered resources for a specific day
+  const getFilteredResourcesForDay = (date: Date): Resource[] => {
+    if (!getVisibleTeamsForDay) return resources;
+    const visibleTeams = getVisibleTeamsForDay(date);
+    return resources.filter(resource => visibleTeams.includes(resource.id));
+  };
+
+  // Calculate day width based on number of visible teams
+  const getDayWidth = (numTeams: number) => {
     const timeColumnWidth = 80;
-    const minTeamColumnWidth = 120;
+    const minTeamColumnWidth = 84; // 30% smaller than 120
     const padding = 24;
     
-    const calculatedWidth = timeColumnWidth + (numberOfTeams * minTeamColumnWidth) + padding;
-    const minimumWidth = Math.max(800, calculatedWidth);
+    const calculatedWidth = timeColumnWidth + (numTeams * minTeamColumnWidth) + padding;
+    const minimumWidth = Math.max(600, calculatedWidth);
     
     return minimumWidth;
   };
@@ -136,33 +140,45 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         </Button>
       </div>
 
-      {/* Optimized Weekly Staff Planning Grid with NO loading toasts */}
+      {/* Optimized Weekly Staff Planning Grid */}
       <div className="weekly-calendar-container overflow-x-auto">
-        <div 
-          className="weekly-calendar-grid flex gap-2"
-          style={{
-            minWidth: `${7 * getDayWidth()}px`
-          }}
-        >
-          {days.map((date) => (
-            <div 
-              key={format(date, 'yyyy-MM-dd')} 
-              className="day-calendar-wrapper flex-shrink-0 border border-gray-300 rounded-lg"
-              style={{ width: `${getDayWidth()}px` }}
-            >
-              <TimeGrid
-                day={date}
-                resources={filteredResources}
-                events={events}
-                getEventsForDayAndResource={getEventsForDayAndResource}
-                onStaffDrop={onStaffDrop}
-                onOpenStaffSelection={onOpenStaffSelection}
-                dayWidth={getDayWidth()}
-                weeklyStaffOperations={weeklyStaffOperations}
-                onEventResize={handleEventResize}
-              />
-            </div>
-          ))}
+        <div className="weekly-calendar-grid flex gap-2">
+          {days.map((date) => {
+            const filteredResources = getFilteredResourcesForDay(date);
+            const dayWidth = getDayWidth(filteredResources.length);
+            const visibleTeams = getVisibleTeamsForDay ? getVisibleTeamsForDay(date) : [];
+
+            return (
+              <div 
+                key={format(date, 'yyyy-MM-dd')} 
+                className="day-calendar-wrapper flex-shrink-0 border border-gray-300 rounded-lg"
+                style={{ width: `${dayWidth}px` }}
+              >
+                {/* Team Visibility Control per day */}
+                {allTeams && onToggleTeamForDay && (
+                  <div className="p-2 bg-gray-50 border-b border-gray-200">
+                    <TeamVisibilityControl
+                      allTeams={allTeams}
+                      visibleTeams={visibleTeams}
+                      onToggleTeam={(teamId) => onToggleTeamForDay(teamId, date)}
+                    />
+                  </div>
+                )}
+
+                <TimeGrid
+                  day={date}
+                  resources={filteredResources}
+                  events={events}
+                  getEventsForDayAndResource={getEventsForDayAndResource}
+                  onStaffDrop={onStaffDrop}
+                  onOpenStaffSelection={onOpenStaffSelection}
+                  dayWidth={dayWidth}
+                  weeklyStaffOperations={weeklyStaffOperations}
+                  onEventResize={handleEventResize}
+                />
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

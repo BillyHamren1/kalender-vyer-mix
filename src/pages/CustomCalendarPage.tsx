@@ -17,7 +17,7 @@ import MobileMonthlyCalendar from '@/components/Calendar/MobileMonthlyCalendar';
 import MobileDayDetailView from '@/components/Calendar/MobileDayDetailView';
 import SimpleMonthlyCalendar from '@/components/Calendar/SimpleMonthlyCalendar';
 import TeamVisibilityControl from '@/components/Calendar/TeamVisibilityControl';
-import { startOfWeek, startOfMonth } from 'date-fns';
+import { startOfWeek, startOfMonth, format } from 'date-fns';
 import { forceFullBookingSync } from '@/services/bookingCalendarService';
 import { toast } from 'sonner';
 
@@ -101,28 +101,43 @@ const CustomCalendarPage = () => {
     return startOfMonth(new Date(hookCurrentDate));
   });
 
-  // Visible teams state - default to Team 1, 2, and Live (team-11)
-  const [visibleTeams, setVisibleTeams] = useState<string[]>(() => {
-    const stored = localStorage.getItem('visibleTeams');
-    return stored ? JSON.parse(stored) : ['team-1', 'team-2', 'team-11'];
+  // Visible teams state - per day { [dateString]: teamIds[] }
+  const [visibleTeamsByDay, setVisibleTeamsByDay] = useState<{ [key: string]: string[] }>(() => {
+    const stored = localStorage.getItem('visibleTeamsByDay');
+    return stored ? JSON.parse(stored) : {};
   });
 
   // Save visible teams to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem('visibleTeams', JSON.stringify(visibleTeams));
-  }, [visibleTeams]);
+    localStorage.setItem('visibleTeamsByDay', JSON.stringify(visibleTeamsByDay));
+  }, [visibleTeamsByDay]);
 
-  // Toggle team visibility
-  const handleToggleTeam = (teamId: string) => {
-    setVisibleTeams(prev => {
-      if (prev.includes(teamId)) {
+  // Get visible teams for a specific day
+  const getVisibleTeamsForDay = (date: Date): string[] => {
+    const dateKey = format(date, 'yyyy-MM-dd');
+    return visibleTeamsByDay[dateKey] || ['team-1', 'team-2', 'team-11'];
+  };
+
+  // Toggle team visibility for a specific day
+  const handleToggleTeamForDay = (teamId: string, date: Date) => {
+    const dateKey = format(date, 'yyyy-MM-dd');
+    setVisibleTeamsByDay(prev => {
+      const currentVisible = prev[dateKey] || ['team-1', 'team-2', 'team-11'];
+      
+      if (currentVisible.includes(teamId)) {
         // Don't allow hiding Team 1, 2, and Live
         if (['team-1', 'team-2', 'team-11'].includes(teamId)) {
           return prev;
         }
-        return prev.filter(id => id !== teamId);
+        return {
+          ...prev,
+          [dateKey]: currentVisible.filter(id => id !== teamId)
+        };
       } else {
-        return [...prev, teamId];
+        return {
+          ...prev,
+          [dateKey]: [...currentVisible, teamId]
+        };
       }
     });
   };
@@ -248,18 +263,8 @@ const CustomCalendarPage = () => {
                 <h1 className="text-2xl font-bold text-gray-900">Staff Calendar</h1>
               </div>
               
-              <div className="flex items-center gap-4">
-                {/* Team Visibility Control */}
-                {!isMobile && (
-                  <TeamVisibilityControl
-                    allTeams={teamResources}
-                    visibleTeams={visibleTeams}
-                    onToggleTeam={handleToggleTeam}
-                  />
-                )}
-                
-                <div className="flex items-center gap-2">
-                  {/* Force Sync Button */}
+              <div className="flex items-center gap-2">
+                {/* Force Sync Button */}
                 <Button
                   variant="outline"
                   size="sm"
@@ -318,7 +323,6 @@ const CustomCalendarPage = () => {
                 </div>
               </div>
             </div>
-          </div>
 
           {/* Content */}
           <div className="p-6">
@@ -359,7 +363,9 @@ const CustomCalendarPage = () => {
                     onOpenStaffSelection={handleOpenStaffSelection}
                     viewMode="weekly"
                     weeklyStaffOperations={staffOps}
-                    visibleTeams={visibleTeams}
+                    getVisibleTeamsForDay={getVisibleTeamsForDay}
+                    onToggleTeamForDay={handleToggleTeamForDay}
+                    allTeams={teamResources}
                   />
                 )}
               </>
