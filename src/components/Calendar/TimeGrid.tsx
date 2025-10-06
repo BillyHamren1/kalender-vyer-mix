@@ -119,9 +119,20 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     const startTime = new Date(event.start);
     const endTime = new Date(event.end);
     
+    console.log('🔍 Event Duration Debug:', {
+      eventId: event.id,
+      bookingNumber: event.booking_number,
+      rawStart: event.start,
+      rawEnd: event.end,
+      parsedStart: startTime.toISOString(),
+      parsedEnd: endTime.toISOString()
+    });
+    
     // Get hours and minutes as decimal
     let startHour = startTime.getHours() + startTime.getMinutes() / 60;
     let endHour = endTime.getHours() + endTime.getMinutes() / 60;
+    
+    console.log('🔍 Calculated hours:', { startHour, endHour, duration: endHour - startHour });
     
     // Handle events that span into next day (convert to 24+ hour format)
     if (endHour < startHour) {
@@ -133,6 +144,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     let top = (startHour - 5) * 25;
     
     const height = Math.max(12, (endHour - startHour) * 25);
+    
+    console.log('🔍 Final position:', { top, height });
     
     return { top, height };
   };

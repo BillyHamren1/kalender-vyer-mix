@@ -3,6 +3,13 @@ import { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { fetchCalendarEvents, mapDatabaseToAppResourceId } from '@/services/eventService';
 import { smartUpdateBookingCalendar } from '@/services/bookingCalendarService';
+
+// Convert Supabase timestamp format to ISO 8601
+const convertToISO8601 = (timestamp: string): string => {
+  // Supabase format: "YYYY-MM-DD HH:MM:SS+00"
+  // ISO 8601 format: "YYYY-MM-DDTHH:MM:SSZ"
+  return timestamp.replace(' ', 'T').replace('+00', 'Z');
+};
 import { fixAllEventTitles } from '@/services/eventTitleFixService';
 import { toast } from 'sonner';
 import { CalendarContext } from '@/App';
@@ -150,8 +157,8 @@ export const useRealTimeCalendarEvents = () => {
               id: newRecord.id,
               resourceId: mapDatabaseToAppResourceId(newRecord.resource_id),
               title: newRecord.title,
-              start: newRecord.start_time,
-              end: newRecord.end_time,
+              start: convertToISO8601(newRecord.start_time),
+              end: convertToISO8601(newRecord.end_time),
               eventType: newRecord.event_type as 'rig' | 'event' | 'rigDown',
               bookingId: newRecord.booking_id || '',
               bookingNumber: newRecord.booking_number || newRecord.booking_id || 'No ID',
@@ -180,8 +187,8 @@ export const useRealTimeCalendarEvents = () => {
                 id: newRecord.id,
                 resourceId: mapDatabaseToAppResourceId(newRecord.resource_id),
                 title: newRecord.title,
-                start: newRecord.start_time,
-                end: newRecord.end_time,
+                start: convertToISO8601(newRecord.start_time),
+                end: convertToISO8601(newRecord.end_time),
                 eventType: newRecord.event_type as 'rig' | 'event' | 'rigDown',
                 bookingId: newRecord.booking_id || '',
                 bookingNumber: newRecord.booking_number || newRecord.booking_id || 'No ID',

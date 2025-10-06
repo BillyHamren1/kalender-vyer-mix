@@ -1,6 +1,13 @@
 import { supabase } from '@/integrations/supabase/client';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 
+// Convert Supabase timestamp format to ISO 8601
+const convertToISO8601 = (timestamp: string): string => {
+  // Supabase format: "YYYY-MM-DD HH:MM:SS+00"
+  // ISO 8601 format: "YYYY-MM-DDTHH:MM:SSZ"
+  return timestamp.replace(' ', 'T').replace('+00', 'Z');
+};
+
 export interface CalendarEventUpdate {
   start?: string;
   end?: string;
@@ -85,8 +92,8 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
   const events: CalendarEvent[] = (data || []).map(event => ({
     id: event.id,
     title: event.title,
-    start: event.start_time,
-    end: event.end_time,
+    start: convertToISO8601(event.start_time),
+    end: convertToISO8601(event.end_time),
     resourceId: mapDatabaseToAppResourceId(event.resource_id),
     bookingId: event.booking_id,
     eventType: event.event_type as 'rig' | 'event' | 'rigDown',
@@ -145,8 +152,8 @@ export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promis
   return {
     id: data.id,
     title: data.title,
-    start: data.start_time,
-    end: data.end_time,
+    start: convertToISO8601(data.start_time),
+    end: convertToISO8601(data.end_time),
     resourceId: mapDatabaseToAppResourceId(data.resource_id),
     bookingId: data.booking_id,
     eventType: data.event_type as 'rig' | 'event' | 'rigDown',
@@ -215,8 +222,8 @@ export const updateCalendarEvent = async (
   return {
     id: data.id,
     title: data.title,
-    start: data.start_time,
-    end: data.end_time,
+    start: convertToISO8601(data.start_time),
+    end: convertToISO8601(data.end_time),
     resourceId: mapDatabaseToAppResourceId(data.resource_id),
     bookingId: data.booking_id,
     eventType: data.event_type as 'rig' | 'event' | 'rigDown',
@@ -282,8 +289,8 @@ export const fetchEventsByBookingId = async (bookingId: string): Promise<Calenda
   const events: CalendarEvent[] = (data || []).map(event => ({
     id: event.id,
     title: event.title,
-    start: event.start_time,
-    end: event.end_time,
+    start: convertToISO8601(event.start_time),
+    end: convertToISO8601(event.end_time),
     resourceId: mapDatabaseToAppResourceId(event.resource_id),
     bookingId: event.booking_id,
     eventType: event.event_type as 'rig' | 'event' | 'rigDown',
