@@ -22,8 +22,9 @@ const CalendarPage = () => {
   
   // Visible teams state - default to Team 1, 2, and Live (team-11)
   const [visibleTeams, setVisibleTeams] = useState<string[]>(() => {
-    const stored = localStorage.getItem('visibleTeams');
-    return stored ? JSON.parse(stored) : ['team-1', 'team-2', 'team-11'];
+    // Clear any old localStorage values and set default
+    localStorage.removeItem('visibleTeams');
+    return ['team-1', 'team-2', 'team-11'];
   });
 
   // Save visible teams to localStorage whenever it changes

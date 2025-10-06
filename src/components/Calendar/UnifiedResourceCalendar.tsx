@@ -75,25 +75,13 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   // Convert forceRefresh to number for consistent handling
   const numericForceRefresh = typeof forceRefresh === 'boolean' ? (forceRefresh ? 1 : 0) : (forceRefresh || 0);
 
-  // Filter resources based on visibleTeams, but always show teams with events on the given day
+  // Filter resources based on visibleTeams only (strict filtering)
   const getFilteredResourcesForDay = (date: Date): Resource[] => {
     if (!visibleTeams || visibleTeams.length === 0) {
       return resources;
     }
 
-    const dateStr = format(date, 'yyyy-MM-dd');
-    const teamsWithEvents = new Set(
-      events
-        .filter(event => {
-          const eventStart = new Date(event.start);
-          return format(eventStart, 'yyyy-MM-dd') === dateStr;
-        })
-        .map(event => event.resourceId)
-    );
-
-    return resources.filter(resource => 
-      visibleTeams.includes(resource.id) || teamsWithEvents.has(resource.id)
-    );
+    return resources.filter(resource => visibleTeams.includes(resource.id));
   };
 
   console.log(`UnifiedResourceCalendar: ${viewMode} view with ${events.length} events, forceRefresh: ${numericForceRefresh}`);
