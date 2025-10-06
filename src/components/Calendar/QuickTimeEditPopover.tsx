@@ -116,7 +116,7 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <div onContextMenu={handleContextMenu}>
+        <div onContextMenu={handleContextMenu} style={{ width: '100%', height: '100%' }}>
           {children}
         </div>
       </PopoverTrigger>
