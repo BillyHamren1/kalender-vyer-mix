@@ -148,7 +148,7 @@ export const useRealTimeCalendarEvents = () => {
           if (newRecord && !updatedEvents.find(e => e.id === newRecord.id)) {
             const newEvent: CalendarEvent = {
               id: newRecord.id,
-              resourceId: mapDatabaseToAppResourceId(newRecord.resource_id),
+              resourceId: newRecord.resource_id,
               title: newRecord.title,
               start: newRecord.start_time,
               end: newRecord.end_time,
@@ -159,7 +159,7 @@ export const useRealTimeCalendarEvents = () => {
               extendedProps: {
                 bookingId: newRecord.booking_id,
                 booking_id: newRecord.booking_id,
-                resourceId: mapDatabaseToAppResourceId(newRecord.resource_id),
+                resourceId: newRecord.resource_id,
                 deliveryAddress: newRecord.delivery_address,
                 bookingNumber: newRecord.booking_number,
                 eventType: newRecord.event_type,
@@ -178,7 +178,7 @@ export const useRealTimeCalendarEvents = () => {
               updatedEvents[index] = {
                 ...updatedEvents[index],
                 id: newRecord.id,
-                resourceId: mapDatabaseToAppResourceId(newRecord.resource_id),
+                resourceId: newRecord.resource_id,
                 title: newRecord.title,
                 start: newRecord.start_time,
                 end: newRecord.end_time,
@@ -190,7 +190,7 @@ export const useRealTimeCalendarEvents = () => {
                   ...updatedEvents[index].extendedProps,
                   bookingId: newRecord.booking_id,
                   booking_id: newRecord.booking_id,
-                  resourceId: mapDatabaseToAppResourceId(newRecord.resource_id),
+                  resourceId: newRecord.resource_id,
                   deliveryAddress: newRecord.delivery_address,
                   bookingNumber: newRecord.booking_number,
                   eventType: newRecord.event_type,
