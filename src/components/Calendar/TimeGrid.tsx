@@ -289,6 +289,12 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         {resources.map((resource, index) => {
           const resourceEvents = getEventsForDayAndResource(day, resource.id);
           
+          console.log(`📅 TimeGrid rendering for ${format(day, 'yyyy-MM-dd')} team ${resource.id}:`, {
+            totalEventsInProps: events.length,
+            resourceEvents: resourceEvents.length,
+            firstEvent: resourceEvents[0]
+          });
+          
           return (
             <SimpleTimeSlot key={`timeslots-${resource.id}`}>
               <div 
