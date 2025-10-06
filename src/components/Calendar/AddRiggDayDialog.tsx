@@ -37,7 +37,9 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [eventType, setEventType] = useState<'rig' | 'event' | 'rigDown'>('rig');
   const [isCreating, setIsCreating] = useState(false);
-  const [bookingDates, setBookingDates] = useState<Date[]>([]);
+  const [rigDates, setRigDates] = useState<Date[]>([]);
+  const [eventDates, setEventDates] = useState<Date[]>([]);
+  const [rigDownDates, setRigDownDates] = useState<Date[]>([]);
   const [defaultMonth, setDefaultMonth] = useState<Date | undefined>();
 
   // Fetch all dates for this booking when dialog opens
@@ -46,12 +48,28 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
       const fetchBookingDates = async () => {
         const { data, error } = await supabase
           .from('calendar_events')
-          .select('start_time')
+          .select('start_time, event_type')
           .eq('booking_id', event.bookingId);
 
         if (!error && data) {
-          const dates = data.map(e => new Date(e.start_time));
-          setBookingDates(dates);
+          const rigs: Date[] = [];
+          const events: Date[] = [];
+          const rigDowns: Date[] = [];
+
+          data.forEach(e => {
+            const date = new Date(e.start_time);
+            if (e.event_type === 'rig') {
+              rigs.push(date);
+            } else if (e.event_type === 'event') {
+              events.push(date);
+            } else if (e.event_type === 'rigDown') {
+              rigDowns.push(date);
+            }
+          });
+
+          setRigDates(rigs);
+          setEventDates(events);
+          setRigDownDates(rigDowns);
         }
       };
 
@@ -144,13 +162,25 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
               onMonthChange={setDefaultMonth}
               className={cn("rounded-md border pointer-events-auto")}
               modifiers={{
-                booked: bookingDates,
+                rigDay: rigDates,
+                eventDay: eventDates,
+                rigDownDay: rigDownDates,
               }}
               modifiersStyles={{
-                booked: {
-                  backgroundColor: 'hsl(var(--primary) / 0.2)',
+                rigDay: {
+                  backgroundColor: '#F2FCE2',
                   fontWeight: 'bold',
-                  border: '2px solid hsl(var(--primary))',
+                  border: '2px solid #86C232',
+                },
+                eventDay: {
+                  backgroundColor: '#FEF7CD',
+                  fontWeight: 'bold',
+                  border: '2px solid #F4C430',
+                },
+                rigDownDay: {
+                  backgroundColor: '#FEE2E2',
+                  fontWeight: 'bold',
+                  border: '2px solid #F87171',
                 }
               }}
             />
