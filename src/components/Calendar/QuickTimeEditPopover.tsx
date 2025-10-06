@@ -59,28 +59,14 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
     setIsSubmitting(true);
 
     try {
-      // Create new dates with updated times
-      const newStart = new Date(typeof event.start === 'string' ? event.start : event.start);
-      const [startHours, startMinutes] = startTime.split(':').map(Number);
-      newStart.setHours(startHours, startMinutes, 0, 0);
+      // Extract date part only (YYYY-MM-DD)
+      const eventDate = typeof event.start === 'string' 
+        ? event.start.split('T')[0] 
+        : event.start.toISOString().split('T')[0];
 
-      const newEnd = new Date(typeof event.end === 'string' ? event.end : event.end);
-      const [endHours, endMinutes] = endTime.split(':').map(Number);
-      newEnd.setHours(endHours, endMinutes, 0, 0);
-
-      console.log('🕐 [QuickTimeEditPopover] Time update details:', {
-        eventId: event.id,
-        bookingId: event.bookingId,
-        eventType: event.eventType,
-        inputStartTime: startTime,
-        inputEndTime: endTime,
-        originalStart: event.start,
-        originalEnd: event.end,
-        newStartLocal: newStart.toString(),
-        newEndLocal: newEnd.toString(),
-        newStartUTC: newStart.toISOString(),
-        newEndUTC: newEnd.toISOString()
-      });
+      // Create NEW Date objects directly from local time strings
+      const newStart = new Date(`${eventDate}T${startTime}:00`);
+      const newEnd = new Date(`${eventDate}T${endTime}:00`);
 
       // Update calendar event in database
       await updateCalendarEvent(event.id, {
@@ -97,28 +83,14 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
         }[event.eventType];
 
         if (bookingTimeField) {
-          const { error: bookingUpdateError } = await supabase
+          await supabase
             .from('bookings')
             .update({
               [bookingTimeField.start]: newStart.toISOString(),
               [bookingTimeField.end]: newEnd.toISOString()
             })
             .eq('id', event.bookingId);
-          
-          if (bookingUpdateError) {
-            console.error('❌ Error updating booking times:', bookingUpdateError);
-          } else {
-            console.log(`✅ Updated booking ${event.bookingId} ${event.eventType} times:`, {
-              [bookingTimeField.start]: newStart.toISOString(),
-              [bookingTimeField.end]: newEnd.toISOString()
-            });
-          }
         }
-      } else {
-        console.warn('⚠️ Event missing bookingId or eventType, skipping booking table update:', {
-          bookingId: event.bookingId,
-          eventType: event.eventType
-        });
       }
 
       toast.success('Time updated');
