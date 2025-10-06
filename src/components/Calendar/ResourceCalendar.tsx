@@ -104,6 +104,7 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
   const calendarOptions = {
     plugins: [resourceTimeGridPlugin, interactionPlugin],
     initialView: 'resourceTimeGridDay',
+    timeZone: 'UTC',
     resources: resources,
     events: events,
     resourceLabelContent: customResourceLabelContent,
