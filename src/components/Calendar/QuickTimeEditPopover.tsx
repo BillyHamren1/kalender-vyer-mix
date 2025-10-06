@@ -37,19 +37,28 @@ interface QuickTimeEditPopoverProps {
   children: React.ReactNode;
   onUpdate?: () => void;
   onMoveDate?: () => void;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
   event,
   children,
   onUpdate,
-  onMoveDate
+  onMoveDate,
+  onOpenChange
 }) => {
   const [open, setOpen] = useState(false);
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAddRiggDay, setShowAddRiggDay] = useState(false);
+
+  // Notify parent about open state changes
+  useEffect(() => {
+    if (onOpenChange) {
+      onOpenChange(open);
+    }
+  }, [open, onOpenChange]);
 
   // Initialize times when popover opens
   useEffect(() => {

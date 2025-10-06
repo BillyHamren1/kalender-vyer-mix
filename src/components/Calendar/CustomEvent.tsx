@@ -21,6 +21,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
 }) => {
   
   const eventRef = useRef<HTMLDivElement>(null);
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 
   // Add event navigation hook for context menu
   const { handleEventClick } = useEventNavigation();
@@ -87,11 +88,13 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       <EventHoverCard 
         event={event}
         onDoubleClick={handleViewDetails}
+        disabled={isPopoverOpen}
       >
         <QuickTimeEditPopover
           event={event}
           onUpdate={onEventResize}
           onMoveDate={() => setShowDateDialog(true)}
+          onOpenChange={setIsPopoverOpen}
         >
           <div
             ref={eventRef}

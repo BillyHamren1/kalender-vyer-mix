@@ -9,9 +9,10 @@ interface EventHoverCardProps {
   event: CalendarEvent;
   onClick?: (e: React.MouseEvent) => void;
   onDoubleClick?: (e: React.MouseEvent) => void;
+  disabled?: boolean;
 }
 
-const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event, onClick = undefined, onDoubleClick = undefined }) => {
+const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event, onClick = undefined, onDoubleClick = undefined, disabled = false }) => {
   // Debug logging to see what data we're receiving
   console.log('EventHoverCard - Event data:', event);
   console.log('EventHoverCard - Extended props:', event.extendedProps);
@@ -40,7 +41,7 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event, onClic
     .join(', ');
 
   return (
-    <HoverCard openDelay={0} closeDelay={100}>
+    <HoverCard openDelay={0} closeDelay={100} open={disabled ? false : undefined}>
       <HoverCardTrigger asChild>
         {onClick || onDoubleClick ? (
           <div 
@@ -56,7 +57,7 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event, onClic
           </div>
         )}
       </HoverCardTrigger>
-      <HoverCardContent 
+      <HoverCardContent
         className="w-80 max-w-80 p-3 bg-white border shadow-lg max-h-96 overflow-y-auto" 
         side="top" 
         align="start"
