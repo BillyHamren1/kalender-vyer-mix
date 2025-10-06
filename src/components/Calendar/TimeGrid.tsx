@@ -205,7 +205,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         </div>
 
         <div className="day-header-teams" style={{ 
-          gridColumn: '2 / -1',
           width: `${teamColumnWidth * resources.length}px`,
           maxWidth: `${teamColumnWidth * resources.length}px`
         }}>

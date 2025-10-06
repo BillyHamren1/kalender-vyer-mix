@@ -104,7 +104,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   // Calculate day width based on number of visible teams
   const getDayWidth = (numTeams: number) => {
     const timeColumnWidth = 80;
-    const minTeamColumnWidth = 42; // Halverad bredd
+    const minTeamColumnWidth = 126; // Synkad med TimeGrid teamColumnWidth
     const padding = 24;
     
     const calculatedWidth = timeColumnWidth + (numTeams * minTeamColumnWidth) + padding;
