@@ -7,7 +7,8 @@ import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parse, isAfter } from 'date-fns';
-import { Clock, Calendar as CalendarIcon } from 'lucide-react';
+import { Clock, Calendar as CalendarIcon, Plus } from 'lucide-react';
+import AddRiggDayDialog from './AddRiggDayDialog';
 
 // Generate time options in 30-minute intervals
 const generateTimeOptions = (): string[] => {
@@ -48,6 +49,7 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showAddRiggDay, setShowAddRiggDay] = useState(false);
 
   // Initialize times when popover opens
   useEffect(() => {
@@ -189,6 +191,20 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
             >
               {isSubmitting ? 'Saving...' : 'Save'}
             </Button>
+            {event.bookingId && (
+              <Button 
+                size="sm" 
+                variant="outline"
+                className="h-8 px-2"
+                onClick={() => {
+                  setOpen(false);
+                  setShowAddRiggDay(true);
+                }}
+                title="Add rigg day"
+              >
+                <Plus className="h-3 w-3" />
+              </Button>
+            )}
             {onMoveDate && (
               <Button 
                 size="sm" 
@@ -205,6 +221,15 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
           </div>
         </div>
       </PopoverContent>
+      
+      <AddRiggDayDialog
+        open={showAddRiggDay}
+        onOpenChange={setShowAddRiggDay}
+        event={event}
+        defaultStartTime={startTime}
+        defaultEndTime={endTime}
+        onUpdate={onUpdate}
+      />
     </Popover>
   );
 };
