@@ -302,6 +302,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           return (
             <SimpleTimeSlot key={`timeslots-${resource.id}`}>
               <div 
+                className="time-slots-column"
                 style={{ 
                   gridColumn: index + 2,
                   gridRow: 4,

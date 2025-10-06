@@ -138,11 +138,15 @@
   @apply border-b-0;
 }
 
-/* Time Slot Columns - OPTIMIZED for hover functionality */
+/* Time Slot Columns - OPTIMIZED for hover functionality with consistent borders */
 .time-slots-column {
-  @apply border-r border-gray-200 relative bg-white;
+  @apply border-r border-[#7BAEBF] relative bg-white;
   position: relative;
   overflow: visible; /* Critical for hover cards */
+}
+
+.time-slots-column:first-of-type {
+  @apply border-l border-[#7BAEBF];
 }
 
 .time-slots-column:last-child {
