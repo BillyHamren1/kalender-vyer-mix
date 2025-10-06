@@ -23,6 +23,7 @@ interface CustomCalendarProps {
     getStaffForTeamAndDate: (teamId: string, date: Date) => Array<{id: string, name: string, color?: string}>;
     forceRefresh: () => void;
   };
+  visibleTeams?: string[];
 }
 
 const CustomCalendar: React.FC<CustomCalendarProps> = ({
@@ -36,10 +37,16 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   onStaffDrop,
   onOpenStaffSelection,
   viewMode,
-  weeklyStaffOperations
+  weeklyStaffOperations,
+  visibleTeams
 }) => {
   const [currentWeekStart, setCurrentWeekStart] = useState(currentDate);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Filter resources based on visibleTeams
+  const filteredResources = visibleTeams && visibleTeams.length > 0
+    ? resources.filter(resource => visibleTeams.includes(resource.id))
+    : resources;
 
   // Generate days for the week
   const getDaysToRender = () => {
@@ -91,7 +98,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
 
   // Calculate day width
   const getDayWidth = () => {
-    const numberOfTeams = resources.length;
+    const numberOfTeams = filteredResources.length;
     const timeColumnWidth = 80;
     const minTeamColumnWidth = 120;
     const padding = 24;
@@ -145,7 +152,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
             >
               <TimeGrid
                 day={date}
-                resources={resources}
+                resources={filteredResources}
                 events={events}
                 getEventsForDayAndResource={getEventsForDayAndResource}
                 onStaffDrop={onStaffDrop}
