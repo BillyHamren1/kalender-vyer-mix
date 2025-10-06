@@ -57,16 +57,17 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     const assignedStaff = Array.isArray(assignedStaffRaw) ? assignedStaffRaw : [];
     
     return (
-      <div className="resource-header-simple" style={{ padding: '8px', minHeight: '100px' }}>
-        <div className="text-sm font-medium mb-2">{resourceTitle}</div>
-        <div className="space-y-1">
+      <div className="resource-header-simple" style={{ padding: '4px', minHeight: '70px' }}>
+        <div className="text-xs font-medium mb-1">{resourceTitle}</div>
+        <div className="space-y-0.5">
           {assignedStaff.map((staff: any) => (
             <div 
               key={staff.id}
-              className="text-xs px-2 py-1 rounded"
+              className="text-xs px-1.5 py-0.5 rounded"
               style={{ 
                 backgroundColor: staff.color || '#E3F2FD',
-                color: '#000'
+                color: '#000',
+                fontSize: '10px'
               }}
             >
               {staff.name}
@@ -113,9 +114,10 @@ const ResourceCalendar: React.FC<ResourceCalendarProps> = ({
     allDaySlot: false,
     slotMinTime: '06:00:00',
     slotMaxTime: '22:00:00',
-    slotDuration: '01:00:00',
+    slotDuration: '00:30:00',
+    slotLabelInterval: '01:00:00',
     height: 'auto',
-    resourceAreaWidth: '80px',
+    resourceAreaWidth: '70px',
     resourceAreaHeaderContent: 'Teams',
     eventDisplay: 'block',
     datesSet: onDateSet,
