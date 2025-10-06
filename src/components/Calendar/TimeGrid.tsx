@@ -250,33 +250,32 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           const assignedStaff = getAssignedStaffForTeam(resource.id);
           
           return (
-            <SimpleTimeSlot key={`staff-${resource.id}`}>
-              <div 
-                className="staff-assignment-header-row"
-                style={{ 
-                  gridColumn: index + 2,
-                  gridRow: 3,
-                  width: `${teamColumnWidth}px`,
-                  minWidth: `${teamColumnWidth}px`
-                }}
-              >
-                <div className="staff-header-assignment-area">
-                  <div className="assigned-staff-header-list">
-                    {assignedStaff.map((staff) => (
-                      <StaffItem
-                        key={staff.id}
-                        staff={staff}
-                        onRemove={() => handleStaffRemoval(staff.id, resource.id)}
-                        currentDate={day}
-                        teamName={resource.title}
-                        variant="compact"
-                        showRemoveDialog={true}
-                      />
-                    ))}
-                  </div>
+            <div 
+              key={`staff-${resource.id}`}
+              className="staff-assignment-header-row"
+              style={{ 
+                gridColumn: index + 2,
+                gridRow: 3,
+                width: `${teamColumnWidth}px`,
+                minWidth: `${teamColumnWidth}px`
+              }}
+            >
+              <div className="staff-header-assignment-area">
+                <div className="assigned-staff-header-list">
+                  {assignedStaff.map((staff) => (
+                    <StaffItem
+                      key={staff.id}
+                      staff={staff}
+                      onRemove={() => handleStaffRemoval(staff.id, resource.id)}
+                      currentDate={day}
+                      teamName={resource.title}
+                      variant="compact"
+                      showRemoveDialog={true}
+                    />
+                  ))}
                 </div>
               </div>
-            </SimpleTimeSlot>
+            </div>
           );
         })}
 
