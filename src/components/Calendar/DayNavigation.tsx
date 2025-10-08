@@ -2,7 +2,7 @@
 import React from 'react';
 import { format, addDays, subDays } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
-import { CalendarContext } from '@/contexts/CalendarContext';
+import { CalendarContext } from '@/App';
 import { useContext } from 'react';
 
 interface DayNavigationProps {

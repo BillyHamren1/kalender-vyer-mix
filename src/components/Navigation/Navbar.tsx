@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Calendar, Users } from 'lucide-react';
+import { Calendar, Users, MapPin, CheckCircle2, Clock } from 'lucide-react';
 
 const Navbar: React.FC = () => {
   const location = useLocation();
@@ -22,7 +22,7 @@ const Navbar: React.FC = () => {
               <Link
                 to="/calendar"
                 className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium ${
-                  isActive('/calendar')
+                  isActive('/calendar') || isActive('/custom-calendar')
                     ? 'bg-blue-100 text-blue-700'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                 }`}
@@ -41,6 +41,18 @@ const Navbar: React.FC = () => {
               >
                 <Users className="h-4 w-4" />
                 Staff
+              </Link>
+
+              <Link
+                to="/finished-jobs"
+                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium ${
+                  isActive('/finished-jobs')
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                }`}
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Finished Jobs
               </Link>
             </div>
           </div>

@@ -53,11 +53,29 @@ port = 54327
 enabled = true
 port = 54324
 
+[functions.export-bookings]
+verify_jwt = false
+
 [functions.import-bookings]
 verify_jwt = false
 
 [functions.fetch_staff_for_planning]
 verify_jwt = false
 
-[functions.staff-management]
+[functions.get-api-key]
+verify_jwt = false
+
+[functions.mapbox-token]
+verify_jwt = false
+
+[functions.export-staff-assignments]
+verify_jwt = false
+
+[functions.save-map-snapshot]
+verify_jwt = false
+
+[functions.time-reports]
+verify_jwt = false
+
+[functions.fetch-tracked-time]
 verify_jwt = false
