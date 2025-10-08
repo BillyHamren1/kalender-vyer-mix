@@ -2,7 +2,7 @@
 import { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { CalendarContext } from '@/App';
+import { CalendarContext } from '@/contexts/CalendarContext';
 
 export const useEventNavigation = () => {
   const navigate = useNavigate();

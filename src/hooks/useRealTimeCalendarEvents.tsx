@@ -31,7 +31,7 @@ const convertToISO8601 = (timestamp: string | null | undefined): string => {
 };
 import { fixAllEventTitles } from '@/services/eventTitleFixService';
 import { toast } from 'sonner';
-import { CalendarContext } from '@/App';
+import { CalendarContext } from '@/contexts/CalendarContext';
 import { supabase } from '@/integrations/supabase/client';
 
 export const useRealTimeCalendarEvents = () => {

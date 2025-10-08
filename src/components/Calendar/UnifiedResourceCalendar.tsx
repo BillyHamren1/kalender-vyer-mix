@@ -6,7 +6,7 @@ import ResourceCalendar from './ResourceCalendar';
 import { format, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { useContext } from 'react';
-import { CalendarContext } from '@/App';
+import { CalendarContext } from '@/contexts/CalendarContext';
 import './WeeklyCalendarStyles.css';
 
 interface UnifiedResourceCalendarProps {

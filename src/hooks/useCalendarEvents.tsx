@@ -3,7 +3,7 @@ import { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { fetchCalendarEvents } from '@/services/eventService';
 import { toast } from 'sonner';
-import { CalendarContext } from '@/App';
+import { CalendarContext } from '@/contexts/CalendarContext';
 import { syncSingleBookingToCalendar } from '@/services/bookingCalendarService';
 import { supabase } from '@/integrations/supabase/client';
 
