@@ -313,7 +313,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 {/* Time slots grid - continuous 24-hour */}
                 <div className="time-slots-grid">
                   {timeSlots.map((slot) => (
-                    <div key={slot.time} className="time-slot-cell" />
+                    <div key={slot.time} className="time-slot-cell">&nbsp;</div>
                   ))}
                 </div>
                 
