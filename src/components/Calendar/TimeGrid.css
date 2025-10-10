@@ -167,13 +167,8 @@
 }
 
 .time-slot-cell {
-  @apply border-b border-gray-100;
   height: 18px;
   flex-shrink: 0;
-}
-
-.time-slot-cell:last-child {
-  @apply border-b-0;
 }
 
 /* Hover container for proper event detection */
