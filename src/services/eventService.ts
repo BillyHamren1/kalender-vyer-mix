@@ -35,49 +35,6 @@ export interface CalendarEventUpdate {
   delivery_address?: string;
 }
 
-// Map database resource ID format to app format
-export const mapDatabaseToAppResourceId = (dbResourceId: string): string => {
-  // Single character IDs are legacy format - convert to team-X
-  if (dbResourceId && dbResourceId.length === 1) {
-    const charCode = dbResourceId.charCodeAt(0);
-    
-    // Map a=1, b=2, c=3, d=4, e=5, f=6, etc.
-    if (charCode >= 97 && charCode <= 122) { // lowercase a-z
-      const teamNumber = charCode - 96; // a=1, b=2, etc.
-      const mappedId = `team-${teamNumber}`;
-      console.log(`🔄 Mapping database ID "${dbResourceId}" to app format`);
-      console.log(`✅ Mapped "${dbResourceId}" -> "${mappedId}"`);
-      return mappedId;
-    }
-    
-    // If it's a number, map directly
-    if (!isNaN(parseInt(dbResourceId))) {
-      return `team-${dbResourceId}`;
-    }
-  }
-  
-  // If already in team-X format or other valid format, return as-is
-  return dbResourceId;
-};
-
-// Map app resource ID format to database format
-export const mapAppToDatabaseResourceId = (appResourceId: string): string => {
-  // Convert team-X format to single character for database storage
-  if (appResourceId && appResourceId.startsWith('team-')) {
-    const teamNumber = parseInt(appResourceId.replace('team-', ''));
-    if (teamNumber >= 1 && teamNumber <= 26) {
-      // Map 1=a, 2=b, 3=c, 4=d, 5=e, 6=f, etc.
-      const dbId = String.fromCharCode(96 + teamNumber); // 96 + 1 = 97 (a)
-      console.log(`🔄 Converting app ID "${appResourceId}" to database format`);
-      console.log(`✅ Converted "${appResourceId}" -> "${dbId}"`);
-      return dbId;
-    }
-  }
-  
-  // Return as-is if not in team-X format
-  return appResourceId;
-};
-
 export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
   console.log('📅 Fetching calendar events from database...');
   
@@ -113,7 +70,7 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
     title: event.title,
     start: convertToISO8601(event.start_time),
     end: convertToISO8601(event.end_time),
-    resourceId: mapDatabaseToAppResourceId(event.resource_id),
+    resourceId: event.resource_id,
     bookingId: event.booking_id,
     eventType: event.event_type as 'rig' | 'event' | 'rigDown',
     delivery_address: event.delivery_address,
@@ -121,7 +78,7 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
     extendedProps: {
       bookingId: event.booking_id,
       booking_id: event.booking_id,
-      resourceId: mapDatabaseToAppResourceId(event.resource_id),
+      resourceId: event.resource_id,
       deliveryAddress: event.delivery_address,
       deliveryCity: (event.bookings as any)?.delivery_city || null,
       deliveryPostalCode: (event.bookings as any)?.delivery_postal_code || null,
@@ -142,16 +99,13 @@ export const createCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Pro
 export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promise<CalendarEvent> => {
   console.log('📝 Adding new calendar event:', event);
   
-  // Convert app resource ID to database format before saving
-  const dbResourceId = mapAppToDatabaseResourceId(event.resourceId);
-  
   const { data, error } = await supabase
     .from('calendar_events')
     .insert({
       title: event.title,
       start_time: event.start,
       end_time: event.end,
-      resource_id: dbResourceId,
+      resource_id: event.resourceId,
       booking_id: event.bookingId,
       event_type: event.eventType,
       delivery_address: event.delivery_address,
@@ -167,13 +121,12 @@ export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promis
 
   console.log('✅ Calendar event added successfully:', data);
 
-  // Return the event with app-format resource ID
   return {
     id: data.id,
     title: data.title,
     start: convertToISO8601(data.start_time),
     end: convertToISO8601(data.end_time),
-    resourceId: mapDatabaseToAppResourceId(data.resource_id),
+    resourceId: data.resource_id,
     bookingId: data.booking_id,
     eventType: data.event_type as 'rig' | 'event' | 'rigDown',
     delivery_address: data.delivery_address,
@@ -181,7 +134,7 @@ export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promis
     extendedProps: {
       bookingId: data.booking_id,
       booking_id: data.booking_id,
-      resourceId: mapDatabaseToAppResourceId(data.resource_id),
+      resourceId: data.resource_id,
       deliveryAddress: data.delivery_address,
       deliveryCity: null,
       deliveryPostalCode: null,
@@ -210,9 +163,7 @@ export const updateCalendarEvent = async (
   }
   
   if (updates.resourceId) {
-    // Convert app format to database format
-    updateData.resource_id = mapAppToDatabaseResourceId(updates.resourceId);
-    console.log(`🔄 Resource change: ${updates.resourceId} -> ${updateData.resource_id}`);
+    updateData.resource_id = updates.resourceId;
   }
   
   if (updates.title) {
@@ -237,13 +188,12 @@ export const updateCalendarEvent = async (
 
   console.log('✅ Calendar event updated successfully:', data);
 
-  // Return the updated event with app-format resource ID
   return {
     id: data.id,
     title: data.title,
     start: convertToISO8601(data.start_time),
     end: convertToISO8601(data.end_time),
-    resourceId: mapDatabaseToAppResourceId(data.resource_id),
+    resourceId: data.resource_id,
     bookingId: data.booking_id,
     eventType: data.event_type as 'rig' | 'event' | 'rigDown',
     delivery_address: data.delivery_address,
@@ -251,7 +201,7 @@ export const updateCalendarEvent = async (
     extendedProps: {
       bookingId: data.booking_id,
       booking_id: data.booking_id,
-      resourceId: mapDatabaseToAppResourceId(data.resource_id),
+      resourceId: data.resource_id,
       deliveryAddress: data.delivery_address,
       deliveryCity: null,
       deliveryPostalCode: null,
@@ -310,7 +260,7 @@ export const fetchEventsByBookingId = async (bookingId: string): Promise<Calenda
     title: event.title,
     start: convertToISO8601(event.start_time),
     end: convertToISO8601(event.end_time),
-    resourceId: mapDatabaseToAppResourceId(event.resource_id),
+    resourceId: event.resource_id,
     bookingId: event.booking_id,
     eventType: event.event_type as 'rig' | 'event' | 'rigDown',
     delivery_address: event.delivery_address,
@@ -318,7 +268,7 @@ export const fetchEventsByBookingId = async (bookingId: string): Promise<Calenda
     extendedProps: {
       bookingId: event.booking_id,
       booking_id: event.booking_id,
-      resourceId: mapDatabaseToAppResourceId(event.resource_id),
+      resourceId: event.resource_id,
       deliveryAddress: event.delivery_address,
       deliveryCity: null,
       deliveryPostalCode: null,

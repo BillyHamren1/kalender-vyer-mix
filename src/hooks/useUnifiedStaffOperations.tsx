@@ -3,7 +3,6 @@ import { useState, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfWeek, addDays } from 'date-fns';
-import { normalizeToDbId, toFrontendTeamId } from '@/utils/teamIdMapping';
 
 export interface StaffAssignment {
   staffId: string;
@@ -83,7 +82,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
           const formatted = {
             staffId: assignment.staff_id,
             staffName: assignment.staff_members?.name || `Staff ${assignment.staff_id}`,
-            teamId: toFrontendTeamId(assignment.team_id),
+            teamId: assignment.team_id,
             date: assignment.assignment_date,
             color: assignment.staff_members?.color || '#E3F2FD'
           };
@@ -213,11 +212,8 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
 
     const effectiveDate = targetDate || currentDate;
     const effectiveDateStr = format(effectiveDate, 'yyyy-MM-dd');
-
-    // Convert frontend team ID to database team ID
-    const dbTeamId = resourceId ? normalizeToDbId(resourceId) : null;
     
-    console.log(`🎯 Staff drop: ${staffId} to ${resourceId || 'unassigned'} (DB: ${dbTeamId || 'null'}) on ${effectiveDateStr}`);
+    console.log(`🎯 Staff drop: ${staffId} to ${resourceId || 'unassigned'} on ${effectiveDateStr}`);
     
     // Get staff info for optimistic update
     const staffMember = availableStaff.find(s => s.id === staffId);
@@ -232,7 +228,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
         const newAssignment: StaffAssignment = {
           staffId,
           staffName: staffMember?.name || `Staff ${staffId}`,
-          teamId: resourceId, // Keep frontend format for display
+          teamId: resourceId,
           date: effectiveDateStr,
           color: staffMember?.color || '#E3F2FD'
         };
@@ -245,15 +241,15 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
     setIsLoading(true);
     
     try {
-      if (dbTeamId) {
-        // Assign staff to team (use database format)
-        console.log(`💾 Saving to DB: staff_id=${staffId}, team_id=${dbTeamId}, date=${effectiveDateStr}`);
+      if (resourceId) {
+        // Assign staff to team
+        console.log(`💾 Saving to DB: staff_id=${staffId}, team_id=${resourceId}, date=${effectiveDateStr}`);
         
         const { data, error } = await supabase
           .from('staff_assignments')
           .upsert({
             staff_id: staffId,
-            team_id: dbTeamId, // Use database format
+            team_id: resourceId,
             assignment_date: effectiveDateStr
           }, {
             onConflict: 'staff_id,assignment_date'

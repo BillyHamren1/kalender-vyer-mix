@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
-import { fetchCalendarEvents, mapDatabaseToAppResourceId } from '@/services/eventService';
+import { fetchCalendarEvents } from '@/services/eventService';
 import { smartUpdateBookingCalendar } from '@/services/bookingCalendarService';
 
 // Convert Supabase timestamp format to ISO 8601
@@ -174,7 +174,7 @@ export const useRealTimeCalendarEvents = () => {
           if (newRecord && !updatedEvents.find(e => e.id === newRecord.id)) {
             const newEvent: CalendarEvent = {
               id: newRecord.id,
-              resourceId: mapDatabaseToAppResourceId(newRecord.resource_id),
+              resourceId: newRecord.resource_id,
               title: newRecord.title,
               start: convertToISO8601(newRecord.start_time),
               end: convertToISO8601(newRecord.end_time),
@@ -185,7 +185,7 @@ export const useRealTimeCalendarEvents = () => {
               extendedProps: {
                 bookingId: newRecord.booking_id,
                 booking_id: newRecord.booking_id,
-                resourceId: mapDatabaseToAppResourceId(newRecord.resource_id),
+                resourceId: newRecord.resource_id,
                 deliveryAddress: newRecord.delivery_address,
                 bookingNumber: newRecord.booking_number,
                 eventType: newRecord.event_type,
@@ -204,7 +204,7 @@ export const useRealTimeCalendarEvents = () => {
               updatedEvents[index] = {
                 ...updatedEvents[index],
                 id: newRecord.id,
-                resourceId: mapDatabaseToAppResourceId(newRecord.resource_id),
+                resourceId: newRecord.resource_id,
                 title: newRecord.title,
                 start: convertToISO8601(newRecord.start_time),
                 end: convertToISO8601(newRecord.end_time),
@@ -216,7 +216,7 @@ export const useRealTimeCalendarEvents = () => {
                   ...updatedEvents[index].extendedProps,
                   bookingId: newRecord.booking_id,
                   booking_id: newRecord.booking_id,
-                  resourceId: mapDatabaseToAppResourceId(newRecord.resource_id),
+                  resourceId: newRecord.resource_id,
                   deliveryAddress: newRecord.delivery_address,
                   bookingNumber: newRecord.booking_number,
                   eventType: newRecord.event_type,

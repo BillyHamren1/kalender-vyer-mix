@@ -1,6 +1,5 @@
 
 import { CalendarEvent, Resource } from './ResourceData';
-import { mapDatabaseToAppResourceId } from '@/services/eventService';
 
 export const processEvents = (events: CalendarEvent[], resources: Resource[]): CalendarEvent[] => {
   console.log('Processing events:', events.length);
@@ -71,13 +70,8 @@ export const processEvents = (events: CalendarEvent[], resources: Resource[]): C
     
     // For non-manually assigned events, proceed with auto-assignment logic
     
-    // Normalize resource ID - convert database format to app format
+    // Use the event's resource ID directly (no longer needs conversion)
     let normalizedResourceId = event.resourceId;
-    
-    if (event.resourceId && event.resourceId.length === 1) {
-      normalizedResourceId = mapDatabaseToAppResourceId(event.resourceId);
-      console.log(`Converted resource ID from "${event.resourceId}" to "${normalizedResourceId}"`);
-    }
     
     // Ensure the normalized resource ID is valid
     let targetResourceId = normalizedResourceId;
