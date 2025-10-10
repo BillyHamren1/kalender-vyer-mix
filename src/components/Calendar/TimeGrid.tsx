@@ -288,6 +288,15 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           ))}
         </div>
 
+        {/* Horizontal lines overlay - spans all team columns */}
+        <div 
+          className="horizontal-lines-overlay" 
+          style={{ 
+            gridRow: 4, 
+            gridColumn: '2 / -1' 
+          }} 
+        />
+
         {/* Simplified Time Slot Columns */}
         {resources.map((resource, index) => {
           const resourceEvents = getEventsForDayAndResource(day, resource.id);
