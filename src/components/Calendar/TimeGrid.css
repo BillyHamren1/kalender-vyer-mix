@@ -216,12 +216,7 @@
 }
 
 .time-slot-aligned {
-  @apply border-b border-gray-100;
   height: 18px;
-}
-
-.time-slot-aligned:last-child {
-  @apply border-b-0;
 }
 
 .staff-drop-zone-aligned {
