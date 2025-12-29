@@ -8,10 +8,9 @@ import Index from "./pages/Index";
 import CustomCalendarPage from "./pages/CustomCalendarPage";
 import StaffManagement from "./pages/StaffManagement";
 import StaffDetail from "./pages/StaffDetail";
-import FinishedJobs from "./pages/FinishedJobs";
 import BookingDetail from "./pages/BookingDetail";
-import LogisticsMap from "./pages/LogisticsMap";
 import BookingList from "./pages/BookingList";
+import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
@@ -53,10 +52,9 @@ const App = () => {
               <Route path="/custom-calendar" element={<CustomCalendarPage />} />
               <Route path="/staff-management" element={<StaffManagement />} />
               <Route path="/staff/:staffId" element={<StaffDetail />} />
-              <Route path="/finished-jobs" element={<FinishedJobs />} />
               <Route path="/booking/:bookingId" element={<BookingDetail />} />
-              <Route path="/logistics-map" element={<LogisticsMap />} />
               <Route path="/booking-list" element={<BookingList />} />
+              <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
         </TooltipProvider>

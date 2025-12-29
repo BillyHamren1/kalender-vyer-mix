@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Calendar, Users, User, BarChart3 } from 'lucide-react';
+import { Calendar, Users, ShoppingCart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const Navigation: React.FC = () => {
@@ -9,17 +9,17 @@ const Navigation: React.FC = () => {
 
   const navItems = [
     {
-      name: 'Resource View',
-      href: '/resource-view',
+      name: 'Kalender',
+      href: '/calendar',
       icon: Calendar,
     },
     {
-      name: 'Staff Calendar',
-      href: '/staff-calendar',
-      icon: BarChart3,
+      name: 'Bokningar',
+      href: '/booking-list',
+      icon: ShoppingCart,
     },
     {
-      name: 'Staff Management',
+      name: 'Personal',
       href: '/staff-management',
       icon: Users,
     },
