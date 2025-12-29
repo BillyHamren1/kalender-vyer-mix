@@ -2,7 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-export const cleanupDuplicateCalendarEvents = async (): Promise<void> => {
+export const cleanupDuplicateCalendarEvents = async (silent: boolean = false): Promise<void> => {
   try {
     console.log('Starting cleanup of duplicate calendar events...');
     
@@ -11,7 +11,7 @@ export const cleanupDuplicateCalendarEvents = async (): Promise<void> => {
     
     if (error) {
       console.error('Error cleaning up duplicates:', error);
-      toast.error('Failed to clean up duplicate events');
+      if (!silent) toast.error('Failed to clean up duplicate events');
       return;
     }
     
@@ -20,14 +20,14 @@ export const cleanupDuplicateCalendarEvents = async (): Promise<void> => {
       console.log('Cleanup results:', data);
       console.log(`Total duplicates removed: ${totalRemoved}`);
       
-      toast.success(`Cleanup completed: ${totalRemoved} duplicate events removed`);
+      if (!silent) toast.success(`Cleanup completed: ${totalRemoved} duplicate events removed`);
     } else {
       console.log('No duplicates found to clean up');
-      toast.info('No duplicate events found');
+      // Only show info toast for manual cleanup requests, not background operations
     }
   } catch (error) {
     console.error('Error during cleanup:', error);
-    toast.error('Failed to clean up duplicate events');
+    if (!silent) toast.error('Failed to clean up duplicate events');
   }
 };
 

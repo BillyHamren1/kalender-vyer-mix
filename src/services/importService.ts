@@ -53,9 +53,9 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
   let syncMode: SyncMode;
   
   try {
-    // Clean up duplicates before starting import
+    // Clean up duplicates before starting import (silently for background operations)
     console.log('Cleaning up existing duplicates before import...');
-    await cleanupDuplicateCalendarEvents();
+    await cleanupDuplicateCalendarEvents(true);
     
     // Handle historical import mode
     const isHistoricalMode = filters.syncMode === 'historical' || filters.includeHistorical || filters.forceHistoricalImport;

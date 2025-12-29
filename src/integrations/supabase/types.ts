@@ -671,7 +671,7 @@ export type Database = {
     }
     Functions: {
       cleanup_duplicate_calendar_events: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           booking_id_result: string
           duplicates_removed: number
@@ -688,10 +688,7 @@ export type Database = {
         }
         Returns: Json
       }
-      jsonb_object_keys_array: {
-        Args: { j: Json }
-        Returns: string[]
-      }
+      jsonb_object_keys_array: { Args: { j: Json }; Returns: string[] }
     }
     Enums: {
       availability_type: "available" | "unavailable" | "blocked"
