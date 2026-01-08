@@ -219,16 +219,19 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           maxWidth: `${teamColumnWidth * resources.length}px`
         }}>
           <div className="day-header-content">
+            <div style={{ width: '32px' }}></div>
             <span className="day-title">
               {format(day, 'EEE d')}
             </span>
-            {teamVisibilityProps && (
+            {teamVisibilityProps ? (
               <TeamVisibilityControl
                 allTeams={teamVisibilityProps.allTeams}
                 visibleTeams={teamVisibilityProps.visibleTeams}
                 onToggleTeam={teamVisibilityProps.onToggleTeam}
                 compact
               />
+            ) : (
+              <div style={{ width: '32px' }}></div>
             )}
           </div>
         </div>
