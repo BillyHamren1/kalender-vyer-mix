@@ -53,9 +53,16 @@
 .day-header-teams {
   background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(182 30% 55%) 100%);
   border-bottom: none;
-  padding: 14px 12px;
+  padding: 10px 12px;
   text-align: center;
   grid-row: 1;
+}
+
+.day-header-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
 }
 
 .day-title {

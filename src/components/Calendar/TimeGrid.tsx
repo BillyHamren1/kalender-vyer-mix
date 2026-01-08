@@ -4,7 +4,14 @@ import { format } from 'date-fns';
 import CustomEvent from './CustomEvent';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
 import StaffItem from './StaffItem';
+import TeamVisibilityControl from './TeamVisibilityControl';
 import './TimeGrid.css';
+
+interface TeamVisibilityProps {
+  allTeams: Resource[];
+  visibleTeams: string[];
+  onToggleTeam: (teamId: string) => void;
+}
 
 interface TimeGridProps {
   day: Date;
@@ -18,6 +25,7 @@ interface TimeGridProps {
     getStaffForTeamAndDate: (teamId: string, date: Date) => Array<{id: string, name: string, color?: string}>;
   };
   onEventResize?: () => Promise<void>;
+  teamVisibilityProps?: TeamVisibilityProps;
 }
 
 // Event Wrapper Component
@@ -81,7 +89,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   onOpenStaffSelection,
   dayWidth = 800,
   weeklyStaffOperations,
-  onEventResize
+  onEventResize,
+  teamVisibilityProps
 }) => {
   const { handleEventClick } = useEventNavigation();
   // Generate continuous 24-hour time slots from 05:00 to 05:00 (next day)
@@ -209,8 +218,18 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           width: `${teamColumnWidth * resources.length}px`,
           maxWidth: `${teamColumnWidth * resources.length}px`
         }}>
-          <div className="day-title">
-            {format(day, 'EEE d')}
+          <div className="day-header-content">
+            <span className="day-title">
+              {format(day, 'EEE d')}
+            </span>
+            {teamVisibilityProps && (
+              <TeamVisibilityControl
+                allTeams={teamVisibilityProps.allTeams}
+                visibleTeams={teamVisibilityProps.visibleTeams}
+                onToggleTeam={teamVisibilityProps.onToggleTeam}
+                compact
+              />
+            )}
           </div>
         </div>
 

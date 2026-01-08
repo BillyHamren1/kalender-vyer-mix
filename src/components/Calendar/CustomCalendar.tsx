@@ -150,17 +150,6 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                 className="day-card flex-shrink-0 bg-background rounded-2xl shadow-lg border border-border overflow-hidden"
                 style={{ width: `${dayWidth}px` }}
               >
-                {/* Team Visibility Control per day */}
-                {allTeams && onToggleTeamForDay && (
-                  <div className="p-2 bg-muted/50 border-b border-border">
-                    <TeamVisibilityControl
-                      allTeams={allTeams}
-                      visibleTeams={visibleTeams}
-                      onToggleTeam={(teamId) => onToggleTeamForDay(teamId, date)}
-                    />
-                  </div>
-                )}
-
                 <TimeGrid
                   day={date}
                   resources={filteredResources}
@@ -171,6 +160,11 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                   dayWidth={dayWidth}
                   weeklyStaffOperations={weeklyStaffOperations}
                   onEventResize={handleEventResize}
+                  teamVisibilityProps={allTeams && onToggleTeamForDay ? {
+                    allTeams,
+                    visibleTeams,
+                    onToggleTeam: (teamId: string) => onToggleTeamForDay(teamId, date)
+                  } : undefined}
                 />
               </div>
             );
