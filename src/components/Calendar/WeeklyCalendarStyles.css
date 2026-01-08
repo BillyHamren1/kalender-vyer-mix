@@ -36,18 +36,20 @@
   flex: 0 0 auto;
   min-width: unset;
   border-right: 1px solid hsl(var(--border));
-  /* FIXED: Allow popovers to escape container bounds */
   overflow: visible !important;
   position: relative;
   z-index: 0;
+  background: hsl(var(--background));
 }
 
 .monthly-day-wrapper {
   min-width: unset;
   border: 1px solid hsl(var(--border));
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: visible !important;
   min-height: 200px;
+  background: hsl(var(--background));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .day-calendar-wrapper:last-child {
@@ -60,61 +62,61 @@
   position: absolute !important;
 }
 
-/* Unified simple day header styling - matching monthly view exactly */
+/* Unified simple day header styling - modern, clean */
 .day-header {
-  background: #f0f9f9;
-  border: 1px solid #d1d5db;
-  border-bottom: 1px solid #d1d5db;
+  background: linear-gradient(135deg, hsl(var(--muted)) 0%, hsl(var(--background)) 100%);
+  border: 1px solid hsl(var(--border));
+  border-bottom: 2px solid hsl(var(--border));
   text-align: center;
-  padding: 4px 2px;
+  padding: 8px 4px;
   font-weight: 600;
-  color: #374151;
+  color: hsl(var(--foreground));
   margin-bottom: 2px;
-  border-radius: 8px 8px 0 0;
+  border-radius: 12px 12px 0 0;
   position: sticky;
   top: 0;
   z-index: 10;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  transition: background-color 0.2s, transform 0.1s;
-  font-size: 11px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+  font-size: 12px;
 }
 
-/* Add hover effect to indicate clickable */
+/* Hover effect */
 .day-header:hover {
-  background: #e1f1f3;
+  background: hsl(var(--muted));
   transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
-/* Active state for when clicking */
+/* Active state */
 .day-header:active {
   transform: translateY(0);
-  background: #d8eaee;
+  background: hsl(var(--muted));
 }
 
-/* Today styling for day headers */
+/* Today styling */
 .day-header.today {
-  background: #e8f4f6;
-  border: 2px solid #5fb3cc;
-  border-bottom: 3px solid #5fb3cc;
-  color: #2c5f6b;
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.1) 0%, hsl(var(--primary) / 0.05) 100%);
+  border: 2px solid hsl(var(--primary));
+  border-bottom: 3px solid hsl(var(--primary));
+  color: hsl(var(--primary));
   font-weight: 700;
 }
 
-/* Selected date styling for day headers - highlighted when clicked from monthly view */
+/* Selected date styling */
 .day-header.selected-date {
-  background: #fef3c7;
-  border: 2px solid #f59e0b;
-  border-bottom: 3px solid #f59e0b;
-  color: #92400e;
+  background: linear-gradient(135deg, hsl(var(--accent)) 0%, hsl(var(--accent) / 0.8) 100%);
+  border: 2px solid hsl(var(--accent-foreground) / 0.3);
+  border-bottom: 3px solid hsl(var(--accent-foreground) / 0.3);
+  color: hsl(var(--accent-foreground));
   font-weight: 700;
-  box-shadow: 0 4px 6px rgba(245, 158, 11, 0.3);
+  box-shadow: 0 4px 12px hsl(var(--accent) / 0.3);
 }
 
-/* Other month styling for monthly view */
+/* Other month styling */
 .day-header.other-month {
-  background: #f8f9fa;
-  color: #9ca3af;
+  background: hsl(var(--muted) / 0.5);
+  color: hsl(var(--muted-foreground));
   opacity: 0.6;
 }
 

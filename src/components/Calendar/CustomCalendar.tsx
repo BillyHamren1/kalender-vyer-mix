@@ -136,8 +136,8 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         </Button>
       </div>
 
-      {/* Optimized Weekly Staff Planning Grid */}
-      <div className="weekly-calendar-container overflow-x-auto">
+      {/* Modern Weekly Staff Planning Grid */}
+      <div className="weekly-calendar-container overflow-x-auto rounded-2xl shadow-lg border border-border">
         <div className="weekly-calendar-grid flex">
           {days.map((date) => {
             const filteredResources = getFilteredResourcesForDay(date);
@@ -147,12 +147,12 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
             return (
               <div 
                 key={format(date, 'yyyy-MM-dd')} 
-                className="day-calendar-wrapper flex-shrink-0 border-r border-gray-300"
+                className="day-calendar-wrapper flex-shrink-0"
                 style={{ width: `${dayWidth}px` }}
               >
                 {/* Team Visibility Control per day */}
                 {allTeams && onToggleTeamForDay && (
-                  <div className="p-2 bg-gray-50 border-b border-gray-200">
+                  <div className="p-2 bg-muted/50 border-b border-border">
                     <TeamVisibilityControl
                       allTeams={allTeams}
                       visibleTeams={visibleTeams}
