@@ -203,11 +203,14 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     <div 
       className="time-grid-with-staff-header"
       style={{
-        gridTemplateColumns: `${timeColumnWidth}px repeat(${resources.length}, ${teamColumnWidth}px)`,
+        gridTemplateColumns: `${timeColumnWidth}px repeat(${resources.length}, ${teamColumnWidth}px)` ,
         gridTemplateRows: 'auto auto auto 1fr',
         width: `${dayWidth}px`
       }}
     >
+        {/* Header row background (spans TIME + day header) */}
+        <div className="time-grid-header-bg" style={{ gridColumn: '1 / -1', gridRow: 1 }} />
+
         {/* Time Column Header */}
         <div className="time-column-header">
           <div className="time-title">Time</div>

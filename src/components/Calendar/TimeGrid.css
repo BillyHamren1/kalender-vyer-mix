@@ -19,9 +19,17 @@
   overflow: hidden;
 }
 
-/* Time Column Header - Matches teal header */
-.time-column-header {
+/* Unified header background (prevents different shades from per-cell gradients) */
+.time-grid-header-bg {
   background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(182 30% 55%) 100%);
+  pointer-events: none;
+  position: relative;
+  z-index: 0;
+}
+
+/* Time Column Header - transparent so it uses the unified header bg */
+.time-column-header {
+  background: transparent;
   border-right: 1px solid hsl(var(--primary) / 0.3);
   border-bottom: none;
   padding: 8px 4px;
@@ -31,6 +39,8 @@
   justify-content: center;
   grid-column: 1;
   grid-row: 1;
+  position: relative;
+  z-index: 1;
 }
 
 .time-title {
@@ -41,12 +51,14 @@
   letter-spacing: 0.5px;
 }
 
-/* Day Header - Teal gradient styling */
+/* Day Header - transparent so it uses the unified header bg */
 .day-header-teams {
-  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(182 30% 55%) 100%);
+  background: transparent;
   border-bottom: none;
   padding: 10px 12px;
   grid-row: 1;
+  position: relative;
+  z-index: 1;
 }
 
 .day-header-content {
