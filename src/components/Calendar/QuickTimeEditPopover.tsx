@@ -2,19 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
 import { supabase } from '@/integrations/supabase/client';
-import { format, parse, isAfter } from 'date-fns';
-import { Clock, Calendar as CalendarIcon, Plus } from 'lucide-react';
+import { parse, isAfter } from 'date-fns';
+import { Clock, Calendar as CalendarIcon } from 'lucide-react';
 import AddRiggDayDialog from './AddRiggDayDialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
-// Generate hour options (00-23)
-const hourOptions = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
+// Hours 06-22 for quick selection
+const hourOptions = Array.from({ length: 17 }, (_, i) => (i + 6).toString().padStart(2, '0'));
 
-// Generate minute options (00, 15, 30, 45)
-const minuteOptions = ['00', '15', '30', '45'];
+// Minutes: 00, 30
+const minuteOptions = ['00', '30'];
 
 interface QuickTimeEditPopoverProps {
   event: {
@@ -155,7 +155,7 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
           {children}
         </div>
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-3" align="start">
+      <PopoverContent className="w-auto p-3" align="start">
         <div className="space-y-3">
           <div className="flex items-center gap-2 pb-2 border-b">
             <Clock className="h-4 w-4" />
@@ -163,57 +163,81 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
           </div>
 
           <div className="space-y-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Start</Label>
-              <div className="flex items-center gap-1">
-                <Select value={startHour} onValueChange={setStartHour}>
-                  <SelectTrigger className="h-8 w-16 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
+            {/* START TIME */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Start: {startHour}:{startMinute}</Label>
+              <div className="flex gap-2">
+                <ScrollArea className="h-[120px] w-[140px] border rounded-md">
+                  <div className="grid grid-cols-4 gap-0.5 p-1">
                     {hourOptions.map(hour => (
-                      <SelectItem key={`sh-${hour}`} value={hour}>{hour}</SelectItem>
+                      <button
+                        key={`sh-${hour}`}
+                        onClick={() => setStartHour(hour)}
+                        className={`h-7 w-7 text-xs rounded transition-colors ${
+                          startHour === hour 
+                            ? 'bg-primary text-primary-foreground' 
+                            : 'hover:bg-muted'
+                        }`}
+                      >
+                        {hour}
+                      </button>
                     ))}
-                  </SelectContent>
-                </Select>
-                <span className="text-sm font-medium">:</span>
-                <Select value={startMinute} onValueChange={setStartMinute}>
-                  <SelectTrigger className="h-8 w-16 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {minuteOptions.map(min => (
-                      <SelectItem key={`sm-${min}`} value={min}>{min}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  </div>
+                </ScrollArea>
+                <div className="flex flex-col gap-1">
+                  {minuteOptions.map(min => (
+                    <button
+                      key={`sm-${min}`}
+                      onClick={() => setStartMinute(min)}
+                      className={`h-9 w-10 text-xs rounded border transition-colors ${
+                        startMinute === min 
+                          ? 'bg-primary text-primary-foreground border-primary' 
+                          : 'hover:bg-muted border-border'
+                      }`}
+                    >
+                      :{min}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs">End</Label>
-              <div className="flex items-center gap-1">
-                <Select value={endHour} onValueChange={setEndHour}>
-                  <SelectTrigger className="h-8 w-16 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
+            {/* END TIME */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">End: {endHour}:{endMinute}</Label>
+              <div className="flex gap-2">
+                <ScrollArea className="h-[120px] w-[140px] border rounded-md">
+                  <div className="grid grid-cols-4 gap-0.5 p-1">
                     {hourOptions.map(hour => (
-                      <SelectItem key={`eh-${hour}`} value={hour}>{hour}</SelectItem>
+                      <button
+                        key={`eh-${hour}`}
+                        onClick={() => setEndHour(hour)}
+                        className={`h-7 w-7 text-xs rounded transition-colors ${
+                          endHour === hour 
+                            ? 'bg-primary text-primary-foreground' 
+                            : 'hover:bg-muted'
+                        }`}
+                      >
+                        {hour}
+                      </button>
                     ))}
-                  </SelectContent>
-                </Select>
-                <span className="text-sm font-medium">:</span>
-                <Select value={endMinute} onValueChange={setEndMinute}>
-                  <SelectTrigger className="h-8 w-16 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {minuteOptions.map(min => (
-                      <SelectItem key={`em-${min}`} value={min}>{min}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  </div>
+                </ScrollArea>
+                <div className="flex flex-col gap-1">
+                  {minuteOptions.map(min => (
+                    <button
+                      key={`em-${min}`}
+                      onClick={() => setEndMinute(min)}
+                      className={`h-9 w-10 text-xs rounded border transition-colors ${
+                        endMinute === min 
+                          ? 'bg-primary text-primary-foreground border-primary' 
+                          : 'hover:bg-muted border-border'
+                      }`}
+                    >
+                      :{min}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
