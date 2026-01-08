@@ -169,7 +169,8 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
       await onStaffAssigned(staffId, staffName);
       
       console.log('StaffSelectionDialog: Assignment completed successfully');
-      onOpenChange(false);
+      // Don't close the dialog - allow adding multiple staff members
+      toast.success(`${staffName} added`);
     } catch (error) {
       console.error('Error assigning staff:', error);
       toast.error('Failed to assign staff member');
@@ -285,7 +286,7 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
         
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            Done
           </Button>
         </DialogFooter>
       </DialogContent>
