@@ -10,20 +10,11 @@ import { format, parse, isAfter } from 'date-fns';
 import { Clock, Calendar as CalendarIcon, Plus } from 'lucide-react';
 import AddRiggDayDialog from './AddRiggDayDialog';
 
-// Generate time options in 30-minute intervals
-const generateTimeOptions = (): string[] => {
-  const options: string[] = [];
-  for (let hour = 0; hour < 24; hour++) {
-    for (let minute = 0; minute < 60; minute += 30) {
-      const hourStr = hour.toString().padStart(2, '0');
-      const minuteStr = minute.toString().padStart(2, '0');
-      options.push(`${hourStr}:${minuteStr}`);
-    }
-  }
-  return options;
-};
+// Generate hour options (00-23)
+const hourOptions = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
 
-const timeOptions = generateTimeOptions();
+// Generate minute options (00, 15, 30, 45)
+const minuteOptions = ['00', '15', '30', '45'];
 
 interface QuickTimeEditPopoverProps {
   event: {
@@ -48,8 +39,10 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
   onOpenChange
 }) => {
   const [open, setOpen] = useState(false);
-  const [startTime, setStartTime] = useState('');
-  const [endTime, setEndTime] = useState('');
+  const [startHour, setStartHour] = useState('08');
+  const [startMinute, setStartMinute] = useState('00');
+  const [endHour, setEndHour] = useState('16');
+  const [endMinute, setEndMinute] = useState('00');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAddRiggDay, setShowAddRiggDay] = useState(false);
 
@@ -73,10 +66,18 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
         return timePart.substring(0, 5); // Get "HH:mm"
       };
       
-      setStartTime(extractTime(startStr));
-      setEndTime(extractTime(endStr));
+      const startTimeParts = extractTime(startStr).split(':');
+      const endTimeParts = extractTime(endStr).split(':');
+      
+      setStartHour(startTimeParts[0]);
+      setStartMinute(startTimeParts[1]);
+      setEndHour(endTimeParts[0]);
+      setEndMinute(endTimeParts[1]);
     }
   }, [open, event]);
+
+  const startTime = `${startHour}:${startMinute}`;
+  const endTime = `${endHour}:${endMinute}`;
 
   const handleSave = async () => {
     const eventStart = typeof event.start === 'string' ? new Date(event.start) : event.start;
@@ -161,33 +162,59 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
             <div className="text-sm font-medium truncate">{event.title}</div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="space-y-1">
-              <Label htmlFor="quick-start" className="text-xs">Start</Label>
-              <Select value={startTime} onValueChange={setStartTime}>
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="Välj tid" />
-                </SelectTrigger>
-                <SelectContent>
-                  {timeOptions.map(time => (
-                    <SelectItem key={`start-${time}`} value={time}>{time}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs">Start</Label>
+              <div className="flex items-center gap-1">
+                <Select value={startHour} onValueChange={setStartHour}>
+                  <SelectTrigger className="h-8 w-16 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {hourOptions.map(hour => (
+                      <SelectItem key={`sh-${hour}`} value={hour}>{hour}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-sm font-medium">:</span>
+                <Select value={startMinute} onValueChange={setStartMinute}>
+                  <SelectTrigger className="h-8 w-16 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {minuteOptions.map(min => (
+                      <SelectItem key={`sm-${min}`} value={min}>{min}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="quick-end" className="text-xs">End</Label>
-              <Select value={endTime} onValueChange={setEndTime}>
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="Välj tid" />
-                </SelectTrigger>
-                <SelectContent>
-                  {timeOptions.map(time => (
-                    <SelectItem key={`end-${time}`} value={time}>{time}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs">End</Label>
+              <div className="flex items-center gap-1">
+                <Select value={endHour} onValueChange={setEndHour}>
+                  <SelectTrigger className="h-8 w-16 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {hourOptions.map(hour => (
+                      <SelectItem key={`eh-${hour}`} value={hour}>{hour}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-sm font-medium">:</span>
+                <Select value={endMinute} onValueChange={setEndMinute}>
+                  <SelectTrigger className="h-8 w-16 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {minuteOptions.map(min => (
+                      <SelectItem key={`em-${min}`} value={min}>{min}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
