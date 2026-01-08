@@ -19,11 +19,11 @@
   overflow: hidden;
 }
 
-/* Time Column Header */
+/* Time Column Header - Matches teal header */
 .time-column-header {
-  background: hsl(var(--muted));
-  border-right: 1px solid hsl(var(--border));
-  border-bottom: 1px solid hsl(var(--border));
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(182 30% 55%) 100%);
+  border-right: 1px solid hsl(var(--primary) / 0.3);
+  border-bottom: none;
   padding: 8px 4px;
   text-align: center;
   display: flex;
@@ -36,16 +36,24 @@
 .time-title {
   font-size: 11px;
   font-weight: 600;
+  color: hsl(var(--primary-foreground));
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.time-title {
+  font-size: 11px;
+  font-weight: 600;
   color: hsl(var(--muted-foreground));
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
-/* Day Header - Clean, modern styling */
+/* Day Header - Teal gradient styling */
 .day-header-teams {
-  background: linear-gradient(135deg, hsl(var(--muted)) 0%, hsl(var(--background)) 100%);
-  border-bottom: 2px solid hsl(var(--border));
-  padding: 12px 8px;
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(182 30% 55%) 100%);
+  border-bottom: none;
+  padding: 14px 12px;
   text-align: center;
   grid-row: 1;
 }
@@ -53,7 +61,8 @@
 .day-title {
   font-size: 15px;
   font-weight: 700;
-  color: hsl(var(--foreground));
+  color: hsl(var(--primary-foreground));
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 /* Empty cells for proper alignment */
@@ -70,15 +79,15 @@
   height: 70px;
 }
 
-/* Team Headers Row - Modern, subtle styling */
+/* Team Headers Row - Light teal accent */
 .team-header-cell {
-  background: hsl(var(--muted));
-  height: 28px;
-  padding: 0 8px;
+  background: hsl(var(--primary) / 0.08);
+  height: 32px;
+  padding: 0 10px;
   display: flex;
   align-items: center;
   overflow: hidden;
-  border-right: 1px solid hsl(var(--border));
+  border-right: 1px solid hsl(var(--primary) / 0.15);
   border-bottom: 1px solid hsl(var(--border));
 }
 
