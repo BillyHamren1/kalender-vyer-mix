@@ -21,7 +21,7 @@ import { startOfWeek, startOfMonth, format } from 'date-fns';
 import { forceFullBookingSync } from '@/services/bookingCalendarService';
 import { toast } from 'sonner';
 
-// Wrapper component to handle async loading of available staff
+// Wrapper component to handle async loading of staff with status
 const SimpleStaffCurtainWrapper: React.FC<{
   currentDate: Date;
   onClose: () => void;
@@ -31,21 +31,23 @@ const SimpleStaffCurtainWrapper: React.FC<{
   staffOps: ReturnType<typeof useUnifiedStaffOperations>;
   position: { top: number; left: number };
 }> = (props) => {
-  const [availableStaff, setAvailableStaff] = useState<any[]>([]);
+  const [staffList, setStaffList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   useEffect(() => {
     const loadStaff = async () => {
+      if (!props.selectedTeamId) return;
       setLoading(true);
-      const staff = await props.staffOps.getAvailableStaffForDate(props.currentDate);
-      setAvailableStaff(staff);
+      // Use new function that returns ALL staff with their assignment status
+      const staff = await props.staffOps.getStaffForPlanningDate(props.currentDate, props.selectedTeamId);
+      setStaffList(staff);
       setLoading(false);
     };
     loadStaff();
-  }, [props.currentDate, props.staffOps]);
+  }, [props.currentDate, props.selectedTeamId, props.staffOps]);
   
   if (loading) {
-    return null; // Or a loading spinner
+    return null;
   }
   
   return (
@@ -55,7 +57,7 @@ const SimpleStaffCurtainWrapper: React.FC<{
       onAssignStaff={props.onAssignStaff}
       selectedTeamId={props.selectedTeamId}
       selectedTeamName={props.selectedTeamName}
-      availableStaff={availableStaff}
+      staffList={staffList}
       position={props.position}
     />
   );
