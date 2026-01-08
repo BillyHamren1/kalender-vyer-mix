@@ -7,6 +7,14 @@
   position: relative;
 }
 
+/* Unified Calendar Styles for both Weekly and Monthly Views */
+.weekly-view-container,
+.monthly-grid-container {
+  width: 100%;
+  overflow-x: auto;
+  position: relative;
+}
+
 .weekly-calendar-container {
   min-width: 1400px;
   width: 100%;
@@ -23,11 +31,11 @@
   max-width: 100%;
 }
 
-.day-calendar-wrapper,
-.monthly-day-wrapper {
-  min-width: 550px;
-  flex: 1;
-  border-right: 1px solid #e5e7eb;
+/* IMPORTANT: weekly day width is controlled inline in CustomCalendar.tsx */
+.day-calendar-wrapper {
+  flex: 0 0 auto;
+  min-width: unset;
+  border-right: 1px solid hsl(var(--border));
   /* FIXED: Allow popovers to escape container bounds */
   overflow: visible !important;
   position: relative;
@@ -36,7 +44,7 @@
 
 .monthly-day-wrapper {
   min-width: unset;
-  border: 1px solid #e5e7eb;
+  border: 1px solid hsl(var(--border));
   border-radius: 8px;
   overflow: visible !important;
   min-height: 200px;
