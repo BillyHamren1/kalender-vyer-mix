@@ -404,6 +404,38 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
         return [];
       }
       
+      const staffIds = allStaff.map(s => s.id);
+      
+      // Get availability periods for this date (CRITICAL FILTER)
+      const { data: availabilityData, error: availError } = await supabase
+        .from('staff_availability')
+        .select('staff_id, availability_type')
+        .in('staff_id', staffIds)
+        .lte('start_date', dateStr)
+        .gte('end_date', dateStr);
+      
+      if (availError) {
+        console.error('Error fetching availability:', availError);
+        return [];
+      }
+      
+      // Determine which staff are available for this date
+      const availableStaffIds = new Set<string>();
+      const blockedStaffIds = new Set<string>();
+      
+      (availabilityData || []).forEach(period => {
+        if (period.availability_type === 'available') {
+          availableStaffIds.add(period.staff_id);
+        } else if (period.availability_type === 'blocked' || period.availability_type === 'unavailable') {
+          blockedStaffIds.add(period.staff_id);
+        }
+      });
+      
+      // Only include staff with 'available' period AND no 'blocked'/'unavailable'
+      const staffWithAvailability = allStaff.filter(staff => 
+        availableStaffIds.has(staff.id) && !blockedStaffIds.has(staff.id)
+      );
+      
       // Get assignments for this date from our local state (already loaded)
       const assignmentsForDate = assignments.filter(a => a.date === dateStr);
       
@@ -420,8 +452,8 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
         assignmentMap.set(a.staffId, { teamId: a.teamId, teamName });
       });
       
-      // Build the result with status
-      const result = allStaff.map(staff => {
+      // Build the result with status - only for staff WITH availability
+      const result = staffWithAvailability.map(staff => {
         const assignment = assignmentMap.get(staff.id);
         
         let assignmentStatus: 'free' | 'assigned_current_team' | 'assigned_other_team' = 'free';
@@ -449,7 +481,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
         return order[a.assignmentStatus] - order[b.assignmentStatus];
       });
       
-      console.log(`✅ [getStaffForPlanningDate] ${dateStr}: ${result.length} staff total, ${result.filter(s => s.assignmentStatus === 'free').length} free`);
+      console.log(`✅ [getStaffForPlanningDate] ${dateStr}: ${staffWithAvailability.length} with availability, ${result.filter(s => s.assignmentStatus === 'free').length} free`);
       return result;
     } catch (error) {
       console.error('Error in getStaffForPlanningDate:', error);
