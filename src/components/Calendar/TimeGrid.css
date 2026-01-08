@@ -1,56 +1,76 @@
+/* Modern, clean calendar design */
 .time-grid-with-staff-header {
-  @apply bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  border: 1px solid hsl(var(--border));
+  overflow: hidden;
   display: grid;
-  min-height: 600px;
+  min-height: 500px;
   height: auto;
 }
 
 /* Time Column Header */
 .time-column-header {
-  @apply bg-gray-100 border-r border-b border-gray-200 p-1 text-center flex items-center justify-center;
+  background: hsl(var(--muted));
+  border-right: 1px solid hsl(var(--border));
+  border-bottom: 1px solid hsl(var(--border));
+  padding: 8px 4px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   grid-column: 1;
   grid-row: 1;
 }
 
 .time-title {
-  @apply text-xs font-medium text-gray-700;
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
+  font-size: 11px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-/* Day Header - Team Columns Only - Updated to use teal theme */
+/* Day Header - Clean, modern styling */
 .day-header-teams {
-  @apply bg-[#7BAEBF] border-b-2 border-[#6E9DAC] p-2 text-center;
+  background: linear-gradient(135deg, hsl(var(--muted)) 0%, hsl(var(--background)) 100%);
+  border-bottom: 2px solid hsl(var(--border));
+  padding: 12px 8px;
+  text-align: center;
   grid-row: 1;
 }
 
 .day-title {
-  @apply text-lg font-bold text-white;
+  font-size: 15px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
 }
 
 /* Empty cells for proper alignment */
 .time-empty-cell,
 .staff-row-time-cell {
   grid-column: 1;
-  @apply bg-gray-50 border-r border-b border-gray-200;
+  background: hsl(var(--muted));
+  border-right: 1px solid hsl(var(--border));
+  border-bottom: 1px solid hsl(var(--border));
   height: 40px;
 }
 
 .staff-row-time-cell {
-  height: 80px; /* Taller for staff assignment space */
+  height: 70px;
 }
 
-/* Team Headers Row - FIXED with consistent borders */
+/* Team Headers Row - Modern, subtle styling */
 .team-header-cell {
-  @apply bg-gray-50;
-  height: 24px;
-  padding: 0 4px;
+  background: hsl(var(--muted));
+  height: 28px;
+  padding: 0 8px;
   display: flex;
   align-items: center;
   overflow: hidden;
-  border-right: 1px solid #7BAEBF;
-  border-bottom: 1px solid #7BAEBF;
-  border-left: none;
+  border-right: 1px solid hsl(var(--border));
+  border-bottom: 1px solid hsl(var(--border));
 }
 
 .team-header-cell:last-of-type {
@@ -58,13 +78,18 @@
 }
 
 .team-header-content {
-  @apply flex items-center justify-between w-full;
-  gap: 4px; /* Reduced gap for tighter layouts */
-  min-width: 0; /* Allow shrinking */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 6px;
+  min-width: 0;
 }
 
 .team-title {
-  @apply text-xs font-medium text-gray-700;
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -72,30 +97,36 @@
   white-space: nowrap;
 }
 
-/* Updated add staff button to use teal theme */
+/* Add staff button - accent color */
 .add-staff-button-header {
-  @apply bg-[#7BAEBF] hover:bg-[#6E9DAC] text-white rounded-full;
-  width: 18px; /* Slightly smaller for tight spaces */
-  height: 18px;
-  font-size: 11px;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-radius: 6px;
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.2s ease;
   flex-shrink: 0;
 }
 
-/* Staff Assignment Header Row - FIXED with consistent borders */
+.add-staff-button-header:hover {
+  opacity: 0.9;
+  transform: scale(1.05);
+}
+
+/* Staff Assignment Header Row - Clean look */
 .staff-assignment-header-row {
-  @apply bg-gray-50/50;
+  background: hsl(var(--background));
   height: 50px;
   position: relative;
   overflow: hidden;
-  border-right: 1px solid #7BAEBF;
-  border-bottom: 1px solid #7BAEBF;
-  border-left: none;
+  border-right: 1px solid hsl(var(--border));
+  border-bottom: 1px solid hsl(var(--border));
 }
 
 .staff-assignment-header-row:last-of-type {
@@ -103,55 +134,64 @@
 }
 
 .staff-header-assignment-area {
-  @apply h-full w-full p-2 relative;
+  height: 100%;
+  width: 100%;
+  padding: 8px;
+  position: relative;
   transition: background-color 0.2s;
 }
 
 .staff-count-info {
-  @apply text-xs text-gray-600 mb-2;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  margin-bottom: 6px;
   font-weight: 500;
 }
 
 .assigned-staff-header-list {
-  @apply flex flex-wrap gap-1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
   max-height: 50px;
   overflow-y: auto;
 }
 
 .staff-header-item {
-  @apply flex-shrink-0;
+  flex-shrink: 0;
 }
 
-/* Time Labels Column - FIXED with consistent borders */
+/* Time Labels Column - Subtle design */
 .time-labels-column {
-  @apply bg-gray-50;
+  background: hsl(var(--muted));
   grid-column: 1;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #7BAEBF;
+  border-right: 1px solid hsl(var(--border));
 }
 
 .time-label-slot {
-  @apply text-xs text-gray-600 p-1 border-b border-gray-200 text-center;
+  font-size: 10px;
+  color: hsl(var(--muted-foreground));
+  padding: 2px 4px;
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+  text-align: center;
   height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 500;
-  font-size: 10px;
 }
 
 .time-label-slot:last-child {
-  @apply border-b-0;
+  border-bottom: none;
 }
 
-/* Time Slot Columns - FIXED with consistent borders */
+/* Time Slot Columns - Clean grid lines */
 .time-slots-column {
-  @apply relative bg-white;
+  background: hsl(var(--background));
   position: relative;
   overflow: visible;
-  border-right: 1px solid #7BAEBF;
-  border-left: none;
+  border-right: 1px solid hsl(var(--border));
 }
 
 .time-slots-column:last-child {
@@ -169,6 +209,7 @@
 .time-slot-cell {
   height: 18px;
   flex-shrink: 0;
+  border-bottom: 1px solid hsl(var(--border) / 0.3);
 }
 
 /* Hover container for proper event detection */
@@ -176,32 +217,32 @@
   position: relative;
 }
 
-/* Individual booking events - OPTIMIZED for hover */
+/* Booking events - Modern card-like appearance */
 .booking-event {
-  pointer-events: auto !important; /* Critical for hover detection */
-  border-radius: 4px;
+  pointer-events: auto !important;
+  border-radius: 8px;
   font-size: 11px;
-  padding: 4px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 6px 8px;
+  border: none;
   cursor: pointer;
   transition: all 0.2s ease;
-  min-height: 30px;
+  min-height: 32px;
   background: white;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   position: relative;
   z-index: 20;
 }
 
 .booking-event:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
   z-index: 30;
 }
 
 /* Original staff assignment area styles (for reference/fallback) */
 .staff-assignment-area-aligned {
-  @apply relative h-full;
   position: relative;
+  height: 100%;
   min-height: 400px;
 }
 
@@ -216,22 +257,28 @@
 }
 
 .time-slot-aligned {
-  @apply border-b border-gray-100;
+  border-bottom: 1px solid hsl(var(--border) / 0.3);
   height: 18px;
 }
 
 .time-slot-aligned:last-child {
-  @apply border-b-0;
+  border-bottom: none;
 }
 
 .staff-drop-zone-aligned {
-  @apply absolute inset-0;
+  position: absolute;
+  inset: 0;
   transition: background-color 0.2s;
   z-index: 1;
 }
 
 .drop-info-aligned {
-  @apply p-2 text-xs text-gray-500 bg-gray-50/80 rounded border;
+  padding: 8px;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted) / 0.8);
+  border-radius: 8px;
+  border: 1px solid hsl(var(--border));
   position: absolute;
   top: 5px;
   left: 5px;
@@ -251,16 +298,14 @@
   padding: 0 5px;
 }
 
-/* Responsive design - Updated for better fitting */
+/* Responsive design */
 @media (max-width: 768px) {
   .time-title {
-    writing-mode: horizontal-tb;
-    text-orientation: initial;
-    font-size: 11px;
+    font-size: 10px;
   }
   
   .day-title {
-    font-size: 14px;
+    font-size: 13px;
   }
   
   .team-title {
@@ -268,8 +313,8 @@
   }
   
   .add-staff-button-header {
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
     font-size: 10px;
   }
   
@@ -280,25 +325,31 @@
 
 /* Calendar container styles */
 .custom-calendar-container {
-  @apply w-full h-full;
+  width: 100%;
+  height: 100%;
 }
 
 .weekly-calendar-container {
-  @apply w-full;
+  width: 100%;
 }
 
 .weekly-calendar-grid {
-  @apply gap-0;
+  gap: 0;
 }
 
+/* Day wrapper - card-like appearance */
 .day-calendar-wrapper {
-  @apply border-r border-gray-300;
+  border-right: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
 }
 
 .day-calendar-wrapper:first-child {
-  @apply border-l border-gray-300;
+  border-radius: 16px 0 0 16px;
+  overflow: hidden;
 }
 
 .day-calendar-wrapper:last-child {
-  @apply border-r-0;
+  border-right: none;
+  border-radius: 0 16px 16px 0;
+  overflow: hidden;
 }
