@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
-import { useBackgroundImport } from '@/hooks/useBackgroundImport';
+
 import { startOfWeek, subDays } from 'date-fns';
 import UnifiedResourceCalendar from '@/components/Calendar/UnifiedResourceCalendar';
 import StaffCurtain from '@/components/Calendar/StaffCurtain';
@@ -60,8 +60,6 @@ const CalendarPage = () => {
   // Use the unified staff operations hook
   const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly');
 
-  // Use background import functionality - now takes no parameters
-  const backgroundImport = useBackgroundImport();
 
   // Staff curtain state
   const [staffCurtainOpen, setStaffCurtainOpen] = useState(false);
@@ -220,7 +218,6 @@ const CalendarPage = () => {
                 resources={teamResources}
                 currentDate={currentWeekStart}
                 weeklyStaffOperations={staffOps}
-                backgroundImport={backgroundImport}
               />
             )}
           </div>

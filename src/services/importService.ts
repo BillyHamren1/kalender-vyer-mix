@@ -46,8 +46,10 @@ export interface ImportFilters {
 
 /**
  * Enhanced import bookings with historical support and duplicate cleanup
+ * @param filters - Import filter options
+ * @param silent - If true, suppresses all toast notifications (for background imports)
  */
-export const importBookings = async (filters: ImportFilters = {}): Promise<ImportResults> => {
+export const importBookings = async (filters: ImportFilters = {}, silent: boolean = false): Promise<ImportResults> => {
   const syncType = 'booking_import';
   const startTime = Date.now();
   let syncMode: SyncMode;
@@ -63,10 +65,12 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
     if (isHistoricalMode) {
       syncMode = 'full';
       console.log('Running in HISTORICAL import mode - will import all bookings regardless of date');
-      toast.info('Starting historical import - this may take longer...', {
-        duration: 5000,
-      });
-    } else {
+      if (!silent) {
+        toast.info('Starting historical import - this may take longer...', {
+          duration: 5000,
+        });
+      }
+    } else if (!silent) {
       toast.info('Initializing booking synchronization...', {
         duration: 3000,
       });
@@ -122,9 +126,11 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
       console.log('Historical mode: removed all date restrictions');
     }
     
-    toast.info(`Starting ${isHistoricalMode ? 'historical' : syncMode} synchronization...`, {
-      duration: 2000,
-    });
+    if (!silent) {
+      toast.info(`Starting ${isHistoricalMode ? 'historical' : syncMode} synchronization...`, {
+        duration: 2000,
+      });
+    }
     
     // Call the Supabase Edge Function with improved duplicate handling
     const { data: resultData, error: functionError } = await supabase.functions.invoke(
@@ -216,40 +222,43 @@ export const importBookings = async (filters: ImportFilters = {}): Promise<Impor
     const duplicatesSkippedCount = results.duplicates_skipped?.length || 0;
     const eventsCreated = results.calendar_events_created || 0;
     
-    if (newCount > 0 || updatedCount > 0 || statusChangedCount > 0) {
-      const messages = [];
-      if (newCount > 0) messages.push(`${newCount} new booking${newCount > 1 ? 's' : ''}`);
-      if (updatedCount > 0) messages.push(`${updatedCount} updated`);
-      if (statusChangedCount > 0) messages.push(`${statusChangedCount} status changed`);
-      
-      let description = `${messages.join(', ')} • ${(syncDurationMs / 1000).toFixed(1)}s`;
-      if (eventsCreated > 0) {
-        description += ` • ${eventsCreated} calendar events created`;
+    // Only show toasts if not in silent mode
+    if (!silent) {
+      if (newCount > 0 || updatedCount > 0 || statusChangedCount > 0) {
+        const messages = [];
+        if (newCount > 0) messages.push(`${newCount} new booking${newCount > 1 ? 's' : ''}`);
+        if (updatedCount > 0) messages.push(`${updatedCount} updated`);
+        if (statusChangedCount > 0) messages.push(`${statusChangedCount} status changed`);
+        
+        let description = `${messages.join(', ')} • ${(syncDurationMs / 1000).toFixed(1)}s`;
+        if (eventsCreated > 0) {
+          description += ` • ${eventsCreated} calendar events created`;
+        }
+        if (duplicatesSkippedCount > 0) {
+          description += ` • ${duplicatesSkippedCount} duplicates skipped`;
+        }
+        if (cancelledSkippedCount > 0) {
+          description += ` • ${cancelledSkippedCount} CANCELLED skipped`;
+        }
+        
+        const syncTypeDisplay = isHistoricalMode ? 'Historical' : syncMode.charAt(0).toUpperCase() + syncMode.slice(1);
+        toast.success(`${syncTypeDisplay} sync completed`, {
+          description
+        });
+      } else {
+        let description = `No changes found • ${(syncDurationMs / 1000).toFixed(1)}s`;
+        if (duplicatesSkippedCount > 0) {
+          description += ` • ${duplicatesSkippedCount} duplicates prevented`;
+        }
+        if (cancelledSkippedCount > 0) {
+          description += ` • ${cancelledSkippedCount} CANCELLED skipped`;
+        }
+        
+        const syncTypeDisplay = isHistoricalMode ? 'Historical' : syncMode.charAt(0).toUpperCase() + syncMode.slice(1);
+        toast.success(`${syncTypeDisplay} sync completed`, {
+          description
+        });
       }
-      if (duplicatesSkippedCount > 0) {
-        description += ` • ${duplicatesSkippedCount} duplicates skipped`;
-      }
-      if (cancelledSkippedCount > 0) {
-        description += ` • ${cancelledSkippedCount} CANCELLED skipped`;
-      }
-      
-      const syncTypeDisplay = isHistoricalMode ? 'Historical' : syncMode.charAt(0).toUpperCase() + syncMode.slice(1);
-      toast.success(`${syncTypeDisplay} sync completed`, {
-        description
-      });
-    } else {
-      let description = `No changes found • ${(syncDurationMs / 1000).toFixed(1)}s`;
-      if (duplicatesSkippedCount > 0) {
-        description += ` • ${duplicatesSkippedCount} duplicates prevented`;
-      }
-      if (cancelledSkippedCount > 0) {
-        description += ` • ${cancelledSkippedCount} CANCELLED skipped`;
-      }
-      
-      const syncTypeDisplay = isHistoricalMode ? 'Historical' : syncMode.charAt(0).toUpperCase() + syncMode.slice(1);
-      toast.success(`${syncTypeDisplay} sync completed`, {
-        description
-      });
     }
 
     return {

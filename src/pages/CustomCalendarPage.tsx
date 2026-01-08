@@ -4,7 +4,7 @@ import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { useCalendarImport } from '@/hooks/useCalendarImport';
-import { useBackgroundImport } from '@/hooks/useBackgroundImport';
+
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -75,9 +75,6 @@ const CustomCalendarPage = () => {
   
   // Monthly view state (for desktop)
   const [monthlyDate, setMonthlyDate] = useState<Date>(new Date());
-  
-  // Background import service (runs automatically)
-  const backgroundImport = useBackgroundImport();
   
   // Manual import service (for user-triggered refresh)
   const { isImporting, triggerImport } = useCalendarImport();
@@ -386,7 +383,6 @@ const CustomCalendarPage = () => {
                 resources={teamResources}
                 currentDate={isMobile ? selectedMobileDate : currentWeekStart}
                 weeklyStaffOperations={staffOps}
-                backgroundImport={backgroundImport}
               />
             )}
           </div>

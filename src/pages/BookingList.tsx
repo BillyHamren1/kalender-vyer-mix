@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Command, CommandInput } from '@/components/ui/command';
-import { useBackgroundImport } from '@/hooks/useBackgroundImport';
+import { importBookings } from '@/services/importService';
 import { Booking } from '../types/booking';
 import { 
   fetchBookings, 
@@ -48,8 +48,19 @@ const BookingList = () => {
   const [plannedStatusFilter, setPlannedStatusFilter] = useState<string>("confirmed");
   const [includeTodayBookings, setIncludeTodayBookings] = useState<boolean>(true);
 
-  // Use the background import hook - now takes no parameters
-  const backgroundImport = useBackgroundImport();
+  // Manual import state
+  const [isImporting, setIsImporting] = useState(false);
+  
+  // Manual refresh function
+  const handleManualRefresh = async () => {
+    setIsImporting(true);
+    try {
+      await importBookings({ syncMode: 'incremental' }, false);
+      await loadBookings();
+    } finally {
+      setIsImporting(false);
+    }
+  };
 
   // Function to load bookings - now loads ALL bookings, not just confirmed ones
   const loadBookings = async () => {
@@ -233,13 +244,13 @@ const BookingList = () => {
               </Button>
             </Link>
             <Button 
-              onClick={backgroundImport.performManualRefresh} 
+              onClick={handleManualRefresh} 
               variant="outline" 
-              disabled={isLoading || backgroundImport.isImporting}
+              disabled={isLoading || isImporting}
               className="flex items-center gap-2"
             >
-              <RefreshCcw className={`h-4 w-4 ${isLoading || backgroundImport.isImporting ? 'animate-spin' : ''}`} />
-              {backgroundImport.isImporting ? 'Importing...' : 'Update'}
+              <RefreshCcw className={`h-4 w-4 ${isLoading || isImporting ? 'animate-spin' : ''}`} />
+              {isImporting ? 'Importing...' : 'Update'}
             </Button>
           </div>
         </div>
@@ -274,17 +285,6 @@ const BookingList = () => {
           </div>
         </div>
 
-        {/* Sync Status Display */}
-        {backgroundImport.lastSyncTime && (
-          <div className="mb-4 text-sm text-gray-600 flex items-center gap-2">
-            <span>Last sync: {new Date(backgroundImport.lastSyncTime).toLocaleTimeString()}</span>
-            {backgroundImport.syncStatus && (
-              <Badge variant={backgroundImport.syncStatus === 'success' ? 'default' : 'destructive'} className="text-xs">
-                {backgroundImport.syncStatus}
-              </Badge>
-            )}
-          </div>
-        )}
 
         {/* Planned Bookings Section with Filtering Controls */}
         {showPlannedBookings && (
