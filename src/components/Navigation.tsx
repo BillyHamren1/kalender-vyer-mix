@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Calendar, Users, ShoppingCart } from 'lucide-react';
+import { Calendar, Users, FolderKanban } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const Navigation: React.FC = () => {
@@ -16,7 +15,7 @@ const Navigation: React.FC = () => {
     {
       name: 'Bokningar',
       href: '/booking-list',
-      icon: ShoppingCart,
+      icon: FolderKanban,
     },
     {
       name: 'Personal',
@@ -26,30 +25,36 @@ const Navigation: React.FC = () => {
   ];
 
   return (
-    <nav className="bg-white border-b border-gray-200">
+    <nav className="bg-background border-b border-border sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          <div className="flex">
-            <div className="flex space-x-8">
-              {navItems.map((item) => {
-                const isActive = location.pathname === item.href;
-                return (
-                  <Link
-                    key={item.name}
-                    to={item.href}
-                    className={cn(
-                      'inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium',
-                      isActive
-                        ? 'border-[#82b6c6] text-[#82b6c6]'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    )}
-                  >
-                    <item.icon className="h-4 w-4 mr-2" />
-                    {item.name}
-                  </Link>
-                );
-              })}
-            </div>
+        <div className="flex items-center h-14 gap-8">
+          {/* Logo */}
+          <Link to="/" className="flex items-center gap-2 shrink-0">
+            <Calendar className="h-5 w-5 text-primary" />
+            <span className="font-semibold text-foreground">EventFlow</span>
+          </Link>
+
+          {/* Tab Navigation */}
+          <div className="flex items-center gap-1">
+            {navItems.map((item) => {
+              const isActive = location.pathname === item.href || 
+                (item.href !== '/' && location.pathname.startsWith(item.href));
+              return (
+                <Link
+                  key={item.name}
+                  to={item.href}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+                    isActive
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  )}
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.name}
+                </Link>
+              );
+            })}
           </div>
         </div>
       </div>
