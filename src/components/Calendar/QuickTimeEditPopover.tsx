@@ -10,8 +10,11 @@ import { Clock, Calendar as CalendarIcon } from 'lucide-react';
 import AddRiggDayDialog from './AddRiggDayDialog';
 
 
-// Hours 06-22 for quick selection
-const hourOptions = Array.from({ length: 17 }, (_, i) => (i + 6).toString().padStart(2, '0'));
+// Hours 05-23, then 00-04 (wrapping around)
+const hourOptions = [
+  ...Array.from({ length: 19 }, (_, i) => (i + 5).toString().padStart(2, '0')),
+  ...Array.from({ length: 5 }, (_, i) => i.toString().padStart(2, '0'))
+];
 
 // Minutes: 00, 30
 const minuteOptions = ['00', '30'];
