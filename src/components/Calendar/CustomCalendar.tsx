@@ -139,7 +139,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
 
       {/* Optimized Weekly Staff Planning Grid */}
       <div className="weekly-calendar-container overflow-x-auto">
-        <div className="weekly-calendar-grid flex gap-2">
+        <div className="weekly-calendar-grid flex">
           {days.map((date) => {
             const filteredResources = getFilteredResourcesForDay(date);
             const dayWidth = getDayWidth(filteredResources.length);
@@ -148,7 +148,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
             return (
               <div 
                 key={format(date, 'yyyy-MM-dd')} 
-                className="day-calendar-wrapper flex-shrink-0 border border-gray-300 rounded-lg"
+                className="day-calendar-wrapper flex-shrink-0 border-r border-gray-300"
                 style={{ width: `${dayWidth}px` }}
               >
                 {/* Team Visibility Control per day */}

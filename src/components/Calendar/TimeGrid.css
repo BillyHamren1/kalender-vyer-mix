@@ -288,11 +288,15 @@
 }
 
 .weekly-calendar-grid {
-  @apply gap-1;
+  @apply gap-0;
 }
 
 .day-calendar-wrapper {
   @apply border-r border-gray-300;
+}
+
+.day-calendar-wrapper:first-child {
+  @apply border-l border-gray-300;
 }
 
 .day-calendar-wrapper:last-child {
