@@ -360,6 +360,9 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             </SimpleTimeSlot>
           );
         })}
+
+        {/* Footer row - same gradient as header */}
+        <div className="time-grid-footer-bg" style={{ gridColumn: '1 / -1', gridRow: 5 }} />
     </div>
   );
 };
