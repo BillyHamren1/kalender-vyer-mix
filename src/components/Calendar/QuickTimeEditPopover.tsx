@@ -8,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { parse, isAfter } from 'date-fns';
 import { Clock, Calendar as CalendarIcon } from 'lucide-react';
 import AddRiggDayDialog from './AddRiggDayDialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 
 // Hours 06-22 for quick selection
 const hourOptions = Array.from({ length: 17 }, (_, i) => (i + 6).toString().padStart(2, '0'));
@@ -155,41 +155,39 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
           {children}
         </div>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-3" align="start">
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 pb-2 border-b">
-            <Clock className="h-4 w-4" />
-            <div className="text-sm font-medium truncate">{event.title}</div>
+      <PopoverContent className="w-auto p-2" align="start" side="bottom" sideOffset={4}>
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5 pb-1.5 border-b">
+            <Clock className="h-3 w-3 text-muted-foreground" />
+            <div className="text-xs font-medium truncate max-w-[180px]">{event.title}</div>
           </div>
 
-          <div className="space-y-3">
+          <div className="flex gap-4">
             {/* START TIME */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Start: {startHour}:{startMinute}</Label>
-              <div className="flex gap-2">
-                <ScrollArea className="h-[120px] w-[140px] border rounded-md">
-                  <div className="grid grid-cols-4 gap-0.5 p-1">
-                    {hourOptions.map(hour => (
-                      <button
-                        key={`sh-${hour}`}
-                        onClick={() => setStartHour(hour)}
-                        className={`h-7 w-7 text-xs rounded transition-colors ${
-                          startHour === hour 
-                            ? 'bg-primary text-primary-foreground' 
-                            : 'hover:bg-muted'
-                        }`}
-                      >
-                        {hour}
-                      </button>
-                    ))}
-                  </div>
-                </ScrollArea>
-                <div className="flex flex-col gap-1">
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Start: {startHour}:{startMinute}</Label>
+              <div className="flex gap-1">
+                <div className="grid grid-cols-4 gap-0.5">
+                  {hourOptions.map(hour => (
+                    <button
+                      key={`sh-${hour}`}
+                      onClick={() => setStartHour(hour)}
+                      className={`h-6 w-6 text-[10px] rounded transition-colors ${
+                        startHour === hour 
+                          ? 'bg-primary text-primary-foreground' 
+                          : 'hover:bg-muted'
+                      }`}
+                    >
+                      {hour}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-col gap-0.5">
                   {minuteOptions.map(min => (
                     <button
                       key={`sm-${min}`}
                       onClick={() => setStartMinute(min)}
-                      className={`h-9 w-10 text-xs rounded border transition-colors ${
+                      className={`h-6 w-8 text-[10px] rounded border transition-colors ${
                         startMinute === min 
                           ? 'bg-primary text-primary-foreground border-primary' 
                           : 'hover:bg-muted border-border'
@@ -203,32 +201,30 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
             </div>
 
             {/* END TIME */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium">End: {endHour}:{endMinute}</Label>
-              <div className="flex gap-2">
-                <ScrollArea className="h-[120px] w-[140px] border rounded-md">
-                  <div className="grid grid-cols-4 gap-0.5 p-1">
-                    {hourOptions.map(hour => (
-                      <button
-                        key={`eh-${hour}`}
-                        onClick={() => setEndHour(hour)}
-                        className={`h-7 w-7 text-xs rounded transition-colors ${
-                          endHour === hour 
-                            ? 'bg-primary text-primary-foreground' 
-                            : 'hover:bg-muted'
-                        }`}
-                      >
-                        {hour}
-                      </button>
-                    ))}
-                  </div>
-                </ScrollArea>
-                <div className="flex flex-col gap-1">
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">End: {endHour}:{endMinute}</Label>
+              <div className="flex gap-1">
+                <div className="grid grid-cols-4 gap-0.5">
+                  {hourOptions.map(hour => (
+                    <button
+                      key={`eh-${hour}`}
+                      onClick={() => setEndHour(hour)}
+                      className={`h-6 w-6 text-[10px] rounded transition-colors ${
+                        endHour === hour 
+                          ? 'bg-primary text-primary-foreground' 
+                          : 'hover:bg-muted'
+                      }`}
+                    >
+                      {hour}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-col gap-0.5">
                   {minuteOptions.map(min => (
                     <button
                       key={`em-${min}`}
                       onClick={() => setEndMinute(min)}
-                      className={`h-9 w-10 text-xs rounded border transition-colors ${
+                      className={`h-6 w-8 text-[10px] rounded border transition-colors ${
                         endMinute === min 
                           ? 'bg-primary text-primary-foreground border-primary' 
                           : 'hover:bg-muted border-border'
