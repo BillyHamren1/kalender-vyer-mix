@@ -8,55 +8,56 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    
+    /* === PRIMARY TEAL (EventFlow Design System) === */
+    --primary: 184 60% 38%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 184 60% 33%;
+    --primary-dark: 184 65% 28%;
 
+    /* === SECONDARY (ljusare teal) === */
+    --secondary: 184 45% 65%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-hover: 184 45% 58%;
+
+    /* === ACCENT === */
+    --accent: 184 40% 90%;
+    --accent-foreground: 184 40% 15%;
+
+    /* === UI ELEMENTS med teal-tint === */
+    --foreground: 184 30% 20%;
+    --heading: 184 40% 15%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 184 30% 20%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 184 20% 40%;
+    --ring: 184 55% 48%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    /* Stronger teal - matching reference design */
-    --primary: 182 35% 48%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    /* Teal accent for highlights */
-    --accent: 182 35% 48%;
-    --accent-foreground: 0 0% 100%;
+    --popover-foreground: 184 30% 20%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 182 35% 48%;
 
     --radius: 0.5rem;
-    
-    /* Teal gradient for headers */
-    --teal-gradient: linear-gradient(135deg, hsl(182 35% 48%) 0%, hsl(182 30% 55%) 100%);
 
+    /* === SIDEBAR === */
     --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
+    --sidebar-foreground: 184 30% 20%;
+    --sidebar-primary: 184 60% 42%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 184 40% 90%;
+    --sidebar-accent-foreground: 184 40% 15%;
     --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 184 55% 48%;
 
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* === CHARTS === */
+    --chart-1: 184 60% 42%;
+    --chart-2: 184 50% 55%;
+    --chart-3: 184 40% 65%;
   }
 
   .dark {
