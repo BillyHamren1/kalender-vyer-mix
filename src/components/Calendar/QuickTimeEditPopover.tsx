@@ -158,17 +158,19 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
           {children}
         </div>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-4" align="center" side="bottom" sideOffset={8}>
+      <PopoverContent className="w-auto p-4 shadow-lg border-2" align="center" side="bottom" sideOffset={8}>
         <div className="space-y-4">
           <div className="flex items-center gap-2 pb-2 border-b">
             <Clock className="h-4 w-4 text-muted-foreground" />
             <div className="text-sm font-medium truncate max-w-[280px]">{event.title}</div>
           </div>
 
-          <div className="flex gap-6">
+          <div className="flex gap-4">
             {/* START TIME */}
-            <div className="space-y-2">
-              <Label className="text-xs font-medium">Start: {startHour}:{startMinute}</Label>
+            <div className="space-y-2 p-3 bg-green-50 rounded-lg border border-green-200">
+              <Label className="text-sm font-semibold text-green-700 flex items-center gap-1">
+                ▶ Start: {startHour}:{startMinute}
+              </Label>
               <div className="flex gap-2">
                 <div className="grid grid-cols-6 gap-1">
                   {hourOptions.map(hour => (
@@ -177,8 +179,8 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
                       onClick={() => setStartHour(hour)}
                       className={`h-8 w-8 text-xs rounded transition-colors ${
                         startHour === hour 
-                          ? 'bg-primary text-primary-foreground font-medium' 
-                          : 'hover:bg-muted'
+                          ? 'bg-green-600 text-white font-medium' 
+                          : 'bg-white hover:bg-green-100 border border-green-200'
                       }`}
                     >
                       {hour}
@@ -190,10 +192,10 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
                     <button
                       key={`sm-${min}`}
                       onClick={() => setStartMinute(min)}
-                      className={`h-8 w-12 text-xs rounded border transition-colors ${
+                      className={`h-8 w-12 text-xs rounded transition-colors ${
                         startMinute === min 
-                          ? 'bg-primary text-primary-foreground border-primary font-medium' 
-                          : 'hover:bg-muted border-border'
+                          ? 'bg-green-600 text-white font-medium' 
+                          : 'bg-white hover:bg-green-100 border border-green-200'
                       }`}
                     >
                       :{min}
@@ -204,8 +206,10 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
             </div>
 
             {/* END TIME */}
-            <div className="space-y-2">
-              <Label className="text-xs font-medium">End: {endHour}:{endMinute}</Label>
+            <div className="space-y-2 p-3 bg-red-50 rounded-lg border border-red-200">
+              <Label className="text-sm font-semibold text-red-700 flex items-center gap-1">
+                ■ End: {endHour}:{endMinute}
+              </Label>
               <div className="flex gap-2">
                 <div className="grid grid-cols-6 gap-1">
                   {hourOptions.map(hour => (
@@ -214,8 +218,8 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
                       onClick={() => setEndHour(hour)}
                       className={`h-8 w-8 text-xs rounded transition-colors ${
                         endHour === hour 
-                          ? 'bg-primary text-primary-foreground font-medium' 
-                          : 'hover:bg-muted'
+                          ? 'bg-red-600 text-white font-medium' 
+                          : 'bg-white hover:bg-red-100 border border-red-200'
                       }`}
                     >
                       {hour}
@@ -227,10 +231,10 @@ const QuickTimeEditPopover: React.FC<QuickTimeEditPopoverProps> = ({
                     <button
                       key={`em-${min}`}
                       onClick={() => setEndMinute(min)}
-                      className={`h-8 w-12 text-xs rounded border transition-colors ${
+                      className={`h-8 w-12 text-xs rounded transition-colors ${
                         endMinute === min 
-                          ? 'bg-primary text-primary-foreground border-primary font-medium' 
-                          : 'hover:bg-muted border-border'
+                          ? 'bg-red-600 text-white font-medium' 
+                          : 'bg-white hover:bg-red-100 border border-red-200'
                       }`}
                     >
                       :{min}
