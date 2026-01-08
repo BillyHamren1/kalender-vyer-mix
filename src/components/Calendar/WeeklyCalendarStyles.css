@@ -21,6 +21,9 @@
   display: flex;
   overflow-x: auto;
   scroll-behavior: smooth;
+  padding: 16px;
+  gap: 16px;
+  background: transparent;
 }
 
 .monthly-calendar-grid {
@@ -31,11 +34,21 @@
   max-width: 100%;
 }
 
+/* Day card - individual styled cards */
+.day-card {
+  flex: 0 0 auto;
+  background: hsl(var(--background));
+  border-radius: 20px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  border: 1px solid hsl(var(--border));
+  overflow: hidden;
+  position: relative;
+}
+
 /* IMPORTANT: weekly day width is controlled inline in CustomCalendar.tsx */
 .day-calendar-wrapper {
   flex: 0 0 auto;
   min-width: unset;
-  border-right: 1px solid hsl(var(--border));
   overflow: visible !important;
   position: relative;
   z-index: 0;
@@ -45,15 +58,11 @@
 .monthly-day-wrapper {
   min-width: unset;
   border: 1px solid hsl(var(--border));
-  border-radius: 12px;
+  border-radius: 20px;
   overflow: visible !important;
   min-height: 200px;
   background: hsl(var(--background));
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.day-calendar-wrapper:last-child {
-  border-right: none;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
 }
 
 /* Popover tooltip styling - highest z-index */

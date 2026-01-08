@@ -1,13 +1,22 @@
 /* Modern, clean calendar design */
 .time-grid-with-staff-header {
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
-  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
   overflow: hidden;
   display: grid;
   min-height: 500px;
   height: auto;
+}
+
+/* Day card - individual card styling */
+.day-card {
+  background: hsl(var(--background));
+  border-radius: 20px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  border: 1px solid hsl(var(--border));
+  overflow: hidden;
 }
 
 /* Time Column Header */
@@ -337,19 +346,7 @@
   gap: 0;
 }
 
-/* Day wrapper - card-like appearance */
+/* Day wrapper - no longer needed, using .day-card instead */
 .day-calendar-wrapper {
-  border-right: 1px solid hsl(var(--border));
   background: hsl(var(--background));
-}
-
-.day-calendar-wrapper:first-child {
-  border-radius: 16px 0 0 16px;
-  overflow: hidden;
-}
-
-.day-calendar-wrapper:last-child {
-  border-right: none;
-  border-radius: 0 16px 16px 0;
-  overflow: hidden;
 }
