@@ -73,8 +73,8 @@ export const useBackgroundImport = () => {
     });
 
     try {
-      // Silent import - no user feedback
-      await importBookings({ syncMode: 'incremental' });
+      // Silent import - no user feedback (silent = true)
+      await importBookings({ syncMode: 'incremental' }, true);
       
       const now = new Date();
       saveState({
@@ -130,7 +130,8 @@ export const useBackgroundImport = () => {
 
     try {
       setState(prev => ({ ...prev, isRunning: true }));
-      const result = await importBookings({ syncMode: 'incremental' });
+      // Manual import - show feedback (silent = false)
+      const result = await importBookings({ syncMode: 'incremental' }, false);
       
       const now = new Date();
       saveState({

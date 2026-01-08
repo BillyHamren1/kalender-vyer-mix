@@ -1,9 +1,9 @@
-
 import React, { createContext, useState } from 'react';
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { useBackgroundImport } from "@/hooks/useBackgroundImport";
 import Index from "./pages/Index";
 import CustomCalendarPage from "./pages/CustomCalendarPage";
 import StaffManagement from "./pages/StaffManagement";
@@ -29,9 +29,13 @@ export const CalendarContext = createContext<CalendarContextType>({
   setLastPath: () => {},
 });
 
-const App = () => {
+// Inner component that uses the background import hook
+const AppContent = () => {
   const [lastViewedDate, setLastViewedDate] = useState(new Date());
   const [lastPath, setLastPath] = useState('');
+  
+  // Centralized background import - runs once at app level
+  useBackgroundImport();
 
   const contextValue = {
     lastViewedDate,
@@ -61,6 +65,11 @@ const App = () => {
       </QueryClientProvider>
     </CalendarContext.Provider>
   );
+};
+
+// Wrapper component to ensure hooks work correctly
+const App = () => {
+  return <AppContent />;
 };
 
 export default App;

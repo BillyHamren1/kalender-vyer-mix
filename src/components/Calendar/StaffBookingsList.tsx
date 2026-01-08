@@ -10,23 +10,23 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Users, RefreshCw, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
+import { importBookings } from '@/services/importService';
 
 interface StaffBookingsListProps {
   events: CalendarEvent[];
   resources: Resource[];
   currentDate: Date;
   weeklyStaffOperations?: any;
-  backgroundImport?: any;
 }
 
 const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
   events,
   resources,
   currentDate,
-  weeklyStaffOperations,
-  backgroundImport
+  weeklyStaffOperations
 }) => {
   const navigate = useNavigate();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Default to current week (Monday to Sunday)
   const [startDate, setStartDate] = useState(() => 
@@ -108,14 +108,16 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
   };
 
   const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
     try {
-      if (backgroundImport?.performManualRefresh) {
-        await backgroundImport.performManualRefresh();
-        toast.success('Bookings refreshed successfully');
-      }
+      await importBookings({ syncMode: 'incremental' }, false);
+      toast.success('Bookings refreshed successfully');
     } catch (error) {
       console.error('Error refreshing bookings:', error);
       toast.error('Failed to refresh bookings');
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -137,10 +139,10 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
             <Button
               variant="outline"
               onClick={handleRefresh}
-              disabled={backgroundImport?.isImporting}
+              disabled={isRefreshing}
               className="flex items-center gap-2"
             >
-              <RefreshCw className={`h-4 w-4 ${backgroundImport?.isImporting ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
               Refresh Data
             </Button>
           </div>
