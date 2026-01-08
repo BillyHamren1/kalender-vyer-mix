@@ -28,10 +28,7 @@ const Index = () => {
               <div className="bg-gray-100 p-4 rounded-full mb-6">
                 <Calendar className="text-[#82b6c6] h-8 w-8" />
               </div>
-              <h2 className="text-xl font-semibold text-[#2d3748] mb-3">Personalplanering</h2>
-              <p className="text-gray-600 mb-6">
-                Hantera resurser, projekt och planering
-              </p>
+              <h2 className="text-xl font-semibold text-[#2d3748] mb-6">Personalplanering</h2>
               <Link to="/calendar" className="mt-auto">
                 <Button className="bg-[#82b6c6] hover:bg-[#6a99a8] text-white">
                   Se kalender
@@ -43,10 +40,7 @@ const Index = () => {
               <div className="bg-gray-100 p-4 rounded-full mb-6">
                 <ShoppingCart className="text-[#82b6c6] h-8 w-8" />
               </div>
-              <h2 className="text-xl font-semibold text-[#2d3748] mb-3">Projekthantering</h2>
-              <p className="text-gray-600 mb-6">
-                Hantera bokningar och klienter
-              </p>
+              <h2 className="text-xl font-semibold text-[#2d3748] mb-6">Projekthantering</h2>
               <Link to="/booking-list" className="mt-auto">
                 <Button className="bg-[#82b6c6] hover:bg-[#6a99a8] text-white">
                   Se bokningar
@@ -58,10 +52,7 @@ const Index = () => {
               <div className="bg-gray-100 p-4 rounded-full mb-6">
                 <Users className="text-[#82b6c6] h-8 w-8" />
               </div>
-              <h2 className="text-xl font-semibold text-[#2d3748] mb-3">Personaladministration</h2>
-              <p className="text-gray-600 mb-6">
-                Hantera personal, team och schemaläggning
-              </p>
+              <h2 className="text-xl font-semibold text-[#2d3748] mb-6">Personaladministration</h2>
               <Link to="/staff-management" className="mt-auto">
                 <Button className="bg-[#82b6c6] hover:bg-[#6a99a8] text-white">
                   Se personal
