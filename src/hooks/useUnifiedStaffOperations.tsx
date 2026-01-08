@@ -380,6 +380,83 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
     }
   }, [assignments]);
 
+  // Get ALL staff for planning - shows everyone with their assignment status
+  const getStaffForPlanningDate = useCallback(async (targetDate: Date, targetTeamId: string): Promise<Array<{
+    id: string;
+    name: string;
+    color?: string;
+    assignmentStatus: 'free' | 'assigned_current_team' | 'assigned_other_team';
+    assignedTeamId?: string;
+    assignedTeamName?: string;
+  }>> => {
+    const dateStr = format(targetDate, 'yyyy-MM-dd');
+    
+    try {
+      // Get all active staff
+      const { data: allStaff, error: staffError } = await supabase
+        .from('staff_members')
+        .select('id, name, color')
+        .eq('is_active', true)
+        .order('name');
+      
+      if (staffError || !allStaff) {
+        console.error('Error fetching staff:', staffError);
+        return [];
+      }
+      
+      // Get assignments for this date from our local state (already loaded)
+      const assignmentsForDate = assignments.filter(a => a.date === dateStr);
+      
+      // Create a map of staff -> their assignment for this date
+      const assignmentMap = new Map<string, { teamId: string; teamName: string }>();
+      assignmentsForDate.forEach(a => {
+        // Convert team-11 to "Live", team-X to "Team X"
+        let teamName = a.teamId;
+        if (a.teamId === 'team-11') {
+          teamName = 'Live';
+        } else if (a.teamId.startsWith('team-')) {
+          teamName = 'Team ' + a.teamId.replace('team-', '');
+        }
+        assignmentMap.set(a.staffId, { teamId: a.teamId, teamName });
+      });
+      
+      // Build the result with status
+      const result = allStaff.map(staff => {
+        const assignment = assignmentMap.get(staff.id);
+        
+        let assignmentStatus: 'free' | 'assigned_current_team' | 'assigned_other_team' = 'free';
+        if (assignment) {
+          if (assignment.teamId === targetTeamId) {
+            assignmentStatus = 'assigned_current_team';
+          } else {
+            assignmentStatus = 'assigned_other_team';
+          }
+        }
+        
+        return {
+          id: staff.id,
+          name: staff.name,
+          color: staff.color || '#E3F2FD',
+          assignmentStatus,
+          assignedTeamId: assignment?.teamId,
+          assignedTeamName: assignment?.teamName
+        };
+      });
+      
+      // Sort: free first, then assigned to current team, then assigned to other team
+      result.sort((a, b) => {
+        const order = { 'free': 0, 'assigned_current_team': 1, 'assigned_other_team': 2 };
+        return order[a.assignmentStatus] - order[b.assignmentStatus];
+      });
+      
+      console.log(`✅ [getStaffForPlanningDate] ${dateStr}: ${result.length} staff total, ${result.filter(s => s.assignmentStatus === 'free').length} free`);
+      return result;
+    } catch (error) {
+      console.error('Error in getStaffForPlanningDate:', error);
+      return [];
+    }
+  }, [assignments]);
+
   // Force refresh
   const forceRefresh = useCallback(() => {
     console.log('🔄 Force refreshing assignments');
@@ -393,6 +470,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
     handleStaffDrop,
     getStaffForTeamAndDate,
     getAvailableStaffForDate,
+    getStaffForPlanningDate,
     forceRefresh,
     refreshTrigger
   };
