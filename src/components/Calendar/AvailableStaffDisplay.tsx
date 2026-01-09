@@ -53,7 +53,7 @@ const AvailableStaffDisplay: React.FC<AvailableStaffDisplayProps> = ({
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Users className="h-4 w-4 text-[#7BAEBF]" />
+              <Users className="h-4 w-4 text-primary" />
               Available Staff
             </CardTitle>
             <Button

@@ -80,12 +80,17 @@ const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({
         }}
       >
         {/* Header */}
-        <div className="p-3 border-b bg-[#7BAEBF] text-white flex justify-between items-center">
+        <div className="p-3 border-b bg-primary text-primary-foreground flex justify-between items-center">
           <h3 className="text-sm font-medium flex items-center gap-2">
             <Users className="h-4 w-4" />
             Add to {selectedTeamName}
           </h3>
-          <Button variant="ghost" size="sm" onClick={onClose} className="h-6 w-6 p-0 text-white hover:bg-white/20">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            className="h-6 w-6 p-0 text-primary-foreground hover:bg-primary-foreground/15"
+          >
             <X className="h-3 w-3" />
           </Button>
         </div>
@@ -151,7 +156,7 @@ const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({
                       }`}
                     >
                       {assigning === staff.id ? (
-                        <div className="h-3 w-3 animate-spin rounded-full border border-gray-300 border-t-[#7BAEBF]"></div>
+                        <div className="h-3 w-3 animate-spin rounded-full border border-border border-t-primary"></div>
                       ) : staff.assignmentStatus === 'assigned_other_team' ? (
                         <>
                           <ArrowRightLeft className="h-3 w-3 mr-1" />
