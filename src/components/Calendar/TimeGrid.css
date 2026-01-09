@@ -173,7 +173,7 @@
 
 /* Staff Assignment Header Row - Clean look */
 .staff-assignment-header-row {
-  background: hsl(var(--background));
+  background: hsl(var(--muted));
   height: 50px;
   position: relative;
   overflow: hidden;
