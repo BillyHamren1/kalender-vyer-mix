@@ -41,6 +41,22 @@
   transform: translateY(-2px) translateZ(0);
 }
 
+/* Expanded day card in dialog */
+.day-card-expanded {
+  animation: zoom-in 0.3s ease-out;
+}
+
+@keyframes zoom-in {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 /* Unified header background - solid teal */
 .time-grid-header-bg {
   background: hsl(var(--primary));
