@@ -184,13 +184,13 @@ const [currentWeekStart, setCurrentWeekStart] = useState(currentDate);
         <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 overflow-auto day-card-expanded">
           {expandedDay && (() => {
             const filteredResources = getFilteredResourcesForDay(expandedDay);
-            const dayWidth = Math.max(getDayWidth(filteredResources.length), 600);
+            // Use viewport width for expanded view - much larger than normal
+            const expandedWidth = Math.max(window.innerWidth * 0.9, 800);
             const visibleTeams = getVisibleTeamsForDay ? getVisibleTeamsForDay(expandedDay) : [];
 
             return (
               <div 
-                className="bg-background rounded-2xl overflow-hidden"
-                style={{ minWidth: `${dayWidth}px` }}
+                className="bg-background rounded-2xl overflow-hidden w-full"
                 onClick={(e) => e.stopPropagation()}
               >
                 <TimeGrid
@@ -200,7 +200,7 @@ const [currentWeekStart, setCurrentWeekStart] = useState(currentDate);
                   getEventsForDayAndResource={getEventsForDayAndResource}
                   onStaffDrop={onStaffDrop}
                   onOpenStaffSelection={onOpenStaffSelection}
-                  dayWidth={dayWidth}
+                  dayWidth={expandedWidth}
                   weeklyStaffOperations={weeklyStaffOperations}
                   onEventResize={handleEventResize}
                   teamVisibilityProps={allTeams && onToggleTeamForDay ? {
