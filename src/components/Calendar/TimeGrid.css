@@ -227,7 +227,7 @@
   padding: 2px 4px;
   border-bottom: 1px solid hsl(var(--border) / 0.5);
   text-align: center;
-  height: 18px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -259,7 +259,7 @@
 }
 
 .time-slot-cell {
-  height: 18px;
+  height: 28px;
   flex-shrink: 0;
   border-bottom: 1px solid hsl(var(--border) / 0.3);
 }
@@ -310,7 +310,7 @@
 
 .time-slot-aligned {
   border-bottom: 1px solid hsl(var(--border) / 0.3);
-  height: 18px;
+  height: 28px;
 }
 
 .time-slot-aligned:last-child {
