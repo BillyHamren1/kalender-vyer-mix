@@ -250,19 +250,6 @@
   border-right: none;
 }
 
-/* Live column (team-11) - Same styling as TIME column for symmetry */
-.time-slots-column.live-column {
-  background: hsl(var(--muted));
-  border-left: 1px solid hsl(var(--border));
-}
-
-.team-header-cell.live-column-header {
-  background: hsl(var(--muted));
-}
-
-.staff-assignment-header-row.live-column-staff {
-  background: hsl(var(--muted));
-}
 
 .time-slots-grid {
   display: flex;

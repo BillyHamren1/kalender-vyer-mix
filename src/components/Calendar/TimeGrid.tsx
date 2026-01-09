@@ -116,15 +116,9 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   const timeSlots = generateTimeSlots();
 
-  // Fixed column width for team columns (3x larger)
-  // Live column (team-11) uses same width as TIME column for symmetry
+  // Fixed column widths
   const timeColumnWidth = 80;
-  const liveColumnWidth = 80; // Same as time column for symmetry
   const teamColumnWidth = 128;
-  
-  // Check if last resource is Live (team-11)
-  const hasLiveColumn = resources.length > 0 && resources[resources.length - 1]?.id === 'team-11';
-  const regularTeamCount = hasLiveColumn ? resources.length - 1 : resources.length;
 
   // Calculate event position based on time - Continuous 24-hour grid
   const getEventPosition = (event: CalendarEvent) => {
@@ -205,25 +199,14 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   // Event drop handler removed - using click-based event marking system instead
 
-  // Calculate grid template columns - Live column gets same width as TIME for symmetry
+  // Calculate grid template columns
   const getGridTemplateColumns = () => {
-    if (hasLiveColumn) {
-      return `${timeColumnWidth}px repeat(${regularTeamCount}, ${teamColumnWidth}px) ${liveColumnWidth}px`;
-    }
     return `${timeColumnWidth}px repeat(${resources.length}, ${teamColumnWidth}px)`;
   };
 
   // Calculate total width
   const getTotalWidth = () => {
-    if (hasLiveColumn) {
-      return timeColumnWidth + (regularTeamCount * teamColumnWidth) + liveColumnWidth;
-    }
     return timeColumnWidth + (resources.length * teamColumnWidth);
-  };
-
-  // Get column width for a specific resource
-  const getColumnWidth = (resourceId: string) => {
-    return resourceId === 'team-11' ? liveColumnWidth : teamColumnWidth;
   };
 
   return (
@@ -270,31 +253,27 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
         {resources.map((resource, index) => {
           const assignedStaff = getAssignedStaffForTeam(resource.id);
-          const isLiveColumn = resource.id === 'team-11';
-          const columnWidth = getColumnWidth(resource.id);
           
           return (
             <div 
               key={`header-${resource.id}`}
-              className={`team-header-cell ${isLiveColumn ? 'live-column-header' : ''}`}
+              className="team-header-cell"
               style={{ 
                 gridColumn: index + 2,
                 gridRow: 2,
-                width: `${columnWidth}px`,
-                minWidth: `${columnWidth}px`
+                width: `${teamColumnWidth}px`,
+                minWidth: `${teamColumnWidth}px`
               }}
             >
               <div className="team-header-content">
                 <span className="team-title" title={resource.title}>{resource.title}</span>
-                {!isLiveColumn && (
-                  <button
-                    className="add-staff-button-header"
-                    onClick={(e) => handleStaffSelectionClick(resource.id, resource.title, e)}
-                    title={`Assign staff to ${resource.title}`}
-                  >
-                    +
-                  </button>
-                )}
+                <button
+                  className="add-staff-button-header"
+                  onClick={(e) => handleStaffSelectionClick(resource.id, resource.title, e)}
+                  title={`Assign staff to ${resource.title}`}
+                >
+                  +
+                </button>
               </div>
             </div>
           );
@@ -304,37 +283,33 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
         {resources.map((resource, index) => {
           const assignedStaff = getAssignedStaffForTeam(resource.id);
-          const isLiveColumn = resource.id === 'team-11';
-          const columnWidth = getColumnWidth(resource.id);
           
           return (
             <div 
               key={`staff-${resource.id}`}
-              className={`staff-assignment-header-row ${isLiveColumn ? 'live-column-staff' : ''}`}
+              className="staff-assignment-header-row"
               style={{ 
                 gridColumn: index + 2,
                 gridRow: 3,
-                width: `${columnWidth}px`,
-                minWidth: `${columnWidth}px`
+                width: `${teamColumnWidth}px`,
+                minWidth: `${teamColumnWidth}px`
               }}
             >
-              {!isLiveColumn && (
-                <div className="staff-header-assignment-area">
-                  <div className="assigned-staff-header-list">
-                    {assignedStaff.map((staff) => (
-                      <StaffItem
-                        key={staff.id}
-                        staff={staff}
-                        onRemove={() => handleStaffRemoval(staff.id, resource.id)}
-                        currentDate={day}
-                        teamName={resource.title}
-                        variant="compact"
-                        showRemoveDialog={true}
-                      />
-                    ))}
-                  </div>
+              <div className="staff-header-assignment-area">
+                <div className="assigned-staff-header-list">
+                  {assignedStaff.map((staff) => (
+                    <StaffItem
+                      key={staff.id}
+                      staff={staff}
+                      onRemove={() => handleStaffRemoval(staff.id, resource.id)}
+                      currentDate={day}
+                      teamName={resource.title}
+                      variant="compact"
+                      showRemoveDialog={true}
+                    />
+                  ))}
                 </div>
-              )}
+              </div>
             </div>
           );
         })}
@@ -351,8 +326,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         {/* Simplified Time Slot Columns */}
         {resources.map((resource, index) => {
           const resourceEvents = getEventsForDayAndResource(day, resource.id);
-          const isLiveColumn = resource.id === 'team-11';
-          const columnWidth = getColumnWidth(resource.id);
           
           console.log(`📅 TimeGrid rendering for ${format(day, 'yyyy-MM-dd')} team ${resource.id}:`, {
             totalEventsInProps: events.length,
@@ -363,12 +336,12 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           return (
             <SimpleTimeSlot key={`timeslots-${resource.id}`}>
               <div 
-                className={`time-slots-column ${isLiveColumn ? 'live-column' : ''}`}
+                className="time-slots-column"
                 style={{ 
                   gridColumn: index + 2,
                   gridRow: 4,
-                  width: `${columnWidth}px`,
-                  minWidth: `${columnWidth}px`,
+                  width: `${teamColumnWidth}px`,
+                  minWidth: `${teamColumnWidth}px`,
                   position: 'relative'
                 }}
               >
@@ -387,7 +360,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                       key={`event-wrapper-${event.id}`}
                       event={event}
                       position={position}
-                      teamColumnWidth={columnWidth}
+                      teamColumnWidth={teamColumnWidth}
                       onEventClick={handleBookingEventClick}
                       onEventResize={onEventResize}
                     />
