@@ -106,7 +106,10 @@
   background: hsl(var(--muted));
   border-right: 1px solid hsl(var(--border));
   border-bottom: 1px solid hsl(var(--border));
-  height: 40px;
+}
+
+.time-empty-cell {
+  height: 32px;
 }
 
 .staff-row-time-cell {
