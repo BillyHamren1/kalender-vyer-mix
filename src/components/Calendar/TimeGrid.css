@@ -41,42 +41,6 @@
   transform: translateY(-2px) translateZ(0);
 }
 
-/* Scaled day card - 30% larger */
-.day-card-scaled {
-  display: inline-block;
-  transform: scale(1.3);
-  transform-origin: center center;
-  animation: zoom-in 0.3s ease-out forwards;
-  position: relative;
-  z-index: 1;
-
-  background: hsl(var(--background));
-  border-radius: 20px;
-  border: 1px solid hsl(var(--border) / 0.5);
-  border-right: 4px solid hsl(var(--border));
-  /* Allow dropdowns/menus to overflow outside the card */
-  overflow: visible;
-
-  box-shadow:
-    0 6px 12px -2px rgba(0, 0, 0, 0.15),
-    0 20px 40px -10px rgba(0, 0, 0, 0.2);
-}
-
-/* Radix popovers/selects are portaled to <body>; force them above the zoomed dialog/card */
-[data-radix-popper-content-wrapper] {
-  z-index: 10050 !important;
-}
-
-@keyframes zoom-in {
-  from {
-    transform: scale(1);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1.3);
-    opacity: 1;
-  }
-}
 
 /* Unified header background - solid teal */
 .time-grid-header-bg {
