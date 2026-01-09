@@ -120,7 +120,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   return (
     <div className="custom-calendar-container" ref={containerRef}>
       {/* Navigation */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-2">
         <WeekNavigation 
           currentWeekStart={currentWeekStart}
           setCurrentWeekStart={setCurrentWeekStart}
@@ -138,7 +138,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
 
       {/* Modern Weekly Staff Planning Grid - Cards with gaps */}
       <div className="weekly-calendar-container overflow-x-auto p-4">
-        <div className="weekly-calendar-grid flex gap-2">
+        <div className="weekly-calendar-grid flex gap-4">
           {days.map((date) => {
             const filteredResources = getFilteredResourcesForDay(date);
             const dayWidth = getDayWidth(filteredResources.length);
