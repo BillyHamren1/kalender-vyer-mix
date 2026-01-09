@@ -181,7 +181,7 @@ const [currentWeekStart, setCurrentWeekStart] = useState(currentDate);
 
       {/* Expanded Day Dialog */}
       <Dialog open={expandedDay !== null} onOpenChange={() => setExpandedDay(null)}>
-        <DialogContent className="max-w-none max-h-none p-0 overflow-visible bg-transparent border-none shadow-none">
+        <DialogContent className="fixed inset-0 left-0 top-0 translate-x-0 translate-y-0 flex items-center justify-center p-6 bg-transparent border-none shadow-none overflow-auto">
           {expandedDay && (() => {
             const filteredResources = getFilteredResourcesForDay(expandedDay);
             const dayWidth = getDayWidth(filteredResources.length);
