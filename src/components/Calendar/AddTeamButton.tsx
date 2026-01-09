@@ -55,9 +55,9 @@ const AddTeamButton: React.FC<AddTeamButtonProps> = ({
     <div className="flex">
       <Button 
         onClick={() => setDialogOpen(true)}
-        className={`bg-[#7BAEBF] hover:bg-[#6E9DAC] text-white text-sm ${
+        className={`bg-primary hover:bg-primary/90 text-primary-foreground text-sm ${
           teamResources.length > 0 ? 'rounded-r-none' : ''
-        } border-r border-r-[#6ca2b4] ${
+        } border-r border-r-primary/40 ${
           isMobile ? 'px-2 py-1 h-8' : 'px-3 py-1 h-9'
         }`}
         size="sm"
@@ -70,7 +70,7 @@ const AddTeamButton: React.FC<AddTeamButtonProps> = ({
         <DropdownMenu open={showDropdown} onOpenChange={setShowDropdown}>
           <DropdownMenuTrigger asChild>
             <Button 
-              className={`bg-[#7BAEBF] hover:bg-[#6E9DAC] text-white rounded-l-none ${
+              className={`bg-primary hover:bg-primary/90 text-primary-foreground rounded-l-none ${
                 isMobile ? 'px-1 h-8' : 'px-1.5 h-9'
               }`}
               size="sm"
@@ -133,7 +133,7 @@ const AddTeamButton: React.FC<AddTeamButtonProps> = ({
                 </Button>
                 <Button 
                   type="submit"
-                  className="bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
                 >
                   Add Team
                 </Button>

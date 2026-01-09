@@ -30,10 +30,10 @@ const MonthNavigation: React.FC<MonthNavigationProps> = ({
       <div className="flex items-center">
         <button
           onClick={goToPreviousMonth}
-          className="bg-[#7BAEBF] hover:bg-[#6E9DAC] transition-colors duration-300 rounded-lg p-3 mr-8"
+          className="bg-primary hover:bg-primary/90 transition-colors duration-300 rounded-lg p-3 mr-8"
         >
           <ChevronLeft 
-            className="h-8 w-8 text-white"
+            className="h-8 w-8 text-primary-foreground"
             strokeWidth={3}
           />
         </button>
@@ -44,10 +44,10 @@ const MonthNavigation: React.FC<MonthNavigationProps> = ({
         
         <button
           onClick={goToNextMonth}
-          className="bg-[#7BAEBF] hover:bg-[#6E9DAC] transition-colors duration-300 rounded-lg p-3 ml-8"
+          className="bg-primary hover:bg-primary/90 transition-colors duration-300 rounded-lg p-3 ml-8"
         >
           <ChevronRight 
-            className="h-8 w-8 text-white"
+            className="h-8 w-8 text-primary-foreground"
             strokeWidth={3}
           />
         </button>
