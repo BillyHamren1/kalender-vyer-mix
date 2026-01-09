@@ -3,16 +3,8 @@ import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import TimeGrid from './TimeGrid';
 import WeekNavigation from './WeekNavigation';
-import TeamVisibilityControl from './TeamVisibilityControl';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, X } from 'lucide-react';
-import { toast } from 'sonner';
-import { updateCalendarEvent } from '@/services/eventService';
-import {
-  Dialog,
-  DialogContent,
-  DialogClose,
-} from '@/components/ui/dialog';
+import { RefreshCw } from 'lucide-react';
 
 interface CustomCalendarProps {
   events: CalendarEvent[];
@@ -38,20 +30,16 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   events,
   resources,
   isLoading,
-  isMounted,
   currentDate,
-  onDateSet,
   refreshEvents,
   onStaffDrop,
   onOpenStaffSelection,
-  viewMode,
   weeklyStaffOperations,
   getVisibleTeamsForDay,
   onToggleTeamForDay,
   allTeams
 }) => {
-const [currentWeekStart, setCurrentWeekStart] = useState(currentDate);
-  const [expandedDay, setExpandedDay] = useState<Date | null>(null);
+  const [currentWeekStart, setCurrentWeekStart] = useState(currentDate);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Generate days for the week
@@ -153,9 +141,8 @@ const [currentWeekStart, setCurrentWeekStart] = useState(currentDate);
             return (
               <div 
                 key={format(date, 'yyyy-MM-dd')} 
-                className="day-card flex-shrink-0 bg-background rounded-2xl shadow-lg border border-border overflow-hidden cursor-pointer transition-transform duration-200 hover:scale-[1.02] hover:shadow-xl"
+                className="day-card flex-shrink-0 bg-background rounded-2xl shadow-lg border border-border overflow-hidden"
                 style={{ width: `${dayWidth}px` }}
-                onClick={() => setExpandedDay(date)}
               >
                 <TimeGrid
                   day={date}
@@ -178,41 +165,6 @@ const [currentWeekStart, setCurrentWeekStart] = useState(currentDate);
           })}
         </div>
       </div>
-
-      {/* Expanded Day Dialog - centered popup with 30% scale */}
-      <Dialog open={expandedDay !== null} onOpenChange={() => setExpandedDay(null)}>
-        <DialogContent className="max-w-fit max-h-fit p-0 bg-transparent border-none shadow-none [&>button]:hidden">
-          {expandedDay && (() => {
-            const filteredResources = getFilteredResourcesForDay(expandedDay);
-            const dayWidth = getDayWidth(filteredResources.length);
-            const visibleTeams = getVisibleTeamsForDay ? getVisibleTeamsForDay(expandedDay) : [];
-
-            return (
-              <div 
-                className="day-card-scaled"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <TimeGrid
-                  day={expandedDay}
-                  resources={filteredResources}
-                  events={events}
-                  getEventsForDayAndResource={getEventsForDayAndResource}
-                  onStaffDrop={onStaffDrop}
-                  onOpenStaffSelection={onOpenStaffSelection}
-                  dayWidth={dayWidth}
-                  weeklyStaffOperations={weeklyStaffOperations}
-                  onEventResize={handleEventResize}
-                  teamVisibilityProps={allTeams && onToggleTeamForDay ? {
-                    allTeams,
-                    visibleTeams,
-                    onToggleTeam: (teamId: string) => onToggleTeamForDay(teamId, expandedDay)
-                  } : undefined}
-                />
-              </div>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
