@@ -117,7 +117,7 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
       {viewMode && onViewModeChange ? (
         <div className="flex gap-1">
           <Button
-            variant={viewMode === 'weekly' ? 'secondary' : 'ghost'}
+            variant={viewMode === 'weekly' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => onViewModeChange('weekly')}
             className="text-xs px-2 py-1 h-7"
@@ -125,7 +125,7 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
             Vecka
           </Button>
           <Button
-            variant={viewMode === 'monthly' ? 'secondary' : 'ghost'}
+            variant={viewMode === 'monthly' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => onViewModeChange('monthly')}
             className="text-xs px-2 py-1 h-7"
@@ -133,7 +133,7 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
             Månad
           </Button>
           <Button
-            variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+            variant={viewMode === 'list' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => onViewModeChange('list')}
             className="text-xs px-2 py-1 h-7"
