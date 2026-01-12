@@ -1,7 +1,7 @@
 
 import React, { useCallback, useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
-import { format, startOfWeek, getWeek } from 'date-fns';
+import { format, startOfWeek, getWeek, addMonths, subMonths } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -17,17 +17,25 @@ interface WeekNavigationProps {
   setCurrentWeekStart: (date: Date) => void;
   viewMode?: 'weekly' | 'monthly' | 'list';
   onViewModeChange?: (mode: 'weekly' | 'monthly' | 'list') => void;
+  // Monthly mode props
+  currentMonth?: Date;
+  onMonthChange?: (date: Date) => void;
 }
 
 const WeekNavigation: React.FC<WeekNavigationProps> = ({
   currentWeekStart,
   setCurrentWeekStart,
   viewMode,
-  onViewModeChange
+  onViewModeChange,
+  currentMonth,
+  onMonthChange
 }) => {
   const [datePickerOpen, setDatePickerOpen] = useState(false);
 
-  // Navigation functions
+  // Determine if we're in monthly mode
+  const isMonthlyMode = viewMode === 'monthly';
+
+  // Navigation functions for weekly mode
   const goToPreviousWeek = useCallback(() => {
     const prevWeek = new Date(currentWeekStart);
     prevWeek.setDate(prevWeek.getDate() - 7);
@@ -40,23 +48,51 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
     setCurrentWeekStart(nextWeek);
   }, [currentWeekStart, setCurrentWeekStart]);
 
+  // Navigation functions for monthly mode
+  const goToPreviousMonth = useCallback(() => {
+    if (currentMonth && onMonthChange) {
+      onMonthChange(subMonths(currentMonth, 1));
+    }
+  }, [currentMonth, onMonthChange]);
+
+  const goToNextMonth = useCallback(() => {
+    if (currentMonth && onMonthChange) {
+      onMonthChange(addMonths(currentMonth, 1));
+    }
+  }, [currentMonth, onMonthChange]);
+
   // Handle date selection from calendar
   const handleDateSelect = useCallback((selectedDate: Date | undefined) => {
     if (selectedDate) {
-      // Calculate the Monday of the week containing the selected date
-      const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
-      setCurrentWeekStart(weekStart);
+      if (isMonthlyMode && onMonthChange) {
+        // In monthly mode, just change the month
+        onMonthChange(selectedDate);
+      } else {
+        // In weekly mode, calculate the Monday of the week
+        const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
+        setCurrentWeekStart(weekStart);
+      }
       setDatePickerOpen(false);
     }
-  }, [setCurrentWeekStart]);
+  }, [setCurrentWeekStart, isMonthlyMode, onMonthChange]);
 
-  // Format as week number + month (e.g., "Vecka 3, Januari 2026")
-  const weekRangeText = (() => {
+  // Format header text based on mode
+  const headerText = (() => {
+    if (isMonthlyMode && currentMonth) {
+      const monthName = format(currentMonth, 'MMMM', { locale: sv });
+      const year = format(currentMonth, 'yyyy');
+      return `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${year}`;
+    }
+    // Weekly mode: show week number + month
     const weekNumber = getWeek(currentWeekStart, { weekStartsOn: 1 });
     const monthName = format(currentWeekStart, 'MMMM', { locale: sv });
     const year = format(currentWeekStart, 'yyyy');
     return `Vecka ${weekNumber}, ${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${year}`;
   })();
+
+  // Use appropriate navigation handlers based on mode
+  const handlePrevious = isMonthlyMode ? goToPreviousMonth : goToPreviousWeek;
+  const handleNext = isMonthlyMode ? goToNextMonth : goToNextWeek;
 
   return (
     <div className="flex items-center justify-between bg-white border-b border-border px-6 py-3">
@@ -66,7 +102,7 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
       {/* Centered Navigation */}
       <div className="flex items-center">
         <button
-          onClick={goToPreviousWeek}
+          onClick={handlePrevious}
           className="bg-primary hover:bg-primary/90 transition-colors duration-300 rounded-lg p-1.5 mr-4"
         >
           <ChevronLeft 
@@ -87,14 +123,14 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
             >
               <div className="flex items-center justify-center gap-2">
                 <CalendarIcon className="h-5 w-5" />
-                {weekRangeText}
+                {headerText}
               </div>
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="center">
             <Calendar
               mode="single"
-              selected={currentWeekStart}
+              selected={isMonthlyMode ? currentMonth : currentWeekStart}
               onSelect={handleDateSelect}
               initialFocus
               className={cn("p-3 pointer-events-auto")}
@@ -103,7 +139,7 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
         </Popover>
         
         <button
-          onClick={goToNextWeek}
+          onClick={handleNext}
           className="bg-primary hover:bg-primary/90 transition-colors duration-300 rounded-lg p-1.5 ml-4"
         >
           <ChevronRight 

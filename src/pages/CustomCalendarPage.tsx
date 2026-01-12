@@ -11,8 +11,8 @@ import SimpleStaffCurtain from '@/components/Calendar/SimpleStaffCurtain';
 import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
 import MobileMonthlyCalendar from '@/components/Calendar/MobileMonthlyCalendar';
 import MobileDayDetailView from '@/components/Calendar/MobileDayDetailView';
-import SimpleMonthlyCalendar from '@/components/Calendar/SimpleMonthlyCalendar';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
+import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
 import { startOfWeek, startOfMonth, format } from 'date-fns';
 
 // Wrapper component to handle async loading of staff with status
@@ -65,8 +65,8 @@ const CustomCalendarPage = () => {
   const [mobileView, setMobileView] = useState<'month' | 'day'>('month');
   const [selectedMobileDate, setSelectedMobileDate] = useState<Date>(new Date());
   
-  // Monthly view state (for desktop)
-  const [monthlyDate, setMonthlyDate] = useState<Date>(new Date());
+  // Monthly view state (for desktop) - now used for the month tabs
+  const [monthlyDate, setMonthlyDate] = useState<Date>(startOfMonth(new Date()));
   
   // Real-time calendar events (these will update UI when background import updates DB)
   const {
@@ -88,6 +88,13 @@ const CustomCalendarPage = () => {
   const [currentMonthStart, setCurrentMonthStart] = useState(() => {
     return startOfMonth(new Date(hookCurrentDate));
   });
+
+  // When switching to monthly mode, sync the month with current week
+  useEffect(() => {
+    if (viewMode === 'monthly') {
+      setMonthlyDate(startOfMonth(currentWeekStart));
+    }
+  }, [viewMode]);
 
   // Visible teams state - per day { [dateString]: teamIds[] }
   const [visibleTeamsByDay, setVisibleTeamsByDay] = useState<{ [key: string]: string[] }>(() => {
@@ -197,14 +204,16 @@ const CustomCalendarPage = () => {
     setCurrentMonthStart(date);
   };
 
-  // Desktop monthly view handlers
-  const handleMonthlyDayClick = (date: Date) => {
-    setCurrentWeekStart(startOfWeek(date, { weekStartsOn: 1 }));
-    setViewMode('weekly');
+  // Handle week selection from tabs (monthly view)
+  const handleWeekSelect = (weekStart: Date) => {
+    setCurrentWeekStart(weekStart);
   };
 
+  // Handle month change in navigation (monthly view)
   const handleMonthChange = (date: Date) => {
-    setMonthlyDate(date);
+    setMonthlyDate(startOfMonth(date));
+    // Also update currentWeekStart to first week of new month
+    setCurrentWeekStart(startOfWeek(startOfMonth(date), { weekStartsOn: 1 }));
   };
 
   return (
@@ -216,6 +225,8 @@ const CustomCalendarPage = () => {
             setCurrentWeekStart={setCurrentWeekStart}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
+            currentMonth={monthlyDate}
+            onMonthChange={handleMonthChange}
           />
 
           {/* Content */}
@@ -264,13 +275,31 @@ const CustomCalendarPage = () => {
                 )}
               </>
             ) : viewMode === 'monthly' ? (
-              // Desktop Monthly View
-              <SimpleMonthlyCalendar
-                events={events}
-                currentDate={monthlyDate}
-                onDateChange={handleMonthChange}
-                onDayClick={handleMonthlyDayClick}
-              />
+              // Desktop Monthly View - uses weekly layout with week tabs
+              <>
+                <CustomCalendar
+                  events={events}
+                  resources={teamResources}
+                  isLoading={isLoading}
+                  isMounted={isMounted}
+                  currentDate={currentWeekStart}
+                  onDateSet={handleDatesSet}
+                  refreshEvents={refreshEvents}
+                  onStaffDrop={staffOps.handleStaffDrop}
+                  onOpenStaffSelection={handleOpenStaffSelection}
+                  viewMode="weekly"
+                  weeklyStaffOperations={staffOps}
+                  getVisibleTeamsForDay={getVisibleTeamsForDay}
+                  onToggleTeamForDay={handleToggleTeamForDay}
+                  allTeams={teamResources}
+                />
+                {/* Week tabs for quick navigation within the month */}
+                <WeekTabsNavigation
+                  currentMonth={monthlyDate}
+                  currentWeekStart={currentWeekStart}
+                  onWeekSelect={handleWeekSelect}
+                />
+              </>
             ) : (
               // List View
               <StaffBookingsList
