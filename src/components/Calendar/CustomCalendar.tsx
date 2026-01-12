@@ -2,7 +2,6 @@ import React, { useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import TimeGrid from './TimeGrid';
-import WeekNavigation from './WeekNavigation';
 
 interface CustomCalendarProps {
   events: CalendarEvent[];
@@ -105,12 +104,6 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
 
   return (
     <div className="custom-calendar-container" ref={containerRef}>
-      {/* Navigation */}
-      <WeekNavigation 
-        currentWeekStart={currentWeekStart}
-        setCurrentWeekStart={setCurrentWeekStart}
-      />
-
       {/* Modern Weekly Staff Planning Grid - Cards with gaps */}
       <div className="weekly-calendar-container overflow-x-auto p-4">
         <div className="weekly-calendar-grid flex gap-4">
