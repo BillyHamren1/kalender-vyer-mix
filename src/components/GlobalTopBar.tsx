@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Calendar, ShoppingCart, Users } from "lucide-react";
+import { Calendar, ShoppingCart, Users, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const GlobalTopBar = () => {
@@ -23,6 +23,12 @@ const GlobalTopBar = () => {
       icon: Users, 
       path: "/staff-management",
       matchPaths: ["/staff-management", "/staff"]
+    },
+    { 
+      name: "Inställningar", 
+      icon: Settings, 
+      path: "/settings",
+      matchPaths: ["/settings"]
     },
   ];
 
