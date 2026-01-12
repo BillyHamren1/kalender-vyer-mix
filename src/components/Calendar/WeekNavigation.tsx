@@ -1,15 +1,21 @@
 
 import React, { useCallback, useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
-import { format, startOfWeek, getWeek, addMonths, subMonths } from 'date-fns';
+import { format, startOfWeek, getWeek, addMonths, subMonths, setMonth, setYear } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 interface WeekNavigationProps {
@@ -21,6 +27,22 @@ interface WeekNavigationProps {
   currentMonth?: Date;
   onMonthChange?: (date: Date) => void;
 }
+
+// Swedish month names
+const MONTHS = [
+  'Januari', 'Februari', 'Mars', 'April', 'Maj', 'Juni',
+  'Juli', 'Augusti', 'September', 'Oktober', 'November', 'December'
+];
+
+// Generate years range (current year -5 to +5)
+const getYearOptions = () => {
+  const currentYear = new Date().getFullYear();
+  const years: number[] = [];
+  for (let i = currentYear - 5; i <= currentYear + 5; i++) {
+    years.push(i);
+  }
+  return years;
+};
 
 const WeekNavigation: React.FC<WeekNavigationProps> = ({
   currentWeekStart,
@@ -34,6 +56,9 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
 
   // Determine if we're in monthly mode
   const isMonthlyMode = viewMode === 'monthly';
+
+  // Get active date for display/selection
+  const activeDate = isMonthlyMode && currentMonth ? currentMonth : currentWeekStart;
 
   // Navigation functions for weekly mode
   const goToPreviousWeek = useCallback(() => {
@@ -61,20 +86,27 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
     }
   }, [currentMonth, onMonthChange]);
 
-  // Handle date selection from calendar
-  const handleDateSelect = useCallback((selectedDate: Date | undefined) => {
-    if (selectedDate) {
-      if (isMonthlyMode && onMonthChange) {
-        // In monthly mode, just change the month
-        onMonthChange(selectedDate);
-      } else {
-        // In weekly mode, calculate the Monday of the week
-        const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
-        setCurrentWeekStart(weekStart);
-      }
-      setDatePickerOpen(false);
+  // Handle month selection from dropdown
+  const handleMonthSelect = useCallback((monthIndex: string) => {
+    const newDate = setMonth(activeDate, parseInt(monthIndex));
+    if (isMonthlyMode && onMonthChange) {
+      onMonthChange(newDate);
+    } else {
+      const weekStart = startOfWeek(newDate, { weekStartsOn: 1 });
+      setCurrentWeekStart(weekStart);
     }
-  }, [setCurrentWeekStart, isMonthlyMode, onMonthChange]);
+  }, [activeDate, isMonthlyMode, onMonthChange, setCurrentWeekStart]);
+
+  // Handle year selection from dropdown
+  const handleYearSelect = useCallback((year: string) => {
+    const newDate = setYear(activeDate, parseInt(year));
+    if (isMonthlyMode && onMonthChange) {
+      onMonthChange(newDate);
+    } else {
+      const weekStart = startOfWeek(newDate, { weekStartsOn: 1 });
+      setCurrentWeekStart(weekStart);
+    }
+  }, [activeDate, isMonthlyMode, onMonthChange, setCurrentWeekStart]);
 
   // Format header text based on mode
   const headerText = (() => {
@@ -94,6 +126,10 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
   const handlePrevious = isMonthlyMode ? goToPreviousMonth : goToPreviousWeek;
   const handleNext = isMonthlyMode ? goToNextMonth : goToNextWeek;
 
+  const yearOptions = getYearOptions();
+  const currentMonthIndex = activeDate.getMonth();
+  const currentYearValue = activeDate.getFullYear();
+
   return (
     <div className="flex items-center justify-between bg-white border-b border-border px-6 py-3">
       {/* Left spacer for centering */}
@@ -111,7 +147,7 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
           />
         </button>
         
-        {/* Clickable date range that opens calendar picker */}
+        {/* Clickable date range that opens month/year picker */}
         <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
           <PopoverTrigger asChild>
             <Button
@@ -127,14 +163,54 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
               </div>
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="center">
-            <Calendar
-              mode="single"
-              selected={isMonthlyMode ? currentMonth : currentWeekStart}
-              onSelect={handleDateSelect}
-              initialFocus
-              className={cn("p-3 pointer-events-auto")}
-            />
+          <PopoverContent className="w-auto p-4 bg-white z-50" align="center">
+            <div className="flex flex-col gap-4">
+              <div className="text-sm font-medium text-center text-muted-foreground">
+                Välj månad och år
+              </div>
+              
+              {/* Month Dropdown */}
+              <Select
+                value={currentMonthIndex.toString()}
+                onValueChange={handleMonthSelect}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Välj månad" />
+                </SelectTrigger>
+                <SelectContent className="bg-white z-50">
+                  {MONTHS.map((month, index) => (
+                    <SelectItem key={index} value={index.toString()}>
+                      {month}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Year Dropdown */}
+              <Select
+                value={currentYearValue.toString()}
+                onValueChange={handleYearSelect}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Välj år" />
+                </SelectTrigger>
+                <SelectContent className="bg-white z-50">
+                  {yearOptions.map((year) => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Close button */}
+              <Button 
+                onClick={() => setDatePickerOpen(false)}
+                className="mt-2"
+              >
+                Klar
+              </Button>
+            </div>
           </PopoverContent>
         </Popover>
         
