@@ -59,7 +59,10 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
   })();
 
   return (
-    <div className="flex items-center justify-center bg-white border-b border-border px-6 py-4">
+    <div className="flex items-center justify-between bg-white border-b border-border px-6 py-3">
+      {/* Left spacer for centering */}
+      <div className="w-32" />
+
       {/* Centered Navigation */}
       <div className="flex items-center">
         <button
@@ -78,12 +81,12 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
             <Button
               variant="ghost"
               className={cn(
-                "text-2xl font-bold text-foreground px-4 py-2 min-w-[280px] text-center tracking-wider h-auto",
+                "text-xl font-semibold text-foreground px-3 py-1.5 text-center tracking-wide h-auto",
                 "hover:bg-muted transition-colors duration-200 cursor-pointer"
               )}
             >
               <div className="flex items-center justify-center gap-2">
-                <CalendarIcon className="h-6 w-6" />
+                <CalendarIcon className="h-5 w-5" />
                 {weekRangeText}
               </div>
             </Button>
@@ -110,35 +113,36 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
         </button>
       </div>
 
-      {/* View Mode Buttons */}
-      {viewMode && onViewModeChange && (
-        <div className="flex bg-muted rounded-lg p-1 ml-6">
+      {/* Right side - View Mode Buttons */}
+      {viewMode && onViewModeChange ? (
+        <div className="flex gap-1">
           <Button
-            variant={viewMode === 'weekly' ? 'default' : 'ghost'}
+            variant={viewMode === 'weekly' ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => onViewModeChange('weekly')}
-            className="flex items-center gap-2"
+            className="text-xs px-2 py-1 h-7"
           >
-            <CalendarIcon className="h-4 w-4" />
-            Weekly
+            Vecka
           </Button>
           <Button
-            variant={viewMode === 'monthly' ? 'default' : 'ghost'}
+            variant={viewMode === 'monthly' ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => onViewModeChange('monthly')}
-            className="flex items-center gap-2"
+            className="text-xs px-2 py-1 h-7"
           >
-            <CalendarIcon className="h-4 w-4" />
-            Monthly
+            Månad
           </Button>
           <Button
-            variant={viewMode === 'list' ? 'default' : 'ghost'}
+            variant={viewMode === 'list' ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => onViewModeChange('list')}
+            className="text-xs px-2 py-1 h-7"
           >
-            List
+            Lista
           </Button>
         </div>
+      ) : (
+        <div className="w-32" />
       )}
     </div>
   );
