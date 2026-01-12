@@ -38,8 +38,8 @@ const GlobalTopBar = () => {
 
   return (
     <div className="sticky top-0 z-50 w-full border-b border-border/50 bg-card/95 backdrop-blur shadow-sm">
-      <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-        <nav className="flex items-center">
+      <div className="flex h-16 items-center px-4 sm:px-6 lg:px-8">
+        <nav className="flex flex-1 items-center">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = isTabActive(tab);
@@ -61,9 +61,6 @@ const GlobalTopBar = () => {
             );
           })}
         </nav>
-        <div className="flex items-center gap-2">
-          {/* Actions section placeholder */}
-        </div>
       </div>
     </div>
   );
