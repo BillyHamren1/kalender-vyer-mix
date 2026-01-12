@@ -1,9 +1,6 @@
 
-import React, { useState, useCallback, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
+import React, { useState, useEffect } from 'react';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { ArrowLeft, Calendar as CalendarIcon, List } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
@@ -13,10 +10,9 @@ import UnifiedResourceCalendar from '@/components/Calendar/UnifiedResourceCalend
 import StaffCurtain from '@/components/Calendar/StaffCurtain';
 import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
 import SimpleMonthlyCalendar from '@/components/Calendar/SimpleMonthlyCalendar';
-import TeamVisibilityControl from '@/components/Calendar/TeamVisibilityControl';
+import WeekNavigation from '@/components/Calendar/WeekNavigation';
 
 const CalendarPage = () => {
-  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'weekly' | 'monthly' | 'list'>('weekly');
   const [monthlyDate, setMonthlyDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -128,64 +124,14 @@ const CalendarPage = () => {
 
   return (
     <TooltipProvider>
-        <div className="min-h-screen bg-gray-50">
-          {/* Header */}
-          <div className="bg-white border-b border-gray-200 px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => navigate('/')}
-                  className="flex items-center gap-2"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  Back to Dashboard
-                </Button>
-                <h1 className="text-2xl font-bold text-gray-900">Staff Planning Calendar</h1>
-              </div>
-              
-              {/* View Toggle and Team Visibility */}
-              <div className="flex items-center gap-4">
-                {/* Team Visibility Control */}
-                <TeamVisibilityControl
-                  allTeams={teamResources}
-                  visibleTeams={visibleTeams}
-                  onToggleTeam={handleToggleTeam}
-                />
-                
-                <div className="flex bg-muted rounded-lg p-1">
-                  <Button
-                    variant={viewMode === 'weekly' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('weekly')}
-                    className="flex items-center gap-2"
-                  >
-                    <CalendarIcon className="h-4 w-4" />
-                    Weekly
-                  </Button>
-                  <Button
-                    variant={viewMode === 'monthly' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('monthly')}
-                    className="flex items-center gap-2"
-                  >
-                    <CalendarIcon className="h-4 w-4" />
-                    Monthly
-                  </Button>
-                  <Button
-                    variant={viewMode === 'list' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('list')}
-                    className="flex items-center gap-2"
-                  >
-                    <List className="h-4 w-4" />
-                    List
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div className="min-h-screen bg-muted/30">
+          {/* Navigation with Date and View Mode */}
+          <WeekNavigation
+            currentWeekStart={currentWeekStart}
+            setCurrentWeekStart={setCurrentWeekStart}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+          />
 
           {/* Content */}
           <div className="p-6">
