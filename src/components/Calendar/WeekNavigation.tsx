@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-reac
 import { format, startOfWeek, getWeek, addMonths, subMonths, setMonth, setYear } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 import {
   Popover,
   PopoverContent,
@@ -86,6 +87,19 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
     }
   }, [currentMonth, onMonthChange]);
 
+  // Handle date selection from calendar
+  const handleDateSelect = useCallback((selectedDate: Date | undefined) => {
+    if (selectedDate) {
+      if (isMonthlyMode && onMonthChange) {
+        onMonthChange(selectedDate);
+      } else {
+        const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
+        setCurrentWeekStart(weekStart);
+      }
+      setDatePickerOpen(false);
+    }
+  }, [setCurrentWeekStart, isMonthlyMode, onMonthChange]);
+
   // Handle month selection from dropdown
   const handleMonthSelect = useCallback((monthIndex: string) => {
     const newDate = setMonth(activeDate, parseInt(monthIndex));
@@ -147,7 +161,7 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
           />
         </button>
         
-        {/* Clickable date range that opens month/year picker */}
+        {/* Clickable date range that opens combined picker */}
         <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
           <PopoverTrigger asChild>
             <Button
@@ -163,53 +177,62 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
               </div>
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-4 bg-white z-50" align="center">
-            <div className="flex flex-col gap-4">
-              <div className="text-sm font-medium text-center text-muted-foreground">
-                Välj månad och år
+          <PopoverContent className="w-auto p-0 bg-white z-50" align="center">
+            <div className="flex flex-col">
+              {/* Quick select dropdowns at top */}
+              <div className="flex gap-2 p-3 border-b border-border bg-muted/30">
+                {/* Month Dropdown */}
+                <Select
+                  value={currentMonthIndex.toString()}
+                  onValueChange={handleMonthSelect}
+                >
+                  <SelectTrigger className="w-[130px] h-9 bg-white">
+                    <SelectValue placeholder="Månad" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white z-50">
+                    {MONTHS.map((month, index) => (
+                      <SelectItem key={index} value={index.toString()}>
+                        {month}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Year Dropdown */}
+                <Select
+                  value={currentYearValue.toString()}
+                  onValueChange={handleYearSelect}
+                >
+                  <SelectTrigger className="w-[100px] h-9 bg-white">
+                    <SelectValue placeholder="År" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white z-50">
+                    {yearOptions.map((year) => (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              
-              {/* Month Dropdown */}
-              <Select
-                value={currentMonthIndex.toString()}
-                onValueChange={handleMonthSelect}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Välj månad" />
-                </SelectTrigger>
-                <SelectContent className="bg-white z-50">
-                  {MONTHS.map((month, index) => (
-                    <SelectItem key={index} value={index.toString()}>
-                      {month}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
 
-              {/* Year Dropdown */}
-              <Select
-                value={currentYearValue.toString()}
-                onValueChange={handleYearSelect}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Välj år" />
-                </SelectTrigger>
-                <SelectContent className="bg-white z-50">
-                  {yearOptions.map((year) => (
-                    <SelectItem key={year} value={year.toString()}>
-                      {year}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {/* Close button */}
-              <Button 
-                onClick={() => setDatePickerOpen(false)}
-                className="mt-2"
-              >
-                Klar
-              </Button>
+              {/* Calendar below */}
+              <Calendar
+                mode="single"
+                selected={activeDate}
+                onSelect={handleDateSelect}
+                month={activeDate}
+                onMonthChange={(newMonth) => {
+                  if (isMonthlyMode && onMonthChange) {
+                    onMonthChange(newMonth);
+                  } else {
+                    const weekStart = startOfWeek(newMonth, { weekStartsOn: 1 });
+                    setCurrentWeekStart(weekStart);
+                  }
+                }}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+              />
             </div>
           </PopoverContent>
         </Popover>
