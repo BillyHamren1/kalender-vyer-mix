@@ -3,23 +3,17 @@ import React, { useState, useEffect } from 'react';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
-import { useCalendarImport } from '@/hooks/useCalendarImport';
 
 import { useIsMobile } from '@/hooks/use-mobile';
-import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { ArrowLeft, Calendar as CalendarIcon, List, RefreshCw, RotateCcw } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import CustomCalendar from '@/components/Calendar/CustomCalendar';
 import SimpleStaffCurtain from '@/components/Calendar/SimpleStaffCurtain';
 import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
 import MobileMonthlyCalendar from '@/components/Calendar/MobileMonthlyCalendar';
 import MobileDayDetailView from '@/components/Calendar/MobileDayDetailView';
 import SimpleMonthlyCalendar from '@/components/Calendar/SimpleMonthlyCalendar';
-import TeamVisibilityControl from '@/components/Calendar/TeamVisibilityControl';
+import WeekNavigation from '@/components/Calendar/WeekNavigation';
 import { startOfWeek, startOfMonth, format } from 'date-fns';
-import { forceFullBookingSync } from '@/services/bookingCalendarService';
-import { toast } from 'sonner';
 
 // Wrapper component to handle async loading of staff with status
 const SimpleStaffCurtainWrapper: React.FC<{
@@ -64,10 +58,8 @@ const SimpleStaffCurtainWrapper: React.FC<{
 };
 
 const CustomCalendarPage = () => {
-  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<'weekly' | 'monthly' | 'list'>('weekly');
-  const [isSyncing, setIsSyncing] = useState(false);
   
   // Mobile-specific state
   const [mobileView, setMobileView] = useState<'month' | 'day'>('month');
@@ -75,9 +67,6 @@ const CustomCalendarPage = () => {
   
   // Monthly view state (for desktop)
   const [monthlyDate, setMonthlyDate] = useState<Date>(new Date());
-  
-  // Manual import service (for user-triggered refresh)
-  const { isImporting, triggerImport } = useCalendarImport();
   
   // Real-time calendar events (these will update UI when background import updates DB)
   const {
@@ -156,31 +145,6 @@ const CustomCalendarPage = () => {
     position: { top: number; left: number };
   } | null>(null);
 
-  // Handle manual refresh - only triggers manual import with user feedback
-  const handleManualRefresh = async () => {
-    console.log('CustomCalendarPage: Manual refresh triggered');
-    const importResult = await triggerImport();
-    if (importResult?.success) {
-      await refreshEvents();
-    }
-  };
-
-  // Handle force sync of bookings to calendar
-  const handleForceSync = async () => {
-    console.log('CustomCalendarPage: Force sync triggered');
-    setIsSyncing(true);
-    try {
-      const syncedCount = await forceFullBookingSync();
-      toast.success(`Synced ${syncedCount} confirmed bookings to calendar`);
-      await refreshEvents(); // Refresh to show new events
-    } catch (error) {
-      console.error('Error during force sync:', error);
-      toast.error('Failed to sync bookings to calendar');
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
   // Handle opening staff curtain with position
   const handleOpenStaffSelection = (resourceId: string, resourceTitle: string, targetDate: Date, buttonElement?: HTMLElement) => {
     console.log('Opening staff curtain for:', { resourceId, resourceTitle, targetDate });
@@ -246,82 +210,13 @@ const CustomCalendarPage = () => {
   return (
     <TooltipProvider>
         <div className="min-h-screen bg-gray-50">
-          {/* Header */}
-          <div className="bg-white border-b border-gray-200 px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => navigate('/')}
-                  className="flex items-center gap-2"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  Back to Dashboard
-                </Button>
-                <h1 className="text-2xl font-bold text-gray-900">Staff Calendar</h1>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                {/* Force Sync Button */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleForceSync}
-                  disabled={isSyncing}
-                  className="flex items-center gap-2"
-                >
-                  <RotateCcw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                  Sync Bookings
-                </Button>
-                
-                {/* Manual refresh button - only shows loading when user manually refreshes */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleManualRefresh}
-                  disabled={isImporting}
-                  className="flex items-center gap-2"
-                >
-                  <RefreshCw className={`h-4 w-4 ${isImporting ? 'animate-spin' : ''}`} />
-                  Refresh
-                </Button>
-                
-                {/* View Toggle - Hide on mobile when in day view */}
-                {!isMobile || mobileView === 'month' ? (
-                  <div className="flex bg-gray-100 rounded-lg p-1">
-                    <Button
-                      variant={viewMode === 'weekly' ? 'default' : 'ghost'}
-                      size="sm"
-                      onClick={() => setViewMode('weekly')}
-                      className="flex items-center gap-2"
-                    >
-                      <CalendarIcon className="h-4 w-4" />
-                      Weekly
-                    </Button>
-                    <Button
-                      variant={viewMode === 'monthly' ? 'default' : 'ghost'}
-                      size="sm"
-                      onClick={() => setViewMode('monthly')}
-                      className="flex items-center gap-2"
-                    >
-                      <CalendarIcon className="h-4 w-4" />
-                      Monthly
-                    </Button>
-                    <Button
-                      variant={viewMode === 'list' ? 'default' : 'ghost'}
-                      size="sm"
-                      onClick={() => setViewMode('list')}
-                      className="flex items-center gap-2"
-                    >
-                      <List className="h-4 w-4" />
-                      List
-                    </Button>
-                   </div>
-                 ) : null}
-                </div>
-              </div>
-            </div>
+          {/* Navigation with view toggle */}
+          <WeekNavigation
+            currentWeekStart={currentWeekStart}
+            setCurrentWeekStart={setCurrentWeekStart}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+          />
 
           {/* Content */}
           <div className="p-6">
