@@ -44,20 +44,24 @@ const WeekTabsNavigation: React.FC<WeekTabsNavigationProps> = ({
   };
 
   return (
-    <div className="flex items-center justify-center gap-2 py-3 px-6 bg-white border-t border-border">
+    <div className="flex items-center justify-center gap-3 py-4 px-6 bg-gradient-to-b from-muted/50 to-muted border-t border-border">
       {weeks.map((week) => {
         const isActive = isSameWeek(week.weekStart, currentWeekStart, { weekStartsOn: 1 });
         
         return (
-          <Button
+          <button
             key={week.key}
-            variant={isActive ? 'default' : 'ghost'}
-            size="sm"
             onClick={() => handleClick(week.weekStart)}
-            className="flex-1 text-sm px-4 py-2 h-10"
+            className={`
+              flex-1 text-sm font-medium px-4 py-3 rounded-xl transition-all duration-200
+              ${isActive 
+                ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/30 scale-105 ring-2 ring-primary/20' 
+                : 'bg-white text-foreground shadow-md hover:shadow-lg hover:scale-102 hover:bg-white/80 border border-border/50'
+              }
+            `}
           >
-            V.{week.weekNumber}
-          </Button>
+            Vecka {week.weekNumber}
+          </button>
         );
       })}
     </div>
