@@ -31,9 +31,9 @@ const GlobalTopBar = () => {
   };
 
   return (
-    <div className="bg-muted border-b border-border">
-      <div className="flex items-center justify-center px-6 py-3">
-        <nav className="flex items-center gap-8">
+    <div className="bg-[#f5f5f5] border-b border-border">
+      <div className="flex items-center justify-start px-8 py-4">
+        <nav className="flex items-center gap-12">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = isTabActive(tab);
@@ -43,13 +43,13 @@ const GlobalTopBar = () => {
                 key={tab.path}
                 to={tab.path}
                 className={cn(
-                  "flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-all duration-200",
+                  "flex items-center gap-2.5 text-[15px] font-medium transition-all duration-200",
                   isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-primary text-white px-5 py-2.5 rounded-lg"
+                    : "text-[#374151] hover:text-foreground"
                 )}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-5 w-5" strokeWidth={1.5} />
                 <span>{tab.name}</span>
               </Link>
             );
