@@ -3,8 +3,6 @@ import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import TimeGrid from './TimeGrid';
 import WeekNavigation from './WeekNavigation';
-import { Button } from '@/components/ui/button';
-import { RefreshCw } from 'lucide-react';
 
 interface CustomCalendarProps {
   events: CalendarEvent[];
@@ -53,12 +51,6 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
 
   const days = getDaysToRender();
 
-  const handleRefresh = async () => {
-    await refreshEvents();
-    if (weeklyStaffOperations) {
-      weeklyStaffOperations.forceRefresh();
-    }
-  };
 
   const getEventsForDayAndResource = (date: Date, resourceId: string): CalendarEvent[] => {
     const dateStr = format(date, 'yyyy-MM-dd');
@@ -114,21 +106,10 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   return (
     <div className="custom-calendar-container" ref={containerRef}>
       {/* Navigation */}
-      <div className="flex items-center justify-between mb-2">
-        <WeekNavigation 
-          currentWeekStart={currentWeekStart}
-          setCurrentWeekStart={setCurrentWeekStart}
-        />
-        <Button
-          onClick={handleRefresh}
-          variant="outline"
-          size="sm"
-          className="flex items-center gap-2"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Refresh
-        </Button>
-      </div>
+      <WeekNavigation 
+        currentWeekStart={currentWeekStart}
+        setCurrentWeekStart={setCurrentWeekStart}
+      />
 
       {/* Modern Weekly Staff Planning Grid - Cards with gaps */}
       <div className="weekly-calendar-container overflow-x-auto p-4">

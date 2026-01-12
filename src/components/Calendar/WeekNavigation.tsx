@@ -14,11 +14,15 @@ import { cn } from '@/lib/utils';
 interface WeekNavigationProps {
   currentWeekStart: Date;
   setCurrentWeekStart: (date: Date) => void;
+  viewMode?: 'weekly' | 'monthly' | 'list';
+  onViewModeChange?: (mode: 'weekly' | 'monthly' | 'list') => void;
 }
 
 const WeekNavigation: React.FC<WeekNavigationProps> = ({
   currentWeekStart,
-  setCurrentWeekStart
+  setCurrentWeekStart,
+  viewMode,
+  onViewModeChange
 }) => {
   const [datePickerOpen, setDatePickerOpen] = useState(false);
 
@@ -52,7 +56,8 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
   })();
 
   return (
-    <div className="flex items-center justify-center mb-4 w-full">
+    <div className="flex items-center justify-between bg-white border-b border-border px-6 py-4">
+      {/* Left side - Date Navigation */}
       <div className="flex items-center">
         <button
           onClick={goToPreviousWeek}
@@ -70,8 +75,8 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
             <Button
               variant="ghost"
               className={cn(
-                "text-2xl font-bold text-slate-800 px-4 py-2 min-w-[280px] text-center tracking-wider h-auto",
-                "hover:bg-slate-100 transition-colors duration-200 cursor-pointer"
+                "text-2xl font-bold text-foreground px-4 py-2 min-w-[280px] text-center tracking-wider h-auto",
+                "hover:bg-muted transition-colors duration-200 cursor-pointer"
               )}
             >
               <div className="flex items-center justify-center gap-2">
@@ -101,6 +106,37 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
           />
         </button>
       </div>
+
+      {/* Right side - View Mode Buttons */}
+      {viewMode && onViewModeChange && (
+        <div className="flex bg-muted rounded-lg p-1">
+          <Button
+            variant={viewMode === 'weekly' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => onViewModeChange('weekly')}
+            className="flex items-center gap-2"
+          >
+            <CalendarIcon className="h-4 w-4" />
+            Weekly
+          </Button>
+          <Button
+            variant={viewMode === 'monthly' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => onViewModeChange('monthly')}
+            className="flex items-center gap-2"
+          >
+            <CalendarIcon className="h-4 w-4" />
+            Monthly
+          </Button>
+          <Button
+            variant={viewMode === 'list' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => onViewModeChange('list')}
+          >
+            List
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
