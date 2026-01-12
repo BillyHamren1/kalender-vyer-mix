@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import TimeGrid from './TimeGrid';
@@ -36,7 +36,9 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   onToggleTeamForDay,
   allTeams
 }) => {
-  const [currentWeekStart, setCurrentWeekStart] = useState(currentDate);
+  // IMPORTANT: Don't keep an internal week state.
+  // The parent controls the current week via `currentDate`.
+  const currentWeekStart = currentDate;
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Generate days for the week
