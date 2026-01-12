@@ -1,7 +1,8 @@
 
 import React, { useCallback, useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
-import { format, addDays, startOfWeek } from 'date-fns';
+import { format, startOfWeek, getWeek } from 'date-fns';
+import { sv } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -49,15 +50,17 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
     }
   }, [setCurrentWeekStart]);
 
-  // Format the week range for display (Monday to Sunday)
+  // Format as week number + month (e.g., "Vecka 3, Januari 2026")
   const weekRangeText = (() => {
-    const endDate = addDays(currentWeekStart, 6); // 6 days after Monday = Sunday
-    return `${format(currentWeekStart, 'MMM d')} - ${format(endDate, 'MMM d, yyyy')}`;
+    const weekNumber = getWeek(currentWeekStart, { weekStartsOn: 1 });
+    const monthName = format(currentWeekStart, 'MMMM', { locale: sv });
+    const year = format(currentWeekStart, 'yyyy');
+    return `Vecka ${weekNumber}, ${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${year}`;
   })();
 
   return (
-    <div className="flex items-center justify-between bg-white border-b border-border px-6 py-4">
-      {/* Left side - Date Navigation */}
+    <div className="flex items-center justify-center bg-white border-b border-border px-6 py-4">
+      {/* Centered Navigation */}
       <div className="flex items-center">
         <button
           onClick={goToPreviousWeek}
@@ -107,9 +110,9 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
         </button>
       </div>
 
-      {/* Right side - View Mode Buttons */}
+      {/* View Mode Buttons */}
       {viewMode && onViewModeChange && (
-        <div className="flex bg-muted rounded-lg p-1">
+        <div className="flex bg-muted rounded-lg p-1 ml-6">
           <Button
             variant={viewMode === 'weekly' ? 'default' : 'ghost'}
             size="sm"
