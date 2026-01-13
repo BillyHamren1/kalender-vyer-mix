@@ -512,6 +512,60 @@ export type Database = {
           },
         ]
       }
+      project_labor_costs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          hourly_rate: number
+          hours: number
+          id: string
+          project_id: string
+          staff_id: string | null
+          staff_name: string
+          work_date: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          hourly_rate?: number
+          hours?: number
+          id?: string
+          project_id: string
+          staff_id?: string | null
+          staff_name: string
+          work_date?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          hourly_rate?: number
+          hours?: number
+          id?: string
+          project_id?: string
+          staff_id?: string | null
+          staff_name?: string
+          work_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_labor_costs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_labor_costs_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_purchases: {
         Row: {
           amount: number
