@@ -11,6 +11,7 @@ import ProjectComments from "@/components/project/ProjectComments";
 import ProjectGanttChart from "@/components/project/ProjectGanttChart";
 import TaskDetailSheet from "@/components/project/TaskDetailSheet";
 import { ProjectEconomyTab } from "@/components/project/ProjectEconomyTab";
+import { ProjectStaffTab } from "@/components/project/ProjectStaffTab";
 import { useProjectDetail } from "@/hooks/useProjectDetail";
 import { ProjectTask } from "@/types/project";
 import { format } from "date-fns";
@@ -144,9 +145,10 @@ const ProjectDetail = () => {
 
         {/* Tabs Content */}
         <Tabs defaultValue="gantt" className="space-y-4">
-          <TabsList>
+          <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="gantt">Gantt-schema</TabsTrigger>
             <TabsTrigger value="tasks">Uppgifter ({tasks.length})</TabsTrigger>
+            <TabsTrigger value="staff">Personal</TabsTrigger>
             <TabsTrigger value="economy">Ekonomi</TabsTrigger>
             <TabsTrigger value="files">Filer ({files.length})</TabsTrigger>
             <TabsTrigger value="comments">Kommentarer ({comments.length})</TabsTrigger>
@@ -165,6 +167,13 @@ const ProjectDetail = () => {
               onAddTask={addTask}
               onUpdateTask={updateTask}
               onDeleteTask={deleteTask}
+            />
+          </TabsContent>
+
+          <TabsContent value="staff">
+            <ProjectStaffTab 
+              projectId={projectId || ''} 
+              bookingId={project.booking_id} 
             />
           </TabsContent>
 
