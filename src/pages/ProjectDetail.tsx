@@ -46,9 +46,9 @@ const ProjectDetail = () => {
     return (
       <div className="container mx-auto px-4 py-8 text-center">
         <h2 className="text-xl font-semibold mb-4">Projektet hittades inte</h2>
-        <Button onClick={() => navigate('/projects')}>
+        <Button onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Tillbaka till projekt
+          Tillbaka
         </Button>
       </div>
     );
@@ -61,7 +61,7 @@ const ProjectDetail = () => {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/projects')}>
+            <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
