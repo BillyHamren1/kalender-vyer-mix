@@ -24,6 +24,15 @@ export interface ProjectTask {
   updated_at: string;
 }
 
+export interface TaskComment {
+  id: string;
+  task_id: string;
+  author_id: string | null;
+  author_name: string;
+  content: string;
+  created_at: string;
+}
+
 export interface ProjectComment {
   id: string;
   project_id: string;

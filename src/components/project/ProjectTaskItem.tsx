@@ -1,28 +1,63 @@
-import { Calendar, Trash2, User } from "lucide-react";
+import { Calendar, User, MessageSquare } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Button } from "@/components/ui/button";
 import { ProjectTask } from "@/types/project";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ProjectTaskItemProps {
   task: ProjectTask;
   onToggle: () => void;
-  onDelete: () => void;
+  onClick: () => void;
+  commentCount?: number;
 }
 
-const ProjectTaskItem = ({ task, onToggle, onDelete }: ProjectTaskItemProps) => {
+const ProjectTaskItem = ({ task, onToggle, onClick, commentCount = 0 }: ProjectTaskItemProps) => {
   const isOverdue = task.deadline && !task.completed && new Date(task.deadline) < new Date();
 
+  // Fetch staff name for display
+  const { data: assignedStaff } = useQuery({
+    queryKey: ['staff-member', task.assigned_to],
+    queryFn: async () => {
+      if (!task.assigned_to) return null;
+      const { data } = await supabase
+        .from('staff_members')
+        .select('name')
+        .eq('id', task.assigned_to)
+        .single();
+      return data;
+    },
+    enabled: !!task.assigned_to
+  });
+
+  // Fetch comment count
+  const { data: taskComments } = useQuery({
+    queryKey: ['task-comments-count', task.id],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from('task_comments')
+        .select('*', { count: 'exact', head: true })
+        .eq('task_id', task.id);
+      return count || 0;
+    }
+  });
+
+  const actualCommentCount = taskComments || commentCount;
+
   return (
-    <div className={cn(
-      "flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors group",
-      task.completed && "opacity-60"
-    )}>
+    <div 
+      className={cn(
+        "flex items-start gap-3 p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors cursor-pointer group",
+        task.completed && "opacity-60"
+      )}
+      onClick={onClick}
+    >
       <Checkbox
         checked={task.completed}
-        onCheckedChange={onToggle}
+        onCheckedChange={() => onToggle()}
+        onClick={(e) => e.stopPropagation()}
         className="mt-1"
       />
       
@@ -35,38 +70,35 @@ const ProjectTaskItem = ({ task, onToggle, onDelete }: ProjectTaskItemProps) => 
         </p>
         
         {task.description && (
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
             {task.description}
           </p>
         )}
 
-        <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-          {task.assigned_to && (
+        <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
+          {assignedStaff && (
             <div className="flex items-center gap-1">
               <User className="h-3 w-3" />
-              <span>{task.assigned_to}</span>
+              <span>{assignedStaff.name}</span>
             </div>
           )}
           {task.deadline && (
             <div className={cn(
               "flex items-center gap-1",
-              isOverdue && "text-destructive"
+              isOverdue && "text-destructive font-medium"
             )}>
               <Calendar className="h-3 w-3" />
               <span>{format(new Date(task.deadline), 'd MMM', { locale: sv })}</span>
             </div>
           )}
+          {actualCommentCount > 0 && (
+            <div className="flex items-center gap-1">
+              <MessageSquare className="h-3 w-3" />
+              <span>{actualCommentCount}</span>
+            </div>
+          )}
         </div>
       </div>
-
-      <Button
-        variant="ghost"
-        size="icon"
-        className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
-        onClick={onDelete}
-      >
-        <Trash2 className="h-4 w-4 text-destructive" />
-      </Button>
     </div>
   );
 };
