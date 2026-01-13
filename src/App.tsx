@@ -11,6 +11,8 @@ import StaffManagement from "./pages/StaffManagement";
 import StaffDetail from "./pages/StaffDetail";
 import BookingDetail from "./pages/BookingDetail";
 import BookingList from "./pages/BookingList";
+import ProjectManagement from "./pages/ProjectManagement";
+import ProjectDetail from "./pages/ProjectDetail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -62,6 +64,8 @@ const AppContent = () => {
                   <Route path="/staff/:staffId" element={<StaffDetail />} />
                   <Route path="/booking/:bookingId" element={<BookingDetail />} />
                   <Route path="/booking-list" element={<BookingList />} />
+                  <Route path="/projects" element={<ProjectManagement />} />
+                  <Route path="/project/:projectId" element={<ProjectDetail />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </div>
