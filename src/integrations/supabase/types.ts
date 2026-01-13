@@ -422,6 +422,7 @@ export type Database = {
           deadline: string | null
           description: string | null
           id: string
+          is_info_only: boolean | null
           project_id: string
           sort_order: number
           title: string
@@ -434,6 +435,7 @@ export type Database = {
           deadline?: string | null
           description?: string | null
           id?: string
+          is_info_only?: boolean | null
           project_id: string
           sort_order?: number
           title: string
@@ -446,6 +448,7 @@ export type Database = {
           deadline?: string | null
           description?: string | null
           id?: string
+          is_info_only?: boolean | null
           project_id?: string
           sort_order?: number
           title?: string
@@ -474,6 +477,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          project_leader: string | null
           status: string
           updated_at: string
         }
@@ -482,6 +486,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          project_leader?: string | null
           status?: string
           updated_at?: string
         }
@@ -490,6 +495,7 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          project_leader?: string | null
           status?: string
           updated_at?: string
         }
