@@ -344,6 +344,44 @@ export type Database = {
           },
         ]
       }
+      project_budget: {
+        Row: {
+          budgeted_hours: number
+          created_at: string
+          description: string | null
+          hourly_rate: number
+          id: string
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          budgeted_hours?: number
+          created_at?: string
+          description?: string | null
+          hourly_rate?: number
+          id?: string
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          budgeted_hours?: number
+          created_at?: string
+          description?: string | null
+          hourly_rate?: number
+          id?: string
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_budget_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_comments: {
         Row: {
           author_name: string
@@ -407,6 +445,163 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "project_files_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_invoices: {
+        Row: {
+          created_at: string
+          due_date: string | null
+          id: string
+          invoice_date: string | null
+          invoice_file_url: string | null
+          invoice_number: string | null
+          invoiced_amount: number
+          notes: string | null
+          project_id: string
+          quote_id: string | null
+          status: string
+          supplier: string
+        }
+        Insert: {
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          invoice_date?: string | null
+          invoice_file_url?: string | null
+          invoice_number?: string | null
+          invoiced_amount?: number
+          notes?: string | null
+          project_id: string
+          quote_id?: string | null
+          status?: string
+          supplier: string
+        }
+        Update: {
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          invoice_date?: string | null
+          invoice_file_url?: string | null
+          invoice_number?: string | null
+          invoiced_amount?: number
+          notes?: string | null
+          project_id?: string
+          quote_id?: string | null
+          status?: string
+          supplier?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_invoices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_invoices_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "project_quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_purchases: {
+        Row: {
+          amount: number
+          category: string | null
+          created_at: string
+          created_by: string | null
+          description: string
+          id: string
+          project_id: string
+          purchase_date: string | null
+          receipt_url: string | null
+          supplier: string | null
+        }
+        Insert: {
+          amount?: number
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          description: string
+          id?: string
+          project_id: string
+          purchase_date?: string | null
+          receipt_url?: string | null
+          supplier?: string | null
+        }
+        Update: {
+          amount?: number
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          project_id?: string
+          purchase_date?: string | null
+          receipt_url?: string | null
+          supplier?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_purchases_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_quotes: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          project_id: string
+          quote_date: string | null
+          quote_file_url: string | null
+          quoted_amount: number
+          status: string
+          supplier: string
+          updated_at: string
+          valid_until: string | null
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          project_id: string
+          quote_date?: string | null
+          quote_file_url?: string | null
+          quoted_amount?: number
+          status?: string
+          supplier: string
+          updated_at?: string
+          valid_until?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          project_id?: string
+          quote_date?: string | null
+          quote_file_url?: string | null
+          quoted_amount?: number
+          status?: string
+          supplier?: string
+          updated_at?: string
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_quotes_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
