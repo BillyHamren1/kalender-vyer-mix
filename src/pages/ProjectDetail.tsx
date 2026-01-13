@@ -1,6 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Calendar, MapPin, Phone, Mail, User } from "lucide-react";
-import GlobalTopBar from "@/components/GlobalTopBar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -34,13 +33,10 @@ const ProjectDetail = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <GlobalTopBar />
-        <div className="container mx-auto px-4 py-8">
-          <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-muted rounded w-1/3" />
-            <div className="h-32 bg-muted rounded" />
-          </div>
+      <div className="container mx-auto px-4 py-8">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-muted rounded w-1/3" />
+          <div className="h-32 bg-muted rounded" />
         </div>
       </div>
     );
@@ -48,15 +44,12 @@ const ProjectDetail = () => {
 
   if (!project) {
     return (
-      <div className="min-h-screen bg-background">
-        <GlobalTopBar />
-        <div className="container mx-auto px-4 py-8 text-center">
-          <h2 className="text-xl font-semibold mb-4">Projektet hittades inte</h2>
-          <Button onClick={() => navigate('/projects')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Tillbaka till projekt
-          </Button>
-        </div>
+      <div className="container mx-auto px-4 py-8 text-center">
+        <h2 className="text-xl font-semibold mb-4">Projektet hittades inte</h2>
+        <Button onClick={() => navigate('/projects')}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Tillbaka till projekt
+        </Button>
       </div>
     );
   }
@@ -64,10 +57,7 @@ const ProjectDetail = () => {
   const booking = project.booking;
 
   return (
-    <div className="min-h-screen bg-background">
-      <GlobalTopBar />
-      
-      <div className="container mx-auto px-4 py-6">
+    <div className="container mx-auto px-4 py-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div className="flex items-center gap-4">
@@ -180,7 +170,6 @@ const ProjectDetail = () => {
           </TabsContent>
         </Tabs>
       </div>
-    </div>
   );
 };
 
