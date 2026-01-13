@@ -171,6 +171,7 @@ const ProjectDetail = () => {
           <TabsContent value="economy">
             <ProjectEconomyTab 
               projectId={projectId || ''} 
+              projectName={project.name}
               bookingId={project.booking_id} 
             />
           </TabsContent>

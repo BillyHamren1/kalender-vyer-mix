@@ -1,18 +1,29 @@
 import { useState } from 'react';
+import { FileSpreadsheet, FileText } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useProjectEconomy } from '@/hooks/useProjectEconomy';
 import { EconomySummaryCard } from './EconomySummaryCard';
 import { StaffCostTable } from './StaffCostTable';
 import { PurchasesList } from './PurchasesList';
 import { QuotesInvoicesList } from './QuotesInvoicesList';
 import { BudgetSettingsDialog } from './BudgetSettingsDialog';
+import { exportToExcel, exportToPDF } from '@/services/projectEconomyExportService';
+import { toast } from 'sonner';
 
 interface ProjectEconomyTabProps {
   projectId: string;
+  projectName?: string;
   bookingId: string | null;
 }
 
-export const ProjectEconomyTab = ({ projectId, bookingId }: ProjectEconomyTabProps) => {
+export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingId }: ProjectEconomyTabProps) => {
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
   
   const {
@@ -33,6 +44,39 @@ export const ProjectEconomyTab = ({ projectId, bookingId }: ProjectEconomyTabPro
     updateInvoice
   } = useProjectEconomy(projectId, bookingId);
 
+  const handleExportExcel = () => {
+    try {
+      exportToExcel({
+        projectName,
+        budget: budget || null,
+        timeReports,
+        purchases,
+        quotes,
+        invoices,
+        summary
+      });
+      toast.success('Exporterad till Excel (CSV)');
+    } catch (error) {
+      toast.error('Kunde inte exportera till Excel');
+    }
+  };
+
+  const handleExportPDF = () => {
+    try {
+      exportToPDF({
+        projectName,
+        budget: budget || null,
+        timeReports,
+        purchases,
+        quotes,
+        invoices,
+        summary
+      });
+    } catch (error) {
+      toast.error('Kunde inte exportera till PDF');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -46,6 +90,28 @@ export const ProjectEconomyTab = ({ projectId, bookingId }: ProjectEconomyTabPro
 
   return (
     <div className="space-y-6">
+      {/* Export buttons */}
+      <div className="flex justify-end">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm">
+              <FileText className="h-4 w-4 mr-2" />
+              Exportera
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleExportPDF}>
+              <FileText className="h-4 w-4 mr-2" />
+              Exportera till PDF
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleExportExcel}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Exportera till Excel (CSV)
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
       {/* Summary Card */}
       <EconomySummaryCard summary={summary} />
 
