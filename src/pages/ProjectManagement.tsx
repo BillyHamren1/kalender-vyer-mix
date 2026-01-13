@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ProjectCard from "@/components/project/ProjectCard";
-import CreateProjectDialog from "@/components/project/CreateProjectDialog";
+import CreateProjectWizard from "@/components/project/CreateProjectWizard";
 import { fetchProjects, deleteProject } from "@/services/projectService";
 import { ProjectStatus, PROJECT_STATUS_LABELS } from "@/types/project";
 import { toast } from "sonner";
@@ -128,7 +128,7 @@ const ProjectManagement = () => {
           </div>
         )}
 
-        <CreateProjectDialog 
+        <CreateProjectWizard 
           open={isCreateOpen} 
           onOpenChange={setIsCreateOpen}
           onSuccess={() => {

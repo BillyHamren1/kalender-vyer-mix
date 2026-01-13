@@ -5,6 +5,7 @@ export interface Project {
   booking_id: string | null;
   name: string;
   status: ProjectStatus;
+  project_leader: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -18,6 +19,7 @@ export interface ProjectTask {
   deadline: string | null;
   completed: boolean;
   sort_order: number;
+  is_info_only: boolean;
   created_at: string;
   updated_at: string;
 }
