@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Calendar, MapPin, Phone, Mail, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,13 +8,17 @@ import ProjectStatusDropdown from "@/components/project/ProjectStatusDropdown";
 import ProjectTaskList from "@/components/project/ProjectTaskList";
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectComments from "@/components/project/ProjectComments";
+import ProjectGanttChart from "@/components/project/ProjectGanttChart";
+import TaskDetailSheet from "@/components/project/TaskDetailSheet";
 import { useProjectDetail } from "@/hooks/useProjectDetail";
+import { ProjectTask } from "@/types/project";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 
 const ProjectDetail = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
   
   const {
     project,
@@ -137,12 +142,20 @@ const ProjectDetail = () => {
         )}
 
         {/* Tabs Content */}
-        <Tabs defaultValue="tasks" className="space-y-4">
+        <Tabs defaultValue="gantt" className="space-y-4">
           <TabsList>
+            <TabsTrigger value="gantt">Gantt-schema</TabsTrigger>
             <TabsTrigger value="tasks">Uppgifter ({tasks.length})</TabsTrigger>
             <TabsTrigger value="files">Filer ({files.length})</TabsTrigger>
             <TabsTrigger value="comments">Kommentarer ({comments.length})</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="gantt">
+            <ProjectGanttChart 
+              tasks={tasks} 
+              onTaskClick={(task) => setSelectedTask(task)}
+            />
+          </TabsContent>
 
           <TabsContent value="tasks">
             <ProjectTaskList
@@ -169,6 +182,15 @@ const ProjectDetail = () => {
             />
           </TabsContent>
         </Tabs>
+
+        {/* Task detail sheet for Gantt clicks */}
+        <TaskDetailSheet
+          task={selectedTask}
+          open={!!selectedTask}
+          onOpenChange={(open) => !open && setSelectedTask(null)}
+          onUpdateTask={updateTask}
+          onDeleteTask={deleteTask}
+        />
       </div>
   );
 };
