@@ -4,6 +4,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 import { startOfWeek, subDays } from 'date-fns';
 import UnifiedResourceCalendar from '@/components/Calendar/UnifiedResourceCalendar';
@@ -11,8 +12,10 @@ import StaffCurtain from '@/components/Calendar/StaffCurtain';
 import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
 import SimpleMonthlyCalendar from '@/components/Calendar/SimpleMonthlyCalendar';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
+import MobileCalendarView from '@/components/mobile/MobileCalendarView';
 
 const CalendarPage = () => {
+  const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<'weekly' | 'monthly' | 'list'>('weekly');
   const [monthlyDate, setMonthlyDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -121,6 +124,11 @@ const CalendarPage = () => {
       }
     });
   };
+
+  // Mobile view
+  if (isMobile) {
+    return <MobileCalendarView events={events} />;
+  }
 
   return (
     <TooltipProvider>
