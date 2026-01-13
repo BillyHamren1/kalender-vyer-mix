@@ -10,6 +10,7 @@ import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectComments from "@/components/project/ProjectComments";
 import ProjectGanttChart from "@/components/project/ProjectGanttChart";
 import TaskDetailSheet from "@/components/project/TaskDetailSheet";
+import { ProjectEconomyTab } from "@/components/project/ProjectEconomyTab";
 import { useProjectDetail } from "@/hooks/useProjectDetail";
 import { ProjectTask } from "@/types/project";
 import { format } from "date-fns";
@@ -146,6 +147,7 @@ const ProjectDetail = () => {
           <TabsList>
             <TabsTrigger value="gantt">Gantt-schema</TabsTrigger>
             <TabsTrigger value="tasks">Uppgifter ({tasks.length})</TabsTrigger>
+            <TabsTrigger value="economy">Ekonomi</TabsTrigger>
             <TabsTrigger value="files">Filer ({files.length})</TabsTrigger>
             <TabsTrigger value="comments">Kommentarer ({comments.length})</TabsTrigger>
           </TabsList>
@@ -163,6 +165,13 @@ const ProjectDetail = () => {
               onAddTask={addTask}
               onUpdateTask={updateTask}
               onDeleteTask={deleteTask}
+            />
+          </TabsContent>
+
+          <TabsContent value="economy">
+            <ProjectEconomyTab 
+              projectId={projectId || ''} 
+              bookingId={project.booking_id} 
             />
           </TabsContent>
 
