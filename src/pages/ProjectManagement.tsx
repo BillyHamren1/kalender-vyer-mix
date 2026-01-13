@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Plus, Search, FolderKanban } from "lucide-react";
-import GlobalTopBar from "@/components/GlobalTopBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -51,10 +50,7 @@ const ProjectManagement = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <GlobalTopBar />
-      
-      <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div className="flex items-center gap-3">
@@ -131,17 +127,16 @@ const ProjectManagement = () => {
             ))}
           </div>
         )}
-      </div>
 
-      <CreateProjectDialog 
-        open={isCreateOpen} 
-        onOpenChange={setIsCreateOpen}
-        onSuccess={() => {
-          setIsCreateOpen(false);
-          queryClient.invalidateQueries({ queryKey: ['projects'] });
-        }}
-      />
-    </div>
+        <CreateProjectDialog 
+          open={isCreateOpen} 
+          onOpenChange={setIsCreateOpen}
+          onSuccess={() => {
+            setIsCreateOpen(false);
+            queryClient.invalidateQueries({ queryKey: ['projects'] });
+          }}
+        />
+      </div>
   );
 };
 
