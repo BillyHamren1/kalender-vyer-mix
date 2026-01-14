@@ -344,6 +344,454 @@ export type Database = {
           },
         ]
       }
+      packing_budget: {
+        Row: {
+          budgeted_hours: number
+          created_at: string
+          description: string | null
+          hourly_rate: number
+          id: string
+          packing_id: string
+          updated_at: string
+        }
+        Insert: {
+          budgeted_hours?: number
+          created_at?: string
+          description?: string | null
+          hourly_rate?: number
+          id?: string
+          packing_id: string
+          updated_at?: string
+        }
+        Update: {
+          budgeted_hours?: number
+          created_at?: string
+          description?: string | null
+          hourly_rate?: number
+          id?: string
+          packing_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packing_budget_packing_id_fkey"
+            columns: ["packing_id"]
+            isOneToOne: true
+            referencedRelation: "packing_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      packing_comments: {
+        Row: {
+          author_name: string
+          content: string
+          created_at: string
+          id: string
+          packing_id: string
+        }
+        Insert: {
+          author_name: string
+          content: string
+          created_at?: string
+          id?: string
+          packing_id: string
+        }
+        Update: {
+          author_name?: string
+          content?: string
+          created_at?: string
+          id?: string
+          packing_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packing_comments_packing_id_fkey"
+            columns: ["packing_id"]
+            isOneToOne: false
+            referencedRelation: "packing_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      packing_files: {
+        Row: {
+          file_name: string
+          file_type: string | null
+          id: string
+          packing_id: string
+          uploaded_at: string
+          uploaded_by: string | null
+          url: string
+        }
+        Insert: {
+          file_name: string
+          file_type?: string | null
+          id?: string
+          packing_id: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+          url: string
+        }
+        Update: {
+          file_name?: string
+          file_type?: string | null
+          id?: string
+          packing_id?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packing_files_packing_id_fkey"
+            columns: ["packing_id"]
+            isOneToOne: false
+            referencedRelation: "packing_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      packing_invoices: {
+        Row: {
+          created_at: string
+          due_date: string | null
+          id: string
+          invoice_date: string | null
+          invoice_file_url: string | null
+          invoice_number: string | null
+          invoiced_amount: number
+          notes: string | null
+          packing_id: string
+          quote_id: string | null
+          status: string
+          supplier: string
+        }
+        Insert: {
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          invoice_date?: string | null
+          invoice_file_url?: string | null
+          invoice_number?: string | null
+          invoiced_amount?: number
+          notes?: string | null
+          packing_id: string
+          quote_id?: string | null
+          status?: string
+          supplier: string
+        }
+        Update: {
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          invoice_date?: string | null
+          invoice_file_url?: string | null
+          invoice_number?: string | null
+          invoiced_amount?: number
+          notes?: string | null
+          packing_id?: string
+          quote_id?: string | null
+          status?: string
+          supplier?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packing_invoices_packing_id_fkey"
+            columns: ["packing_id"]
+            isOneToOne: false
+            referencedRelation: "packing_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_invoices_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "packing_quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      packing_labor_costs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          hourly_rate: number
+          hours: number
+          id: string
+          packing_id: string
+          staff_id: string | null
+          staff_name: string
+          work_date: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          hourly_rate?: number
+          hours?: number
+          id?: string
+          packing_id: string
+          staff_id?: string | null
+          staff_name: string
+          work_date?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          hourly_rate?: number
+          hours?: number
+          id?: string
+          packing_id?: string
+          staff_id?: string | null
+          staff_name?: string
+          work_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packing_labor_costs_packing_id_fkey"
+            columns: ["packing_id"]
+            isOneToOne: false
+            referencedRelation: "packing_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_labor_costs_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      packing_projects: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          id: string
+          name: string
+          project_leader: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          project_leader?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          project_leader?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      packing_purchases: {
+        Row: {
+          amount: number
+          category: string | null
+          created_at: string
+          created_by: string | null
+          description: string
+          id: string
+          packing_id: string
+          purchase_date: string | null
+          receipt_url: string | null
+          supplier: string | null
+        }
+        Insert: {
+          amount?: number
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          description: string
+          id?: string
+          packing_id: string
+          purchase_date?: string | null
+          receipt_url?: string | null
+          supplier?: string | null
+        }
+        Update: {
+          amount?: number
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          packing_id?: string
+          purchase_date?: string | null
+          receipt_url?: string | null
+          supplier?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packing_purchases_packing_id_fkey"
+            columns: ["packing_id"]
+            isOneToOne: false
+            referencedRelation: "packing_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      packing_quotes: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          packing_id: string
+          quote_date: string | null
+          quote_file_url: string | null
+          quoted_amount: number
+          status: string
+          supplier: string
+          updated_at: string
+          valid_until: string | null
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          packing_id: string
+          quote_date?: string | null
+          quote_file_url?: string | null
+          quoted_amount?: number
+          status?: string
+          supplier: string
+          updated_at?: string
+          valid_until?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          packing_id?: string
+          quote_date?: string | null
+          quote_file_url?: string | null
+          quoted_amount?: number
+          status?: string
+          supplier?: string
+          updated_at?: string
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packing_quotes_packing_id_fkey"
+            columns: ["packing_id"]
+            isOneToOne: false
+            referencedRelation: "packing_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      packing_task_comments: {
+        Row: {
+          author_id: string | null
+          author_name: string
+          content: string
+          created_at: string
+          id: string
+          task_id: string
+        }
+        Insert: {
+          author_id?: string | null
+          author_name: string
+          content: string
+          created_at?: string
+          id?: string
+          task_id: string
+        }
+        Update: {
+          author_id?: string | null
+          author_name?: string
+          content?: string
+          created_at?: string
+          id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packing_task_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_task_comments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "packing_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      packing_tasks: {
+        Row: {
+          assigned_to: string | null
+          completed: boolean
+          created_at: string
+          deadline: string | null
+          description: string | null
+          id: string
+          is_info_only: boolean | null
+          packing_id: string
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          completed?: boolean
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          is_info_only?: boolean | null
+          packing_id: string
+          sort_order?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          completed?: boolean
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          is_info_only?: boolean | null
+          packing_id?: string
+          sort_order?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packing_tasks_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_tasks_packing_id_fkey"
+            columns: ["packing_id"]
+            isOneToOne: false
+            referencedRelation: "packing_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_budget: {
         Row: {
           budgeted_hours: number
