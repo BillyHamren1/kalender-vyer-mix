@@ -16,6 +16,8 @@ interface MoveEventDateDialogProps {
     title: string;
     start: string | Date;
     end: string | Date;
+    bookingId?: string;
+    eventType?: string;
   };
   onUpdate?: () => void;
 }

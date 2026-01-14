@@ -65,3 +65,17 @@
 .fc-event * {
   color: #000000 !important;
 }
+
+/* Warehouse changed event animation */
+@keyframes pulse-orange {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(249, 115, 22, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(249, 115, 22, 0.8);
+  }
+}
+
+.warehouse-changed {
+  animation: pulse-orange 2s infinite;
+}
