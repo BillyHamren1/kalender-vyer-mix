@@ -1,72 +1,45 @@
 
 import React, { useState, useEffect } from 'react';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
-
 import { useIsMobile } from '@/hooks/use-mobile';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import CustomCalendar from '@/components/Calendar/CustomCalendar';
-import SimpleStaffCurtain from '@/components/Calendar/SimpleStaffCurtain';
-import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
-import MobileWarehouseCalendarView from '@/components/mobile/MobileWarehouseCalendarView';
-import WeekNavigation from '@/components/Calendar/WeekNavigation';
-import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
-import { WarehouseCalendarView } from '@/components/Calendar/WarehouseCalendarView';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { startOfWeek, startOfMonth, format } from 'date-fns';
-import { Package, Users } from 'lucide-react';
 
-// Wrapper component to handle async loading of staff with status
-const SimpleStaffCurtainWrapper: React.FC<{
-  currentDate: Date;
-  onClose: () => void;
-  onAssignStaff: (staffId: string, teamId: string) => Promise<void>;
-  selectedTeamId: string | null;
-  selectedTeamName: string;
-  staffOps: ReturnType<typeof useUnifiedStaffOperations>;
-  position: { top: number; left: number };
-}> = (props) => {
-  const [staffList, setStaffList] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  
-  useEffect(() => {
-    const loadStaff = async () => {
-      if (!props.selectedTeamId) return;
-      setLoading(true);
-      const staff = await props.staffOps.getStaffForPlanningDate(props.currentDate, props.selectedTeamId);
-      setStaffList(staff);
-      setLoading(false);
-    };
-    loadStaff();
-  }, [props.currentDate, props.selectedTeamId, props.staffOps]);
-  
-  if (loading) {
-    return null;
-  }
-  
-  return (
-    <SimpleStaffCurtain
-      currentDate={props.currentDate}
-      onClose={props.onClose}
-      onAssignStaff={props.onAssignStaff}
-      selectedTeamId={props.selectedTeamId}
-      selectedTeamName={props.selectedTeamName}
-      staffList={staffList}
-      position={props.position}
-    />
-  );
-};
+import { startOfWeek, subDays } from 'date-fns';
+import UnifiedResourceCalendar from '@/components/Calendar/UnifiedResourceCalendar';
+import StaffCurtain from '@/components/Calendar/StaffCurtain';
+import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
+import SimpleMonthlyCalendar from '@/components/Calendar/SimpleMonthlyCalendar';
+import WeekNavigation from '@/components/Calendar/WeekNavigation';
+import MobileWarehouseCalendarView from '@/components/mobile/MobileWarehouseCalendarView';
 
 const WarehouseCalendarPage = () => {
   const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<'weekly' | 'monthly' | 'list'>('weekly');
-  const [calendarTab, setCalendarTab] = useState<'warehouse' | 'staff'>('warehouse');
+  const [monthlyDate, setMonthlyDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   
-  // Monthly view state (for desktop) - now used for the month tabs
-  const [monthlyDate, setMonthlyDate] = useState<Date>(startOfMonth(new Date()));
+  // Visible teams state - default to Team 1, 2, and Live (team-11)
+  const [visibleTeams, setVisibleTeams] = useState<string[]>(() => {
+    // Clear any old localStorage values and set default
+    localStorage.removeItem('warehouseVisibleTeams');
+    const defaultTeams = ['team-1', 'team-2', 'team-11'];
+    console.log('🎯 Initializing warehouse visibleTeams with:', defaultTeams);
+    return defaultTeams;
+  });
+
+  // Debug log for visibleTeams changes
+  useEffect(() => {
+    console.log('🔄 Warehouse visibleTeams updated:', visibleTeams);
+  }, [visibleTeams]);
+
+  // Save visible teams to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('warehouseVisibleTeams', JSON.stringify(visibleTeams));
+  }, [visibleTeams]);
   
-  // Real-time calendar events
+  // Use existing hooks for data consistency
   const {
     events,
     isLoading,
@@ -83,59 +56,9 @@ const WarehouseCalendarPage = () => {
     return startOfWeek(new Date(hookCurrentDate), { weekStartsOn: 1 });
   });
 
-  const [currentMonthStart, setCurrentMonthStart] = useState(() => {
-    return startOfMonth(new Date(hookCurrentDate));
-  });
-
-  // When switching to monthly mode, sync the month with current week
-  useEffect(() => {
-    if (viewMode === 'monthly') {
-      setMonthlyDate(startOfMonth(currentWeekStart));
-    }
-  }, [viewMode]);
-
-  // Visible teams state - per day { [dateString]: teamIds[] }
-  const [visibleTeamsByDay, setVisibleTeamsByDay] = useState<{ [key: string]: string[] }>(() => {
-    const stored = localStorage.getItem('warehouseVisibleTeamsByDay');
-    return stored ? JSON.parse(stored) : {};
-  });
-
-  // Save visible teams to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem('warehouseVisibleTeamsByDay', JSON.stringify(visibleTeamsByDay));
-  }, [visibleTeamsByDay]);
-
-  // Get visible teams for a specific day
-  const getVisibleTeamsForDay = (date: Date): string[] => {
-    const dateKey = format(date, 'yyyy-MM-dd');
-    return visibleTeamsByDay[dateKey] || ['team-1', 'team-2', 'team-11'];
-  };
-
-  // Toggle team visibility for a specific day
-  const handleToggleTeamForDay = (teamId: string, date: Date) => {
-    const dateKey = format(date, 'yyyy-MM-dd');
-    setVisibleTeamsByDay(prev => {
-      const currentVisible = prev[dateKey] || ['team-1', 'team-2', 'team-11'];
-      
-      if (currentVisible.includes(teamId)) {
-        if (['team-1', 'team-2', 'team-11'].includes(teamId)) {
-          return prev;
-        }
-        return {
-          ...prev,
-          [dateKey]: currentVisible.filter(id => id !== teamId)
-        };
-      } else {
-        return {
-          ...prev,
-          [dateKey]: [...currentVisible, teamId]
-        };
-      }
-    });
-  };
-
   // Use the unified staff operations hook
   const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly');
+
 
   // Staff curtain state
   const [staffCurtainOpen, setStaffCurtainOpen] = useState(false);
@@ -143,28 +66,12 @@ const WarehouseCalendarPage = () => {
     resourceId: string;
     resourceTitle: string;
     targetDate: Date;
-    position: { top: number; left: number };
   } | null>(null);
 
-  // Handle opening staff curtain with position
-  const handleOpenStaffSelection = (resourceId: string, resourceTitle: string, targetDate: Date, buttonElement?: HTMLElement) => {
+  // Handle opening staff curtain
+  const handleOpenStaffSelection = (resourceId: string, resourceTitle: string, targetDate: Date) => {
     console.log('Opening staff curtain for:', { resourceId, resourceTitle, targetDate });
-    
-    let position = { top: 100, left: 300 };
-    
-    if (buttonElement) {
-      const rect = buttonElement.getBoundingClientRect();
-      position = {
-        top: rect.bottom + 5,
-        left: Math.max(10, rect.left - 120)
-      };
-      
-      if (position.left + 250 > window.innerWidth) {
-        position.left = window.innerWidth - 260;
-      }
-    }
-    
-    setSelectedTeam({ resourceId, resourceTitle, targetDate, position });
+    setSelectedTeam({ resourceId, resourceTitle, targetDate });
     setStaffCurtainOpen(true);
   };
 
@@ -182,124 +89,102 @@ const WarehouseCalendarPage = () => {
     setSelectedTeam(null);
   };
 
-  // Handle week selection from tabs (monthly view)
-  const handleWeekSelect = (weekStart: Date) => {
-    setCurrentWeekStart(weekStart);
+  // Handle staff selection for curtain (used by StaffCurtain component)
+  const handleSelectStaff = (teamId: string, teamName: string) => {
+    if (teamId && teamName) {
+      setSelectedTeam(prev => prev ? { ...prev, resourceId: teamId, resourceTitle: teamName } : null);
+    }
   };
 
-  // Handle month change in navigation (monthly view)
-  const handleMonthChange = (date: Date) => {
-    setMonthlyDate(startOfMonth(date));
-    setCurrentWeekStart(startOfWeek(startOfMonth(date), { weekStartsOn: 1 }));
+  // Handle day click in monthly view - switch to weekly view with clicked date centered
+  const handleMonthlyDayClick = (date: Date) => {
+    // Center the week around the clicked date by starting 3 days before
+    const centeredWeekStart = subDays(date, 3);
+    setCurrentWeekStart(centeredWeekStart);
+    setSelectedDate(date);
+    setViewMode('weekly');
   };
+
+  // Handle month change in monthly view
+  const handleMonthChange = (date: Date) => {
+    setMonthlyDate(date);
+  };
+
+  // Toggle team visibility
+  const handleToggleTeam = (teamId: string) => {
+    setVisibleTeams(prev => {
+      if (prev.includes(teamId)) {
+        // Don't allow hiding Team 1, 2, and Live
+        if (['team-1', 'team-2', 'team-11'].includes(teamId)) {
+          return prev;
+        }
+        return prev.filter(id => id !== teamId);
+      } else {
+        return [...prev, teamId];
+      }
+    });
+  };
+
+  // Mobile view
+  if (isMobile) {
+    return <MobileWarehouseCalendarView events={events} />;
+  }
 
   return (
     <TooltipProvider>
-        <div className="min-h-screen bg-gray-50">
-          {/* Navigation with view toggle */}
+        <div className="min-h-screen bg-muted/30">
+          {/* Navigation with Date and View Mode */}
           <WeekNavigation
             currentWeekStart={currentWeekStart}
             setCurrentWeekStart={setCurrentWeekStart}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
-            currentMonth={monthlyDate}
-            onMonthChange={handleMonthChange}
           />
 
           {/* Content */}
           <div className="p-6">
-            {/* Calendar type tabs */}
-            <Tabs value={calendarTab} onValueChange={(v) => setCalendarTab(v as 'warehouse' | 'staff')} className="mb-4">
-              <TabsList className="grid w-full max-w-md grid-cols-2">
-                <TabsTrigger value="warehouse" className="flex items-center gap-2">
-                  <Package className="w-4 h-4" />
-                  Lagerkalender
-                </TabsTrigger>
-                <TabsTrigger value="staff" className="flex items-center gap-2">
-                  <Users className="w-4 h-4" />
-                  Personalplanering
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-
-            {calendarTab === 'warehouse' ? (
-              // Warehouse-specific calendar with packing, delivery, etc.
-              <WarehouseCalendarView 
-                currentDate={currentWeekStart} 
-                view="week" 
+            {viewMode === 'weekly' ? (
+              <UnifiedResourceCalendar
+                events={events}
+                resources={teamResources}
+                isLoading={isLoading}
+                isMounted={isMounted}
+                currentDate={currentWeekStart}
+                onDateSet={handleDatesSet}
+                refreshEvents={refreshEvents}
+                onStaffDrop={staffOps.handleStaffDrop}
+                onSelectStaff={handleOpenStaffSelection}
+                viewMode="weekly"
+                staffOperations={staffOps}
+                visibleTeams={visibleTeams}
+                selectedDate={selectedDate}
+              />
+            ) : viewMode === 'monthly' ? (
+              <SimpleMonthlyCalendar
+                events={events}
+                currentDate={monthlyDate}
+                onDateChange={handleMonthChange}
+                onDayClick={handleMonthlyDayClick}
               />
             ) : (
-              // Staff planning view (original calendar)
-              <>
-                {viewMode === 'weekly' ? (
-                  <>
-                    {isMobile ? (
-                      <MobileWarehouseCalendarView events={events} />
-                    ) : (
-                      <CustomCalendar
-                        events={events}
-                        resources={teamResources}
-                        isLoading={isLoading}
-                        isMounted={isMounted}
-                        currentDate={currentWeekStart}
-                        onDateSet={handleDatesSet}
-                        refreshEvents={refreshEvents}
-                        onStaffDrop={staffOps.handleStaffDrop}
-                        onOpenStaffSelection={handleOpenStaffSelection}
-                        viewMode="weekly"
-                        weeklyStaffOperations={staffOps}
-                        getVisibleTeamsForDay={getVisibleTeamsForDay}
-                        onToggleTeamForDay={handleToggleTeamForDay}
-                        allTeams={teamResources}
-                      />
-                    )}
-                  </>
-                ) : viewMode === 'monthly' ? (
-                  <>
-                    <CustomCalendar
-                      events={events}
-                      resources={teamResources}
-                      isLoading={isLoading}
-                      isMounted={isMounted}
-                      currentDate={currentWeekStart}
-                      onDateSet={handleDatesSet}
-                      refreshEvents={refreshEvents}
-                      onStaffDrop={staffOps.handleStaffDrop}
-                      onOpenStaffSelection={handleOpenStaffSelection}
-                      viewMode="weekly"
-                      weeklyStaffOperations={staffOps}
-                      getVisibleTeamsForDay={getVisibleTeamsForDay}
-                      onToggleTeamForDay={handleToggleTeamForDay}
-                      allTeams={teamResources}
-                    />
-                    <WeekTabsNavigation
-                      currentMonth={monthlyDate}
-                      currentWeekStart={currentWeekStart}
-                      onWeekSelect={handleWeekSelect}
-                    />
-                  </>
-                ) : (
-                  <StaffBookingsList
-                    events={events}
-                    resources={teamResources}
-                    currentDate={currentWeekStart}
-                    weeklyStaffOperations={staffOps}
-                  />
-                )}
-              </>
+              <StaffBookingsList
+                events={events}
+                resources={teamResources}
+                currentDate={currentWeekStart}
+                weeklyStaffOperations={staffOps}
+              />
             )}
           </div>
 
-          {/* Compact Staff Curtain */}
+          {/* Staff Curtain */}
           {staffCurtainOpen && selectedTeam && (
-            <SimpleStaffCurtainWrapper
+            <StaffCurtain
               currentDate={selectedTeam.targetDate}
               onClose={handleCloseCurtain}
               onAssignStaff={handleStaffAssigned}
+              onSelectStaff={handleSelectStaff}
               selectedTeamId={selectedTeam.resourceId}
               selectedTeamName={selectedTeam.resourceTitle}
-              staffOps={staffOps}
-              position={selectedTeam.position}
             />
           )}
         </div>
