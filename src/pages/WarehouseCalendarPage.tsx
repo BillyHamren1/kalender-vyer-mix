@@ -12,7 +12,10 @@ import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
 import MobileWarehouseCalendarView from '@/components/mobile/MobileWarehouseCalendarView';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
 import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
+import { WarehouseCalendarView } from '@/components/Calendar/WarehouseCalendarView';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { startOfWeek, startOfMonth, format } from 'date-fns';
+import { Package, Users } from 'lucide-react';
 
 // Wrapper component to handle async loading of staff with status
 const SimpleStaffCurtainWrapper: React.FC<{
@@ -58,6 +61,7 @@ const SimpleStaffCurtainWrapper: React.FC<{
 const WarehouseCalendarPage = () => {
   const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<'weekly' | 'monthly' | 'list'>('weekly');
+  const [calendarTab, setCalendarTab] = useState<'warehouse' | 'staff'>('warehouse');
   
   // Monthly view state (for desktop) - now used for the month tabs
   const [monthlyDate, setMonthlyDate] = useState<Date>(startOfMonth(new Date()));
@@ -204,60 +208,85 @@ const WarehouseCalendarPage = () => {
 
           {/* Content */}
           <div className="p-6">
-            {viewMode === 'weekly' ? (
+            {/* Calendar type tabs */}
+            <Tabs value={calendarTab} onValueChange={(v) => setCalendarTab(v as 'warehouse' | 'staff')} className="mb-4">
+              <TabsList className="grid w-full max-w-md grid-cols-2">
+                <TabsTrigger value="warehouse" className="flex items-center gap-2">
+                  <Package className="w-4 h-4" />
+                  Lagerkalender
+                </TabsTrigger>
+                <TabsTrigger value="staff" className="flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  Personalplanering
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {calendarTab === 'warehouse' ? (
+              // Warehouse-specific calendar with packing, delivery, etc.
+              <WarehouseCalendarView 
+                currentDate={currentWeekStart} 
+                view="week" 
+              />
+            ) : (
+              // Staff planning view (original calendar)
               <>
-                {isMobile ? (
-                  <MobileWarehouseCalendarView events={events} />
+                {viewMode === 'weekly' ? (
+                  <>
+                    {isMobile ? (
+                      <MobileWarehouseCalendarView events={events} />
+                    ) : (
+                      <CustomCalendar
+                        events={events}
+                        resources={teamResources}
+                        isLoading={isLoading}
+                        isMounted={isMounted}
+                        currentDate={currentWeekStart}
+                        onDateSet={handleDatesSet}
+                        refreshEvents={refreshEvents}
+                        onStaffDrop={staffOps.handleStaffDrop}
+                        onOpenStaffSelection={handleOpenStaffSelection}
+                        viewMode="weekly"
+                        weeklyStaffOperations={staffOps}
+                        getVisibleTeamsForDay={getVisibleTeamsForDay}
+                        onToggleTeamForDay={handleToggleTeamForDay}
+                        allTeams={teamResources}
+                      />
+                    )}
+                  </>
+                ) : viewMode === 'monthly' ? (
+                  <>
+                    <CustomCalendar
+                      events={events}
+                      resources={teamResources}
+                      isLoading={isLoading}
+                      isMounted={isMounted}
+                      currentDate={currentWeekStart}
+                      onDateSet={handleDatesSet}
+                      refreshEvents={refreshEvents}
+                      onStaffDrop={staffOps.handleStaffDrop}
+                      onOpenStaffSelection={handleOpenStaffSelection}
+                      viewMode="weekly"
+                      weeklyStaffOperations={staffOps}
+                      getVisibleTeamsForDay={getVisibleTeamsForDay}
+                      onToggleTeamForDay={handleToggleTeamForDay}
+                      allTeams={teamResources}
+                    />
+                    <WeekTabsNavigation
+                      currentMonth={monthlyDate}
+                      currentWeekStart={currentWeekStart}
+                      onWeekSelect={handleWeekSelect}
+                    />
+                  </>
                 ) : (
-                  <CustomCalendar
+                  <StaffBookingsList
                     events={events}
                     resources={teamResources}
-                    isLoading={isLoading}
-                    isMounted={isMounted}
                     currentDate={currentWeekStart}
-                    onDateSet={handleDatesSet}
-                    refreshEvents={refreshEvents}
-                    onStaffDrop={staffOps.handleStaffDrop}
-                    onOpenStaffSelection={handleOpenStaffSelection}
-                    viewMode="weekly"
                     weeklyStaffOperations={staffOps}
-                    getVisibleTeamsForDay={getVisibleTeamsForDay}
-                    onToggleTeamForDay={handleToggleTeamForDay}
-                    allTeams={teamResources}
                   />
                 )}
               </>
-            ) : viewMode === 'monthly' ? (
-              <>
-                <CustomCalendar
-                  events={events}
-                  resources={teamResources}
-                  isLoading={isLoading}
-                  isMounted={isMounted}
-                  currentDate={currentWeekStart}
-                  onDateSet={handleDatesSet}
-                  refreshEvents={refreshEvents}
-                  onStaffDrop={staffOps.handleStaffDrop}
-                  onOpenStaffSelection={handleOpenStaffSelection}
-                  viewMode="weekly"
-                  weeklyStaffOperations={staffOps}
-                  getVisibleTeamsForDay={getVisibleTeamsForDay}
-                  onToggleTeamForDay={handleToggleTeamForDay}
-                  allTeams={teamResources}
-                />
-                <WeekTabsNavigation
-                  currentMonth={monthlyDate}
-                  currentWeekStart={currentWeekStart}
-                  onWeekSelect={handleWeekSelect}
-                />
-              </>
-            ) : (
-              <StaffBookingsList
-                events={events}
-                resources={teamResources}
-                currentDate={currentWeekStart}
-                weeklyStaffOperations={staffOps}
-              />
             )}
           </div>
 

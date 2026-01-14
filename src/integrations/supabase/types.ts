@@ -1532,6 +1532,84 @@ export type Database = {
           },
         ]
       }
+      warehouse_calendar_events: {
+        Row: {
+          booking_id: string | null
+          booking_number: string | null
+          change_details: string | null
+          created_at: string | null
+          delivery_address: string | null
+          end_time: string
+          event_type: string
+          has_source_changes: boolean | null
+          id: string
+          manually_adjusted: boolean | null
+          resource_id: string
+          source_event_date: string | null
+          source_rig_date: string | null
+          source_rigdown_date: string | null
+          start_time: string
+          title: string
+          updated_at: string | null
+          viewed: boolean | null
+        }
+        Insert: {
+          booking_id?: string | null
+          booking_number?: string | null
+          change_details?: string | null
+          created_at?: string | null
+          delivery_address?: string | null
+          end_time: string
+          event_type: string
+          has_source_changes?: boolean | null
+          id?: string
+          manually_adjusted?: boolean | null
+          resource_id?: string
+          source_event_date?: string | null
+          source_rig_date?: string | null
+          source_rigdown_date?: string | null
+          start_time: string
+          title: string
+          updated_at?: string | null
+          viewed?: boolean | null
+        }
+        Update: {
+          booking_id?: string | null
+          booking_number?: string | null
+          change_details?: string | null
+          created_at?: string | null
+          delivery_address?: string | null
+          end_time?: string
+          event_type?: string
+          has_source_changes?: boolean | null
+          id?: string
+          manually_adjusted?: boolean | null
+          resource_id?: string
+          source_event_date?: string | null
+          source_rig_date?: string | null
+          source_rigdown_date?: string | null
+          start_time?: string
+          title?: string
+          updated_at?: string | null
+          viewed?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warehouse_calendar_events_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_calendar_events_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "confirmed_bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webhook_subscriptions: {
         Row: {
           created_at: string
