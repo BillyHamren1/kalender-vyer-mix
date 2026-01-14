@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Calendar, FolderKanban, Users, Settings } from "lucide-react";
+import { Calendar, FolderKanban, Users, Settings, Warehouse } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const GlobalTopBar = () => {
@@ -10,7 +10,13 @@ const GlobalTopBar = () => {
       name: "Personalplanering", 
       icon: Calendar, 
       path: "/calendar",
-      matchPaths: ["/calendar", "/custom-calendar"]
+      matchPaths: ["/calendar"]
+    },
+    { 
+      name: "Lagerkalender", 
+      icon: Warehouse, 
+      path: "/warehouse-calendar",
+      matchPaths: ["/warehouse-calendar"]
     },
     { 
       name: "Projekthantering", 

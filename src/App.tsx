@@ -7,6 +7,7 @@ import { useBackgroundImport } from "@/hooks/useBackgroundImport";
 import GlobalTopBar from "@/components/GlobalTopBar";
 import Index from "./pages/Index";
 import CustomCalendarPage from "./pages/CustomCalendarPage";
+import WarehouseCalendarPage from "./pages/WarehouseCalendarPage";
 import StaffManagement from "./pages/StaffManagement";
 import StaffDetail from "./pages/StaffDetail";
 import BookingDetail from "./pages/BookingDetail";
@@ -59,7 +60,7 @@ const AppContent = () => {
                 <Routes>
                   <Route path="/" element={<Index />} />
                   <Route path="/calendar" element={<CustomCalendarPage />} />
-                  <Route path="/custom-calendar" element={<CustomCalendarPage />} />
+                  <Route path="/warehouse-calendar" element={<WarehouseCalendarPage />} />
                   <Route path="/staff-management" element={<StaffManagement />} />
                   <Route path="/staff/:staffId" element={<StaffDetail />} />
                   <Route path="/booking/:bookingId" element={<BookingDetail />} />
