@@ -7,6 +7,7 @@ interface WeekTabsNavigationProps {
   currentMonth: Date;
   currentWeekStart: Date;
   onWeekSelect: (weekStart: Date) => void;
+  variant?: 'default' | 'warehouse';
 }
 
 // Get all weeks that overlap with the given month
@@ -34,9 +35,11 @@ const getWeeksInMonth = (monthDate: Date): { weekNumber: number; weekStart: Date
 const WeekTabsNavigation: React.FC<WeekTabsNavigationProps> = ({
   currentMonth,
   currentWeekStart,
-  onWeekSelect
+  onWeekSelect,
+  variant = 'default'
 }) => {
   const weeks = getWeeksInMonth(currentMonth);
+  const isWarehouse = variant === 'warehouse';
 
   const handleClick = (weekStart: Date) => {
     console.log('Week tab clicked:', weekStart);
@@ -55,7 +58,9 @@ const WeekTabsNavigation: React.FC<WeekTabsNavigationProps> = ({
             className={`
               flex-1 text-sm font-medium px-4 py-3 rounded-xl transition-all duration-200
               ${isActive 
-                ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/30 scale-105 ring-2 ring-primary/20' 
+                ? isWarehouse
+                  ? 'bg-warehouse text-white shadow-lg shadow-warehouse/30 scale-105 ring-2 ring-warehouse/20'
+                  : 'bg-primary text-primary-foreground shadow-lg shadow-primary/30 scale-105 ring-2 ring-primary/20' 
                 : 'bg-white text-foreground shadow-md hover:shadow-lg hover:scale-102 hover:bg-white/80 border border-border/50'
               }
             `}
