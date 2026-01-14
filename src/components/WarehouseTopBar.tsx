@@ -61,8 +61,8 @@ const WarehouseTopBar = () => {
                 className={cn(
                   "flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium transition-all duration-200 rounded-full mx-1",
                   isActive
-                    ? "bg-primary text-primary-foreground shadow-md"
-                    : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
+                    ? "bg-warehouse text-white shadow-md"
+                    : "text-foreground/70 hover:text-foreground hover:bg-warehouse/10"
                 )}
               >
                 <Icon className="w-4 h-4" />
