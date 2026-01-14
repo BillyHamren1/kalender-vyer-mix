@@ -276,6 +276,7 @@ const WarehouseCalendarPage = () => {
           onViewModeChange={setViewMode}
           currentMonth={monthlyDate}
           onMonthChange={handleMonthChange}
+          variant="warehouse"
         />
 
         {/* Content */}
@@ -300,6 +301,7 @@ const WarehouseCalendarPage = () => {
                   getVisibleTeamsForDay={getVisibleTeamsForDay}
                   onToggleTeamForDay={handleToggleTeamForDay}
                   allTeams={resourcesWithWarehouse}
+                  variant="warehouse"
                 />
               )}
             </>
@@ -320,6 +322,7 @@ const WarehouseCalendarPage = () => {
                 getVisibleTeamsForDay={getVisibleTeamsForDay}
                 onToggleTeamForDay={handleToggleTeamForDay}
                 allTeams={resourcesWithWarehouse}
+                variant="warehouse"
               />
               {/* Week tabs for quick navigation within the month */}
               <WeekTabsNavigation

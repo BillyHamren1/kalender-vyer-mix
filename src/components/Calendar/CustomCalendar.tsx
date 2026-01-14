@@ -21,6 +21,7 @@ interface CustomCalendarProps {
   getVisibleTeamsForDay?: (date: Date) => string[];
   onToggleTeamForDay?: (teamId: string, date: Date) => void;
   allTeams?: Resource[];
+  variant?: 'default' | 'warehouse';
 }
 
 const CustomCalendar: React.FC<CustomCalendarProps> = ({
@@ -34,7 +35,8 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   weeklyStaffOperations,
   getVisibleTeamsForDay,
   onToggleTeamForDay,
-  allTeams
+  allTeams,
+  variant = 'default'
 }) => {
   // IMPORTANT: Don't keep an internal week state.
   // The parent controls the current week via `currentDate`.
@@ -117,7 +119,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
             return (
               <div 
                 key={format(date, 'yyyy-MM-dd')} 
-                className="day-card flex-shrink-0 bg-background rounded-2xl shadow-lg border border-border overflow-hidden"
+                className={`day-card flex-shrink-0 bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}
                 style={{ width: `${dayWidth}px` }}
               >
                 <TimeGrid
@@ -135,6 +137,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                     visibleTeams,
                     onToggleTeam: (teamId: string) => onToggleTeamForDay(teamId, date)
                   } : undefined}
+                  variant={variant}
                 />
               </div>
             );

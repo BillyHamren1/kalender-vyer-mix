@@ -26,6 +26,7 @@ interface TimeGridProps {
   };
   onEventResize?: () => Promise<void>;
   teamVisibilityProps?: TeamVisibilityProps;
+  variant?: 'default' | 'warehouse';
 }
 
 // Event Wrapper Component
@@ -90,7 +91,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   dayWidth = 800,
   weeklyStaffOperations,
   onEventResize,
-  teamVisibilityProps
+  teamVisibilityProps,
+  variant = 'default'
 }) => {
   const { handleEventClick } = useEventNavigation();
   // Generate continuous 24-hour time slots from 05:00 to 05:00 (next day)
@@ -211,7 +213,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   return (
     <div 
-      className="time-grid-with-staff-header"
+      className={`time-grid-with-staff-header ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}
       style={{
         gridTemplateColumns: getGridTemplateColumns(),
         gridTemplateRows: 'auto auto auto 1fr',

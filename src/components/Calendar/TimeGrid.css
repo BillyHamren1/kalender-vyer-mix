@@ -1,5 +1,11 @@
 /* Modern, clean calendar design */
+
+/* Calendar Theme Variables - Default (Teal) */
 .time-grid-with-staff-header {
+  --calendar-primary: var(--primary);
+  --calendar-primary-foreground: var(--primary-foreground);
+  --calendar-accent: var(--primary);
+  
   background: hsl(var(--background));
   border-radius: 0;
   box-shadow: none;
@@ -11,9 +17,16 @@
   grid-template-rows: auto auto auto 1fr auto;
 }
 
-/* Footer background - solid teal */
+/* Warehouse Theme Override (Amber) */
+.time-grid-with-staff-header.warehouse-theme {
+  --calendar-primary: var(--warehouse);
+  --calendar-primary-foreground: var(--warehouse-foreground);
+  --calendar-accent: var(--warehouse);
+}
+
+/* Footer background - uses theme color */
 .time-grid-footer-bg {
-  background: hsl(var(--primary));
+  background: hsl(var(--calendar-primary));
   height: 16px;
 }
 
@@ -32,6 +45,11 @@
   transition: box-shadow 0.3s ease, transform 0.3s ease;
 }
 
+/* Warehouse day card border accent */
+.day-card.warehouse-theme {
+  border-top: 3px solid hsl(var(--warehouse));
+}
+
 .day-card:hover {
   box-shadow: 
     0 6px 12px -2px rgba(0, 0, 0, 0.12),
@@ -42,9 +60,9 @@
 }
 
 
-/* Unified header background - solid teal */
+/* Unified header background - uses theme color */
 .time-grid-header-bg {
-  background: hsl(var(--primary));
+  background: hsl(var(--calendar-primary));
   pointer-events: none;
   position: relative;
   z-index: 0;
@@ -53,7 +71,7 @@
 /* Time Column Header - transparent so it uses the unified header bg */
 .time-column-header {
   background: transparent;
-  border-right: 1px solid hsl(var(--primary) / 0.3);
+  border-right: 1px solid hsl(var(--calendar-primary) / 0.3);
   border-bottom: none;
   padding: 10px 4px;
   text-align: center;
@@ -117,15 +135,15 @@
   height: 50px;
 }
 
-/* Team Headers Row - Light teal accent */
+/* Team Headers Row - Light theme-tinted accent */
 .team-header-cell {
-  background: hsl(var(--primary) / 0.08);
+  background: hsl(var(--calendar-primary) / 0.08);
   height: 32px;
   padding: 0 10px;
   display: flex;
   align-items: center;
   overflow: hidden;
-  border-right: 1px solid hsl(var(--primary) / 0.15);
+  border-right: 1px solid hsl(var(--calendar-primary) / 0.15);
   border-bottom: 1px solid hsl(var(--border));
 }
 
@@ -153,10 +171,10 @@
   white-space: nowrap;
 }
 
-/* Add staff button - accent color */
+/* Add staff button - theme accent color */
 .add-staff-button-header {
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
+  background: hsl(var(--calendar-primary));
+  color: hsl(var(--calendar-primary-foreground));
   border-radius: 6px;
   width: 20px;
   height: 20px;

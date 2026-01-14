@@ -58,6 +58,14 @@
     --chart-1: 184 60% 42%;
     --chart-2: 184 50% 55%;
     --chart-3: 184 40% 65%;
+
+    /* === WAREHOUSE (Amber/Bärnsten) === */
+    --warehouse: 38 92% 50%;
+    --warehouse-foreground: 0 0% 100%;
+    --warehouse-hover: 38 92% 45%;
+    --warehouse-dark: 32 95% 40%;
+    --warehouse-muted: 43 96% 90%;
+    --warehouse-accent: 45 93% 47%;
   }
 
   .dark {
