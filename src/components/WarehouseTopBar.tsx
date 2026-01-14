@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Calendar, Package, Boxes, Wrench, LayoutDashboard, ArrowLeft } from "lucide-react";
+import { Calendar, Package, Boxes, Wrench, LayoutDashboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const WarehouseTopBar = () => {
@@ -49,15 +49,6 @@ const WarehouseTopBar = () => {
   return (
     <div className="sticky top-0 z-50 w-full border-b border-border/50 bg-card/95 backdrop-blur shadow-sm">
       <div className="flex h-16 items-center px-4 sm:px-6 lg:px-8">
-        {/* Back to main system */}
-        <Link 
-          to="/"
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mr-4"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span className="hidden sm:inline">Huvudsystem</span>
-        </Link>
-
         <nav className="flex flex-1 items-center">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -75,7 +66,7 @@ const WarehouseTopBar = () => {
                 )}
               >
                 <Icon className="w-4 h-4" />
-                <span className="hidden md:inline">{tab.name}</span>
+                <span>{tab.name}</span>
               </Link>
             );
           })}
