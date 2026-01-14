@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import { Calendar, Package, Boxes, Wrench } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import WarehouseTopBar from "@/components/WarehouseTopBar";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const sections = [
   {
@@ -37,8 +36,6 @@ const sections = [
 const WarehouseDashboard = () => {
   return (
     <div className="min-h-screen bg-background">
-      <WarehouseTopBar />
-      
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground">Lagerdashboard</h1>
