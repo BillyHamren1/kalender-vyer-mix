@@ -10,7 +10,6 @@ import PackingFiles from "@/components/packing/PackingFiles";
 import PackingComments from "@/components/packing/PackingComments";
 import PackingGanttChart from "@/components/packing/PackingGanttChart";
 import PackingTaskDetailSheet from "@/components/packing/PackingTaskDetailSheet";
-import WarehouseTopBar from "@/components/WarehouseTopBar";
 import { usePackingDetail } from "@/hooks/usePackingDetail";
 import { PackingTask } from "@/types/packing";
 import { format } from "date-fns";
@@ -39,13 +38,10 @@ const PackingDetail = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <WarehouseTopBar />
-        <div className="container mx-auto px-4 py-8">
-          <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-muted rounded w-1/3" />
-            <div className="h-32 bg-muted rounded" />
-          </div>
+      <div className="container mx-auto px-4 py-8">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-muted rounded w-1/3" />
+          <div className="h-32 bg-muted rounded" />
         </div>
       </div>
     );
@@ -53,15 +49,12 @@ const PackingDetail = () => {
 
   if (!packing) {
     return (
-      <div className="min-h-screen bg-background">
-        <WarehouseTopBar />
-        <div className="container mx-auto px-4 py-8 text-center">
-          <h2 className="text-xl font-semibold mb-4">Packningen hittades inte</h2>
-          <Button onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Tillbaka
-          </Button>
-        </div>
+      <div className="container mx-auto px-4 py-8 text-center">
+        <h2 className="text-xl font-semibold mb-4">Packningen hittades inte</h2>
+        <Button onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Tillbaka
+        </Button>
       </div>
     );
   }
@@ -70,7 +63,6 @@ const PackingDetail = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <WarehouseTopBar />
       
       <div className="container mx-auto px-4 py-6">
         {/* Header */}
