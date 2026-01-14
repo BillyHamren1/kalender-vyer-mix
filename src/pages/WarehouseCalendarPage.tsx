@@ -329,6 +329,7 @@ const WarehouseCalendarPage = () => {
                 currentMonth={monthlyDate}
                 currentWeekStart={currentWeekStart}
                 onWeekSelect={handleWeekSelect}
+                variant="warehouse"
               />
             </>
           ) : (
