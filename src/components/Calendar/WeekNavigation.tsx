@@ -27,6 +27,8 @@ interface WeekNavigationProps {
   // Monthly mode props
   currentMonth?: Date;
   onMonthChange?: (date: Date) => void;
+  // Theme variant
+  variant?: 'default' | 'warehouse';
 }
 
 // Swedish month names
@@ -51,7 +53,8 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
   viewMode,
   onViewModeChange,
   currentMonth,
-  onMonthChange
+  onMonthChange,
+  variant = 'default'
 }) => {
   const [datePickerOpen, setDatePickerOpen] = useState(false);
 
@@ -144,6 +147,10 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
   const currentMonthIndex = activeDate.getMonth();
   const currentYearValue = activeDate.getFullYear();
 
+  const buttonColorClass = variant === 'warehouse' 
+    ? 'bg-warehouse hover:bg-warehouse-hover' 
+    : 'bg-primary hover:bg-primary/90';
+
   return (
     <div className="flex items-center justify-between bg-white border-b border-border px-6 py-3">
       {/* Left spacer for centering */}
@@ -153,10 +160,10 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
       <div className="flex items-center">
         <button
           onClick={handlePrevious}
-          className="bg-primary hover:bg-primary/90 transition-colors duration-300 rounded-lg p-1.5 mr-4"
+          className={`${buttonColorClass} transition-colors duration-300 rounded-lg p-1.5 mr-4`}
         >
           <ChevronLeft 
-            className="h-5 w-5 text-primary-foreground"
+            className="h-5 w-5 text-white"
             strokeWidth={3}
           />
         </button>
@@ -239,10 +246,10 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
         
         <button
           onClick={handleNext}
-          className="bg-primary hover:bg-primary/90 transition-colors duration-300 rounded-lg p-1.5 ml-4"
+          className={`${buttonColorClass} transition-colors duration-300 rounded-lg p-1.5 ml-4`}
         >
           <ChevronRight 
-            className="h-5 w-5 text-primary-foreground"
+            className="h-5 w-5 text-white"
             strokeWidth={3}
           />
         </button>
@@ -255,7 +262,10 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
             variant={viewMode === 'weekly' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => onViewModeChange('weekly')}
-            className="text-xs px-2 py-1 h-7"
+            className={cn(
+              "text-xs px-2 py-1 h-7",
+              viewMode === 'weekly' && variant === 'warehouse' && "bg-warehouse hover:bg-warehouse-hover"
+            )}
           >
             Vecka
           </Button>
@@ -263,7 +273,10 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
             variant={viewMode === 'monthly' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => onViewModeChange('monthly')}
-            className="text-xs px-2 py-1 h-7"
+            className={cn(
+              "text-xs px-2 py-1 h-7",
+              viewMode === 'monthly' && variant === 'warehouse' && "bg-warehouse hover:bg-warehouse-hover"
+            )}
           >
             Månad
           </Button>
@@ -271,7 +284,10 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
             variant={viewMode === 'list' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => onViewModeChange('list')}
-            className="text-xs px-2 py-1 h-7"
+            className={cn(
+              "text-xs px-2 py-1 h-7",
+              viewMode === 'list' && variant === 'warehouse' && "bg-warehouse hover:bg-warehouse-hover"
+            )}
           >
             Lista
           </Button>
