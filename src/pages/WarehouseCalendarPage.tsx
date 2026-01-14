@@ -9,7 +9,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import CustomCalendar from '@/components/Calendar/CustomCalendar';
 import SimpleStaffCurtain from '@/components/Calendar/SimpleStaffCurtain';
 import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
-import MobileCalendarView from '@/components/mobile/MobileCalendarView';
+import MobileWarehouseCalendarView from '@/components/mobile/MobileWarehouseCalendarView';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
 import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
 import { startOfWeek, startOfMonth, format } from 'date-fns';
@@ -31,7 +31,6 @@ const SimpleStaffCurtainWrapper: React.FC<{
     const loadStaff = async () => {
       if (!props.selectedTeamId) return;
       setLoading(true);
-      // Use new function that returns ALL staff with their assignment status
       const staff = await props.staffOps.getStaffForPlanningDate(props.currentDate, props.selectedTeamId);
       setStaffList(staff);
       setLoading(false);
@@ -56,15 +55,14 @@ const SimpleStaffCurtainWrapper: React.FC<{
   );
 };
 
-const CustomCalendarPage = () => {
+const WarehouseCalendarPage = () => {
   const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<'weekly' | 'monthly' | 'list'>('weekly');
-  
   
   // Monthly view state (for desktop) - now used for the month tabs
   const [monthlyDate, setMonthlyDate] = useState<Date>(startOfMonth(new Date()));
   
-  // Real-time calendar events (these will update UI when background import updates DB)
+  // Real-time calendar events
   const {
     events,
     isLoading,
@@ -76,7 +74,7 @@ const CustomCalendarPage = () => {
   
   const { teamResources } = useTeamResources();
   
-  // Week navigation state (for desktop) and month state (for mobile)
+  // Week navigation state
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     return startOfWeek(new Date(hookCurrentDate), { weekStartsOn: 1 });
   });
@@ -94,13 +92,13 @@ const CustomCalendarPage = () => {
 
   // Visible teams state - per day { [dateString]: teamIds[] }
   const [visibleTeamsByDay, setVisibleTeamsByDay] = useState<{ [key: string]: string[] }>(() => {
-    const stored = localStorage.getItem('visibleTeamsByDay');
+    const stored = localStorage.getItem('warehouseVisibleTeamsByDay');
     return stored ? JSON.parse(stored) : {};
   });
 
   // Save visible teams to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem('visibleTeamsByDay', JSON.stringify(visibleTeamsByDay));
+    localStorage.setItem('warehouseVisibleTeamsByDay', JSON.stringify(visibleTeamsByDay));
   }, [visibleTeamsByDay]);
 
   // Get visible teams for a specific day
@@ -116,7 +114,6 @@ const CustomCalendarPage = () => {
       const currentVisible = prev[dateKey] || ['team-1', 'team-2', 'team-11'];
       
       if (currentVisible.includes(teamId)) {
-        // Don't allow hiding Team 1, 2, and Live
         if (['team-1', 'team-2', 'team-11'].includes(teamId)) {
           return prev;
         }
@@ -136,7 +133,7 @@ const CustomCalendarPage = () => {
   // Use the unified staff operations hook
   const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly');
 
-  // Staff curtain state - simplified with position
+  // Staff curtain state
   const [staffCurtainOpen, setStaffCurtainOpen] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<{
     resourceId: string;
@@ -149,19 +146,17 @@ const CustomCalendarPage = () => {
   const handleOpenStaffSelection = (resourceId: string, resourceTitle: string, targetDate: Date, buttonElement?: HTMLElement) => {
     console.log('Opening staff curtain for:', { resourceId, resourceTitle, targetDate });
     
-    // Calculate position relative to the button
-    let position = { top: 100, left: 300 }; // Default fallback position
+    let position = { top: 100, left: 300 };
     
     if (buttonElement) {
       const rect = buttonElement.getBoundingClientRect();
       position = {
-        top: rect.bottom + 5, // Position below the button
-        left: Math.max(10, rect.left - 120) // Position to the left of button, with minimum margin
+        top: rect.bottom + 5,
+        left: Math.max(10, rect.left - 120)
       };
       
-      // Adjust if it would go off-screen
       if (position.left + 250 > window.innerWidth) {
-        position.left = window.innerWidth - 260; // Keep some margin from right edge
+        position.left = window.innerWidth - 260;
       }
     }
     
@@ -183,7 +178,6 @@ const CustomCalendarPage = () => {
     setSelectedTeam(null);
   };
 
-
   // Handle week selection from tabs (monthly view)
   const handleWeekSelect = (weekStart: Date) => {
     setCurrentWeekStart(weekStart);
@@ -192,7 +186,6 @@ const CustomCalendarPage = () => {
   // Handle month change in navigation (monthly view)
   const handleMonthChange = (date: Date) => {
     setMonthlyDate(startOfMonth(date));
-    // Also update currentWeekStart to first week of new month
     setCurrentWeekStart(startOfWeek(startOfMonth(date), { weekStartsOn: 1 }));
   };
 
@@ -214,7 +207,7 @@ const CustomCalendarPage = () => {
             {viewMode === 'weekly' ? (
               <>
                 {isMobile ? (
-                  <MobileCalendarView events={events} />
+                  <MobileWarehouseCalendarView events={events} />
                 ) : (
                   <CustomCalendar
                     events={events}
@@ -235,7 +228,6 @@ const CustomCalendarPage = () => {
                 )}
               </>
             ) : viewMode === 'monthly' ? (
-              // Desktop Monthly View - uses weekly layout with week tabs
               <>
                 <CustomCalendar
                   events={events}
@@ -253,7 +245,6 @@ const CustomCalendarPage = () => {
                   onToggleTeamForDay={handleToggleTeamForDay}
                   allTeams={teamResources}
                 />
-                {/* Week tabs for quick navigation within the month */}
                 <WeekTabsNavigation
                   currentMonth={monthlyDate}
                   currentWeekStart={currentWeekStart}
@@ -261,7 +252,6 @@ const CustomCalendarPage = () => {
                 />
               </>
             ) : (
-              // List View
               <StaffBookingsList
                 events={events}
                 resources={teamResources}
@@ -271,7 +261,7 @@ const CustomCalendarPage = () => {
             )}
           </div>
 
-          {/* Compact Staff Curtain - positioned relative to the + button */}
+          {/* Compact Staff Curtain */}
           {staffCurtainOpen && selectedTeam && (
             <SimpleStaffCurtainWrapper
               currentDate={selectedTeam.targetDate}
@@ -288,4 +278,4 @@ const CustomCalendarPage = () => {
   );
 };
 
-export default CustomCalendarPage;
+export default WarehouseCalendarPage;
