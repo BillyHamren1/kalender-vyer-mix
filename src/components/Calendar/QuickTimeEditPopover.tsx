@@ -26,7 +26,7 @@ interface QuickTimeEditPopoverProps {
     start: string | Date;
     end: string | Date;
     bookingId?: string;
-    eventType?: 'rig' | 'event' | 'rigDown';
+    eventType?: string;
   };
   children: React.ReactNode;
   onUpdate?: () => void;

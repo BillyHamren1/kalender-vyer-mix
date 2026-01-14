@@ -59,15 +59,31 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     }
   }, [event, handleEventClick]);
 
+  // Check if this is a warehouse event with source changes
+  const hasSourceChanges = event.extendedProps?.has_source_changes === true && 
+                           event.extendedProps?.manually_adjusted !== true;
+  
   // Calculate dynamic styles
   const getDynamicStyles = (): React.CSSProperties => {
-    return {
+    const baseStyles: React.CSSProperties = {
       ...style,
       backgroundColor: eventColor,
       cursor: 'pointer',
       position: 'relative' as const,
       color: '#000000'
     };
+    
+    // Add orange border + animation for warehouse events with changes
+    if (hasSourceChanges) {
+      return {
+        ...baseStyles,
+        border: '2px solid #f97316',
+        boxShadow: '0 0 8px rgba(249, 115, 22, 0.5)',
+        animation: 'pulse-orange 2s infinite'
+      };
+    }
+    
+    return baseStyles;
   };
 
   // Get booking number and delivery city from event
@@ -98,10 +114,18 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         >
           <div
             ref={eventRef}
-            className="custom-event hover:scale-105"
+            className={`custom-event hover:scale-105 ${hasSourceChanges ? 'warehouse-changed' : ''}`}
             style={getDynamicStyles()}
           >
             <div className="event-content" style={{ color: '#000000', pointerEvents: 'auto' }}>
+              {/* Changed badge for warehouse events */}
+              {hasSourceChanges && (
+                <div 
+                  className="absolute -top-1 -right-1 bg-orange-500 text-white text-[8px] px-1 py-0.5 rounded font-bold z-10"
+                >
+                  Ändrad!
+                </div>
+              )}
               <div className="event-title" style={{ color: '#000000' }}>
                 {event.title}
               </div>
