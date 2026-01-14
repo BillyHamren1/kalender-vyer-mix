@@ -1,22 +1,16 @@
 import { Link, useLocation } from "react-router-dom";
-import { Calendar, FolderKanban, Users, Settings, Warehouse } from "lucide-react";
+import { Calendar, FolderKanban, Users, Warehouse } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const GlobalTopBar = () => {
   const location = useLocation();
 
-  const tabs = [
+const tabs = [
     { 
       name: "Personalplanering", 
       icon: Calendar, 
       path: "/calendar",
       matchPaths: ["/calendar"]
-    },
-    { 
-      name: "Lagerkalender", 
-      icon: Warehouse, 
-      path: "/warehouse-calendar",
-      matchPaths: ["/warehouse-calendar"]
     },
     { 
       name: "Projekthantering", 
@@ -31,10 +25,10 @@ const GlobalTopBar = () => {
       matchPaths: ["/staff-management", "/staff"]
     },
     { 
-      name: "Inställningar", 
-      icon: Settings, 
-      path: "/settings",
-      matchPaths: ["/settings"]
+      name: "Lagersystem", 
+      icon: Warehouse, 
+      path: "/warehouse",
+      matchPaths: ["/warehouse"]
     },
   ];
 

@@ -4,10 +4,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useBackgroundImport } from "@/hooks/useBackgroundImport";
-import GlobalTopBar from "@/components/GlobalTopBar";
+
+// Layouts
+import MainSystemLayout from "@/components/layouts/MainSystemLayout";
+import WarehouseSystemLayout from "@/components/layouts/WarehouseSystemLayout";
+
+// Main system pages
 import Index from "./pages/Index";
 import CustomCalendarPage from "./pages/CustomCalendarPage";
-import WarehouseCalendarPage from "./pages/WarehouseCalendarPage";
 import StaffManagement from "./pages/StaffManagement";
 import StaffDetail from "./pages/StaffDetail";
 import BookingDetail from "./pages/BookingDetail";
@@ -15,6 +19,14 @@ import BookingList from "./pages/BookingList";
 import ProjectManagement from "./pages/ProjectManagement";
 import ProjectDetail from "./pages/ProjectDetail";
 import NotFound from "./pages/NotFound";
+
+// Warehouse system pages
+import WarehouseDashboard from "./pages/WarehouseDashboard";
+import WarehouseCalendarPage from "./pages/WarehouseCalendarPage";
+import PackingManagement from "./pages/PackingManagement";
+import PackingDetail from "./pages/PackingDetail";
+import WarehouseInventoryPlaceholder from "./pages/WarehouseInventoryPlaceholder";
+import WarehouseServicePlaceholder from "./pages/WarehouseServicePlaceholder";
 
 const queryClient = new QueryClient();
 
@@ -54,23 +66,28 @@ const AppContent = () => {
         <TooltipProvider>
           <Toaster />
           <BrowserRouter>
-            <div className="min-h-screen flex flex-col">
-              <GlobalTopBar />
-              <div className="flex-1">
-                <Routes>
-                  <Route path="/" element={<Index />} />
-                  <Route path="/calendar" element={<CustomCalendarPage />} />
-                  <Route path="/warehouse-calendar" element={<WarehouseCalendarPage />} />
-                  <Route path="/staff-management" element={<StaffManagement />} />
-                  <Route path="/staff/:staffId" element={<StaffDetail />} />
-                  <Route path="/booking/:bookingId" element={<BookingDetail />} />
-                  <Route path="/booking-list" element={<BookingList />} />
-                  <Route path="/projects" element={<ProjectManagement />} />
-                  <Route path="/project/:projectId" element={<ProjectDetail />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </div>
-            </div>
+            <Routes>
+              {/* Main System Routes */}
+              <Route path="/" element={<MainSystemLayout><Index /></MainSystemLayout>} />
+              <Route path="/calendar" element={<MainSystemLayout><CustomCalendarPage /></MainSystemLayout>} />
+              <Route path="/staff-management" element={<MainSystemLayout><StaffManagement /></MainSystemLayout>} />
+              <Route path="/staff/:staffId" element={<MainSystemLayout><StaffDetail /></MainSystemLayout>} />
+              <Route path="/booking/:bookingId" element={<MainSystemLayout><BookingDetail /></MainSystemLayout>} />
+              <Route path="/booking-list" element={<MainSystemLayout><BookingList /></MainSystemLayout>} />
+              <Route path="/projects" element={<MainSystemLayout><ProjectManagement /></MainSystemLayout>} />
+              <Route path="/project/:projectId" element={<MainSystemLayout><ProjectDetail /></MainSystemLayout>} />
+
+              {/* Warehouse System Routes */}
+              <Route path="/warehouse" element={<WarehouseSystemLayout><WarehouseDashboard /></WarehouseSystemLayout>} />
+              <Route path="/warehouse/calendar" element={<WarehouseSystemLayout><WarehouseCalendarPage /></WarehouseSystemLayout>} />
+              <Route path="/warehouse/packing" element={<WarehouseSystemLayout><PackingManagement /></WarehouseSystemLayout>} />
+              <Route path="/warehouse/packing/:packingId" element={<WarehouseSystemLayout><PackingDetail /></WarehouseSystemLayout>} />
+              <Route path="/warehouse/inventory" element={<WarehouseSystemLayout><WarehouseInventoryPlaceholder /></WarehouseSystemLayout>} />
+              <Route path="/warehouse/service" element={<WarehouseSystemLayout><WarehouseServicePlaceholder /></WarehouseSystemLayout>} />
+
+              {/* Fallback */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
           </BrowserRouter>
         </TooltipProvider>
       </QueryClientProvider>
