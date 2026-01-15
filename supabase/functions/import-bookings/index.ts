@@ -30,6 +30,23 @@ interface BookingData {
   assigned_to_project?: boolean;
 }
 
+/**
+ * Safely parse assigned_to_project field which may be boolean, string, or null
+ */
+const parseAssignedToProject = (value: any): boolean => {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const lowerValue = value.toLowerCase().trim();
+    if (lowerValue === 'true' || lowerValue.startsWith('assigned to project')) {
+      return true;
+    }
+    return false;
+  }
+  return false;
+};
+
 interface ProductData {
   booking_id: string;
   name: string;
@@ -375,7 +392,7 @@ serve(async (req) => {
           version: 1,
           assigned_project_id: externalBooking.assigned_project_id,
           assigned_project_name: externalBooking.assigned_project_name,
-          assigned_to_project: externalBooking.assigned_to_project
+          assigned_to_project: parseAssignedToProject(externalBooking.assigned_to_project)
         }
 
         console.log(`Processing booking ${bookingData.id} with status: ${bookingData.status} and project: ${bookingData.assigned_project_name || 'No project'}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
