@@ -1,161 +1,71 @@
-# Plan: Visa tillgänglig personal med korrekt availability-filtrering
 
-## Problem
-Funktionen `getStaffForPlanningDate` visar ALLA aktiva personal oavsett om de har en "available" period för datumet. Det korrekta beteendet är:
+# Plan: Skapa WarehouseSidebar3D
 
-1. Visa endast personal som har en "available" period i `staff_availability` för det datumet
-2. Men visa dem ÄVEN om de redan är tilldelade ett annat team den dagen (markera som "On Team X")
-3. Personal utan availability-period för dagen ska INTE visas alls
+## Översikt
+Skapa en exakt kopia av `Sidebar3D` för lagersystemet med samma visuella stil men anpassade navigationslänkar för lagerverksamheten.
 
-## Orsak
-I rad 396-400 i `getStaffForPlanningDate` hämtas alla aktiva staff direkt från `staff_members` utan att kontrollera `staff_availability`-tabellen.
+## Navigationslänkar för Lagersidofältet
 
-## Lösning
+| Rubrik | URL | Ikon |
+|--------|-----|------|
+| Dashboard | `/warehouse` | LayoutDashboard |
+| Personalplanering | `/warehouse/calendar` | Calendar |
+| Planera packning | `/warehouse/packing` | Package |
+| Inventarier | `/warehouse/inventory` | Boxes |
+| Service | `/warehouse/service` | Wrench |
 
-### Fil: `src/hooks/useUnifiedStaffOperations.tsx`
+## Visuella Anpassningar
 
-Ändra `getStaffForPlanningDate` (rad 384-458) så att den:
+**Färgschema (Amber istället för Teal):**
+- Primärfärg: `hsl(var(--warehouse))` (amber) istället för `hsl(var(--primary))` (teal)
+- Aktiv bakgrund: `bg-warehouse/10` istället för `bg-primary/10`
+- Aktiv ikon: `bg-warehouse text-white` istället för `bg-primary text-primary-foreground`
+- Box-shadow: `hsl(var(--warehouse) / 0.3)` istället för `hsl(var(--primary) / 0.3)`
 
-1. **Hämtar availability-perioder för datumet** (samma logik som `getAvailableStaffForDate` rad 331-352)
-   - Hämta alla perioder från `staff_availability` där `start_date <= date <= end_date`
-   - Filtrera ut staff som har "available" period och INTE har "blocked"/"unavailable"
+**Branding:**
+- Logo-text: "Lagersystem" istället för "EventFlow"
+- Undertext: "warehouse" istället för "planering"
+- Ikon: `Package` eller `Boxes` istället för `Sparkles`
 
-2. **Hämtar assignments för datumet** (behåll befintlig logik rad 408-420)
-   - Kolla vilka som redan är tilldelade ett team
+## Teknisk Implementation
 
-3. **Kombinera och returnera** staff med:
-   - `assignmentStatus: 'free'` - har availability, inte assigned
-   - `assignmentStatus: 'assigned_current_team'` - har availability, assigned till målteamet
-   - `assignmentStatus: 'assigned_other_team'` - har availability, assigned till annat team
+### Steg 1: Skapa WarehouseSidebar3D.tsx
+Skapa ny fil `src/components/WarehouseSidebar3D.tsx` som är en kopia av `Sidebar3D.tsx` med:
+- Uppdaterade `navigationItems` för lager
+- Amber-färgschema genomgående
+- Anpassad branding
 
-### Kodändring (ersätt rad 394-444):
+### Steg 2: Uppdatera WarehouseSystemLayout.tsx
+- Ersätt `WarehouseTopBar` med `WarehouseSidebar3D`
+- Lägg till samma layout-struktur som `MainSystemLayout` med `md:ml-64` margin och `pb-20` padding
 
-```typescript
-const getStaffForPlanningDate = useCallback(async (targetDate: Date, targetTeamId: string): Promise<Array<{
-  id: string;
-  name: string;
-  color?: string;
-  assignmentStatus: 'free' | 'assigned_current_team' | 'assigned_other_team';
-  assignedTeamId?: string;
-  assignedTeamName?: string;
-}>> => {
-  const dateStr = format(targetDate, 'yyyy-MM-dd');
-  
-  try {
-    // 1. Get all active staff
-    const { data: allStaff, error: staffError } = await supabase
-      .from('staff_members')
-      .select('id, name, color')
-      .eq('is_active', true)
-      .order('name');
-    
-    if (staffError || !allStaff) {
-      console.error('Error fetching staff:', staffError);
-      return [];
-    }
-    
-    const staffIds = allStaff.map(s => s.id);
-    
-    // 2. Get availability periods for this date (CRITICAL FILTER)
-    const { data: availabilityData, error: availError } = await supabase
-      .from('staff_availability')
-      .select('staff_id, availability_type')
-      .in('staff_id', staffIds)
-      .lte('start_date', dateStr)
-      .gte('end_date', dateStr);
-    
-    if (availError) {
-      console.error('Error fetching availability:', availError);
-      return [];
-    }
-    
-    // 3. Determine which staff are available for this date
-    const availableStaffIds = new Set<string>();
-    const blockedStaffIds = new Set<string>();
-    
-    (availabilityData || []).forEach(period => {
-      if (period.availability_type === 'available') {
-        availableStaffIds.add(period.staff_id);
-      } else if (period.availability_type === 'blocked' || period.availability_type === 'unavailable') {
-        blockedStaffIds.add(period.staff_id);
-      }
-    });
-    
-    // Staff with availability = has 'available' period AND no 'blocked'/'unavailable' period
-    const staffWithAvailability = allStaff.filter(staff => 
-      availableStaffIds.has(staff.id) && !blockedStaffIds.has(staff.id)
-    );
-    
-    // 4. Get assignments for this date (keep existing logic)
-    const assignmentsForDate = assignments.filter(a => a.date === dateStr);
-    
-    const assignmentMap = new Map<string, { teamId: string; teamName: string }>();
-    assignmentsForDate.forEach(a => {
-      let teamName = a.teamId;
-      if (a.teamId === 'team-11') {
-        teamName = 'Live';
-      } else if (a.teamId.startsWith('team-')) {
-        teamName = 'Team ' + a.teamId.replace('team-', '');
-      }
-      assignmentMap.set(a.staffId, { teamId: a.teamId, teamName });
-    });
-    
-    // 5. Build result - only staff WITH availability, but include assigned ones
-    const result = staffWithAvailability.map(staff => {
-      const assignment = assignmentMap.get(staff.id);
-      
-      let assignmentStatus: 'free' | 'assigned_current_team' | 'assigned_other_team' = 'free';
-      if (assignment) {
-        if (assignment.teamId === targetTeamId) {
-          assignmentStatus = 'assigned_current_team';
-        } else {
-          assignmentStatus = 'assigned_other_team';
-        }
-      }
-      
-      return {
-        id: staff.id,
-        name: staff.name,
-        color: staff.color || '#E3F2FD',
-        assignmentStatus,
-        assignedTeamId: assignment?.teamId,
-        assignedTeamName: assignment?.teamName
-      };
-    });
-    
-    // 6. Sort: free first, then current team, then other team
-    result.sort((a, b) => {
-      const order = { 'free': 0, 'assigned_current_team': 1, 'assigned_other_team': 2 };
-      return order[a.assignmentStatus] - order[b.assignmentStatus];
-    });
-    
-    console.log(`[getStaffForPlanningDate] ${dateStr}: ${staffWithAvailability.length} with availability, ${result.filter(s => s.assignmentStatus === 'free').length} free`);
-    return result;
-  } catch (error) {
-    console.error('Error in getStaffForPlanningDate:', error);
-    return [];
-  }
-}, [assignments]);
+### Steg 3: Ta bort WarehouseTopBar (valfritt)
+- Kan behållas om du vill ha den tillgänglig, men den används inte längre
+
+## Filändringar
+
+```text
+src/
+├── components/
+│   ├── WarehouseSidebar3D.tsx (NY)
+│   └── layouts/
+│       └── WarehouseSystemLayout.tsx (ÄNDRAS)
 ```
 
-## Resultat efter fix
+## Kodstruktur för WarehouseSidebar3D
 
-### Scenario: 5 personal totalt, 3 har availability den dagen, alla 3 assigned till Team 1
-- **Före (fel):** Visar alla 5 personal
-- **Efter (korrekt):** Visar endast 3 personal, alla markerade "On Team 1"
+```typescript
+const navigationItems = [
+  { title: "Dashboard", url: "/warehouse", icon: LayoutDashboard, exact: true },
+  { title: "Personalplanering", url: "/warehouse/calendar", icon: Calendar },
+  { title: "Planera packning", url: "/warehouse/packing", icon: Package },
+  { title: "Inventarier", url: "/warehouse/inventory", icon: Boxes },
+  { title: "Service", url: "/warehouse/service", icon: Wrench },
+];
+```
 
-### Scenario: 5 personal totalt, 3 har availability, 2 assigned till Team 1, 1 fri
-- **Före (fel):** Visar alla 5 personal
-- **Efter (korrekt):** Visar 3 personal - 1 "Free", 2 "On Team 1"
-
-### Scenario: 0 personal har availability för dagen
-- **Före (fel):** Visar alla 5 personal
-- **Efter (korrekt):** Visar "No Staff Available" (listan är tom)
-
-## Filer som ändras
-- `src/hooks/useUnifiedStaffOperations.tsx` - Fixa `getStaffForPlanningDate` att filtrera på availability
-
-## Critical Files for Implementation
-- src/hooks/useUnifiedStaffOperations.tsx - Funktionen `getStaffForPlanningDate` rad 384-458 måste skrivas om
-- src/services/staffAvailabilityService.ts - Referens för availability-logik (rad 163-233)
-- src/components/Calendar/SimpleStaffCurtain.tsx - Ingen ändring behövs, tar emot korrekt data
+## Resultat
+Lagersystemet får ett identiskt sidofält som huvudsystemet, men med:
+- Amber/bärnsten färgpalett (warehouse-tema)
+- Lagerspecifika navigationslänkar
+- Egen branding ("Lagersystem")
