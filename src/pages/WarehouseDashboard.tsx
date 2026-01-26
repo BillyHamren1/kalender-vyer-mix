@@ -1,5 +1,4 @@
-import { Link } from "react-router-dom";
-import { Calendar, Package, Boxes, Wrench, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWarehouseDashboard } from "@/hooks/useWarehouseDashboard";
 import WarehouseStatsRow from "@/components/warehouse-dashboard/WarehouseStatsRow";
@@ -8,36 +7,6 @@ import UrgentPackingsList from "@/components/warehouse-dashboard/UrgentPackingsL
 import ActivePackingsGrid from "@/components/warehouse-dashboard/ActivePackingsGrid";
 import PackingTasksAttention from "@/components/warehouse-dashboard/PackingTasksAttention";
 
-const quickLinks = [
-  {
-    title: "Personalplanering",
-    description: "Lagerkalender",
-    icon: Calendar,
-    path: "/warehouse/calendar",
-    color: "text-warehouse bg-warehouse/10"
-  },
-  {
-    title: "Planera packning",
-    description: "Alla packningar",
-    icon: Package,
-    path: "/warehouse/packing",
-    color: "text-orange-600 bg-orange-100"
-  },
-  {
-    title: "Inventarier",
-    description: "Lagerartiklar",
-    icon: Boxes,
-    path: "/warehouse/inventory",
-    color: "text-green-600 bg-green-100"
-  },
-  {
-    title: "Service",
-    description: "Underhåll",
-    icon: Wrench,
-    path: "/warehouse/service",
-    color: "text-purple-600 bg-purple-100"
-  }
-];
 
 const WarehouseDashboard = () => {
   const {
@@ -75,26 +44,6 @@ const WarehouseDashboard = () => {
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Uppdatera
           </Button>
-        </div>
-
-        {/* Quick Links */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          {quickLinks.map((link) => {
-            const Icon = link.icon;
-            return (
-              <Link key={link.path} to={link.path}>
-                <div className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:shadow-md transition-shadow cursor-pointer">
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${link.color}`}>
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">{link.title}</p>
-                    <p className="text-xs text-muted-foreground">{link.description}</p>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
         </div>
 
         {/* Stats Row */}
