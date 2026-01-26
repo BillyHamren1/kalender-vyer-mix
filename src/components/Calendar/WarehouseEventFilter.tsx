@@ -2,10 +2,10 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Filter, Package, Truck, Calendar, RotateCcw, ClipboardList, PackageOpen } from 'lucide-react';
+import { Filter, Package, Truck, Calendar, RotateCcw, ClipboardList, PackageOpen, Wrench, PartyPopper, PackageMinus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export type WarehouseEventTypeFilter = 'packing' | 'delivery' | 'event' | 'return' | 'inventory' | 'unpacking';
+export type WarehouseEventTypeFilter = 'packing' | 'delivery' | 'event' | 'return' | 'inventory' | 'unpacking' | 'rig' | 'rigdown';
 
 interface WarehouseEventFilterProps {
   activeFilters: WarehouseEventTypeFilter[];
@@ -13,9 +13,11 @@ interface WarehouseEventFilterProps {
 }
 
 const EVENT_TYPES: { id: WarehouseEventTypeFilter; label: string; icon: React.ElementType; color: string }[] = [
+  { id: 'rig', label: 'Rigg', icon: Wrench, color: 'text-green-600' },
+  { id: 'event', label: 'Event', icon: PartyPopper, color: 'text-yellow-600' },
+  { id: 'rigdown', label: 'Riv', icon: PackageMinus, color: 'text-red-600' },
   { id: 'packing', label: 'Packning', icon: Package, color: 'text-purple-600' },
   { id: 'delivery', label: 'Utleverans', icon: Truck, color: 'text-blue-600' },
-  { id: 'event', label: 'Event', icon: Calendar, color: 'text-yellow-600' },
   { id: 'return', label: 'Retur', icon: RotateCcw, color: 'text-orange-600' },
   { id: 'inventory', label: 'Inventering', icon: ClipboardList, color: 'text-cyan-600' },
   { id: 'unpacking', label: 'Uppackning', icon: PackageOpen, color: 'text-gray-600' },
