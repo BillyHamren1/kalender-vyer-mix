@@ -14,6 +14,7 @@ import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
 import MobileCalendarView from '@/components/mobile/MobileCalendarView';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
 import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
+import WarehouseEventFilter, { WarehouseEventTypeFilter } from '@/components/Calendar/WarehouseEventFilter';
 import { startOfWeek, startOfMonth, format } from 'date-fns';
 
 // Map warehouse event types to CalendarEvent eventType
@@ -103,6 +104,20 @@ const WarehouseCalendarPage = () => {
   const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<'weekly' | 'monthly' | 'list'>('weekly');
   
+  // Event type filter state - default all types visible
+  const [eventTypeFilters, setEventTypeFilters] = useState<WarehouseEventTypeFilter[]>(() => {
+    const stored = localStorage.getItem('warehouseEventTypeFilters');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+    return ['packing', 'delivery', 'event', 'return', 'inventory', 'unpacking'];
+  });
+
+  // Save event type filters to localStorage
+  useEffect(() => {
+    localStorage.setItem('warehouseEventTypeFilters', JSON.stringify(eventTypeFilters));
+  }, [eventTypeFilters]);
+  
   // Monthly view state (for desktop) - now used for the month tabs
   const [monthlyDate, setMonthlyDate] = useState<Date>(startOfMonth(new Date()));
   
@@ -135,9 +150,16 @@ const WarehouseCalendarPage = () => {
     view: viewMode === 'monthly' ? 'month' : 'week' 
   });
   
-  // Combine standard calendar events with warehouse events
+  // Combine standard calendar events with warehouse events and apply filters
   const mappedWarehouseEvents = mapWarehouseEventsToCalendarEvents(warehouseEvents);
-  const combinedEvents: CalendarEvent[] = [...calendarEvents, ...mappedWarehouseEvents];
+  
+  // Filter warehouse events based on selected event types
+  const filteredWarehouseEvents = mappedWarehouseEvents.filter(event => {
+    const eventType = event.eventType as WarehouseEventTypeFilter;
+    return eventTypeFilters.includes(eventType);
+  });
+  
+  const combinedEvents: CalendarEvent[] = [...calendarEvents, ...filteredWarehouseEvents];
 
   const { teamResources } = useTeamResources();
   
@@ -280,7 +302,7 @@ const WarehouseCalendarPage = () => {
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-muted/30">
         {/* Navigation with view toggle */}
         <WeekNavigation
           currentWeekStart={currentWeekStart}
@@ -292,8 +314,21 @@ const WarehouseCalendarPage = () => {
           variant="warehouse"
         />
 
+        {/* Filter bar */}
+        <div className="px-6 pt-4 pb-2 flex items-center gap-3">
+          <WarehouseEventFilter
+            activeFilters={eventTypeFilters}
+            onFilterChange={setEventTypeFilters}
+          />
+          {eventTypeFilters.length < 6 && (
+            <span className="text-sm text-muted-foreground">
+              Visar {eventTypeFilters.length} av 6 händelsetyper
+            </span>
+          )}
+        </div>
+
         {/* Content */}
-        <div className="p-6">
+        <div className="px-6 pb-6">
           {viewMode === 'weekly' ? (
             <>
               {isMobile ? (
