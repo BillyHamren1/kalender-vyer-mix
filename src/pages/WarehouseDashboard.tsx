@@ -3,7 +3,7 @@ import { RefreshCw, Plus, Clock, CalendarDays, Package, CheckCircle2, Filter } f
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
-import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, isWithinInterval, parseISO } from "date-fns";
+import { format, startOfWeek, endOfWeek, addWeeks, addDays, isWithinInterval, parseISO } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -91,12 +91,13 @@ const WarehouseDashboard = () => {
     }
   });
 
-  // Fetch jobs for selected week (by rig date)
-  const weekJobsQuery = useQuery({
-    queryKey: ['warehouse-week-jobs', weekOffset],
+  // Fetch upcoming jobs for next 14 days (by rig date)
+  const upcomingJobsQuery = useQuery({
+    queryKey: ['warehouse-upcoming-jobs-14'],
     queryFn: async () => {
-      const startStr = format(weekStart, 'yyyy-MM-dd');
-      const endStr = format(weekEnd, 'yyyy-MM-dd');
+      const today = new Date();
+      const startStr = format(today, 'yyyy-MM-dd');
+      const endStr = format(addDays(today, 14), 'yyyy-MM-dd');
 
       const { data, error } = await supabase
         .from('bookings')
@@ -147,12 +148,12 @@ const WarehouseDashboard = () => {
   });
 
   const isLoading = statsQuery.isLoading || recentJobsQuery.isLoading || 
-    weekJobsQuery.isLoading || inProgressPackingsQuery.isLoading || completedPackingsQuery.isLoading;
+    upcomingJobsQuery.isLoading || inProgressPackingsQuery.isLoading || completedPackingsQuery.isLoading;
 
   const refetchAll = () => {
     statsQuery.refetch();
     recentJobsQuery.refetch();
-    weekJobsQuery.refetch();
+    upcomingJobsQuery.refetch();
     inProgressPackingsQuery.refetch();
     completedPackingsQuery.refetch();
   };
@@ -170,7 +171,7 @@ const WarehouseDashboard = () => {
     }
   }));
 
-  const weekJobItems: ListItem[] = (weekJobsQuery.data || []).map(job => ({
+  const upcomingJobItems: ListItem[] = (upcomingJobsQuery.data || []).map(job => ({
     id: job.id,
     primaryText: `#${job.booking_number || '—'} - ${job.client}`,
     secondaryText: job.rigdaydate ? `Montage: ${format(new Date(job.rigdaydate), 'd MMM', { locale: sv })}` : undefined,
@@ -292,13 +293,13 @@ const WarehouseDashboard = () => {
             maxVisible={5}
           />
 
-          {/* Jobb denna vecka */}
+          {/* Kommande jobb 14 dagar */}
           <DashboardListWidget
-            title={`Jobb vecka ${format(weekStart, 'w')}`}
+            title="Kommande jobb 14 dagar"
             icon={<CalendarDays className="h-5 w-5 text-warehouse" />}
-            items={weekJobItems}
-            isLoading={weekJobsQuery.isLoading}
-            emptyText="Inga jobb denna vecka"
+            items={upcomingJobItems}
+            isLoading={upcomingJobsQuery.isLoading}
+            emptyText="Inga kommande jobb"
             maxVisible={5}
           />
 
