@@ -57,14 +57,14 @@ const DashboardListWidget = ({
 
   if (isLoading) {
     return (
-      <Card className="h-full">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base font-semibold">
+      <Card className="h-full bg-card shadow-lg border border-border/60">
+        <CardHeader className="pb-3 border-b border-border/40">
+          <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
             {icon}
             {title}
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-2 pt-4">
           {[1, 2, 3].map(i => (
             <Skeleton key={i} className="h-12 w-full" />
           ))}
@@ -74,10 +74,10 @@ const DashboardListWidget = ({
   }
 
   return (
-    <Card className="h-full">
-      <CardHeader className="pb-3">
+    <Card className="h-full bg-card shadow-lg border border-border/60">
+      <CardHeader className="pb-3 border-b border-border/40">
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-base font-semibold">
+          <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
             {icon}
             {title}
           </CardTitle>
@@ -105,7 +105,7 @@ const DashboardListWidget = ({
           )}
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-2">
         {items.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">{emptyText}</p>
         ) : (
