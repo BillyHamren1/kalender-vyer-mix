@@ -2,6 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarDays, Package, AlertTriangle, Clock } from "lucide-react";
 import { WarehouseStats } from "@/services/warehouseDashboardService";
+import { useNavigate } from "react-router-dom";
 
 interface WarehouseStatsRowProps {
   stats: WarehouseStats;
@@ -13,15 +14,20 @@ const StatCard = ({
   label, 
   value, 
   colorClass,
-  isLoading 
+  isLoading,
+  onClick
 }: { 
   icon: React.ElementType;
   label: string; 
   value: number;
   colorClass: string;
   isLoading: boolean;
+  onClick?: () => void;
 }) => (
-  <Card className="bg-card border-border">
+  <Card 
+    className={`bg-card border-border transition-all ${onClick ? 'cursor-pointer hover:shadow-md hover:border-warehouse/50' : ''}`}
+    onClick={onClick}
+  >
     <CardContent className="p-4">
       <div className="flex items-center gap-3">
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${colorClass}`}>
@@ -46,6 +52,8 @@ const StatCard = ({
 );
 
 const WarehouseStatsRow = ({ stats, isLoading }: WarehouseStatsRowProps) => {
+  const navigate = useNavigate();
+
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <StatCard
@@ -54,6 +62,7 @@ const WarehouseStatsRow = ({ stats, isLoading }: WarehouseStatsRowProps) => {
         value={stats.upcomingJobs}
         colorClass="bg-warehouse/10 text-warehouse"
         isLoading={isLoading}
+        onClick={() => navigate('/warehouse-calendar')}
       />
       <StatCard
         icon={Package}
@@ -61,6 +70,7 @@ const WarehouseStatsRow = ({ stats, isLoading }: WarehouseStatsRowProps) => {
         value={stats.activePackings}
         colorClass="bg-blue-100 text-blue-600"
         isLoading={isLoading}
+        onClick={() => navigate('/warehouse/packing')}
       />
       <StatCard
         icon={AlertTriangle}
@@ -68,6 +78,7 @@ const WarehouseStatsRow = ({ stats, isLoading }: WarehouseStatsRowProps) => {
         value={stats.urgentPackings}
         colorClass="bg-orange-100 text-orange-600"
         isLoading={isLoading}
+        onClick={() => navigate('/warehouse/packing?filter=urgent')}
       />
       <StatCard
         icon={Clock}
@@ -75,6 +86,7 @@ const WarehouseStatsRow = ({ stats, isLoading }: WarehouseStatsRowProps) => {
         value={stats.overdueTasks}
         colorClass="bg-red-100 text-red-600"
         isLoading={isLoading}
+        onClick={() => navigate('/warehouse/packing?filter=overdue')}
       />
     </div>
   );

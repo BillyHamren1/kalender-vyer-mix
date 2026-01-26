@@ -1,11 +1,15 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Clock, AlertCircle, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { PackingTask } from "@/services/warehouseDashboardService";
 import { useNavigate } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface PackingTasksAttentionProps {
   tasks: PackingTask[];
@@ -14,10 +18,39 @@ interface PackingTasksAttentionProps {
 
 const PackingTasksAttention = ({ tasks, isLoading }: PackingTasksAttentionProps) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  // Mutation to mark task as complete
+  const completeTaskMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      const { error } = await supabase
+        .from('packing_tasks')
+        .update({ completed: true, updated_at: new Date().toISOString() })
+        .eq('id', taskId);
+      
+      if (error) throw error;
+      return taskId;
+    },
+    onSuccess: () => {
+      toast.success('Uppgift markerad som klar');
+      // Invalidate warehouse dashboard queries
+      queryClient.invalidateQueries({ queryKey: ['warehouse-tasks-attention'] });
+      queryClient.invalidateQueries({ queryKey: ['warehouse-stats'] });
+    },
+    onError: () => {
+      toast.error('Kunde inte uppdatera uppgiften');
+    }
+  });
 
   // Separate overdue and upcoming tasks
   const overdueTasks = tasks.filter(t => t.isOverdue);
   const upcomingTasks = tasks.filter(t => !t.isOverdue);
+
+  const handleCheckboxChange = (taskId: string, checked: boolean) => {
+    if (checked) {
+      completeTaskMutation.mutate(taskId);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -73,6 +106,8 @@ const PackingTasksAttention = ({ tasks, isLoading }: PackingTasksAttentionProps)
                       task={task} 
                       isOverdue={true}
                       onClick={() => navigate(`/warehouse/packing/${task.packingId}`)}
+                      onCheckboxChange={handleCheckboxChange}
+                      isCompleting={completeTaskMutation.isPending}
                     />
                   ))}
                 </div>
@@ -93,6 +128,8 @@ const PackingTasksAttention = ({ tasks, isLoading }: PackingTasksAttentionProps)
                       task={task} 
                       isOverdue={false}
                       onClick={() => navigate(`/warehouse/packing/${task.packingId}`)}
+                      onCheckboxChange={handleCheckboxChange}
+                      isCompleting={completeTaskMutation.isPending}
                     />
                   ))}
                 </div>
@@ -108,11 +145,15 @@ const PackingTasksAttention = ({ tasks, isLoading }: PackingTasksAttentionProps)
 const TaskItem = ({ 
   task, 
   isOverdue, 
-  onClick 
+  onClick,
+  onCheckboxChange,
+  isCompleting
 }: { 
   task: PackingTask; 
   isOverdue: boolean;
   onClick: () => void;
+  onCheckboxChange: (taskId: string, checked: boolean) => void;
+  isCompleting: boolean;
 }) => {
   const getDaysText = () => {
     if (task.daysUntilDeadline === null) return '';
@@ -122,36 +163,56 @@ const TaskItem = ({
     return `Om ${task.daysUntilDeadline} dagar`;
   };
 
+  const handleCheckboxClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+
   return (
     <div
-      onClick={onClick}
-      className={`p-3 rounded-lg border cursor-pointer hover:shadow-sm transition-shadow ${
+      className={`p-3 rounded-lg border ${
         isOverdue 
           ? 'border-red-200 bg-red-50' 
           : 'border-border bg-card'
       }`}
     >
-      <div className="flex items-start justify-between">
-        <div className="flex-1 min-w-0">
-          <p className={`text-sm font-medium truncate ${isOverdue ? 'text-red-800' : 'text-foreground'}`}>
-            {task.title}
-          </p>
-          <p className="text-xs text-muted-foreground truncate">
-            {task.packingName}
-          </p>
+      <div className="flex items-start gap-3">
+        {/* Checkbox */}
+        <div onClick={handleCheckboxClick} className="pt-0.5">
+          <Checkbox
+            disabled={isCompleting}
+            onCheckedChange={(checked) => onCheckboxChange(task.id, checked as boolean)}
+            className={isOverdue ? 'border-red-400' : ''}
+          />
         </div>
-        <div className="text-right flex-shrink-0 ml-2">
-          <Badge 
-            variant="outline" 
-            className={isOverdue ? 'border-red-300 text-red-700 bg-red-100' : ''}
-          >
-            {getDaysText()}
-          </Badge>
-          {task.deadline && (
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              {format(new Date(task.deadline), 'd MMM', { locale: sv })}
-            </p>
-          )}
+        
+        {/* Content - clickable to navigate */}
+        <div 
+          className="flex-1 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
+          onClick={onClick}
+        >
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-medium truncate ${isOverdue ? 'text-red-800' : 'text-foreground'}`}>
+                {task.title}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {task.packingName}
+              </p>
+            </div>
+            <div className="text-right flex-shrink-0 ml-2">
+              <Badge 
+                variant="outline" 
+                className={isOverdue ? 'border-red-300 text-red-700 bg-red-100' : ''}
+              >
+                {getDaysText()}
+              </Badge>
+              {task.deadline && (
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {format(new Date(task.deadline), 'd MMM', { locale: sv })}
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

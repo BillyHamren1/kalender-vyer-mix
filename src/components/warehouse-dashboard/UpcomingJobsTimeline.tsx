@@ -2,15 +2,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { CalendarDays, Package, MapPin } from "lucide-react";
-import { format, addDays, isSameDay, startOfDay } from "date-fns";
+import { CalendarDays, Package, Plus } from "lucide-react";
+import { format, addDays, startOfDay } from "date-fns";
 import { sv } from "date-fns/locale";
 import { UpcomingJob } from "@/services/warehouseDashboardService";
-import { useNavigate } from "react-router-dom";
 
 interface UpcomingJobsTimelineProps {
   jobs: UpcomingJob[];
   isLoading: boolean;
+  onJobClick?: (job: UpcomingJob) => void;
+  onCreatePacking?: (job: UpcomingJob) => void;
+  onViewPacking?: (packingId: string) => void;
 }
 
 // Generate array of next 7 days
@@ -31,8 +33,13 @@ const getUrgencyColor = (daysUntilRig: number): string => {
   return 'bg-muted border-border text-foreground';
 };
 
-const UpcomingJobsTimeline = ({ jobs, isLoading }: UpcomingJobsTimelineProps) => {
-  const navigate = useNavigate();
+const UpcomingJobsTimeline = ({ 
+  jobs, 
+  isLoading, 
+  onJobClick,
+  onCreatePacking,
+  onViewPacking 
+}: UpcomingJobsTimelineProps) => {
   const days = getNext7Days();
 
   // Group jobs by rig date
@@ -45,6 +52,22 @@ const UpcomingJobsTimeline = ({ jobs, isLoading }: UpcomingJobsTimelineProps) =>
       jobsByDate.set(dateKey, existing);
     }
   });
+
+  const handleJobClick = (job: UpcomingJob, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onJobClick) {
+      onJobClick(job);
+    }
+  };
+
+  const handlePackingAction = (job: UpcomingJob, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (job.hasActivePacking && job.packingId && onViewPacking) {
+      onViewPacking(job.packingId);
+    } else if (!job.hasActivePacking && onCreatePacking) {
+      onCreatePacking(job);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -107,13 +130,33 @@ const UpcomingJobsTimeline = ({ jobs, isLoading }: UpcomingJobsTimelineProps) =>
                       dayJobs.slice(0, 3).map(job => (
                         <div
                           key={job.id}
-                          onClick={() => navigate(`/booking/${job.id}`)}
+                          onClick={(e) => handleJobClick(job, e)}
                           className={`p-2 rounded border cursor-pointer hover:shadow-sm transition-shadow ${getUrgencyColor(job.daysUntilRig)}`}
                         >
-                          <p className="text-xs font-medium truncate">{job.client}</p>
-                          {job.bookingNumber && (
-                            <p className="text-[10px] opacity-70">#{job.bookingNumber}</p>
-                          )}
+                          <div className="flex items-start justify-between gap-1">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium truncate">{job.client}</p>
+                              {job.bookingNumber && (
+                                <p className="text-[10px] opacity-70">#{job.bookingNumber}</p>
+                              )}
+                            </div>
+                            {/* Packing action button */}
+                            <button
+                              onClick={(e) => handlePackingAction(job, e)}
+                              className={`flex-shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors ${
+                                job.hasActivePacking 
+                                  ? 'bg-green-100 hover:bg-green-200 text-green-700' 
+                                  : 'bg-warehouse/10 hover:bg-warehouse/20 text-warehouse'
+                              }`}
+                              title={job.hasActivePacking ? 'Visa packning' : 'Skapa packning'}
+                            >
+                              {job.hasActivePacking ? (
+                                <Package className="h-3 w-3" />
+                              ) : (
+                                <Plus className="h-3 w-3" />
+                              )}
+                            </button>
+                          </div>
                           <div className="flex items-center gap-1 mt-1">
                             {job.hasActivePacking ? (
                               <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">
