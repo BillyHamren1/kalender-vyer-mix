@@ -59,12 +59,13 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event, onClic
       </HoverCardTrigger>
       <HoverCardContent
         className="w-80 max-w-80 p-3 bg-white border shadow-lg max-h-96 overflow-y-auto" 
-        side="top" 
-        align="start"
-        sideOffset={5}
+        side="right" 
+        align="center"
+        sideOffset={10}
         alignOffset={0}
         avoidCollisions={true}
-        collisionPadding={20}
+        collisionPadding={{ top: 20, bottom: 20, left: 20, right: 20 }}
+        sticky="always"
         style={{ zIndex: 9999 }}
       >
         <div className="space-y-3">
