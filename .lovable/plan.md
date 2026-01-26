@@ -1,189 +1,128 @@
 
-# Plan: Advanced Warehouse Dashboard with Packing Management
+# Plan: Gör Warehouse Dashboard Interaktiv
 
-## Overview
-This plan creates an advanced warehouse dashboard that provides a comprehensive overview of logistics operations, packing task management, and the ability to create packing lists directly from booking events in the warehouse calendar.
-
----
-
-## Part 1: Advanced Warehouse Dashboard
-
-### 1.1 New Service: Warehouse Dashboard Service
-Create a dedicated service file `src/services/warehouseDashboardService.ts` that fetches warehouse-specific data:
-
-```text
-+----------------------------------------------------------+
-|           warehouseDashboardService.ts                   |
-+----------------------------------------------------------+
-| - fetchWarehouseStats()                                  |
-|   => Counts for upcoming jobs, packings by status        |
-| - fetchUpcomingPackings()                                |
-|   => Packings sorted by event date                       |
-| - fetchUrgentPackings()                                  |
-|   => Packings with approaching deadlines (3-7 days)      |
-| - fetchActivePackings()                                  |
-|   => Packings with status 'in_progress'                  |
-| - fetchPackingTasksByDeadline()                          |
-|   => All packing tasks with upcoming deadlines           |
-| - fetchRecentWarehouseActivity()                         |
-|   => Recent packing/task updates                         |
-+----------------------------------------------------------+
-```
-
-**Key Data Queries:**
-- **Upcoming Jobs**: Bookings with event dates in the next 14 days
-- **Urgent Packings**: Packings where the related booking's rigdaydate is within 7 days AND packing status is not 'completed'
-- **In-Progress Packings**: Filter packing_projects where status = 'in_progress'
-- **Overdue Tasks**: packing_tasks where deadline < today AND completed = false
-
-### 1.2 New Hook: useWarehouseDashboard
-Create `src/hooks/useWarehouseDashboard.tsx` following the pattern from `useDashboard.tsx`:
-
-```text
-Hook Structure:
-- statsQuery        -> Warehouse stats (counts)
-- upcomingQuery     -> Upcoming jobs timeline
-- urgentQuery       -> Urgent/approaching packings
-- activeQuery       -> Active packings list
-- tasksQuery        -> Tasks needing attention
-- activityQuery     -> Recent activity feed
-```
-
-### 1.3 Dashboard UI Components
-Create new components in `src/components/warehouse-dashboard/`:
-
-| Component | Description |
-|-----------|-------------|
-| **WarehouseStatsRow** | Stats cards: Upcoming jobs, Active packings, Urgent packings, Overdue tasks |
-| **UpcomingJobsTimeline** | 7-day timeline showing packing deadlines and delivery dates |
-| **UrgentPackingsList** | Highlights packings with approaching deadlines, color-coded by urgency |
-| **ActivePackingsGrid** | Cards showing in-progress packings with progress indicators |
-| **PackingTasksAttention** | List of overdue and upcoming packing tasks |
-| **QuickActionsPanel** | Buttons for creating new packings, viewing calendar |
-
-### 1.4 Urgency Logic
-Packings will be classified by urgency based on days until rig day:
-- **Critical (red)**: Less than 3 days to rig date
-- **Urgent (orange)**: 3-5 days to rig date
-- **Approaching (yellow)**: 5-7 days to rig date
-- **Normal (gray)**: More than 7 days
-
-### 1.5 Dashboard Layout (Desktop)
-```text
-+----------------------------------------------------------+
-|                 WAREHOUSE DASHBOARD                        |
-+----------------------------------------------------------+
-| [Stats] [Stats] [Stats] [Stats]                           |
-| Jobb    Aktiva  Akuta   Förfall.                          |
-| 12      5       3       2                                 |
-+----------------------------------------------------------+
-|                                                            |
-| [Upcoming Jobs Timeline - 7 days horizontal scroll]        |
-|                                                            |
-+----------------------------------------------------------+
-| [Urgent Packings]        | [Tasks Needing Attention]      |
-| - Critical items         | - Overdue tasks                |
-| - Warning items          | - Due today/tomorrow           |
-+---------------------------+--------------------------------+
-| [Active Packings Grid]                                     |
-| [Card] [Card] [Card] [Card]                               |
-| Progress bars and status                                   |
-+----------------------------------------------------------+
-```
+## Problemanalys
+Dashboarden visar data men saknar arbetsflöden för att **utföra åtgärder**. Användaren måste kunna agera direkt från dashboarden utan att navigera bort.
 
 ---
 
-## Part 2: Booking Products Dialog in Warehouse Calendar
+## Del 1: Klickbara Stats-kort
 
-### 2.1 New Component: BookingProductsDialog
-Create `src/components/Calendar/BookingProductsDialog.tsx`:
+### Nuvarande
+Stats-korten (Kommande jobb, Aktiva packningar, Akuta packningar, Förfallna uppgifter) är endast visuella.
 
-When a booking event is clicked in the warehouse calendar, instead of navigating away, show a dialog with:
-- Booking header (client, booking number, dates)
-- Full product list with quantities and notes
-- Quick action: "Create Packing from this Booking"
+### Åtgärd
+Gör varje stats-kort klickbart för att navigera till relevant vy:
 
-### 2.2 Modify Event Click Behavior
-Update `src/pages/WarehouseCalendarPage.tsx` to:
-1. Intercept event clicks
-2. Fetch booking products via `fetchBookingById`
-3. Display the BookingProductsDialog
+| Kort | Navigerar till |
+|------|----------------|
+| Kommande jobb | `/warehouse/calendar` (lagerkalendern) |
+| Aktiva packningar | `/warehouse/packing` (packningslistan) |
+| Akuta packningar | `/warehouse/packing?filter=urgent` |
+| Förfallna uppgifter | `/warehouse/packing?filter=overdue` |
 
-### 2.3 Dialog Structure
-```text
-+----------------------------------------------------------+
-| [X]    Booking: Tjipp AB - #2506-4                        |
-|----------------------------------------------------------|
-| Event Date: 18 Nov 2025                                   |
-| Rig Date: 17 Nov | Rigdown: 23 Nov                       |
-| Address: Venngarn, Sigtuna                               |
-|----------------------------------------------------------|
-| PRODUCTS TO PACK:                                         |
-| +------------------------------------------------------+ |
-| | Multiflex 10x15              Qty: 2                  | |
-| | F20 - 20x30                  Qty: 1                  | |
-| | Kassettgolv 10x15            Qty: 1                  | |
-| +------------------------------------------------------+ |
-|----------------------------------------------------------|
-| [Create Packing]  [View Full Booking Details]            |
-+----------------------------------------------------------+
+### Ändringar
+- **`WarehouseStatsRow.tsx`**: Lägg till `onClick` och `cursor-pointer` på varje kort
+- Lägg till hover-effekt för visuell feedback
+
+---
+
+## Del 2: Skapa Packning från Dashboarden
+
+### 2.1 Global "Skapa Packning"-knapp
+Lägg till en knapp i headern:
+```
+[Lagerdashboard]                    [+ Ny packning] [Uppdatera]
 ```
 
-### 2.4 Quick Packing Creation
-The "Create Packing" button will:
-1. Pre-populate the CreatePackingWizard with booking data
-2. Pass the booking_id to link the packing
-3. Open the wizard dialog
+### 2.2 Skapa Packning från 7-dagars-jobb
+Lägg till en liten ikon/knapp på varje jobb-kort i tidslinjen:
+- Om packning **inte finns**: Visa `+` ikon som öppnar `BookingProductsDialog`
+- Om packning **finns**: Visa `📦` ikon som navigerar till packningen
+
+### Ändringar
+- **`WarehouseDashboard.tsx`**: Lägg till "Ny packning"-knapp och `CreatePackingWizard` state
+- **`UpcomingJobsTimeline.tsx`**: 
+  - Lägg till `onCreatePacking` callback
+  - Visa status-ikon per jobb
 
 ---
 
-## Part 3: Implementation Steps
+## Del 3: Snabbåtgärder på Uppgifter
 
-### Step 1: Create Warehouse Dashboard Service
-- New file: `src/services/warehouseDashboardService.ts`
-- Implement all fetch functions with Supabase queries
-- Handle joins with bookings and packing_tasks tables
+### Nuvarande
+Man måste klicka in på packningen för att bocka av uppgifter.
 
-### Step 2: Create Warehouse Dashboard Hook
-- New file: `src/hooks/useWarehouseDashboard.tsx`
-- Parallel queries with react-query
-- 30-second auto-refresh
+### Åtgärd
+Lägg till checkbox direkt på varje uppgift i "Uppgifter att åtgärda":
 
-### Step 3: Create Dashboard Components
-- `src/components/warehouse-dashboard/WarehouseStatsRow.tsx`
-- `src/components/warehouse-dashboard/UpcomingJobsTimeline.tsx`
-- `src/components/warehouse-dashboard/UrgentPackingsList.tsx`
-- `src/components/warehouse-dashboard/ActivePackingsGrid.tsx`
-- `src/components/warehouse-dashboard/PackingTasksAttention.tsx`
+```
+[x] Beställ material        | Imorgon
+    Bröllop Skansen         | 28 jan
+```
 
-### Step 4: Update WarehouseDashboard Page
-- Replace current simple card layout with advanced dashboard
-- Use amber color scheme for consistency with warehouse theme
-
-### Step 5: Create Booking Products Dialog
-- New file: `src/components/Calendar/BookingProductsDialog.tsx`
-- Fetch products on dialog open
-- Include create packing action
-
-### Step 6: Update Warehouse Calendar Event Handling
-- Modify click behavior to show product dialog
-- Pass booking data to dialog component
+### Ändringar
+- **`PackingTasksAttention.tsx`**: 
+  - Lägg till `Checkbox` komponent
+  - Implementera mutation för att markera uppgift som klar
+  - Uppdatera listan efter bockad uppgift
 
 ---
 
-## Technical Notes
+## Del 4: Förbättra 7-dagars-tidslinjen
 
-### Database Queries
-The dashboard will query these tables:
-- `bookings` - for upcoming jobs
-- `packing_projects` - for packing status tracking
-- `packing_tasks` - for task deadlines
-- `booking_products` - for product lists in dialogs
+### Nuvarande
+Klick på ett jobb navigerar till `/booking/{id}`.
 
-### No Database Changes Required
-All required tables and columns already exist. The implementation uses existing schema.
+### Åtgärd
+Ändra klickbeteendet:
+1. Öppna `BookingProductsDialog` istället för att navigera
+2. Från dialogen kan man sedan välja "Visa bokning" eller "Skapa packning"
 
-### Styling
-- Amber color palette for warehouse theme
-- Matches existing WarehouseCalendarPage styling
-- Uses warehouse tailwind color class (bg-warehouse, text-warehouse)
+### Ändringar
+- **`UpcomingJobsTimeline.tsx`**: 
+  - Lägg till `onJobClick` callback istället för `navigate`
+- **`WarehouseDashboard.tsx`**: 
+  - Lägg till `BookingProductsDialog` state
+  - Hantera klick från tidslinjen
+
+---
+
+## Teknisk Sammanfattning
+
+### Nya Imports i WarehouseDashboard.tsx
+```typescript
+import { useState } from "react";
+import { Plus } from "lucide-react";
+import BookingProductsDialog from "@/components/Calendar/BookingProductsDialog";
+import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
+```
+
+### Nya States
+```typescript
+const [showCreateWizard, setShowCreateWizard] = useState(false);
+const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+const [showBookingDialog, setShowBookingDialog] = useState(false);
+```
+
+### Filer som ändras
+| Fil | Ändringar |
+|-----|-----------|
+| `WarehouseDashboard.tsx` | + "Ny packning"-knapp, + Dialog-states, + Dialog-komponenter |
+| `WarehouseStatsRow.tsx` | + onClick navigering på alla kort |
+| `UpcomingJobsTimeline.tsx` | + onJobClick callback, + status-ikoner |
+| `PackingTasksAttention.tsx` | + Checkbox med mutation för att bocka av uppgifter |
+
+### Inga databasändringar krävs
+All funktionalitet använder befintliga tabeller och endpoints.
+
+---
+
+## Resultat efter implementering
+
+Användaren kan direkt från dashboarden:
+1. Klicka på stats för att se relevanta listor
+2. Skapa nya packningar via knapp i header
+3. Klicka på ett kommande jobb och se produkter + skapa packning
+4. Bocka av uppgifter utan att lämna dashboarden
+5. Se tydligt vilka jobb som redan har packningar
