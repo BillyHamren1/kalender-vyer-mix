@@ -141,13 +141,26 @@ const WarehouseCalendarPage = () => {
 
   const { teamResources } = useTeamResources();
   
+  // Map team resources to warehouse-specific names (Lager 1, Lager 2, etc.)
+  const warehouseTeamResources = teamResources.map(team => {
+    if (team.id === 'team-11') {
+      return { ...team, title: 'Live' }; // Keep Live as-is
+    }
+    // Extract team number and rename to "Lager X"
+    const match = team.id.match(/team-(\d+)/);
+    if (match) {
+      return { ...team, title: `Lager ${match[1]}` };
+    }
+    return team;
+  });
+  
   // Add warehouse resource to the resources list
   const warehouseResource = {
     id: 'warehouse',
-    title: 'Lager',
+    title: 'Packning',
     eventColor: '#E5E7EB'
   };
-  const resourcesWithWarehouse = [...teamResources, warehouseResource];
+  const resourcesWithWarehouse = [...warehouseTeamResources, warehouseResource];
 
   // When switching to monthly mode, sync the month with current week
   useEffect(() => {
