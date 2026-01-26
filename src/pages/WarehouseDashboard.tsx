@@ -8,6 +8,7 @@ import { sv } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import DashboardListWidget, { ListItem } from "@/components/warehouse-dashboard/DashboardListWidget";
+import JobOverviewCalendar from "@/components/warehouse-dashboard/JobOverviewCalendar";
 import WarehouseStatsRow from "@/components/warehouse-dashboard/WarehouseStatsRow";
 import BookingProductsDialog from "@/components/Calendar/BookingProductsDialog";
 import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
@@ -281,47 +282,55 @@ const WarehouseDashboard = () => {
           />
         </div>
 
-        {/* List Widgets Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Senast inkomna jobb */}
-          <DashboardListWidget
-            title="Senast inkomna jobb"
-            icon={<Clock className="h-5 w-5 text-primary" />}
-            items={recentJobItems}
-            isLoading={recentJobsQuery.isLoading}
-            emptyText="Inga nya jobb"
-            maxVisible={5}
-          />
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          {/* Left Column - Calendar Overview */}
+          <div className="xl:col-span-1">
+            <JobOverviewCalendar />
+          </div>
 
-          {/* Kommande jobb 14 dagar */}
-          <DashboardListWidget
-            title="Kommande jobb 14 dagar"
-            icon={<CalendarDays className="h-5 w-5 text-warehouse" />}
-            items={upcomingJobItems}
-            isLoading={upcomingJobsQuery.isLoading}
-            emptyText="Inga kommande jobb"
-            maxVisible={5}
-          />
+          {/* Right Column - List Widgets */}
+          <div className="xl:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Senast inkomna jobb */}
+            <DashboardListWidget
+              title="Senast inkomna jobb"
+              icon={<Clock className="h-5 w-5 text-primary" />}
+              items={recentJobItems}
+              isLoading={recentJobsQuery.isLoading}
+              emptyText="Inga nya jobb"
+              maxVisible={5}
+            />
 
-          {/* Påbörjade packningar */}
-          <DashboardListWidget
-            title="Påbörjade packningar"
-            icon={<Package className="h-5 w-5 text-amber-500" />}
-            items={inProgressItems}
-            isLoading={inProgressPackingsQuery.isLoading}
-            emptyText="Inga pågående packningar"
-            maxVisible={5}
-          />
+            {/* Kommande jobb 14 dagar */}
+            <DashboardListWidget
+              title="Kommande jobb 14 dagar"
+              icon={<CalendarDays className="h-5 w-5 text-warehouse" />}
+              items={upcomingJobItems}
+              isLoading={upcomingJobsQuery.isLoading}
+              emptyText="Inga kommande jobb"
+              maxVisible={5}
+            />
 
-          {/* Slutförda packningar */}
-          <DashboardListWidget
-            title={`Slutförda vecka ${format(weekStart, 'w')}`}
-            icon={<CheckCircle2 className="h-5 w-5 text-green-500" />}
-            items={completedItems}
-            isLoading={completedPackingsQuery.isLoading}
-            emptyText="Inga slutförda packningar denna vecka"
-            maxVisible={5}
-          />
+            {/* Påbörjade packningar */}
+            <DashboardListWidget
+              title="Påbörjade packningar"
+              icon={<Package className="h-5 w-5 text-warehouse" />}
+              items={inProgressItems}
+              isLoading={inProgressPackingsQuery.isLoading}
+              emptyText="Inga pågående packningar"
+              maxVisible={5}
+            />
+
+            {/* Slutförda packningar */}
+            <DashboardListWidget
+              title={`Slutförda vecka ${format(weekStart, 'w')}`}
+              icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+              items={completedItems}
+              isLoading={completedPackingsQuery.isLoading}
+              emptyText="Inga slutförda packningar denna vecka"
+              maxVisible={5}
+            />
+          </div>
         </div>
       </div>
 
