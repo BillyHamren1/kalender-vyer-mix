@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useWarehouseCalendarEvents, WarehouseEvent } from '@/hooks/useWarehouseCalendarEvents';
@@ -15,7 +14,9 @@ import MobileCalendarView from '@/components/mobile/MobileCalendarView';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
 import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
 import WarehouseEventFilter, { WarehouseEventTypeFilter } from '@/components/Calendar/WarehouseEventFilter';
+import BookingProductsDialog from '@/components/Calendar/BookingProductsDialog';
 import { startOfWeek, startOfMonth, format } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 
 // Map warehouse event types to CalendarEvent eventType
 const mapWarehouseEventType = (warehouseType: string): CalendarEvent['eventType'] => {
@@ -101,8 +102,13 @@ const SimpleStaffCurtainWrapper: React.FC<{
 };
 
 const WarehouseCalendarPage = () => {
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<'weekly' | 'monthly' | 'list'>('weekly');
+  
+  // Booking products dialog state
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+  const [productDialogOpen, setProductDialogOpen] = useState(false);
   
   // Event type filter state - default all types visible
   const [eventTypeFilters, setEventTypeFilters] = useState<WarehouseEventTypeFilter[]>(() => {
@@ -314,6 +320,20 @@ const WarehouseCalendarPage = () => {
     setCurrentWeekStart(startOfWeek(startOfMonth(date), { weekStartsOn: 1 }));
   };
 
+  // Handle event click to show booking products dialog
+  const handleEventClick = (event: CalendarEvent) => {
+    if (event.bookingId) {
+      setSelectedBookingId(event.bookingId);
+      setProductDialogOpen(true);
+    }
+  };
+
+  // Handle create packing from dialog
+  const handleCreatePacking = (bookingId: string, bookingClient: string) => {
+    // Navigate to packing management with pre-filled data
+    navigate(`/warehouse/packing?createFrom=${bookingId}`);
+  };
+
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-muted/30">
@@ -365,6 +385,7 @@ const WarehouseCalendarPage = () => {
                   allTeams={resourcesWithWarehouse}
                   variant="warehouse"
                   isEventReadOnly={isEventReadOnly}
+                  onEventClick={handleEventClick}
                 />
               )}
             </>
@@ -387,6 +408,7 @@ const WarehouseCalendarPage = () => {
                 allTeams={resourcesWithWarehouse}
                 variant="warehouse"
                 isEventReadOnly={isEventReadOnly}
+                onEventClick={handleEventClick}
               />
               {/* Week tabs for quick navigation within the month */}
               <WeekTabsNavigation
@@ -419,6 +441,14 @@ const WarehouseCalendarPage = () => {
             position={selectedTeam.position}
           />
         )}
+
+        {/* Booking Products Dialog */}
+        <BookingProductsDialog
+          open={productDialogOpen}
+          onOpenChange={setProductDialogOpen}
+          bookingId={selectedBookingId}
+          onCreatePacking={handleCreatePacking}
+        />
       </div>
     </TooltipProvider>
   );
