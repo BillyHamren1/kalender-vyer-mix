@@ -5,7 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Filter, Package, Truck, Calendar, RotateCcw, ClipboardList, PackageOpen, Wrench, PartyPopper, PackageMinus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export type WarehouseEventTypeFilter = 'packing' | 'delivery' | 'event' | 'return' | 'inventory' | 'unpacking' | 'rig' | 'rigdown';
+export type WarehouseEventTypeFilter = 'packing' | 'delivery' | 'event' | 'return' | 'inventory' | 'unpacking' | 'rig' | 'rigDown';
 
 interface WarehouseEventFilterProps {
   activeFilters: WarehouseEventTypeFilter[];
@@ -15,7 +15,7 @@ interface WarehouseEventFilterProps {
 const EVENT_TYPES: { id: WarehouseEventTypeFilter; label: string; icon: React.ElementType; color: string }[] = [
   { id: 'rig', label: 'Rigg', icon: Wrench, color: 'text-green-600' },
   { id: 'event', label: 'Event', icon: PartyPopper, color: 'text-yellow-600' },
-  { id: 'rigdown', label: 'Riv', icon: PackageMinus, color: 'text-red-600' },
+  { id: 'rigDown', label: 'Riv', icon: PackageMinus, color: 'text-red-600' },
   { id: 'packing', label: 'Packning', icon: Package, color: 'text-purple-600' },
   { id: 'delivery', label: 'Utleverans', icon: Truck, color: 'text-blue-600' },
   { id: 'return', label: 'Retur', icon: RotateCcw, color: 'text-orange-600' },

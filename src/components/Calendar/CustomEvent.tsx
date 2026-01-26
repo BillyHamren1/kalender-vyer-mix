@@ -11,13 +11,15 @@ interface CustomEventProps {
   resource: Resource;
   style?: React.CSSProperties;
   onEventResize?: () => Promise<void>;
+  readOnly?: boolean;
 }
 
 const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   event,
   resource,
   style,
-  onEventResize
+  onEventResize,
+  readOnly = false
 }) => {
   
   const eventRef = useRef<HTMLDivElement>(null);
@@ -99,6 +101,72 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     extendedProps: event.extendedProps
   });
 
+  // Render the event card content
+  const eventCardContent = (
+    <div
+      ref={eventRef}
+      className={`custom-event hover:scale-105 ${hasSourceChanges ? 'warehouse-changed' : ''} ${readOnly ? 'cursor-default' : ''}`}
+      style={getDynamicStyles()}
+    >
+      <div className="event-content" style={{ color: '#000000', pointerEvents: 'auto' }}>
+        {/* Changed badge for warehouse events */}
+        {hasSourceChanges && (
+          <div 
+            className="absolute -top-1 -right-1 bg-orange-500 text-white text-[8px] px-1 py-0.5 rounded font-bold z-10"
+          >
+            Ändrad!
+          </div>
+        )}
+        {/* Read-only badge for protected events */}
+        {readOnly && (
+          <div 
+            className="absolute -top-1 -left-1 bg-slate-500 text-white text-[7px] px-1 py-0.5 rounded font-medium z-10"
+            title="Skrivskyddad i lagerkalendern"
+          >
+            🔒
+          </div>
+        )}
+        <div className="event-title" style={{ color: '#000000' }}>
+          {event.title}
+        </div>
+        <div 
+          className="event-booking" 
+          style={{ 
+            color: '#000000',
+            fontSize: '10px'
+          }}
+        >
+          #{bookingNumber}
+        </div>
+        {deliveryCity && (
+          <div 
+            className="event-city" 
+            style={{ 
+              color: '#000000',
+              fontSize: '10px',
+              opacity: 0.8
+            }}
+          >
+            {deliveryCity}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // If read-only, skip the edit popovers and dialogs
+  if (readOnly) {
+    return (
+      <EventHoverCard 
+        event={event}
+        onDoubleClick={handleViewDetails}
+        disabled={false}
+      >
+        {eventCardContent}
+      </EventHoverCard>
+    );
+  }
+
   return (
     <>
       <EventHoverCard 
@@ -112,46 +180,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
           onMoveDate={() => setShowDateDialog(true)}
           onOpenChange={setIsPopoverOpen}
         >
-          <div
-            ref={eventRef}
-            className={`custom-event hover:scale-105 ${hasSourceChanges ? 'warehouse-changed' : ''}`}
-            style={getDynamicStyles()}
-          >
-            <div className="event-content" style={{ color: '#000000', pointerEvents: 'auto' }}>
-              {/* Changed badge for warehouse events */}
-              {hasSourceChanges && (
-                <div 
-                  className="absolute -top-1 -right-1 bg-orange-500 text-white text-[8px] px-1 py-0.5 rounded font-bold z-10"
-                >
-                  Ändrad!
-                </div>
-              )}
-              <div className="event-title" style={{ color: '#000000' }}>
-                {event.title}
-              </div>
-              <div 
-                className="event-booking" 
-                style={{ 
-                  color: '#000000',
-                  fontSize: '10px'
-                }}
-              >
-                #{bookingNumber}
-              </div>
-              {deliveryCity && (
-                <div 
-                  className="event-city" 
-                  style={{ 
-                    color: '#000000',
-                    fontSize: '10px',
-                    opacity: 0.8
-                  }}
-                >
-                  {deliveryCity}
-                </div>
-              )}
-            </div>
-          </div>
+          {eventCardContent}
         </QuickTimeEditPopover>
       </EventHoverCard>
       

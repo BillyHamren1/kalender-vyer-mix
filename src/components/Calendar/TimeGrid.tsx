@@ -27,6 +27,7 @@ interface TimeGridProps {
   onEventResize?: () => Promise<void>;
   teamVisibilityProps?: TeamVisibilityProps;
   variant?: 'default' | 'warehouse';
+  isEventReadOnly?: (event: CalendarEvent) => boolean;
 }
 
 // Event Wrapper Component
@@ -36,7 +37,8 @@ const EventWrapper: React.FC<{
   teamColumnWidth: number;
   onEventClick: (event: CalendarEvent) => void;
   onEventResize?: () => Promise<void>;
-}> = React.memo(({ event, position, teamColumnWidth, onEventClick, onEventResize }) => {
+  readOnly?: boolean;
+}> = React.memo(({ event, position, teamColumnWidth, onEventClick, onEventResize, readOnly }) => {
   return (
     <div
       style={{
@@ -58,6 +60,7 @@ const EventWrapper: React.FC<{
           position: 'relative'
         }}
         onEventResize={onEventResize}
+        readOnly={readOnly}
       />
     </div>
   );
@@ -92,7 +95,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   weeklyStaffOperations,
   onEventResize,
   teamVisibilityProps,
-  variant = 'default'
+  variant = 'default',
+  isEventReadOnly
 }) => {
   const { handleEventClick } = useEventNavigation();
   // Generate continuous 24-hour time slots from 05:00 to 05:00 (next day)
@@ -357,6 +361,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 {/* Events positioned absolutely with enhanced precision */}
                 {resourceEvents.map((event) => {
                   const position = getEventPosition(event);
+                  const readOnly = isEventReadOnly ? isEventReadOnly(event) : false;
                   return (
                     <EventWrapper
                       key={`event-wrapper-${event.id}`}
@@ -365,6 +370,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                       teamColumnWidth={teamColumnWidth}
                       onEventClick={handleBookingEventClick}
                       onEventResize={onEventResize}
+                      readOnly={readOnly}
                     />
                   );
                 })}
