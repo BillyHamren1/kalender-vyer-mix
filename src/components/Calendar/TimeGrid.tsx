@@ -28,6 +28,7 @@ interface TimeGridProps {
   teamVisibilityProps?: TeamVisibilityProps;
   variant?: 'default' | 'warehouse';
   isEventReadOnly?: (event: CalendarEvent) => boolean;
+  onEventClick?: (event: CalendarEvent) => void;
 }
 
 // Event Wrapper Component
@@ -96,7 +97,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   onEventResize,
   teamVisibilityProps,
   variant = 'default',
-  isEventReadOnly
+  isEventReadOnly,
+  onEventClick
 }) => {
   const { handleEventClick } = useEventNavigation();
   // Generate continuous 24-hour time slots from 05:00 to 05:00 (next day)
@@ -163,10 +165,17 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     return { top, height };
   };
 
-  // Handle event click - format event data for navigation hook
+  // Handle event click - format event data for navigation hook OR use custom handler
   const handleBookingEventClick = (event: CalendarEvent) => {
     console.log('TimeGrid: Event clicked:', event);
     
+    // If a custom onEventClick handler is provided, use that instead
+    if (onEventClick) {
+      onEventClick(event);
+      return;
+    }
+    
+    // Otherwise, use the default navigation behavior
     const formattedEventInfo = {
       event: {
         id: event.id,
