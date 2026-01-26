@@ -1,68 +1,56 @@
 import React from 'react';
-import { useDashboard } from "@/hooks/useDashboard";
-import { DashboardStats } from "@/components/dashboard/DashboardStats";
-import { UpcomingEventsTimeline } from "@/components/dashboard/UpcomingEventsTimeline";
-import { TasksAttentionList } from "@/components/dashboard/TasksAttentionList";
-import { ActiveProjectsCard } from "@/components/dashboard/ActiveProjectsCard";
-import { StaffStatusCard } from "@/components/dashboard/StaffStatusCard";
-import { RecentActivityFeed } from "@/components/dashboard/RecentActivityFeed";
-import { RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Link } from 'react-router-dom';
+import { Calendar, FolderKanban, Users } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 
 const Index = () => {
-  const { 
-    stats, 
-    events, 
-    tasks, 
-    projects, 
-    staffStatus, 
-    activities, 
-    isLoading,
-    refetchAll 
-  } = useDashboard();
+  const navigationCards = [
+    {
+      title: 'Personalplanering',
+      icon: Calendar,
+      path: '/calendar',
+      description: 'Hantera scheman och planering'
+    },
+    {
+      title: 'Projekthantering',
+      icon: FolderKanban,
+      path: '/projects',
+      description: 'Hantera projekt och uppgifter'
+    },
+    {
+      title: 'Personaladministration',
+      icon: Users,
+      path: '/staff-management',
+      description: 'Hantera personal och resurser'
+    }
+  ];
 
   return (
-    <div className="min-h-screen bg-muted/30">
-      <div className="container mx-auto px-4 py-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-            <p className="text-muted-foreground">Översikt över EventFlow-systemet</p>
-          </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={refetchAll}
-            disabled={isLoading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Uppdatera
-          </Button>
+    <div className="min-h-screen bg-muted/30 flex items-center justify-center p-6">
+      <div className="w-full max-w-4xl">
+        <div className="text-center mb-12">
+          <h1 className="text-3xl font-bold text-foreground mb-2">EventFlow</h1>
+          <p className="text-muted-foreground">Välj ett område att arbeta med</p>
         </div>
-
-        {/* Stats Row */}
-        <DashboardStats stats={stats} isLoading={isLoading} />
-
-        {/* Timeline */}
-        <UpcomingEventsTimeline events={events} isLoading={isLoading} />
-
-        {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Tasks - Takes 1 column on large screens */}
-          <div className="lg:col-span-1">
-            <TasksAttentionList tasks={tasks} isLoading={isLoading} />
-          </div>
-
-          {/* Projects and Staff - Takes 2 columns on large screens */}
-          <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-            <ActiveProjectsCard projects={projects} isLoading={isLoading} />
-            <StaffStatusCard staffStatus={staffStatus} isLoading={isLoading} />
-          </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {navigationCards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <Link key={card.path} to={card.path}>
+                <Card className="h-full transition-all duration-200 hover:shadow-lg hover:scale-[1.02] cursor-pointer border-2 hover:border-primary">
+                  <CardContent className="flex flex-col items-center justify-center p-8 text-center">
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                      <Icon className="w-8 h-8 text-primary" />
+                    </div>
+                    <h2 className="text-xl font-semibold text-foreground mb-2">{card.title}</h2>
+                    <p className="text-sm text-muted-foreground">{card.description}</p>
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
-
-        {/* Activity Feed */}
-        <RecentActivityFeed activities={activities} isLoading={isLoading} />
       </div>
     </div>
   );
