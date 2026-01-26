@@ -18,7 +18,7 @@ const WAREHOUSE_RULES: Record<WarehouseEventType, {
     daysBefore: 4,
     startHour: 8,
     startMinute: 0,
-    durationHours: 8
+    durationHours: 3
   },
   delivery: {
     basedOn: 'rigDate',
