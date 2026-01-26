@@ -110,7 +110,7 @@ const WarehouseCalendarPage = () => {
     if (stored) {
       return JSON.parse(stored);
     }
-    return ['rig', 'event', 'rigdown', 'packing', 'delivery', 'return', 'inventory', 'unpacking'];
+    return ['rig', 'event', 'rigDown', 'packing', 'delivery', 'return', 'inventory', 'unpacking'];
   });
 
   // Save event type filters to localStorage
@@ -166,6 +166,14 @@ const WarehouseCalendarPage = () => {
   });
   
   const combinedEvents: CalendarEvent[] = [...filteredCalendarEvents, ...filteredWarehouseEvents];
+
+  // Define which events are read-only in the warehouse calendar
+  // Standard booking events (rig, event, rigDown) should NOT be editable from warehouse calendar
+  const isEventReadOnly = (event: CalendarEvent): boolean => {
+    const eventType = event.eventType;
+    // Rig, Event, and RigDown events from the main calendar are read-only in warehouse view
+    return eventType === 'rig' || eventType === 'event' || eventType === 'rigDown';
+  };
 
   const { teamResources } = useTeamResources();
   
@@ -356,6 +364,7 @@ const WarehouseCalendarPage = () => {
                   onToggleTeamForDay={handleToggleTeamForDay}
                   allTeams={resourcesWithWarehouse}
                   variant="warehouse"
+                  isEventReadOnly={isEventReadOnly}
                 />
               )}
             </>
@@ -377,6 +386,7 @@ const WarehouseCalendarPage = () => {
                 onToggleTeamForDay={handleToggleTeamForDay}
                 allTeams={resourcesWithWarehouse}
                 variant="warehouse"
+                isEventReadOnly={isEventReadOnly}
               />
               {/* Week tabs for quick navigation within the month */}
               <WeekTabsNavigation

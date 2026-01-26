@@ -22,6 +22,7 @@ interface CustomCalendarProps {
   onToggleTeamForDay?: (teamId: string, date: Date) => void;
   allTeams?: Resource[];
   variant?: 'default' | 'warehouse';
+  isEventReadOnly?: (event: CalendarEvent) => boolean;
 }
 
 const CustomCalendar: React.FC<CustomCalendarProps> = ({
@@ -36,7 +37,8 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   getVisibleTeamsForDay,
   onToggleTeamForDay,
   allTeams,
-  variant = 'default'
+  variant = 'default',
+  isEventReadOnly
 }) => {
   // IMPORTANT: Don't keep an internal week state.
   // The parent controls the current week via `currentDate`.
@@ -138,6 +140,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                     onToggleTeam: (teamId: string) => onToggleTeamForDay(teamId, date)
                   } : undefined}
                   variant={variant}
+                  isEventReadOnly={isEventReadOnly}
                 />
               </div>
             );
