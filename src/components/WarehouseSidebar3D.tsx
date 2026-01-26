@@ -80,10 +80,10 @@ export function WarehouseSidebar3D() {
               {!isCollapsed && (
                 <div className="flex flex-col">
                   <span className="font-bold text-lg text-foreground tracking-tight">
-                    Lagersystem
+                    EventFlow
                   </span>
-                  <span className="text-xs text-muted-foreground -mt-1">
-                    warehouse
+                  <span className="text-xs text-warehouse -mt-1">
+                    lagerplanering
                   </span>
                 </div>
               )}
