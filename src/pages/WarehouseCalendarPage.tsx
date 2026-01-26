@@ -110,7 +110,7 @@ const WarehouseCalendarPage = () => {
     if (stored) {
       return JSON.parse(stored);
     }
-    return ['packing', 'delivery', 'event', 'return', 'inventory', 'unpacking'];
+    return ['rig', 'event', 'rigdown', 'packing', 'delivery', 'return', 'inventory', 'unpacking'];
   });
 
   // Save event type filters to localStorage
@@ -159,7 +159,13 @@ const WarehouseCalendarPage = () => {
     return eventTypeFilters.includes(eventType);
   });
   
-  const combinedEvents: CalendarEvent[] = [...calendarEvents, ...filteredWarehouseEvents];
+  // Filter calendar events (rig, event, rigdown) based on selected event types
+  const filteredCalendarEvents = calendarEvents.filter(event => {
+    const eventType = event.eventType as WarehouseEventTypeFilter;
+    return eventTypeFilters.includes(eventType);
+  });
+  
+  const combinedEvents: CalendarEvent[] = [...filteredCalendarEvents, ...filteredWarehouseEvents];
 
   const { teamResources } = useTeamResources();
   
@@ -320,9 +326,9 @@ const WarehouseCalendarPage = () => {
             activeFilters={eventTypeFilters}
             onFilterChange={setEventTypeFilters}
           />
-          {eventTypeFilters.length < 6 && (
+          {eventTypeFilters.length < 8 && (
             <span className="text-sm text-muted-foreground">
-              Visar {eventTypeFilters.length} av 6 händelsetyper
+              Visar {eventTypeFilters.length} av 8 händelsetyper
             </span>
           )}
         </div>
