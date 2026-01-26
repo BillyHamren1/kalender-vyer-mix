@@ -72,7 +72,7 @@ export function Sidebar3D() {
                   <span className="font-bold text-lg text-foreground tracking-tight">
                     EventFlow
                   </span>
-                  <span className="text-xs text-muted-foreground -mt-1">
+                  <span className="text-xs text-primary -mt-1">
                     planering
                   </span>
                 </div>
