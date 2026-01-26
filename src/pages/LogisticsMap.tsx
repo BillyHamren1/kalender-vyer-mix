@@ -55,9 +55,7 @@ const LogisticsMap = () => {
   };
 
   const handleBackToBooking = () => {
-    if (selectedBooking) {
-      navigate(`/booking/${selectedBooking.id}`);
-    }
+    navigate(-1);
   };
 
   // In iframe mode, show only the map without any headers or padding

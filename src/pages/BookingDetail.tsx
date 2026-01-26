@@ -60,11 +60,7 @@ const BookingDetail = () => {
   }, [booking]);
   
   const handleBack = () => {
-    if (lastPath) {
-      navigate(lastPath);
-    } else {
-      navigate('/resource-view');
-    }
+    navigate(-1);
   };
 
   const handleStatusChange = (newStatus: string) => {
