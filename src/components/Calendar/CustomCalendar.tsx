@@ -114,21 +114,24 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     );
   }
 
+  // In day mode, the calendar should take full width
+  const isDayMode = viewMode === 'day';
+
   return (
     <div className="custom-calendar-container" ref={containerRef}>
       {/* Modern Weekly Staff Planning Grid - Cards with gaps */}
-      <div className="weekly-calendar-container overflow-x-auto p-4">
-        <div className="weekly-calendar-grid flex gap-4">
+      <div className={`weekly-calendar-container ${isDayMode ? '' : 'overflow-x-auto'} p-4`}>
+        <div className={`weekly-calendar-grid ${isDayMode ? '' : 'flex gap-4'}`}>
           {days.map((date) => {
             const filteredResources = getFilteredResourcesForDay(date);
-            const dayWidth = getDayWidth(filteredResources.length);
+            const dayWidth = isDayMode ? undefined : getDayWidth(filteredResources.length);
             const visibleTeams = getVisibleTeamsForDay ? getVisibleTeamsForDay(date) : [];
 
             return (
               <div 
                 key={format(date, 'yyyy-MM-dd')} 
-                className={`day-card flex-shrink-0 bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}
-                style={{ width: `${dayWidth}px` }}
+                className={`day-card bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''} ${isDayMode ? 'w-full' : 'flex-shrink-0'}`}
+                style={isDayMode ? undefined : { width: `${dayWidth}px` }}
               >
                 <TimeGrid
                   day={date}
@@ -137,7 +140,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                   getEventsForDayAndResource={getEventsForDayAndResource}
                   onStaffDrop={onStaffDrop}
                   onOpenStaffSelection={onOpenStaffSelection}
-                  dayWidth={dayWidth}
+                  dayWidth={isDayMode ? undefined : dayWidth}
                   weeklyStaffOperations={weeklyStaffOperations}
                   onEventResize={handleEventResize}
                   teamVisibilityProps={allTeams && onToggleTeamForDay ? {
@@ -148,6 +151,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                   variant={variant}
                   isEventReadOnly={isEventReadOnly}
                   onEventClick={onEventClick}
+                  fullWidth={isDayMode}
                 />
               </div>
             );

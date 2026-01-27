@@ -29,6 +29,7 @@ interface TimeGridProps {
   variant?: 'default' | 'warehouse';
   isEventReadOnly?: (event: CalendarEvent) => boolean;
   onEventClick?: (event: CalendarEvent) => void;
+  fullWidth?: boolean;
 }
 
 // Event Wrapper Component
@@ -98,7 +99,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   teamVisibilityProps,
   variant = 'default',
   isEventReadOnly,
-  onEventClick
+  onEventClick,
+  fullWidth = false
 }) => {
   const { handleEventClick } = useEventNavigation();
   // Generate continuous 24-hour time slots from 05:00 to 05:00 (next day)
@@ -216,12 +218,19 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   // Calculate grid template columns
   const getGridTemplateColumns = () => {
+    if (fullWidth) {
+      // In full width mode, use flexible columns
+      return `${timeColumnWidth}px repeat(${resources.length}, 1fr)`;
+    }
     return `${timeColumnWidth}px repeat(${resources.length}, ${teamColumnWidth}px)`;
   };
 
   // Calculate total width
   const getTotalWidth = () => {
-    return timeColumnWidth + (resources.length * teamColumnWidth);
+    if (fullWidth) {
+      return '100%';
+    }
+    return `${timeColumnWidth + (resources.length * teamColumnWidth)}px`;
   };
 
   return (
@@ -230,7 +239,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
       style={{
         gridTemplateColumns: getGridTemplateColumns(),
         gridTemplateRows: 'auto auto auto 1fr',
-        width: `${getTotalWidth()}px`
+        width: getTotalWidth()
       }}
     >
         {/* Header row background (spans TIME + day header) */}
@@ -243,8 +252,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
         <div className="day-header-teams" style={{ 
           gridColumn: '2 / -1',
-          width: `${getTotalWidth() - timeColumnWidth}px`,
-          maxWidth: `${getTotalWidth() - timeColumnWidth}px`
+          width: fullWidth ? 'auto' : `${timeColumnWidth + (resources.length * teamColumnWidth) - timeColumnWidth}px`,
+          maxWidth: fullWidth ? 'none' : `${timeColumnWidth + (resources.length * teamColumnWidth) - timeColumnWidth}px`
         }}>
           <div className="day-header-content">
             <div style={{ width: '32px' }}></div>
@@ -276,8 +285,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               style={{ 
                 gridColumn: index + 2,
                 gridRow: 2,
-                width: `${teamColumnWidth}px`,
-                minWidth: `${teamColumnWidth}px`
+                width: fullWidth ? 'auto' : `${teamColumnWidth}px`,
+                minWidth: fullWidth ? '120px' : `${teamColumnWidth}px`
               }}
             >
               <div className="team-header-content">
@@ -306,8 +315,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               style={{ 
                 gridColumn: index + 2,
                 gridRow: 3,
-                width: `${teamColumnWidth}px`,
-                minWidth: `${teamColumnWidth}px`
+                width: fullWidth ? 'auto' : `${teamColumnWidth}px`,
+                minWidth: fullWidth ? '120px' : `${teamColumnWidth}px`
               }}
             >
               <div className="staff-header-assignment-area">
@@ -355,8 +364,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 style={{ 
                   gridColumn: index + 2,
                   gridRow: 4,
-                  width: `${teamColumnWidth}px`,
-                  minWidth: `${teamColumnWidth}px`,
+                  width: fullWidth ? 'auto' : `${teamColumnWidth}px`,
+                  minWidth: fullWidth ? '120px' : `${teamColumnWidth}px`,
                   position: 'relative'
                 }}
               >
