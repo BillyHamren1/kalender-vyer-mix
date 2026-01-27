@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useWarehouseCalendarEvents, WarehouseEvent } from '@/hooks/useWarehouseCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -13,10 +13,11 @@ import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
 import MobileCalendarView from '@/components/mobile/MobileCalendarView';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
 import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
+import WarehouseDayNavigationHeader from '@/components/Calendar/WarehouseDayNavigationHeader';
 import WarehouseEventFilter, { WarehouseEventTypeFilter } from '@/components/Calendar/WarehouseEventFilter';
 import BookingProductsDialog from '@/components/Calendar/BookingProductsDialog';
-import { startOfWeek, startOfMonth, format } from 'date-fns';
-import { useNavigate } from 'react-router-dom';
+import { startOfWeek, startOfMonth, format, parseISO } from 'date-fns';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 // Map warehouse event types to CalendarEvent eventType
 const mapWarehouseEventType = (warehouseType: string): CalendarEvent['eventType'] => {
@@ -103,8 +104,9 @@ const SimpleStaffCurtainWrapper: React.FC<{
 
 const WarehouseCalendarPage = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const isMobile = useIsMobile();
-  const [viewMode, setViewMode] = useState<'weekly' | 'monthly' | 'list'>('weekly');
+  const [viewMode, setViewMode] = useState<'day' | 'weekly' | 'monthly' | 'list'>('weekly');
   
   // Booking products dialog state
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
@@ -152,9 +154,55 @@ const WarehouseCalendarPage = () => {
     loading: warehouseLoading,
     changedEventsCount
   } = useWarehouseCalendarEvents({ 
-    currentDate: currentWeekStart, 
-    view: viewMode === 'monthly' ? 'month' : 'week' 
+    currentDate: currentWeekStart,
+    view: viewMode === 'day' ? 'day' : viewMode === 'monthly' ? 'month' : 'week'
   });
+
+  // Sync initial view/date from URL (?date=YYYY-MM-DD&view=day)
+  useEffect(() => {
+    const dateStr = searchParams.get('date');
+    const viewParam = searchParams.get('view');
+
+    if (!dateStr) return;
+    const parsed = parseISO(dateStr);
+    if (isNaN(parsed.getTime())) return;
+
+    if (viewParam === 'day') {
+      setViewMode('day');
+      setCurrentWeekStart(parsed);
+      setMonthlyDate(startOfMonth(parsed));
+      return;
+    }
+
+    // For non-day deep links, keep behavior consistent with weekly grid
+    setCurrentWeekStart(startOfWeek(parsed, { weekStartsOn: 1 }));
+    setMonthlyDate(startOfMonth(parsed));
+  }, [searchParams]);
+
+  const setDayInUrl = (date: Date) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    setSearchParams({ date: dateStr, view: 'day' });
+  };
+
+  const handleViewModeChange = (mode: 'day' | 'weekly' | 'monthly' | 'list') => {
+    setViewMode(mode);
+
+    // Only persist URL params for day deep links (used by dashboard calendar)
+    if (mode === 'day') {
+      setDayInUrl(currentWeekStart);
+      return;
+    }
+
+    // Clear the explicit day param when leaving day view
+    const dateStr = format(currentWeekStart, 'yyyy-MM-dd');
+    setSearchParams({ date: dateStr });
+  };
+
+  const handleDayChange = (nextDate: Date) => {
+    setCurrentWeekStart(nextDate);
+    setMonthlyDate(startOfMonth(nextDate));
+    setDayInUrl(nextDate);
+  };
   
   // Combine standard calendar events with warehouse events and apply filters
   const mappedWarehouseEvents = mapWarehouseEventsToCalendarEvents(warehouseEvents);
@@ -172,6 +220,15 @@ const WarehouseCalendarPage = () => {
   });
   
   const combinedEvents: CalendarEvent[] = [...filteredCalendarEvents, ...filteredWarehouseEvents];
+
+  const dayEvents = useMemo(() => {
+    if (viewMode !== 'day') return combinedEvents;
+    const dayKey = format(currentWeekStart, 'yyyy-MM-dd');
+    return combinedEvents.filter((e) => {
+      const start = new Date(e.start);
+      return !isNaN(start.getTime()) && format(start, 'yyyy-MM-dd') === dayKey;
+    });
+  }, [combinedEvents, currentWeekStart, viewMode]);
 
   // Define which events are read-only in the warehouse calendar
   // Standard booking events (rig, event, rigDown) should NOT be editable from warehouse calendar
@@ -338,15 +395,24 @@ const WarehouseCalendarPage = () => {
     <TooltipProvider>
       <div className="min-h-screen bg-muted/30">
         {/* Navigation with view toggle */}
-        <WeekNavigation
-          currentWeekStart={currentWeekStart}
-          setCurrentWeekStart={setCurrentWeekStart}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          currentMonth={monthlyDate}
-          onMonthChange={handleMonthChange}
-          variant="warehouse"
-        />
+        {viewMode === 'day' ? (
+          <WarehouseDayNavigationHeader
+            date={currentWeekStart}
+            onDateChange={handleDayChange}
+            viewMode={viewMode}
+            onViewModeChange={handleViewModeChange}
+          />
+        ) : (
+          <WeekNavigation
+            currentWeekStart={currentWeekStart}
+            setCurrentWeekStart={setCurrentWeekStart}
+            viewMode={viewMode as 'weekly' | 'monthly' | 'list'}
+            onViewModeChange={handleViewModeChange}
+            currentMonth={monthlyDate}
+            onMonthChange={handleMonthChange}
+            variant="warehouse"
+          />
+        )}
 
         {/* Filter bar */}
         <div className="px-6 pt-4 pb-2 flex items-center gap-3">
@@ -363,7 +429,33 @@ const WarehouseCalendarPage = () => {
 
         {/* Content */}
         <div className="px-6 pb-6">
-          {viewMode === 'weekly' ? (
+          {viewMode === 'day' ? (
+            <>
+              {isMobile ? (
+                <MobileCalendarView events={dayEvents} />
+              ) : (
+                <CustomCalendar
+                  events={dayEvents}
+                  resources={resourcesWithWarehouse}
+                  isLoading={isLoading || warehouseLoading}
+                  isMounted={isMounted}
+                  currentDate={currentWeekStart}
+                  onDateSet={handleDatesSet}
+                  refreshEvents={refreshEvents}
+                  onStaffDrop={staffOps.handleStaffDrop}
+                  onOpenStaffSelection={handleOpenStaffSelection}
+                  viewMode="day"
+                  weeklyStaffOperations={staffOps}
+                  getVisibleTeamsForDay={getVisibleTeamsForDay}
+                  onToggleTeamForDay={handleToggleTeamForDay}
+                  allTeams={resourcesWithWarehouse}
+                  variant="warehouse"
+                  isEventReadOnly={isEventReadOnly}
+                  onEventClick={handleEventClick}
+                />
+              )}
+            </>
+          ) : viewMode === 'weekly' ? (
             <>
               {isMobile ? (
                 <MobileCalendarView events={combinedEvents} />

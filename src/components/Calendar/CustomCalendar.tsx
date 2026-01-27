@@ -13,7 +13,7 @@ interface CustomCalendarProps {
   refreshEvents: () => Promise<void>;
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
   onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date, buttonElement?: HTMLElement) => void;
-  viewMode: 'weekly' | 'monthly';
+  viewMode: 'weekly' | 'monthly' | 'day';
   weeklyStaffOperations?: {
     getStaffForTeamAndDate: (teamId: string, date: Date) => Array<{id: string, name: string, color?: string}>;
     forceRefresh: () => void;
@@ -31,6 +31,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   resources,
   isLoading,
   currentDate,
+  viewMode,
   refreshEvents,
   onStaffDrop,
   onOpenStaffSelection,
@@ -49,6 +50,9 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
 
   // Generate days for the week
   const getDaysToRender = () => {
+    if (viewMode === 'day') {
+      return [new Date(currentWeekStart)];
+    }
     return Array.from({ length: 7 }, (_, i) => {
       const date = new Date(currentWeekStart);
       date.setDate(currentWeekStart.getDate() + i);
