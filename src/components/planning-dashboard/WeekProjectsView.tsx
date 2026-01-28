@@ -165,26 +165,35 @@ const DayColumn = ({
 
   return (
     <div className={cn(
-      "flex flex-col min-w-[220px]",
+      "flex flex-col min-w-[180px]",
       isPast && "opacity-50"
     )}>
       {/* Day header */}
       <div className={cn(
-        "rounded-t-xl px-4 py-3 text-center border-b-2",
+        "px-4 py-3 text-center",
         isToday 
-          ? "bg-primary text-primary-foreground border-primary" 
-          : "bg-muted/80 text-foreground border-border"
+          ? "bg-primary text-primary-foreground rounded-t-xl" 
+          : "text-muted-foreground"
       )}>
-        <div className="text-xs font-medium uppercase tracking-wider opacity-80">
+        <div className={cn(
+          "text-xs font-semibold uppercase tracking-wider",
+          isToday ? "text-primary-foreground/80" : "text-muted-foreground"
+        )}>
           {dayName}
         </div>
-        <div className="flex items-baseline justify-center gap-1.5 mt-0.5">
-          <span className="text-2xl font-bold">{dayNumber}</span>
-          <span className="text-sm font-medium opacity-70">{monthName}</span>
+        <div className="flex items-baseline justify-center gap-1 mt-0.5">
+          <span className={cn(
+            "text-3xl font-bold",
+            isToday ? "text-primary-foreground" : "text-foreground"
+          )}>{dayNumber}</span>
+          <span className={cn(
+            "text-sm",
+            isToday ? "text-primary-foreground/70" : "text-muted-foreground"
+          )}>{monthName}.</span>
         </div>
         {isToday && (
-          <div className="mt-1">
-            <span className="text-[10px] font-bold bg-primary-foreground/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
+          <div className="mt-1.5">
+            <span className="text-[10px] font-bold bg-primary-foreground/20 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
               Idag
             </span>
           </div>
@@ -193,14 +202,16 @@ const DayColumn = ({
       
       {/* Projects container */}
       <div className={cn(
-        "flex-1 bg-muted/30 rounded-b-xl p-3 space-y-3 min-h-[300px]",
-        isToday && "bg-primary/5 ring-2 ring-primary/10"
+        "flex-1 p-3 space-y-3 min-h-[350px] border-x border-b rounded-b-xl",
+        isToday 
+          ? "bg-card border-primary/30" 
+          : "bg-muted/20 border-border/50"
       )}>
         {dayProjects.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center py-8">
-              <Calendar className="w-8 h-8 mx-auto text-muted-foreground/30 mb-2" />
-              <span className="text-sm text-muted-foreground/50">
+              <Calendar className="w-10 h-10 mx-auto text-muted-foreground/20 mb-2" />
+              <span className="text-sm text-muted-foreground/40">
                 Inga jobb
               </span>
             </div>
