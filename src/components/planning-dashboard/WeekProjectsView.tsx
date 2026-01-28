@@ -24,27 +24,32 @@ const getEventTypeLabel = (eventType: string): string => {
   }
 };
 
-const getEventTypeStyles = (eventType: string): { badge: string; bar: string } => {
+// Uses same colors as calendar: Rig (green), Event (yellow), Rigdown (red)
+const getEventTypeStyles = (eventType: string): { badge: string; bar: string; bg: string } => {
   switch (eventType) {
     case 'Rigg': 
       return { 
-        badge: 'bg-primary/10 text-primary border border-primary font-bold', 
-        bar: 'bg-primary' 
+        badge: 'bg-[#F2FCE2] text-green-800 border border-green-300 font-bold', 
+        bar: 'bg-green-400',
+        bg: 'bg-[#F2FCE2]/30'
       };
     case 'Event': 
       return { 
-        badge: 'bg-primary/10 text-primary border border-primary font-bold', 
-        bar: 'bg-primary' 
+        badge: 'bg-[#FEF7CD] text-amber-800 border border-amber-300 font-bold', 
+        bar: 'bg-amber-400',
+        bg: 'bg-[#FEF7CD]/30'
       };
     case 'Riggdown': 
       return { 
-        badge: 'bg-primary/10 text-primary border border-primary font-bold', 
-        bar: 'bg-primary' 
+        badge: 'bg-[#FEE2E2] text-red-800 border border-red-300 font-bold', 
+        bar: 'bg-red-400',
+        bg: 'bg-[#FEE2E2]/30'
       };
     default: 
       return { 
         badge: 'bg-muted text-foreground border border-border', 
-        bar: 'bg-muted' 
+        bar: 'bg-muted',
+        bg: 'bg-muted/20'
       };
   }
 };
@@ -73,69 +78,55 @@ const ProjectCard = ({
     <div
       ref={drop as any}
       className={cn(
-        "group relative bg-card rounded-xl border transition-all duration-200 overflow-hidden",
+        "group relative rounded-lg border transition-all duration-200 overflow-hidden",
+        styles.bg,
         isOver && canDrop 
           ? "border-primary shadow-lg scale-[1.02] ring-2 ring-primary/20" 
-          : "border-border hover:border-primary/50 hover:shadow-md",
+          : "border-border/60 hover:border-primary/50 hover:shadow-sm",
       )}
     >
-      {/* Color bar top */}
-      <div className={cn("h-1 w-full", styles.bar)} />
-      
-      <div className="p-4">
-        {/* Header row */}
-        <div className="flex items-center justify-between gap-3 mb-3">
+      {/* Compact content */}
+      <div className="p-2.5">
+        {/* Header row - compact */}
+        <div className="flex items-center gap-2 mb-1.5">
           <span className={cn(
-            "px-2.5 py-1 rounded text-xs tracking-wide",
+            "px-2 py-0.5 rounded text-[10px] tracking-wide",
             styles.badge
           )}>
             {getEventTypeLabel(project.eventType)}
           </span>
           {project.bookingNumber && (
-            <span className="text-sm font-mono text-muted-foreground">
+            <span className="text-xs font-mono text-muted-foreground">
               #{project.bookingNumber}
             </span>
           )}
         </div>
         
-        {/* Client name */}
-        <h4 className="font-semibold text-base text-foreground mb-2 line-clamp-1">
+        {/* Client name - compact */}
+        <h4 className="font-semibold text-sm text-foreground line-clamp-1 mb-1.5">
           {project.client}
         </h4>
         
-        {/* Address */}
-        {project.deliveryAddress && (
-          <div className="flex items-start gap-2 text-sm text-muted-foreground mb-3">
-            <MapPin className="w-4 h-4 shrink-0 mt-0.5" />
-            <span className="line-clamp-2">{project.deliveryAddress}</span>
-          </div>
-        )}
-        
-        {/* Assigned staff section */}
-        <div className="pt-3 border-t border-border/50">
-          <div className="flex items-center gap-2 mb-2">
-            <Users className="w-4 h-4 text-muted-foreground" />
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Personal
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 flex-wrap min-h-[28px]">
+        {/* Assigned staff section - compact */}
+        <div className="flex items-center gap-1.5">
+          <Users className="w-3 h-3 text-muted-foreground shrink-0" />
+          <div className="flex items-center gap-1 flex-wrap">
             {project.assignedStaff.length === 0 ? (
               <span className={cn(
-                "text-sm italic px-3 py-1.5 rounded-lg border-2 border-dashed transition-colors",
+                "text-xs italic px-2 py-0.5 rounded border border-dashed transition-colors",
                 isOver && canDrop 
                   ? "border-primary text-primary bg-primary/5" 
-                  : "border-muted-foreground/30 text-muted-foreground/60"
+                  : "border-muted-foreground/30 text-muted-foreground/50"
               )}>
-                Dra personal hit...
+                Dra hit...
               </span>
             ) : (
               project.assignedStaff.map(s => (
                 <span 
                   key={s.id} 
-                  className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground text-sm font-medium py-1 px-2.5 rounded-md"
+                  className="inline-flex items-center gap-1 bg-primary text-primary-foreground text-xs font-medium py-0.5 px-2 rounded"
                 >
-                  <span className="w-2 h-2 rounded-full bg-primary-foreground/30" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary-foreground/30" />
                   {s.name.split(' ')[0]}
                 </span>
               ))
@@ -168,36 +159,42 @@ const DayColumn = ({
       "flex flex-col min-w-[180px]",
       isPast && "opacity-50"
     )}>
-      {/* Day header */}
+      {/* Day header - distinct background */}
       <div className={cn(
-        "rounded-t-xl px-4 py-3 text-center border bg-muted/50",
-        isToday ? "border-border" : "border-border"
+        "rounded-t-xl px-3 py-2.5 text-center border-x border-t",
+        isToday ? "bg-primary/15 border-primary/30" : "bg-muted border-border"
       )}>
         {/* Thin teal line for today */}
         {isToday && (
-          <div className="mx-auto mb-2 h-0.5 w-10 rounded-full bg-primary" />
+          <div className="mx-auto mb-1.5 h-0.5 w-8 rounded-full bg-primary" />
         )}
 
         <div className={cn(
-          "text-xs font-semibold uppercase tracking-wider",
+          "text-[10px] font-bold uppercase tracking-widest",
           isToday ? "text-primary" : "text-muted-foreground"
         )}>
           {dayName}
         </div>
 
-        <div className="flex items-baseline justify-center gap-1 mt-0.5">
+        <div className="flex items-baseline justify-center gap-0.5 mt-0.5">
           <span className={cn(
-            "text-3xl font-bold",
+            "text-2xl font-bold",
             isToday ? "text-primary" : "text-foreground"
           )}>{dayNumber}</span>
-          <span className="text-sm text-muted-foreground">{monthName}.</span>
+          <span className="text-xs text-muted-foreground">{monthName}.</span>
         </div>
       </div>
+
+      {/* Separator line */}
+      <div className={cn(
+        "h-px",
+        isToday ? "bg-primary/40" : "bg-border"
+      )} />
       
       {/* Projects container */}
       <div className={cn(
-        "flex-1 p-3 space-y-3 min-h-[350px] border border-t-0 rounded-b-xl",
-        isToday ? "bg-primary/5 border-border/50" : "bg-card border-border/50"
+        "flex-1 p-2 space-y-2 min-h-[300px] border-x border-b rounded-b-xl",
+        isToday ? "bg-primary/5 border-primary/30" : "bg-card border-border"
       )}>
         {dayProjects.length === 0 ? (
           <div className="flex items-center justify-center h-full">
