@@ -134,9 +134,9 @@ const TeamDropSlot = ({
             <Badge 
               key={s.id} 
               variant="secondary" 
-              className="text-[10px] py-0 px-1 h-4"
+              className="text-[10px] py-0 px-1 h-4 font-medium text-white"
               style={{ 
-                backgroundColor: s.color ? `${s.color}40` : undefined,
+                backgroundColor: s.color || 'hsl(var(--primary))',
                 borderColor: s.color || undefined
               }}
             >
