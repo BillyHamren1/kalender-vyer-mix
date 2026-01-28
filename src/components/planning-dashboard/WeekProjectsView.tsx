@@ -170,13 +170,13 @@ const DayColumn = ({
     )}>
       {/* Day header */}
       <div className={cn(
-        "rounded-t-xl px-4 py-3 text-center border border-b-0 bg-card",
-        isToday ? "border-primary/40" : "border-border/50"
+        "rounded-t-xl px-4 py-3 text-center border border-b-0",
+        isToday ? "bg-primary/5 border-border/50" : "bg-card border-border/50"
       )}>
-        <div className={cn(
-          "mx-auto mb-2 h-1 w-12 rounded-full",
-          isToday ? "bg-primary" : "bg-muted"
-        )} />
+        {/* Thin teal line for today */}
+        {isToday && (
+          <div className="mx-auto mb-2 h-0.5 w-10 rounded-full bg-primary" />
+        )}
 
         <div className={cn(
           "text-xs font-semibold uppercase tracking-wider",
@@ -192,20 +192,12 @@ const DayColumn = ({
           )}>{dayNumber}</span>
           <span className="text-sm text-muted-foreground">{monthName}.</span>
         </div>
-
-        {isToday && (
-          <div className="mt-1.5">
-            <span className="text-[10px] font-bold bg-primary/10 text-primary px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-              Idag
-            </span>
-          </div>
-        )}
       </div>
       
       {/* Projects container */}
       <div className={cn(
         "flex-1 p-3 space-y-3 min-h-[350px] border border-t-0 rounded-b-xl",
-        isToday ? "bg-card border-primary/40" : "bg-muted/10 border-border/50"
+        isToday ? "bg-primary/5 border-border/50" : "bg-card border-border/50"
       )}>
         {dayProjects.length === 0 ? (
           <div className="flex items-center justify-center h-full">
