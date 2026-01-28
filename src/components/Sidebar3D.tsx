@@ -8,7 +8,8 @@ import {
   ChevronRight,
   ChevronDown,
   Sparkles,
-  PieChart
+  PieChart,
+  LayoutDashboard
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +21,7 @@ interface NavItem {
 }
 
 const navigationItems: NavItem[] = [
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Personalplanering", url: "/calendar", icon: Calendar },
   { title: "Projekthantering", url: "/projects", icon: FolderKanban },
   { 

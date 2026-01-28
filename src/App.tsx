@@ -20,6 +20,7 @@ import ProjectManagement from "./pages/ProjectManagement";
 import ProjectDetail from "./pages/ProjectDetail";
 import EconomyOverview from "./pages/EconomyOverview";
 import ProjectEconomyDetail from "./pages/ProjectEconomyDetail";
+import PlanningDashboard from "./pages/PlanningDashboard";
 import APIDocumentation from "./pages/APIDocumentation";
 import NotFound from "./pages/NotFound";
 
@@ -71,7 +72,8 @@ const AppContent = () => {
           <BrowserRouter>
             <Routes>
               {/* Main System Routes */}
-              <Route path="/" element={<MainSystemLayout><Index /></MainSystemLayout>} />
+              <Route path="/" element={<MainSystemLayout><PlanningDashboard /></MainSystemLayout>} />
+              <Route path="/dashboard" element={<MainSystemLayout><PlanningDashboard /></MainSystemLayout>} />
               <Route path="/calendar" element={<MainSystemLayout><CustomCalendarPage /></MainSystemLayout>} />
               <Route path="/staff-management" element={<MainSystemLayout><StaffManagement /></MainSystemLayout>} />
               <Route path="/staff/:staffId" element={<MainSystemLayout><StaffDetail /></MainSystemLayout>} />
