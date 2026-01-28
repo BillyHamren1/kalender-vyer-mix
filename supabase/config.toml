@@ -1,4 +1,3 @@
-
 project_id = "lovable-planner"
 
 [api]
@@ -78,4 +77,13 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.fetch-tracked-time]
+verify_jwt = false
+
+[functions.staff-management]
+verify_jwt = false
+
+[functions.delete-attachment]
+verify_jwt = false
+
+[functions.mobile-app-api]
 verify_jwt = false
