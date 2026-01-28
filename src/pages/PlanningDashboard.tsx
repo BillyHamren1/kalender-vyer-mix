@@ -2,7 +2,6 @@ import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePlanningDashboard } from "@/hooks/usePlanningDashboard";
 import PlanningStatsRow from "@/components/planning-dashboard/PlanningStatsRow";
-import StaffLocationsCard from "@/components/planning-dashboard/StaffLocationsCard";
 import OngoingProjectsCard from "@/components/planning-dashboard/OngoingProjectsCard";
 import CompletedTodayCard from "@/components/planning-dashboard/CompletedTodayCard";
 import AllStaffCard from "@/components/planning-dashboard/AllStaffCard";
@@ -65,7 +64,7 @@ const PlanningDashboard = () => {
         </div>
 
         {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Unopened Bookings - First Column */}
           <div className="lg:col-span-1">
             <UnopenedBookingsCard 
@@ -81,11 +80,6 @@ const PlanningDashboard = () => {
               isLoading={isLoading}
               onToggleActive={handleToggleStaffActive}
             />
-          </div>
-
-          {/* Staff Locations */}
-          <div className="lg:col-span-1">
-            <StaffLocationsCard locations={staffLocations} isLoading={isLoading} />
           </div>
 
           {/* Projects */}
