@@ -6,15 +6,31 @@ import {
   FolderKanban,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Sparkles,
   PieChart
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const navigationItems = [
+interface NavItem {
+  title: string;
+  url: string;
+  icon: React.ComponentType<{ className?: string }>;
+  children?: { title: string; url: string }[];
+}
+
+const navigationItems: NavItem[] = [
   { title: "Personalplanering", url: "/calendar", icon: Calendar },
   { title: "Projekthantering", url: "/projects", icon: FolderKanban },
-  { title: "Ekonomiöversikt", url: "/economy", icon: PieChart },
+  { 
+    title: "Ekonomiöversikt", 
+    url: "/economy", 
+    icon: PieChart,
+    children: [
+      { title: "Projekt", url: "/economy/projects" },
+      { title: "Personal", url: "/economy/staff" },
+    ]
+  },
   { title: "Personaladministration", url: "/staff-management", icon: Users },
 ];
 
@@ -97,82 +113,103 @@ export function Sidebar3D() {
           </div>
 
           {/* Navigation Items */}
-          <nav className="flex-1 space-y-2">
+          <nav className="flex-1 space-y-1">
             {navigationItems.map((item, index) => {
-              const isActive = location.pathname.startsWith(item.url);
+              const hasChildren = item.children && item.children.length > 0;
+              const isParentActive = hasChildren 
+                ? item.children!.some(child => location.pathname === child.url)
+                : location.pathname === item.url || location.pathname.startsWith(item.url + '/');
               
               return (
-                <NavLink
-                  key={item.url}
-                  to={item.url}
-                  className={cn(
-                    "group relative flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-300",
-                    "hover:bg-accent/50",
-                    isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
-                  )}
-                  style={{
-                    animationDelay: `${index * 50}ms`,
-                    transform: isActive ? "translateX(4px)" : undefined,
-                  }}
-                >
-                  {/* Active Background */}
-                  {isActive && (
-                    <div
-                      className="absolute inset-0 rounded-xl bg-primary/10 border border-primary/20"
-                      style={{
-                        boxShadow: "0 0 20px hsl(var(--primary) / 0.15)",
-                      }}
-                    />
-                  )}
-
-                  {/* Hover Effect */}
-                  <div
-                    className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                    style={{
-                      background: "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%)",
-                    }}
-                  />
-
-                  {/* Icon */}
-                  <div
+                <div key={item.url}>
+                  <NavLink
+                    to={hasChildren ? item.children![0].url : item.url}
                     className={cn(
-                      "relative z-10 p-2 rounded-lg transition-all duration-300",
-                      isActive ? "bg-primary text-primary-foreground shadow-md" : "bg-muted/50 group-hover:bg-muted"
+                      "group relative flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-300",
+                      "hover:bg-accent/50",
+                      isParentActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
                     )}
                     style={{
-                      transform: isActive ? "perspective(100px) rotateY(-5deg)" : undefined,
-                      boxShadow: isActive ? "0 4px 12px hsl(var(--primary) / 0.3)" : undefined,
+                      animationDelay: `${index * 50}ms`,
+                      transform: isParentActive && !hasChildren ? "translateX(4px)" : undefined,
                     }}
                   >
-                    <item.icon className="w-4 h-4" />
-                  </div>
+                    {/* Active Background (only for items without children) */}
+                    {isParentActive && !hasChildren && (
+                      <div
+                        className="absolute inset-0 rounded-xl bg-primary/10 border border-primary/20"
+                        style={{ boxShadow: "0 0 20px hsl(var(--primary) / 0.15)" }}
+                      />
+                    )}
 
-                  {/* Label */}
-                  {!isCollapsed && (
-                    <span className="relative z-10 font-medium text-sm">
-                      {item.title}
-                    </span>
-                  )}
+                    {/* Hover Effect */}
+                    <div
+                      className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                      style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%)" }}
+                    />
 
-                  {/* Tooltip (collapsed) */}
-                  {isCollapsed && (
+                    {/* Icon */}
                     <div
                       className={cn(
-                        "absolute left-full ml-3 px-3 py-2 rounded-lg bg-popover text-popover-foreground text-sm font-medium",
-                        "opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200",
-                        "shadow-lg border border-border whitespace-nowrap"
+                        "relative z-10 p-2 rounded-lg transition-all duration-300",
+                        isParentActive ? "bg-primary text-primary-foreground shadow-md" : "bg-muted/50 group-hover:bg-muted"
                       )}
                       style={{
-                        transform: "perspective(200px) rotateY(-5deg)",
+                        transform: isParentActive ? "perspective(100px) rotateY(-5deg)" : undefined,
+                        boxShadow: isParentActive ? "0 4px 12px hsl(var(--primary) / 0.3)" : undefined,
                       }}
                     >
-                      {item.title}
+                      <item.icon className="w-4 h-4" />
+                    </div>
+
+                    {/* Label */}
+                    {!isCollapsed && (
+                      <span className="relative z-10 font-medium text-sm flex-1">
+                        {item.title}
+                      </span>
+                    )}
+
+                    {/* Tooltip (collapsed) */}
+                    {isCollapsed && (
                       <div
-                        className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-popover border-l border-b border-border rotate-45"
-                      />
+                        className={cn(
+                          "absolute left-full ml-3 px-3 py-2 rounded-lg bg-popover text-popover-foreground text-sm font-medium",
+                          "opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200",
+                          "shadow-lg border border-border whitespace-nowrap"
+                        )}
+                        style={{ transform: "perspective(200px) rotateY(-5deg)" }}
+                      >
+                        {item.title}
+                        <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-popover border-l border-b border-border rotate-45" />
+                      </div>
+                    )}
+                  </NavLink>
+
+                  {/* Sub-items */}
+                  {hasChildren && !isCollapsed && (
+                    <div className="ml-11 mt-1 space-y-1">
+                      {item.children!.map((child) => {
+                        const isChildActive = location.pathname === child.url;
+                        return (
+                          <NavLink
+                            key={child.url}
+                            to={child.url}
+                            className={cn(
+                              "relative flex items-center px-3 py-2 rounded-lg text-sm transition-all duration-200",
+                              "hover:bg-accent/50",
+                              isChildActive 
+                                ? "text-primary font-medium bg-primary/10" 
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                            style={{ transform: isChildActive ? "translateX(4px)" : undefined }}
+                          >
+                            {child.title}
+                          </NavLink>
+                        );
+                      })}
                     </div>
                   )}
-                </NavLink>
+                </div>
               );
             })}
           </nav>
@@ -195,14 +232,18 @@ export function Sidebar3D() {
       <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-background/95 backdrop-blur-lg border-t border-border">
         <div className="flex items-center justify-around py-2 px-4">
           {navigationItems.map((item) => {
-            const isActive = location.pathname.startsWith(item.url);
+            const hasChildren = item.children && item.children.length > 0;
+            const isActive = hasChildren 
+              ? item.children!.some(child => location.pathname === child.url)
+              : location.pathname === item.url || location.pathname.startsWith(item.url + '/');
+            const targetUrl = hasChildren ? item.children![0].url : item.url;
             
             return (
               <NavLink
                 key={item.url}
-                to={item.url}
+                to={targetUrl}
                 className={cn(
-                  "flex flex-col items-center gap-1 py-2 px-3 rounded-xl transition-all duration-200",
+                  "flex flex-col items-center gap-1 py-2 px-3 rounded-xl transition-all duration-200 relative",
                   isActive ? "text-primary" : "text-muted-foreground"
                 )}
               >
