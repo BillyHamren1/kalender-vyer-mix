@@ -169,6 +169,9 @@ const ProjectDetail = () => {
             <EstablishmentGanttChart 
               rigDate={booking?.rigdaydate}
               eventDate={booking?.eventdate}
+              bookingId={booking?.id}
+              client={booking?.client}
+              address={booking?.deliveryaddress}
             />
           </TabsContent>
 
