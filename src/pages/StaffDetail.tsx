@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Calendar, Clock, DollarSign, User, Plus, Mail, Phone, MapPin, Briefcase, Edit2, AlertTriangle, FileText, Building } from 'lucide-react';
+import StaffAccountCard from '@/components/staff/StaffAccountCard';
 import { supabase } from '@/integrations/supabase/client';
 import TimeReportForm from '@/components/time-reports/TimeReportForm';
 import TimeReportListView from '@/components/time-reports/TimeReportListView';
@@ -500,6 +501,9 @@ const StaffDetail: React.FC = () => {
                 />
               </CardContent>
             </Card>
+
+            {/* Staff Account Card */}
+            <StaffAccountCard staffId={staffMember.id} staffName={staffMember.name} />
           </>
         ) : (
           /* Time Reports View */

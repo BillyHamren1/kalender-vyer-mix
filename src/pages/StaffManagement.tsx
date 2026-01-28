@@ -12,7 +12,7 @@ import StaffList from '@/components/staff/StaffList';
 import AddStaffDialog from '@/components/staff/AddStaffDialog';
 import EditStaffDialog from '@/components/staff/EditStaffDialog';
 import StaffColorSettings from '@/components/staff/StaffColorSettings';
-import CreateStaffAccountCard from '@/components/staff/CreateStaffAccountCard';
+import StaffAccountsPanel from '@/components/staff/StaffAccountsPanel';
 import StaffExportDialog from '@/components/staff/StaffExportDialog';
 
 const StaffManagement: React.FC = () => {
@@ -175,8 +175,8 @@ const StaffManagement: React.FC = () => {
 
           {/* Right side - Staff Accounts and Color Settings */}
           <div className="space-y-6">
-            {/* Create Staff Account Card */}
-            <CreateStaffAccountCard />
+            {/* Staff Accounts Panel */}
+            <StaffAccountsPanel />
 
             {/* Color Settings */}
             {selectedStaffForColor ? (
