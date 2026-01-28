@@ -17,19 +17,35 @@ interface WeekProjectsViewProps {
 
 const getEventTypeLabel = (eventType: string): string => {
   switch (eventType) {
-    case 'Rigg': return 'RIGG';
+    case 'Rigg': return 'RIG';
     case 'Event': return 'EVENT';
     case 'Riggdown': return 'NEDMONT';
     default: return eventType.toUpperCase();
   }
 };
 
-const getEventTypeStyles = (eventType: string): string => {
+const getEventTypeStyles = (eventType: string): { badge: string; bar: string } => {
   switch (eventType) {
-    case 'Rigg': return 'bg-blue-600 text-white';
-    case 'Event': return 'bg-emerald-600 text-white';
-    case 'Riggdown': return 'bg-amber-600 text-white';
-    default: return 'bg-muted text-foreground';
+    case 'Rigg': 
+      return { 
+        badge: 'bg-primary/10 text-primary border border-primary font-bold', 
+        bar: 'bg-primary' 
+      };
+    case 'Event': 
+      return { 
+        badge: 'bg-primary/10 text-primary border border-primary font-bold', 
+        bar: 'bg-primary' 
+      };
+    case 'Riggdown': 
+      return { 
+        badge: 'bg-primary/10 text-primary border border-primary font-bold', 
+        bar: 'bg-primary' 
+      };
+    default: 
+      return { 
+        badge: 'bg-muted text-foreground border border-border', 
+        bar: 'bg-muted' 
+      };
   }
 };
 
@@ -51,32 +67,32 @@ const ProjectCard = ({
     }),
   }), [project.bookingId, project.date, onStaffDrop]);
 
+  const styles = getEventTypeStyles(project.eventType);
+
   return (
     <div
       ref={drop as any}
       className={cn(
-        "group relative bg-card rounded-xl border-2 transition-all duration-200 overflow-hidden",
+        "group relative bg-card rounded-xl border transition-all duration-200 overflow-hidden",
         isOver && canDrop 
           ? "border-primary shadow-lg scale-[1.02] ring-2 ring-primary/20" 
-          : "border-border/50 hover:border-border hover:shadow-md",
+          : "border-border hover:border-primary/50 hover:shadow-md",
       )}
     >
       {/* Color bar top */}
-      <div className={cn("h-1.5 w-full", getEventTypeStyles(project.eventType))} />
+      <div className={cn("h-1 w-full", styles.bar)} />
       
       <div className="p-4">
         {/* Header row */}
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2">
-            <span className={cn(
-              "px-2.5 py-1 rounded-md text-xs font-bold tracking-wide",
-              getEventTypeStyles(project.eventType)
-            )}>
-              {getEventTypeLabel(project.eventType)}
-            </span>
-          </div>
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <span className={cn(
+            "px-2.5 py-1 rounded text-xs tracking-wide",
+            styles.badge
+          )}>
+            {getEventTypeLabel(project.eventType)}
+          </span>
           {project.bookingNumber && (
-            <span className="text-sm font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded">
+            <span className="text-sm font-mono text-muted-foreground">
               #{project.bookingNumber}
             </span>
           )}
