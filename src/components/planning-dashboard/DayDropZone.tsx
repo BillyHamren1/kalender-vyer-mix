@@ -53,23 +53,23 @@ const SingleDayDropZone = ({
 
   return (
     <div className={cn(
-      "border rounded-lg p-2 min-h-[120px]",
+      "border rounded-lg p-3 min-h-[160px]",
       isToday ? "border-primary bg-primary/5" : "",
       isPast ? "opacity-60" : ""
     )}>
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-3">
         <span className={cn(
-          "text-sm font-medium",
+          "text-base font-semibold",
           isToday ? "text-primary" : ""
         )}>
           {format(date, 'EEE d/M', { locale: sv })}
         </span>
         {isToday && (
-          <Badge variant="default" className="text-xs">Idag</Badge>
+          <Badge variant="default" className="text-sm px-2 py-0.5">Idag</Badge>
         )}
       </div>
       
-      <div className="space-y-1">
+      <div className="space-y-2">
         {['team-1', 'team-2', 'team-11'].map(teamId => {
           const teamData = teams.find(t => t.teamId === teamId);
           return (
@@ -120,21 +120,21 @@ const TeamDropSlot = ({
     <div
       ref={drop as any}
       className={cn(
-        "p-1.5 rounded border border-dashed transition-colors min-h-[28px]",
+        "p-2 rounded border border-dashed transition-colors min-h-[36px]",
         isOver && canDrop ? "border-primary bg-primary/10" : "border-muted-foreground/30",
         !canDrop && isOver ? "border-destructive/50" : ""
       )}
     >
-      <div className="flex items-center gap-1 flex-wrap">
-        <span className="text-[10px] text-muted-foreground shrink-0">{teamName}:</span>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-sm text-muted-foreground font-medium shrink-0">{teamName}:</span>
         {staff.length === 0 ? (
-          <span className="text-[10px] text-muted-foreground/50 italic">Släpp här</span>
+          <span className="text-sm text-muted-foreground/50 italic">Släpp här</span>
         ) : (
           staff.map(s => (
             <Badge 
               key={s.id} 
               variant="secondary" 
-              className="text-[10px] py-0 px-1 h-4 font-medium text-white"
+              className="text-sm py-0.5 px-2 font-medium text-white"
               style={{ 
                 backgroundColor: s.color || 'hsl(var(--primary))',
                 borderColor: s.color || undefined
