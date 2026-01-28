@@ -20,6 +20,7 @@ import ProjectManagement from "./pages/ProjectManagement";
 import ProjectDetail from "./pages/ProjectDetail";
 import EconomyOverview from "./pages/EconomyOverview";
 import ProjectEconomyDetail from "./pages/ProjectEconomyDetail";
+import APIDocumentation from "./pages/APIDocumentation";
 import NotFound from "./pages/NotFound";
 
 // Warehouse system pages
@@ -82,6 +83,7 @@ const AppContent = () => {
               <Route path="/economy/projects" element={<MainSystemLayout><EconomyOverview view="projects" /></MainSystemLayout>} />
               <Route path="/economy/staff" element={<MainSystemLayout><EconomyOverview view="staff" /></MainSystemLayout>} />
               <Route path="/economy/:id" element={<MainSystemLayout><ProjectEconomyDetail /></MainSystemLayout>} />
+              <Route path="/api-docs" element={<MainSystemLayout><APIDocumentation /></MainSystemLayout>} />
 
               {/* Warehouse System Routes */}
               <Route path="/warehouse" element={<WarehouseSystemLayout><WarehouseDashboard /></WarehouseSystemLayout>} />
