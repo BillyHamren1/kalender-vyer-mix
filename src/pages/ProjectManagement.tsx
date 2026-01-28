@@ -57,9 +57,9 @@ const ProjectManagement = () => {
   };
 
   const handleCreateJob = (bookingId: string) => {
-    // Navigate to booking detail for simple job handling
-    navigate(`/booking/${bookingId}`);
-    toast.info('Öppnar bokning för jobbhantering');
+    // Navigate to planning calendar for job scheduling
+    navigate(`/calendar`);
+    toast.info('Öppnar planering för jobbhantering');
   };
 
   return (
