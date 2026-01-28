@@ -8,15 +8,18 @@ import {
   fetchCompletedToday,
   fetchAllStaff,
   fetchWeekAssignments,
+  fetchWeekProjects,
   toggleStaffActive,
   assignStaffToDay,
+  assignStaffToBooking,
   PlanningStats,
   StaffLocation,
   AvailableStaff,
   OngoingProject,
   CompletedToday,
   AllStaffMember,
-  DayAssignment
+  DayAssignment,
+  WeekProject
 } from "@/services/planningDashboardService";
 import { format } from "date-fns";
 
@@ -65,6 +68,12 @@ export const usePlanningDashboard = () => {
     refetchInterval: 30000,
   });
 
+  const weekProjectsQuery = useQuery<WeekProject[]>({
+    queryKey: ['planning-dashboard', 'week-projects'],
+    queryFn: fetchWeekProjects,
+    refetchInterval: 30000,
+  });
+
   const isLoading = 
     statsQuery.isLoading ||
     locationsQuery.isLoading ||
@@ -72,7 +81,8 @@ export const usePlanningDashboard = () => {
     projectsQuery.isLoading ||
     completedQuery.isLoading ||
     allStaffQuery.isLoading ||
-    weekAssignmentsQuery.isLoading;
+    weekAssignmentsQuery.isLoading ||
+    weekProjectsQuery.isLoading;
 
   const refetchAll = () => {
     statsQuery.refetch();
@@ -82,11 +92,11 @@ export const usePlanningDashboard = () => {
     completedQuery.refetch();
     allStaffQuery.refetch();
     weekAssignmentsQuery.refetch();
+    weekProjectsQuery.refetch();
   };
 
   const handleToggleStaffActive = async (staffId: string, isActive: boolean) => {
     await toggleStaffActive(staffId, isActive);
-    // Refetch relevant queries
     queryClient.invalidateQueries({ queryKey: ['planning-dashboard', 'all-staff'] });
     queryClient.invalidateQueries({ queryKey: ['planning-dashboard', 'available'] });
     queryClient.invalidateQueries({ queryKey: ['planning-dashboard', 'stats'] });
@@ -96,7 +106,21 @@ export const usePlanningDashboard = () => {
     try {
       await assignStaffToDay(staffId, teamId, date);
       toast.success(`Personal tilldelad ${teamId === 'team-11' ? 'Live' : teamId.replace('team-', 'Team ')} för ${format(date, 'd/M')}`);
-      // Refetch assignments
+      queryClient.invalidateQueries({ queryKey: ['planning-dashboard', 'week-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['planning-dashboard', 'week-projects'] });
+      queryClient.invalidateQueries({ queryKey: ['planning-dashboard', 'all-staff'] });
+      queryClient.invalidateQueries({ queryKey: ['planning-dashboard', 'locations'] });
+    } catch (error) {
+      toast.error('Kunde inte tilldela personal');
+      throw error;
+    }
+  };
+
+  const handleStaffDropToBooking = async (staffId: string, bookingId: string, date: Date) => {
+    try {
+      await assignStaffToBooking(staffId, bookingId, date);
+      toast.success(`Personal tilldelad för ${format(date, 'd/M')}`);
+      queryClient.invalidateQueries({ queryKey: ['planning-dashboard', 'week-projects'] });
       queryClient.invalidateQueries({ queryKey: ['planning-dashboard', 'week-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['planning-dashboard', 'all-staff'] });
       queryClient.invalidateQueries({ queryKey: ['planning-dashboard', 'locations'] });
@@ -114,9 +138,11 @@ export const usePlanningDashboard = () => {
     completedToday: completedQuery.data || [],
     allStaff: allStaffQuery.data || [],
     weekAssignments: weekAssignmentsQuery.data || [],
+    weekProjects: weekProjectsQuery.data || [],
     isLoading,
     refetchAll,
     handleToggleStaffActive,
-    handleStaffDrop
+    handleStaffDrop,
+    handleStaffDropToBooking
   };
 };
