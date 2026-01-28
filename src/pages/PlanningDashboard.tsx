@@ -8,6 +8,7 @@ import CompletedTodayCard from "@/components/planning-dashboard/CompletedTodayCa
 import AllStaffCard from "@/components/planning-dashboard/AllStaffCard";
 import WeekProjectsView from "@/components/planning-dashboard/WeekProjectsView";
 import UnopenedBookingsCard from "@/components/planning-dashboard/UnopenedBookingsCard";
+import WeatherTrafficWidget from "@/components/planning-dashboard/WeatherTrafficWidget";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { DndProvider } from "react-dnd";
@@ -53,6 +54,11 @@ const PlanningDashboard = () => {
         {/* Stats Row */}
         <div className="mb-6">
           <PlanningStatsRow stats={stats} isLoading={isLoading} />
+        </div>
+
+        {/* AI Weather & Traffic Widget */}
+        <div className="mb-6">
+          <WeatherTrafficWidget />
         </div>
 
         {/* Week Planning - Projects View */}

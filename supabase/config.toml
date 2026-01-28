@@ -90,3 +90,6 @@ verify_jwt = false
 
 [functions.establishment-ai-assistant]
 verify_jwt = false
+
+[functions.weather-traffic-assistant]
+verify_jwt = false
