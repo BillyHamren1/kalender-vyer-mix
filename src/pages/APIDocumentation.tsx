@@ -179,15 +179,20 @@ const APIDocumentation = () => {
             eventdate: '2026-02-15',
             rigdaydate: '2026-02-14',
             rigdowndate: '2026-02-16',
-            deliveryaddress: 'Storgatan 1, Stockholm',
+            deliveryaddress: 'Storgatan 1',
+            delivery_city: 'Stockholm',
+            delivery_postal_code: '111 22',
+            delivery_latitude: 59.3293,
+            delivery_longitude: 18.0686,
             status: 'confirmed',
-            assignment_date: '2026-02-14'
+            assignment_dates: ['2026-02-14', '2026-02-15']
           }
         ]
       },
       notes: [
         'Returnerar endast bokningar där du är tilldelad',
-        'Inkluderar alla datum: riggdag, eventdag, nedriggdag'
+        'Inkluderar GPS-koordinater (latitude/longitude) för leveransadressen',
+        'assignment_dates visar alla dagar du är schemalagd'
       ]
     },
     {
