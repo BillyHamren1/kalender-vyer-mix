@@ -25,7 +25,7 @@ const UnopenedBookingsCard = ({ bookings, isLoading }: UnopenedBookingsCardProps
   const navigate = useNavigate();
 
   const handleClick = (bookingId: string) => {
-    navigate(`/bookings/${bookingId}`);
+    navigate(`/booking/${bookingId}`);
   };
 
   if (isLoading) {
