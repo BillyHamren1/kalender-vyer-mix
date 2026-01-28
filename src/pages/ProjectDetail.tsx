@@ -9,6 +9,8 @@ import ProjectTaskList from "@/components/project/ProjectTaskList";
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectComments from "@/components/project/ProjectComments";
 import ProjectGanttChart from "@/components/project/ProjectGanttChart";
+import EstablishmentGanttChart from "@/components/project/EstablishmentGanttChart";
+import DeestablishmentGanttChart from "@/components/project/DeestablishmentGanttChart";
 import TaskDetailSheet from "@/components/project/TaskDetailSheet";
 import { ProjectEconomyTab } from "@/components/project/ProjectEconomyTab";
 import { ProjectStaffTab } from "@/components/project/ProjectStaffTab";
@@ -147,6 +149,8 @@ const ProjectDetail = () => {
         <Tabs defaultValue="gantt" className="space-y-4">
           <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="gantt">Gantt-schema</TabsTrigger>
+            <TabsTrigger value="establishment">Etablering</TabsTrigger>
+            <TabsTrigger value="deestablishment">Avetablering</TabsTrigger>
             <TabsTrigger value="tasks">Uppgifter ({tasks.length})</TabsTrigger>
             <TabsTrigger value="staff">Personal</TabsTrigger>
             <TabsTrigger value="economy">Ekonomi</TabsTrigger>
@@ -158,6 +162,20 @@ const ProjectDetail = () => {
             <ProjectGanttChart 
               tasks={tasks} 
               onTaskClick={(task) => setSelectedTask(task)}
+            />
+          </TabsContent>
+
+          <TabsContent value="establishment">
+            <EstablishmentGanttChart 
+              rigDate={booking?.rigdaydate}
+              eventDate={booking?.eventdate}
+            />
+          </TabsContent>
+
+          <TabsContent value="deestablishment">
+            <DeestablishmentGanttChart 
+              eventDate={booking?.eventdate}
+              rigdownDate={booking?.rigdowndate}
             />
           </TabsContent>
 
