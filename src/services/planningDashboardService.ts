@@ -36,7 +36,7 @@ export interface AllStaffMember {
   currentTeamName: string | null;
 }
 
-// Day assignment for drop zones
+// Day assignment for drop zones (legacy)
 export interface DayAssignment {
   date: Date;
   teamId: string;
@@ -45,6 +45,25 @@ export interface DayAssignment {
     id: string;
     name: string;
     color: string | null;
+  }>;
+}
+
+// Project/booking for week view
+export interface WeekProject {
+  bookingId: string;
+  bookingNumber: string | null;
+  client: string;
+  eventType: string;
+  deliveryAddress: string | null;
+  date: Date;
+  rigDate: string | null;
+  eventDate: string | null;
+  rigdownDate: string | null;
+  assignedStaff: Array<{
+    id: string;
+    name: string;
+    color: string | null;
+    teamId: string;
   }>;
 }
 
@@ -527,4 +546,152 @@ export const fetchCompletedToday = async (): Promise<CompletedToday[]> => {
   });
 
   return completed.sort((a, b) => b.completedAt.getTime() - a.completedAt.getTime());
+};
+
+// Fetch week projects with assigned staff
+export const fetchWeekProjects = async (): Promise<WeekProject[]> => {
+  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+  const weekEnd = addDays(weekStart, 6);
+  
+  const startStr = format(weekStart, 'yyyy-MM-dd');
+  const endStr = format(weekEnd, 'yyyy-MM-dd');
+
+  // Get bookings that have events this week (rig, event, or rigdown)
+  const { data: bookings, error: bookingsError } = await supabase
+    .from('bookings')
+    .select(`
+      id,
+      booking_number,
+      client,
+      deliveryaddress,
+      rigdaydate,
+      eventdate,
+      rigdowndate
+    `)
+    .eq('status', 'CONFIRMED')
+    .or(`rigdaydate.gte.${startStr},eventdate.gte.${startStr},rigdowndate.gte.${startStr}`)
+    .or(`rigdaydate.lte.${endStr},eventdate.lte.${endStr},rigdowndate.lte.${endStr}`);
+
+  if (bookingsError) {
+    console.error('Error fetching week bookings:', bookingsError);
+    return [];
+  }
+
+  // Get staff assignments for the week
+  const { data: assignments } = await supabase
+    .from('staff_assignments')
+    .select(`
+      staff_id,
+      team_id,
+      assignment_date,
+      staff_members (
+        id,
+        name,
+        color
+      )
+    `)
+    .gte('assignment_date', startStr)
+    .lte('assignment_date', endStr);
+
+  // Get calendar events to link bookings to dates
+  const { data: calendarEvents } = await supabase
+    .from('calendar_events')
+    .select('booking_id, event_type, start_time, resource_id')
+    .gte('start_time', weekStart.toISOString())
+    .lte('start_time', weekEnd.toISOString());
+
+  // Build a map of booking+date to staff assignments via calendar events
+  const eventToTeamMap = new Map<string, { bookingId: string; date: string; eventType: string; teamId: string }>();
+  calendarEvents?.forEach(e => {
+    if (e.booking_id) {
+      const dateStr = format(new Date(e.start_time), 'yyyy-MM-dd');
+      const key = `${e.booking_id}-${dateStr}`;
+      eventToTeamMap.set(key, {
+        bookingId: e.booking_id,
+        date: dateStr,
+        eventType: e.event_type || 'Event',
+        teamId: e.resource_id
+      });
+    }
+  });
+
+  // Build staff assignment map by date and team
+  const staffByDateTeam = new Map<string, Array<{ id: string; name: string; color: string | null; teamId: string }>>();
+  assignments?.forEach(a => {
+    const key = `${a.assignment_date}-${a.team_id}`;
+    const staffMember = a.staff_members as any;
+    if (!staffByDateTeam.has(key)) {
+      staffByDateTeam.set(key, []);
+    }
+    staffByDateTeam.get(key)!.push({
+      id: staffMember.id,
+      name: staffMember.name,
+      color: staffMember.color,
+      teamId: a.team_id
+    });
+  });
+
+  // Build week projects list
+  const weekProjects: WeekProject[] = [];
+  
+  eventToTeamMap.forEach((eventInfo, key) => {
+    const booking = bookings?.find(b => b.id === eventInfo.bookingId);
+    if (!booking) return;
+
+    const staffKey = `${eventInfo.date}-${eventInfo.teamId}`;
+    const assignedStaff = staffByDateTeam.get(staffKey) || [];
+
+    weekProjects.push({
+      bookingId: booking.id,
+      bookingNumber: booking.booking_number,
+      client: booking.client,
+      eventType: eventInfo.eventType,
+      deliveryAddress: booking.deliveryaddress,
+      date: new Date(eventInfo.date),
+      rigDate: booking.rigdaydate,
+      eventDate: booking.eventdate,
+      rigdownDate: booking.rigdowndate,
+      assignedStaff
+    });
+  });
+
+  return weekProjects.sort((a, b) => a.date.getTime() - b.date.getTime());
+};
+
+// Assign staff to a booking on specific date
+export const assignStaffToBooking = async (staffId: string, bookingId: string, date: Date): Promise<void> => {
+  const dateStr = format(date, 'yyyy-MM-dd');
+
+  // Find which team/resource this booking is on for this date
+  const { data: calendarEvent } = await supabase
+    .from('calendar_events')
+    .select('resource_id')
+    .eq('booking_id', bookingId)
+    .gte('start_time', `${dateStr}T00:00:00`)
+    .lte('start_time', `${dateStr}T23:59:59`)
+    .limit(1)
+    .single();
+
+  const teamId = calendarEvent?.resource_id || 'team-1';
+
+  // Remove any existing assignment for this staff on this date
+  await supabase
+    .from('staff_assignments')
+    .delete()
+    .eq('staff_id', staffId)
+    .eq('assignment_date', dateStr);
+
+  // Create new assignment
+  const { error } = await supabase
+    .from('staff_assignments')
+    .insert({
+      staff_id: staffId,
+      team_id: teamId,
+      assignment_date: dateStr
+    });
+
+  if (error) {
+    console.error('Error assigning staff to booking:', error);
+    throw error;
+  }
 };

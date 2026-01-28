@@ -6,7 +6,7 @@ import StaffLocationsCard from "@/components/planning-dashboard/StaffLocationsCa
 import OngoingProjectsCard from "@/components/planning-dashboard/OngoingProjectsCard";
 import CompletedTodayCard from "@/components/planning-dashboard/CompletedTodayCard";
 import AllStaffCard from "@/components/planning-dashboard/AllStaffCard";
-import DayDropZone from "@/components/planning-dashboard/DayDropZone";
+import WeekProjectsView from "@/components/planning-dashboard/WeekProjectsView";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { DndProvider } from "react-dnd";
@@ -19,11 +19,11 @@ const PlanningDashboard = () => {
     ongoingProjects,
     completedToday,
     allStaff,
-    weekAssignments,
+    weekProjects,
     isLoading,
     refetchAll,
     handleToggleStaffActive,
-    handleStaffDrop
+    handleStaffDropToBooking
   } = usePlanningDashboard();
 
   return (
@@ -53,12 +53,12 @@ const PlanningDashboard = () => {
           <PlanningStatsRow stats={stats} isLoading={isLoading} />
         </div>
 
-        {/* Week Planning Drop Zone */}
+        {/* Week Planning - Projects View */}
         <div className="mb-6">
-          <DayDropZone 
-            assignments={weekAssignments}
+          <WeekProjectsView 
+            projects={weekProjects}
             isLoading={isLoading}
-            onStaffDrop={handleStaffDrop}
+            onStaffDrop={handleStaffDropToBooking}
           />
         </div>
 
