@@ -101,6 +101,17 @@ export interface PlanningStats {
   upcomingRigs: number;
 }
 
+// Unopened booking
+export interface UnopenedBooking {
+  id: string;
+  bookingNumber: string | null;
+  client: string;
+  eventDate: string | null;
+  deliveryAddress: string | null;
+  createdAt: string;
+  status: string | null;
+}
+
 const teamNames: Record<string, string> = {
   'team-1': 'Team 1',
   'team-2': 'Team 2',
@@ -694,4 +705,37 @@ export const assignStaffToBooking = async (staffId: string, bookingId: string, d
     console.error('Error assigning staff to booking:', error);
     throw error;
   }
+};
+
+// Fetch unopened bookings (viewed = false)
+export const fetchUnopenedBookings = async (): Promise<UnopenedBooking[]> => {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select(`
+      id,
+      booking_number,
+      client,
+      eventdate,
+      deliveryaddress,
+      created_at,
+      status
+    `)
+    .eq('viewed', false)
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+  if (error) {
+    console.error('Error fetching unopened bookings:', error);
+    return [];
+  }
+
+  return (data || []).map(b => ({
+    id: b.id,
+    bookingNumber: b.booking_number,
+    client: b.client,
+    eventDate: b.eventdate,
+    deliveryAddress: b.deliveryaddress,
+    createdAt: b.created_at,
+    status: b.status
+  }));
 };

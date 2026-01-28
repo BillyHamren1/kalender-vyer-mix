@@ -9,6 +9,7 @@ import {
   fetchAllStaff,
   fetchWeekAssignments,
   fetchWeekProjects,
+  fetchUnopenedBookings,
   toggleStaffActive,
   assignStaffToDay,
   assignStaffToBooking,
@@ -19,7 +20,8 @@ import {
   CompletedToday,
   AllStaffMember,
   DayAssignment,
-  WeekProject
+  WeekProject,
+  UnopenedBooking
 } from "@/services/planningDashboardService";
 import { format } from "date-fns";
 
@@ -74,6 +76,12 @@ export const usePlanningDashboard = () => {
     refetchInterval: 30000,
   });
 
+  const unopenedBookingsQuery = useQuery<UnopenedBooking[]>({
+    queryKey: ['planning-dashboard', 'unopened-bookings'],
+    queryFn: fetchUnopenedBookings,
+    refetchInterval: 30000,
+  });
+
   const isLoading = 
     statsQuery.isLoading ||
     locationsQuery.isLoading ||
@@ -82,7 +90,8 @@ export const usePlanningDashboard = () => {
     completedQuery.isLoading ||
     allStaffQuery.isLoading ||
     weekAssignmentsQuery.isLoading ||
-    weekProjectsQuery.isLoading;
+    weekProjectsQuery.isLoading ||
+    unopenedBookingsQuery.isLoading;
 
   const refetchAll = () => {
     statsQuery.refetch();
@@ -93,6 +102,7 @@ export const usePlanningDashboard = () => {
     allStaffQuery.refetch();
     weekAssignmentsQuery.refetch();
     weekProjectsQuery.refetch();
+    unopenedBookingsQuery.refetch();
   };
 
   const handleToggleStaffActive = async (staffId: string, isActive: boolean) => {
@@ -139,6 +149,7 @@ export const usePlanningDashboard = () => {
     allStaff: allStaffQuery.data || [],
     weekAssignments: weekAssignmentsQuery.data || [],
     weekProjects: weekProjectsQuery.data || [],
+    unopenedBookings: unopenedBookingsQuery.data || [],
     isLoading,
     refetchAll,
     handleToggleStaffActive,
