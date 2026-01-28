@@ -7,6 +7,7 @@ import OngoingProjectsCard from "@/components/planning-dashboard/OngoingProjects
 import CompletedTodayCard from "@/components/planning-dashboard/CompletedTodayCard";
 import AllStaffCard from "@/components/planning-dashboard/AllStaffCard";
 import WeekProjectsView from "@/components/planning-dashboard/WeekProjectsView";
+import UnopenedBookingsCard from "@/components/planning-dashboard/UnopenedBookingsCard";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { DndProvider } from "react-dnd";
@@ -20,6 +21,7 @@ const PlanningDashboard = () => {
     completedToday,
     allStaff,
     weekProjects,
+    unopenedBookings,
     isLoading,
     refetchAll,
     handleToggleStaffActive,
@@ -63,7 +65,15 @@ const PlanningDashboard = () => {
         </div>
 
         {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          {/* Unopened Bookings - First Column */}
+          <div className="lg:col-span-1">
+            <UnopenedBookingsCard 
+              bookings={unopenedBookings}
+              isLoading={isLoading}
+            />
+          </div>
+
           {/* Staff Column with Toggle */}
           <div className="lg:col-span-1">
             <AllStaffCard 
