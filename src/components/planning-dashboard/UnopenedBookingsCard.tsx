@@ -59,57 +59,37 @@ const UnopenedBookingsCard = ({ bookings, isLoading }: UnopenedBookingsCardProps
           )}
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-0">
         {bookings.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">
+          <p className="text-sm text-muted-foreground text-center py-4 px-4">
             Inga oöppnade bokningar
           </p>
         ) : (
-          <div className="space-y-2 max-h-[300px] overflow-y-auto">
-            {bookings.map((booking) => (
+          <div className="max-h-[200px] overflow-y-auto">
+            {bookings.map((booking, index) => (
               <div
                 key={booking.id}
                 onClick={() => handleClick(booking.id)}
-                className="p-3 rounded-lg border bg-accent/50 border-border hover:bg-accent cursor-pointer transition-colors"
+                className={`flex items-center gap-2 px-3 py-2 hover:bg-accent cursor-pointer transition-colors ${
+                  index !== bookings.length - 1 ? 'border-b border-border' : ''
+                }`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm truncate">
-                        {booking.client}
-                      </span>
-                      {booking.bookingNumber && (
-                        <Badge variant="outline" className="text-xs shrink-0">
-                          #{booking.bookingNumber}
-                        </Badge>
-                      )}
-                    </div>
-                    
-                    <div className="flex flex-col gap-1 mt-1.5 text-xs text-muted-foreground">
-                      {booking.eventDate && (
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="w-3 h-3" />
-                          <span>
-                            {format(parseISO(booking.eventDate), "d MMM yyyy", { locale: sv })}
-                          </span>
-                        </div>
-                      )}
-                      {booking.deliveryAddress && (
-                        <div className="flex items-center gap-1.5">
-                          <MapPin className="w-3 h-3" />
-                          <span className="truncate">{booking.deliveryAddress}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
-                    <Clock className="w-3 h-3" />
-                    <span>
-                      {format(parseISO(booking.createdAt), "d/M HH:mm", { locale: sv })}
-                    </span>
-                  </div>
-                </div>
+                {/* Booking number badge */}
+                <Badge variant="secondary" className="text-xs shrink-0 font-mono">
+                  #{booking.bookingNumber || '—'}
+                </Badge>
+                
+                {/* Client name */}
+                <span className="font-medium text-sm truncate flex-1 min-w-0">
+                  {booking.client}
+                </span>
+                
+                {/* Event date - compact */}
+                {booking.eventDate && (
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {format(parseISO(booking.eventDate), "d/M", { locale: sv })}
+                  </span>
+                )}
               </div>
             ))}
           </div>
