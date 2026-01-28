@@ -707,8 +707,10 @@ export const assignStaffToBooking = async (staffId: string, bookingId: string, d
   }
 };
 
-// Fetch unopened bookings (viewed = false)
+// Fetch unopened bookings (viewed = false) - only future events
 export const fetchUnopenedBookings = async (): Promise<UnopenedBooking[]> => {
+  const today = format(new Date(), 'yyyy-MM-dd');
+  
   const { data, error } = await supabase
     .from('bookings')
     .select(`
@@ -716,11 +718,14 @@ export const fetchUnopenedBookings = async (): Promise<UnopenedBooking[]> => {
       booking_number,
       client,
       eventdate,
+      rigdaydate,
+      rigdowndate,
       deliveryaddress,
       created_at,
       status
     `)
     .eq('viewed', false)
+    .or(`eventdate.gte.${today},rigdaydate.gte.${today},rigdowndate.gte.${today}`)
     .order('created_at', { ascending: false })
     .limit(20);
 
@@ -729,7 +734,21 @@ export const fetchUnopenedBookings = async (): Promise<UnopenedBooking[]> => {
     return [];
   }
 
-  return (data || []).map(b => ({
+  // Filter to only include bookings where at least one date is in the future
+  const filteredData = (data || []).filter(b => {
+    const eventDate = b.eventdate ? new Date(b.eventdate) : null;
+    const rigDate = b.rigdaydate ? new Date(b.rigdaydate) : null;
+    const rigdownDate = b.rigdowndate ? new Date(b.rigdowndate) : null;
+    const todayDate = new Date(today);
+    
+    return (
+      (eventDate && eventDate >= todayDate) ||
+      (rigDate && rigDate >= todayDate) ||
+      (rigdownDate && rigdownDate >= todayDate)
+    );
+  });
+
+  return filteredData.map(b => ({
     id: b.id,
     bookingNumber: b.booking_number,
     client: b.client,
