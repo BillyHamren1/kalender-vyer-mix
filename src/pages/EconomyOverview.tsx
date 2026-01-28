@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -14,12 +15,14 @@ import {
   Users, 
   ArrowRight,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Briefcase
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { calculateEconomySummary } from '@/services/projectEconomyService';
 import type { EconomySummary, StaffTimeReport } from '@/types/projectEconomy';
 import { getDeviationStatus, getDeviationColor, getDeviationBgColor } from '@/types/projectEconomy';
+import { StaffEconomyView } from '@/components/economy/StaffEconomyView';
 
 interface ProjectWithEconomy {
   id: string;
@@ -53,7 +56,7 @@ const formatHours = (hours: number) => {
   return `${hours.toFixed(1)} tim`;
 };
 
-const EconomyOverview: React.FC = () => {
+const ProjectEconomyView: React.FC = () => {
   const { data: projectsWithEconomy, isLoading } = useQuery({
     queryKey: ['economy-overview'],
     queryFn: async (): Promise<ProjectWithEconomy[]> => {
@@ -221,14 +224,9 @@ const EconomyOverview: React.FC = () => {
     p => p.summary.totalDeviationPercent > 100
   ).sort((a, b) => b.summary.totalDeviationPercent - a.summary.totalDeviationPercent) || [];
 
-  const projectsOnTrack = projectsWithEconomy?.filter(
-    p => p.summary.totalDeviationPercent <= 100
-  ) || [];
-
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6">
-        <Skeleton className="h-8 w-64" />
+      <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map(i => (
             <Skeleton key={i} className="h-32" />
@@ -240,13 +238,7 @@ const EconomyOverview: React.FC = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Ekonomiöversikt</h1>
-        <p className="text-muted-foreground">Översikt över alla projekts ekonomi och avvikelser</p>
-      </div>
-
+    <div className="space-y-6">
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
@@ -268,7 +260,7 @@ const EconomyOverview: React.FC = () => {
 
         <Card className={cn(
           "border",
-          kpis.totalDeviation > 0 ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"
+          kpis.totalDeviation > 0 ? "bg-destructive/10 border-destructive/20" : "bg-green-50 border-green-200"
         )}>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -276,17 +268,17 @@ const EconomyOverview: React.FC = () => {
                 <p className="text-sm text-muted-foreground">Total avvikelse</p>
                 <p className={cn(
                   "text-2xl font-bold",
-                  kpis.totalDeviation > 0 ? "text-red-600" : "text-green-600"
+                  kpis.totalDeviation > 0 ? "text-destructive" : "text-green-600"
                 )}>
                   {kpis.totalDeviation > 0 ? '+' : ''}{formatCurrency(kpis.totalDeviation)}
                 </p>
               </div>
               <div className={cn(
                 "p-3 rounded-full",
-                kpis.totalDeviation > 0 ? "bg-red-200" : "bg-green-200"
+                kpis.totalDeviation > 0 ? "bg-destructive/20" : "bg-green-200"
               )}>
                 {kpis.totalDeviation > 0 ? (
-                  <TrendingUp className="w-6 h-6 text-red-600" />
+                  <TrendingUp className="w-6 h-6 text-destructive" />
                 ) : (
                   <TrendingDown className="w-6 h-6 text-green-600" />
                 )}
@@ -346,9 +338,9 @@ const EconomyOverview: React.FC = () => {
 
       {/* Projects with Issues */}
       {projectsWithIssues.length > 0 && (
-        <Card className="border-red-200">
+        <Card className="border-destructive/20">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-red-700">
+            <CardTitle className="flex items-center gap-2 text-destructive">
               <AlertCircle className="w-5 h-5" />
               Projekt med avvikelser ({projectsWithIssues.length})
             </CardTitle>
@@ -366,7 +358,7 @@ const EconomyOverview: React.FC = () => {
                     <div className={cn(
                       "p-4 rounded-lg border transition-all hover:shadow-md",
                       getDeviationBgColor(status),
-                      "border-red-200"
+                      "border-destructive/20"
                     )}>
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
@@ -400,7 +392,7 @@ const EconomyOverview: React.FC = () => {
                           </div>
                           {/* Staff breakdown */}
                           {project.timeReports.length > 0 && (
-                            <div className="mt-3 pt-3 border-t border-red-200">
+                            <div className="mt-3 pt-3 border-t border-destructive/20">
                               <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
                                 <Users className="w-3 h-3" /> Registrerad tid
                               </p>
@@ -501,6 +493,40 @@ const EconomyOverview: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+};
+
+const EconomyOverview: React.FC = () => {
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">Ekonomiöversikt</h1>
+        <p className="text-muted-foreground">Översikt över projekt- och personalekonomi</p>
+      </div>
+
+      {/* Tabs for Project vs Staff Economy */}
+      <Tabs defaultValue="projects" className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="projects" className="flex items-center gap-2">
+            <Briefcase className="w-4 h-4" />
+            Projekt
+          </TabsTrigger>
+          <TabsTrigger value="staff" className="flex items-center gap-2">
+            <Users className="w-4 h-4" />
+            Personal
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="projects" className="mt-6">
+          <ProjectEconomyView />
+        </TabsContent>
+        
+        <TabsContent value="staff" className="mt-6">
+          <StaffEconomyView />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
