@@ -21,6 +21,7 @@ interface CreateProjectWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  preselectedBookingId?: string | null;
 }
 
 interface BookingOption {
@@ -38,7 +39,7 @@ interface StaffMember {
   name: string;
 }
 
-export default function CreateProjectWizard({ open, onOpenChange, onSuccess }: CreateProjectWizardProps) {
+export default function CreateProjectWizard({ open, onOpenChange, onSuccess, preselectedBookingId }: CreateProjectWizardProps) {
   const [name, setName] = useState("");
   const [selectedBookingId, setSelectedBookingId] = useState<string>("");
   const [selectedLeaderId, setSelectedLeaderId] = useState<string>("");
@@ -108,12 +109,28 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess }: C
   useEffect(() => {
     if (open) {
       setName("");
-      setSelectedBookingId("");
       setSelectedLeaderId("");
       setNewTaskTitle("");
-      initializeChecklist(null);
+      
+      // If preselected booking, use it
+      if (preselectedBookingId) {
+        setSelectedBookingId(preselectedBookingId);
+        const booking = bookings.find(b => b.id === preselectedBookingId);
+        if (booking) {
+          const dateStr = booking.eventdate 
+            ? format(new Date(booking.eventdate), 'd MMMM yyyy', { locale: sv })
+            : '';
+          setName(`${booking.client}${dateStr ? ` - ${dateStr}` : ''}`);
+          initializeChecklist(booking);
+        } else {
+          initializeChecklist(null);
+        }
+      } else {
+        setSelectedBookingId("");
+        initializeChecklist(null);
+      }
     }
-  }, [open, initializeChecklist]);
+  }, [open, preselectedBookingId, bookings, initializeChecklist]);
 
   const handleBookingChange = (bookingId: string) => {
     setSelectedBookingId(bookingId);
