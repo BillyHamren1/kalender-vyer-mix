@@ -146,17 +146,74 @@ const ProjectDetail = () => {
         )}
 
         {/* Tabs Content */}
-        <Tabs defaultValue="gantt" className="space-y-4">
-          <TabsList className="flex-wrap h-auto gap-1">
-            <TabsTrigger value="gantt">Gantt-schema</TabsTrigger>
-            <TabsTrigger value="establishment">Etablering</TabsTrigger>
-            <TabsTrigger value="deestablishment">Avetablering</TabsTrigger>
-            <TabsTrigger value="tasks">Uppgifter ({tasks.length})</TabsTrigger>
-            <TabsTrigger value="staff">Personal</TabsTrigger>
-            <TabsTrigger value="economy">Ekonomi</TabsTrigger>
-            <TabsTrigger value="files">Filer ({files.length})</TabsTrigger>
-            <TabsTrigger value="comments">Kommentarer ({comments.length})</TabsTrigger>
-          </TabsList>
+        <Tabs defaultValue="gantt" className="space-y-6">
+          <div className="border-b">
+            <TabsList className="h-auto p-0 bg-transparent gap-0">
+              <TabsTrigger 
+                value="gantt"
+                className="relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground"
+              >
+                Gantt-schema
+              </TabsTrigger>
+              <TabsTrigger 
+                value="establishment"
+                className="relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground"
+              >
+                Etablering
+              </TabsTrigger>
+              <TabsTrigger 
+                value="deestablishment"
+                className="relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground"
+              >
+                Avetablering
+              </TabsTrigger>
+              <TabsTrigger 
+                value="tasks"
+                className="relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground"
+              >
+                Uppgifter
+                {tasks.length > 0 && (
+                  <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-muted text-muted-foreground">
+                    {tasks.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger 
+                value="staff"
+                className="relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground"
+              >
+                Personal
+              </TabsTrigger>
+              <TabsTrigger 
+                value="economy"
+                className="relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground"
+              >
+                Ekonomi
+              </TabsTrigger>
+              <TabsTrigger 
+                value="files"
+                className="relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground"
+              >
+                Filer
+                {files.length > 0 && (
+                  <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-muted text-muted-foreground">
+                    {files.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger 
+                value="comments"
+                className="relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground"
+              >
+                Kommentarer
+                {comments.length > 0 && (
+                  <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-muted text-muted-foreground">
+                    {comments.length}
+                  </span>
+                )}
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="gantt">
             <ProjectGanttChart 
