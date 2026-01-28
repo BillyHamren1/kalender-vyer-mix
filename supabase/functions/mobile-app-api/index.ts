@@ -82,12 +82,20 @@ Deno.serve(async (req) => {
         return await handleMe(supabase, staffId)
       case 'get_bookings':
         return await handleGetBookings(supabase, staffId)
+      case 'get_booking_details':
+        return await handleGetBookingDetails(supabase, staffId, data)
       case 'get_time_reports':
         return await handleGetTimeReports(supabase, staffId)
       case 'create_time_report':
         return await handleCreateTimeReport(supabase, staffId, data)
       case 'get_project':
         return await handleGetProject(supabase, data)
+      case 'get_project_comments':
+        return await handleGetProjectComments(supabase, data)
+      case 'get_project_files':
+        return await handleGetProjectFiles(supabase, data)
+      case 'get_project_purchases':
+        return await handleGetProjectPurchases(supabase, data)
       case 'create_purchase':
         return await handleCreatePurchase(supabase, staffId, data)
       case 'create_comment':
@@ -696,4 +704,341 @@ async function handleUploadFile(supabase: any, staffId: string, data: any) {
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
+}
+
+// ==================== COMPREHENSIVE JOB DETAILS HANDLER ====================
+
+async function handleGetBookingDetails(supabase: any, staffId: string, data: { booking_id: string }) {
+  const { booking_id } = data
+
+  if (!booking_id) {
+    return new Response(
+      JSON.stringify({ error: 'booking_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Verify staff is assigned to this booking
+  const { data: assignment, error: assignmentError } = await supabase
+    .from('booking_staff_assignments')
+    .select('id')
+    .eq('staff_id', staffId)
+    .eq('booking_id', booking_id)
+    .limit(1)
+
+  if (assignmentError || !assignment || assignment.length === 0) {
+    return new Response(
+      JSON.stringify({ error: 'You are not assigned to this booking' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Fetch complete booking details
+  const { data: booking, error: bookingError } = await supabase
+    .from('bookings')
+    .select(`
+      id,
+      client,
+      booking_number,
+      status,
+      deliveryaddress,
+      delivery_city,
+      delivery_postal_code,
+      delivery_latitude,
+      delivery_longitude,
+      rigdaydate,
+      eventdate,
+      rigdowndate,
+      rig_start_time,
+      rig_end_time,
+      event_start_time,
+      event_end_time,
+      rigdown_start_time,
+      rigdown_end_time,
+      contact_name,
+      contact_phone,
+      contact_email,
+      carry_more_than_10m,
+      ground_nails_allowed,
+      exact_time_needed,
+      exact_time_info,
+      internalnotes,
+      assigned_project_id,
+      assigned_project_name,
+      assigned_to_project,
+      created_at,
+      updated_at
+    `)
+    .eq('id', booking_id)
+    .single()
+
+  if (bookingError || !booking) {
+    console.error('Booking fetch error:', bookingError)
+    return new Response(
+      JSON.stringify({ error: 'Booking not found' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Fetch products
+  const { data: products } = await supabase
+    .from('booking_products')
+    .select('id, name, quantity, notes')
+    .eq('booking_id', booking_id)
+
+  // Fetch attachments
+  const { data: attachments } = await supabase
+    .from('booking_attachments')
+    .select('id, url, file_name, file_type, uploaded_at')
+    .eq('booking_id', booking_id)
+
+  // Fetch all staff assigned to this booking (for all dates)
+  const { data: staffAssignments } = await supabase
+    .from('booking_staff_assignments')
+    .select('staff_id, team_id, assignment_date')
+    .eq('booking_id', booking_id)
+
+  // Get unique staff IDs and fetch their details
+  const staffIds = [...new Set((staffAssignments || []).map((a: any) => a.staff_id))]
+  let assignedStaff: any[] = []
+  if (staffIds.length > 0) {
+    const { data: staffMembers } = await supabase
+      .from('staff_members')
+      .select('id, name, phone, email, role, color')
+      .in('id', staffIds)
+
+    assignedStaff = (staffMembers || []).map((staff: any) => {
+      const staffDates = (staffAssignments || [])
+        .filter((a: any) => a.staff_id === staff.id)
+        .map((a: any) => ({ date: a.assignment_date, team_id: a.team_id }))
+      return { ...staff, assignments: staffDates }
+    })
+  }
+
+  // Fetch calendar events for this booking
+  const { data: calendarEvents } = await supabase
+    .from('calendar_events')
+    .select('id, title, event_type, resource_id, start_time, end_time, delivery_address')
+    .eq('booking_id', booking_id)
+    .order('start_time', { ascending: true })
+
+  // Fetch project if exists
+  let project = null
+  let projectTasks: any[] = []
+  let projectComments: any[] = []
+  let projectFiles: any[] = []
+  let projectPurchases: any[] = []
+
+  const { data: projectData } = await supabase
+    .from('projects')
+    .select(`
+      id,
+      name,
+      status,
+      project_leader,
+      created_at,
+      updated_at
+    `)
+    .eq('booking_id', booking_id)
+    .maybeSingle()
+
+  if (projectData) {
+    project = projectData
+
+    // Fetch project tasks
+    const { data: tasks } = await supabase
+      .from('project_tasks')
+      .select('id, title, description, assigned_to, deadline, completed, sort_order, is_info_only')
+      .eq('project_id', project.id)
+      .order('sort_order', { ascending: true })
+    projectTasks = tasks || []
+
+    // Fetch project comments (last 20)
+    const { data: comments } = await supabase
+      .from('project_comments')
+      .select('id, author_name, content, created_at')
+      .eq('project_id', project.id)
+      .order('created_at', { ascending: false })
+      .limit(20)
+    projectComments = comments || []
+
+    // Fetch project files
+    const { data: files } = await supabase
+      .from('project_files')
+      .select('id, file_name, file_type, url, uploaded_by, uploaded_at')
+      .eq('project_id', project.id)
+      .order('uploaded_at', { ascending: false })
+    projectFiles = files || []
+
+    // Fetch project purchases
+    const { data: purchases } = await supabase
+      .from('project_purchases')
+      .select('id, description, amount, supplier, category, receipt_url, purchase_date, created_by')
+      .eq('project_id', project.id)
+      .order('created_at', { ascending: false })
+    projectPurchases = purchases || []
+  }
+
+  // Fetch time reports for this booking by current staff member
+  const { data: myTimeReports } = await supabase
+    .from('time_reports')
+    .select('id, report_date, start_time, end_time, hours_worked, overtime_hours, break_time, description')
+    .eq('booking_id', booking_id)
+    .eq('staff_id', staffId)
+    .order('report_date', { ascending: false })
+
+  // Construct comprehensive response
+  const response = {
+    booking: {
+      ...booking,
+      products: products || [],
+      attachments: attachments || []
+    },
+    planning: {
+      assigned_staff: assignedStaff,
+      calendar_events: calendarEvents || []
+    },
+    project: project ? {
+      ...project,
+      tasks: projectTasks,
+      comments: projectComments,
+      files: projectFiles,
+      purchases: projectPurchases
+    } : null,
+    my_time_reports: myTimeReports || []
+  }
+
+  console.log(`Booking details fetched: ${booking_id} for staff ${staffId}`)
+
+  return new Response(
+    JSON.stringify(response),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleGetProjectComments(supabase: any, data: { booking_id: string }) {
+  const { booking_id } = data
+
+  if (!booking_id) {
+    return new Response(
+      JSON.stringify({ error: 'booking_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { data: project } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('booking_id', booking_id)
+    .maybeSingle()
+
+  if (!project) {
+    return new Response(
+      JSON.stringify({ error: 'No project found for this booking' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { data: comments, error } = await supabase
+    .from('project_comments')
+    .select('id, author_name, content, created_at')
+    .eq('project_id', project.id)
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  if (error) {
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch comments' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ comments: comments || [] }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleGetProjectFiles(supabase: any, data: { booking_id: string }) {
+  const { booking_id } = data
+
+  if (!booking_id) {
+    return new Response(
+      JSON.stringify({ error: 'booking_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { data: project } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('booking_id', booking_id)
+    .maybeSingle()
+
+  if (!project) {
+    return new Response(
+      JSON.stringify({ error: 'No project found for this booking' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { data: files, error } = await supabase
+    .from('project_files')
+    .select('id, file_name, file_type, url, uploaded_by, uploaded_at')
+    .eq('project_id', project.id)
+    .order('uploaded_at', { ascending: false })
+
+  if (error) {
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch files' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ files: files || [] }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+async function handleGetProjectPurchases(supabase: any, data: { booking_id: string }) {
+  const { booking_id } = data
+
+  if (!booking_id) {
+    return new Response(
+      JSON.stringify({ error: 'booking_id is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { data: project } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('booking_id', booking_id)
+    .maybeSingle()
+
+  if (!project) {
+    return new Response(
+      JSON.stringify({ error: 'No project found for this booking' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const { data: purchases, error } = await supabase
+    .from('project_purchases')
+    .select('id, description, amount, supplier, category, receipt_url, purchase_date, created_by, created_at')
+    .eq('project_id', project.id)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch purchases' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  return new Response(
+    JSON.stringify({ purchases: purchases || [] }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
 }
