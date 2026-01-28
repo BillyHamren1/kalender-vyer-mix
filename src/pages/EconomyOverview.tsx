@@ -437,6 +437,7 @@ const ProjectEconomyView: React.FC = () => {
                   <th className="text-left py-3 px-2 font-medium text-muted-foreground">Projekt</th>
                   <th className="text-right py-3 px-2 font-medium text-muted-foreground">Budget</th>
                   <th className="text-right py-3 px-2 font-medium text-muted-foreground">Faktisk</th>
+                  <th className="text-right py-3 px-2 font-medium text-muted-foreground">Inköp</th>
                   <th className="text-right py-3 px-2 font-medium text-muted-foreground">Avvikelse</th>
                   <th className="text-right py-3 px-2 font-medium text-muted-foreground">Timmar</th>
                   <th className="text-right py-3 px-2 font-medium text-muted-foreground">Personal</th>
@@ -461,6 +462,9 @@ const ProjectEconomyView: React.FC = () => {
                       </td>
                       <td className="text-right py-3 px-2">
                         {formatCurrency(project.summary.totalActual)}
+                      </td>
+                      <td className="text-right py-3 px-2 text-muted-foreground">
+                        {formatCurrency(project.summary.purchasesTotal)}
                       </td>
                       <td className={cn("text-right py-3 px-2 font-medium", getDeviationColor(status))}>
                         {project.summary.totalDeviation > 0 ? '+' : ''}
