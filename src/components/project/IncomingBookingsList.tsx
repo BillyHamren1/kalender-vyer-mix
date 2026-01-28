@@ -23,12 +23,20 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     queryKey: ['bookings-without-project'],
     queryFn: async () => {
       const allBookings = await fetchBookings();
-      // Filter bookings that are not assigned to a project
-      return allBookings.filter(b => 
-        !b.assignedToProject && 
-        b.status !== 'CANCELLED' && 
-        b.status !== 'INQUIRY'
-      );
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // Filter: only CONFIRMED, not assigned to project, and upcoming (event date >= today)
+      return allBookings.filter(b => {
+        const eventDate = b.eventDate ? new Date(b.eventDate) : null;
+        const isUpcoming = eventDate ? eventDate >= today : false;
+        
+        return (
+          b.status === 'CONFIRMED' &&
+          !b.assignedToProject &&
+          isUpcoming
+        );
+      });
     }
   });
 
@@ -99,14 +107,9 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                   )}
                   <Badge 
                     variant="secondary" 
-                    className={cn(
-                      "text-xs shrink-0",
-                      booking.status === 'CONFIRMED' && "bg-green-100 text-green-800",
-                      booking.status === 'PLANNING' && "bg-blue-100 text-blue-800"
-                    )}
+                    className="text-xs shrink-0 bg-green-100 text-green-800"
                   >
-                    {booking.status === 'CONFIRMED' ? 'Bekräftad' : 
-                     booking.status === 'PLANNING' ? 'Planering' : booking.status}
+                    Bekräftad
                   </Badge>
                 </div>
                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
