@@ -360,7 +360,7 @@ const EconomyOverview: React.FC = () => {
                 return (
                   <Link 
                     key={project.id} 
-                    to={`/project/${project.id}?tab=economy`}
+                    to={`/economy/${project.id}`}
                     className="block"
                   >
                     <div className={cn(
@@ -459,7 +459,7 @@ const EconomyOverview: React.FC = () => {
                     <tr key={project.id} className="border-b hover:bg-muted/50 transition-colors">
                       <td className="py-3 px-2">
                         <Link 
-                          to={`/project/${project.id}?tab=economy`}
+                          to={`/economy/${project.id}`}
                           className="text-primary hover:underline font-medium"
                         >
                           {project.name}
