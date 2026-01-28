@@ -1,128 +1,151 @@
 
-# Plan: Gör Warehouse Dashboard Interaktiv
+# Plan: Enkel hantering av personalinloggningar
 
-## Problemanalys
-Dashboarden visar data men saknar arbetsflöden för att **utföra åtgärder**. Användaren måste kunna agera direkt från dashboarden utan att navigera bort.
+## Sammanfattning
+Bygga ut systemet så att administratörer enkelt kan se vilka personalmedlemmar som har konto och snabbt skapa konton - antingen enskilt eller för alla på en gång.
+
+## Nuläge
+- Tabellen `staff_accounts` finns redan med kolumnerna: `id`, `staff_id`, `username`, `password_hash`, `created_at`, `updated_at`
+- Komponenten `CreateStaffAccountCard` finns på Staff Management-sidan (höger kolumn)
+- Idag måste man välja en person i taget från en dropdown och fylla i användarnamn + lösenord manuellt
+- Det finns ingen indikation på vilka som redan har konto
+- Ingen personal har konto ännu (9 aktiva medlemmar)
+
+## Planerade förbättringar
+
+### 1. Visa kontostatus i personalslistan
+Lägg till en visuell indikator på varje personalrad som visar om personen har ett konto eller inte.
+
+**Ändringar i `StaffList.tsx`:**
+- Lägg till en ikon (Key/Lock) som visar kontostatus
+- Grön check om konto finns, grå/röd om konto saknas
+
+### 2. Förbättra CreateStaffAccountCard
+Uppdatera kortet för att visa en lista över personal utan konto och ge möjlighet till:
+- Snabbskapa konto med automatiskt genererat användarnamn/lösenord
+- Bulk-skapa konton för alla utan konto
+
+**Ändringar i `CreateStaffAccountCard.tsx`:**
+- Hämta existerande konton för att filtrera bort personal som redan har konto
+- Visa en lista med personal utan konto med "Skapa konto"-knapp bredvid varje
+- Lägg till en "Skapa konton för alla"-knapp
+- Auto-generera användarnamn baserat på personalens namn (förnamn.efternamn)
+- Auto-generera ett säkert temporärt lösenord
+
+### 3. Visa kontolista och hantering
+Lägg till en ny sektion som visar alla existerande konton med möjlighet att:
+- Se användarnamn
+- Återställa lösenord
+- Ta bort konto
+
+### 4. Kontosektion på StaffDetail-sidan
+Lägg till ett nytt kort på personaldetaljsidan där man kan:
+- Se om personen har konto
+- Skapa konto direkt
+- Återställa lösenord
+- Ta bort konto
 
 ---
 
-## Del 1: Klickbara Stats-kort
+## Tekniska detaljer
 
-### Nuvarande
-Stats-korten (Kommande jobb, Aktiva packningar, Akuta packningar, Förfallna uppgifter) är endast visuella.
-
-### Åtgärd
-Gör varje stats-kort klickbart för att navigera till relevant vy:
-
-| Kort | Navigerar till |
-|------|----------------|
-| Kommande jobb | `/warehouse/calendar` (lagerkalendern) |
-| Aktiva packningar | `/warehouse/packing` (packningslistan) |
-| Akuta packningar | `/warehouse/packing?filter=urgent` |
-| Förfallna uppgifter | `/warehouse/packing?filter=overdue` |
-
-### Ändringar
-- **`WarehouseStatsRow.tsx`**: Lägg till `onClick` och `cursor-pointer` på varje kort
-- Lägg till hover-effekt för visuell feedback
-
----
-
-## Del 2: Skapa Packning från Dashboarden
-
-### 2.1 Global "Skapa Packning"-knapp
-Lägg till en knapp i headern:
+### Dataflöde
+```text
++----------------------+     +------------------+     +-------------------+
+| staff_members        | --> | staff_accounts   | --> | Tidrapporteringsappen |
+| (9 aktiva)           |     | (0 konton idag)  |     | (extern app)       |
++----------------------+     +------------------+     +-------------------+
+         |                           |
+         v                           v
+   StaffList.tsx              CreateStaffAccountCard.tsx
+   (visa kontostatus)         (skapa konton enkelt)
 ```
-[Lagerdashboard]                    [+ Ny packning] [Uppdatera]
+
+### Nya komponenter/ändringar
+
+**1. `src/components/staff/StaffAccountsPanel.tsx` (NY)**
+```
+- Lista alla personal med/utan konto
+- Snabbknappar för att skapa enskilda konton
+- Bulk-knapp: "Skapa konton för alla"
+- Visa existerande konton med hanteringsalternativ
 ```
 
-### 2.2 Skapa Packning från 7-dagars-jobb
-Lägg till en liten ikon/knapp på varje jobb-kort i tidslinjen:
-- Om packning **inte finns**: Visa `+` ikon som öppnar `BookingProductsDialog`
-- Om packning **finns**: Visa `📦` ikon som navigerar till packningen
+**2. `src/components/staff/StaffAccountCard.tsx` (NY)**
+Kort för StaffDetail-sidan med:
+- Kontostatus
+- Skapa/hantera konto-funktioner
 
-### Ändringar
-- **`WarehouseDashboard.tsx`**: Lägg till "Ny packning"-knapp och `CreatePackingWizard` state
-- **`UpcomingJobsTimeline.tsx`**: 
-  - Lägg till `onCreatePacking` callback
-  - Visa status-ikon per jobb
+**3. Uppdateringar i `StaffList.tsx`**
+- Hämta `staff_accounts` data
+- Visa Key-ikon med status (grön/grå)
 
----
+**4. Uppdateringar i `StaffDetail.tsx`**
+- Lägg till StaffAccountCard i Staff Info-vyn
 
-## Del 3: Snabbåtgärder på Uppgifter
+### Generering av inloggningsuppgifter
 
-### Nuvarande
-Man måste klicka in på packningen för att bocka av uppgifter.
-
-### Åtgärd
-Lägg till checkbox direkt på varje uppgift i "Uppgifter att åtgärda":
-
-```
-[x] Beställ material        | Imorgon
-    Bröllop Skansen         | 28 jan
-```
-
-### Ändringar
-- **`PackingTasksAttention.tsx`**: 
-  - Lägg till `Checkbox` komponent
-  - Implementera mutation för att markera uppgift som klar
-  - Uppdatera listan efter bockad uppgift
-
----
-
-## Del 4: Förbättra 7-dagars-tidslinjen
-
-### Nuvarande
-Klick på ett jobb navigerar till `/booking/{id}`.
-
-### Åtgärd
-Ändra klickbeteendet:
-1. Öppna `BookingProductsDialog` istället för att navigera
-2. Från dialogen kan man sedan välja "Visa bokning" eller "Skapa packning"
-
-### Ändringar
-- **`UpcomingJobsTimeline.tsx`**: 
-  - Lägg till `onJobClick` callback istället för `navigate`
-- **`WarehouseDashboard.tsx`**: 
-  - Lägg till `BookingProductsDialog` state
-  - Hantera klick från tidslinjen
-
----
-
-## Teknisk Sammanfattning
-
-### Nya Imports i WarehouseDashboard.tsx
+**Användarnamn-logik:**
 ```typescript
-import { useState } from "react";
-import { Plus } from "lucide-react";
-import BookingProductsDialog from "@/components/Calendar/BookingProductsDialog";
-import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
+// "Billy Hamrén" -> "billy.hamren"
+const generateUsername = (name: string) => {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')  // Ta bort accenter
+    .replace(/\s+/g, '.')              // Mellanslag -> punkt
+    .replace(/[^a-z.]/g, '');          // Behåll bara a-z och punkt
+};
 ```
 
-### Nya States
+**Lösenord-logik:**
 ```typescript
-const [showCreateWizard, setShowCreateWizard] = useState(false);
-const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
-const [showBookingDialog, setShowBookingDialog] = useState(false);
+// Generera 8-teckens säkert lösenord
+const generatePassword = () => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  return Array.from({ length: 8 }, () => 
+    chars[Math.floor(Math.random() * chars.length)]
+  ).join('');
+};
 ```
 
-### Filer som ändras
-| Fil | Ändringar |
-|-----|-----------|
-| `WarehouseDashboard.tsx` | + "Ny packning"-knapp, + Dialog-states, + Dialog-komponenter |
-| `WarehouseStatsRow.tsx` | + onClick navigering på alla kort |
-| `UpcomingJobsTimeline.tsx` | + onJobClick callback, + status-ikoner |
-| `PackingTasksAttention.tsx` | + Checkbox med mutation för att bocka av uppgifter |
+### Bulk-skapande av konton
+```typescript
+const createAccountsForAll = async (staffWithoutAccounts: StaffMember[]) => {
+  const results = [];
+  for (const staff of staffWithoutAccounts) {
+    const username = generateUsername(staff.name);
+    const password = generatePassword();
+    // Skapa konto...
+    results.push({ staff: staff.name, username, password });
+  }
+  // Visa/ladda ner lista med inloggningsuppgifter
+  return results;
+};
+```
 
-### Inga databasändringar krävs
-All funktionalitet använder befintliga tabeller och endpoints.
+### Export av inloggningsuppgifter
+När bulk-konton skapas visas en dialog med möjlighet att:
+- Kopiera alla inloggningsuppgifter
+- Ladda ner som CSV/TXT
+- Viktig varning: "Spara dessa uppgifter - lösenorden kan inte visas igen!"
 
 ---
 
-## Resultat efter implementering
+## Filer som påverkas
 
-Användaren kan direkt från dashboarden:
-1. Klicka på stats för att se relevanta listor
-2. Skapa nya packningar via knapp i header
-3. Klicka på ett kommande jobb och se produkter + skapa packning
-4. Bocka av uppgifter utan att lämna dashboarden
-5. Se tydligt vilka jobb som redan har packningar
+| Fil | Ändring |
+|-----|---------|
+| `src/components/staff/StaffAccountsPanel.tsx` | NY - Huvudpanel för kontohantering |
+| `src/components/staff/StaffAccountCard.tsx` | NY - Kontokort för StaffDetail |
+| `src/components/staff/StaffList.tsx` | UPPDATERA - Lägg till kontostatus-ikon |
+| `src/pages/StaffDetail.tsx` | UPPDATERA - Lägg till StaffAccountCard |
+| `src/pages/StaffManagement.tsx` | UPPDATERA - Ersätt CreateStaffAccountCard med StaffAccountsPanel |
+| `src/components/staff/CreateStaffAccountCard.tsx` | ERSÄTTS av StaffAccountsPanel |
+
+---
+
+## Säkerhetsnotering
+- Lösenord hashas med Base64 (befintlig implementation) 
+- **Rekommendation för framtiden**: Byt till bcrypt via edge function för säkrare hashning
+- Genererade lösenord visas endast en gång vid skapande
