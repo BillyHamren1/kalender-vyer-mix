@@ -1,13 +1,13 @@
-import { Calendar, MapPin, Users } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Calendar, MapPin, Users, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
 import { useDrop } from "react-dnd";
-import { format, addDays, startOfWeek, isSameDay } from "date-fns";
+import { format, addDays, startOfWeek, isSameDay, addWeeks, subWeeks } from "date-fns";
 import { sv } from "date-fns/locale";
 import { DRAG_TYPE_STAFF } from "./AllStaffCard";
 import { cn } from "@/lib/utils";
 import { WeekProject } from "@/services/planningDashboardService";
+import { useState } from "react";
 
 interface WeekProjectsViewProps {
   projects: WeekProject[];
@@ -17,23 +17,23 @@ interface WeekProjectsViewProps {
 
 const getEventTypeLabel = (eventType: string): string => {
   switch (eventType) {
-    case 'Rigg': return 'Rigg';
-    case 'Event': return 'Event';
-    case 'Riggdown': return 'Nedmont.';
-    default: return eventType;
+    case 'Rigg': return 'RIGG';
+    case 'Event': return 'EVENT';
+    case 'Riggdown': return 'NEDMONT';
+    default: return eventType.toUpperCase();
   }
 };
 
-const getEventTypeColor = (eventType: string): string => {
+const getEventTypeStyles = (eventType: string): string => {
   switch (eventType) {
-    case 'Rigg': return 'bg-blue-500';
-    case 'Event': return 'bg-green-500';
-    case 'Riggdown': return 'bg-orange-500';
-    default: return 'bg-primary';
+    case 'Rigg': return 'bg-blue-600 text-white';
+    case 'Event': return 'bg-emerald-600 text-white';
+    case 'Riggdown': return 'bg-amber-600 text-white';
+    default: return 'bg-muted text-foreground';
   }
 };
 
-const ProjectDropSlot = ({
+const ProjectCard = ({
   project,
   onStaffDrop
 }: {
@@ -55,50 +55,77 @@ const ProjectDropSlot = ({
     <div
       ref={drop as any}
       className={cn(
-        "p-3 rounded-lg border transition-all",
-        isOver && canDrop ? "border-primary bg-primary/10 shadow-md" : "border-border bg-card",
-        "hover:shadow-sm"
+        "group relative bg-card rounded-xl border-2 transition-all duration-200 overflow-hidden",
+        isOver && canDrop 
+          ? "border-primary shadow-lg scale-[1.02] ring-2 ring-primary/20" 
+          : "border-border/50 hover:border-border hover:shadow-md",
       )}
     >
-      {/* Header with event type and client */}
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <Badge className={cn("text-xs text-white", getEventTypeColor(project.eventType))}>
+      {/* Color bar top */}
+      <div className={cn("h-1.5 w-full", getEventTypeStyles(project.eventType))} />
+      
+      <div className="p-4">
+        {/* Header row */}
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2">
+            <span className={cn(
+              "px-2.5 py-1 rounded-md text-xs font-bold tracking-wide",
+              getEventTypeStyles(project.eventType)
+            )}>
               {getEventTypeLabel(project.eventType)}
-            </Badge>
-            {project.bookingNumber && (
-              <span className="text-xs text-muted-foreground">#{project.bookingNumber}</span>
+            </span>
+          </div>
+          {project.bookingNumber && (
+            <span className="text-sm font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded">
+              #{project.bookingNumber}
+            </span>
+          )}
+        </div>
+        
+        {/* Client name */}
+        <h4 className="font-semibold text-base text-foreground mb-2 line-clamp-1">
+          {project.client}
+        </h4>
+        
+        {/* Address */}
+        {project.deliveryAddress && (
+          <div className="flex items-start gap-2 text-sm text-muted-foreground mb-3">
+            <MapPin className="w-4 h-4 shrink-0 mt-0.5" />
+            <span className="line-clamp-2">{project.deliveryAddress}</span>
+          </div>
+        )}
+        
+        {/* Assigned staff section */}
+        <div className="pt-3 border-t border-border/50">
+          <div className="flex items-center gap-2 mb-2">
+            <Users className="w-4 h-4 text-muted-foreground" />
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Personal
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap min-h-[28px]">
+            {project.assignedStaff.length === 0 ? (
+              <span className={cn(
+                "text-sm italic px-3 py-1.5 rounded-lg border-2 border-dashed transition-colors",
+                isOver && canDrop 
+                  ? "border-primary text-primary bg-primary/5" 
+                  : "border-muted-foreground/30 text-muted-foreground/60"
+              )}>
+                Dra personal hit...
+              </span>
+            ) : (
+              project.assignedStaff.map(s => (
+                <span 
+                  key={s.id} 
+                  className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground text-sm font-medium py-1 px-2.5 rounded-md"
+                >
+                  <span className="w-2 h-2 rounded-full bg-primary-foreground/30" />
+                  {s.name.split(' ')[0]}
+                </span>
+              ))
             )}
           </div>
-          <h4 className="font-semibold text-sm truncate">{project.client}</h4>
         </div>
-      </div>
-      
-      {/* Address */}
-      {project.deliveryAddress && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
-          <MapPin className="w-3 h-3 shrink-0" />
-          <span className="truncate">{project.deliveryAddress}</span>
-        </div>
-      )}
-      
-      {/* Assigned staff */}
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <Users className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-        {project.assignedStaff.length === 0 ? (
-          <span className="text-xs text-muted-foreground/60 italic">Dra personal hit</span>
-        ) : (
-          project.assignedStaff.map(s => (
-            <Badge 
-              key={s.id} 
-              variant="default"
-              className="text-xs py-0 px-1.5"
-            >
-              {s.name.split(' ')[0]}
-            </Badge>
-          ))
-        )}
       </div>
     </div>
   );
@@ -116,35 +143,55 @@ const DayColumn = ({
   const isToday = isSameDay(date, new Date());
   const isPast = date < new Date() && !isToday;
   const dayProjects = projects.filter(p => isSameDay(p.date, date));
+  const dayName = format(date, 'EEEE', { locale: sv });
+  const dayNumber = format(date, 'd');
+  const monthName = format(date, 'MMM', { locale: sv });
 
   return (
     <div className={cn(
-      "border rounded-lg p-3 min-h-[200px] flex flex-col",
-      isToday ? "border-primary bg-primary/5" : "border-border",
-      isPast ? "opacity-60" : ""
+      "flex flex-col min-w-[220px]",
+      isPast && "opacity-50"
     )}>
       {/* Day header */}
-      <div className="flex items-center justify-between mb-3">
-        <span className={cn(
-          "text-base font-semibold",
-          isToday ? "text-primary" : ""
-        )}>
-          {format(date, 'EEE d/M', { locale: sv })}
-        </span>
+      <div className={cn(
+        "rounded-t-xl px-4 py-3 text-center border-b-2",
+        isToday 
+          ? "bg-primary text-primary-foreground border-primary" 
+          : "bg-muted/80 text-foreground border-border"
+      )}>
+        <div className="text-xs font-medium uppercase tracking-wider opacity-80">
+          {dayName}
+        </div>
+        <div className="flex items-baseline justify-center gap-1.5 mt-0.5">
+          <span className="text-2xl font-bold">{dayNumber}</span>
+          <span className="text-sm font-medium opacity-70">{monthName}</span>
+        </div>
         {isToday && (
-          <Badge variant="default" className="text-xs">Idag</Badge>
+          <div className="mt-1">
+            <span className="text-[10px] font-bold bg-primary-foreground/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
+              Idag
+            </span>
+          </div>
         )}
       </div>
       
-      {/* Projects list */}
-      <div className="flex-1 space-y-2">
+      {/* Projects container */}
+      <div className={cn(
+        "flex-1 bg-muted/30 rounded-b-xl p-3 space-y-3 min-h-[300px]",
+        isToday && "bg-primary/5 ring-2 ring-primary/10"
+      )}>
         {dayProjects.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-sm text-muted-foreground/50 italic">
-            Inga bokningar
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center py-8">
+              <Calendar className="w-8 h-8 mx-auto text-muted-foreground/30 mb-2" />
+              <span className="text-sm text-muted-foreground/50">
+                Inga jobb
+              </span>
+            </div>
           </div>
         ) : (
           dayProjects.map(project => (
-            <ProjectDropSlot 
+            <ProjectCard 
               key={`${project.bookingId}-${project.eventType}`}
               project={project}
               onStaffDrop={onStaffDrop}
@@ -157,32 +204,80 @@ const DayColumn = ({
 };
 
 const WeekProjectsView = ({ projects, isLoading, onStaffDrop }: WeekProjectsViewProps) => {
-  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => 
+    startOfWeek(new Date(), { weekStartsOn: 1 })
+  );
+  
+  const days = Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i));
+  const weekNumber = format(currentWeekStart, 'w');
+  const monthYear = format(currentWeekStart, 'MMMM yyyy', { locale: sv });
+
+  const goToPreviousWeek = () => setCurrentWeekStart(prev => subWeeks(prev, 1));
+  const goToNextWeek = () => setCurrentWeekStart(prev => addWeeks(prev, 1));
+  const goToCurrentWeek = () => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Calendar className="w-5 h-5 text-primary" />
-          Veckoplanering - Bokningar & Personal
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ScrollArea className="w-full">
-          <div className="grid grid-cols-7 gap-3 min-w-[900px]">
-            {days.map(day => (
-              <DayColumn 
-                key={day.toISOString()}
-                date={day}
-                projects={projects}
-                onStaffDrop={onStaffDrop}
-              />
-            ))}
+    <div className="bg-card rounded-2xl shadow-xl border overflow-hidden">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-primary to-primary/80 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="p-2 bg-primary-foreground/10 rounded-lg">
+              <Calendar className="w-6 h-6 text-primary-foreground" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-primary-foreground">
+                Vecka {weekNumber}
+              </h2>
+              <p className="text-primary-foreground/70 text-sm capitalize">
+                {monthYear}
+              </p>
+            </div>
           </div>
-        </ScrollArea>
-      </CardContent>
-    </Card>
+          
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={goToPreviousWeek}
+              className="text-primary-foreground hover:bg-primary-foreground/10"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={goToCurrentWeek}
+              className="text-primary-foreground hover:bg-primary-foreground/10 text-xs font-medium"
+            >
+              Idag
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={goToNextWeek}
+              className="text-primary-foreground hover:bg-primary-foreground/10"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </Button>
+          </div>
+        </div>
+      </div>
+      
+      {/* Week grid */}
+      <div className="p-4 overflow-x-auto">
+        <div className="grid grid-cols-7 gap-3 min-w-[1200px]">
+          {days.map(day => (
+            <DayColumn 
+              key={day.toISOString()}
+              date={day}
+              projects={projects}
+              onStaffDrop={onStaffDrop}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
   );
 };
 
