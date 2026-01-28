@@ -170,8 +170,8 @@ const DayColumn = ({
     )}>
       {/* Day header */}
       <div className={cn(
-        "rounded-t-xl px-4 py-3 text-center border border-b-0",
-        isToday ? "bg-primary/5 border-border/50" : "bg-card border-border/50"
+        "rounded-t-xl px-4 py-3 text-center border border-b-0 bg-muted/50",
+        isToday ? "border-border/50" : "border-border/50"
       )}>
         {/* Thin teal line for today */}
         {isToday && (
