@@ -358,29 +358,6 @@ export const StaffEconomyView: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Inactive Staff */}
-      {inactiveStaff.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-muted-foreground">
-              <Users className="w-5 h-5" />
-              Personal utan registrerad tid ({inactiveStaff.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {inactiveStaff.map(staff => (
-                <Link key={staff.id} to={`/staff/${staff.id}`}>
-                  <Badge variant="outline" className="hover:bg-muted cursor-pointer">
-                    {staff.name}
-                    {staff.role && <span className="ml-1 text-muted-foreground">({staff.role})</span>}
-                  </Badge>
-                </Link>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 };
