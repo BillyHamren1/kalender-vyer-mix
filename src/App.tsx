@@ -79,6 +79,8 @@ const AppContent = () => {
               <Route path="/projects" element={<MainSystemLayout><ProjectManagement /></MainSystemLayout>} />
               <Route path="/project/:projectId" element={<MainSystemLayout><ProjectDetail /></MainSystemLayout>} />
               <Route path="/economy" element={<MainSystemLayout><EconomyOverview /></MainSystemLayout>} />
+              <Route path="/economy/projects" element={<MainSystemLayout><EconomyOverview view="projects" /></MainSystemLayout>} />
+              <Route path="/economy/staff" element={<MainSystemLayout><EconomyOverview view="staff" /></MainSystemLayout>} />
               <Route path="/economy/:id" element={<MainSystemLayout><ProjectEconomyDetail /></MainSystemLayout>} />
 
               {/* Warehouse System Routes */}

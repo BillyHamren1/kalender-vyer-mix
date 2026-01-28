@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -15,8 +15,7 @@ import {
   Users, 
   ArrowRight,
   CheckCircle2,
-  AlertCircle,
-  Briefcase
+  AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { calculateEconomySummary } from '@/services/projectEconomyService';
@@ -497,36 +496,23 @@ const ProjectEconomyView: React.FC = () => {
   );
 };
 
-const EconomyOverview: React.FC = () => {
+interface EconomyOverviewProps {
+  view?: 'projects' | 'staff';
+}
+
+const EconomyOverview: React.FC<EconomyOverviewProps> = ({ view = 'projects' }) => {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">Ekonomiöversikt</h1>
-        <p className="text-muted-foreground">Översikt över projekt- och personalekonomi</p>
+        <p className="text-muted-foreground">
+          {view === 'projects' ? 'Översikt över projektekonomi' : 'Översikt över personalekonomi'}
+        </p>
       </div>
 
-      {/* Tabs for Project vs Staff Economy */}
-      <Tabs defaultValue="projects" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="projects" className="flex items-center gap-2">
-            <Briefcase className="w-4 h-4" />
-            Projekt
-          </TabsTrigger>
-          <TabsTrigger value="staff" className="flex items-center gap-2">
-            <Users className="w-4 h-4" />
-            Personal
-          </TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="projects" className="mt-6">
-          <ProjectEconomyView />
-        </TabsContent>
-        
-        <TabsContent value="staff" className="mt-6">
-          <StaffEconomyView />
-        </TabsContent>
-      </Tabs>
+      {/* Content based on view */}
+      {view === 'projects' ? <ProjectEconomyView /> : <StaffEconomyView />}
     </div>
   );
 };
