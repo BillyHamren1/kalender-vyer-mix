@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { format, startOfDay, endOfDay, subDays } from "date-fns";
+import { format, startOfDay, endOfDay, subDays, addDays, startOfWeek } from "date-fns";
 
 // Staff with location and status
 export interface StaffLocation {
@@ -23,6 +23,29 @@ export interface AvailableStaff {
   color: string | null;
   role: string | null;
   availabilityType: string;
+}
+
+// All staff with active status
+export interface AllStaffMember {
+  id: string;
+  name: string;
+  color: string | null;
+  role: string | null;
+  isActive: boolean;
+  currentTeam: string | null;
+  currentTeamName: string | null;
+}
+
+// Day assignment for drop zones
+export interface DayAssignment {
+  date: Date;
+  teamId: string;
+  teamName: string;
+  staff: Array<{
+    id: string;
+    name: string;
+    color: string | null;
+  }>;
 }
 
 // Ongoing project summary
@@ -59,6 +82,20 @@ export interface PlanningStats {
   upcomingRigs: number;
 }
 
+const teamNames: Record<string, string> = {
+  'team-1': 'Team 1',
+  'team-2': 'Team 2',
+  'team-3': 'Team 3',
+  'team-4': 'Team 4',
+  'team-5': 'Team 5',
+  'team-6': 'Team 6',
+  'team-7': 'Team 7',
+  'team-8': 'Team 8',
+  'team-9': 'Team 9',
+  'team-10': 'Team 10',
+  'team-11': 'Live'
+};
+
 export const fetchPlanningStats = async (): Promise<PlanningStats> => {
   const today = format(new Date(), 'yyyy-MM-dd');
   const todayStart = startOfDay(new Date()).toISOString();
@@ -87,6 +124,132 @@ export const fetchPlanningStats = async (): Promise<PlanningStats> => {
     completedToday: timeReportsResult.count || 0,
     upcomingRigs: upcomingRigsResult.count || 0
   };
+};
+
+// Fetch all staff with active status and current team assignment
+export const fetchAllStaff = async (): Promise<AllStaffMember[]> => {
+  const today = format(new Date(), 'yyyy-MM-dd');
+
+  const { data: allStaff, error: staffError } = await supabase
+    .from('staff_members')
+    .select('id, name, color, role, is_active')
+    .order('name');
+
+  if (staffError) {
+    console.error('Error fetching all staff:', staffError);
+    return [];
+  }
+
+  // Get today's assignments
+  const { data: assignments } = await supabase
+    .from('staff_assignments')
+    .select('staff_id, team_id')
+    .eq('assignment_date', today);
+
+  const assignmentMap = new Map(assignments?.map(a => [a.staff_id, a.team_id]) || []);
+
+  return (allStaff || []).map(staff => ({
+    id: staff.id,
+    name: staff.name,
+    color: staff.color,
+    role: staff.role,
+    isActive: staff.is_active,
+    currentTeam: assignmentMap.get(staff.id) || null,
+    currentTeamName: assignmentMap.has(staff.id) ? teamNames[assignmentMap.get(staff.id)!] || null : null
+  }));
+};
+
+// Toggle staff active status
+export const toggleStaffActive = async (staffId: string, isActive: boolean): Promise<void> => {
+  const { error } = await supabase
+    .from('staff_members')
+    .update({ is_active: isActive } as any)
+    .eq('id', staffId);
+
+  if (error) {
+    console.error('Error updating staff active status:', error);
+    throw error;
+  }
+};
+
+// Fetch week assignments for drop zones
+export const fetchWeekAssignments = async (): Promise<DayAssignment[]> => {
+  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+  const weekEnd = addDays(weekStart, 6);
+  
+  const startStr = format(weekStart, 'yyyy-MM-dd');
+  const endStr = format(weekEnd, 'yyyy-MM-dd');
+
+  const { data: assignments, error } = await supabase
+    .from('staff_assignments')
+    .select(`
+      staff_id,
+      team_id,
+      assignment_date,
+      staff_members (
+        id,
+        name,
+        color
+      )
+    `)
+    .gte('assignment_date', startStr)
+    .lte('assignment_date', endStr);
+
+  if (error) {
+    console.error('Error fetching week assignments:', error);
+    return [];
+  }
+
+  // Group by date and team
+  const groupedMap = new Map<string, DayAssignment>();
+
+  (assignments || []).forEach(a => {
+    const key = `${a.assignment_date}-${a.team_id}`;
+    const staffMember = a.staff_members as any;
+    
+    if (!groupedMap.has(key)) {
+      groupedMap.set(key, {
+        date: new Date(a.assignment_date),
+        teamId: a.team_id,
+        teamName: teamNames[a.team_id] || a.team_id,
+        staff: []
+      });
+    }
+    
+    groupedMap.get(key)!.staff.push({
+      id: staffMember.id,
+      name: staffMember.name,
+      color: staffMember.color
+    });
+  });
+
+  return Array.from(groupedMap.values());
+};
+
+// Assign staff to team on specific date
+export const assignStaffToDay = async (staffId: string, teamId: string, date: Date): Promise<void> => {
+  const dateStr = format(date, 'yyyy-MM-dd');
+
+  // First remove any existing assignment for this staff on this date
+  await supabase
+    .from('staff_assignments')
+    .delete()
+    .eq('staff_id', staffId)
+    .eq('assignment_date', dateStr);
+
+  // Create new assignment
+  const { error } = await supabase
+    .from('staff_assignments')
+    .insert({
+      staff_id: staffId,
+      team_id: teamId,
+      assignment_date: dateStr
+    });
+
+  if (error) {
+    console.error('Error assigning staff:', error);
+    throw error;
+  }
 };
 
 export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
