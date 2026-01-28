@@ -93,9 +93,10 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
           {bookings.map(booking => (
             <div 
               key={booking.id}
-              className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+              className="grid grid-cols-[1fr_auto_auto] items-center gap-4 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
             >
-              <div className="flex-1 min-w-0 mr-4">
+              {/* Left column: Client info */}
+              <div className="min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <h4 className="font-medium text-foreground truncate">
                     {booking.client}
@@ -113,7 +114,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                   </Badge>
                 </div>
                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                  <span className="flex items-center gap-1">
+                  <span className="flex items-center gap-1 w-28 shrink-0">
                     <Calendar className="w-3.5 h-3.5" />
                     {formatDate(booking.eventDate)}
                   </span>
@@ -125,25 +126,25 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onCreateJob(booking.id)}
-                  className="gap-1.5"
-                >
-                  <Briefcase className="w-4 h-4" />
-                  Jobb
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => onCreateProject(booking.id)}
-                  className="gap-1.5"
-                >
-                  <FolderKanban className="w-4 h-4" />
-                  Projekt
-                </Button>
-              </div>
+
+              {/* Right column: Actions */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onCreateJob(booking.id)}
+                className="gap-1.5 w-24"
+              >
+                <Briefcase className="w-4 h-4" />
+                Jobb
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => onCreateProject(booking.id)}
+                className="gap-1.5 w-24"
+              >
+                <FolderKanban className="w-4 h-4" />
+                Projekt
+              </Button>
             </div>
           ))}
         </div>
