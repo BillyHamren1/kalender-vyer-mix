@@ -56,6 +56,8 @@ export interface ProjectWithBooking extends Project {
     id: string;
     client: string;
     eventdate: string | null;
+    rigdaydate: string | null;
+    rigdowndate: string | null;
     deliveryaddress: string | null;
     contact_name: string | null;
     contact_phone: string | null;
