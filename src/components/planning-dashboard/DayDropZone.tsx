@@ -133,12 +133,8 @@ const TeamDropSlot = ({
           staff.map(s => (
             <Badge 
               key={s.id} 
-              variant="secondary" 
-              className="text-sm py-0.5 px-2 font-medium text-white"
-              style={{ 
-                backgroundColor: s.color || 'hsl(var(--primary))',
-                borderColor: s.color || undefined
-              }}
+              variant="default"
+              className="text-sm py-0.5 px-2 font-medium"
             >
               {s.name.split(' ')[0]}
             </Badge>
