@@ -1,151 +1,235 @@
 
-# Plan: Enkel hantering av personalinloggningar
+# Plan: Komplett API för Tidrapporteringsappen
+
+## Bakgrund
+
+Tidrapporteringsappen behöver ett säkert och komplett API för att:
+1. **Autentisera personal** via `staff_accounts`
+2. **Skapa tidrapporter** som kopplas till rätt bokning/projekt
+3. **Hantera utlägg (purchases)** med kvittobilder
+4. **Skapa kommentarer** i projekt
+5. **Ladda upp bilder/filer** till projekt
+
+## Dataflöde
+
+```text
++-------------------+         +----------------------+         +------------------+
+| Tidrapporteringsapp| ------> | mobile-app-api       | ------> | Supabase DB      |
+| (Mobilapp)        |         | (Edge Function)      |         |                  |
++-------------------+         +----------------------+         +------------------+
+       |                              |                               |
+       | 1. Login                     | Validerar staff_accounts      |
+       | 2. Hämta bokningar           | Filtrerar på schemalagda      |
+       | 3. Skapa tidrapport          | Sparar i time_reports         |
+       | 4. Skapa utlägg              | Sparar i project_purchases    |
+       | 5. Ladda upp bild            | Sparar i project-files bucket |
+       | 6. Skapa kommentar           | Sparar i project_comments     |
+```
+
+## API-struktur
+
+### Autentisering
+
+| Endpoint | Metod | Beskrivning |
+|----------|-------|-------------|
+| `/login` | POST | Logga in med username/password, returnerar session token |
+| `/me` | GET | Hämta nuvarande användares info (kräver token) |
+
+### Tidrapporter
+
+| Endpoint | Metod | Beskrivning |
+|----------|-------|-------------|
+| `/bookings` | GET | Hämta bokningar personalen är schemalagd på |
+| `/time-reports` | POST | Skapa ny tidrapport |
+| `/time-reports` | GET | Hämta egna tidrapporter |
+
+### Projekt & Ekonomi
+
+| Endpoint | Metod | Beskrivning |
+|----------|-------|-------------|
+| `/projects/{booking_id}` | GET | Hämta projekt kopplat till bokning |
+| `/purchases` | POST | Skapa nytt utlägg med kvittobild |
+| `/comments` | POST | Skapa kommentar i projekt |
+| `/files` | POST | Ladda upp fil/bild till projekt |
+
+---
+
+## Teknisk implementation
+
+### 1. Ny Edge Function: `mobile-app-api`
+
+Skapar en ny edge function som hanterar alla endpoints för mobilappen:
+
+```
+supabase/functions/mobile-app-api/index.ts
+```
+
+### 2. Autentiseringslogik
+
+- Validerar `username` + `password_hash` mot `staff_accounts`
+- Genererar en enkel session-token (Base64 av staff_id + timestamp + secret)
+- Verifierar token vid varje anrop
+
+### 3. Kopplingen Bokning → Projekt
+
+Systemet hittar rätt projekt automatiskt:
+
+1. Personal loggar in → får `staff_id`
+2. Hämtar bokningar från `booking_staff_assignments` där `staff_id` matchar
+3. Vid tidrapport: `booking_id` sparas i `time_reports`
+4. Projektet hittas via `projects.booking_id = time_reports.booking_id`
+
+### 4. Utlägg med kvittobild
+
+1. Mobilappen skickar bild som base64
+2. Edge function laddar upp till `project-files` bucket
+3. Skapar post i `project_purchases` med `receipt_url`
+
+### 5. Kommentarer
+
+- Sparas i `project_comments` med `project_id`, `author_name`, `content`
+
+### 6. Filuppladdning
+
+- Sparas i `project_files` med koppling till projekt
+- Bilder laddas upp till befintlig `project-files` storage bucket
+
+---
+
+## Ändringar i detta system (admin-webben)
+
+### Kommentarer i projektvyn
+
+- Befintlig `ProjectComments.tsx` fungerar redan
+- Inga ändringar behövs - kommentarer synkroniseras automatiskt
+
+### Utlägg/kvitton
+
+- Befintlig `PurchasesList.tsx` visar redan utlägg
+- Lägg till visning av kvittobild om `receipt_url` finns
+
+### Projektfiler
+
+- Befintlig `ProjectFiles.tsx` visar redan filer
+- Bilder uppladdade från appen syns automatiskt
+
+---
+
+## Filer som skapas/ändras
+
+| Fil | Åtgärd |
+|-----|--------|
+| `supabase/functions/mobile-app-api/index.ts` | **SKAPAS** - Ny edge function |
+| `supabase/config.toml` | **ÄNDRAS** - Lägg till konfiguration |
+| `src/components/project/PurchasesList.tsx` | **ÄNDRAS** - Visa kvittobild |
+
+---
+
+## JSON-format för API-anrop
+
+### Login
+```json
+POST /mobile-app-api
+{
+  "action": "login",
+  "data": {
+    "username": "andris.sergejevs",
+    "password": "lösenord123"
+  }
+}
+```
+
+### Hämta bokningar
+```json
+POST /mobile-app-api
+{
+  "action": "get_bookings",
+  "token": "eyJ..."
+}
+```
+
+### Skapa tidrapport
+```json
+POST /mobile-app-api
+{
+  "action": "create_time_report",
+  "token": "eyJ...",
+  "data": {
+    "booking_id": "abc-123",
+    "report_date": "2026-01-28",
+    "start_time": "07:00",
+    "end_time": "16:00",
+    "hours_worked": 8,
+    "overtime_hours": 0,
+    "break_time": 1,
+    "description": "Rigg och byggnation"
+  }
+}
+```
+
+### Skapa utlägg med kvitto
+```json
+POST /mobile-app-api
+{
+  "action": "create_purchase",
+  "token": "eyJ...",
+  "data": {
+    "booking_id": "abc-123",
+    "description": "Skruvar och material",
+    "amount": 450,
+    "supplier": "Bauhaus",
+    "category": "material",
+    "receipt_image": "data:image/jpeg;base64,/9j/4AAQ..."
+  }
+}
+```
+
+### Ladda upp projektbild
+```json
+POST /mobile-app-api
+{
+  "action": "upload_file",
+  "token": "eyJ...",
+  "data": {
+    "booking_id": "abc-123",
+    "file_name": "rigg-foto.jpg",
+    "file_type": "image/jpeg",
+    "file_data": "data:image/jpeg;base64,/9j/4AAQ..."
+  }
+}
+```
+
+### Skapa kommentar
+```json
+POST /mobile-app-api
+{
+  "action": "create_comment",
+  "token": "eyJ...",
+  "data": {
+    "booking_id": "abc-123",
+    "content": "Leverans framflyttad till kl 10"
+  }
+}
+```
+
+---
+
+## Säkerhet
+
+1. **Token-baserad autentisering** - Varje anrop kräver giltig token
+2. **Verifiering av staff_id** - Personal kan bara se sina egna bokningar
+3. **Filvalidering** - Endast tillåtna filtyper (bilder, PDF)
+4. **Storleksbegränsning** - Max 10MB per fil
+
+---
 
 ## Sammanfattning
-Bygga ut systemet så att administratörer enkelt kan se vilka personalmedlemmar som har konto och snabbt skapa konton - antingen enskilt eller för alla på en gång.
 
-## Nuläge
-- Tabellen `staff_accounts` finns redan med kolumnerna: `id`, `staff_id`, `username`, `password_hash`, `created_at`, `updated_at`
-- Komponenten `CreateStaffAccountCard` finns på Staff Management-sidan (höger kolumn)
-- Idag måste man välja en person i taget från en dropdown och fylla i användarnamn + lösenord manuellt
-- Det finns ingen indikation på vilka som redan har konto
-- Ingen personal har konto ännu (9 aktiva medlemmar)
+Denna plan skapar ett komplett API som:
 
-## Planerade förbättringar
-
-### 1. Visa kontostatus i personalslistan
-Lägg till en visuell indikator på varje personalrad som visar om personen har ett konto eller inte.
-
-**Ändringar i `StaffList.tsx`:**
-- Lägg till en ikon (Key/Lock) som visar kontostatus
-- Grön check om konto finns, grå/röd om konto saknas
-
-### 2. Förbättra CreateStaffAccountCard
-Uppdatera kortet för att visa en lista över personal utan konto och ge möjlighet till:
-- Snabbskapa konto med automatiskt genererat användarnamn/lösenord
-- Bulk-skapa konton för alla utan konto
-
-**Ändringar i `CreateStaffAccountCard.tsx`:**
-- Hämta existerande konton för att filtrera bort personal som redan har konto
-- Visa en lista med personal utan konto med "Skapa konto"-knapp bredvid varje
-- Lägg till en "Skapa konton för alla"-knapp
-- Auto-generera användarnamn baserat på personalens namn (förnamn.efternamn)
-- Auto-generera ett säkert temporärt lösenord
-
-### 3. Visa kontolista och hantering
-Lägg till en ny sektion som visar alla existerande konton med möjlighet att:
-- Se användarnamn
-- Återställa lösenord
-- Ta bort konto
-
-### 4. Kontosektion på StaffDetail-sidan
-Lägg till ett nytt kort på personaldetaljsidan där man kan:
-- Se om personen har konto
-- Skapa konto direkt
-- Återställa lösenord
-- Ta bort konto
-
----
-
-## Tekniska detaljer
-
-### Dataflöde
-```text
-+----------------------+     +------------------+     +-------------------+
-| staff_members        | --> | staff_accounts   | --> | Tidrapporteringsappen |
-| (9 aktiva)           |     | (0 konton idag)  |     | (extern app)       |
-+----------------------+     +------------------+     +-------------------+
-         |                           |
-         v                           v
-   StaffList.tsx              CreateStaffAccountCard.tsx
-   (visa kontostatus)         (skapa konton enkelt)
-```
-
-### Nya komponenter/ändringar
-
-**1. `src/components/staff/StaffAccountsPanel.tsx` (NY)**
-```
-- Lista alla personal med/utan konto
-- Snabbknappar för att skapa enskilda konton
-- Bulk-knapp: "Skapa konton för alla"
-- Visa existerande konton med hanteringsalternativ
-```
-
-**2. `src/components/staff/StaffAccountCard.tsx` (NY)**
-Kort för StaffDetail-sidan med:
-- Kontostatus
-- Skapa/hantera konto-funktioner
-
-**3. Uppdateringar i `StaffList.tsx`**
-- Hämta `staff_accounts` data
-- Visa Key-ikon med status (grön/grå)
-
-**4. Uppdateringar i `StaffDetail.tsx`**
-- Lägg till StaffAccountCard i Staff Info-vyn
-
-### Generering av inloggningsuppgifter
-
-**Användarnamn-logik:**
-```typescript
-// "Billy Hamrén" -> "billy.hamren"
-const generateUsername = (name: string) => {
-  return name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')  // Ta bort accenter
-    .replace(/\s+/g, '.')              // Mellanslag -> punkt
-    .replace(/[^a-z.]/g, '');          // Behåll bara a-z och punkt
-};
-```
-
-**Lösenord-logik:**
-```typescript
-// Generera 8-teckens säkert lösenord
-const generatePassword = () => {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  return Array.from({ length: 8 }, () => 
-    chars[Math.floor(Math.random() * chars.length)]
-  ).join('');
-};
-```
-
-### Bulk-skapande av konton
-```typescript
-const createAccountsForAll = async (staffWithoutAccounts: StaffMember[]) => {
-  const results = [];
-  for (const staff of staffWithoutAccounts) {
-    const username = generateUsername(staff.name);
-    const password = generatePassword();
-    // Skapa konto...
-    results.push({ staff: staff.name, username, password });
-  }
-  // Visa/ladda ner lista med inloggningsuppgifter
-  return results;
-};
-```
-
-### Export av inloggningsuppgifter
-När bulk-konton skapas visas en dialog med möjlighet att:
-- Kopiera alla inloggningsuppgifter
-- Ladda ner som CSV/TXT
-- Viktig varning: "Spara dessa uppgifter - lösenorden kan inte visas igen!"
-
----
-
-## Filer som påverkas
-
-| Fil | Ändring |
-|-----|---------|
-| `src/components/staff/StaffAccountsPanel.tsx` | NY - Huvudpanel för kontohantering |
-| `src/components/staff/StaffAccountCard.tsx` | NY - Kontokort för StaffDetail |
-| `src/components/staff/StaffList.tsx` | UPPDATERA - Lägg till kontostatus-ikon |
-| `src/pages/StaffDetail.tsx` | UPPDATERA - Lägg till StaffAccountCard |
-| `src/pages/StaffManagement.tsx` | UPPDATERA - Ersätt CreateStaffAccountCard med StaffAccountsPanel |
-| `src/components/staff/CreateStaffAccountCard.tsx` | ERSÄTTS av StaffAccountsPanel |
-
----
-
-## Säkerhetsnotering
-- Lösenord hashas med Base64 (befintlig implementation) 
-- **Rekommendation för framtiden**: Byt till bcrypt via edge function för säkrare hashning
-- Genererade lösenord visas endast en gång vid skapande
+- Låter tidrapporteringsappen logga in personal säkert
+- Visar endast de bokningar personalen är schemalagd på
+- Sparar tidrapporter kopplade till rätt bokning/projekt
+- Hanterar utlägg med kvittobilder
+- Möjliggör kommentarer och filuppladdning direkt i projektet
+- Synkroniserar all data med admin-webben i realtid
