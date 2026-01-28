@@ -67,15 +67,15 @@ const UnopenedBookingsCard = ({ bookings, isLoading }: UnopenedBookingsCardProps
         ) : (
           <div className="max-h-[200px] overflow-y-auto">
             {bookings.map((booking, index) => (
-              <div
+              <button
                 key={booking.id}
                 onClick={() => handleClick(booking.id)}
-                className={`flex items-center gap-2 px-3 py-2 hover:bg-accent cursor-pointer transition-colors ${
+                className={`flex items-center gap-2 px-3 py-2 hover:bg-accent cursor-pointer transition-colors w-full text-left ${
                   index !== bookings.length - 1 ? 'border-b border-border' : ''
                 }`}
               >
                 {/* Booking number badge */}
-                <Badge variant="secondary" className="text-xs shrink-0 font-mono">
+                <Badge className="text-xs shrink-0 font-mono bg-primary text-primary-foreground">
                   #{booking.bookingNumber || '—'}
                 </Badge>
                 
@@ -90,7 +90,7 @@ const UnopenedBookingsCard = ({ bookings, isLoading }: UnopenedBookingsCardProps
                     {format(parseISO(booking.eventDate), "d/M", { locale: sv })}
                   </span>
                 )}
-              </div>
+              </button>
             ))}
           </div>
         )}
