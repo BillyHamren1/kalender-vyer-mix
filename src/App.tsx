@@ -18,6 +18,7 @@ import BookingDetail from "./pages/BookingDetail";
 import BookingList from "./pages/BookingList";
 import ProjectManagement from "./pages/ProjectManagement";
 import ProjectDetail from "./pages/ProjectDetail";
+import EconomyOverview from "./pages/EconomyOverview";
 import NotFound from "./pages/NotFound";
 
 // Warehouse system pages
@@ -76,6 +77,7 @@ const AppContent = () => {
               <Route path="/booking-list" element={<MainSystemLayout><BookingList /></MainSystemLayout>} />
               <Route path="/projects" element={<MainSystemLayout><ProjectManagement /></MainSystemLayout>} />
               <Route path="/project/:projectId" element={<MainSystemLayout><ProjectDetail /></MainSystemLayout>} />
+              <Route path="/economy" element={<MainSystemLayout><EconomyOverview /></MainSystemLayout>} />
 
               {/* Warehouse System Routes */}
               <Route path="/warehouse" element={<WarehouseSystemLayout><WarehouseDashboard /></WarehouseSystemLayout>} />

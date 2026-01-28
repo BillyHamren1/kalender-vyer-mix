@@ -6,13 +6,15 @@ import {
   FolderKanban,
   ChevronLeft,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  PieChart
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navigationItems = [
   { title: "Personalplanering", url: "/calendar", icon: Calendar },
   { title: "Projekthantering", url: "/projects", icon: FolderKanban },
+  { title: "Ekonomiöversikt", url: "/economy", icon: PieChart },
   { title: "Personaladministration", url: "/staff-management", icon: Users },
 ];
 
