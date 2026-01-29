@@ -1,20 +1,20 @@
 
 /* Unified Calendar Styles for both Weekly and Monthly Views */
-.weekly-view-container,
+
+/* Weekly view uses 3D carousel - no overflow clipping! */
+.weekly-view-container {
+  width: 100%;
+  overflow: visible;
+  position: relative;
+}
+
 .monthly-grid-container {
   width: 100%;
   overflow-x: auto;
   position: relative;
 }
 
-/* Unified Calendar Styles for both Weekly and Monthly Views */
-.weekly-view-container,
-.monthly-grid-container {
-  width: 100%;
-  overflow-x: auto;
-  position: relative;
-}
-
+/* Legacy weekly calendar container - kept for compatibility */
 .weekly-calendar-container {
   min-width: 1400px;
   width: 100%;
