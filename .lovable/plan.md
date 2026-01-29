@@ -1,118 +1,69 @@
 
-# 3D Karusell-Kalender - Implementering
+## Modern Personalvisning - Alla Synliga, Clean Design
 
-## Analys av problemet
+### Problem
+- Personal renderas med gammaldags klumpiga boxar (`p-2 border border-gray-200 rounded-md`)
+- Staff-raden har fast höjd (60px) som gör att det blir trångt
+- Wrapping av badges ser kladdigt ut när det blir många
 
-Den tidigare implementeringen missade helt rätt fil. 3D-karusellkoden lades till i `UnifiedResourceCalendar.tsx`, men:
+### Lösning: Dynamisk Höjd + Moderna Pills
 
-- **Rutt `/calendar`** (Personalplanering) → använder `CustomCalendarPage` → `CustomCalendar.tsx`
-- **Rutt `/warehouse/calendar`** → använder `WarehouseCalendarPage` → `CustomCalendar.tsx`
+#### Designprinciper
+- **Visa ALL personal** - ingen dold information
+- **Moderna pill-badges** - rounded-full, mindre padding, subtila shadows
+- **Dynamisk höjd** - raden växer efter behov istället för fast höjd
+- **Bättre layout** - jämn grid/flex med konsekvent spacing
+- **Subtil hover-effekt** - X-knapp visas bara vid hover per badge
 
-`UnifiedResourceCalendar.tsx` används INTE av någon av dessa rutter. Därför ser du exakt samma vy som tidigare - koden finns men aktiveras aldrig.
+---
 
-## Lösning
+### Visuell förändring
 
-Implementera 3D-karusellen direkt i **`CustomCalendar.tsx`** som faktiskt används av båda kalendersidorna.
-
-## Teknisk plan
-
-### 1. Uppdatera `CustomCalendar.tsx`
-
-**Lägg till:**
-- Import av `Carousel3DStyles.css`
-- State för `centerIndex` (vilken dag som är i fokus)
-- Logik för att sätta dagens datum (idag) som default center
-- `getPositionFromCenter`-funktion
-- Scroll-hjul-hantering
-- Navigation med pilknappar
-
-**Ändra renderingen:**
-```tsx
-// Från:
-<div className="weekly-calendar-container overflow-x-auto p-4">
-  <div className="weekly-calendar-grid flex gap-4">
-    {days.map(...)}
-  </div>
-</div>
-
-// Till:
-<div className="carousel-3d-wrapper">
-  <button className="carousel-3d-nav nav-left">...</button>
-  <button className="carousel-3d-nav nav-right">...</button>
-  
-  <div className="carousel-3d-container">
-    {days.map((date, index) => {
-      const position = getPositionFromCenter(index);
-      return (
-        <div 
-          className="carousel-3d-card"
-          data-position={position}
-          onClick={() => handleDayCardClick(index)}
-        >
-          <TimeGrid ... />
-        </div>
-      );
-    })}
-  </div>
-  
-  <div className="carousel-3d-indicators">...</div>
-</div>
+**Före:**
+```
+┌─────────────────────────────────────┐
+│ 6 staff                             │
+│ ┌────────┐ ┌────────┐ ┌────────┐   │  ← Klumpiga boxar med borders
+│ │ Billy  │ │ Joel   │ │ Andris │   │
+│ └────────┘ └────────┘ └────────┘   │
+│ ┌────────┐ ┌────────┐ ┌────────┐   │  ← Trångt, fult
+│ │ Lisa   │ │ Erik   │ │ Maria  │   │
+│ └────────┘ └────────┘ └────────┘   │
+└─────────────────────────────────────┘
 ```
 
-### 2. Uppdatera `Carousel3DStyles.css`
-
-Justera dimensionerna för att passa den befintliga `TimeGrid`-komponenten:
-- Kortbredd baseras på antal synliga team
-- Höjd anpassas till TimeGrid's höjd
-- Se till att overflow är visible på alla föräldrar
-
-### 3. Sätt "idag" som centerdag
-
-Logik för att hitta vilken index som motsvarar dagens datum:
-```tsx
-const getTodayIndex = () => {
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
-  const index = days.findIndex(d => format(d, 'yyyy-MM-dd') === todayStr);
-  return index >= 0 ? index : 3; // Fallback till mitten
-};
-
-const [centerIndex, setCenterIndex] = useState(getTodayIndex());
+**Efter:**
+```
+┌───────────────────────────────────────────────────┐
+│  Billy   Joel   Andris   Lisa   Erik   Maria      │  ← Eleganta pills på en/flera rader
+│                                                   │     Raden växer efter behov
+└───────────────────────────────────────────────────┘
 ```
 
-### 4. Stöd för båda systemen
+---
 
-Eftersom både Personalplanering och Warehouse använder `CustomCalendar`, fungerar 3D-karusellen automatiskt i båda. Amber-temat för Warehouse hanteras redan via `variant`-prop.
+### Tekniska ändringar
 
-## Filer att ändra
+#### 1. StaffAssignmentArea.tsx
+- Byt från `variant="assigned"` till `variant="compact"` för att få moderna pill-badges
+
+#### 2. TimeGrid.css - Staff Assignment Row
+- Ta bort `height: 60px` → `min-height: 50px` med `height: auto`
+- Ta bort `max-height: 54px` på staff-listan
+- Låt raden växa dynamiskt baserat på innehåll
+- Uppdatera padding och gap för bättre spacing
+
+#### 3. StaffItem.tsx - Finjustera compact variant
+- Minska padding till `px-2.5 py-0.5` för tightare pills
+- Använd `text-[11px]` för lite mindre text
+- Behåll moderna hover-effekter och X-knapp
+
+---
+
+### Sammanfattning av filer som ändras
 
 | Fil | Ändring |
 |-----|---------|
-| `src/components/Calendar/CustomCalendar.tsx` | Implementera 3D-karusell-logik och rendering |
-| `src/components/Calendar/Carousel3DStyles.css` | Justera dimensioner för TimeGrid |
-
-## Funktionalitet
-
-- **Idag i mitten**: Dagens datum centreras automatiskt (om det finns i veckan)
-- **Klick på sidokort**: Roterar till center
-- **Pilknappar**: Stegar igenom dagarna
-- **Scroll-hjul**: Roterar karusellen horisontellt
-- **Indikatordottar**: Visar vilken dag som är i fokus
-
-## Visuell effekt
-
-```
-        ┌─────────┐
-       /           \
-   ┌──┐    IDAG    ┌──┐
-  /    \  ┌─────┐  /    \
-┌─┐ Mån │ │ Ons │ │ Fre ┌─┐
-│Sö│    └─────────┘    │Lör│
-└─┘       │       │     └─┘
-   \      └───────┘      /
-    └─── roterade ───┘
-```
-
-- **Centerdag (idag)**: Full storlek, z-index 50, ingen rotation
-- **±1 dag**: 85% storlek, 25° rotation, z-index 40
-- **±2 dagar**: 70% storlek, 45° rotation, z-index 30
-- **±3 dagar**: 55% storlek, 60° rotation, z-index 20
+| `StaffAssignmentArea.tsx` | Byt till `variant="compact"` |
+| `TimeGrid.css` | Dynamisk höjd, ta bort max-height |
+| `StaffItem.tsx` | Mindre/tightare pill-design |
