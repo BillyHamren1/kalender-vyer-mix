@@ -67,7 +67,7 @@ export interface WeekProject {
   }>;
 }
 
-// Ongoing project summary
+// Ongoing project summary (projects that are "out" - between rig and rigdown)
 export interface OngoingProject {
   id: string;
   name: string;
@@ -80,6 +80,7 @@ export interface OngoingProject {
   completedTasks: number;
   progress: number;
   rigDate: string | null;
+  rigdownDate: string | null;
 }
 
 // Completed work today
@@ -420,6 +421,9 @@ export const fetchAvailableStaff = async (): Promise<AvailableStaff[]> => {
 };
 
 export const fetchOngoingProjects = async (): Promise<OngoingProject[]> => {
+  const today = format(new Date(), 'yyyy-MM-dd');
+  
+  // Fetch projects that are "out" - between rigdaydate and rigdowndate
   const { data: projects, error: projectsError } = await supabase
     .from('projects')
     .select(`
@@ -432,21 +436,35 @@ export const fetchOngoingProjects = async (): Promise<OngoingProject[]> => {
         client,
         eventdate,
         rigdaydate,
+        rigdowndate,
         deliveryaddress
       )
     `)
     .neq('status', 'completed')
-    .order('updated_at', { ascending: false })
-    .limit(10);
+    .order('updated_at', { ascending: false });
 
   if (projectsError) {
     console.error('Error fetching projects:', projectsError);
     return [];
   }
 
+  // Filter to only projects that are currently "out" (between rig and rigdown dates)
+  const filteredProjects = (projects || []).filter(project => {
+    const booking = project.bookings as any;
+    if (!booking) return false;
+    
+    const rigDate = booking.rigdaydate;
+    const rigdownDate = booking.rigdowndate || booking.eventdate; // fallback to event date
+    
+    if (!rigDate) return false;
+    
+    // Project is "out" if today is >= rigDate and <= rigdownDate
+    return today >= rigDate && (rigdownDate ? today <= rigdownDate : true);
+  });
+
   // Get task counts
   const projectsWithTasks = await Promise.all(
-    (projects || []).map(async (project) => {
+    filteredProjects.map(async (project) => {
       const { data: tasks } = await supabase
         .from('project_tasks')
         .select('id, completed')
@@ -468,7 +486,8 @@ export const fetchOngoingProjects = async (): Promise<OngoingProject[]> => {
         totalTasks,
         completedTasks,
         progress,
-        rigDate: booking?.rigdaydate || null
+        rigDate: booking?.rigdaydate || null,
+        rigdownDate: booking?.rigdowndate || null
       };
     })
   );
