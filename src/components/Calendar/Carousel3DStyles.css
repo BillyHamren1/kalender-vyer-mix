@@ -13,7 +13,7 @@
   position: relative;
   width: 100%;
   flex: 1;
-  min-height: 500px;
+  min-height: 0; /* Allow flex shrinking */
   perspective: 1800px;
   perspective-origin: 50% 50%;
   overflow: visible;
@@ -38,8 +38,7 @@
   position: absolute;
   width: var(--card-width, 450px);
   height: calc(100% - 60px); /* Fyll wrapper minus padding för indikatorer */
-  min-height: 450px;
-  max-height: 850px;
+  min-height: 0;
   transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   transform-style: preserve-3d;
   cursor: pointer;

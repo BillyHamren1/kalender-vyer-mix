@@ -198,7 +198,7 @@ const CustomCalendarPage = () => {
 
   return (
     <TooltipProvider>
-        <div className="min-h-screen bg-gray-50">
+        <div className="h-screen flex flex-col bg-muted/30">
           {/* Navigation with view toggle */}
           <WeekNavigation
             currentWeekStart={currentWeekStart}
@@ -209,8 +209,8 @@ const CustomCalendarPage = () => {
             onMonthChange={handleMonthChange}
           />
 
-          {/* Content */}
-          <div className="p-6">
+          {/* Content - flex-1 to fill remaining space */}
+          <div className="flex-1 min-h-0 p-4">
             {viewMode === 'weekly' ? (
               <>
                 {isMobile ? (
