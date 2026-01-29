@@ -85,7 +85,6 @@ const ProjectManagement = () => {
       <div className="mb-8">
         <IncomingBookingsList 
           onCreateProject={handleCreateProject}
-          onCreateJob={handleCreateJob}
         />
       </div>
 

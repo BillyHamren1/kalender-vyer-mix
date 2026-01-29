@@ -1,5 +1,5 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,20 +7,20 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Inbox, Calendar, MapPin, FolderKanban, Briefcase } from 'lucide-react';
 import { fetchBookings } from '@/services/bookingService';
+import { createJobFromBooking } from '@/services/jobService';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface IncomingBookingsListProps {
   onCreateProject: (bookingId: string) => void;
-  onCreateJob: (bookingId: string) => void;
 }
 
 export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
-  onCreateProject,
-  onCreateJob
+  onCreateProject
 }) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ['bookings-without-project'],
     queryFn: async () => {
@@ -39,6 +39,20 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
           isUpcoming
         );
       });
+    }
+  });
+
+  const createJobMutation = useMutation({
+    mutationFn: createJobFromBooking,
+    onSuccess: (job) => {
+      queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      toast.success('Jobb skapat');
+      navigate(`/jobs/${job.id}`);
+    },
+    onError: (error) => {
+      toast.error('Kunde inte skapa jobb');
+      console.error('Error creating job:', error);
     }
   });
 
@@ -136,7 +150,8 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => onCreateJob(booking.id)}
+                onClick={() => createJobMutation.mutate(booking.id)}
+                disabled={createJobMutation.isPending}
                 className="gap-1.5 w-24"
               >
                 <Briefcase className="w-4 h-4" />

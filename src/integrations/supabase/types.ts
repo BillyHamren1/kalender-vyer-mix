@@ -344,6 +344,72 @@ export type Database = {
           },
         ]
       }
+      job_staff_assignments: {
+        Row: {
+          assignment_date: string
+          created_at: string
+          id: string
+          job_id: string
+          staff_id: string
+        }
+        Insert: {
+          assignment_date: string
+          created_at?: string
+          id?: string
+          job_id: string
+          staff_id: string
+        }
+        Update: {
+          assignment_date?: string
+          created_at?: string
+          id?: string
+          job_id?: string
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_staff_assignments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_staff_assignments_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jobs: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          id: string
+          name: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       packing_budget: {
         Row: {
           budgeted_hours: number
