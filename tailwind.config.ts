@@ -69,6 +69,23 @@ export default {
 					dark: 'hsl(var(--warehouse-dark))',
 					muted: 'hsl(var(--warehouse-muted))',
 					accent: 'hsl(var(--warehouse-accent))'
+				},
+				planning: {
+					rig: {
+						DEFAULT: 'hsl(var(--planning-rig) / <alpha-value>)',
+						border: 'hsl(var(--planning-rig-border) / <alpha-value>)',
+						foreground: 'hsl(var(--planning-rig-foreground) / <alpha-value>)'
+					},
+					event: {
+						DEFAULT: 'hsl(var(--planning-event) / <alpha-value>)',
+						border: 'hsl(var(--planning-event-border) / <alpha-value>)',
+						foreground: 'hsl(var(--planning-event-foreground) / <alpha-value>)'
+					},
+					rigdown: {
+						DEFAULT: 'hsl(var(--planning-rigdown) / <alpha-value>)',
+						border: 'hsl(var(--planning-rigdown-border) / <alpha-value>)',
+						foreground: 'hsl(var(--planning-rigdown-foreground) / <alpha-value>)'
+					}
 				}
 			},
 			borderRadius: {

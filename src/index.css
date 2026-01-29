@@ -66,6 +66,19 @@
     --warehouse-dark: 32 95% 40%;
     --warehouse-muted: 43 96% 90%;
     --warehouse-accent: 45 93% 47%;
+
+    /* === PLANNING DASHBOARD EVENT TYPES (HSL tokens) === */
+    --planning-rig: 88 85% 93%;
+    --planning-rig-border: 88 45% 78%;
+    --planning-rig-foreground: 88 35% 22%;
+
+    --planning-event: 50 97% 90%;
+    --planning-event-border: 50 55% 76%;
+    --planning-event-foreground: 50 40% 22%;
+
+    --planning-rigdown: 8 90% 92%;
+    --planning-rigdown-border: 8 60% 78%;
+    --planning-rigdown-foreground: 8 45% 22%;
   }
 
   .dark {
@@ -104,6 +117,19 @@
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Planning dashboard tokens (dark) */
+    --planning-rig: 88 35% 18%;
+    --planning-rig-border: 88 30% 28%;
+    --planning-rig-foreground: 88 60% 90%;
+
+    --planning-event: 50 35% 18%;
+    --planning-event-border: 50 30% 28%;
+    --planning-event-foreground: 50 70% 90%;
+
+    --planning-rigdown: 8 40% 18%;
+    --planning-rigdown-border: 8 35% 28%;
+    --planning-rigdown-foreground: 8 70% 90%;
   }
 }
 

@@ -16,41 +16,62 @@ interface WeekProjectsViewProps {
   onStaffDrop: (staffId: string, bookingId: string, date: Date) => Promise<void>;
 }
 
+type PlanningEventTypeKey = 'rig' | 'event' | 'rigdown' | 'other';
+
+const normalizePlanningEventType = (eventType: string): PlanningEventTypeKey => {
+  const t = (eventType ?? '').trim().toLowerCase();
+
+  // Accept multiple sources/labels (e.g. "Rigg", "RIG", "Montering")
+  if (t === 'rigg' || t === 'rig' || t.includes('monter')) return 'rig';
+  if (t === 'event') return 'event';
+  if (t === 'riggdown' || t === 'rigdown' || t.includes('nedmont') || t.includes('demonter')) return 'rigdown';
+
+  return 'other';
+};
+
 const getEventTypeLabel = (eventType: string): string => {
-  switch (eventType) {
-    case 'Rigg': return 'RIG';
-    case 'Event': return 'EVENT';
-    case 'Riggdown': return 'NEDMONT';
-    default: return eventType.toUpperCase();
+  const key = normalizePlanningEventType(eventType);
+  switch (key) {
+    case 'rig':
+      return 'RIG';
+    case 'event':
+      return 'EVENT';
+    case 'rigdown':
+      return 'RIGDOWN';
+    default:
+      return (eventType ?? '').toUpperCase();
   }
 };
 
-// Uses same colors as calendar: Rig (green), Event (yellow), Rigdown (red)
-const getEventTypeStyles = (eventType: string): { badge: string; bar: string; bg: string } => {
-  switch (eventType) {
-    case 'Rigg': 
-      return { 
-        badge: 'bg-[#F2FCE2] text-green-800 border border-green-300 font-bold', 
-        bar: 'bg-green-400',
-        bg: 'bg-[#F2FCE2]/30'
+const getEventTypeStyles = (
+  eventType: string
+): { badgeClass: string; cardBgClass: string; cardBorderClass: string } => {
+  const key = normalizePlanningEventType(eventType);
+
+  switch (key) {
+    case 'rig':
+      return {
+        badgeClass: 'bg-planning-rig text-planning-rig-foreground border border-planning-rig-border font-bold',
+        cardBgClass: 'bg-planning-rig/35',
+        cardBorderClass: 'border-planning-rig-border/60'
       };
-    case 'Event': 
-      return { 
-        badge: 'bg-[#FEF7CD] text-amber-800 border border-amber-300 font-bold', 
-        bar: 'bg-amber-400',
-        bg: 'bg-[#FEF7CD]/30'
+    case 'event':
+      return {
+        badgeClass: 'bg-planning-event text-planning-event-foreground border border-planning-event-border font-bold',
+        cardBgClass: 'bg-planning-event/35',
+        cardBorderClass: 'border-planning-event-border/60'
       };
-    case 'Riggdown': 
-      return { 
-        badge: 'bg-[#FEE2E2] text-red-800 border border-red-300 font-bold', 
-        bar: 'bg-red-400',
-        bg: 'bg-[#FEE2E2]/30'
+    case 'rigdown':
+      return {
+        badgeClass: 'bg-planning-rigdown text-planning-rigdown-foreground border border-planning-rigdown-border font-bold',
+        cardBgClass: 'bg-planning-rigdown/35',
+        cardBorderClass: 'border-planning-rigdown-border/60'
       };
-    default: 
-      return { 
-        badge: 'bg-muted text-foreground border border-border', 
-        bar: 'bg-muted',
-        bg: 'bg-muted/20'
+    default:
+      return {
+        badgeClass: 'bg-muted text-foreground border border-border',
+        cardBgClass: 'bg-muted/20',
+        cardBorderClass: 'border-border/60'
       };
   }
 };
@@ -80,10 +101,11 @@ const ProjectCard = ({
       ref={drop as any}
       className={cn(
         "group relative rounded-lg border transition-all duration-200 overflow-hidden",
-        styles.bg,
+        styles.cardBgClass,
+        styles.cardBorderClass,
         isOver && canDrop 
           ? "border-primary shadow-lg scale-[1.02] ring-2 ring-primary/20" 
-          : "border-border/60 hover:border-primary/50 hover:shadow-sm",
+          : "hover:border-primary/50 hover:shadow-sm",
       )}
     >
       {/* Compact content */}
@@ -92,7 +114,7 @@ const ProjectCard = ({
         <div className="flex items-center gap-2 mb-1.5">
           <span className={cn(
             "px-2 py-0.5 rounded text-[10px] tracking-wide",
-            styles.badge
+            styles.badgeClass
           )}>
             {getEventTypeLabel(project.eventType)}
           </span>
