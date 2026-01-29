@@ -188,25 +188,34 @@ const JobDetail = () => {
                       <span className="text-right text-sm">{job.booking.deliveryAddress}</span>
                     </div>
                   )}
-                  <div className="pt-2 border-t">
-                    <h4 className="text-sm font-medium mb-2">Datum</h4>
-                    <div className="space-y-1 text-sm">
+                  <div className="pt-3 border-t">
+                    <h4 className="text-sm font-medium mb-3">Datum</h4>
+                    <div className="space-y-2">
                       {job.booking.rigDayDate && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Rigg</span>
-                          <span>{formatDate(job.booking.rigDayDate)}</span>
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 border border-green-200">
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-green-600 text-white text-xs">RIGG</Badge>
+                            <span className="text-sm font-medium text-green-800">Montering</span>
+                          </div>
+                          <span className="text-sm font-medium text-green-700">{formatDate(job.booking.rigDayDate)}</span>
                         </div>
                       )}
                       {job.booking.eventDate && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Event</span>
-                          <span>{formatDate(job.booking.eventDate)}</span>
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-yellow-50 border border-yellow-200">
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-yellow-600 text-white text-xs">EVENT</Badge>
+                            <span className="text-sm font-medium text-yellow-800">Eventdag</span>
+                          </div>
+                          <span className="text-sm font-medium text-yellow-700">{formatDate(job.booking.eventDate)}</span>
                         </div>
                       )}
                       {job.booking.rigDownDate && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Nedmontering</span>
-                          <span>{formatDate(job.booking.rigDownDate)}</span>
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-red-50 border border-red-200">
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-red-600 text-white text-xs">NEDMONT</Badge>
+                            <span className="text-sm font-medium text-red-800">Demontering</span>
+                          </div>
+                          <span className="text-sm font-medium text-red-700">{formatDate(job.booking.rigDownDate)}</span>
                         </div>
                       )}
                     </div>
