@@ -1,85 +1,235 @@
 
-Målet är att när du avbokar i externa systemet så ska vår app (via `import-bookings`) uppdatera bokningen lokalt till `CANCELLED` och därmed:
-1) ta bort ev. kalender-events kopplade till bokningen
-2) inte visa bokningen som “ny/oöppnad” i dashboarden
+# 3D Karusell-Kalender
 
-Jag kan redan se i dina nätverksloggar exakt varför “inget händer” just nu:
-- `POST /functions/v1/import-bookings` svarar med `cancelled_bookings_skipped: ["190895cc-b4ee-43a9-be69-200eac620087"]`
-- direkt efter hämtar dashboarden oöppnade bokningar och får tillbaka samma bokning med `status:"CONFIRMED"`
-Det betyder: avbokningen kommer in i syncen, men edge-funktionen hoppar över CANCELLED innan den ens tittar på om bokningen finns lokalt och därför uppdateras varken `bookings.status` eller kalendern.
+## Översikt
+Skapa en interaktiv 3D-karusell för kalendern där den **centrerade dagen** visas i full storlek och i fokus, medan dagarna på sidorna är **mindre och roterade bakåt** i perspektiv. Detta skapar en känsla av att alla 7 dagar i veckan "roterar" runt en cirkel.
 
-## Del A — Fix i Edge Function: processa CANCELLED om bokningen redan finns
-### Fil: `supabase/functions/import-bookings/index.ts`
+## Visuell Effekt
 
-1) Ändra ordningen i loopen:
-   - Idag gör vi:
-     - läsa `bookingStatus`
-     - om `CANCELLED` => `continue` (skip)
-     - först därefter leta upp `existingBooking`
-   - Vi ska istället:
-     - läsa `bookingStatus`
-     - leta upp `existingBooking` (via `existingBookingMap` / booking_number-map)
-     - om `bookingStatus === CANCELLED` och `existingBooking` finns:
-       - behandla som status-uppdatering (inte skip)
-       - uppdatera lokala raden i `bookings` till `CANCELLED`
-       - rensa kalender-events för `booking_id`
-     - om `bookingStatus === CANCELLED` och `existingBooking` INTE finns:
-       - behåll dagens beteende: skip (vi vill inte importera “nya” avbokade bokningar)
+```text
+          ┌─────────┐
+         /           \
+     ┌──┐             ┌──┐
+    /    \    TODAY   /    \
+┌─┐ │ -1 │  ┌─────┐  │ +1 │ ┌─┐
+│-2│      │ │FULL │ │      │ │+2│
+└─┘       └─────────┘       └─┘
+   \                         /
+    └─── stackade bakom ───┘
+```
 
-2) Status-normalisering i edge-funktionen (för robusthet):
-   - Införa en liten `normalizeStatus()` i edge-funktionen (samma princip som vi gjorde i frontend) och använd den för:
-     - `statusChanged`
-     - `wasConfirmed` / `isNowConfirmed`
-   - Detta gör att historiska värden (t.ex. “Bekräftad” / “Confirmed”) fortfarande triggar borttag när status blir CANCELLED.
+**Centerdag (index 3):**
+- Full storlek (scale: 1.0)
+- Ingen rotation (rotateY: 0deg)
+- Längst fram (z-index: 50)
+- Ingen opacitet-reduktion
 
-3) Kalender-rensning vid “CONFIRMED -> ej CONFIRMED”:
-   - Behåll den logik vi redan la in, men basera `wasConfirmed/isNowConfirmed` på normaliserade statusar.
-   - Säkerställ att rensningen körs även för CANCELLED (som idag aldrig når hit pga early-skip).
+**Dag ±1 från center:**
+- Lite mindre (scale: 0.85)
+- Lätt roterade (rotateY: ±25deg)
+- Bakom center (z-index: 40)
+- Lätt reducerad opacitet (0.9)
 
-4) Logging + resultatobjekt:
-   - Lägg tydliga loggar:
-     - “CANCELLED booking exists locally → updating status + removing calendar events”
-     - “CANCELLED booking does not exist → skipping”
-   - (Valfritt men bra) lägg till en ny result-lista typ `cancelled_bookings_processed` för att kunna se i svaret att den faktiskt hanterades (istället för att hamna i `cancelled_bookings_skipped`).
+**Dag ±2 från center:**
+- Ännu mindre (scale: 0.7)
+- Mer roterade (rotateY: ±45deg)
+- Längre bak (z-index: 30)
+- Mer reducerad opacitet (0.75)
 
-## Del B — Dashboard: “Nya oöppnade bokningar” ska inte lista CANCELLED/DRAFT
-Just nu saknar queryn status-filter och tar allt som `viewed=false` + har datum i framtiden, vilket gör att avbokade (och även DRAFT) kan ligga kvar.
+**Dag ±3 (kantdagar):**
+- Minst (scale: 0.55)
+- Mest roterade (rotateY: ±60deg)
+- Längst bak (z-index: 20)
+- Mest reducerad opacitet (0.6)
 
-### Fil: `src/services/planningDashboardService.ts`
-1) Uppdatera `fetchUnopenedBookings()`:
-   - Lägg till status-filter så listan bara visar relevanta “nya”:
-     - exempel: `.eq('status', 'CONFIRMED')`
-   - Då kommer avbokade automatiskt försvinna från listan när status väl uppdateras till `CANCELLED`.
+## Teknisk Implementation
 
-(Om ni i framtiden vill visa “nya men ej bekräftade” i en separat lista kan vi göra det, men detta fixar exakt det du klagar på nu: att avbokade ligger kvar och skräpar.)
+### 1. Ny CSS-fil: `Carousel3DStyles.css`
+```css
+.carousel-3d-wrapper {
+  perspective: 2000px;
+  perspective-origin: 50% 50%;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
 
-## Del C — Dashboard uppdateras direkt när man öppnar en bokning (snabb UX)
-Du nämner också att bokningar “ligger kvar där hela tiden” även efter att man öppnat dem. Vi har logik som sätter `viewed=true` när man öppnar bokningen, men dashboarden uppdateras på polling (30s) och invalidation saknas i den flödespunkten.
+.carousel-3d-container {
+  transform-style: preserve-3d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  position: relative;
+}
 
-### Fil: `src/hooks/booking/useBookingFetch.tsx`
-1) När `markBookingAsViewed(id)` lyckas:
-   - använd React Query’s `useQueryClient()` och kör:
-     - `queryClient.invalidateQueries({ queryKey: ['planning-dashboard','unopened-bookings'] })`
-   - Resultat: listan uppdateras direkt när man öppnar en bokning (inte “någon gång senare”).
+.carousel-3d-card {
+  position: absolute;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: center center;
+  backface-visibility: hidden;
+}
 
-## Testplan (så vi vet att det funkar på riktigt)
-1) I externa systemet: avboka bokning `190895cc-b4ee-43a9-be69-200eac620087` (eller annan testbokning).
-2) Kör sync/import i appen (eller vänta på background import).
-3) Verifiera att `import-bookings`-svaret nu visar att bokningen hanterats (inte “skipped”) och att `bookings.status` blir `CANCELLED`.
-4) Verifiera att:
-   - bokningen försvinner från “Nya oöppnade bokningar” (pga status-filter +/eller viewed invalidation)
-   - event (om det finns) försvinner från `calendar_events` och `warehouse_calendar_events`
-5) Kolla edge function logs för “removing calendar events” loggar.
+/* Center card - full size, in front */
+.carousel-3d-card[data-position="0"] {
+  transform: translateZ(100px) scale(1);
+  z-index: 50;
+  opacity: 1;
+}
 
-## Filer som kommer ändras
-- `supabase/functions/import-bookings/index.ts` (huvudfixen: CANCELLED får inte short-circuit-skippas om den redan finns lokalt)
-- `src/services/planningDashboardService.ts` (filter: endast CONFIRMED i oöppnade-listan)
-- `src/hooks/booking/useBookingFetch.tsx` (invalidate planning-dashboard query efter `viewed=true`)
+/* Adjacent cards ±1 */
+.carousel-3d-card[data-position="1"] {
+  transform: translateX(350px) rotateY(-25deg) scale(0.85);
+  z-index: 40;
+  opacity: 0.9;
+}
+.carousel-3d-card[data-position="-1"] {
+  transform: translateX(-350px) rotateY(25deg) scale(0.85);
+  z-index: 40;
+  opacity: 0.9;
+}
 
-## Risker / Edge-cases
-- Om externa systemet skickar CANCELLED men vi aldrig haft bokningen lokalt: vi fortsätter att skippa (avsiktligt).
-- Om en bokning varit CONFIRMED och hade events, men status blivit CANCELLED: vi tar bort events deterministiskt via `booking_id`.
-- Dashboard-listan kommer bli “renare”: DRAFT och CANCELLED syns inte längre som “nya oöppnade” (vilket matchar din feedback).
+/* Cards ±2 */
+.carousel-3d-card[data-position="2"] {
+  transform: translateX(550px) rotateY(-45deg) scale(0.7);
+  z-index: 30;
+  opacity: 0.75;
+}
+.carousel-3d-card[data-position="-2"] {
+  transform: translateX(-550px) rotateY(45deg) scale(0.7);
+  z-index: 30;
+  opacity: 0.75;
+}
 
-## Efter implementation (snabb kontroll)
-- Jag länkar även till Supabase Edge Function logs för `import-bookings` så du snabbt kan se om en CANCELLED faktiskt processas och rensar events.
+/* Edge cards ±3 */
+.carousel-3d-card[data-position="3"] {
+  transform: translateX(680px) rotateY(-60deg) scale(0.55);
+  z-index: 20;
+  opacity: 0.6;
+}
+.carousel-3d-card[data-position="-3"] {
+  transform: translateX(-680px) rotateY(60deg) scale(0.55);
+  z-index: 20;
+  opacity: 0.6;
+}
+```
+
+### 2. Uppdatera `UnifiedResourceCalendar.tsx`
+
+**Ny state och logik:**
+```tsx
+// Center index - vald dag (default: mittendagen, index 3 för måndag-söndag)
+const [centerIndex, setCenterIndex] = useState(3);
+
+// Beräkna relativ position för varje dag
+const getPositionFromCenter = (dayIndex: number) => {
+  return dayIndex - centerIndex;
+};
+
+// Hantera dag-klick för att flytta fokus
+const handleDayCardClick = (dayIndex: number) => {
+  setCenterIndex(dayIndex);
+};
+```
+
+**Uppdaterad rendering:**
+```tsx
+<div className="carousel-3d-wrapper">
+  <div className="carousel-3d-container">
+    {days.map((date, index) => {
+      const position = getPositionFromCenter(index);
+      const clampedPosition = Math.max(-3, Math.min(3, position));
+      
+      return (
+        <div
+          key={format(date, 'yyyy-MM-dd')}
+          className="carousel-3d-card day-card"
+          data-position={clampedPosition}
+          onClick={() => handleDayCardClick(index)}
+          style={{
+            width: '550px', // Fast bredd för alla kort
+            cursor: position !== 0 ? 'pointer' : 'default'
+          }}
+        >
+          <ResourceCalendar ... />
+        </div>
+      );
+    })}
+  </div>
+</div>
+```
+
+### 3. Navigation med pilknappar
+
+Lägg till navigationsknappar direkt på karusellen:
+
+```tsx
+{/* Vänster pil */}
+<Button
+  className="absolute left-4 z-60 bg-primary/90 hover:bg-primary"
+  onClick={() => setCenterIndex(prev => Math.max(0, prev - 1))}
+  disabled={centerIndex === 0}
+>
+  <ChevronLeft />
+</Button>
+
+{/* Höger pil */}
+<Button
+  className="absolute right-4 z-60 bg-primary/90 hover:bg-primary"
+  onClick={() => setCenterIndex(prev => Math.min(days.length - 1, prev + 1))}
+  disabled={centerIndex === days.length - 1}
+>
+  <ChevronRight />
+</Button>
+```
+
+### 4. Scroll-interaktion (valfritt)
+
+Möjlighet att använda scroll-hjul för att rotera karusellen:
+
+```tsx
+const handleWheel = useCallback((e: WheelEvent) => {
+  if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+    e.preventDefault();
+    if (e.deltaX > 50) {
+      setCenterIndex(prev => Math.min(days.length - 1, prev + 1));
+    } else if (e.deltaX < -50) {
+      setCenterIndex(prev => Math.max(0, prev - 1));
+    }
+  }
+}, [days.length]);
+```
+
+## Filer att Ändra
+
+| Fil | Ändring |
+|-----|---------|
+| `src/components/Calendar/Carousel3DStyles.css` | **NY FIL** - All 3D CSS |
+| `src/components/Calendar/UnifiedResourceCalendar.tsx` | Lägg till 3D-karusell-logik, state för centerIndex, rendering med data-position |
+| `src/components/Calendar/WeeklyCalendarStyles.css` | Ta bort gammalt horisontellt scroll-layout |
+
+## Interaktion
+
+1. **Klick på sidokort** → Kortet roterar till center, alla andra justeras
+2. **Navigations-pilar** → Stegar igenom dagarna en i taget
+3. **Vecko-navigation** → Behåller samma funktionalitet för att byta vecka
+4. **Scroll-hjul** → Roterar karusellen vänster/höger
+
+## Fördelar
+
+- **Alla dagar synliga** - Inga dagar är "långt utanför skärmen"
+- **Fokus på aktuell dag** - Tydlig visuell hierarki
+- **Smooth animations** - 3D-transforms ger mjuka övergångar
+- **Touch-vänlig** - Klicka på kort för att fokusera
+- **Minnesvärd UX** - Unik och modern kalenderupplevelse
+
+## Tekniska Detaljer
+
+- Använder CSS `transform-style: preserve-3d` för äkta 3D
+- `perspective` på wrapper för djupkänsla
+- `backface-visibility: hidden` för att dölja baksidor
+- Cubic-bezier easing för naturliga animationer
+- `z-index` baserad på position för korrekt överlappning
