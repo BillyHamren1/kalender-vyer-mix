@@ -286,7 +286,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                     variant={variant}
                     isEventReadOnly={isEventReadOnly}
                     onEventClick={onEventClick}
-                    fullWidth={false}
+                    fullWidth={true}
                   />
                 </div>
               </div>
