@@ -320,20 +320,17 @@ serve(async (req) => {
       try {
         results.total++
 
-        // FILTER OUT CANCELLED BOOKINGS - DO NOT IMPORT THEM AT ALL (unless historical import)
-        const bookingStatus = (externalBooking.status || 'PENDING').toUpperCase()
-        if (bookingStatus === 'CANCELLED' && !isHistoricalImport) {
-          console.log(`Skipping CANCELLED booking: ${externalBooking.id}`)
-          results.cancelled_bookings_skipped.push(externalBooking.id)
-          continue
-        }
+// Normalize status for consistent comparison
+        const normalizeStatus = (status: string | null | undefined): string => {
+          const s = (status || 'PENDING').toString().trim().toUpperCase();
+          if (s === 'BEKRÄFTAD' || s === 'CONFIRMED') return 'CONFIRMED';
+          if (s === 'AVBOKAD' || s === 'CANCELLED') return 'CANCELLED';
+          return s;
+        };
 
-        // For historical imports, log but still process cancelled bookings
-        if (bookingStatus === 'CANCELLED' && isHistoricalImport) {
-          console.log(`Historical mode: Processing CANCELLED booking: ${externalBooking.id}`)
-        }
+        const bookingStatus = normalizeStatus(externalBooking.status);
 
-        // Check for existing booking
+        // Check for existing booking FIRST (before deciding to skip CANCELLED)
         const existingById = existingBookingMap.get(externalBooking.id)
         let existingByNumber = null
         
@@ -347,6 +344,68 @@ serve(async (req) => {
           console.log(`DUPLICATE DETECTED: Booking number ${externalBooking.booking_number} already exists with different ID. Skipping import of ${externalBooking.id}`)
           results.duplicates_skipped.push(externalBooking.id)
           continue
+        }
+
+        // Handle CANCELLED bookings - process if exists locally, skip if new
+        if (bookingStatus === 'CANCELLED' && !isHistoricalImport) {
+          if (existingBooking) {
+            // Existing booking is now CANCELLED - we need to update and remove calendar events
+            console.log(`CANCELLED booking ${externalBooking.id} exists locally → updating status and removing calendar events`)
+            
+            // Update booking status to CANCELLED
+            const { error: updateError } = await supabase
+              .from('bookings')
+              .update({
+                status: 'CANCELLED',
+                version: (existingBooking.version || 1) + 1,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', existingBooking.id)
+            
+            if (updateError) {
+              console.error(`Error updating CANCELLED booking:`, updateError)
+              results.errors.push({ booking_id: existingBooking.id, error: updateError.message })
+              results.failed++
+            } else {
+              // Remove calendar events for this booking
+              const { error: deleteCalError } = await supabase
+                .from('calendar_events')
+                .delete()
+                .eq('booking_id', existingBooking.id)
+              
+              if (deleteCalError) {
+                console.error(`Error removing calendar events for CANCELLED booking:`, deleteCalError)
+              } else {
+                console.log(`Removed calendar events for CANCELLED booking ${existingBooking.id}`)
+              }
+              
+              // Remove warehouse calendar events
+              const { error: deleteWhError } = await supabase
+                .from('warehouse_calendar_events')
+                .delete()
+                .eq('booking_id', existingBooking.id)
+              
+              if (deleteWhError) {
+                console.error(`Error removing warehouse events for CANCELLED booking:`, deleteWhError)
+              } else {
+                console.log(`Removed warehouse events for CANCELLED booking ${existingBooking.id}`)
+              }
+              
+              results.status_changed_bookings.push(existingBooking.id)
+              results.imported++
+            }
+            continue
+          } else {
+            // New CANCELLED booking - skip import
+            console.log(`CANCELLED booking ${externalBooking.id} does not exist locally → skipping`)
+            results.cancelled_bookings_skipped.push(externalBooking.id)
+            continue
+          }
+        }
+
+        // For historical imports, log but still process cancelled bookings
+        if (bookingStatus === 'CANCELLED' && isHistoricalImport) {
+          console.log(`Historical mode: Processing CANCELLED booking: ${externalBooking.id}`)
         }
 
         // Extract client name
