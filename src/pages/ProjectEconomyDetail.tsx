@@ -44,6 +44,16 @@ const ProjectEconomyDetail: React.FC = () => {
     );
   }
 
+  const handleBack = () => {
+    // Check if there's history to go back to
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      // Fallback to economy overview
+      navigate('/economy');
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -51,7 +61,7 @@ const ProjectEconomyDetail: React.FC = () => {
         <Button 
           variant="ghost" 
           size="icon"
-          onClick={() => navigate(-1)}
+          onClick={handleBack}
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
