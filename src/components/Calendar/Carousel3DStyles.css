@@ -49,6 +49,17 @@
   transform-style: preserve-3d;
   cursor: pointer;
   backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Ensure sharp text in day cards */
+.carousel-3d-card .day-card,
+.carousel-3d-card .day-card * {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 .carousel-3d-card .day-card {
