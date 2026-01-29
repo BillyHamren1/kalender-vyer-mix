@@ -58,34 +58,38 @@ const StaffItem: React.FC<StaffItemProps> = ({
   const staffColor = staff.color || '#E3F2FD';
   const textColor = getContrastTextColor(staffColor);
 
-  // Compact variant for wrapping layout
+  // Compact variant - modern minimal design
   if (variant === 'compact') {
     return (
       <>
         <div
-          className="min-w-[45px] max-w-[70px] h-[18px] cursor-pointer transition-all duration-150 flex items-center justify-center relative group border border-gray-200 rounded"
+          className="relative group cursor-pointer"
           style={{ 
-            backgroundColor: staffColor,
-            color: textColor,
             userSelect: 'none',
             WebkitUserSelect: 'none',
-            padding: '2px 4px',
-            marginBottom: '2px'
           }}
           onDoubleClick={handleDoubleClick}
           title={staff.name}
         >
-          <span className="text-sm font-semibold leading-none truncate">
+          <div 
+            className="px-3 py-1 rounded-full text-xs font-medium shadow-sm transition-all duration-200 hover:shadow-md hover:scale-105"
+            style={{ 
+              backgroundColor: staffColor,
+              color: textColor,
+            }}
+          >
             {getFirstName(staff.name)}
-          </span>
+          </div>
           {showRemoveDialog && onRemove && (
-            <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full text-white text-[6px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                 onClick={(e) => {
-                   e.stopPropagation();
-                   handleConfirmRemove();
-                 }}>
+            <button 
+              className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 hover:bg-red-600 rounded-full text-white text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleConfirmRemove();
+              }}
+            >
               ×
-            </div>
+            </button>
           )}
         </div>
         
