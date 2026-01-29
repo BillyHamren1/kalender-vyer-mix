@@ -1,12 +1,13 @@
-
-
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import ResourceCalendar from './ResourceCalendar';
 import { format, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { useContext } from 'react';
 import { CalendarContext } from '@/App';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import './Carousel3DStyles.css';
 import './WeeklyCalendarStyles.css';
 
 interface UnifiedResourceCalendarProps {
@@ -50,6 +51,9 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
   const navigate = useNavigate();
   const { setLastViewedDate } = useContext(CalendarContext);
 
+  // 3D Carousel state - center index (default to middle day, index 3 for 7-day week)
+  const [centerIndex, setCenterIndex] = useState(3);
+
   // Generate days based on view mode
   const getDaysToRender = () => {
     if (viewMode === 'weekly') {
@@ -77,6 +81,55 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 
   // Convert forceRefresh to number for consistent handling
   const numericForceRefresh = typeof forceRefresh === 'boolean' ? (forceRefresh ? 1 : 0) : (forceRefresh || 0);
+
+  // Calculate position relative to center for 3D carousel
+  const getPositionFromCenter = useCallback((dayIndex: number): string => {
+    const position = dayIndex - centerIndex;
+    if (position === 0) return '0';
+    if (position === 1) return '1';
+    if (position === -1) return '-1';
+    if (position === 2) return '2';
+    if (position === -2) return '-2';
+    if (position === 3) return '3';
+    if (position === -3) return '-3';
+    if (position > 3) return 'hidden-right';
+    if (position < -3) return 'hidden-left';
+    return '0';
+  }, [centerIndex]);
+
+  // Handle day card click to center it
+  const handleDayCardClick = useCallback((dayIndex: number) => {
+    if (dayIndex !== centerIndex) {
+      setCenterIndex(dayIndex);
+    }
+  }, [centerIndex]);
+
+  // Navigate carousel left
+  const handleNavigateLeft = useCallback(() => {
+    setCenterIndex(prev => Math.max(0, prev - 1));
+  }, []);
+
+  // Navigate carousel right
+  const handleNavigateRight = useCallback(() => {
+    setCenterIndex(prev => Math.min(days.length - 1, prev + 1));
+  }, [days.length]);
+
+  // Handle wheel scroll for carousel navigation
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (viewMode !== 'weekly') return;
+    
+    // Use horizontal scroll or vertical scroll
+    const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    
+    if (Math.abs(delta) > 30) {
+      e.preventDefault();
+      if (delta > 0) {
+        setCenterIndex(prev => Math.min(days.length - 1, prev + 1));
+      } else {
+        setCenterIndex(prev => Math.max(0, prev - 1));
+      }
+    }
+  }, [days.length, viewMode]);
 
   // Filter resources based on visibleTeams only (strict filtering)
   const getFilteredResourcesForDay = (date: Date): Resource[] => {
@@ -241,22 +294,127 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 
   const getCalendarContainerClass = () => {
     if (viewMode === 'weekly') {
-      return 'weekly-calendar-container';
+      return 'carousel-3d-wrapper';
     } else {
       return 'monthly-calendar-grid';
     }
   };
 
+  // Weekly 3D Carousel View
+  if (viewMode === 'weekly') {
+    return (
+      <div className={getContainerClass()}>
+        <div 
+          className={getCalendarContainerClass()} 
+          ref={containerRef}
+          onWheel={handleWheel}
+        >
+          {/* Navigation Buttons */}
+          <button
+            className="carousel-3d-nav nav-left"
+            onClick={handleNavigateLeft}
+            disabled={centerIndex === 0}
+            aria-label="Previous day"
+          >
+            <ChevronLeft className="h-6 w-6" />
+          </button>
+          
+          <button
+            className="carousel-3d-nav nav-right"
+            onClick={handleNavigateRight}
+            disabled={centerIndex === days.length - 1}
+            aria-label="Next day"
+          >
+            <ChevronRight className="h-6 w-6" />
+          </button>
+
+          {/* 3D Carousel Container */}
+          <div className="carousel-3d-container">
+            {days.map((date, index) => {
+              const dayEvents = getEventsForDay(date);
+              const filteredResources = getFilteredResourcesForDay(date);
+              const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+              const isSelectedDate = selectedDate && format(date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd');
+              const position = getPositionFromCenter(index);
+              const resourceCalendarForceRefresh = numericForceRefresh > 0;
+              
+              return (
+                <div
+                  key={format(date, 'yyyy-MM-dd')}
+                  className="carousel-3d-card"
+                  data-position={position}
+                  onClick={() => position !== '0' && handleDayCardClick(index)}
+                  style={{
+                    cursor: position !== '0' ? 'pointer' : 'default'
+                  }}
+                >
+                  <div 
+                    className="day-calendar-wrapper"
+                    ref={isToday ? todayRef : (isSelectedDate ? selectedDateRef : null)}
+                  >
+                    {/* Clickable day header */}
+                    <div 
+                      className={`day-header ${isToday ? 'today' : ''} ${isSelectedDate ? 'selected-date' : ''} cursor-pointer hover:bg-blue-50 transition-colors`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDayHeaderClick(date);
+                      }}
+                      title="Click to view resource schedule"
+                    >
+                      <div>{format(date, 'EEE d')}</div>
+                    </div>
+                    <div className="weekly-view-calendar">
+                      <ResourceCalendar
+                        events={dayEvents}
+                        resources={filteredResources}
+                        isLoading={isLoading}
+                        isMounted={isMounted}
+                        currentDate={date}
+                        onDateSet={handleNestedCalendarDateSet}
+                        refreshEvents={refreshEvents}
+                        onStaffDrop={(staffId: string, resourceId: string | null) => handleStaffDrop(staffId, resourceId, date)}
+                        onSelectStaff={(resourceId: string, resourceTitle: string) => handleSelectStaff(resourceId, resourceTitle, date)}
+                        forceRefresh={resourceCalendarForceRefresh}
+                        key={`calendar-${format(date, 'yyyy-MM-dd')}-${numericForceRefresh}`}
+                        droppableScope="weekly-calendar"
+                        calendarProps={getCommonCalendarProps(index)}
+                        targetDate={date}
+                        staffOperations={staffOperations}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Indicator Dots */}
+          <div className="carousel-3d-indicators">
+            {days.map((date, index) => (
+              <button
+                key={format(date, 'yyyy-MM-dd')}
+                className={`carousel-3d-dot ${index === centerIndex ? 'active' : ''}`}
+                onClick={() => setCenterIndex(index)}
+                aria-label={`Go to ${format(date, 'EEEE')}`}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Monthly Grid View (unchanged)
   return (
     <div className={getContainerClass()}>
-      <div className={getCalendarContainerClass()} ref={containerRef}>
+      <div className="monthly-calendar-grid" ref={containerRef}>
         {days.map((date, index) => {
           // Get only the events for this specific day
           const dayEvents = getEventsForDay(date);
           const filteredResources = getFilteredResourcesForDay(date);
           const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
           const isSelectedDate = selectedDate && format(date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd');
-          const isCurrentMonth = viewMode === 'monthly' ? isSameMonth(date, currentDate) : true;
+          const isCurrentMonth = isSameMonth(date, currentDate);
           
           // Convert forceRefresh to boolean for ResourceCalendar
           const resourceCalendarForceRefresh = numericForceRefresh > 0;
@@ -266,9 +424,8 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
           return (
             <div 
               key={format(date, 'yyyy-MM-dd')} 
-              className={viewMode === 'weekly' ? 'day-calendar-wrapper' : 'monthly-day-wrapper'}
+              className="monthly-day-wrapper"
               ref={isToday ? todayRef : (isSelectedDate ? selectedDateRef : null)}
-              style={viewMode === 'weekly' ? { width: `${getDayWidth()}px` } : {}}
             >
               {/* Clickable day header */}
               <div 
@@ -278,7 +435,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
               >
                 <div>{format(date, 'EEE d')}</div>
               </div>
-              <div className={viewMode === 'weekly' ? 'weekly-view-calendar' : 'monthly-view-calendar'}>
+              <div className="monthly-view-calendar">
                 <ResourceCalendar
                   events={dayEvents}
                   resources={filteredResources}
@@ -291,7 +448,7 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
                   onSelectStaff={(resourceId: string, resourceTitle: string) => handleSelectStaff(resourceId, resourceTitle, date)}
                   forceRefresh={resourceCalendarForceRefresh}
                   key={`calendar-${format(date, 'yyyy-MM-dd')}-${numericForceRefresh}`}
-                  droppableScope={`${viewMode}-calendar`}
+                  droppableScope="monthly-calendar"
                   calendarProps={getCommonCalendarProps(index)}
                   targetDate={date}
                   staffOperations={staffOperations}
@@ -306,4 +463,3 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 };
 
 export default React.memo(UnifiedResourceCalendar);
-
