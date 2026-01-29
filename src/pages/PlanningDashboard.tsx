@@ -1,7 +1,7 @@
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePlanningDashboard } from "@/hooks/usePlanningDashboard";
-import PlanningStatsRow from "@/components/planning-dashboard/PlanningStatsRow";
+
 import OngoingProjectsCard from "@/components/planning-dashboard/OngoingProjectsCard";
 import CompletedTodayCard from "@/components/planning-dashboard/CompletedTodayCard";
 import AllStaffCard from "@/components/planning-dashboard/AllStaffCard";
@@ -48,10 +48,6 @@ const PlanningDashboard = () => {
           </Button>
         </div>
 
-        {/* Stats Row */}
-        <div className="mb-6">
-          <PlanningStatsRow stats={stats} isLoading={isLoading} />
-        </div>
 
 
         {/* Week Planning - Projects View */}
