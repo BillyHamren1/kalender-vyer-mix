@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import TimeGrid from './TimeGrid';
@@ -48,8 +48,9 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   const currentWeekStart = currentDate;
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Generate days for the week
-  const getDaysToRender = () => {
+  // IMPORTANT: memoize days so carousel state doesn't reset on every re-render
+  const weekStartTime = currentWeekStart.getTime();
+  const days = useMemo(() => {
     if (viewMode === 'day') {
       return [new Date(currentWeekStart)];
     }
@@ -58,9 +59,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
       date.setDate(currentWeekStart.getDate() + i);
       return date;
     });
-  };
-
-  const days = getDaysToRender();
+  }, [viewMode, weekStartTime]);
 
   // Find today's index in the days array
   const getTodayIndex = useCallback(() => {
@@ -75,7 +74,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   // Update centerIndex when week changes (to focus on today if it exists in the new week)
   useEffect(() => {
     setCenterIndex(getTodayIndex());
-  }, [currentDate, getTodayIndex]);
+  }, [weekStartTime, getTodayIndex]);
 
   // Get position relative to center (-3 to +3)
   const getPositionFromCenter = (index: number): number => {
