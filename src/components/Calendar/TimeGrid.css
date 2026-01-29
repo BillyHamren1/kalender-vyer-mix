@@ -183,7 +183,7 @@
   display: flex;
   align-items: center;
   overflow: hidden;
-  border-right: 1px solid hsl(var(--border));
+  border-right: 1px solid hsl(var(--foreground) / 0.2);
   border-bottom: 1px solid hsl(var(--border) / 0.5);
   transition: background 0.2s ease;
 }
@@ -263,7 +263,7 @@
   height: 60px;
   position: relative;
   overflow: hidden;
-  border-right: 1px solid hsl(var(--border));
+  border-right: 1px solid hsl(var(--foreground) / 0.2);
   border-bottom: 1px solid hsl(var(--border) / 0.6);
   transition: background 0.2s ease;
 }
@@ -360,7 +360,7 @@
   position: relative;
   overflow: visible;
   height: 100%;
-  border-right: 1px solid hsl(var(--border));
+  border-right: 1px solid hsl(var(--foreground) / 0.2);
 }
 
 .time-slots-column.is-last {
