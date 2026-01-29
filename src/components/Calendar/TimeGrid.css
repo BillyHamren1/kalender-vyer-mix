@@ -532,3 +532,26 @@
 .day-calendar-wrapper {
   background: hsl(var(--background));
 }
+
+/* Available Staff Column Styling */
+.available-staff-header {
+  background: linear-gradient(
+    180deg,
+    hsl(var(--calendar-primary) / 0.08) 0%,
+    hsl(var(--calendar-primary) / 0.04) 100%
+  );
+  border-right: 1px solid hsl(var(--foreground) / 0.2);
+}
+
+.available-staff-column {
+  background: linear-gradient(
+    180deg,
+    hsl(var(--muted) / 0.5) 0%,
+    hsl(var(--muted) / 0.3) 100%
+  );
+  border-right: 1px solid hsl(var(--foreground) / 0.2);
+}
+
+.available-staff-time-column {
+  background: hsl(var(--muted) / 0.2);
+}

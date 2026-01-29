@@ -3,6 +3,9 @@ import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import TimeGrid from './TimeGrid';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { getAvailableStaffForDate } from '@/services/staffAvailabilityService';
+import { supabase } from '@/integrations/supabase/client';
 import './Carousel3DStyles.css';
 
 interface CustomCalendarProps {
@@ -60,6 +63,67 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
       return date;
     });
   }, [viewMode, weekStartTime]);
+
+  // Fetch available staff for each day in the week
+  const { data: weekAvailableStaff } = useQuery({
+    queryKey: ['available-staff-week', weekStartTime, days.map(d => format(d, 'yyyy-MM-dd')).join(',')],
+    queryFn: async () => {
+      const results: Record<string, Array<{ id: string; name: string; color?: string }>> = {};
+      
+      for (const day of days) {
+        const dateStr = format(day, 'yyyy-MM-dd');
+        try {
+          const availableStaffIds = await getAvailableStaffForDate(day);
+          
+          if (availableStaffIds.length > 0) {
+            const { data: staffData } = await supabase
+              .from('staff_members')
+              .select('id, name, color')
+              .in('id', availableStaffIds)
+              .eq('is_active', true);
+            
+            results[dateStr] = (staffData || []).map(s => ({
+              id: s.id,
+              name: s.name,
+              color: s.color || undefined
+            }));
+          } else {
+            results[dateStr] = [];
+          }
+        } catch (error) {
+          console.error('Error fetching available staff for', dateStr, error);
+          results[dateStr] = [];
+        }
+      }
+      
+      return results;
+    },
+    staleTime: 30000,
+  });
+
+  // Build available staff with assignment info for a specific day
+  const getAvailableStaffForDay = useCallback((date: Date) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const availableStaff = weekAvailableStaff?.[dateStr] || [];
+    
+    if (!weeklyStaffOperations) return availableStaff.map(s => ({ ...s, assignedTeamId: undefined, assignedTeamName: undefined }));
+    
+    // Check which staff are assigned to teams
+    return availableStaff.map(staff => {
+      // Find which team this staff is assigned to
+      for (const resource of resources) {
+        const teamStaff = weeklyStaffOperations.getStaffForTeamAndDate(resource.id, date);
+        if (teamStaff.some(ts => ts.id === staff.id)) {
+          return {
+            ...staff,
+            assignedTeamId: resource.id,
+            assignedTeamName: resource.title
+          };
+        }
+      }
+      return { ...staff, assignedTeamId: undefined, assignedTeamName: undefined };
+    });
+  }, [weekAvailableStaff, weeklyStaffOperations, resources]);
 
   // Find today's index in the days array
   const getTodayIndex = useCallback(() => {
@@ -213,6 +277,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                 isEventReadOnly={isEventReadOnly}
                 onEventClick={onEventClick}
                 fullWidth={true}
+                availableStaff={getAvailableStaffForDay(date)}
               />
             </div>
           </div>
@@ -287,6 +352,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                     isEventReadOnly={isEventReadOnly}
                     onEventClick={onEventClick}
                     fullWidth={true}
+                    availableStaff={getAvailableStaffForDay(date)}
                   />
                 </div>
               </div>

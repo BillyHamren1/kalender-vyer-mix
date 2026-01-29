@@ -13,6 +13,14 @@ interface TeamVisibilityProps {
   onToggleTeam: (teamId: string) => void;
 }
 
+interface AvailableStaffMember {
+  id: string;
+  name: string;
+  color?: string;
+  assignedTeamId?: string;
+  assignedTeamName?: string;
+}
+
 interface TimeGridProps {
   day: Date;
   resources: Resource[];
@@ -30,6 +38,7 @@ interface TimeGridProps {
   isEventReadOnly?: (event: CalendarEvent) => boolean;
   onEventClick?: (event: CalendarEvent) => void;
   fullWidth?: boolean;
+  availableStaff?: AvailableStaffMember[];
 }
 
 // Event Wrapper Component
@@ -101,7 +110,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   variant = 'default',
   isEventReadOnly,
   onEventClick,
-  fullWidth = false
+  fullWidth = false,
+  availableStaff = []
 }) => {
   const { handleEventClick } = useEventNavigation();
   // Generate continuous 24-hour time slots from 05:00 to 05:00 (next day)
@@ -129,6 +139,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   // Fixed column widths
   const timeColumnWidth = 80;
+  const availableColumnWidth = 100; // Narrower column for available staff
   const teamColumnWidth = 128;
 
   // Calculate event position based on time - Continuous 24-hour grid
@@ -217,13 +228,13 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   // Event drop handler removed - using click-based event marking system instead
 
-  // Calculate grid template columns
+  // Calculate grid template columns - includes available staff column
   const getGridTemplateColumns = () => {
     if (fullWidth) {
-      // In full width mode, use flexible columns
-      return `${timeColumnWidth}px repeat(${resources.length}, 1fr)`;
+      // In full width mode, use flexible columns with available staff column
+      return `${timeColumnWidth}px ${availableColumnWidth}px repeat(${resources.length}, 1fr)`;
     }
-    return `${timeColumnWidth}px repeat(${resources.length}, ${teamColumnWidth}px)`;
+    return `${timeColumnWidth}px ${availableColumnWidth}px repeat(${resources.length}, ${teamColumnWidth}px)`;
   };
 
   // Calculate total width
@@ -231,7 +242,13 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     if (fullWidth) {
       return '100%';
     }
-    return `${timeColumnWidth + (resources.length * teamColumnWidth)}px`;
+    return `${timeColumnWidth + availableColumnWidth + (resources.length * teamColumnWidth)}px`;
+  };
+
+  // Get unassigned available staff (not assigned to any team today)
+  const getUnassignedAvailableStaff = () => {
+    if (!availableStaff || availableStaff.length === 0) return [];
+    return availableStaff.filter(staff => !staff.assignedTeamId);
   };
 
   return (
@@ -253,8 +270,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
         <div className="day-header-teams" style={{ 
           gridColumn: '2 / -1',
-          width: fullWidth ? 'auto' : `${timeColumnWidth + (resources.length * teamColumnWidth) - timeColumnWidth}px`,
-          maxWidth: fullWidth ? 'none' : `${timeColumnWidth + (resources.length * teamColumnWidth) - timeColumnWidth}px`
+          width: fullWidth ? 'auto' : `${availableColumnWidth + (resources.length * teamColumnWidth)}px`,
+          maxWidth: fullWidth ? 'none' : `${availableColumnWidth + (resources.length * teamColumnWidth)}px`
         }}>
           <div className="day-header-content">
             <div style={{ width: '32px' }}></div>
@@ -274,17 +291,31 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           </div>
         </div>
 
-        <div className="time-empty-cell" style={{ gridRow: 2 }}></div>
+        {/* Row 2: Available Staff Header + Team Headers */}
+        <div className="time-empty-cell" style={{ gridRow: 2, gridColumn: 1 }}></div>
+        
+        {/* Available Staff Header */}
+        <div 
+          className="team-header-cell available-staff-header"
+          style={{ 
+            gridColumn: 2,
+            gridRow: 2,
+            width: fullWidth ? 'auto' : `${availableColumnWidth}px`,
+            minWidth: `${availableColumnWidth}px`
+          }}
+        >
+          <div className="team-header-content">
+            <span className="team-title" title="Tillgängliga">Tillgängliga</span>
+          </div>
+        </div>
 
         {resources.map((resource, index) => {
-          const assignedStaff = getAssignedStaffForTeam(resource.id);
-          
           return (
             <div 
               key={`header-${resource.id}`}
               className="team-header-cell"
               style={{ 
-                gridColumn: index + 2,
+                gridColumn: index + 3,
                 gridRow: 2,
                 width: fullWidth ? 'auto' : `${teamColumnWidth}px`,
                 minWidth: fullWidth ? '120px' : `${teamColumnWidth}px`
@@ -304,7 +335,41 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           );
         })}
 
-        <div className="staff-row-time-cell" style={{ gridRow: 3 }}></div>
+        {/* Row 3: Available Staff List + Staff Assignment Areas */}
+        <div className="staff-row-time-cell" style={{ gridRow: 3, gridColumn: 1 }}></div>
+        
+        {/* Available Staff Column */}
+        <div 
+          className="staff-assignment-header-row available-staff-column"
+          style={{ 
+            gridColumn: 2,
+            gridRow: 3,
+            width: fullWidth ? 'auto' : `${availableColumnWidth}px`,
+            minWidth: `${availableColumnWidth}px`
+          }}
+        >
+          <div className="staff-header-assignment-area">
+            <div className="assigned-staff-header-list">
+              {getUnassignedAvailableStaff().map((staff) => (
+                <StaffItem
+                  key={staff.id}
+                  staff={{
+                    id: staff.id,
+                    name: staff.name,
+                    color: staff.color,
+                    assignedTeam: undefined
+                  }}
+                  currentDate={day}
+                  variant="compact"
+                  showRemoveDialog={false}
+                />
+              ))}
+              {getUnassignedAvailableStaff().length === 0 && (
+                <span className="text-xs text-muted-foreground/60 italic">Inga lediga</span>
+              )}
+            </div>
+          </div>
+        </div>
 
         {resources.map((resource, index) => {
           const assignedStaff = getAssignedStaffForTeam(resource.id);
@@ -314,7 +379,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               key={`staff-${resource.id}`}
               className="staff-assignment-header-row"
               style={{ 
-                gridColumn: index + 2,
+                gridColumn: index + 3,
                 gridRow: 3,
                 width: fullWidth ? 'auto' : `${teamColumnWidth}px`,
                 minWidth: fullWidth ? '120px' : `${teamColumnWidth}px`
@@ -344,13 +409,32 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           );
         })}
 
-        <div className="time-labels-column" style={{ gridRow: 4 }}>
+        <div className="time-labels-column" style={{ gridRow: 4, gridColumn: 1 }}>
           {/* Continuous 24-hour time labels from 05:00 to 05:00 (next day) */}
           {timeSlots.map((slot) => (
             <div key={slot.time} className="time-label-slot">
               {slot.displayTime}
             </div>
           ))}
+        </div>
+
+        {/* Empty column under "Tillgängliga" header */}
+        <div 
+          className="time-slots-column available-staff-time-column"
+          style={{ 
+            gridColumn: 2,
+            gridRow: 4,
+            width: fullWidth ? 'auto' : `${availableColumnWidth}px`,
+            minWidth: `${availableColumnWidth}px`,
+            background: 'hsl(var(--muted) / 0.3)',
+            borderRight: '1px solid hsl(var(--foreground) / 0.2)'
+          }}
+        >
+          <div className="time-slots-grid">
+            {timeSlots.map((slot) => (
+              <div key={slot.time} className="time-slot-cell">&nbsp;</div>
+            ))}
+          </div>
         </div>
 
         {/* Simplified Time Slot Columns */}
@@ -368,7 +452,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               <div 
                 className={`time-slots-column ${index === resources.length - 1 ? 'is-last' : ''}`}
                 style={{ 
-                  gridColumn: index + 2,
+                  gridColumn: index + 3,
                   gridRow: 4,
                   width: fullWidth ? 'auto' : `${teamColumnWidth}px`,
                   minWidth: fullWidth ? '120px' : `${teamColumnWidth}px`,
