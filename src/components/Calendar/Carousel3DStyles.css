@@ -20,13 +20,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px 80px 20px;
+  padding: 8px 60px 16px;
   background: linear-gradient(
     180deg,
     hsl(var(--background)) 0%,
     hsl(var(--muted) / 0.3) 50%,
     hsl(var(--background)) 100%
   );
+  --card-width: 85vw;
+  --card-max-width: 1200px;
 }
 
 .carousel-3d-container {
@@ -42,8 +44,8 @@
 /* Individual carousel card with glass morphism */
 .carousel-3d-card {
   position: absolute;
-  width: var(--card-width, 450px);
-  height: calc(100% - 30px);
+  width: min(var(--card-width, 85vw), var(--card-max-width, 1200px));
+  height: calc(100% - 16px);
   min-height: 0;
   transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   transform-style: preserve-3d;
