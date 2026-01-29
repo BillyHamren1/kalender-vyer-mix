@@ -76,20 +76,29 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     setCenterIndex(getTodayIndex());
   }, [weekStartTime, getTodayIndex]);
 
-  // Get position relative to center (-3 to +3)
+  // Get position relative to center (-3 to +3) with circular wrapping
   const getPositionFromCenter = (index: number): number => {
-    const diff = index - centerIndex;
-    // Clamp to -3 to +3 range
+    const totalDays = days.length;
+    let diff = index - centerIndex;
+    
+    // Wrap around for circular carousel
+    if (diff > totalDays / 2) {
+      diff -= totalDays;
+    } else if (diff < -totalDays / 2) {
+      diff += totalDays;
+    }
+    
+    // Clamp to -3 to +3 range for visual positions
     return Math.max(-3, Math.min(3, diff));
   };
 
-  // Navigate carousel
+  // Navigate carousel with circular wrapping
   const navigateCarousel = (direction: 'left' | 'right') => {
     setCenterIndex(prev => {
       if (direction === 'left') {
-        return Math.max(0, prev - 1);
+        return prev === 0 ? days.length - 1 : prev - 1;
       } else {
-        return Math.min(days.length - 1, prev + 1);
+        return prev === days.length - 1 ? 0 : prev + 1;
       }
     });
   };
@@ -101,16 +110,16 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     }
   };
 
-  // Handle mouse wheel for horizontal scrolling through carousel
+  // Handle mouse wheel for horizontal scrolling through carousel (circular)
   const handleWheel = useCallback((e: WheelEvent) => {
     // Only handle horizontal-like scrolling (shift+wheel or trackpad horizontal)
     if (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey) {
       e.preventDefault();
       const delta = e.deltaX !== 0 ? e.deltaX : e.deltaY;
       if (delta > 0) {
-        setCenterIndex(prev => Math.min(days.length - 1, prev + 1));
+        setCenterIndex(prev => prev === days.length - 1 ? 0 : prev + 1);
       } else {
-        setCenterIndex(prev => Math.max(0, prev - 1));
+        setCenterIndex(prev => prev === 0 ? days.length - 1 : prev - 1);
       }
     }
   }, [days.length]);
@@ -216,11 +225,10 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   return (
     <div className="custom-calendar-container" ref={containerRef}>
       <div className={`carousel-3d-wrapper ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
-        {/* Navigation arrows */}
+        {/* Navigation arrows - always enabled for infinite carousel */}
         <button
           className="carousel-3d-nav nav-left"
           onClick={() => navigateCarousel('left')}
-          disabled={centerIndex === 0}
           aria-label="Föregående dag"
         >
           <ChevronLeft className="w-6 h-6" />
@@ -229,7 +237,6 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         <button
           className="carousel-3d-nav nav-right"
           onClick={() => navigateCarousel('right')}
-          disabled={centerIndex === days.length - 1}
           aria-label="Nästa dag"
         >
           <ChevronRight className="w-6 h-6" />
