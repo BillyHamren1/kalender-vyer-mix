@@ -132,7 +132,7 @@ const CalendarPage = () => {
 
   return (
     <TooltipProvider>
-        <div className="min-h-screen bg-muted/30">
+        <div className="h-screen flex flex-col bg-muted/30 overflow-hidden">
           {/* Navigation with Date and View Mode */}
           <WeekNavigation
             currentWeekStart={currentWeekStart}
@@ -141,8 +141,8 @@ const CalendarPage = () => {
             onViewModeChange={setViewMode}
           />
 
-          {/* Content */}
-          <div className="p-6">
+          {/* Content - fills remaining space */}
+          <div className="flex-1 min-h-0 flex flex-col">
             {viewMode === 'weekly' ? (
               <UnifiedResourceCalendar
                 events={events}
