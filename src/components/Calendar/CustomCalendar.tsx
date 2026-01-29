@@ -246,7 +246,6 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         <div className="carousel-3d-container">
           {days.map((date, index) => {
             const filteredResources = getFilteredResourcesForDay(date);
-            const dayWidth = getDayWidth(filteredResources.length);
             const visibleTeams = getVisibleTeamsForDay ? getVisibleTeamsForDay(date) : [];
             const position = getPositionFromCenter(index);
             const isCenter = position === 0;
@@ -257,7 +256,6 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                 key={format(date, 'yyyy-MM-dd')} 
                 className={`carousel-3d-card ${isCenter ? 'is-center' : ''} ${isToday ? 'is-today' : ''}`}
                 data-position={position}
-                style={{ '--card-width': `${dayWidth}px` } as React.CSSProperties}
               >
                 {/* Clickable overlay for non-center cards */}
                 {!isCenter && (
@@ -277,7 +275,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                     getEventsForDayAndResource={getEventsForDayAndResource}
                     onStaffDrop={onStaffDrop}
                     onOpenStaffSelection={onOpenStaffSelection}
-                    dayWidth={dayWidth}
+                    dayWidth={undefined}
                     weeklyStaffOperations={weeklyStaffOperations}
                     onEventResize={handleEventResize}
                     teamVisibilityProps={allTeams && onToggleTeamForDay ? {
