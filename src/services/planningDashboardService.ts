@@ -707,7 +707,7 @@ export const assignStaffToBooking = async (staffId: string, bookingId: string, d
   }
 };
 
-// Fetch unopened bookings (viewed = false) - only future events
+// Fetch unopened bookings (viewed = false) - only future CONFIRMED events
 export const fetchUnopenedBookings = async (): Promise<UnopenedBooking[]> => {
   const today = format(new Date(), 'yyyy-MM-dd');
   
@@ -725,6 +725,7 @@ export const fetchUnopenedBookings = async (): Promise<UnopenedBooking[]> => {
       status
     `)
     .eq('viewed', false)
+    .eq('status', 'CONFIRMED')  // Only show CONFIRMED bookings
     .or(`eventdate.gte.${today},rigdaydate.gte.${today},rigdowndate.gte.${today}`)
     .order('created_at', { ascending: false })
     .limit(20);
