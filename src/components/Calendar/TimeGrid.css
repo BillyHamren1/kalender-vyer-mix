@@ -171,34 +171,52 @@
   height: 54px;
 }
 
-/* Team Headers Row - Glass effect */
+/* Team Headers Row - Clear boundaries */
 .team-header-cell {
   background: linear-gradient(
     180deg,
-    hsl(var(--calendar-primary) / 0.12) 0%,
-    hsl(var(--calendar-primary) / 0.06) 100%
+    hsl(var(--calendar-primary) / 0.15) 0%,
+    hsl(var(--calendar-primary) / 0.08) 100%
   );
   backdrop-filter: blur(8px);
-  height: 36px;
-  padding: 0 12px;
+  height: 40px;
+  padding: 0 14px;
   display: flex;
   align-items: center;
   overflow: hidden;
-  border-right: 1px solid hsl(var(--calendar-primary) / 0.1);
+  /* Strong right border for team separation */
+  border-right: 2px solid hsl(var(--calendar-primary) / 0.25);
   border-bottom: 1px solid hsl(var(--border) / 0.5);
   transition: background 0.2s ease;
+  position: relative;
+}
+
+/* Subtle inner shadow for depth */
+.team-header-cell::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  background: linear-gradient(90deg, transparent, hsl(var(--calendar-primary) / 0.05));
+  pointer-events: none;
 }
 
 .team-header-cell:hover {
   background: linear-gradient(
     180deg,
-    hsl(var(--calendar-primary) / 0.18) 0%,
-    hsl(var(--calendar-primary) / 0.1) 100%
+    hsl(var(--calendar-primary) / 0.22) 0%,
+    hsl(var(--calendar-primary) / 0.12) 100%
   );
 }
 
 .team-header-cell:last-of-type {
   border-right: none;
+}
+
+.team-header-cell:last-of-type::after {
+  display: none;
 }
 
 .team-header-content {
@@ -254,48 +272,75 @@
   transform: scale(0.95);
 }
 
-/* Staff Assignment Header Row - Subtle glass */
+/* Staff Assignment Header Row - Card-like with depth */
 .staff-assignment-header-row {
   background: linear-gradient(
-    180deg,
-    hsl(var(--muted)) 0%,
-    hsl(var(--muted) / 0.7) 100%
+    145deg,
+    hsl(var(--background)) 0%,
+    hsl(var(--muted) / 0.6) 100%
   );
-  height: 54px;
+  height: 60px;
   position: relative;
   overflow: hidden;
-  border-right: 1px solid hsl(var(--border) / 0.5);
-  border-bottom: 1px solid hsl(var(--border) / 0.5);
-  transition: background 0.2s ease;
+  /* Strong right border matching team header */
+  border-right: 2px solid hsl(var(--calendar-primary) / 0.15);
+  border-bottom: 1px solid hsl(var(--border) / 0.6);
+  transition: all 0.2s ease;
+  /* Inner shadow for depth */
+  box-shadow: 
+    inset 0 2px 4px rgba(0, 0, 0, 0.03),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.5);
+}
+
+/* Right edge gradient for team separation */
+.staff-assignment-header-row::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  background: linear-gradient(90deg, transparent, hsl(var(--muted) / 0.5));
+  pointer-events: none;
 }
 
 .staff-assignment-header-row:hover {
   background: linear-gradient(
-    180deg,
-    hsl(var(--muted)) 0%,
-    hsl(var(--muted) / 0.9) 100%
+    145deg,
+    hsl(var(--background)) 0%,
+    hsl(var(--muted) / 0.8) 100%
   );
+  box-shadow: 
+    inset 0 2px 6px rgba(0, 0, 0, 0.05),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .staff-assignment-header-row:last-of-type {
   border-right: none;
 }
 
+.staff-assignment-header-row:last-of-type::after {
+  display: none;
+}
+
 .staff-header-assignment-area {
   height: 100%;
   width: 100%;
-  padding: 10px;
+  padding: 8px 12px;
   position: relative;
   transition: background-color 0.2s;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .staff-count-info {
-  font-size: 10px;
-  color: hsl(var(--muted-foreground));
+  font-size: 9px;
+  color: hsl(var(--muted-foreground) / 0.8);
   margin-bottom: 6px;
-  font-weight: 500;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
 }
 
 .assigned-staff-header-list {
@@ -347,7 +392,7 @@
   border-bottom: none;
 }
 
-/* Time Slot Columns - Clean with subtle zebra */
+/* Time Slot Columns - Clean with team separation */
 .time-slots-column {
   background: linear-gradient(
     180deg,
@@ -356,11 +401,29 @@
   );
   position: relative;
   overflow: visible;
-  border-right: 1px solid hsl(var(--border) / 0.3);
+  /* Strong right border for team separation */
+  border-right: 2px solid hsl(var(--border) / 0.4);
+}
+
+/* Right edge gradient for depth */
+.time-slots-column::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: linear-gradient(90deg, transparent, hsl(var(--muted) / 0.15));
+  pointer-events: none;
+  z-index: 0;
 }
 
 .time-slots-column:last-child {
   border-right: none;
+}
+
+.time-slots-column:last-child::after {
+  display: none;
 }
 
 .time-slots-grid {
