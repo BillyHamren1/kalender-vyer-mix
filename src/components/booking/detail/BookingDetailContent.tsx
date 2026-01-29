@@ -17,7 +17,6 @@ interface BookingDetailContentProps {
   eventDates: string[];
   rigDownDates: string[];
   isSaving: boolean;
-  autoSync: boolean;
   lastViewedDate: Date;
   onAddDate: (date: Date, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
   onRemoveDate: (date: string, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
@@ -42,7 +41,6 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
   eventDates,
   rigDownDates,
   isSaving,
-  autoSync,
   onAddDate,
   onRemoveDate,
   onDeliveryDetailsChange,
@@ -77,7 +75,7 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
             rigDownDates={rigDownDates}
             onAddDate={onAddDate}
             onRemoveDate={onRemoveDate}
-            autoSync={autoSync}
+            autoSync={true}
           />
           <ProjectAssignmentCard 
             assignedProjectId={booking.assignedProjectId}
@@ -92,8 +90,6 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
             rigDates={rigDates}
             eventDates={eventDates}
             rigDownDates={rigDownDates}
-            autoSync={autoSync}
-            onAutoSyncChange={() => {}} // Will be implemented later
             onAddDate={onAddDate}
             onRemoveDate={onRemoveDate}
           />
