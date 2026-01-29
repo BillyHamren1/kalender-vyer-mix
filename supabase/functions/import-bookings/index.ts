@@ -463,7 +463,22 @@ serve(async (req) => {
           const hasChanged = hasBookingChanged(bookingData, existingBooking);
           const statusChanged = existingBooking.status !== bookingData.status;
           
-          if (!hasChanged && !statusChanged) {
+          // Check if this CONFIRMED booking is missing calendar events (recovery scenario)
+          let needsCalendarRecovery = false;
+          if (bookingData.status === 'CONFIRMED') {
+            const { data: existingCalEvents, error: calCheckError } = await supabase
+              .from('calendar_events')
+              .select('id')
+              .eq('booking_id', existingBooking.id)
+              .limit(1);
+            
+            if (!calCheckError && (!existingCalEvents || existingCalEvents.length === 0)) {
+              needsCalendarRecovery = true;
+              console.log(`Booking ${bookingData.id} is CONFIRMED but has NO calendar events - will recover`);
+            }
+          }
+          
+          if (!hasChanged && !statusChanged && !needsCalendarRecovery) {
             console.log(`No changes detected for ${bookingData.id}, skipping update`)
             results.unchanged_bookings_skipped.push(bookingData.id)
             continue; // SKIP UPDATE - NO CHANGES
@@ -536,12 +551,11 @@ serve(async (req) => {
           // Only clear and recreate calendar events if booking data has MEANINGFULLY changed
           if (hasChanged) {
             console.log(`Recreating calendar events for changed booking ${existingBooking.id}`)
-            // Clear existing calendar events that are NOT manually assigned
+            // Clear existing calendar events
             await supabase
               .from('calendar_events')
               .delete()
-              .eq('booking_id', existingBooking.id)
-              .is('manually_assigned', null); // Only delete auto-assigned events
+              .eq('booking_id', existingBooking.id);
           }
 
           // Clear existing products and attachments for updated bookings
@@ -637,7 +651,7 @@ serve(async (req) => {
           // Check if calendar events already exist for this booking
           const { data: existingEvents } = await supabase
             .from('calendar_events')
-            .select('id, event_type, start_time, booking_id, resource_id, manually_assigned')
+            .select('id, event_type, start_time, booking_id, resource_id')
             .eq('booking_id', bookingData.id)
 
           const existingEventTypes = new Set(existingEvents?.map(e => e.event_type) || [])
@@ -718,10 +732,7 @@ serve(async (req) => {
                   end_time: event.end_time,
                   event_type: event.event_type,
                   delivery_address: event.delivery_address,
-                  resource_id: assignedTeam,
-                  manually_assigned: null // Mark as auto-assigned
-                }, {
-                  onConflict: 'booking_id,event_type,start_time'
+                  resource_id: assignedTeam
                 })
 
               if (eventError) {
