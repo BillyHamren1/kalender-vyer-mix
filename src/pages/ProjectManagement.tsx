@@ -86,9 +86,9 @@ const ProjectManagement = () => {
       </div>
 
       {/* Two Column Layout: Projects & Jobs */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Projects Column - takes 2/3 */}
-        <div className="lg:col-span-2">
+        <div>
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -159,7 +159,7 @@ const ProjectManagement = () => {
         </div>
 
         {/* Jobs Column - takes 1/3 */}
-        <div className="lg:col-span-1">
+        <div>
           <JobsListPanel />
         </div>
       </div>
