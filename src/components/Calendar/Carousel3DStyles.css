@@ -80,7 +80,10 @@
 /* Position-based transforms - flat cards with depth */
 /* Center card */
 .carousel-3d-card[data-position="0"] {
-  transform: translateX(0) translateZ(120px) scale(1);
+  /* Keep the active card pixel-crisp: avoid 3D transforms on the text layer */
+  transform: none;
+  backface-visibility: visible;
+  transform-style: flat;
   z-index: 50;
   opacity: 1;
 }
