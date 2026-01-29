@@ -321,9 +321,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               }}
             >
               <div className="staff-header-assignment-area">
-                {assignedStaff.length > 0 && (
-                  <div className="staff-count-info">{assignedStaff.length} staff</div>
-                )}
                 <div className="assigned-staff-header-list">
                   {assignedStaff.map((staff) => (
                     <StaffItem
