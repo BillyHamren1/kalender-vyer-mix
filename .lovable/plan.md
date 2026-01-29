@@ -1,99 +1,88 @@
 
+# Plan: Hantera statusändringar från externa systemet i import-bookings
 
-# Plan: Lägg till extern kalender-notifiering vid statusändringar
+## Problemanalys
 
-## Sammanfattning
-När en bokning ändrar status (särskilt från CONFIRMED till annat) ska en notifiering skickas till det externa kalendersystemet så att deras planeringsvy också uppdateras.
+Jag har hittat problemet! I `import-bookings` edge function:
 
-## Bakgrund
-För närvarande när status ändras i din app:
-- Lokala calendar_events uppdateras/raderas korrekt
-- Warehouse calendar uppdateras
-- booking_changes loggas i databasen
-- **MEN** det externa systemet får ingen information om ändringen
+1. **Statusändringar detekteras korrekt** (rad 405, 413-415)
+2. **MEN** - när en bokning går från `CONFIRMED` till annat (t.ex. `CANCELLED`) tas **inte** kalenderhändelserna bort
+
+Detta betyder att om det externa systemet skickar en statusändring (t.ex. bokning avbokad), uppdateras bokningen i databasen men kalenderhändelserna finns kvar!
 
 ## Lösning
 
-### Steg 1: Skapa en ny Edge Function för att skicka statusändringar
-Skapa `notify-booking-status` edge function som anropar det externa systemets API när status ändras.
+Lägga till logik i `import-bookings` som:
+1. Kontrollerar om status ändrats från `CONFIRMED` → annan status
+2. Tar bort alla kalenderhändelser (`calendar_events` och `warehouse_calendar_events`) för den bokningen
+3. Om status ändras till `CONFIRMED`, skapa nya kalenderhändelser (redan implementerat)
 
-```text
-supabase/functions/notify-booking-status/index.ts
-```
+## Tekniska ändringar
 
-Funktionen kommer:
-- Ta emot booking_id, old_status, new_status
-- Anropa externa API:et med uppdateringsdata
-- Logga resultatet för felsökning
+### Fil: supabase/functions/import-bookings/index.ts
 
-### Steg 2: Konfigurera extern callback-URL
-Behöver en hemlig nyckel för det externa systemets callback-endpoint:
-- **EXTERNAL_CALENDAR_CALLBACK_URL**: URL till det externa kalendersystemets uppdateringsendpoint
-- Alternativt kan vi använda befintlig `IMPORT_API_KEY` om samma system
+Lägg till efter statusändringsdetektionen (efter rad 415):
 
-### Steg 3: Integrera med statusändringsflödet
-Uppdatera `bookingStatusService.ts` för att anropa edge function efter lokal uppdatering:
-
-```text
-src/services/booking/bookingStatusService.ts
-```
-
-Lägg till anrop till `notify-booking-status` edge function efter att lokal kalendersynk är klar.
-
-### Steg 4: Felhantering och loggning
-- Om extern notifiering misslyckas, visa varning men låt inte det blockera lokal funktionalitet
-- Logga alla försök i console för felsökning
-- Möjlighet att retry vid nätverksfel
-
-## Tekniska detaljer
-
-### Edge Function: notify-booking-status
 ```typescript
-// Pseudo-kod
-serve(async (req) => {
-  const { booking_id, old_status, new_status, booking_data } = await req.json();
+// CRITICAL: Handle status changes that affect calendar
+if (statusChanged) {
+  const wasConfirmed = existingBooking.status === 'CONFIRMED';
+  const isNowConfirmed = bookingData.status === 'CONFIRMED';
   
-  // Anropa extern API
-  const response = await fetch(EXTERNAL_CALLBACK_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      action: 'status_changed',
-      booking_id,
-      old_status,
-      new_status,
-      timestamp: new Date().toISOString()
-    })
-  });
+  // If booking was confirmed but now isn't - REMOVE all calendar events
+  if (wasConfirmed && !isNowConfirmed) {
+    console.log(`Booking ${bookingData.id} is no longer CONFIRMED - removing calendar events`);
+    
+    // Remove from calendar_events
+    const { error: deleteCalError } = await supabase
+      .from('calendar_events')
+      .delete()
+      .eq('booking_id', existingBooking.id);
+    
+    if (deleteCalError) {
+      console.error(`Error removing calendar events:`, deleteCalError);
+    } else {
+      console.log(`Removed calendar events for booking ${existingBooking.id}`);
+    }
+    
+    // Remove from warehouse_calendar_events
+    const { error: deleteWhError } = await supabase
+      .from('warehouse_calendar_events')
+      .delete()
+      .eq('booking_id', existingBooking.id);
+    
+    if (deleteWhError) {
+      console.error(`Error removing warehouse events:`, deleteWhError);
+    } else {
+      console.log(`Removed warehouse events for booking ${existingBooking.id}`);
+    }
+  }
   
-  return new Response(JSON.stringify({ success: response.ok }));
-});
+  // If booking is now confirmed but wasn't before - calendar events will be created below (line 539)
+  if (!wasConfirmed && isNowConfirmed) {
+    console.log(`Booking ${bookingData.id} is now CONFIRMED - calendar events will be created`);
+  }
+}
 ```
 
-### Integration i StatusChangeForm
-Efter lyckad lokal uppdatering:
-```typescript
-// Notifiera externt system
-await supabase.functions.invoke('notify-booking-status', {
-  body: { booking_id, old_status, new_status }
-});
-```
+## Förväntade resultat
 
-## Fråga till dig
+Efter implementationen:
+- När externa systemet skickar en bokning med status ändrad från CONFIRMED → CANCELLED/OFFER:
+  - Bokningen uppdateras i `bookings`-tabellen
+  - Alla relaterade `calendar_events` tas bort
+  - Alla relaterade `warehouse_calendar_events` tas bort
+  - Loggar visar vad som hände
 
-**Innan jag implementerar detta behöver jag veta:**
+- När externa systemet skickar en bokning med status ändrad till CONFIRMED:
+  - Bokningen uppdateras i `bookings`-tabellen
+  - Nya kalenderhändelser skapas automatiskt (befintlig logik på rad 539+)
 
-1. **Har det externa systemet (wpzhsmrbjmxglowyoyky) en callback-endpoint?**
-   - Om ja: Vilken URL och vilket format förväntar de sig?
-   - Om nej: Ska vi skapa en på deras sida också?
+## Testning
 
-2. **Ska notifieringen innehålla full bokningsdata eller bara status och ID?**
-
-3. **Vilka statusändringar ska trigga notifiering?**
-   - Alla statusändringar?
-   - Bara CONFIRMED ↔ CANCELLED?
-   - Bara ändringar som påverkar kalendern?
-
+Efter deploy:
+1. Skicka en testbokning från externa systemet med status `CONFIRMED`
+2. Verifiera att kalenderhändelser skapas
+3. Skicka samma bokning med status `CANCELLED`
+4. Verifiera att kalenderhändelser tas bort
+5. Kontrollera edge function-loggar för bekräftelse
