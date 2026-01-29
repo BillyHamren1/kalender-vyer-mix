@@ -14,8 +14,6 @@ const BookingDetail = () => {
   const { id, bookingId } = useParams<{ id?: string; bookingId?: string }>();
   const navigate = useNavigate();
   const { lastViewedDate, lastPath } = useContext(CalendarContext);
-  // Set autoSync to true by default
-  const [autoSync, setAutoSync] = useState(true);
   
   // Use either id or bookingId parameter
   const actualBookingId = id || bookingId;
@@ -128,7 +126,6 @@ const BookingDetail = () => {
         eventDates={eventDates}
         rigDownDates={rigDownDates}
         isSaving={isSaving}
-        autoSync={autoSync}
         lastViewedDate={lastViewedDate}
         onAddDate={handleAddDate}
         onRemoveDate={handleRemoveDate}
