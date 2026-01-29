@@ -1,11 +1,19 @@
 /* 3D Carousel Styles for CustomCalendar */
 
+/* Ensure parent container fills available space */
+.custom-calendar-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* Allow flexbox shrinking */
+  height: 100%;
+}
+
 .carousel-3d-wrapper {
   position: relative;
   width: 100%;
-  min-height: 600px;
-  height: calc(100vh - 180px); /* Dynamisk höjd baserad på viewport */
-  max-height: 900px;
+  flex: 1;
+  min-height: 500px;
   perspective: 1800px;
   perspective-origin: 50% 50%;
   overflow: visible;
@@ -29,8 +37,9 @@
 .carousel-3d-card {
   position: absolute;
   width: var(--card-width, 450px);
-  height: calc(100% - 40px); /* Fyll wrappern minus padding för indikatorer */
-  min-height: 500px;
+  height: calc(100% - 60px); /* Fyll wrapper minus padding för indikatorer */
+  min-height: 450px;
+  max-height: 850px;
   transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   transform-style: preserve-3d;
   cursor: pointer;
