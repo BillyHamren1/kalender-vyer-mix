@@ -12,8 +12,8 @@
   border: none;
   overflow: hidden;
   display: grid;
-  min-height: 500px;
-  height: auto;
+  min-height: 400px;
+  height: 100%; /* Fyll förälder */
   grid-template-rows: auto auto auto 1fr auto;
 }
 
@@ -43,6 +43,9 @@
   overflow: hidden;
   transform: translateZ(0);
   transition: box-shadow 0.3s ease, transform 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 /* Warehouse day card border accent */
