@@ -236,41 +236,23 @@ const WeekProjectsView = ({ projects, isLoading, onStaffDrop }: WeekProjectsView
     <div className="bg-card rounded-2xl shadow-xl border overflow-hidden">
       {/* Header */}
       <div className="bg-gradient-to-r from-primary to-primary/80 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="p-2 bg-primary-foreground/10 rounded-lg">
-              <Calendar className="w-6 h-6 text-primary-foreground" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-primary-foreground">
-                Vecka {weekNumber}
-              </h2>
-              <p className="text-primary-foreground/70 text-sm capitalize">
-                {monthYear}
-              </p>
-            </div>
-          </div>
+        <div className="flex items-center justify-center">
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={goToPreviousWeek}
-              className="text-primary-foreground hover:bg-primary-foreground/10"
+              className="text-primary-foreground hover:bg-primary-foreground/10 border border-primary-foreground/30 rounded-lg"
             >
               <ChevronLeft className="w-5 h-5" />
             </Button>
+            <span className="text-primary-foreground font-medium min-w-[80px] text-center">
+              Vecka {weekNumber}
+            </span>
             <Button
               variant="ghost"
-              size="sm"
-              onClick={goToCurrentWeek}
-              className="text-primary-foreground hover:bg-primary-foreground/10 text-xs font-medium"
-            >
-              Idag
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
+              size="icon"
               onClick={goToNextWeek}
               className="text-primary-foreground hover:bg-primary-foreground/10"
             >
