@@ -8,6 +8,7 @@ import { DRAG_TYPE_STAFF } from "./AllStaffCard";
 import { cn } from "@/lib/utils";
 import { WeekProject } from "@/services/planningDashboardService";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface WeekProjectsViewProps {
   projects: WeekProject[];
@@ -141,11 +142,13 @@ const ProjectCard = ({
 const DayColumn = ({
   date,
   projects,
-  onStaffDrop
+  onStaffDrop,
+  onDayClick
 }: {
   date: Date;
   projects: WeekProject[];
   onStaffDrop: (staffId: string, bookingId: string, date: Date) => Promise<void>;
+  onDayClick: (date: Date) => void;
 }) => {
   const isToday = isSameDay(date, new Date());
   const isPast = date < new Date() && !isToday;
@@ -159,11 +162,14 @@ const DayColumn = ({
       "flex flex-col flex-1 min-w-[140px]",
       isPast && "opacity-50"
     )}>
-      {/* Day header - distinct background */}
-      <div className={cn(
-        "relative rounded-t-xl px-3 py-2.5 text-center border-x border-t",
-        isToday ? "bg-primary/15 border-primary/30" : "bg-muted border-border"
-      )}>
+      {/* Day header - clickable */}
+      <div 
+        onClick={() => onDayClick(date)}
+        className={cn(
+          "relative rounded-t-xl px-3 py-2.5 text-center border-x border-t cursor-pointer transition-all hover:opacity-80",
+          isToday ? "bg-primary/15 border-primary/30" : "bg-muted border-border hover:bg-muted/80"
+        )}
+      >
         {/* Thin line for today (absolute so layout doesn't shift) */}
         {isToday && (
           <div className="pointer-events-none absolute left-1/2 top-2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-primary" />
@@ -220,6 +226,7 @@ const DayColumn = ({
 };
 
 const WeekProjectsView = ({ projects, isLoading, onStaffDrop }: WeekProjectsViewProps) => {
+  const navigate = useNavigate();
   const [currentWeekStart, setCurrentWeekStart] = useState(() => 
     startOfWeek(new Date(), { weekStartsOn: 1 })
   );
@@ -231,6 +238,11 @@ const WeekProjectsView = ({ projects, isLoading, onStaffDrop }: WeekProjectsView
   const goToPreviousWeek = () => setCurrentWeekStart(prev => subWeeks(prev, 1));
   const goToNextWeek = () => setCurrentWeekStart(prev => addWeeks(prev, 1));
   const goToCurrentWeek = () => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
+
+  const handleDayClick = (date: Date) => {
+    const dateParam = format(date, 'yyyy-MM-dd');
+    navigate(`/calendar?date=${dateParam}&view=day`);
+  };
 
   return (
     <div className="bg-card rounded-2xl shadow-xl border overflow-hidden">
@@ -271,6 +283,7 @@ const WeekProjectsView = ({ projects, isLoading, onStaffDrop }: WeekProjectsView
               date={day}
               projects={projects}
               onStaffDrop={onStaffDrop}
+              onDayClick={handleDayClick}
             />
           ))}
         </div>
