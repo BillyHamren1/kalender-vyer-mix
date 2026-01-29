@@ -21,7 +21,6 @@ import ProjectDetail from "./pages/ProjectDetail";
 import EconomyOverview from "./pages/EconomyOverview";
 import ProjectEconomyDetail from "./pages/ProjectEconomyDetail";
 import PlanningDashboard from "./pages/PlanningDashboard";
-import JobsList from "./pages/JobsList";
 import JobDetail from "./pages/JobDetail";
 import APIDocumentation from "./pages/APIDocumentation";
 import NotFound from "./pages/NotFound";
@@ -87,7 +86,6 @@ const AppContent = () => {
               <Route path="/economy/projects" element={<MainSystemLayout><EconomyOverview view="projects" /></MainSystemLayout>} />
               <Route path="/economy/staff" element={<MainSystemLayout><EconomyOverview view="staff" /></MainSystemLayout>} />
               <Route path="/economy/:id" element={<MainSystemLayout><ProjectEconomyDetail /></MainSystemLayout>} />
-              <Route path="/jobs" element={<JobsList />} />
               <Route path="/jobs/:id" element={<JobDetail />} />
               <Route path="/api-docs" element={<MainSystemLayout><APIDocumentation /></MainSystemLayout>} />
 
