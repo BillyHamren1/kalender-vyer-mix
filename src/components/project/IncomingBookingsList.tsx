@@ -1,5 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +20,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
   onCreateProject,
   onCreateJob
 }) => {
+  const navigate = useNavigate();
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ['bookings-without-project'],
     queryFn: async () => {
@@ -95,10 +97,13 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
               key={booking.id}
               className="grid grid-cols-[1fr_auto_auto] items-center gap-4 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
             >
-              {/* Left column: Client info */}
-              <div className="min-w-0">
+              {/* Left column: Client info - clickable to view booking */}
+              <div 
+                className="min-w-0 cursor-pointer"
+                onClick={() => navigate(`/booking/${booking.id}`)}
+              >
                 <div className="flex items-center gap-2 mb-1">
-                  <h4 className="font-medium text-foreground truncate">
+                  <h4 className="font-medium text-foreground truncate hover:text-primary transition-colors">
                     {booking.client}
                   </h4>
                   {booking.bookingNumber && (
