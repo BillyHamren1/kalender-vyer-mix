@@ -348,27 +348,23 @@
   border-bottom: none;
 }
 
-/* Time Slot Wrapper - handles full-height border */
+/* Time Slot Wrapper - removed complex border handling */
 .time-slot-wrapper {
   position: relative;
   height: 100%;
-  border-right: 1px solid hsl(var(--border));
 }
 
-.time-slot-wrapper.is-last {
-  border-right: none;
-}
-
-/* Time Slot Columns */
+/* Time Slot Columns - with full-height border */
 .time-slots-column {
   background: hsl(var(--background));
   position: relative;
   overflow: visible;
   height: 100%;
+  border-right: 1px solid hsl(var(--border));
 }
 
 .time-slots-column.is-last {
-  /* No additional styling needed */
+  border-right: none;
 }
 
 .time-slots-grid {
