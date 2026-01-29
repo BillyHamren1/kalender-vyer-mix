@@ -71,10 +71,11 @@ const EventWrapper: React.FC<{
 // Simple Time Slot Component - no drag-and-drop
 const SimpleTimeSlot: React.FC<{
   children: React.ReactNode;
-}> = React.memo(({ children }) => {
+  isLast?: boolean;
+}> = React.memo(({ children, isLast }) => {
   return (
     <div
-      className="time-slots-column hover-container"
+      className={`time-slot-wrapper ${isLast ? 'is-last' : ''}`}
       style={{ 
         width: `100%`,
         minWidth: `100%`,
@@ -358,9 +359,9 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           });
           
           return (
-            <SimpleTimeSlot key={`timeslots-${resource.id}`}>
+            <SimpleTimeSlot key={`timeslots-${resource.id}`} isLast={index === resources.length - 1}>
               <div 
-                className="time-slots-column"
+                className={`time-slots-column ${index === resources.length - 1 ? 'is-last' : ''}`}
                 style={{ 
                   gridColumn: index + 2,
                   gridRow: 4,
