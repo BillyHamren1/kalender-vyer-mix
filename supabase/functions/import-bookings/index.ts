@@ -91,10 +91,10 @@ const getEndTimeForEventType = (startTime: string, eventType: 'rig' | 'event' | 
  * Only assigns teams for NEW events, never overrides existing assignments
  */
 const getNextTeamAssignment = async (supabase: any, eventType: string, eventDate: string, bookingId: string): Promise<string> => {
-  // EVENT type events always go to team-6
+  // EVENT type events always go to team-11 (Live column)
   if (eventType === 'event') {
-    console.log(`Assigning EVENT type to team-6 for booking ${bookingId}`);
-    return 'team-6';
+    console.log(`Assigning EVENT type to team-11 (Live) for booking ${bookingId}`);
+    return 'team-11';
   }
 
   const teams = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5'];
@@ -295,7 +295,7 @@ serve(async (req) => {
         'team-3': 0,
         'team-4': 0,
         'team-5': 0,
-        'team-6': 0
+        'team-11': 0
       }
     }
 
