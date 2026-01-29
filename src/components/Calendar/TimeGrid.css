@@ -162,12 +162,13 @@
 }
 
 .time-empty-cell {
-  height: 36px;
+  height: 40px;
 }
 
 .staff-row-time-cell {
   min-height: 44px;
   height: auto;
+  align-self: stretch;
 }
 
 /* Team Headers Row */
