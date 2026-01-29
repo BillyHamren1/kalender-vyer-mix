@@ -20,11 +20,11 @@ const CalendarPage = () => {
   const [monthlyDate, setMonthlyDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   
-  // Visible teams state - default to Team 1, 2, and Live (team-11)
+  // Visible teams state - default to Team 1-5 and Live (team-11)
   const [visibleTeams, setVisibleTeams] = useState<string[]>(() => {
     // Clear any old localStorage values and set default
     localStorage.removeItem('visibleTeams');
-    const defaultTeams = ['team-1', 'team-2', 'team-11'];
+    const defaultTeams = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5', 'team-11'];
     console.log('🎯 Initializing visibleTeams with:', defaultTeams);
     return defaultTeams;
   });
@@ -114,8 +114,8 @@ const CalendarPage = () => {
   const handleToggleTeam = (teamId: string) => {
     setVisibleTeams(prev => {
       if (prev.includes(teamId)) {
-        // Don't allow hiding Team 1, 2, and Live
-        if (['team-1', 'team-2', 'team-11'].includes(teamId)) {
+        // Don't allow hiding Team 1-5 and Live
+        if (['team-1', 'team-2', 'team-3', 'team-4', 'team-5', 'team-11'].includes(teamId)) {
           return prev;
         }
         return prev.filter(id => id !== teamId);

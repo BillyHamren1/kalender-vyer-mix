@@ -151,10 +151,10 @@ export const useTeamResources = () => {
   };
 
   const removeTeam = (teamId: string) => {
-    // Don't allow removing Team 1, Team 2, and Live (team-11)
-    if (['team-1', 'team-2', 'team-11'].includes(teamId)) {
+    // Don't allow removing Team 1-5 and Live (team-11)
+    if (['team-1', 'team-2', 'team-3', 'team-4', 'team-5', 'team-11'].includes(teamId)) {
       toast.error("Cannot remove default team", {
-        description: "Team 1, Team 2, and Live cannot be removed.",
+        description: "Team 1-5 and Live cannot be removed.",
         duration: 3000,
       });
       return;

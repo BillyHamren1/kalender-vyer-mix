@@ -70,7 +70,7 @@ const SingleDayDropZone = ({
       </div>
       
       <div className="space-y-2">
-        {['team-1', 'team-2', 'team-11'].map(teamId => {
+        {['team-1', 'team-2', 'team-3', 'team-4', 'team-5', 'team-11'].map(teamId => {
           const teamData = teams.find(t => t.teamId === teamId);
           return (
             <TeamDropSlot 
