@@ -50,12 +50,12 @@ const UnopenedBookingsCard = ({ bookings, isLoading }: UnopenedBookingsCardProps
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base font-medium">
-          <Eye className="w-4 h-4 text-destructive" />
+          <Eye className="w-4 h-4 text-muted-foreground" />
           Nya oöppnade bokningar
           {bookings.length > 0 && (
-            <Badge variant="destructive" className="ml-auto text-xs">
-              {bookings.length} nya
-            </Badge>
+            <span className="ml-auto text-xs text-muted-foreground font-normal">
+              {bookings.length} st
+            </span>
           )}
         </CardTitle>
       </CardHeader>

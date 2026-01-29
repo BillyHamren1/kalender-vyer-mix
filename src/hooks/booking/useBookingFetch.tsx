@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Booking } from '@/types/booking';
-import { fetchBookingById } from '@/services/bookingService';
+import { fetchBookingById, markBookingAsViewed } from '@/services/bookingService';
 import { fetchBookingDatesByType } from '@/services/bookingCalendarService';
 
 export const useBookingFetch = (id: string | undefined) => {
@@ -56,6 +56,16 @@ export const useBookingFetch = (id: string | undefined) => {
       const bookingData = await fetchBookingById(id);
       console.log('Loaded booking data:', bookingData);
       setBooking(bookingData);
+      
+      // Mark booking as viewed when opened
+      if (bookingData && !bookingData.viewed) {
+        try {
+          await markBookingAsViewed(id);
+          console.log(`Marked booking ${id} as viewed`);
+        } catch (viewErr) {
+          console.error('Failed to mark booking as viewed:', viewErr);
+        }
+      }
       
       // Fetch all dates for this booking from calendar events
       await loadAllBookingDates(id);
