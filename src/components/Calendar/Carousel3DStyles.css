@@ -60,54 +60,54 @@
   pointer-events: auto;
 }
 
-/* Position-based transforms */
+/* Position-based transforms - no rotateY, cards stay flat */
 /* Center card */
 .carousel-3d-card[data-position="0"] {
-  transform: translateX(0) translateZ(100px) rotateY(0deg) scale(1);
+  transform: translateX(0) translateZ(100px) scale(1);
   z-index: 50;
   opacity: 1;
 }
 
 /* +1 position (right of center) */
 .carousel-3d-card[data-position="1"] {
-  transform: translateX(calc(var(--card-width, 450px) * 0.55)) translateZ(-50px) rotateY(-25deg) scale(0.85);
+  transform: translateX(calc(var(--card-width, 450px) * 0.55)) translateZ(-50px) scale(0.85);
   z-index: 40;
-  opacity: 0.9;
+  opacity: 0.8;
 }
 
 /* -1 position (left of center) */
 .carousel-3d-card[data-position="-1"] {
-  transform: translateX(calc(var(--card-width, 450px) * -0.55)) translateZ(-50px) rotateY(25deg) scale(0.85);
+  transform: translateX(calc(var(--card-width, 450px) * -0.55)) translateZ(-50px) scale(0.85);
   z-index: 40;
-  opacity: 0.9;
+  opacity: 0.8;
 }
 
 /* +2 position */
 .carousel-3d-card[data-position="2"] {
-  transform: translateX(calc(var(--card-width, 450px) * 1.0)) translateZ(-150px) rotateY(-45deg) scale(0.7);
+  transform: translateX(calc(var(--card-width, 450px) * 1.0)) translateZ(-150px) scale(0.7);
   z-index: 30;
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
 /* -2 position */
 .carousel-3d-card[data-position="-2"] {
-  transform: translateX(calc(var(--card-width, 450px) * -1.0)) translateZ(-150px) rotateY(45deg) scale(0.7);
+  transform: translateX(calc(var(--card-width, 450px) * -1.0)) translateZ(-150px) scale(0.7);
   z-index: 30;
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
 /* +3 position */
 .carousel-3d-card[data-position="3"] {
-  transform: translateX(calc(var(--card-width, 450px) * 1.4)) translateZ(-250px) rotateY(-60deg) scale(0.55);
+  transform: translateX(calc(var(--card-width, 450px) * 1.4)) translateZ(-250px) scale(0.55);
   z-index: 20;
-  opacity: 0.5;
+  opacity: 0.4;
 }
 
 /* -3 position */
 .carousel-3d-card[data-position="-3"] {
-  transform: translateX(calc(var(--card-width, 450px) * -1.4)) translateZ(-250px) rotateY(60deg) scale(0.55);
+  transform: translateX(calc(var(--card-width, 450px) * -1.4)) translateZ(-250px) scale(0.55);
   z-index: 20;
-  opacity: 0.5;
+  opacity: 0.4;
 }
 
 /* Center card glow effect */
