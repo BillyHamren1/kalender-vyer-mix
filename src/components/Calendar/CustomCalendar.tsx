@@ -107,10 +107,14 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     // Only handle horizontal-like scrolling (shift+wheel or trackpad horizontal)
     if (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey) {
       e.preventDefault();
-      const direction = (e.deltaX > 0 || (e.shiftKey && e.deltaY > 0)) ? 'right' : 'left';
-      navigateCarousel(direction);
+      const delta = e.deltaX !== 0 ? e.deltaX : e.deltaY;
+      if (delta > 0) {
+        setCenterIndex(prev => Math.min(days.length - 1, prev + 1));
+      } else {
+        setCenterIndex(prev => Math.max(0, prev - 1));
+      }
     }
-  }, []);
+  }, [days.length]);
 
   // Attach wheel listener
   useEffect(() => {
@@ -162,7 +166,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading staff planning calendar...</div>
+        <div className="text-muted-foreground">Loading staff planning calendar...</div>
       </div>
     );
   }
@@ -247,9 +251,18 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                 key={format(date, 'yyyy-MM-dd')} 
                 className={`carousel-3d-card ${isCenter ? 'is-center' : ''} ${isToday ? 'is-today' : ''}`}
                 data-position={position}
-                onClick={() => handleDayCardClick(index)}
                 style={{ '--card-width': `${dayWidth}px` } as React.CSSProperties}
               >
+                {/* Clickable overlay for non-center cards */}
+                {!isCenter && (
+                  <div 
+                    className="absolute inset-0 z-50 cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDayCardClick(index);
+                    }}
+                  />
+                )}
                 <div className={`day-card bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
                   <TimeGrid
                     day={date}
