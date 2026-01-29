@@ -1,10 +1,8 @@
 
 import React from 'react';
 import { Booking } from '@/types/booking';
-import { BookingDetailHeader } from './BookingDetailHeader';
 import { ClientInformation } from '../ClientInformation';
 import { DeliveryInformationCard } from '../DeliveryInformationCard';
-import { EventInformationCard } from '../EventInformationCard';
 import ProjectAssignmentCard from '../ProjectAssignmentCard';
 import { ScheduleCard } from '../ScheduleCard';
 import { ProductsList } from '../ProductsList';
@@ -44,7 +42,6 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
   onAddDate,
   onRemoveDate,
   onDeliveryDetailsChange,
-  onLogisticsChange,
   onInternalNotesChange,
   isSavingInternalNotes,
   onAttachmentAdded,
@@ -68,14 +65,6 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
             bookingId={booking.id}
             isSaving={isSaving}
             onSave={onDeliveryDetailsChange}
-          />
-          <EventInformationCard 
-            rigDates={rigDates}
-            eventDates={eventDates}
-            rigDownDates={rigDownDates}
-            onAddDate={onAddDate}
-            onRemoveDate={onRemoveDate}
-            autoSync={true}
           />
           <ProjectAssignmentCard 
             assignedProjectId={booking.assignedProjectId}
