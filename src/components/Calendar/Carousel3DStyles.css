@@ -20,7 +20,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px 80px;
+  padding: 12px 80px 20px;
   background: linear-gradient(
     180deg,
     hsl(var(--background)) 0%,
@@ -43,7 +43,7 @@
 .carousel-3d-card {
   position: absolute;
   width: var(--card-width, 450px);
-  height: calc(100% - 60px);
+  height: calc(100% - 30px);
   min-height: 0;
   transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   transform-style: preserve-3d;
