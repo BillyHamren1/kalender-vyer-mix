@@ -156,7 +156,7 @@ const DayColumn = ({
 
   return (
     <div className={cn(
-      "flex flex-col flex-none min-w-[180px]",
+      "flex flex-col flex-1 min-w-[140px]",
       isPast && "opacity-50"
     )}>
       {/* Day header - distinct background */}
@@ -263,8 +263,8 @@ const WeekProjectsView = ({ projects, isLoading, onStaffDrop }: WeekProjectsView
       </div>
       
       {/* Week grid */}
-      <div className="p-4 overflow-x-auto">
-        <div className="flex gap-4 min-w-max items-stretch">
+      <div className="p-3 overflow-x-auto">
+        <div className="flex gap-2 min-w-[980px] items-stretch">
           {days.map(day => (
             <DayColumn 
               key={day.toISOString()}
