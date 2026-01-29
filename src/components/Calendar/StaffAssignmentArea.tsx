@@ -57,21 +57,21 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
         
         {/* Assigned Staff List - compact header version */}
         <div className="assigned-staff-header-list">
-          {assignedStaff.map((staff, index) => (
-            <div key={staff.id} className="staff-header-item">
-              <StaffItem
-                staff={{
-                  id: staff.id,
-                  name: staff.name,
-                  assignedTeam: resource.id
-                }}
-                onRemove={() => handleRemoveStaff(staff.id)}
-                currentDate={day}
-                teamName={resource.title}
-                variant="assigned"
-                showRemoveDialog={true}
-              />
-            </div>
+          {assignedStaff.map((staff) => (
+            <StaffItem
+              key={staff.id}
+              staff={{
+                id: staff.id,
+                name: staff.name,
+                color: staff.color,
+                assignedTeam: resource.id
+              }}
+              onRemove={() => handleRemoveStaff(staff.id)}
+              currentDate={day}
+              teamName={resource.title}
+              variant="compact"
+              showRemoveDialog={true}
+            />
           ))}
         </div>
       </div>
