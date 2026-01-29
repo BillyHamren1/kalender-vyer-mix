@@ -1,7 +1,9 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import TimeGrid from './TimeGrid';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import './Carousel3DStyles.css';
 
 interface CustomCalendarProps {
   events: CalendarEvent[];
@@ -43,8 +45,6 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   isEventReadOnly,
   onEventClick
 }) => {
-  // IMPORTANT: Don't keep an internal week state.
-  // The parent controls the current week via `currentDate`.
   const currentWeekStart = currentDate;
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -62,6 +62,64 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
 
   const days = getDaysToRender();
 
+  // Find today's index in the days array
+  const getTodayIndex = useCallback(() => {
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const index = days.findIndex(d => format(d, 'yyyy-MM-dd') === todayStr);
+    return index >= 0 ? index : 3; // Fallback to middle of week
+  }, [days]);
+
+  // 3D Carousel state - centerIndex determines which day is in focus
+  const [centerIndex, setCenterIndex] = useState(() => getTodayIndex());
+
+  // Update centerIndex when week changes (to focus on today if it exists in the new week)
+  useEffect(() => {
+    setCenterIndex(getTodayIndex());
+  }, [currentDate, getTodayIndex]);
+
+  // Get position relative to center (-3 to +3)
+  const getPositionFromCenter = (index: number): number => {
+    const diff = index - centerIndex;
+    // Clamp to -3 to +3 range
+    return Math.max(-3, Math.min(3, diff));
+  };
+
+  // Navigate carousel
+  const navigateCarousel = (direction: 'left' | 'right') => {
+    setCenterIndex(prev => {
+      if (direction === 'left') {
+        return Math.max(0, prev - 1);
+      } else {
+        return Math.min(days.length - 1, prev + 1);
+      }
+    });
+  };
+
+  // Handle click on a day card to bring it to center
+  const handleDayCardClick = (index: number) => {
+    if (index !== centerIndex) {
+      setCenterIndex(index);
+    }
+  };
+
+  // Handle mouse wheel for horizontal scrolling through carousel
+  const handleWheel = useCallback((e: WheelEvent) => {
+    // Only handle horizontal-like scrolling (shift+wheel or trackpad horizontal)
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey) {
+      e.preventDefault();
+      const direction = (e.deltaX > 0 || (e.shiftKey && e.deltaY > 0)) ? 'right' : 'left';
+      navigateCarousel(direction);
+    }
+  }, []);
+
+  // Attach wheel listener
+  useEffect(() => {
+    const container = containerRef.current;
+    if (container && viewMode === 'weekly') {
+      container.addEventListener('wheel', handleWheel, { passive: false });
+      return () => container.removeEventListener('wheel', handleWheel);
+    }
+  }, [handleWheel, viewMode]);
 
   const getEventsForDayAndResource = (date: Date, resourceId: string): CalendarEvent[] => {
     const dateStr = format(date, 'yyyy-MM-dd');
@@ -74,7 +132,6 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
       
       const eventStart = new Date(event.start);
       
-      // Validate date before formatting
       if (isNaN(eventStart.getTime())) {
         console.error('Invalid event start date:', event.id, event.start);
         return false;
@@ -85,24 +142,20 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     });
   };
 
-  // Optimized event resize handler - update and refresh
   const handleEventResize = async () => {
     console.log('CustomCalendar: Manual refresh after resize');
     await refreshEvents();
   };
 
-  // Get filtered resources for a specific day
   const getFilteredResourcesForDay = (date: Date): Resource[] => {
     if (!getVisibleTeamsForDay) return resources;
     const visibleTeams = getVisibleTeamsForDay(date);
     return resources.filter(resource => visibleTeams.includes(resource.id));
   };
 
-  // Calculate day width based on number of visible teams
   const getDayWidth = (numTeams: number) => {
     const timeColumnWidth = 80;
-    const minTeamColumnWidth = 128; // Synkad med TimeGrid teamColumnWidth
-
+    const minTeamColumnWidth = 128;
     return timeColumnWidth + (numTeams * minTeamColumnWidth);
   };
 
@@ -114,46 +167,127 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     );
   }
 
-  // In day mode, the calendar should take full width
   const isDayMode = viewMode === 'day';
 
+  // In day mode, use traditional layout (no carousel)
+  if (isDayMode) {
+    const date = days[0];
+    const filteredResources = getFilteredResourcesForDay(date);
+    const visibleTeams = getVisibleTeamsForDay ? getVisibleTeamsForDay(date) : [];
+
+    return (
+      <div className="custom-calendar-container" ref={containerRef}>
+        <div className="weekly-calendar-container p-4">
+          <div className="weekly-calendar-grid">
+            <div 
+              className={`day-card bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''} w-full`}
+            >
+              <TimeGrid
+                day={date}
+                resources={filteredResources}
+                events={events}
+                getEventsForDayAndResource={getEventsForDayAndResource}
+                onStaffDrop={onStaffDrop}
+                onOpenStaffSelection={onOpenStaffSelection}
+                dayWidth={undefined}
+                weeklyStaffOperations={weeklyStaffOperations}
+                onEventResize={handleEventResize}
+                teamVisibilityProps={allTeams && onToggleTeamForDay ? {
+                  allTeams,
+                  visibleTeams,
+                  onToggleTeam: (teamId: string) => onToggleTeamForDay(teamId, date)
+                } : undefined}
+                variant={variant}
+                isEventReadOnly={isEventReadOnly}
+                onEventClick={onEventClick}
+                fullWidth={true}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Weekly mode: 3D Carousel
   return (
     <div className="custom-calendar-container" ref={containerRef}>
-      {/* Modern Weekly Staff Planning Grid - Cards with gaps */}
-      <div className={`weekly-calendar-container ${isDayMode ? '' : 'overflow-x-auto'} p-4`}>
-        <div className={`weekly-calendar-grid ${isDayMode ? '' : 'flex gap-4'}`}>
-          {days.map((date) => {
+      <div className={`carousel-3d-wrapper ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
+        {/* Navigation arrows */}
+        <button
+          className="carousel-3d-nav nav-left"
+          onClick={() => navigateCarousel('left')}
+          disabled={centerIndex === 0}
+          aria-label="Föregående dag"
+        >
+          <ChevronLeft className="w-6 h-6" />
+        </button>
+        
+        <button
+          className="carousel-3d-nav nav-right"
+          onClick={() => navigateCarousel('right')}
+          disabled={centerIndex === days.length - 1}
+          aria-label="Nästa dag"
+        >
+          <ChevronRight className="w-6 h-6" />
+        </button>
+
+        {/* 3D Carousel container */}
+        <div className="carousel-3d-container">
+          {days.map((date, index) => {
             const filteredResources = getFilteredResourcesForDay(date);
-            const dayWidth = isDayMode ? undefined : getDayWidth(filteredResources.length);
+            const dayWidth = getDayWidth(filteredResources.length);
             const visibleTeams = getVisibleTeamsForDay ? getVisibleTeamsForDay(date) : [];
+            const position = getPositionFromCenter(index);
+            const isCenter = position === 0;
+            const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
 
             return (
               <div 
                 key={format(date, 'yyyy-MM-dd')} 
-                className={`day-card bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''} ${isDayMode ? 'w-full' : 'flex-shrink-0'}`}
-                style={isDayMode ? undefined : { width: `${dayWidth}px` }}
+                className={`carousel-3d-card ${isCenter ? 'is-center' : ''} ${isToday ? 'is-today' : ''}`}
+                data-position={position}
+                onClick={() => handleDayCardClick(index)}
+                style={{ '--card-width': `${dayWidth}px` } as React.CSSProperties}
               >
-                <TimeGrid
-                  day={date}
-                  resources={filteredResources}
-                  events={events}
-                  getEventsForDayAndResource={getEventsForDayAndResource}
-                  onStaffDrop={onStaffDrop}
-                  onOpenStaffSelection={onOpenStaffSelection}
-                  dayWidth={isDayMode ? undefined : dayWidth}
-                  weeklyStaffOperations={weeklyStaffOperations}
-                  onEventResize={handleEventResize}
-                  teamVisibilityProps={allTeams && onToggleTeamForDay ? {
-                    allTeams,
-                    visibleTeams,
-                    onToggleTeam: (teamId: string) => onToggleTeamForDay(teamId, date)
-                  } : undefined}
-                  variant={variant}
-                  isEventReadOnly={isEventReadOnly}
-                  onEventClick={onEventClick}
-                  fullWidth={isDayMode}
-                />
+                <div className={`day-card bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
+                  <TimeGrid
+                    day={date}
+                    resources={filteredResources}
+                    events={events}
+                    getEventsForDayAndResource={getEventsForDayAndResource}
+                    onStaffDrop={onStaffDrop}
+                    onOpenStaffSelection={onOpenStaffSelection}
+                    dayWidth={dayWidth}
+                    weeklyStaffOperations={weeklyStaffOperations}
+                    onEventResize={handleEventResize}
+                    teamVisibilityProps={allTeams && onToggleTeamForDay ? {
+                      allTeams,
+                      visibleTeams,
+                      onToggleTeam: (teamId: string) => onToggleTeamForDay(teamId, date)
+                    } : undefined}
+                    variant={variant}
+                    isEventReadOnly={isEventReadOnly}
+                    onEventClick={onEventClick}
+                    fullWidth={false}
+                  />
+                </div>
               </div>
+            );
+          })}
+        </div>
+
+        {/* Indicator dots */}
+        <div className="carousel-3d-indicators">
+          {days.map((date, index) => {
+            const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+            return (
+              <button
+                key={format(date, 'yyyy-MM-dd')}
+                className={`carousel-3d-dot ${index === centerIndex ? 'active' : ''} ${isToday ? 'is-today' : ''}`}
+                onClick={() => setCenterIndex(index)}
+                aria-label={format(date, 'EEEE d MMMM')}
+              />
             );
           })}
         </div>
