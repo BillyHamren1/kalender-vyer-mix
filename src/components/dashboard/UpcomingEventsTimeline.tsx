@@ -93,7 +93,7 @@ export const UpcomingEventsTimeline: React.FC<UpcomingEventsTimelineProps> = ({
             return (
               <div 
                 key={date.toISOString()} 
-                className={`min-w-[120px] flex-1 ${isToday ? 'bg-primary/5 rounded-lg p-2 -m-2' : ''}`}
+                className={`min-w-[120px] flex-1 rounded-lg p-2 ${isToday ? 'bg-primary/5 ring-2 ring-primary/20' : ''}`}
               >
                 <div className={`text-center mb-2 ${isToday ? 'font-bold text-primary' : ''}`}>
                   <div className="text-xs uppercase text-muted-foreground">
