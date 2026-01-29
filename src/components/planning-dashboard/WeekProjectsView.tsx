@@ -156,17 +156,17 @@ const DayColumn = ({
 
   return (
     <div className={cn(
-      "flex flex-col min-w-[180px]",
+      "flex flex-col flex-none min-w-[180px]",
       isPast && "opacity-50"
     )}>
       {/* Day header - distinct background */}
       <div className={cn(
-        "rounded-t-xl px-3 py-2.5 text-center border-x border-t",
+        "relative rounded-t-xl px-3 py-2.5 text-center border-x border-t",
         isToday ? "bg-primary/15 border-primary/30" : "bg-muted border-border"
       )}>
-        {/* Thin teal line for today */}
+        {/* Thin line for today (absolute so layout doesn't shift) */}
         {isToday && (
-          <div className="mx-auto mb-1.5 h-0.5 w-8 rounded-full bg-primary" />
+          <div className="pointer-events-none absolute left-1/2 top-2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-primary" />
         )}
 
         <div className={cn(
@@ -178,7 +178,7 @@ const DayColumn = ({
 
         <div className="flex items-baseline justify-center gap-0.5 mt-0.5">
           <span className={cn(
-            "text-2xl font-bold",
+            "text-2xl font-bold tabular-nums",
             isToday ? "text-primary" : "text-foreground"
           )}>{dayNumber}</span>
           <span className="text-xs text-muted-foreground">{monthName}.</span>
@@ -264,7 +264,7 @@ const WeekProjectsView = ({ projects, isLoading, onStaffDrop }: WeekProjectsView
       
       {/* Week grid */}
       <div className="p-4 overflow-x-auto">
-        <div className="grid grid-cols-7 gap-3 min-w-[1200px]">
+        <div className="flex gap-4 min-w-max items-stretch">
           {days.map(day => (
             <DayColumn 
               key={day.toISOString()}
