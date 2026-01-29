@@ -338,39 +338,41 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         {/* Row 3: Available Staff List + Staff Assignment Areas */}
         <div className="staff-row-time-cell" style={{ gridRow: 3, gridColumn: 1 }}></div>
         
-        {/* Available Staff Column */}
+        {/* Available Staff Column - fully open, no height limit */}
         <div 
-          className="staff-assignment-header-row available-staff-column"
+          className="available-staff-open-column"
           style={{ 
             gridColumn: 2,
             gridRow: 3,
             width: fullWidth ? 'auto' : `${availableColumnWidth}px`,
-            minWidth: `${availableColumnWidth}px`
+            minWidth: `${availableColumnWidth}px`,
+            background: 'linear-gradient(180deg, hsl(var(--muted) / 0.5) 0%, hsl(var(--muted) / 0.3) 100%)',
+            borderRight: '1px solid hsl(var(--foreground) / 0.2)',
+            borderBottom: '1px solid hsl(var(--border) / 0.6)',
+            padding: '8px 6px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px'
           }}
         >
-          <div className="staff-header-assignment-area">
-            <div className="assigned-staff-header-list">
-              {getUnassignedAvailableStaff().map((staff) => (
-                <StaffItem
-                  key={staff.id}
-                  staff={{
-                    id: staff.id,
-                    name: staff.name,
-                    color: staff.color,
-                    assignedTeam: undefined
-                  }}
-                  currentDate={day}
-                  variant="compact"
-                  showRemoveDialog={false}
-                />
-              ))}
-              {getUnassignedAvailableStaff().length === 0 && (
-                <span className="text-xs text-muted-foreground/60 italic">Inga lediga</span>
-              )}
-            </div>
-          </div>
+          {getUnassignedAvailableStaff().map((staff) => (
+            <StaffItem
+              key={staff.id}
+              staff={{
+                id: staff.id,
+                name: staff.name,
+                color: staff.color,
+                assignedTeam: undefined
+              }}
+              currentDate={day}
+              variant="compact"
+              showRemoveDialog={false}
+            />
+          ))}
+          {getUnassignedAvailableStaff().length === 0 && (
+            <span className="text-xs text-muted-foreground/60 italic text-center">Inga lediga</span>
+          )}
         </div>
-
         {resources.map((resource, index) => {
           const assignedStaff = getAssignedStaffForTeam(resource.id);
           
