@@ -58,7 +58,7 @@ const StaffItem: React.FC<StaffItemProps> = ({
   const staffColor = staff.color || '#E3F2FD';
   const textColor = getContrastTextColor(staffColor);
 
-  // Compact variant - modern minimal design
+  // Compact variant - modern minimal pill design
   if (variant === 'compact') {
     return (
       <>
@@ -72,7 +72,7 @@ const StaffItem: React.FC<StaffItemProps> = ({
           title={staff.name}
         >
           <div 
-            className="px-3 py-1 rounded-full text-xs font-medium shadow-sm transition-all duration-200 hover:shadow-md hover:scale-105"
+            className="px-2.5 py-0.5 rounded-full text-[11px] font-medium shadow-sm transition-all duration-200 hover:shadow-md hover:scale-105"
             style={{ 
               backgroundColor: staffColor,
               color: textColor,
@@ -82,7 +82,7 @@ const StaffItem: React.FC<StaffItemProps> = ({
           </div>
           {showRemoveDialog && onRemove && (
             <button 
-              className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 hover:bg-red-600 rounded-full text-white text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-sm"
+              className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 hover:bg-red-600 rounded-full text-white text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-sm"
               onClick={(e) => {
                 e.stopPropagation();
                 handleConfirmRemove();
