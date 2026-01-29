@@ -9,6 +9,16 @@ import {
   checkAndMarkWarehouseChanges 
 } from './warehouseCalendarService';
 
+const normalizeStatus = (status: unknown) => {
+  const normalized = (status ?? '').toString().trim().toUpperCase();
+
+  // Normalize common Swedish/legacy values into our canonical set
+  if (normalized === 'BEKRÄFTAD') return 'CONFIRMED';
+  if (normalized === 'AVBOKAD') return 'CANCELLED';
+
+  return normalized;
+};
+
 // Smart update that only changes calendar when booking changes affect calendar events
 export const smartUpdateBookingCalendar = async (
   bookingId: string, 
@@ -18,29 +28,32 @@ export const smartUpdateBookingCalendar = async (
   console.log(`SmartUpdateBookingCalendar: Processing booking ${bookingId}`);
   
   try {
+    const oldStatus = normalizeStatus(oldBooking?.status);
+    const newStatus = normalizeStatus(newBooking?.status);
+
     // Handle booking deletion
-    if (newBooking.status === 'DELETED') {
+    if (newStatus === 'DELETED') {
       await removeAllBookingEvents(bookingId);
       console.log(`Removed all calendar events for deleted booking ${bookingId}`);
       return;
     }
 
     // If booking was confirmed but now isn't, remove all events
-    if (oldBooking.status === 'CONFIRMED' && newBooking.status !== 'CONFIRMED') {
+    if (oldStatus === 'CONFIRMED' && newStatus !== 'CONFIRMED') {
       await removeAllBookingEvents(bookingId);
       console.log(`Removed calendar events for booking ${bookingId} - status changed from CONFIRMED`);
       return;
     }
 
     // If booking is now confirmed but wasn't before, create all events
-    if (oldBooking.status !== 'CONFIRMED' && newBooking.status === 'CONFIRMED') {
+    if (oldStatus !== 'CONFIRMED' && newStatus === 'CONFIRMED') {
       await syncSingleBookingToCalendar(bookingId, newBooking);
       console.log(`Created calendar events for newly confirmed booking ${bookingId}`);
       return;
     }
 
     // If booking is confirmed and dates changed, update calendar events
-    if (newBooking.status === 'CONFIRMED') {
+    if (newStatus === 'CONFIRMED') {
       const dateFields = ['rigdaydate', 'eventdate', 'rigdowndate'];
       const timeFields = ['rig_start_time', 'rig_end_time', 'event_start_time', 'event_end_time', 'rigdown_start_time', 'rigdown_end_time'];
       
