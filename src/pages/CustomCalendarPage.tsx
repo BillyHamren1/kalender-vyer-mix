@@ -106,18 +106,18 @@ const CustomCalendarPage = () => {
   // Get visible teams for a specific day
   const getVisibleTeamsForDay = (date: Date): string[] => {
     const dateKey = format(date, 'yyyy-MM-dd');
-    return visibleTeamsByDay[dateKey] || ['team-1', 'team-2', 'team-11'];
+    return visibleTeamsByDay[dateKey] || ['team-1', 'team-2', 'team-3', 'team-4', 'team-5', 'team-11'];
   };
 
   // Toggle team visibility for a specific day
   const handleToggleTeamForDay = (teamId: string, date: Date) => {
     const dateKey = format(date, 'yyyy-MM-dd');
     setVisibleTeamsByDay(prev => {
-      const currentVisible = prev[dateKey] || ['team-1', 'team-2', 'team-11'];
+      const currentVisible = prev[dateKey] || ['team-1', 'team-2', 'team-3', 'team-4', 'team-5', 'team-11'];
       
       if (currentVisible.includes(teamId)) {
-        // Don't allow hiding Team 1, 2, and Live
-        if (['team-1', 'team-2', 'team-11'].includes(teamId)) {
+        // Don't allow hiding Team 1-5 and Live
+        if (['team-1', 'team-2', 'team-3', 'team-4', 'team-5', 'team-11'].includes(teamId)) {
           return prev;
         }
         return {

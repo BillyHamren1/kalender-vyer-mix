@@ -21,6 +21,9 @@ export const fetchTeamResources = async (): Promise<Resource[]> => {
       { id: 'team-1', title: 'Team 1', eventColor: '#3788d8' },
       { id: 'team-2', title: 'Team 2', eventColor: '#1e90ff' },
       { id: 'team-3', title: 'Team 3', eventColor: '#4169e1' },
+      { id: 'team-4', title: 'Team 4', eventColor: '#0073cf' },
+      { id: 'team-5', title: 'Team 5', eventColor: '#4682b4' },
+      { id: 'team-11', title: 'Live', eventColor: '#FEF7CD' },
     ];
   } catch (error) {
     console.error('Error fetching team resources:', error);
