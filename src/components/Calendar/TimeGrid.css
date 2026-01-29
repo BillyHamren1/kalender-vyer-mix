@@ -260,7 +260,7 @@
   );
   height: 60px;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   border-right: 1px solid hsl(var(--foreground) / 0.2);
   border-bottom: 1px solid hsl(var(--border) / 0.6);
   transition: background 0.2s ease;
@@ -302,7 +302,8 @@
   flex-wrap: wrap;
   gap: 6px;
   max-height: 54px;
-  overflow-y: auto;
+  overflow: visible;
+  padding-top: 4px;
 }
 
 .staff-header-item {
