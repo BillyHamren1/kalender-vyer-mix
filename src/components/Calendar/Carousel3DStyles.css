@@ -3,14 +3,14 @@
   perspective: 2000px;
   perspective-origin: 50% 50%;
   width: 100%;
-  height: 100%;
-  min-height: 700px;
+  height: 750px;
+  min-height: 750px;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  overflow: visible;
   position: relative;
-  padding: 40px 0;
+  padding: 40px 80px;
 }
 
 .carousel-3d-container {
@@ -28,9 +28,29 @@
   transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   transform-origin: center center;
   backface-visibility: hidden;
-  width: 500px;
-  max-width: 500px;
+  width: 450px;
+  min-width: 450px;
+  max-width: 450px;
+  height: 650px;
   will-change: transform, opacity, z-index;
+}
+
+/* Inner day card styling - override any conflicting styles */
+.carousel-3d-card .day-calendar-wrapper {
+  width: 100% !important;
+  height: 100% !important;
+  background: hsl(var(--background));
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  border: 1px solid hsl(var(--border));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.carousel-3d-card .weekly-view-calendar {
+  flex: 1;
+  overflow: hidden;
 }
 
 /* Center card - full size, in front */
@@ -111,16 +131,6 @@
 .carousel-3d-card:not([data-position="0"]):hover {
   filter: brightness(1.05);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Inner day card styling */
-.carousel-3d-card .day-calendar-wrapper {
-  width: 100%;
-  background: hsl(var(--background));
-  border-radius: 20px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-  border: 1px solid hsl(var(--border));
-  overflow: hidden;
 }
 
 /* Center card gets extra styling */
