@@ -7,10 +7,10 @@ interface WarehouseSystemLayoutProps {
 
 const WarehouseSystemLayout: React.FC<WarehouseSystemLayoutProps> = ({ children }) => {
   return (
-    <div className="min-h-screen flex">
+    <div className="h-screen flex overflow-hidden">
       <WarehouseSidebar3D />
-      {/* Main content with left margin for sidebar */}
-      <main className="flex-1 md:ml-64 pb-20 md:pb-0">
+      {/* Main content - sidebar takes space in layout (no reserved margin) */}
+      <main className="flex-1 pb-20 md:pb-0 flex flex-col overflow-hidden">
         {children}
       </main>
     </div>

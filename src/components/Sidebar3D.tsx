@@ -45,7 +45,7 @@ export function Sidebar3D() {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-40 h-screen transition-all duration-300 ease-out",
+          "relative z-40 h-screen shrink-0 transition-all duration-300 ease-out",
           "hidden md:flex flex-col",
           isCollapsed ? "w-20" : "w-64"
         )}
