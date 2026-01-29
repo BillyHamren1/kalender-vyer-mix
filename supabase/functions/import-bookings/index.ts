@@ -413,6 +413,44 @@ serve(async (req) => {
           if (statusChanged) {
             console.log(`Status changed for ${bookingData.id}: ${existingBooking.status} -> ${bookingData.status}`)
             results.status_changed_bookings.push(bookingData.id)
+            
+            // CRITICAL: Handle status changes that affect calendar
+            const wasConfirmed = existingBooking.status === 'CONFIRMED';
+            const isNowConfirmed = bookingData.status === 'CONFIRMED';
+            
+            // If booking was confirmed but now isn't - REMOVE all calendar events
+            if (wasConfirmed && !isNowConfirmed) {
+              console.log(`Booking ${bookingData.id} is no longer CONFIRMED - removing calendar events`);
+              
+              // Remove from calendar_events
+              const { error: deleteCalError } = await supabase
+                .from('calendar_events')
+                .delete()
+                .eq('booking_id', existingBooking.id);
+              
+              if (deleteCalError) {
+                console.error(`Error removing calendar events:`, deleteCalError);
+              } else {
+                console.log(`Removed calendar events for booking ${existingBooking.id}`);
+              }
+              
+              // Remove from warehouse_calendar_events
+              const { error: deleteWhError } = await supabase
+                .from('warehouse_calendar_events')
+                .delete()
+                .eq('booking_id', existingBooking.id);
+              
+              if (deleteWhError) {
+                console.error(`Error removing warehouse events:`, deleteWhError);
+              } else {
+                console.log(`Removed warehouse events for booking ${existingBooking.id}`);
+              }
+            }
+            
+            // If booking is now confirmed but wasn't before - calendar events will be created below
+            if (!wasConfirmed && isNowConfirmed) {
+              console.log(`Booking ${bookingData.id} is now CONFIRMED - calendar events will be created`);
+            }
           } else {
             console.log(`Data changed for ${bookingData.id}, updating`)
             results.updated_bookings.push(bookingData.id)
