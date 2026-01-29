@@ -1,11 +1,11 @@
-/* 3D Carousel Styles for CustomCalendar */
+/* 3D Carousel Styles - Modern Glass Design */
 
 /* Ensure parent container fills available space */
 .custom-calendar-container {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 0; /* Allow flexbox shrinking */
+  min-height: 0;
   height: 100%;
 }
 
@@ -13,14 +13,20 @@
   position: relative;
   width: 100%;
   flex: 1;
-  min-height: 0; /* Allow flex shrinking */
-  perspective: 1800px;
+  min-height: 0;
+  perspective: 2000px;
   perspective-origin: 50% 50%;
   overflow: visible;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px 60px;
+  padding: 24px 80px;
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background)) 0%,
+    hsl(var(--muted) / 0.3) 50%,
+    hsl(var(--background)) 100%
+  );
 }
 
 .carousel-3d-container {
@@ -33,13 +39,13 @@
   justify-content: center;
 }
 
-/* Individual carousel card */
+/* Individual carousel card with glass morphism */
 .carousel-3d-card {
   position: absolute;
   width: var(--card-width, 450px);
-  height: calc(100% - 60px); /* Fyll wrapper minus padding för indikatorer */
+  height: calc(100% - 60px);
   min-height: 0;
-  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   transform-style: preserve-3d;
   cursor: pointer;
   backface-visibility: hidden;
@@ -48,7 +54,7 @@
 .carousel-3d-card .day-card {
   width: 100%;
   height: 100%;
-  overflow: auto; /* Tillåt scroll inom kortet om innehållet är större */
+  overflow: auto;
 }
 
 /* Disable interactions on non-center cards */
@@ -60,10 +66,10 @@
   pointer-events: auto;
 }
 
-/* Position-based transforms - no rotateY, cards stay flat */
+/* Position-based transforms - flat cards with depth */
 /* Center card */
 .carousel-3d-card[data-position="0"] {
-  transform: translateX(0) translateZ(100px) scale(1);
+  transform: translateX(0) translateZ(120px) scale(1);
   z-index: 50;
   opacity: 1;
 }
@@ -110,45 +116,69 @@
   opacity: 0.4;
 }
 
-/* Center card glow effect */
+/* Center card glow effect - Modern glass */
 .carousel-3d-card.is-center .day-card {
   box-shadow: 
-    0 25px 50px -12px rgba(0, 0, 0, 0.25),
-    0 0 0 1px hsl(var(--primary) / 0.1),
-    0 0 60px -10px hsl(var(--primary) / 0.15);
+    0 20px 60px -15px rgba(0, 0, 0, 0.2),
+    0 40px 80px -20px rgba(0, 0, 0, 0.1),
+    0 0 0 1px hsl(var(--primary) / 0.15),
+    0 0 80px -20px hsl(var(--primary) / 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
-/* Today indicator glow */
+/* Today indicator glow - Enhanced */
 .carousel-3d-card.is-today.is-center .day-card {
   box-shadow: 
-    0 25px 50px -12px rgba(0, 0, 0, 0.25),
-    0 0 0 2px hsl(var(--primary) / 0.3),
-    0 0 80px -10px hsl(var(--primary) / 0.25);
+    0 20px 60px -15px rgba(0, 0, 0, 0.2),
+    0 40px 80px -20px rgba(0, 0, 0, 0.1),
+    0 0 0 2px hsl(var(--primary) / 0.4),
+    0 0 100px -20px hsl(var(--primary) / 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
-/* Navigation arrows */
+/* Navigation arrows - Glass morphism */
 .carousel-3d-nav {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
   z-index: 100;
-  width: 48px;
-  height: 48px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
-  background: hsl(var(--background));
-  border: 1px solid hsl(var(--border));
+  background: linear-gradient(
+    145deg,
+    hsl(var(--background)) 0%,
+    hsl(var(--background) / 0.9) 100%
+  );
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border) / 0.3);
   color: hsl(var(--foreground));
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    0 2px 8px rgba(0, 0, 0, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .carousel-3d-nav:hover:not(:disabled) {
-  background: hsl(var(--accent));
+  background: linear-gradient(
+    145deg,
+    hsl(var(--background)) 0%,
+    hsl(var(--accent)) 100%
+  );
   transform: translateY(-50%) scale(1.1);
+  box-shadow: 
+    0 12px 40px rgba(0, 0, 0, 0.15),
+    0 4px 12px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.carousel-3d-nav:active {
+  transform: translateY(-50%) scale(0.95);
 }
 
 .carousel-3d-nav:disabled {
@@ -157,88 +187,130 @@
 }
 
 .carousel-3d-nav.nav-left {
-  left: 10px;
+  left: 16px;
 }
 
 .carousel-3d-nav.nav-right {
-  right: 10px;
+  right: 16px;
 }
 
-/* Indicator dots */
+/* Indicator dots - Modern pills */
 .carousel-3d-indicators {
   position: absolute;
-  bottom: 10px;
+  bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 8px;
+  gap: 10px;
   z-index: 100;
-  padding: 8px 16px;
-  background: hsl(var(--background) / 0.8);
-  backdrop-filter: blur(8px);
-  border-radius: 20px;
-  border: 1px solid hsl(var(--border) / 0.5);
+  padding: 10px 20px;
+  background: linear-gradient(
+    145deg,
+    hsl(var(--background) / 0.9) 0%,
+    hsl(var(--background) / 0.8) 100%
+  );
+  backdrop-filter: blur(16px);
+  border-radius: 24px;
+  border: 1px solid hsl(var(--border) / 0.3);
+  box-shadow: 
+    0 4px 24px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .carousel-3d-dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: hsl(var(--muted-foreground) / 0.3);
+  background: hsl(var(--muted-foreground) / 0.2);
   border: none;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .carousel-3d-dot:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
-  transform: scale(1.2);
-}
-
-.carousel-3d-dot.active {
-  background: hsl(var(--primary));
+  background: hsl(var(--muted-foreground) / 0.4);
   transform: scale(1.3);
 }
 
+.carousel-3d-dot.active {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--primary)) 0%,
+    hsl(var(--primary) / 0.8) 100%
+  );
+  transform: scale(1.4);
+  box-shadow: 0 0 12px hsl(var(--primary) / 0.4);
+}
+
 .carousel-3d-dot.is-today {
-  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.3);
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
 }
 
 .carousel-3d-dot.is-today.active {
-  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.5);
+  box-shadow: 
+    0 0 0 3px hsl(var(--primary) / 0.3),
+    0 0 16px hsl(var(--primary) / 0.5);
 }
 
 /* Warehouse theme adjustments */
+.carousel-3d-wrapper.warehouse-theme {
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background)) 0%,
+    hsl(45 30% 96% / 0.5) 50%,
+    hsl(var(--background)) 100%
+  );
+}
+
 .carousel-3d-wrapper.warehouse-theme .carousel-3d-nav {
-  background: hsl(var(--background));
-  border-color: hsl(45 100% 51% / 0.3);
+  background: linear-gradient(
+    145deg,
+    hsl(var(--background)) 0%,
+    hsl(var(--background) / 0.9) 100%
+  );
+  border-color: hsl(45 100% 51% / 0.2);
 }
 
 .carousel-3d-wrapper.warehouse-theme .carousel-3d-nav:hover:not(:disabled) {
-  background: hsl(45 100% 51% / 0.1);
-  border-color: hsl(45 100% 51% / 0.5);
+  background: linear-gradient(
+    145deg,
+    hsl(var(--background)) 0%,
+    hsl(45 100% 96%) 100%
+  );
+  border-color: hsl(45 100% 51% / 0.4);
 }
 
 .carousel-3d-wrapper.warehouse-theme .carousel-3d-dot.active {
-  background: hsl(45 100% 51%);
+  background: linear-gradient(
+    135deg,
+    hsl(45 100% 51%) 0%,
+    hsl(45 100% 45%) 100%
+  );
+  box-shadow: 0 0 12px hsl(45 100% 51% / 0.4);
 }
 
 .carousel-3d-wrapper.warehouse-theme .carousel-3d-card.is-center .day-card {
   box-shadow: 
-    0 25px 50px -12px rgba(0, 0, 0, 0.25),
+    0 20px 60px -15px rgba(0, 0, 0, 0.2),
+    0 40px 80px -20px rgba(0, 0, 0, 0.1),
     0 0 0 1px hsl(45 100% 51% / 0.2),
-    0 0 60px -10px hsl(45 100% 51% / 0.15);
+    0 0 80px -20px hsl(45 100% 51% / 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
-/* Responsive adjustments - behåll dynamisk höjd */
+/* Responsive adjustments */
 @media (max-width: 1400px) {
   .carousel-3d-wrapper {
-    padding: 15px 50px;
+    padding: 20px 60px;
+  }
+  
+  .carousel-3d-nav {
+    width: 48px;
+    height: 48px;
   }
 }
 
 @media (max-width: 1200px) {
-  /* Hide far cards on smaller screens */
   .carousel-3d-card[data-position="3"],
   .carousel-3d-card[data-position="-3"] {
     opacity: 0;
@@ -248,8 +320,8 @@
 
 @media (max-width: 900px) {
   .carousel-3d-wrapper {
-    perspective: 1200px;
-    padding: 10px 40px;
+    perspective: 1500px;
+    padding: 16px 50px;
   }
   
   .carousel-3d-card[data-position="2"],
@@ -257,11 +329,16 @@
     opacity: 0;
     pointer-events: none;
   }
+  
+  .carousel-3d-nav {
+    width: 44px;
+    height: 44px;
+  }
 }
 
 @media (max-width: 768px) {
   .carousel-3d-wrapper {
-    padding: 10px 30px;
+    padding: 12px 35px;
     min-height: 400px;
   }
   
@@ -270,15 +347,25 @@
   }
   
   .carousel-3d-nav {
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
   }
   
   .carousel-3d-nav.nav-left {
-    left: 5px;
+    left: 8px;
   }
   
   .carousel-3d-nav.nav-right {
-    right: 5px;
+    right: 8px;
+  }
+  
+  .carousel-3d-indicators {
+    padding: 8px 14px;
+    gap: 8px;
+  }
+  
+  .carousel-3d-dot {
+    width: 8px;
+    height: 8px;
   }
 }
