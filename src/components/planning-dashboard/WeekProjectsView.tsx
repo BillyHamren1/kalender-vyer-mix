@@ -130,31 +130,23 @@ const ProjectCard = ({
           {project.client}
         </h4>
         
-        {/* Assigned staff section - compact */}
-        <div className="flex items-center gap-1.5">
-          <Users className="w-3 h-3 text-muted-foreground shrink-0" />
-          <div className="flex items-center gap-1 flex-wrap">
-            {project.assignedStaff.length === 0 ? (
-              <span className={cn(
-                "text-xs italic px-2 py-0.5 rounded border border-dashed transition-colors",
-                isOver && canDrop 
-                  ? "border-primary text-primary bg-primary/5" 
-                  : "border-muted-foreground/30 text-muted-foreground/50"
-              )}>
-                Dra hit...
-              </span>
-            ) : (
-              project.assignedStaff.map(s => (
-                <span 
-                  key={s.id} 
-                  className="inline-flex items-center gap-1 bg-primary text-primary-foreground text-xs font-medium py-0.5 px-2 rounded"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary-foreground/30" />
-                  {s.name.split(' ')[0]}
-                </span>
-              ))
-            )}
-          </div>
+        {/* Assigned staff section - compact list */}
+        <div className="flex items-start gap-1.5">
+          <Users className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
+          {project.assignedStaff.length === 0 ? (
+            <span className={cn(
+              "text-xs italic transition-colors",
+              isOver && canDrop 
+                ? "text-primary" 
+                : "text-muted-foreground/50"
+            )}>
+              Dra hit...
+            </span>
+          ) : (
+            <span className="text-xs text-foreground leading-tight">
+              {project.assignedStaff.map(s => s.name.split(' ')[0]).join(', ')}
+            </span>
+          )}
         </div>
       </div>
     </div>
