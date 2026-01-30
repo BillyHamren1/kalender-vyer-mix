@@ -384,19 +384,23 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             gap: '2px'
           }}
         >
-          {getUnassignedAvailableStaff().map((staff) => (
-            <div 
-              key={staff.id}
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap"
-              style={{ 
-                backgroundColor: staff.color || 'hsl(var(--muted))',
-                color: '#000'
-              }}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60 flex-shrink-0"></span>
-              <span>{staff.name}</span>
-            </div>
-          ))}
+          {getUnassignedAvailableStaff().map((staff) => {
+            const firstName = staff.name.trim().split(' ')[0];
+            return (
+              <div 
+                key={staff.id}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap"
+                style={{ 
+                  backgroundColor: staff.color || 'hsl(var(--muted))',
+                  color: '#000'
+                }}
+                title={staff.name}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60 flex-shrink-0"></span>
+                <span>{firstName}</span>
+              </div>
+            );
+          })}
           {getUnassignedAvailableStaff().length === 0 && (
             <span className="text-[9px] text-muted-foreground/60 italic text-center">Inga</span>
           )}
