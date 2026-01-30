@@ -117,14 +117,14 @@ const DashboardListWidget = ({
                   if (item.onClick) item.onClick();
                   else if (onItemClick) onItemClick(item);
                 }}
-                className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors border-b border-border/50 last:border-b-0"
+                className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors border-b border-border/50 last:border-b-0 gap-2"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">
+                  <p className="text-sm font-medium text-foreground break-words">
                     {item.primaryText}
                   </p>
                   {item.secondaryText && (
-                    <p className="text-xs text-muted-foreground truncate">
+                    <p className="text-xs text-muted-foreground">
                       {item.secondaryText}
                     </p>
                   )}
