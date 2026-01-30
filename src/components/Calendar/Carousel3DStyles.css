@@ -12,11 +12,12 @@
 .carousel-3d-wrapper {
   position: relative;
   width: 100%;
+  max-width: 100%;
   flex: 1;
   min-height: 0;
   perspective: 2000px;
   perspective-origin: 50% 50%;
-  overflow: visible;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -28,7 +29,7 @@
     hsl(var(--muted) / 0.3) 50%,
     hsl(var(--background)) 100%
   );
-  --card-width: 90vw;
+  --card-width: min(85vw, calc(100vw - 120px));
   --card-max-width: 1400px;
 }
 
