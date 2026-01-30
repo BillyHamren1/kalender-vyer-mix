@@ -135,7 +135,7 @@ const UpcomingJobsTimeline = ({
                         >
                           <div className="flex items-start justify-between gap-1">
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium truncate">{job.client}</p>
+                              <p className="text-xs font-medium line-clamp-2 whitespace-normal">{job.client}</p>
                               {job.bookingNumber && (
                                 <p className="text-[10px] opacity-70">#{job.bookingNumber}</p>
                               )}
