@@ -11,8 +11,8 @@ import SimpleStaffCurtain from '@/components/Calendar/SimpleStaffCurtain';
 import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
 import MobileCalendarView from '@/components/mobile/MobileCalendarView';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
-import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
-import { startOfWeek, startOfMonth, format } from 'date-fns';
+import SimpleMonthlyCalendar from '@/components/Calendar/SimpleMonthlyCalendar';
+import { startOfWeek, startOfMonth, format, subDays } from 'date-fns';
 
 // Wrapper component to handle async loading of staff with status
 const SimpleStaffCurtainWrapper: React.FC<{
@@ -256,34 +256,22 @@ const CustomCalendarPage = () => {
                 />
               )
             ) : viewMode === 'monthly' ? (
-              // Monthly View - same as weekly but with week tabs below
-              <>
-                {isMobile ? (
-                  <MobileCalendarView events={events} />
-                ) : (
-                  <CustomCalendar
-                    events={events}
-                    resources={teamResources}
-                    isLoading={isLoading}
-                    isMounted={isMounted}
-                    currentDate={currentWeekStart}
-                    onDateSet={handleDatesSet}
-                    refreshEvents={refreshEvents}
-                    onStaffDrop={staffOps.handleStaffDrop}
-                    onOpenStaffSelection={handleOpenStaffSelection}
-                    viewMode="monthly"
-                    weeklyStaffOperations={staffOps}
-                    getVisibleTeamsForDay={getVisibleTeamsForDay}
-                    onToggleTeamForDay={handleToggleTeamForDay}
-                    allTeams={teamResources}
-                  />
-                )}
-                <WeekTabsNavigation
-                  currentMonth={monthlyDate}
-                  currentWeekStart={currentWeekStart}
-                  onWeekSelect={handleWeekSelect}
+              // Monthly View - simple calendar overview
+              isMobile ? (
+                <MobileCalendarView events={events} />
+              ) : (
+                <SimpleMonthlyCalendar
+                  events={events}
+                  currentDate={monthlyDate}
+                  onDateChange={handleMonthChange}
+                  onDayClick={(date: Date) => {
+                    // Center the week around the clicked date
+                    const centeredWeekStart = subDays(date, 3);
+                    setCurrentWeekStart(centeredWeekStart);
+                    setViewMode('weekly');
+                  }}
                 />
-              </>
+              )
             ) : (
               // List View
               <StaffBookingsList

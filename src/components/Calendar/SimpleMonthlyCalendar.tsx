@@ -1,6 +1,7 @@
 import React from 'react';
 import { CalendarEvent } from './ResourceData';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, startOfWeek, endOfWeek } from 'date-fns';
+import { sv } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface SimpleMonthlyCalendarProps {
@@ -61,8 +62,8 @@ const SimpleMonthlyCalendar: React.FC<SimpleMonthlyCalendarProps> = ({
           <ChevronLeft className="h-5 w-5" />
         </button>
         
-        <h2 className="text-2xl font-bold text-foreground">
-          {format(currentDate, 'MMMM yyyy')}
+        <h2 className="text-2xl font-bold text-foreground capitalize">
+          {format(currentDate, 'MMMM yyyy', { locale: sv })}
         </h2>
         
         <button
@@ -75,7 +76,7 @@ const SimpleMonthlyCalendar: React.FC<SimpleMonthlyCalendarProps> = ({
 
       {/* Days of Week Header */}
       <div className="grid grid-cols-7 border-b border-border bg-muted/50">
-        {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
+        {['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'].map(day => (
           <div key={day} className="p-3 text-center text-sm font-semibold text-muted-foreground">
             {day}
           </div>
