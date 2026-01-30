@@ -260,12 +260,18 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   return (
     <div 
       className={`time-grid-with-staff-header ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}
-      style={{
-        gridTemplateColumns: getGridTemplateColumns(),
-        gridTemplateRows: 'auto auto auto 1fr',
-        width: getTotalWidth()
-      }}
     >
+      {/* Fixed Header Section */}
+      <div 
+        className="time-grid-fixed-header"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: getGridTemplateColumns(),
+          gridTemplateRows: 'auto auto auto',
+          width: getTotalWidth(),
+          flexShrink: 0
+        }}
+      >
         {/* Header row background (spans TIME + day header) */}
         <div className="time-grid-header-bg" style={{ gridColumn: '1 / -1', gridRow: 1 }} />
 
@@ -447,8 +453,22 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             </div>
           );
         })}
+      </div>
 
-        <div className="time-labels-column" style={{ gridRow: 4, gridColumn: 1 }}>
+      {/* Scrollable Time Slots Section */}
+      <div 
+        className="time-grid-scrollable-content"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: getGridTemplateColumns(),
+          width: getTotalWidth(),
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden'
+        }}
+      >
+        <div className="time-labels-column" style={{ gridColumn: 1 }}>
           {/* Continuous 24-hour time labels from 05:00 to 05:00 (next day) */}
           {timeSlots.map((slot) => (
             <div key={slot.time} className="time-label-slot">
@@ -457,12 +477,11 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           ))}
         </div>
 
-        {/* Empty column under "Tillgängliga" header */}
+        {/* Empty column under "Personal" header */}
         <div 
           className="time-slots-column available-staff-time-column"
           style={{ 
             gridColumn: 2,
-            gridRow: 4,
             width: fullWidth ? 'auto' : `${availableColumnWidth}px`,
             minWidth: `${availableColumnWidth}px`,
             background: 'hsl(var(--muted) / 0.3)',
@@ -476,7 +495,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           </div>
         </div>
 
-        {/* Simplified Time Slot Columns */}
+        {/* Time Slot Columns */}
         {resources.map((resource, index) => {
           const resourceEvents = getEventsForDayAndResource(day, resource.id);
           
@@ -492,7 +511,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 className={`time-slots-column ${index === resources.length - 1 ? 'is-last' : ''}`}
                 style={{ 
                   gridColumn: index + 3,
-                  gridRow: 4,
                   width: fullWidth ? 'auto' : `${teamColumnWidth}px`,
                   minWidth: fullWidth ? '120px' : `${teamColumnWidth}px`,
                   position: 'relative'
@@ -525,9 +543,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             </SimpleTimeSlot>
           );
         })}
-
-        {/* Footer row - same gradient as header */}
-        <div className="time-grid-footer-bg" style={{ gridColumn: '1 / -1', gridRow: 5 }} />
+      </div>
     </div>
   );
 };
