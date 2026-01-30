@@ -29,7 +29,9 @@
     hsl(var(--muted) / 0.3) 50%,
     hsl(var(--background)) 100%
   );
-  --card-width: min(85vw, calc(100vw - 120px));
+  /* Use container-based sizing so the calendar never exceeds the available content width
+     (important when the sidebar is open or the window is narrow). */
+  --card-width: 100%;
   --card-max-width: 1400px;
 }
 
@@ -41,6 +43,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 /* Individual carousel card with glass morphism */
