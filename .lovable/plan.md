@@ -1,56 +1,88 @@
 
-# Åtgärda kundnamnstrunkering i Planerings-Dashboard veckovyn
+# Plan: Fixa Dag/Vecka-vyerna i Kalendern
 
-## Problem
-Kundnamnet ("Testkund...") klipps mitt i containern på projektkorten i veckovyn. Orsaken är en kombination av:
+## Problemet
+Just nu funkar inte vyerna rätt:
+- **"Dag"** ska visa den befintliga 3D-karusellen (ett fokuserat dagskort i mitten med side-kort bakom) 
+- **"Vecka"** ska visa EXAKT samma dagskortsdesign (TimeGrid med alla team, "Tillgängliga"-kolumnen, etc.) men sida vid sida för alla 7 dagar, inte som en karusell
 
-1. **För smal kolumnbredd** – Varje dag-kolumn har `min-w-[140px]` och `flex-1` vilket ger ca 140px per kolumn. Med padding (2.5 = 10px på varje sida) blir textbredden endast ~120px.
-2. **Klippt till 1 rad** – `line-clamp-1` på rad 129 begränsar texten till max 1 rad.
+Problemet är att `CustomCalendarPage.tsx` nu använder `UnifiedResourceCalendar` för båda vyerna, men `UnifiedResourceCalendar` har en egen implementation för `viewMode="weekly"` som inte matchar `CustomCalendar`-designen.
 
 ## Lösning
-1. **Ändra `line-clamp-1` till `line-clamp-2`** på kundnamnet så det kan visa 2 rader.
-2. **Öka minsta kolumnbredd** från `140px` till `180px` för att ge mer horisontellt utrymme.
-3. **Uppdatera `min-w` på grid-container** från `980px` till `1260px` (7 × 180px) för att matcha.
+Använda `CustomCalendar` för BÅDA vyerna (`day` och `weekly`) eftersom den redan har rätt design och layout. `CustomCalendar` har redan stöd för:
+- **`viewMode="day"`**: Visar karusellen (redan implementerat)
+- **`viewMode="weekly"`**: Visar karusellen (men ska ändras till sida-vid-sida grid)
+
+## Tekniska ändringar
+
+### 1. Uppdatera `CustomCalendar.tsx`
+Ändra så att `viewMode="weekly"` renderar alla 7 dagar i en horisontell grid (sida-vid-sida) istället för 3D-karusellen:
+
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│ Vecka 5, Januari 2026                        Dag │ Vecka │ Månad │ Lista │
+├─────────────────────────────────────────────────────────────────────────┤
+│ ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐                       │
+│ │Mån │ │Tis │ │Ons │ │Tor │ │Fre │ │Lör │ │Sön │  <-- 7 dagskort       │
+│ │ 27 │ │ 28 │ │ 29 │ │ 30 │ │ 31 │ │ 1  │ │ 2  │      (horizontal      │
+│ │    │ │    │ │    │ │    │ │    │ │    │ │    │       scroll)         │
+│ │    │ │    │ │    │ │    │ │    │ │    │ │    │                       │
+│ └────┘ └────┘ └────┘ └────┘ └────┘ └────┘ └────┘                       │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+Ändringar i `CustomCalendar.tsx`:
+- **Byt rendering för `viewMode === 'weekly'`**: Istället för karusell, rendera en horisontell scroll-container med alla 7 dagar
+- **Behåll samma `TimeGrid`-komponent** för varje dag (samma utseende som dag-vyn)
+- **Ingen karusell-navigering** i veckovyn (varje kort är lika, inget "center"-kort)
+- **Behåll "Tillgängliga"-kolumnen** i varje dagskort
+
+### 2. Uppdatera `CustomCalendarPage.tsx`
+Byt tillbaka till att använda `CustomCalendar` (inte `UnifiedResourceCalendar`) för både `day` och `weekly`:
+
+```tsx
+viewMode === 'day' || viewMode === 'weekly' ? (
+  <CustomCalendar
+    events={events}
+    resources={teamResources}
+    viewMode={viewMode}  // 'day' eller 'weekly'
+    // ... övriga props
+  />
+)
+```
+
+### 3. Uppdatera `WarehouseCalendarPage.tsx`
+Samma ändring så Lagerkalendern får samma beteende (Dag=karusell, Vecka=grid).
+
+### 4. Lägg till CSS för veckogriden
+Ny klass i `Carousel3DStyles.css` eller `WeeklyCalendarStyles.css`:
+
+```css
+.weekly-horizontal-grid {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px;
+  scroll-snap-type: x mandatory;
+}
+
+.weekly-horizontal-grid .day-card {
+  flex: 0 0 auto;
+  min-width: 350px;  /* eller beräknad bredd */
+  scroll-snap-align: start;
+}
+```
+
+## Resultat efter ändring
+| Vy | Beteende |
+|-----|---------|
+| **Dag** | 3D-karusell med ett fokuserat dagskort och sidokort bakom |
+| **Vecka** | Alla 7 dagskort sida vid sida med horisontell scroll |
+| **Månad** | Samma som Vecka men med vecko-tabs för att byta vecka |
 
 ## Filer som ändras
-
-### `src/components/planning-dashboard/WeekProjectsView.tsx`
-
-**Ändring 1** – Rad 129: Ändra från 1 rad till 2 rader
-```tsx
-// Före
-<h4 className="font-semibold text-sm text-foreground line-clamp-1 mb-1.5">
-
-// Efter
-<h4 className="font-semibold text-sm text-foreground line-clamp-2 mb-1.5">
-```
-
-**Ändring 2** – Rad 184: Öka kolumnbredd
-```tsx
-// Före
-"flex flex-col flex-1 min-w-[140px]",
-
-// Efter
-"flex flex-col flex-1 min-w-[180px]",
-```
-
-**Ändring 3** – Rad 301: Öka grid min-width
-```tsx
-// Före
-<div className="flex gap-2 min-w-[980px] items-stretch">
-
-// Efter
-<div className="flex gap-2 min-w-[1260px] items-stretch">
-```
-
-## Tekniska detaljer
-- `line-clamp-2` sätter `-webkit-line-clamp: 2` och `overflow: hidden` för att klippa efter 2 rader med ellipsis
-- Bredare kolumner (`180px` istället för `140px`) ger ~40px mer utrymme per kolumn
-- Grid-containern får `min-w-[1260px]` (7 × 180px = 1260px) för att säkerställa att alla kolumner får plats
-- Horisontell scroll (`overflow-x-auto` på rad 300) är redan på plats om skärmen är för smal
-
-## Testplan
-1. Gå till `/dashboard` (Planerings-Dashboard)
-2. Bekräfta att kundnamn på projektkort nu visar upp till 2 rader innan de klipps
-3. Bekräfta att texten använder mer av kortets horisontella bredd
-4. Testa på olika skärmstorlekar att horisontell scroll fungerar
+1. `src/components/Calendar/CustomCalendar.tsx` - Ny rendering för `weekly`-läget
+2. `src/pages/CustomCalendarPage.tsx` - Använd `CustomCalendar` istället för `UnifiedResourceCalendar`
+3. `src/pages/WarehouseCalendarPage.tsx` - Samma ändring för konsistens
+4. `src/components/Calendar/Carousel3DStyles.css` eller `WeeklyCalendarStyles.css` - CSS för horisontell grid
