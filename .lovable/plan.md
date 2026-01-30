@@ -1,82 +1,56 @@
 
-Mål
-- Få Lagerkalendern (/warehouse/calendar) att fungera igen och se/agera exakt som Personalplaneringen (/calendar) – samma 3D-kort, samma grid/breddutnyttjande, samma interaktioner – med enda avsiktliga skillnader:
-  - lager-tema (färger/texter)
-  - extra resurs “Packning” (resourceId: warehouse)
-  - filter för lagerhändelsetyper
-  - rigg/event/rigdown ska vara skrivskyddade i lagervyn
+# Åtgärda kundnamnstrunkering i Planerings-Dashboard veckovyn
 
-Vad som sannolikt hänt (rotorsak-hypoteser)
-1) TimeGrid.tsx delas av både Personalplanering och Lagerkalender (via CustomCalendar). Ändringar i TimeGrid (Tillgängliga-kolumnen, gridTemplateColumns, widths, minWidth) kan ha gjort att lagervyns layout inte längre fyller sin container eller får fel kolumnberäkning.
-2) Lagerkalenderns page-wrapper/layout skiljer sig från Personalplaneringen:
-   - Personalplanering kör tydligt “h-screen flex flex-col” och en “flex-1 min-h-0 …” yta som ger kalendern korrekt höjd/utrymme.
-   - WarehouseCalendarPage använder “min-h-screen” och andra paddings/containers, vilket ofta orsakar att barnkomponenter med “height:100% / flex:1 / min-height:0” inte får rätt höjd => kalendern “använder inte hela containern”.
-3) Variant/tema-klasser och overflow-regler i Carousel3DStyles.css + day-card overflow kan förstärka problemet om föräldern inte ger korrekt höjd.
+## Problem
+Kundnamnet ("Testkund...") klipps mitt i containern på projektkorten i veckovyn. Orsaken är en kombination av:
 
-Plan (det jag kommer att implementera när du godkänner)
-A) Repro & “diff-analys” (kodnivå)
-- Identifiera exakt var WarehouseCalendarPage:s layout skiljer sig från CustomCalendarPage:
-  - root wrapper (h-screen/flex/overflow)
-  - content wrapper (flex-1 + min-h-0)
-  - paddings som kan skapa “tom yta” eller göra att child inte kan växa
-- Bekräfta att WarehouseCalendarPage och CustomCalendarPage använder samma kalenderkomponent (CustomCalendar + TimeGrid) och att de skickar “fullWidth={true}” (vilket de gör idag).
+1. **För smal kolumnbredd** – Varje dag-kolumn har `min-w-[140px]` och `flex-1` vilket ger ca 140px per kolumn. Med padding (2.5 = 10px på varje sida) blir textbredden endast ~120px.
+2. **Klippt till 1 rad** – `line-clamp-1` på rad 129 begränsar texten till max 1 rad.
 
-B) Gör WarehouseCalendarPage layout-identisk med CustomCalendarPage (för att eliminera container-problemet)
-- Ändra WarehouseCalendarPage så att den använder samma layout-mönster som Personalplanering:
-  - root: “h-screen flex flex-col … overflow-hidden”
-  - content: “flex-1 min-h-0 …” (viktigt: min-h-0 så att inre scroll/height fungerar i flex)
-- Behåll warehouse-specifika delar (WarehouseDayNavigationHeader/WeekNavigation variant=warehouse, filter-rad, dialoger), men placera dem i samma flex-struktur som Personalplanering:
-  - Header/nav = fixed/top i flödet
-  - Filterbar = naturlig höjd
-  - Kalendercontainer = flex-1 min-h-0 så den tar allt resterande utrymme
+## Lösning
+1. **Ändra `line-clamp-1` till `line-clamp-2`** på kundnamnet så det kan visa 2 rader.
+2. **Öka minsta kolumnbredd** från `140px` till `180px` för att ge mer horisontellt utrymme.
+3. **Uppdatera `min-w` på grid-container** från `980px` till `1260px` (7 × 180px) för att matcha.
 
-C) Säkerställ att TimeGrid verkligen utnyttjar full bredd i “fullWidth” i båda vyer
-- Granska TimeGrid.tsx för:
-  - gridTemplateColumns när fullWidth=true
-  - minWidth på header-celler och teamkolumner
-  - eventuell “dayWidth” default (800) som kan påverka om någon style råkar använda dayWidth indirekt
-- Implementera en konsekvent strategi:
-  - fullWidth=true => total width = 100%
-  - kolumnbredder:
-    - timeColumnWidth = 80px (fast)
-    - availableColumnWidth = (antingen 80–100px fast) (fast)
-    - teamkolumner = repeat(n, minmax(120px, 1fr)) så de kan växa och använda all yta utan att skapa “dead space”
-- Säkerställa att “day-header-teams” och andra header-wrappers inte sätter en hård maxWidth som begränsar bredden i fullWidth-läge.
+## Filer som ändras
 
-D) “Exakt samma logik” mellan Personalplanering och Lagerkalender: avsiktliga skillnader isoleras
-- Skapa/justera ett tydligt “shared base”-mönster (utan att byta ramverk), så att:
-  - Personalplanering och Lagerkalender använder samma kalender-rendering (CustomCalendar + TimeGrid) och samma layoutprinciper
-  - skillnaderna styrs av props/variant:
-    - variant="warehouse"
-    - isEventReadOnly(event)
-    - onEventClick (lager: öppna BookingProductsDialog istället för navigering)
-    - resources: rename “Lager 1…” + extra resource “warehouse”
-    - filter: endast i WarehouseCalendarPage, påverkar vilka events som skickas in
+### `src/components/planning-dashboard/WeekProjectsView.tsx`
 
-E) Regression-säkring (för att undvika att vi “fixar” en vy och sabbar en annan igen)
-- Efter ändringarna kontrollerar vi:
-  - /calendar (personalplanering) weekly/monthly/list (desktop)
-  - /warehouse/calendar weekly/monthly/list + day deep link (?view=day&date=YYYY-MM-DD)
-  - att “Tillgängliga” kolumnen fortfarande fungerar och inte orsakar layout-brott
-- Om det fortfarande finns problem:
-  - lägger vi in en minimal debug-indikator (tillfälligt) som visar computed width/height i kalendercontainern (endast i dev) för att snabbt bekräfta om höjd/bredd kommer från layout vs grid.
+**Ändring 1** – Rad 129: Ändra från 1 rad till 2 rader
+```tsx
+// Före
+<h4 className="font-semibold text-sm text-foreground line-clamp-1 mb-1.5">
 
-Vilka filer som sannolikt ändras
-- src/pages/WarehouseCalendarPage.tsx (huvudfix: layout/flex/min-h-0)
-- src/components/Calendar/TimeGrid.tsx (kolumnbredd/minmax för att fylla yta robust i fullWidth)
-- Ev. src/components/Calendar/TimeGrid.css (om någon klass sätter width/max-width/overflow som hindrar fullbredd)
-- Ev. små justeringar i src/components/Calendar/Carousel3DStyles.css om card/day-card overflow/height måste matchas.
+// Efter
+<h4 className="font-semibold text-sm text-foreground line-clamp-2 mb-1.5">
+```
 
-Testplan (du kan göra direkt i preview)
-1) Gå till /warehouse/calendar och bekräfta:
-   - kalendern fyller hela ytan (ingen “outnyttjad container”)
-   - 3D-korten ser identiska ut med /calendar (förutom färg/labels)
-2) Testa interaktioner:
-   - klick på lager-event öppnar BookingProductsDialog
-   - rigg/event/rigdown visar lås/är read-only i lagerkalendern (inga edit-popovers)
-3) Testa day deep link:
-   - /warehouse/calendar?view=day&date=YYYY-MM-DD
-4) Testa /calendar så inget har regressat.
+**Ändring 2** – Rad 184: Öka kolumnbredd
+```tsx
+// Före
+"flex flex-col flex-1 min-w-[140px]",
 
-Om du vill att jag ska fortsätta efter detta plansteg
-- Godkänn planen så implementerar jag detta i nästa körning (default mode) och testar igen i preview.
+// Efter
+"flex flex-col flex-1 min-w-[180px]",
+```
+
+**Ändring 3** – Rad 301: Öka grid min-width
+```tsx
+// Före
+<div className="flex gap-2 min-w-[980px] items-stretch">
+
+// Efter
+<div className="flex gap-2 min-w-[1260px] items-stretch">
+```
+
+## Tekniska detaljer
+- `line-clamp-2` sätter `-webkit-line-clamp: 2` och `overflow: hidden` för att klippa efter 2 rader med ellipsis
+- Bredare kolumner (`180px` istället för `140px`) ger ~40px mer utrymme per kolumn
+- Grid-containern får `min-w-[1260px]` (7 × 180px = 1260px) för att säkerställa att alla kolumner får plats
+- Horisontell scroll (`overflow-x-auto` på rad 300) är redan på plats om skärmen är för smal
+
+## Testplan
+1. Gå till `/dashboard` (Planerings-Dashboard)
+2. Bekräfta att kundnamn på projektkort nu visar upp till 2 rader innan de klipps
+3. Bekräfta att texten använder mer av kortets horisontella bredd
+4. Testa på olika skärmstorlekar att horisontell scroll fungerar
