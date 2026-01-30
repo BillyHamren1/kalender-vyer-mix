@@ -21,19 +21,10 @@ const transformJob = (dbJob: any): Job => ({
 
 // Fetch all jobs with booking info
 export const fetchJobs = async (): Promise<Job[]> => {
-  const { data, error } = await supabase
+  // First fetch jobs
+  const { data: jobs, error } = await supabase
     .from('jobs')
-    .select(`
-      *,
-      bookings (
-        client,
-        booking_number,
-        deliveryaddress,
-        rigdaydate,
-        eventdate,
-        rigdowndate
-      )
-    `)
+    .select('*')
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -41,24 +32,38 @@ export const fetchJobs = async (): Promise<Job[]> => {
     throw error;
   }
 
-  return (data || []).map(transformJob);
+  if (!jobs || jobs.length === 0) {
+    return [];
+  }
+
+  // Get unique booking IDs
+  const bookingIds = [...new Set(jobs.filter(j => j.booking_id).map(j => j.booking_id))];
+  
+  // Fetch bookings separately if there are any
+  let bookingsMap: Record<string, any> = {};
+  if (bookingIds.length > 0) {
+    const { data: bookings } = await supabase
+      .from('bookings')
+      .select('id, client, booking_number, deliveryaddress, rigdaydate, eventdate, rigdowndate')
+      .in('id', bookingIds);
+    
+    if (bookings) {
+      bookingsMap = Object.fromEntries(bookings.map(b => [b.id, b]));
+    }
+  }
+
+  // Transform jobs with booking data
+  return jobs.map(job => {
+    const booking = job.booking_id ? bookingsMap[job.booking_id] : undefined;
+    return transformJob({ ...job, bookings: booking });
+  });
 };
 
 // Fetch single job with staff assignments
 export const fetchJobById = async (jobId: string): Promise<Job | null> => {
   const { data, error } = await supabase
     .from('jobs')
-    .select(`
-      *,
-      bookings (
-        client,
-        booking_number,
-        deliveryaddress,
-        rigdaydate,
-        eventdate,
-        rigdowndate
-      )
-    `)
+    .select('*')
     .eq('id', jobId)
     .single();
 
@@ -67,7 +72,18 @@ export const fetchJobById = async (jobId: string): Promise<Job | null> => {
     return null;
   }
 
-  const job = transformJob(data);
+  // Fetch booking data separately if there's a booking_id
+  let bookingData = undefined;
+  if (data.booking_id) {
+    const { data: booking } = await supabase
+      .from('bookings')
+      .select('id, client, booking_number, deliveryaddress, rigdaydate, eventdate, rigdowndate')
+      .eq('id', data.booking_id)
+      .single();
+    bookingData = booking;
+  }
+
+  const job = transformJob({ ...data, bookings: bookingData });
 
   // Fetch staff assignments
   const { data: assignments } = await supabase
