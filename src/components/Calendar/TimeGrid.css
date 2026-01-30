@@ -205,7 +205,7 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  gap: 8px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -219,7 +219,7 @@
   letter-spacing: 0.2px;
 }
 
-/* Add staff button - Modern pill style */
+/* Add staff button - Compact style */
 .add-staff-button-header {
   background: linear-gradient(
     135deg,
@@ -227,11 +227,11 @@
     hsl(var(--calendar-primary) / 0.85) 100%
   );
   color: hsl(var(--calendar-primary-foreground));
-  border-radius: 8px;
-  width: 24px;
-  height: 24px;
-  font-size: 14px;
-  font-weight: 500;
+  border-radius: 4px;
+  width: 16px;
+  height: 16px;
+  font-size: 11px;
+  font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -239,12 +239,12 @@
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   flex-shrink: 0;
-  box-shadow: 0 2px 8px hsl(var(--calendar-primary) / 0.25);
+  box-shadow: 0 1px 4px hsl(var(--calendar-primary) / 0.25);
 }
 
 .add-staff-button-header:hover {
-  transform: scale(1.1);
-  box-shadow: 0 4px 12px hsl(var(--calendar-primary) / 0.35);
+  transform: scale(1.15);
+  box-shadow: 0 2px 8px hsl(var(--calendar-primary) / 0.35);
 }
 
 .add-staff-button-header:active {
