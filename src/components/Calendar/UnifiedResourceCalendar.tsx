@@ -21,7 +21,7 @@ interface UnifiedResourceCalendarProps {
   onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
   onSelectStaff?: (resourceId: string, resourceTitle: string, targetDate?: Date) => void;
   forceRefresh?: number | boolean;
-  viewMode: 'weekly' | 'monthly';
+  viewMode: 'day' | 'weekly' | 'monthly';
   staffOperations?: {
     getStaffForTeamAndDate: (teamId: string, date: Date) => any[];
   };
@@ -56,8 +56,8 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 
   // Generate days based on view mode
   const getDaysToRender = () => {
-    if (viewMode === 'weekly') {
-      // Generate 7 days starting from currentDate
+    if (viewMode === 'day' || viewMode === 'weekly') {
+      // Generate 7 days starting from currentDate (for both day carousel and weekly grid)
       return Array.from({ length: 7 }, (_, i) => {
         const date = new Date(currentDate);
         date.setDate(currentDate.getDate() + i);
@@ -114,9 +114,9 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
     setCenterIndex(prev => Math.min(days.length - 1, prev + 1));
   }, [days.length]);
 
-  // Handle wheel scroll for carousel navigation
+  // Handle wheel scroll for carousel navigation (only in day view)
   const handleWheel = useCallback((e: React.WheelEvent) => {
-    if (viewMode !== 'weekly') return;
+    if (viewMode !== 'day') return;
     
     // Use horizontal scroll or vertical scroll
     const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
@@ -285,23 +285,27 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
 
   // Get container class based on view mode
   const getContainerClass = () => {
-    if (viewMode === 'weekly') {
-      return 'weekly-view-container';
+    if (viewMode === 'day') {
+      return 'weekly-view-container'; // 3D carousel container
+    } else if (viewMode === 'weekly') {
+      return 'weekly-grid-view-container'; // New grid view container
     } else {
       return 'monthly-grid-container';
     }
   };
 
   const getCalendarContainerClass = () => {
-    if (viewMode === 'weekly') {
-      return 'carousel-3d-wrapper';
+    if (viewMode === 'day') {
+      return 'carousel-3d-wrapper'; // 3D carousel
+    } else if (viewMode === 'weekly') {
+      return 'weekly-grid-wrapper'; // New grid view
     } else {
       return 'monthly-calendar-grid';
     }
   };
 
-  // Weekly 3D Carousel View
-  if (viewMode === 'weekly') {
+  // Day View - 3D Carousel
+  if (viewMode === 'day') {
     return (
       <div className={getContainerClass()}>
         <div 
@@ -399,6 +403,55 @@ const UnifiedResourceCalendar: React.FC<UnifiedResourceCalendarProps> = ({
               />
             ))}
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Weekly View - 7 days side by side in a grid
+  if (viewMode === 'weekly') {
+    return (
+      <div className={getContainerClass()}>
+        <div className={getCalendarContainerClass()} ref={containerRef}>
+          {days.map((date, index) => {
+            const dayEvents = getEventsForDay(date);
+            const filteredResources = getFilteredResourcesForDay(date);
+            const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+            const isSelectedDate = selectedDate && format(date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd');
+            const resourceCalendarForceRefresh = numericForceRefresh > 0;
+            
+            return (
+              <div
+                key={format(date, 'yyyy-MM-dd')}
+                className={`weekly-grid-day ${isToday ? 'is-today' : ''} ${isSelectedDate ? 'is-selected' : ''}`}
+                ref={isToday ? todayRef : (isSelectedDate ? selectedDateRef : null)}
+              >
+                <div className="weekly-grid-day-header">
+                  <span className="day-name">{format(date, 'EEE')}</span>
+                  <span className={`day-number ${isToday ? 'today-number' : ''}`}>{format(date, 'd')}</span>
+                </div>
+                <div className="weekly-grid-day-content">
+                  <ResourceCalendar
+                    events={dayEvents}
+                    resources={filteredResources}
+                    isLoading={isLoading}
+                    isMounted={isMounted}
+                    currentDate={date}
+                    onDateSet={handleNestedCalendarDateSet}
+                    refreshEvents={refreshEvents}
+                    onStaffDrop={(staffId: string, resourceId: string | null) => handleStaffDrop(staffId, resourceId, date)}
+                    onSelectStaff={(resourceId: string, resourceTitle: string) => handleSelectStaff(resourceId, resourceTitle, date)}
+                    forceRefresh={resourceCalendarForceRefresh}
+                    key={`calendar-${format(date, 'yyyy-MM-dd')}-${numericForceRefresh}`}
+                    droppableScope="weekly-grid-calendar"
+                    calendarProps={getCommonCalendarProps(index)}
+                    targetDate={date}
+                    staffOperations={staffOperations}
+                  />
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     );

@@ -58,7 +58,7 @@ const SimpleStaffCurtainWrapper: React.FC<{
 
 const CustomCalendarPage = () => {
   const isMobile = useIsMobile();
-  const [viewMode, setViewMode] = useState<'weekly' | 'monthly' | 'list'>('weekly');
+  const [viewMode, setViewMode] = useState<'day' | 'weekly' | 'monthly' | 'list'>('day');
   
   
   // Monthly view state (for desktop) - now used for the month tabs
