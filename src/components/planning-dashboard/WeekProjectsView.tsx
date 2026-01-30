@@ -126,7 +126,7 @@ const ProjectCard = ({
         </div>
         
         {/* Client name - compact */}
-        <h4 className="font-semibold text-sm text-foreground line-clamp-1 mb-1.5">
+        <h4 className="font-semibold text-sm text-foreground line-clamp-2 mb-1.5">
           {project.client}
         </h4>
         
@@ -181,7 +181,7 @@ const DayColumn = ({
 
   return (
     <div className={cn(
-      "flex flex-col flex-1 min-w-[140px]",
+      "flex flex-col flex-1 min-w-[180px]",
       isPast && "opacity-50"
     )}>
       {/* Day header - clickable */}
@@ -298,7 +298,7 @@ const WeekProjectsView = ({ projects, isLoading, onStaffDrop }: WeekProjectsView
       
       {/* Week grid */}
       <div className="p-3 overflow-x-auto">
-        <div className="flex gap-2 min-w-[980px] items-stretch">
+        <div className="flex gap-2 min-w-[1260px] items-stretch">
           {days.map(day => (
             <DayColumn 
               key={day.toISOString()}
