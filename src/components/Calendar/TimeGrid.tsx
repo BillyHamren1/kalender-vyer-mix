@@ -358,15 +358,14 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           {getUnassignedAvailableStaff().map((staff) => (
             <div 
               key={staff.id}
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium truncate"
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap"
               style={{ 
                 backgroundColor: staff.color || 'hsl(var(--muted))',
                 color: '#000'
               }}
-              title={staff.name}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60 flex-shrink-0"></span>
-              <span className="truncate">{staff.name}</span>
+              <span>{staff.name}</span>
             </div>
           ))}
           {getUnassignedAvailableStaff().length === 0 && (
