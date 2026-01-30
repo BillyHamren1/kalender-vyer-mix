@@ -179,13 +179,14 @@
     hsl(var(--calendar-primary) / 0.06) 100%
   );
   height: 40px;
-  padding: 0 14px;
+  padding: 0 8px;
   display: flex;
   align-items: center;
-  overflow: hidden;
+  overflow: visible;
   border-right: 1px solid hsl(var(--foreground) / 0.2);
   border-bottom: 1px solid hsl(var(--border) / 0.5);
   transition: background 0.2s ease;
+  position: relative;
 }
 
 .team-header-cell:hover {
@@ -219,32 +220,32 @@
   letter-spacing: 0.2px;
 }
 
-/* Add staff button - Compact style */
+/* Add staff button - Plain + icon */
 .add-staff-button-header {
-  background: linear-gradient(
-    135deg,
-    hsl(var(--calendar-primary)) 0%,
-    hsl(var(--calendar-primary) / 0.85) 100%
-  );
-  color: hsl(var(--calendar-primary-foreground));
-  border-radius: 4px;
-  width: 16px;
-  height: 16px;
-  font-size: 11px;
-  font-weight: 600;
+  background: transparent;
+  color: hsl(var(--calendar-primary));
+  border-radius: 0;
+  width: auto;
+  height: auto;
+  font-size: 16px;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.2s ease;
   flex-shrink: 0;
-  box-shadow: 0 1px 4px hsl(var(--calendar-primary) / 0.25);
+  box-shadow: none;
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  line-height: 1;
 }
 
 .add-staff-button-header:hover {
-  transform: scale(1.15);
-  box-shadow: 0 2px 8px hsl(var(--calendar-primary) / 0.35);
+  transform: scale(1.2);
+  color: hsl(var(--calendar-primary) / 0.8);
 }
 
 .add-staff-button-header:active {
