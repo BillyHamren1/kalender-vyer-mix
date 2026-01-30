@@ -210,15 +210,13 @@
 }
 
 .team-title {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: hsl(var(--foreground));
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
 }
 
 /* Add staff button - Modern pill style */

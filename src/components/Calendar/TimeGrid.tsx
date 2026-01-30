@@ -342,19 +342,24 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           return (
             <div 
               key={`header-${resource.id}`}
-              className="team-header-cell"
+              className="team-header-cell cursor-pointer"
               style={{ 
                 gridColumn: index + 3,
                 gridRow: 2,
                 width: fullWidth ? 'auto' : `${teamColumnWidth}px`,
                 minWidth: fullWidth ? '120px' : `${teamColumnWidth}px`
               }}
+              onClick={(e) => handleStaffSelectionClick(resource.id, resource.title, e as unknown as React.MouseEvent<HTMLButtonElement>)}
+              title={`Assign staff to ${resource.title}`}
             >
               <div className="team-header-content">
-                <span className="team-title" title={resource.title}>{resource.title}</span>
+                <span className="team-title">{resource.title}</span>
                 <button
                   className="add-staff-button-header"
-                  onClick={(e) => handleStaffSelectionClick(resource.id, resource.title, e)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleStaffSelectionClick(resource.id, resource.title, e);
+                  }}
                   title={`Assign staff to ${resource.title}`}
                 >
                   +
