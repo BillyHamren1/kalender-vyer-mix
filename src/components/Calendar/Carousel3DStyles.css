@@ -302,10 +302,99 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
+/* ============================== */
+/* WEEKLY VIEW - Side by Side Grid */
+/* ============================== */
+
+.weekly-horizontal-grid {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 8px 16px 16px;
+  height: 100%;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background)) 0%,
+    hsl(var(--muted) / 0.3) 50%,
+    hsl(var(--background)) 100%
+  );
+}
+
+/* Hide scrollbar for cleaner look but keep functionality */
+.weekly-horizontal-grid::-webkit-scrollbar {
+  height: 8px;
+}
+
+.weekly-horizontal-grid::-webkit-scrollbar-track {
+  background: hsl(var(--muted) / 0.3);
+  border-radius: 4px;
+}
+
+.weekly-horizontal-grid::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 4px;
+}
+
+.weekly-horizontal-grid::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+.weekly-day-card {
+  flex: 0 0 auto;
+  min-width: 400px;
+  max-width: 600px;
+  height: 100%;
+  scroll-snap-align: start;
+}
+
+.weekly-day-card .day-card {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+
+/* Today indicator for weekly view */
+.weekly-day-card.is-today .day-card {
+  box-shadow: 
+    0 10px 40px -10px rgba(0, 0, 0, 0.15),
+    0 0 0 2px hsl(var(--primary) / 0.3),
+    0 0 60px -15px hsl(var(--primary) / 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* Warehouse theme for weekly view */
+.weekly-horizontal-grid.warehouse-theme {
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background)) 0%,
+    hsl(45 30% 96% / 0.5) 50%,
+    hsl(var(--background)) 100%
+  );
+}
+
+.weekly-horizontal-grid.warehouse-theme .weekly-day-card.is-today .day-card {
+  box-shadow: 
+    0 10px 40px -10px rgba(0, 0, 0, 0.15),
+    0 0 0 2px hsl(45 100% 51% / 0.3),
+    0 0 60px -15px hsl(45 100% 51% / 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* ============================== */
 /* Responsive adjustments */
+/* ============================== */
+
 @media (max-width: 1400px) {
   .carousel-3d-wrapper {
     padding: 16px 12px;
+  }
+  
+  .weekly-day-card {
+    min-width: 350px;
   }
 }
 
@@ -314,6 +403,10 @@
   .carousel-3d-card[data-position="-3"] {
     opacity: 0;
     pointer-events: none;
+  }
+  
+  .weekly-day-card {
+    min-width: 320px;
   }
 }
 
@@ -332,6 +425,10 @@
   .carousel-header-nav {
     width: 24px;
     height: 24px;
+  }
+  
+  .weekly-day-card {
+    min-width: 280px;
   }
 }
 
@@ -358,5 +455,14 @@
   .carousel-3d-dot {
     width: 8px;
     height: 8px;
+  }
+  
+  .weekly-horizontal-grid {
+    padding: 8px;
+    gap: 8px;
+  }
+  
+  .weekly-day-card {
+    min-width: 260px;
   }
 }

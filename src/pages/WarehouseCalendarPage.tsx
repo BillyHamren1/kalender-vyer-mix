@@ -493,7 +493,7 @@ const WarehouseCalendarPage = () => {
                 refreshEvents={refreshEvents}
                 onStaffDrop={staffOps.handleStaffDrop}
                 onOpenStaffSelection={handleOpenStaffSelection}
-                viewMode="weekly"
+                viewMode="monthly"
                 weeklyStaffOperations={staffOps}
                 getVisibleTeamsForDay={getVisibleTeamsForDay}
                 onToggleTeamForDay={handleToggleTeamForDay}

@@ -56,17 +56,15 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // IMPORTANT: memoize days so carousel state doesn't reset on every re-render
+  // Always generate 7 days for both day (carousel) and weekly/monthly (grid) modes
   const weekStartTime = currentWeekStart.getTime();
   const days = useMemo(() => {
-    if (viewMode === 'day') {
-      return [new Date(currentWeekStart)];
-    }
     return Array.from({ length: 7 }, (_, i) => {
       const date = new Date(currentWeekStart);
       date.setDate(currentWeekStart.getDate() + i);
       return date;
     });
-  }, [viewMode, weekStartTime]);
+  }, [weekStartTime]);
 
   // Fetch available staff for each day in the week
   const { data: weekAvailableStaff } = useQuery({
@@ -247,50 +245,55 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     );
   }
 
-  const isDayMode = viewMode === 'day';
+  const isWeeklyMode = viewMode === 'weekly' || viewMode === 'monthly';
 
-  // In day mode, use traditional layout (no carousel)
-  if (isDayMode) {
-    const date = days[0];
-    const filteredResources = getFilteredResourcesForDay(date);
-    const visibleTeams = getVisibleTeamsForDay ? getVisibleTeamsForDay(date) : [];
-
+  // Weekly/Monthly mode: Side-by-side grid of 7 day cards with horizontal scroll
+  if (isWeeklyMode) {
     return (
-      <div className="custom-calendar-container" ref={containerRef}>
-        <div className="weekly-calendar-container p-4">
-          <div className="weekly-calendar-grid">
-            <div 
-              className={`day-card bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''} w-full`}
-            >
-              <TimeGrid
-                day={date}
-                resources={filteredResources}
-                events={events}
-                getEventsForDayAndResource={getEventsForDayAndResource}
-                onStaffDrop={onStaffDrop}
-                onOpenStaffSelection={onOpenStaffSelection}
-                dayWidth={undefined}
-                weeklyStaffOperations={weeklyStaffOperations}
-                onEventResize={handleEventResize}
-                teamVisibilityProps={allTeams && onToggleTeamForDay ? {
-                  allTeams,
-                  visibleTeams,
-                  onToggleTeam: (teamId: string) => onToggleTeamForDay(teamId, date)
-                } : undefined}
-                variant={variant}
-                isEventReadOnly={isEventReadOnly}
-                onEventClick={onEventClick}
-                fullWidth={true}
-                availableStaff={getAvailableStaffForDay(date)}
-              />
-            </div>
-          </div>
+      <div className="custom-calendar-container weekly-view" ref={containerRef}>
+        <div className={`weekly-horizontal-grid ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
+          {days.map((date) => {
+            const filteredResources = getFilteredResourcesForDay(date);
+            const visibleTeams = getVisibleTeamsForDay ? getVisibleTeamsForDay(date) : [];
+            const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+
+            return (
+              <div 
+                key={format(date, 'yyyy-MM-dd')} 
+                className={`weekly-day-card ${isToday ? 'is-today' : ''}`}
+              >
+                <div className={`day-card bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
+                  <TimeGrid
+                    day={date}
+                    resources={filteredResources}
+                    events={events}
+                    getEventsForDayAndResource={getEventsForDayAndResource}
+                    onStaffDrop={onStaffDrop}
+                    onOpenStaffSelection={onOpenStaffSelection}
+                    dayWidth={undefined}
+                    weeklyStaffOperations={weeklyStaffOperations}
+                    onEventResize={handleEventResize}
+                    teamVisibilityProps={allTeams && onToggleTeamForDay ? {
+                      allTeams,
+                      visibleTeams,
+                      onToggleTeam: (teamId: string) => onToggleTeamForDay(teamId, date)
+                    } : undefined}
+                    variant={variant}
+                    isEventReadOnly={isEventReadOnly}
+                    onEventClick={onEventClick}
+                    fullWidth={false}
+                    availableStaff={getAvailableStaffForDay(date)}
+                  />
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     );
   }
 
-  // Weekly mode: 3D Carousel
+  // Day mode: 3D Carousel with single focused day card and side cards behind
   return (
     <div className="custom-calendar-container" ref={containerRef}>
       <div className={`carousel-3d-wrapper ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>

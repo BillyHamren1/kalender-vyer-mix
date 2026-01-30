@@ -7,7 +7,6 @@ import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import CustomCalendar from '@/components/Calendar/CustomCalendar';
-import UnifiedResourceCalendar from '@/components/Calendar/UnifiedResourceCalendar';
 import SimpleStaffCurtain from '@/components/Calendar/SimpleStaffCurtain';
 import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
 import MobileCalendarView from '@/components/mobile/MobileCalendarView';
@@ -213,11 +212,11 @@ const CustomCalendarPage = () => {
           {/* Content - flex-1 to fill remaining space */}
           <div className="flex-1 min-h-0 p-4 overflow-hidden">
             {viewMode === 'day' ? (
-              // Day View - 3D Carousel with single day focus
+              // Day View - 3D Carousel with single focused day and side cards
               isMobile ? (
                 <MobileCalendarView events={events} />
               ) : (
-                <UnifiedResourceCalendar
+                <CustomCalendar
                   events={events}
                   resources={teamResources}
                   isLoading={isLoading}
@@ -226,20 +225,20 @@ const CustomCalendarPage = () => {
                   onDateSet={handleDatesSet}
                   refreshEvents={refreshEvents}
                   onStaffDrop={staffOps.handleStaffDrop}
-                  onSelectStaff={(resourceId, resourceTitle, targetDate) => 
-                    handleOpenStaffSelection(resourceId, resourceTitle, targetDate || currentWeekStart)
-                  }
+                  onOpenStaffSelection={handleOpenStaffSelection}
                   viewMode="day"
-                  staffOperations={staffOps}
-                  visibleTeams={getVisibleTeamsForDay(currentWeekStart)}
+                  weeklyStaffOperations={staffOps}
+                  getVisibleTeamsForDay={getVisibleTeamsForDay}
+                  onToggleTeamForDay={handleToggleTeamForDay}
+                  allTeams={teamResources}
                 />
               )
             ) : viewMode === 'weekly' ? (
-              // Weekly View - 7 days side by side with all teams using grid layout
+              // Weekly View - 7 days side by side with horizontal scroll
               isMobile ? (
                 <MobileCalendarView events={events} />
               ) : (
-                <UnifiedResourceCalendar
+                <CustomCalendar
                   events={events}
                   resources={teamResources}
                   isLoading={isLoading}
@@ -248,33 +247,37 @@ const CustomCalendarPage = () => {
                   onDateSet={handleDatesSet}
                   refreshEvents={refreshEvents}
                   onStaffDrop={staffOps.handleStaffDrop}
-                  onSelectStaff={(resourceId, resourceTitle, targetDate) => 
-                    handleOpenStaffSelection(resourceId, resourceTitle, targetDate || currentWeekStart)
-                  }
+                  onOpenStaffSelection={handleOpenStaffSelection}
                   viewMode="weekly"
-                  staffOperations={staffOps}
-                  visibleTeams={getVisibleTeamsForDay(currentWeekStart)}
+                  weeklyStaffOperations={staffOps}
+                  getVisibleTeamsForDay={getVisibleTeamsForDay}
+                  onToggleTeamForDay={handleToggleTeamForDay}
+                  allTeams={teamResources}
                 />
               )
             ) : viewMode === 'monthly' ? (
-              // Monthly View - weekly grid layout with week tabs
+              // Monthly View - same as weekly but with week tabs below
               <>
-                <UnifiedResourceCalendar
-                  events={events}
-                  resources={teamResources}
-                  isLoading={isLoading}
-                  isMounted={isMounted}
-                  currentDate={currentWeekStart}
-                  onDateSet={handleDatesSet}
-                  refreshEvents={refreshEvents}
-                  onStaffDrop={staffOps.handleStaffDrop}
-                  onSelectStaff={(resourceId, resourceTitle, targetDate) => 
-                    handleOpenStaffSelection(resourceId, resourceTitle, targetDate || currentWeekStart)
-                  }
-                  viewMode="weekly"
-                  staffOperations={staffOps}
-                  visibleTeams={getVisibleTeamsForDay(currentWeekStart)}
-                />
+                {isMobile ? (
+                  <MobileCalendarView events={events} />
+                ) : (
+                  <CustomCalendar
+                    events={events}
+                    resources={teamResources}
+                    isLoading={isLoading}
+                    isMounted={isMounted}
+                    currentDate={currentWeekStart}
+                    onDateSet={handleDatesSet}
+                    refreshEvents={refreshEvents}
+                    onStaffDrop={staffOps.handleStaffDrop}
+                    onOpenStaffSelection={handleOpenStaffSelection}
+                    viewMode="monthly"
+                    weeklyStaffOperations={staffOps}
+                    getVisibleTeamsForDay={getVisibleTeamsForDay}
+                    onToggleTeamForDay={handleToggleTeamForDay}
+                    allTeams={teamResources}
+                  />
+                )}
                 <WeekTabsNavigation
                   currentMonth={monthlyDate}
                   currentWeekStart={currentWeekStart}
