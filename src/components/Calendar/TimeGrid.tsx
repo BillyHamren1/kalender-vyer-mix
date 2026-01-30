@@ -145,7 +145,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   // Fixed column widths
   const timeColumnWidth = 80;
-  const availableColumnWidth = 100; // Narrower column for available staff
+  const availableColumnWidth = 60; // Narrower column for available staff
   const teamColumnWidth = 73;
 
   // Calculate event position based on time - Continuous 24-hour grid
@@ -334,7 +334,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           }}
         >
           <div className="team-header-content">
-            <span className="team-title" title="Tillgängliga">Tillgängliga</span>
+            <span className="team-title" style={{ whiteSpace: 'nowrap' }}>Personal</span>
           </div>
         </div>
 
