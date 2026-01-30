@@ -393,7 +393,7 @@ const WarehouseCalendarPage = () => {
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-muted/30">
+      <div className="h-screen flex flex-col bg-muted/30">
         {/* Navigation with view toggle */}
         {viewMode === 'day' ? (
           <WarehouseDayNavigationHeader
@@ -415,7 +415,7 @@ const WarehouseCalendarPage = () => {
         )}
 
         {/* Filter bar */}
-        <div className="px-6 pt-4 pb-2 flex items-center gap-3">
+        <div className="px-4 pt-2 pb-1 flex items-center gap-3">
           <WarehouseEventFilter
             activeFilters={eventTypeFilters}
             onFilterChange={setEventTypeFilters}
@@ -427,8 +427,8 @@ const WarehouseCalendarPage = () => {
           )}
         </div>
 
-        {/* Content */}
-        <div className="px-6 pb-6">
+        {/* Content - flex-1 to fill remaining space */}
+        <div className="flex-1 min-h-0 p-4">
           {viewMode === 'day' ? (
             <>
               {isMobile ? (
