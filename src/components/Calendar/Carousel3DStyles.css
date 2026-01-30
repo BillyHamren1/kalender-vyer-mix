@@ -20,15 +20,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px 60px 16px;
+  /* Reduced horizontal padding since arrows are now in header */
+  padding: 8px 16px 16px;
   background: linear-gradient(
     180deg,
     hsl(var(--background)) 0%,
     hsl(var(--muted) / 0.3) 50%,
     hsl(var(--background)) 100%
   );
-  --card-width: 85vw;
-  --card-max-width: 1200px;
+  --card-width: 90vw;
+  --card-max-width: 1400px;
 }
 
 .carousel-3d-container {
@@ -152,62 +153,45 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
-/* Navigation arrows - Glass morphism */
+/* Navigation arrows moved to header - hide old side arrows */
 .carousel-3d-nav {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 100;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: linear-gradient(
-    145deg,
-    hsl(var(--background)) 0%,
-    hsl(var(--background) / 0.9) 100%
-  );
-  backdrop-filter: blur(12px);
-  border: 1px solid hsl(var(--border) / 0.3);
-  color: hsl(var(--foreground));
+  display: none;
+}
+
+/* Header nav buttons - inline with day title */
+.carousel-header-nav {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: hsl(var(--background) / 0.8);
+  border: 1px solid hsl(var(--border) / 0.4);
+  color: hsl(var(--foreground));
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.1),
-    0 2px 8px rgba(0, 0, 0, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
-.carousel-3d-nav:hover:not(:disabled) {
-  background: linear-gradient(
-    145deg,
-    hsl(var(--background)) 0%,
-    hsl(var(--accent)) 100%
-  );
-  transform: translateY(-50%) scale(1.1);
-  box-shadow: 
-    0 12px 40px rgba(0, 0, 0, 0.15),
-    0 4px 12px rgba(0, 0, 0, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+.carousel-header-nav:hover {
+  background: hsl(var(--accent));
+  transform: scale(1.1);
 }
 
-.carousel-3d-nav:active {
-  transform: translateY(-50%) scale(0.95);
+.carousel-header-nav:active {
+  transform: scale(0.95);
 }
 
-.carousel-3d-nav:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
+/* Warehouse theme header nav */
+.warehouse-theme .carousel-header-nav {
+  background: hsl(var(--background) / 0.8);
+  border-color: hsl(45 100% 51% / 0.3);
 }
 
-.carousel-3d-nav.nav-left {
-  left: 16px;
-}
-
-.carousel-3d-nav.nav-right {
-  right: 16px;
+.warehouse-theme .carousel-header-nav:hover {
+  background: hsl(45 100% 96%);
+  border-color: hsl(45 100% 51% / 0.5);
 }
 
 /* Indicator dots - Modern pills */
@@ -317,12 +301,7 @@
 /* Responsive adjustments */
 @media (max-width: 1400px) {
   .carousel-3d-wrapper {
-    padding: 20px 60px;
-  }
-  
-  .carousel-3d-nav {
-    width: 48px;
-    height: 48px;
+    padding: 16px 12px;
   }
 }
 
@@ -337,7 +316,7 @@
 @media (max-width: 900px) {
   .carousel-3d-wrapper {
     perspective: 1500px;
-    padding: 16px 50px;
+    padding: 12px 8px;
   }
   
   .carousel-3d-card[data-position="2"],
@@ -346,15 +325,15 @@
     pointer-events: none;
   }
   
-  .carousel-3d-nav {
-    width: 44px;
-    height: 44px;
+  .carousel-header-nav {
+    width: 24px;
+    height: 24px;
   }
 }
 
 @media (max-width: 768px) {
   .carousel-3d-wrapper {
-    padding: 12px 35px;
+    padding: 8px 4px;
     min-height: 400px;
   }
   
@@ -362,17 +341,9 @@
     min-height: 350px;
   }
   
-  .carousel-3d-nav {
-    width: 40px;
-    height: 40px;
-  }
-  
-  .carousel-3d-nav.nav-left {
-    left: 8px;
-  }
-  
-  .carousel-3d-nav.nav-right {
-    right: 8px;
+  .carousel-header-nav {
+    width: 22px;
+    height: 22px;
   }
   
   .carousel-3d-indicators {

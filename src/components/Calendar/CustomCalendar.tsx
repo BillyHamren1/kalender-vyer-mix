@@ -2,7 +2,6 @@ import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react'
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import TimeGrid from './TimeGrid';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getAvailableStaffForDate } from '@/services/staffAvailabilityService';
 import { supabase } from '@/integrations/supabase/client';
@@ -29,6 +28,11 @@ interface CustomCalendarProps {
   variant?: 'default' | 'warehouse';
   isEventReadOnly?: (event: CalendarEvent) => boolean;
   onEventClick?: (event: CalendarEvent) => void;
+}
+
+interface CarouselNavProps {
+  onNavigateLeft: () => void;
+  onNavigateRight: () => void;
 }
 
 const CustomCalendar: React.FC<CustomCalendarProps> = ({
@@ -290,23 +294,6 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   return (
     <div className="custom-calendar-container" ref={containerRef}>
       <div className={`carousel-3d-wrapper ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
-        {/* Navigation arrows - always enabled for infinite carousel */}
-        <button
-          className="carousel-3d-nav nav-left"
-          onClick={() => navigateCarousel('left')}
-          aria-label="Föregående dag"
-        >
-          <ChevronLeft className="w-6 h-6" />
-        </button>
-        
-        <button
-          className="carousel-3d-nav nav-right"
-          onClick={() => navigateCarousel('right')}
-          aria-label="Nästa dag"
-        >
-          <ChevronRight className="w-6 h-6" />
-        </button>
-
         {/* 3D Carousel container */}
         <div className="carousel-3d-container">
           {days.map((date, index) => {
@@ -353,6 +340,10 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                     onEventClick={onEventClick}
                     fullWidth={true}
                     availableStaff={getAvailableStaffForDay(date)}
+                    carouselNav={isCenter ? {
+                      onNavigateLeft: () => navigateCarousel('left'),
+                      onNavigateRight: () => navigateCarousel('right')
+                    } : undefined}
                   />
                 </div>
               </div>

@@ -5,6 +5,7 @@ import CustomEvent from './CustomEvent';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
 import StaffItem from './StaffItem';
 import TeamVisibilityControl from './TeamVisibilityControl';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import './TimeGrid.css';
 
 interface TeamVisibilityProps {
@@ -39,6 +40,10 @@ interface TimeGridProps {
   onEventClick?: (event: CalendarEvent) => void;
   fullWidth?: boolean;
   availableStaff?: AvailableStaffMember[];
+  carouselNav?: {
+    onNavigateLeft: () => void;
+    onNavigateRight: () => void;
+  };
 }
 
 // Event Wrapper Component
@@ -111,7 +116,8 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   isEventReadOnly,
   onEventClick,
   fullWidth = false,
-  availableStaff = []
+  availableStaff = [],
+  carouselNav
 }) => {
   const { handleEventClick } = useEventNavigation();
   // Generate continuous 24-hour time slots from 05:00 to 05:00 (next day)
@@ -274,20 +280,43 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           maxWidth: fullWidth ? 'none' : `${availableColumnWidth + (resources.length * teamColumnWidth)}px`
         }}>
           <div className="day-header-content">
-            <div style={{ width: '32px' }}></div>
-            <span className="day-title">
-              {format(day, 'EEE d')}
-            </span>
-            {teamVisibilityProps ? (
-              <TeamVisibilityControl
-                allTeams={teamVisibilityProps.allTeams}
-                visibleTeams={teamVisibilityProps.visibleTeams}
-                onToggleTeam={teamVisibilityProps.onToggleTeam}
-                compact
-              />
+            {/* Left nav arrow - only if carouselNav provided */}
+            {carouselNav ? (
+              <button
+                className="carousel-header-nav nav-left"
+                onClick={carouselNav.onNavigateLeft}
+                aria-label="Föregående dag"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
             ) : (
               <div style={{ width: '32px' }}></div>
             )}
+            <span className="day-title">
+              {format(day, 'EEE d')}
+            </span>
+            <div className="flex items-center gap-1">
+              {teamVisibilityProps && (
+                <TeamVisibilityControl
+                  allTeams={teamVisibilityProps.allTeams}
+                  visibleTeams={teamVisibilityProps.visibleTeams}
+                  onToggleTeam={teamVisibilityProps.onToggleTeam}
+                  compact
+                />
+              )}
+              {/* Right nav arrow - only if carouselNav provided */}
+              {carouselNav ? (
+                <button
+                  className="carousel-header-nav nav-right"
+                  onClick={carouselNav.onNavigateRight}
+                  aria-label="Nästa dag"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              ) : (
+                !teamVisibilityProps && <div style={{ width: '32px' }}></div>
+              )}
+            </div>
           </div>
         </div>
 
