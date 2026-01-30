@@ -288,19 +288,19 @@ const WarehouseCalendarPage = () => {
       // Ensure warehouse is always included
       return stored.includes('warehouse') ? stored : [...stored, 'warehouse'];
     }
-    // Default: team-1 to team-5, team-11 (Live), and warehouse
-    return ['team-1', 'team-2', 'team-3', 'team-4', 'team-5', 'team-11', 'warehouse'];
+    // Default: team-1 to team-4, team-11 (Live), and warehouse
+    return ['team-1', 'team-2', 'team-3', 'team-4', 'team-11', 'warehouse'];
   };
 
   // Toggle team visibility for a specific day
   const handleToggleTeamForDay = (teamId: string, date: Date) => {
     const dateKey = format(date, 'yyyy-MM-dd');
     setVisibleTeamsByDay(prev => {
-      const currentVisible = prev[dateKey] || ['team-1', 'team-2', 'team-3', 'team-4', 'team-5', 'team-11', 'warehouse'];
+      const currentVisible = prev[dateKey] || ['team-1', 'team-2', 'team-3', 'team-4', 'team-11', 'warehouse'];
       
       if (currentVisible.includes(teamId)) {
-        // Don't allow hiding Team 1-5, Live, and Warehouse
-        if (['team-1', 'team-2', 'team-3', 'team-4', 'team-5', 'team-11', 'warehouse'].includes(teamId)) {
+        // Don't allow hiding Team 1-4, Live, and Warehouse
+        if (['team-1', 'team-2', 'team-3', 'team-4', 'team-11', 'warehouse'].includes(teamId)) {
           return prev;
         }
         return {
