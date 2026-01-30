@@ -22,8 +22,8 @@ import { cn } from '@/lib/utils';
 interface WeekNavigationProps {
   currentWeekStart: Date;
   setCurrentWeekStart: (date: Date) => void;
-  viewMode?: 'weekly' | 'monthly' | 'list';
-  onViewModeChange?: (mode: 'weekly' | 'monthly' | 'list') => void;
+  viewMode?: 'day' | 'weekly' | 'monthly' | 'list';
+  onViewModeChange?: (mode: 'day' | 'weekly' | 'monthly' | 'list') => void;
   // Monthly mode props
   currentMonth?: Date;
   onMonthChange?: (date: Date) => void;
@@ -258,6 +258,17 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
       {/* Right side - View Mode Buttons */}
       {viewMode && onViewModeChange ? (
         <div className="flex gap-1">
+          <Button
+            variant={viewMode === 'day' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => onViewModeChange('day')}
+            className={cn(
+              "text-xs px-2 py-1 h-7",
+              viewMode === 'day' && variant === 'warehouse' && "bg-warehouse hover:bg-warehouse-hover"
+            )}
+          >
+            Dag
+          </Button>
           <Button
             variant={viewMode === 'weekly' ? 'default' : 'ghost'}
             size="sm"

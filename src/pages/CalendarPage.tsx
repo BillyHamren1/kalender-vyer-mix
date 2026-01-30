@@ -16,7 +16,7 @@ import MobileCalendarView from '@/components/mobile/MobileCalendarView';
 
 const CalendarPage = () => {
   const isMobile = useIsMobile();
-  const [viewMode, setViewMode] = useState<'weekly' | 'monthly' | 'list'>('weekly');
+  const [viewMode, setViewMode] = useState<'day' | 'weekly' | 'monthly' | 'list'>('day');
   const [monthlyDate, setMonthlyDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   
@@ -143,7 +143,23 @@ const CalendarPage = () => {
 
           {/* Content - fills remaining space */}
           <div className="flex-1 min-h-0 flex flex-col">
-            {viewMode === 'weekly' ? (
+            {viewMode === 'day' ? (
+              <UnifiedResourceCalendar
+                events={events}
+                resources={teamResources}
+                isLoading={isLoading}
+                isMounted={isMounted}
+                currentDate={currentWeekStart}
+                onDateSet={handleDatesSet}
+                refreshEvents={refreshEvents}
+                onStaffDrop={staffOps.handleStaffDrop}
+                onSelectStaff={handleOpenStaffSelection}
+                viewMode="day"
+                staffOperations={staffOps}
+                visibleTeams={visibleTeams}
+                selectedDate={selectedDate}
+              />
+            ) : viewMode === 'weekly' ? (
               <UnifiedResourceCalendar
                 events={events}
                 resources={teamResources}
