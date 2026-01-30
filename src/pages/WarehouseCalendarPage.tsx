@@ -393,7 +393,7 @@ const WarehouseCalendarPage = () => {
 
   return (
     <TooltipProvider>
-      <div className="h-screen flex flex-col bg-muted/30">
+      <div className="h-screen flex flex-col bg-muted/30 overflow-hidden">
         {/* Navigation with view toggle */}
         {viewMode === 'day' ? (
           <WarehouseDayNavigationHeader
@@ -428,7 +428,7 @@ const WarehouseCalendarPage = () => {
         </div>
 
         {/* Content - flex-1 to fill remaining space */}
-        <div className="flex-1 min-h-0 p-4">
+        <div className="flex-1 min-h-0 flex flex-col p-4">
           {viewMode === 'day' ? (
             <>
               {isMobile ? (
