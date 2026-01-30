@@ -83,6 +83,8 @@ const ProjectCard = ({
   project: WeekProject;
   onStaffDrop: (staffId: string, bookingId: string, date: Date) => Promise<void>;
 }) => {
+  const navigate = useNavigate();
+  
   const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: DRAG_TYPE_STAFF,
     drop: (item: { id: string; name: string }) => {
@@ -96,11 +98,16 @@ const ProjectCard = ({
 
   const styles = getEventTypeStyles(project.eventType);
 
+  const handleClick = () => {
+    navigate(`/booking/${project.bookingId}`);
+  };
+
   return (
     <div
       ref={drop as any}
+      onClick={handleClick}
       className={cn(
-        "group relative rounded-lg border transition-all duration-200 overflow-hidden",
+        "group relative rounded-lg border transition-all duration-200 overflow-hidden cursor-pointer",
         styles.cardBgClass,
         styles.cardBorderClass,
         isOver && canDrop 
