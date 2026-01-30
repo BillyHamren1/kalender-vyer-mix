@@ -113,13 +113,13 @@ export const UpcomingEventsTimeline: React.FC<UpcomingEventsTimelineProps> = ({
                     dayEvents.slice(0, 3).map(event => (
                       <div
                         key={event.id}
-                        className={`p-2 rounded border cursor-pointer transition-all hover:shadow-sm ${getEventTypeStyle(event.eventType)}`}
+                        className={`p-1.5 rounded border cursor-pointer transition-all hover:shadow-sm ${getEventTypeStyle(event.eventType)}`}
                         onClick={() => event.bookingId && navigate(`/booking/${event.bookingId}`)}
                       >
-                        <Badge variant="secondary" className="text-[10px] mb-1">
+                        <Badge variant="secondary" className="text-[10px] mb-0.5">
                           {getEventTypeLabel(event.eventType)}
                         </Badge>
-                        <div className="text-xs font-medium truncate">
+                        <div className="text-xs font-medium leading-tight">
                           {event.title}
                         </div>
                         <div className="text-[10px] opacity-75">
