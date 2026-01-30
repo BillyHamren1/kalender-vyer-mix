@@ -349,28 +349,28 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             background: 'linear-gradient(180deg, hsl(var(--muted) / 0.5) 0%, hsl(var(--muted) / 0.3) 100%)',
             borderRight: '1px solid hsl(var(--foreground) / 0.2)',
             borderBottom: '1px solid hsl(var(--border) / 0.6)',
-            padding: '8px 6px',
+            padding: '3px 4px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '4px'
+            gap: '2px'
           }}
         >
           {getUnassignedAvailableStaff().map((staff) => (
-            <StaffItem
+            <div 
               key={staff.id}
-              staff={{
-                id: staff.id,
-                name: staff.name,
-                color: staff.color,
-                assignedTeam: undefined
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium truncate"
+              style={{ 
+                backgroundColor: staff.color || 'hsl(var(--muted))',
+                color: '#000'
               }}
-              currentDate={day}
-              variant="compact"
-              showRemoveDialog={false}
-            />
+              title={staff.name}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60 flex-shrink-0"></span>
+              <span className="truncate">{staff.name}</span>
+            </div>
           ))}
           {getUnassignedAvailableStaff().length === 0 && (
-            <span className="text-xs text-muted-foreground/60 italic text-center">Inga lediga</span>
+            <span className="text-[9px] text-muted-foreground/60 italic text-center">Inga</span>
           )}
         </div>
         {resources.map((resource, index) => {
