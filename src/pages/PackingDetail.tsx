@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Calendar, MapPin, Phone, User } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, Phone, User, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,8 +10,11 @@ import PackingFiles from "@/components/packing/PackingFiles";
 import PackingComments from "@/components/packing/PackingComments";
 import PackingGanttChart from "@/components/packing/PackingGanttChart";
 import PackingTaskDetailSheet from "@/components/packing/PackingTaskDetailSheet";
+import { ProductsList } from "@/components/booking/ProductsList";
 import { usePackingDetail } from "@/hooks/usePackingDetail";
+import { fetchPackingProducts } from "@/services/packingService";
 import { PackingTask } from "@/types/packing";
+import { BookingProduct } from "@/types/booking";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 
@@ -19,6 +22,8 @@ const PackingDetail = () => {
   const { packingId } = useParams<{ packingId: string }>();
   const navigate = useNavigate();
   const [selectedTask, setSelectedTask] = useState<PackingTask | null>(null);
+  const [products, setProducts] = useState<BookingProduct[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   
   const {
     packing,
@@ -35,6 +40,25 @@ const PackingDetail = () => {
     deleteFile,
     isUploadingFile
   } = usePackingDetail(packingId || '');
+
+  // Fetch products when we have a booking_id
+  useEffect(() => {
+    const loadProducts = async () => {
+      if (packing?.booking_id) {
+        setIsLoadingProducts(true);
+        try {
+          const productsData = await fetchPackingProducts(packing.booking_id);
+          setProducts(productsData);
+        } catch (error) {
+          console.error('Error loading products:', error);
+        } finally {
+          setIsLoadingProducts(false);
+        }
+      }
+    };
+    
+    loadProducts();
+  }, [packing?.booking_id]);
 
   if (isLoading) {
     return (
@@ -148,6 +172,12 @@ const PackingDetail = () => {
           <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="gantt">Gantt-schema</TabsTrigger>
             <TabsTrigger value="tasks">Uppgifter ({tasks.length})</TabsTrigger>
+            {booking && (
+              <TabsTrigger value="products" className="flex items-center gap-1">
+                <Package className="h-3.5 w-3.5" />
+                Produkter ({products.length})
+              </TabsTrigger>
+            )}
             <TabsTrigger value="files">Filer ({files.length})</TabsTrigger>
             <TabsTrigger value="comments">Kommentarer ({comments.length})</TabsTrigger>
           </TabsList>
@@ -167,6 +197,22 @@ const PackingDetail = () => {
               onDeleteTask={deleteTask}
             />
           </TabsContent>
+
+          {booking && (
+            <TabsContent value="products">
+              {isLoadingProducts ? (
+                <Card>
+                  <CardContent className="py-8">
+                    <div className="flex justify-center">
+                      <div className="animate-pulse text-muted-foreground">Laddar produkter...</div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <ProductsList products={products} />
+              )}
+            </TabsContent>
+          )}
 
           <TabsContent value="files">
             <PackingFiles

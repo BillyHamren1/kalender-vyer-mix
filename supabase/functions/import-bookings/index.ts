@@ -215,6 +215,147 @@ const syncWarehouseEventsForBooking = async (supabase: any, booking: any): Promi
   return 0;
 };
 
+/**
+ * Create packing project and tasks for a confirmed booking
+ * Creates standard tasks with deadlines based on rig/event/rigdown dates
+ */
+const createPackingForBooking = async (supabase: any, booking: any): Promise<boolean> => {
+  console.log(`[Packing] Checking if packing exists for booking ${booking.id}`);
+  
+  // Check if packing already exists for this booking
+  const { data: existingPacking, error: checkError } = await supabase
+    .from('packing_projects')
+    .select('id')
+    .eq('booking_id', booking.id)
+    .limit(1);
+  
+  if (checkError) {
+    console.error(`[Packing] Error checking existing packing:`, checkError);
+    return false;
+  }
+  
+  if (existingPacking && existingPacking.length > 0) {
+    console.log(`[Packing] Packing already exists for booking ${booking.id}, skipping creation`);
+    return false;
+  }
+  
+  const clientName = booking.client || 'Okänd kund';
+  const eventDate = booking.eventdate ? new Date(booking.eventdate).toLocaleDateString('sv-SE') : '';
+  const packingName = eventDate ? `${clientName} - ${eventDate}` : clientName;
+  
+  console.log(`[Packing] Creating packing project: ${packingName}`);
+  
+  // Create packing project
+  const { data: newPacking, error: insertError } = await supabase
+    .from('packing_projects')
+    .insert({
+      booking_id: booking.id,
+      name: packingName,
+      status: 'planning'
+    })
+    .select('id')
+    .single();
+  
+  if (insertError || !newPacking) {
+    console.error(`[Packing] Error creating packing project:`, insertError);
+    return false;
+  }
+  
+  console.log(`[Packing] Created packing project ${newPacking.id}`);
+  
+  // Create standard tasks with deadlines
+  const tasks: any[] = [];
+  let sortOrder = 0;
+  
+  // Tasks based on rigdaydate
+  if (booking.rigdaydate) {
+    // Packning påbörjad: rigdaydate - 4 days
+    tasks.push({
+      packing_id: newPacking.id,
+      title: 'Packning påbörjad',
+      description: 'Börja packa utrustning för bokningen',
+      deadline: addDays(booking.rigdaydate, -4),
+      sort_order: sortOrder++,
+      completed: false,
+      is_info_only: false
+    });
+    
+    // Packlista klar: rigdaydate - 2 days
+    tasks.push({
+      packing_id: newPacking.id,
+      title: 'Packlista klar',
+      description: 'Verifiera att all utrustning på packlistan är kontrollerad',
+      deadline: addDays(booking.rigdaydate, -2),
+      sort_order: sortOrder++,
+      completed: false,
+      is_info_only: false
+    });
+    
+    // Utrustning packad: rigdaydate - 1 day
+    tasks.push({
+      packing_id: newPacking.id,
+      title: 'Utrustning packad',
+      description: 'All utrustning packad och redo för transport',
+      deadline: addDays(booking.rigdaydate, -1),
+      sort_order: sortOrder++,
+      completed: false,
+      is_info_only: false
+    });
+    
+    // Utleverans klarmarkerad: rigdaydate
+    tasks.push({
+      packing_id: newPacking.id,
+      title: 'Utleverans klarmarkerad',
+      description: 'Bekräfta att leveransen har gått iväg',
+      deadline: booking.rigdaydate,
+      sort_order: sortOrder++,
+      completed: false,
+      is_info_only: false
+    });
+  }
+  
+  // Tasks based on rigdowndate
+  if (booking.rigdowndate) {
+    // Inventering efter event: rigdowndate + 1 day
+    tasks.push({
+      packing_id: newPacking.id,
+      title: 'Inventering efter event',
+      description: 'Kontrollera att all utrustning är tillbaka och i gott skick',
+      deadline: addDays(booking.rigdowndate, 1),
+      sort_order: sortOrder++,
+      completed: false,
+      is_info_only: false
+    });
+    
+    // Upppackning klar: rigdowndate + 2 days
+    tasks.push({
+      packing_id: newPacking.id,
+      title: 'Upppackning klar',
+      description: 'All utrustning uppackad och återställd på lagerplats',
+      deadline: addDays(booking.rigdowndate, 2),
+      sort_order: sortOrder++,
+      completed: false,
+      is_info_only: false
+    });
+  }
+  
+  // Insert tasks
+  if (tasks.length > 0) {
+    console.log(`[Packing] Creating ${tasks.length} tasks for packing ${newPacking.id}`);
+    const { error: tasksError } = await supabase
+      .from('packing_tasks')
+      .insert(tasks);
+    
+    if (tasksError) {
+      console.error(`[Packing] Error creating packing tasks:`, tasksError);
+    } else {
+      console.log(`[Packing] Successfully created ${tasks.length} tasks`);
+    }
+  }
+  
+  return true;
+};
+
 interface ProductData {
   booking_id: string;
   name: string;
@@ -450,6 +591,7 @@ serve(async (req) => {
       failed: 0,
       calendar_events_created: 0,
       warehouse_events_created: 0,
+      packing_projects_created: 0,
       products_imported: 0,
       attachments_imported: 0,
       new_bookings: [],
@@ -968,6 +1110,12 @@ serve(async (req) => {
             const warehouseEventsCreated = await syncWarehouseEventsForBooking(supabase, bookingData);
             results.warehouse_events_created += warehouseEventsCreated;
           }
+          
+          // Create packing project for confirmed bookings
+          const packingCreated = await createPackingForBooking(supabase, bookingData);
+          if (packingCreated) {
+            results.packing_projects_created++;
+          }
         }
 
       } catch (error) {
@@ -1015,6 +1163,7 @@ serve(async (req) => {
       cancelled_skipped: results.cancelled_bookings_skipped.length,
       calendar_events_created: results.calendar_events_created,
       warehouse_events_created: results.warehouse_events_created,
+      packing_projects_created: results.packing_projects_created,
       team_distribution: results.team_distribution,
       mode: isHistoricalImport ? 'HISTORICAL' : syncMode
     })

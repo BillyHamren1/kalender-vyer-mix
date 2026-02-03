@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Packing, PackingWithBooking, PackingTask, PackingComment, PackingFile, PackingStatus } from "@/types/packing";
+import { BookingProduct } from "@/types/booking";
 
 // Fetch all packing projects with optional booking info
 export const fetchPackings = async (): Promise<PackingWithBooking[]> => {
@@ -222,4 +223,24 @@ export const deletePackingFile = async (id: string, url: string): Promise<void> 
     .eq('id', id);
 
   if (error) throw error;
+};
+
+// Fetch products for a packing's linked booking
+export const fetchPackingProducts = async (bookingId: string): Promise<BookingProduct[]> => {
+  const { data, error } = await supabase
+    .from('booking_products')
+    .select('id, name, quantity, notes, unit_price, total_price')
+    .eq('booking_id', bookingId)
+    .order('id', { ascending: true });
+
+  if (error) throw error;
+  
+  return (data || []).map(p => ({
+    id: p.id,
+    name: p.name,
+    quantity: p.quantity,
+    notes: p.notes || undefined,
+    unitPrice: p.unit_price || undefined,
+    totalPrice: p.total_price || undefined
+  })) as BookingProduct[];
 };
