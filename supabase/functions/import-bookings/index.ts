@@ -884,8 +884,54 @@ serve(async (req) => {
             continue;
           }
           
-          // If only product recovery is needed, clear products and reimport
+          // If only product recovery is needed - check for active packing project first
           if (!hasChanged && !statusChanged && !needsCalendarRecovery && !needsWarehouseRecovery && needsProductRecovery) {
+            // Check if there's an active packing project for this booking
+            const { data: activePacking } = await supabase
+              .from('packing_projects')
+              .select('id, status')
+              .eq('booking_id', existingBooking.id)
+              .in('status', ['planning', 'in_progress', 'packing', 'ready'])
+              .limit(1);
+            
+            if (activePacking && activePacking.length > 0) {
+              // SKIP destructive recovery if packing is active - just fix parent_product_id in-place
+              console.log(`Booking ${bookingData.id} has active packing project (${activePacking[0].status}) - using non-destructive parent_product_id fix`);
+              
+              // Get existing products sorted by creation order
+              const { data: sortedProducts } = await supabase
+                .from('booking_products')
+                .select('id, name, parent_product_id')
+                .eq('booking_id', existingBooking.id)
+                .order('id', { ascending: true });
+              
+              if (sortedProducts && sortedProducts.length > 0) {
+                let lastParentId: string | null = null;
+                
+                for (const product of sortedProducts) {
+                  const isAccessory = isAccessoryProduct(product.name);
+                  const isPkgComp = product.name?.trim().startsWith('⦿');
+                  
+                  if (!isAccessory && !isPkgComp) {
+                    // This is a parent product
+                    lastParentId = product.id;
+                  } else if ((isAccessory || isPkgComp) && !product.parent_product_id && lastParentId) {
+                    // Fix missing parent_product_id in-place
+                    await supabase
+                      .from('booking_products')
+                      .update({ parent_product_id: lastParentId })
+                      .eq('id', product.id);
+                    console.log(`[Non-destructive fix] Set parent_product_id for "${product.name}" to ${lastParentId}`);
+                  }
+                }
+              }
+              
+              results.imported++;
+              console.log(`[Non-destructive product fix] Completed for booking ${bookingData.id}`);
+              continue;
+            }
+            
+            // No active packing - safe to do full product recovery
             console.log(`Only product recovery needed for ${bookingData.id} - clearing and reimporting products`);
             await supabase.from('booking_products').delete().eq('booking_id', existingBooking.id);
             

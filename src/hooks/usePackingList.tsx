@@ -132,8 +132,16 @@ const sortPackingListItems = (items: PackingListItem[]): PackingListItem[] => {
   return sorted;
 };
 
-// Generate packing list items from booking products
+// Generate packing list items from booking products (only missing ones)
 const generatePackingListItems = async (packingId: string, bookingId: string): Promise<void> => {
+  // Fetch existing packing list items for this packing
+  const { data: existingItems } = await supabase
+    .from('packing_list_items')
+    .select('booking_product_id')
+    .eq('packing_id', packingId);
+
+  const existingProductIds = new Set((existingItems || []).map(item => item.booking_product_id));
+
   // Fetch all products for this booking
   const { data: products, error: productsError } = await supabase
     .from('booking_products')
@@ -143,8 +151,12 @@ const generatePackingListItems = async (packingId: string, bookingId: string): P
   if (productsError) throw productsError;
   if (!products || products.length === 0) return;
 
-  // Create packing list items for each product
-  const itemsToInsert = products.map(product => ({
+  // Only insert items that don't already exist (prevent duplicates)
+  const newProducts = products.filter(p => !existingProductIds.has(p.id));
+  
+  if (newProducts.length === 0) return;
+
+  const itemsToInsert = newProducts.map(product => ({
     packing_id: packingId,
     booking_product_id: product.id,
     quantity_to_pack: product.quantity,
