@@ -363,7 +363,23 @@ interface ProductData {
   notes?: string;
   unit_price?: number;
   total_price?: number;
+  parent_product_id?: string;
 }
+
+/**
+ * Check if a product name indicates it's an accessory/sub-item
+ * Accessories typically start with └, ↳, L, or similar prefixes
+ */
+const isAccessoryProduct = (name: string): boolean => {
+  if (!name) return false;
+  const trimmed = name.trim();
+  return trimmed.startsWith('└') || 
+         trimmed.startsWith('↳') || 
+         trimmed.startsWith('L,') || 
+         trimmed.startsWith('└,') ||
+         trimmed.startsWith('  ↳') ||
+         trimmed.startsWith('  └');
+};
 
 interface AttachmentData {
   booking_id: string;
@@ -936,9 +952,12 @@ serve(async (req) => {
           results.new_bookings.push(bookingData.id)
         }
 
-        // Process products
+        // Process products with parent-child relationship tracking
         if (externalBooking.products && Array.isArray(externalBooking.products)) {
           console.log(`Processing ${externalBooking.products.length} products for booking ${bookingData.id}`)
+          
+          // Track the last parent product ID for linking accessories
+          let lastParentProductId: string | null = null;
           
           for (const product of externalBooking.products) {
             try {
@@ -949,26 +968,39 @@ serve(async (req) => {
               const unitPrice = product.price || product.unit_price || product.rental_price || product.cost || null;
               const quantity = product.quantity || 1;
               const totalPrice = unitPrice ? unitPrice * quantity : null;
+              const productName = product.name || product.product_name || 'Unknown Product';
               
-              console.log(`Product "${product.name || product.product_name}": unit_price=${unitPrice}, quantity=${quantity}, total_price=${totalPrice}`)
+              // Check if this is an accessory (starts with ↳, └, etc.)
+              const isAccessory = isAccessoryProduct(productName);
+              
+              console.log(`Product "${productName}": unit_price=${unitPrice}, quantity=${quantity}, total_price=${totalPrice}, isAccessory=${isAccessory}, parentId=${isAccessory ? lastParentProductId : 'N/A'}`)
               
               const productData: ProductData = {
                 booking_id: bookingData.id,
-                name: product.name || product.product_name || 'Unknown Product',
+                name: productName,
                 quantity: quantity,
                 notes: product.notes || product.description || null,
                 unit_price: unitPrice,
-                total_price: totalPrice
+                total_price: totalPrice,
+                parent_product_id: isAccessory && lastParentProductId ? lastParentProductId : undefined
               }
 
-              const { error: productError } = await supabase
+              const { data: insertedProduct, error: productError } = await supabase
                 .from('booking_products')
                 .insert(productData)
+                .select('id')
+                .single()
 
               if (productError) {
                 console.error(`Error inserting product for booking ${bookingData.id}:`, productError)
               } else {
                 results.products_imported++
+                
+                // If this is a parent product (not an accessory), store its ID for subsequent accessories
+                if (!isAccessory && insertedProduct) {
+                  lastParentProductId = insertedProduct.id;
+                  console.log(`Set lastParentProductId to ${lastParentProductId} for product "${productName}"`)
+                }
               }
             } catch (productErr) {
               console.error(`Error processing product for booking ${bookingData.id}:`, productErr)
