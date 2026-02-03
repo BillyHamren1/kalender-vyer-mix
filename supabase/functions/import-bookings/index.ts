@@ -935,87 +935,34 @@ serve(async (req) => {
             console.log(`Only product recovery needed for ${bookingData.id} - clearing and reimporting products`);
             await supabase.from('booking_products').delete().eq('booking_id', existingBooking.id);
             
-            // Process products with TWO-PASS approach for correct parent-child linking
+            // Process products with SINGLE-PASS approach preserving original API order
             if (externalBooking.products && Array.isArray(externalBooking.products)) {
-              console.log(`[Product Recovery] Processing ${externalBooking.products.length} products for booking ${bookingData.id}`)
+              console.log(`[Product Recovery] Processing ${externalBooking.products.length} products for booking ${bookingData.id} (preserving API order)`)
               
-              // Separate main products from components/accessories
-              const mainProducts: any[] = [];
-              const childProducts: any[] = [];
-              
-              for (const product of externalBooking.products) {
-                const productName = product.name || product.product_name || 'Unknown Product';
-                const isAccessory = isAccessoryProduct(productName);
-                const isPkgComponent = isPackageComponent(product);
-                
-                if (isAccessory || isPkgComponent) {
-                  childProducts.push(product);
-                } else {
-                  mainProducts.push(product);
-                }
-              }
-              
-              console.log(`[Product Recovery] ${mainProducts.length} main products, ${childProducts.length} children`)
-              
-              // Map: external product ID → internal UUID
+              // Map: external product ID → internal UUID (for parent_package_id lookups)
               const externalToInternalIdMap: Record<string, string> = {};
               let lastParentProductId: string | null = null;
               
-              // PASS 1: Insert main products
-              for (const product of mainProducts) {
+              // SINGLE PASS: Insert products in API order
+              for (const product of externalBooking.products) {
                 try {
-                  const unitPrice = product.price || product.unit_price || product.rental_price || product.cost || null;
-                  const quantity = product.quantity || 1;
-                  const totalPrice = unitPrice ? unitPrice * quantity : null;
                   const productName = product.name || product.product_name || 'Unknown Product';
-                  
-                  const productData: ProductData = {
-                    booking_id: existingBooking.id,
-                    name: productName,
-                    quantity: quantity,
-                    notes: product.notes || product.description || null,
-                    unit_price: unitPrice,
-                    total_price: totalPrice,
-                    is_package_component: false,
-                    sku: product.sku || product.inventory_item_type_id || product.article_number || null
-                  }
-                  
-                  const { data: insertedProduct, error: productError } = await supabase
-                    .from('booking_products')
-                    .insert(productData)
-                    .select('id')
-                    .single()
-                  
-                  if (productError) {
-                    console.error(`[Product Recovery] Error inserting main product:`, productError)
-                  } else {
-                    results.products_imported++
-                    lastParentProductId = insertedProduct.id;
-                    
-                    if (product.id) {
-                      externalToInternalIdMap[product.id] = insertedProduct.id;
-                    }
-                  }
-                } catch (err) {
-                  console.error(`[Product Recovery] Error processing main product:`, err)
-                }
-              }
-              
-              // PASS 2: Insert child products with correct parent linking
-              for (const product of childProducts) {
-                try {
-                  const unitPrice = product.price || product.unit_price || product.rental_price || product.cost || null;
-                  const quantity = product.quantity || 1;
-                  const totalPrice = unitPrice ? unitPrice * quantity : null;
-                  const productName = product.name || product.product_name || 'Unknown Product';
+                  const isAccessory = isAccessoryProduct(productName);
                   const isPkgComponent = isPackageComponent(product);
+                  const isChild = isAccessory || isPkgComponent;
+                  
+                  const unitPrice = product.price || product.unit_price || product.rental_price || product.cost || null;
+                  const quantity = product.quantity || 1;
+                  const totalPrice = unitPrice ? unitPrice * quantity : null;
                   
                   let resolvedParentId: string | null = null;
                   
-                  if (product.parent_package_id && externalToInternalIdMap[product.parent_package_id]) {
-                    resolvedParentId = externalToInternalIdMap[product.parent_package_id];
-                  } else if (lastParentProductId) {
-                    resolvedParentId = lastParentProductId;
+                  if (isChild) {
+                    if (product.parent_package_id && externalToInternalIdMap[product.parent_package_id]) {
+                      resolvedParentId = externalToInternalIdMap[product.parent_package_id];
+                    } else if (lastParentProductId) {
+                      resolvedParentId = lastParentProductId;
+                    }
                   }
                   
                   const productData: ProductData = {
@@ -1038,12 +985,19 @@ serve(async (req) => {
                     .single()
                   
                   if (productError) {
-                    console.error(`[Product Recovery] Error inserting child product:`, productError)
+                    console.error(`[Product Recovery] Error inserting product:`, productError)
                   } else {
                     results.products_imported++
+                    
+                    if (!isChild) {
+                      lastParentProductId = insertedProduct.id;
+                      if (product.id) {
+                        externalToInternalIdMap[product.id] = insertedProduct.id;
+                      }
+                    }
                   }
                 } catch (err) {
-                  console.error(`[Product Recovery] Error processing child product:`, err)
+                  console.error(`[Product Recovery] Error processing product:`, err)
                 }
               }
             }
@@ -1158,97 +1112,41 @@ serve(async (req) => {
           results.new_bookings.push(bookingData.id)
         }
 
-        // Process products with parent-child relationship tracking using TWO-PASS approach:
-        // Pass 1: Insert all main products (parents) first, building mapping of external ID → internal ID
-        // Pass 2: Insert all components/accessories, linking to correct parent via parent_package_id
+        // Process products with SINGLE-PASS approach preserving original API order:
+        // Insert products in the exact order they come from the API, tracking parent IDs dynamically
         if (externalBooking.products && Array.isArray(externalBooking.products)) {
-          console.log(`Processing ${externalBooking.products.length} products for booking ${bookingData.id}`)
+          console.log(`Processing ${externalBooking.products.length} products for booking ${bookingData.id} (preserving API order)`)
           
-          // Separate main products from components/accessories
-          const mainProducts: any[] = [];
-          const childProducts: any[] = [];
-          
-          for (const product of externalBooking.products) {
-            const productName = product.name || product.product_name || 'Unknown Product';
-            const isAccessory = isAccessoryProduct(productName);
-            const isPkgComponent = isPackageComponent(product);
-            
-            if (isAccessory || isPkgComponent) {
-              childProducts.push(product);
-            } else {
-              mainProducts.push(product);
-            }
-          }
-          
-          console.log(`[Two-Pass Import] ${mainProducts.length} main products, ${childProducts.length} children for booking ${bookingData.id}`)
-          
-          // Map: external product ID → internal UUID
+          // Map: external product ID → internal UUID (for parent_package_id lookups)
           const externalToInternalIdMap: Record<string, string> = {};
-          // Track last inserted parent for fallback sequential linking
+          // Track last inserted main product for sequential parent linking
           let lastParentProductId: string | null = null;
           
-          // PASS 1: Insert main products
-          for (const product of mainProducts) {
+          // SINGLE PASS: Insert products in API order
+          for (const product of externalBooking.products) {
             try {
-              const unitPrice = product.price || product.unit_price || product.rental_price || product.cost || null;
-              const quantity = product.quantity || 1;
-              const totalPrice = unitPrice ? unitPrice * quantity : null;
               const productName = product.name || product.product_name || 'Unknown Product';
-              
-              const productData: ProductData = {
-                booking_id: bookingData.id,
-                name: productName,
-                quantity: quantity,
-                notes: product.notes || product.description || null,
-                unit_price: unitPrice,
-                total_price: totalPrice,
-                is_package_component: false,
-                sku: product.sku || product.inventory_item_type_id || product.article_number || null
-              }
-              
-              const { data: insertedProduct, error: productError } = await supabase
-                .from('booking_products')
-                .insert(productData)
-                .select('id')
-                .single()
-              
-              if (productError) {
-                console.error(`Error inserting main product for booking ${bookingData.id}:`, productError)
-              } else {
-                results.products_imported++
-                lastParentProductId = insertedProduct.id;
-                
-                // Map external ID to internal ID for parent_package_id lookups
-                if (product.id) {
-                  externalToInternalIdMap[product.id] = insertedProduct.id;
-                  console.log(`[Two-Pass] Mapped external ID ${product.id} → internal ${insertedProduct.id} for "${productName}"`)
-                }
-              }
-            } catch (err) {
-              console.error(`Error processing main product:`, err)
-            }
-          }
-          
-          // PASS 2: Insert child products (accessories and package components)
-          for (const product of childProducts) {
-            try {
-              const unitPrice = product.price || product.unit_price || product.rental_price || product.cost || null;
-              const quantity = product.quantity || 1;
-              const totalPrice = unitPrice ? unitPrice * quantity : null;
-              const productName = product.name || product.product_name || 'Unknown Product';
+              const isAccessory = isAccessoryProduct(productName);
               const isPkgComponent = isPackageComponent(product);
+              const isChild = isAccessory || isPkgComponent;
               
-              // Determine parent_product_id:
-              // 1. Try to use parent_package_id mapping (most reliable for package components)
-              // 2. Fall back to lastParentProductId (for sequential accessories)
+              const unitPrice = product.price || product.unit_price || product.rental_price || product.cost || null;
+              const quantity = product.quantity || 1;
+              const totalPrice = unitPrice ? unitPrice * quantity : null;
+              
               let resolvedParentId: string | null = null;
               
-              if (product.parent_package_id && externalToInternalIdMap[product.parent_package_id]) {
-                resolvedParentId = externalToInternalIdMap[product.parent_package_id];
-                console.log(`[Two-Pass] Child "${productName}" linked via parent_package_id → ${resolvedParentId}`)
-              } else if (lastParentProductId) {
-                resolvedParentId = lastParentProductId;
-                console.log(`[Two-Pass] Child "${productName}" linked via lastParent fallback → ${resolvedParentId}`)
+              if (isChild) {
+                // Determine parent_product_id for child items:
+                // 1. Try parent_package_id mapping first (most reliable for package components)
+                // 2. Fall back to lastParentProductId (for sequential accessories)
+                if (product.parent_package_id && externalToInternalIdMap[product.parent_package_id]) {
+                  resolvedParentId = externalToInternalIdMap[product.parent_package_id];
+                  console.log(`[Single-Pass] Child "${productName}" linked via parent_package_id → ${resolvedParentId}`)
+                } else if (lastParentProductId) {
+                  resolvedParentId = lastParentProductId;
+                  console.log(`[Single-Pass] Child "${productName}" linked via lastParent → ${resolvedParentId}`)
+                }
               }
               
               const productData: ProductData = {
@@ -1271,12 +1169,22 @@ serve(async (req) => {
                 .single()
               
               if (productError) {
-                console.error(`Error inserting child product for booking ${bookingData.id}:`, productError)
+                console.error(`Error inserting product "${productName}" for booking ${bookingData.id}:`, productError)
               } else {
                 results.products_imported++
+                
+                // If this is a main product, update lastParentProductId and map external ID
+                if (!isChild) {
+                  lastParentProductId = insertedProduct.id;
+                  
+                  if (product.id) {
+                    externalToInternalIdMap[product.id] = insertedProduct.id;
+                    console.log(`[Single-Pass] Mapped external ID ${product.id} → internal ${insertedProduct.id} for "${productName}"`)
+                  }
+                }
               }
             } catch (err) {
-              console.error(`Error processing child product:`, err)
+              console.error(`Error processing product:`, err)
             }
           }
         }
