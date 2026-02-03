@@ -935,30 +935,40 @@ serve(async (req) => {
             console.log(`Only product recovery needed for ${bookingData.id} - clearing and reimporting products`);
             await supabase.from('booking_products').delete().eq('booking_id', existingBooking.id);
             
-            // Process products with parent-child relationship tracking
+            // Process products with TWO-PASS approach for correct parent-child linking
             if (externalBooking.products && Array.isArray(externalBooking.products)) {
               console.log(`[Product Recovery] Processing ${externalBooking.products.length} products for booking ${bookingData.id}`)
               
-              let lastParentProductId: string | null = null;
-              const externalToInternalPackageMap: Record<string, string> = {};
-              const packageComponentsToUpdate: Array<{ internalId: string; externalPackageId: string }> = [];
+              // Separate main products from components/accessories
+              const mainProducts: any[] = [];
+              const childProducts: any[] = [];
               
               for (const product of externalBooking.products) {
+                const productName = product.name || product.product_name || 'Unknown Product';
+                const isAccessory = isAccessoryProduct(productName);
+                const isPkgComponent = isPackageComponent(product);
+                
+                if (isAccessory || isPkgComponent) {
+                  childProducts.push(product);
+                } else {
+                  mainProducts.push(product);
+                }
+              }
+              
+              console.log(`[Product Recovery] ${mainProducts.length} main products, ${childProducts.length} children`)
+              
+              // Map: external product ID → internal UUID
+              const externalToInternalIdMap: Record<string, string> = {};
+              let lastParentProductId: string | null = null;
+              
+              // PASS 1: Insert main products
+              for (const product of mainProducts) {
                 try {
                   const unitPrice = product.price || product.unit_price || product.rental_price || product.cost || null;
                   const quantity = product.quantity || 1;
                   const totalPrice = unitPrice ? unitPrice * quantity : null;
                   const productName = product.name || product.product_name || 'Unknown Product';
-                  const isAccessory = isAccessoryProduct(productName);
-                  const isPkgComponent = isPackageComponent(product);
                   
-                  // Both accessories AND package components should be linked to last parent
-                  const shouldLinkToParent = isAccessory || isPkgComponent;
-                  
-                  console.log(`[Product Recovery] Product "${productName}": isAccessory=${isAccessory}, isPkgComponent=${isPkgComponent}, parentId=${shouldLinkToParent ? lastParentProductId : 'N/A'}`)
-                  
-                  // IMPORTANT: Both accessories and package components use lastParentProductId
-                  // This ensures they are grouped under their parent package in the packing list
                   const productData: ProductData = {
                     booking_id: existingBooking.id,
                     name: productName,
@@ -966,52 +976,74 @@ serve(async (req) => {
                     notes: product.notes || product.description || null,
                     unit_price: unitPrice,
                     total_price: totalPrice,
-                    parent_product_id: shouldLinkToParent && lastParentProductId ? lastParentProductId : undefined,
-                    is_package_component: isPkgComponent || false,
-                    parent_package_id: isPkgComponent ? (product.parent_package_id || null) : null,
+                    is_package_component: false,
                     sku: product.sku || product.inventory_item_type_id || product.article_number || null
                   }
-
+                  
                   const { data: insertedProduct, error: productError } = await supabase
                     .from('booking_products')
                     .insert(productData)
                     .select('id')
                     .single()
-
+                  
                   if (productError) {
-                    console.error(`[Product Recovery] Error inserting product:`, productError)
+                    console.error(`[Product Recovery] Error inserting main product:`, productError)
                   } else {
                     results.products_imported++
+                    lastParentProductId = insertedProduct.id;
                     
-                    if (!isAccessory && !isPkgComponent && insertedProduct) {
-                      lastParentProductId = insertedProduct.id;
-                      console.log(`[Product Recovery] Set lastParentProductId to ${lastParentProductId} for "${productName}"`)
-                      
-                      if (product.id) {
-                        externalToInternalPackageMap[product.id] = insertedProduct.id;
-                      }
-                    }
-                    
-                    if (isPkgComponent && product.parent_package_id && insertedProduct) {
-                      packageComponentsToUpdate.push({
-                        internalId: insertedProduct.id,
-                        externalPackageId: product.parent_package_id
-                      });
+                    if (product.id) {
+                      externalToInternalIdMap[product.id] = insertedProduct.id;
                     }
                   }
-                } catch (productErr) {
-                  console.error(`[Product Recovery] Error processing product:`, productErr)
+                } catch (err) {
+                  console.error(`[Product Recovery] Error processing main product:`, err)
                 }
               }
               
-              // Update package components with their internal parent_product_id
-              for (const component of packageComponentsToUpdate) {
-                const internalParentId = externalToInternalPackageMap[component.externalPackageId];
-                if (internalParentId) {
-                  await supabase
+              // PASS 2: Insert child products with correct parent linking
+              for (const product of childProducts) {
+                try {
+                  const unitPrice = product.price || product.unit_price || product.rental_price || product.cost || null;
+                  const quantity = product.quantity || 1;
+                  const totalPrice = unitPrice ? unitPrice * quantity : null;
+                  const productName = product.name || product.product_name || 'Unknown Product';
+                  const isPkgComponent = isPackageComponent(product);
+                  
+                  let resolvedParentId: string | null = null;
+                  
+                  if (product.parent_package_id && externalToInternalIdMap[product.parent_package_id]) {
+                    resolvedParentId = externalToInternalIdMap[product.parent_package_id];
+                  } else if (lastParentProductId) {
+                    resolvedParentId = lastParentProductId;
+                  }
+                  
+                  const productData: ProductData = {
+                    booking_id: existingBooking.id,
+                    name: productName,
+                    quantity: quantity,
+                    notes: product.notes || product.description || null,
+                    unit_price: unitPrice,
+                    total_price: totalPrice,
+                    parent_product_id: resolvedParentId || undefined,
+                    is_package_component: isPkgComponent || false,
+                    parent_package_id: isPkgComponent ? (product.parent_package_id || null) : null,
+                    sku: product.sku || product.inventory_item_type_id || product.article_number || null
+                  }
+                  
+                  const { data: insertedProduct, error: productError } = await supabase
                     .from('booking_products')
-                    .update({ parent_product_id: internalParentId })
-                    .eq('id', component.internalId);
+                    .insert(productData)
+                    .select('id')
+                    .single()
+                  
+                  if (productError) {
+                    console.error(`[Product Recovery] Error inserting child product:`, productError)
+                  } else {
+                    results.products_imported++
+                  }
+                } catch (err) {
+                  console.error(`[Product Recovery] Error processing child product:`, err)
                 }
               }
             }
@@ -1126,39 +1158,43 @@ serve(async (req) => {
           results.new_bookings.push(bookingData.id)
         }
 
-        // Process products with parent-child relationship tracking
+        // Process products with parent-child relationship tracking using TWO-PASS approach:
+        // Pass 1: Insert all main products (parents) first, building mapping of external ID → internal ID
+        // Pass 2: Insert all components/accessories, linking to correct parent via parent_package_id
         if (externalBooking.products && Array.isArray(externalBooking.products)) {
           console.log(`Processing ${externalBooking.products.length} products for booking ${bookingData.id}`)
           
-          // Track the last parent product ID for linking accessories
-          let lastParentProductId: string | null = null;
-          // Track external package IDs to our internal product IDs
-          const externalToInternalPackageMap: Record<string, string> = {};
-          // Track package components that need parent_product_id update after all packages are inserted
-          const packageComponentsToUpdate: Array<{ internalId: string; externalPackageId: string }> = [];
+          // Separate main products from components/accessories
+          const mainProducts: any[] = [];
+          const childProducts: any[] = [];
           
           for (const product of externalBooking.products) {
+            const productName = product.name || product.product_name || 'Unknown Product';
+            const isAccessory = isAccessoryProduct(productName);
+            const isPkgComponent = isPackageComponent(product);
+            
+            if (isAccessory || isPkgComponent) {
+              childProducts.push(product);
+            } else {
+              mainProducts.push(product);
+            }
+          }
+          
+          console.log(`[Two-Pass Import] ${mainProducts.length} main products, ${childProducts.length} children for booking ${bookingData.id}`)
+          
+          // Map: external product ID → internal UUID
+          const externalToInternalIdMap: Record<string, string> = {};
+          // Track last inserted parent for fallback sequential linking
+          let lastParentProductId: string | null = null;
+          
+          // PASS 1: Insert main products
+          for (const product of mainProducts) {
             try {
-              // Log raw product data to see all available fields from external API
-              console.log(`RAW PRODUCT DATA from external API for booking ${bookingData.id}:`, JSON.stringify(product, null, 2))
-              
-              // Extract price data - try multiple possible field names
               const unitPrice = product.price || product.unit_price || product.rental_price || product.cost || null;
               const quantity = product.quantity || 1;
               const totalPrice = unitPrice ? unitPrice * quantity : null;
               const productName = product.name || product.product_name || 'Unknown Product';
               
-              // Check if this is an accessory (starts with ↳, └, etc.) OR a package component
-              const isAccessory = isAccessoryProduct(productName);
-              const isPkgComponent = isPackageComponent(product);
-              
-              // Both accessories AND package components should be linked to last parent
-              const shouldLinkToParent = isAccessory || isPkgComponent;
-              
-              console.log(`Product "${productName}": unit_price=${unitPrice}, quantity=${quantity}, total_price=${totalPrice}, isAccessory=${isAccessory}, isPkgComponent=${isPkgComponent}, parentId=${shouldLinkToParent ? lastParentProductId : 'N/A'}`)
-              
-              // IMPORTANT: Both accessories and package components use lastParentProductId
-              // This ensures they are grouped under their parent package in the packing list
               const productData: ProductData = {
                 booking_id: bookingData.id,
                 name: productName,
@@ -1166,63 +1202,81 @@ serve(async (req) => {
                 notes: product.notes || product.description || null,
                 unit_price: unitPrice,
                 total_price: totalPrice,
-                parent_product_id: shouldLinkToParent && lastParentProductId ? lastParentProductId : undefined,
-                is_package_component: isPkgComponent || false,
-                parent_package_id: isPkgComponent ? (product.parent_package_id || null) : null,
+                is_package_component: false,
                 sku: product.sku || product.inventory_item_type_id || product.article_number || null
               }
-
+              
               const { data: insertedProduct, error: productError } = await supabase
                 .from('booking_products')
                 .insert(productData)
                 .select('id')
                 .single()
-
+              
               if (productError) {
-                console.error(`Error inserting product for booking ${bookingData.id}:`, productError)
+                console.error(`Error inserting main product for booking ${bookingData.id}:`, productError)
               } else {
                 results.products_imported++
+                lastParentProductId = insertedProduct.id;
                 
-                // If this is a parent product (not an accessory and not a package component), store its ID for subsequent accessories
-                if (!isAccessory && !isPkgComponent && insertedProduct) {
-                  lastParentProductId = insertedProduct.id;
-                  console.log(`Set lastParentProductId to ${lastParentProductId} for product "${productName}"`)
-                  
-                  // If the external product has an ID, map it for package component linking
-                  if (product.id) {
-                    externalToInternalPackageMap[product.id] = insertedProduct.id;
-                    console.log(`Mapped external package ID ${product.id} to internal ID ${insertedProduct.id}`)
-                  }
-                }
-                
-                // Track package components for later update
-                if (isPkgComponent && product.parent_package_id && insertedProduct) {
-                  packageComponentsToUpdate.push({
-                    internalId: insertedProduct.id,
-                    externalPackageId: product.parent_package_id
-                  });
+                // Map external ID to internal ID for parent_package_id lookups
+                if (product.id) {
+                  externalToInternalIdMap[product.id] = insertedProduct.id;
+                  console.log(`[Two-Pass] Mapped external ID ${product.id} → internal ${insertedProduct.id} for "${productName}"`)
                 }
               }
-            } catch (productErr) {
-              console.error(`Error processing product for booking ${bookingData.id}:`, productErr)
+            } catch (err) {
+              console.error(`Error processing main product:`, err)
             }
           }
           
-          // Now update package components with their internal parent_product_id
-          for (const component of packageComponentsToUpdate) {
-            const internalParentId = externalToInternalPackageMap[component.externalPackageId];
-            if (internalParentId) {
-              console.log(`Updating package component ${component.internalId} with parent_product_id ${internalParentId}`)
-              const { error: updateError } = await supabase
-                .from('booking_products')
-                .update({ parent_product_id: internalParentId })
-                .eq('id', component.internalId);
+          // PASS 2: Insert child products (accessories and package components)
+          for (const product of childProducts) {
+            try {
+              const unitPrice = product.price || product.unit_price || product.rental_price || product.cost || null;
+              const quantity = product.quantity || 1;
+              const totalPrice = unitPrice ? unitPrice * quantity : null;
+              const productName = product.name || product.product_name || 'Unknown Product';
+              const isPkgComponent = isPackageComponent(product);
               
-              if (updateError) {
-                console.error(`Error updating package component parent:`, updateError);
+              // Determine parent_product_id:
+              // 1. Try to use parent_package_id mapping (most reliable for package components)
+              // 2. Fall back to lastParentProductId (for sequential accessories)
+              let resolvedParentId: string | null = null;
+              
+              if (product.parent_package_id && externalToInternalIdMap[product.parent_package_id]) {
+                resolvedParentId = externalToInternalIdMap[product.parent_package_id];
+                console.log(`[Two-Pass] Child "${productName}" linked via parent_package_id → ${resolvedParentId}`)
+              } else if (lastParentProductId) {
+                resolvedParentId = lastParentProductId;
+                console.log(`[Two-Pass] Child "${productName}" linked via lastParent fallback → ${resolvedParentId}`)
               }
-            } else {
-              console.log(`No internal parent found for external package ID ${component.externalPackageId}`)
+              
+              const productData: ProductData = {
+                booking_id: bookingData.id,
+                name: productName,
+                quantity: quantity,
+                notes: product.notes || product.description || null,
+                unit_price: unitPrice,
+                total_price: totalPrice,
+                parent_product_id: resolvedParentId || undefined,
+                is_package_component: isPkgComponent || false,
+                parent_package_id: isPkgComponent ? (product.parent_package_id || null) : null,
+                sku: product.sku || product.inventory_item_type_id || product.article_number || null
+              }
+              
+              const { data: insertedProduct, error: productError } = await supabase
+                .from('booking_products')
+                .insert(productData)
+                .select('id')
+                .single()
+              
+              if (productError) {
+                console.error(`Error inserting child product for booking ${bookingData.id}:`, productError)
+              } else {
+                results.products_imported++
+              }
+            } catch (err) {
+              console.error(`Error processing child product:`, err)
             }
           }
         }
