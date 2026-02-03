@@ -1,114 +1,128 @@
 
-# Plan: Logga produktpayload & lägg till prisfält
+# Plan: Synkronisera lagerkalender vid import av bokningar
 
-## Sammanfattning
-1. Lägg till detaljerad loggning i `import-bookings` för att visa exakt vilka fält som kommer från det externa API:et för varje produkt
-2. Lägg till `unit_price` och `total_price` kolumner i `booking_products` tabellen
-3. Uppdatera importen för att spara prisdata om det finns tillgängligt
+## Problem
+Bokningar som importeras via `import-bookings` edge-funktionen skapar endast händelser i personalplaneringen (`calendar_events`-tabellen), men **ingen synkronisering sker till lagerkalendern** (`warehouse_calendar_events`-tabellen). 
+
+Därför syns bokning `2601-2` i personalplaneringen men inte i lagerkalendern.
+
+## Lösning
+Lägg till automatisk synkronisering till lagerkalendern i import-funktionen efter att kalenderhändelser skapats för bekräftade bokningar.
+
+---
+
+## Teknisk sammanfattning
+
+När en bokning importeras och är bekräftad:
+1. Kalenderhändelser (rig/event/rigdown) skapas i `calendar_events`
+2. **NY:** Sex logistikhändelser skapas i `warehouse_calendar_events`:
+   - Packning (4 dagar före rig)
+   - Utleverans (på rig-dagen)
+   - Event
+   - Återleverans (på rigdown-dagen)
+   - Inventering (dagen efter rigdown)
+   - Upppackning (dagen efter rigdown)
 
 ---
 
 ## Ändringar
 
-### 1. Databasmigrering - Lägg till priskolumner
+### 1. Edge Function: Lägg till lagersynkronisering
 
-Skapa ny migration som lägger till:
-- `unit_price` (NUMERIC) - Enhetspris per produkt
-- `total_price` (NUMERIC) - Totalpris (quantity × unit_price)
+I `supabase/functions/import-bookings/index.ts`, efter att kalenderhändelser skapats:
 
-```text
-booking_products
-├── id (UUID, PK)
-├── booking_id (UUID, FK)
-├── name (TEXT)
-├── quantity (NUMERIC)
-├── notes (TEXT)
-├── unit_price (NUMERIC) ← NY
-└── total_price (NUMERIC) ← NY
-```
+**Fil att ändra:** `supabase/functions/import-bookings/index.ts`
 
-### 2. Edge Function - Detaljerad loggning
-
-I `import-bookings/index.ts`, lägg till loggning som visar hela produktobjektet från API:et:
+Lägg till en hjälpfunktion och anrop den efter att kalenderhändelser skapats:
 
 ```text
-// Logga ALLA fält som kommer från externa API:et
-console.log(`RAW PRODUCT DATA from external API:`, JSON.stringify(product, null, 2))
-```
-
-Detta visar exakt vilka nycklar och värden som finns tillgängliga (t.ex. `price`, `unit_price`, `rental_price`, `cost`, etc.).
-
-### 3. Edge Function - Uppdatera ProductData interface
-
-Utöka interfacet för att inkludera prisfält:
-
-```text
-interface ProductData {
-  booking_id: string;
-  name: string;
-  quantity: number;
-  notes?: string;
-  unit_price?: number;  ← NY
-  total_price?: number; ← NY
+// Efter rad 757 (efter "results.calendar_events_created++")
+// Synka till lagerkalender för bekräftade bokningar med datum
+if (isNowConfirmed && (bookingData.rigdaydate || bookingData.eventdate || bookingData.rigdowndate)) {
+  await syncWarehouseEventsForBooking(supabase, bookingData);
 }
 ```
 
-### 4. Edge Function - Spara prisdata
+Hjälpfunktionen skapar de 6 logistikhändelserna baserat på samma regler som `warehouseCalendarService.ts`:
 
-Uppdatera produktimporten för att extrahera och spara prisdata:
+| Händelsetyp | Baseras på | Offset |
+|-------------|------------|--------|
+| Packning | rigdaydate | -4 dagar |
+| Utleverans | rigdaydate | 0 |
+| Event | eventdate | 0 |
+| Återleverans | rigdowndate | 0 |
+| Inventering | rigdowndate | +1 dag |
+| Upppackning | rigdowndate | +1 dag |
 
-```text
-const productData: ProductData = {
-  booking_id: bookingData.id,
-  name: product.name || product.product_name || 'Unknown Product',
-  quantity: product.quantity || 1,
-  notes: product.notes || product.description || null,
-  unit_price: product.price || product.unit_price || product.rental_price || null,
-  total_price: (product.price || product.unit_price || 0) * (product.quantity || 1)
-}
-```
+### 2. Lägg till UPSERT-logik
 
-### 5. TypeScript Types - Uppdatera
-
-Uppdatera `src/integrations/supabase/types.ts` för att reflektera de nya kolumnerna (genereras automatiskt från Supabase).
-
-### 6. Frontend - Uppdatera interfaces
-
-Uppdatera `BookingProduct` interface i:
-- `src/types/booking.ts`
-- `src/components/Calendar/BookingProductsDialog.tsx`
+Använd `upsert` med `onConflict: 'booking_id,event_type'` för att undvika duplicerade händelser vid återimport.
 
 ---
 
 ## Tekniska detaljer
 
+### Ny funktion i import-bookings
+
+```text
+async function syncWarehouseEventsForBooking(supabase: any, booking: any) {
+  console.log(`[Warehouse] Syncing warehouse events for booking ${booking.id}`)
+  
+  // Ta bort befintliga lagerhändelser för bokningen
+  await supabase
+    .from('warehouse_calendar_events')
+    .delete()
+    .eq('booking_id', booking.id)
+  
+  const events = []
+  const clientName = booking.client || 'Okänd kund'
+  
+  // Skapa 6 händelser baserat på WAREHOUSE_RULES
+  if (booking.rigdaydate) {
+    // Packning: 4 dagar före
+    events.push({
+      booking_id: booking.id,
+      booking_number: booking.booking_number,
+      title: `Packning - ${clientName}`,
+      event_type: 'packing',
+      // ... beräkna start/end baserat på rigdaydate - 4 dagar
+    })
+    // Utleverans: samma dag som rig
+    events.push({ ... })
+  }
+  
+  // ... skapa övriga händelser
+  
+  // Infoga alla
+  if (events.length > 0) {
+    await supabase.from('warehouse_calendar_events').insert(events)
+  }
+}
+```
+
 ### Filer som ändras
 
 | Fil | Ändring |
 |-----|---------|
-| `supabase/migrations/[new].sql` | Lägg till `unit_price` och `total_price` kolumner |
-| `supabase/functions/import-bookings/index.ts` | Lägg till loggning + uppdatera ProductData interface + spara prisdata |
-| `src/types/booking.ts` | Lägg till `unitPrice?` och `totalPrice?` i BookingProduct |
-| `src/components/Calendar/BookingProductsDialog.tsx` | Uppdatera interface för att visa priser |
+| `supabase/functions/import-bookings/index.ts` | Lägg till `syncWarehouseEventsForBooking` funktion och anropa den efter kalenderhändelser skapats |
 
-### Loggningsformat
+### Datumberäkningar
 
-Efter ändringen kommer edge function-loggarna att visa:
 ```text
-Processing 3 products for booking 2505-42
-RAW PRODUCT DATA from external API: {
-  "name": "Multiflex 4x12",
-  "quantity": 2,
-  "price": 1500,
-  "rental_price": null,
-  "notes": "Med LED"
-}
+Regler för lagerhändelser:
+- Packning: rigdaydate - 4 dagar, 08:00-11:00
+- Utleverans: rigdaydate, 07:00-09:00
+- Event: eventdate, använd event_start_time/event_end_time eller 09:00-17:00
+- Återleverans: rigdowndate, 17:00-19:00
+- Inventering: rigdowndate + 1 dag, 08:00-10:00
+- Upppackning: rigdowndate + 1 dag, 10:00-12:00
 ```
 
-### Databasmigrering
+---
 
-```sql
-ALTER TABLE public.booking_products
-ADD COLUMN unit_price NUMERIC DEFAULT NULL,
-ADD COLUMN total_price NUMERIC DEFAULT NULL;
-```
+## Förväntade resultat
+
+Efter implementationen:
+1. Alla importerade bekräftade bokningar får automatiskt lagerhändelser
+2. Bokning `2601-2` kommer synas i lagerkalendern efter nästa import
+3. Befintliga bokningar kan synkas via en manuell "Synka alla till lager"-funktion
