@@ -7,6 +7,8 @@ export interface BookingProduct {
   unitPrice?: number;
   totalPrice?: number;
   parentProductId?: string;
+  isPackageComponent?: boolean;
+  parentPackageId?: string;
 }
 
 export interface BookingAttachment {

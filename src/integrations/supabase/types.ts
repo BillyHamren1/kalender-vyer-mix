@@ -111,8 +111,10 @@ export type Database = {
         Row: {
           booking_id: string
           id: string
+          is_package_component: boolean | null
           name: string
           notes: string | null
+          parent_package_id: string | null
           parent_product_id: string | null
           quantity: number
           total_price: number | null
@@ -121,8 +123,10 @@ export type Database = {
         Insert: {
           booking_id: string
           id?: string
+          is_package_component?: boolean | null
           name: string
           notes?: string | null
+          parent_package_id?: string | null
           parent_product_id?: string | null
           quantity?: number
           total_price?: number | null
@@ -131,8 +135,10 @@ export type Database = {
         Update: {
           booking_id?: string
           id?: string
+          is_package_component?: boolean | null
           name?: string
           notes?: string | null
+          parent_package_id?: string | null
           parent_product_id?: string | null
           quantity?: number
           total_price?: number | null

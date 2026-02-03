@@ -34,7 +34,9 @@ export const transformBookingData = (dbBooking: any): Booking => {
       notes: product.notes,
       unitPrice: product.unit_price || undefined,
       totalPrice: product.total_price || undefined,
-      parentProductId: product.parent_product_id || undefined
+      parentProductId: product.parent_product_id || undefined,
+      isPackageComponent: product.is_package_component || false,
+      parentPackageId: product.parent_package_id || undefined
     })),
     attachments: dbBooking.booking_attachments?.map((attachment: any) => ({
       id: attachment.id,
