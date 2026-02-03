@@ -135,8 +135,8 @@ const PackingListTab = ({
             <Progress value={progress.percentage} className="h-2" />
           </div>
 
-          {/* Product list */}
-          <div className="space-y-1">
+          {/* Product list - scrollable */}
+          <div className="space-y-1 max-h-[60vh] overflow-y-auto pr-2">
             {mainProducts.map(item => (
               <div key={item.id}>
                 <PackingListItemRow
