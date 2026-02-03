@@ -113,6 +113,7 @@ export type Database = {
           id: string
           name: string
           notes: string | null
+          parent_product_id: string | null
           quantity: number
           total_price: number | null
           unit_price: number | null
@@ -122,6 +123,7 @@ export type Database = {
           id?: string
           name: string
           notes?: string | null
+          parent_product_id?: string | null
           quantity?: number
           total_price?: number | null
           unit_price?: number | null
@@ -131,6 +133,7 @@ export type Database = {
           id?: string
           name?: string
           notes?: string | null
+          parent_product_id?: string | null
           quantity?: number
           total_price?: number | null
           unit_price?: number | null
@@ -148,6 +151,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "confirmed_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_products_parent_product_id_fkey"
+            columns: ["parent_product_id"]
+            isOneToOne: false
+            referencedRelation: "booking_products"
             referencedColumns: ["id"]
           },
         ]
