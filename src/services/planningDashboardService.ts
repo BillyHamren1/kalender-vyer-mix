@@ -579,8 +579,7 @@ export const fetchCompletedToday = async (): Promise<CompletedToday[]> => {
 };
 
 // Fetch week projects with assigned staff
-export const fetchWeekProjects = async (): Promise<WeekProject[]> => {
-  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+export const fetchWeekProjects = async (weekStart: Date): Promise<WeekProject[]> => {
   const weekEnd = addDays(weekStart, 6);
   
   const startStr = format(weekStart, 'yyyy-MM-dd');

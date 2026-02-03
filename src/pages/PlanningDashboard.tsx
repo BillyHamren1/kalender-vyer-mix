@@ -7,11 +7,17 @@ import CompletedTodayCard from "@/components/planning-dashboard/CompletedTodayCa
 import AllStaffCard from "@/components/planning-dashboard/AllStaffCard";
 import WeekProjectsView from "@/components/planning-dashboard/WeekProjectsView";
 import UnopenedBookingsCard from "@/components/planning-dashboard/UnopenedBookingsCard";
-import { format } from "date-fns";
+import { format, startOfWeek, addWeeks, subWeeks } from "date-fns";
 import { sv } from "date-fns/locale";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
+import { useState } from "react";
+
 const PlanningDashboard = () => {
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => 
+    startOfWeek(new Date(), { weekStartsOn: 1 })
+  );
+
   const {
     stats,
     staffLocations,
@@ -24,7 +30,11 @@ const PlanningDashboard = () => {
     refetchAll,
     handleToggleStaffActive,
     handleStaffDropToBooking
-  } = usePlanningDashboard();
+  } = usePlanningDashboard(currentWeekStart);
+
+  const goToPreviousWeek = () => setCurrentWeekStart(prev => subWeeks(prev, 1));
+  const goToNextWeek = () => setCurrentWeekStart(prev => addWeeks(prev, 1));
+  const goToCurrentWeek = () => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -54,6 +64,10 @@ const PlanningDashboard = () => {
         <div className="mb-6">
           <WeekProjectsView 
             projects={weekProjects}
+            weekStart={currentWeekStart}
+            onPreviousWeek={goToPreviousWeek}
+            onNextWeek={goToNextWeek}
+            onCurrentWeek={goToCurrentWeek}
             isLoading={isLoading}
             onStaffDrop={handleStaffDropToBooking}
           />
