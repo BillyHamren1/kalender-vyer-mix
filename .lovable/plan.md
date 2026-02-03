@@ -1,145 +1,126 @@
 
-# Plan: Fixa veckonavigering på Dashboard
+# Plan: Packlistor med QR-verifiering
 
 ## Problem
+Systemet har uppgifter som "Packlista klar" men inga **faktiska packlistor** med produkter att checka av. Lagerpersonal behöver kunna:
+1. Se alla produkter som ska packas för en bokning
+2. Markera varje produkt som "packad"
+3. Verifiera packning via QR-scanner
 
-Dashboardens veckovy visar **inga jobb** när du navigerar till vecka 5, trots att bokningar finns för 29-30 januari.
+## Lösningsöversikt
 
-### Grundorsak
+### Ny databasstruktur
 
-Det finns en **disconnect** mellan:
-1. **WeekProjectsView** komponenten som har lokal `useState` för `currentWeekStart` och tillåter navigering mellan veckor
-2. **fetchWeekProjects** i servicen som ALLTID hämtar data för den **aktuella veckan** (baserat på `new Date()`)
-
-När du klickar "föregående vecka" uppdateras UI:t för att visa vecka 5:s dagar, men data-fetchen fortsätter att hämta vecka 6:s bokningar. Resultatet: inga matchningar, alla dagar visar "Inga jobb".
+| Tabell | Syfte |
+|--------|-------|
+| `packing_list_items` | Koppling mellan packing_project och produkter, med status för varje artikel |
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│  WeekProjectsView                                           │
-│  ┌─────────────────┐                                        │
-│  │ currentWeekStart│ ← navigerar till vecka 5               │
-│  │ (useState)      │                                        │
-│  └────────┬────────┘                                        │
-│           │                                                 │
-│           ▼                                                 │
-│  Renderar dagar för vecka 5 (26-30 jan)                     │
-│           │                                                 │
-│           │  Men filtrerar projekten mot:                   │
-│           ▼                                                 │
-│  ┌─────────────────┐                                        │
-│  │ projects prop   │ ← Data för vecka 6 (från hooken)       │
-│  │ (från parent)   │                                        │
-│  └─────────────────┘                                        │
-│           │                                                 │
-│           ▼                                                 │
-│  isSameDay(project.date, vecka5dag) = false för alla!       │
-│           │                                                 │
-│           ▼                                                 │
-│  "Inga jobb" visas överallt                                 │
-└─────────────────────────────────────────────────────────────┘
+packing_list_items
+├── id (uuid)
+├── packing_id → packing_projects.id
+├── booking_product_id → booking_products.id
+├── quantity_to_pack (integer)
+├── quantity_packed (integer, default 0)
+├── packed_by (text, nullable)
+├── packed_at (timestamptz, nullable)
+├── verified_by (text, nullable)  
+├── verified_at (timestamptz, nullable)
+├── notes (text, nullable)
+└── created_at (timestamptz)
 ```
 
-## Lösning
+### Nytt UI: Packlista-flik
 
-Koppla ihop `currentWeekStart` med data-fetchen så att rätt veckas data hämtas.
+Lägg till en ny flik **"Packlista"** i PackingDetail som visar:
 
-### Tekniska ändringar
-
-| Fil | Ändring |
-|-----|---------|
-| `src/services/planningDashboardService.ts` | Uppdatera `fetchWeekProjects` att ta emot `weekStart: Date` parameter |
-| `src/hooks/usePlanningDashboard.tsx` | Lägg till `currentWeekStart` som parameter och inkludera i query key |
-| `src/pages/PlanningDashboard.tsx` | Flytta vecko-state hit och skicka ner till både hook och komponent |
-| `src/components/planning-dashboard/WeekProjectsView.tsx` | Ta emot `weekStart` och navigeringsfunktioner som props istället för lokal state |
-
-### Detaljerad implementation
-
-#### 1. Servicen (planningDashboardService.ts)
-
-```typescript
-// Ändra från:
-export const fetchWeekProjects = async (): Promise<WeekProject[]> => {
-  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-  ...
-}
-
-// Till:
-export const fetchWeekProjects = async (weekStart: Date): Promise<WeekProject[]> => {
-  // Nu använder parametern istället för new Date()
-  ...
-}
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│ Packlista                           Generera QR │ Slutför alla │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│ ▣ Multiflex 8x6 ..............................  2/3 packade   │
+│   ☐ ↳ M Takduk 8m - Transparent .............  0/2 packade   │
+│   ☑ ↳ M Transparant Vägg 3M .................  1/1 packade   │
+│   ☐ ↳ Dubbeldörr till MF & F ................  0/1 packade   │
+│                                                                 │
+│ ☑ Multiflex 8x12 .............................  1/1 packade   │
+│                                                                 │
+│ ☐ F12 - 12x10/300 ............................  0/1 packade   │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│ Packat: 4/36 artiklar (11%)                          ▓▓░░░░░░░ │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-#### 2. Hooken (usePlanningDashboard.tsx)
+### QR-skanner-flöde
 
-```typescript
-export const usePlanningDashboard = (currentWeekStart: Date) => {
-  // ...
-  
-  const weekProjectsQuery = useQuery<WeekProject[]>({
-    queryKey: ['planning-dashboard', 'week-projects', format(currentWeekStart, 'yyyy-MM-dd')],
-    queryFn: () => fetchWeekProjects(currentWeekStart),
-    refetchInterval: 30000,
-  });
-  
-  // ...
-}
+1. **Generera QR-kod**: Skapar en unik URL för packlistans verifieringssida
+2. **Skanna**: Personal skannar QR med mobilenhet
+3. **Verifiera**: Mobilvy visar checklista, bekräftar packning artikel för artikel
+4. **Logga**: Varje scan loggas med tidsstämpel och vem som verifierade
+
+## Tekniska ändringar
+
+| Fil | Typ | Beskrivning |
+|-----|-----|-------------|
+| `supabase/migrations/...` | Ny | Skapa `packing_list_items` tabell |
+| `src/types/packing.ts` | Uppdatera | Lägg till `PackingListItem` interface |
+| `src/services/packingService.ts` | Uppdatera | CRUD för packlisteartiklar |
+| `src/hooks/usePackingDetail.tsx` | Uppdatera | Hämta och uppdatera packlisteposter |
+| `src/components/packing/PackingListTab.tsx` | Ny | Huvudkomponent för packlistan |
+| `src/components/packing/PackingListItem.tsx` | Ny | Enskild artikel med checkbox |
+| `src/components/packing/PackingListProgress.tsx` | Ny | Progress-indikator |
+| `src/components/packing/PackingQRCode.tsx` | Ny | QR-kod generator |
+| `src/pages/PackingDetail.tsx` | Uppdatera | Lägg till Packlista-flik |
+| `src/pages/PackingVerify.tsx` | Ny | Mobilvänlig verifieringssida |
+| `src/App.tsx` | Uppdatera | Route för `/warehouse/packing/:id/verify` |
+
+## Implementation: Automatisk generering av packlista
+
+När en packning skapas (eller vid första besök av Packlista-fliken):
+
+```text
+1. Kontrollera om packing_list_items finns för detta packing_id
+2. Om ej: 
+   - Hämta alla booking_products för booking_id
+   - Skapa en packing_list_item för varje produkt
+   - Sätt quantity_to_pack = product.quantity
 ```
 
-#### 3. Dashboard-sidan (PlanningDashboard.tsx)
+## Verifieringslogik
 
-```typescript
-const PlanningDashboard = () => {
-  const [currentWeekStart, setCurrentWeekStart] = useState(() => 
-    startOfWeek(new Date(), { weekStartsOn: 1 })
-  );
-  
-  const { weekProjects, ... } = usePlanningDashboard(currentWeekStart);
-  
-  const goToPreviousWeek = () => setCurrentWeekStart(prev => subWeeks(prev, 1));
-  const goToNextWeek = () => setCurrentWeekStart(prev => addWeeks(prev, 1));
-  
-  return (
-    <WeekProjectsView 
-      projects={weekProjects}
-      weekStart={currentWeekStart}
-      onPreviousWeek={goToPreviousWeek}
-      onNextWeek={goToNextWeek}
-      ...
-    />
-  );
-}
-```
+Varje packad artikel loggas med:
+- `packed_by`: Namn på person som packade
+- `packed_at`: Tidsstämpel
+- `verified_by`: Namn på person som verifierade (via QR)
+- `verified_at`: Tidsstämpel för verifiering
 
-#### 4. WeekProjectsView (ta bort lokal state)
+## Mobilvy för QR-verifiering
 
-```typescript
-interface WeekProjectsViewProps {
-  projects: WeekProject[];
-  weekStart: Date;
-  onPreviousWeek: () => void;
-  onNextWeek: () => void;
-  isLoading: boolean;
-  onStaffDrop: ...
-}
-
-const WeekProjectsView = ({ 
-  projects, 
-  weekStart,  // Nu från parent
-  onPreviousWeek, 
-  onNextWeek,
-  ... 
-}: WeekProjectsViewProps) => {
-  // Ta bort useState för currentWeekStart
-  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-  ...
-}
+```text
+┌─────────────────────────────┐
+│ ✓ Packlista Verifiering     │
+│ Testkund - 2026-01-30       │
+├─────────────────────────────┤
+│                             │
+│ ☐ Multiflex 8x6        (3)  │
+│ ☐ Multiflex 8x12       (1)  │
+│ ☑ F12 - 12x10/300      (1)  │
+│                             │
+│ [Bekräfta nästa artikel]    │
+│                             │
+├─────────────────────────────┤
+│ Verifierat: 1/15            │
+└─────────────────────────────┘
 ```
 
 ## Resultat
 
 Efter implementation:
-- Veckonavigering hämtar rätt data för vald vecka
-- Vecka 5 visar bokningarna för 29-30 januari
-- Query key inkluderar vecko-start, så TanStack Query cachar per vecka
-- Fullt reaktivt: navigera fram/tillbaka och data uppdateras automatiskt
+- Ny "Packlista"-flik i packningsvyn
+- Checkboxar för varje produkt (huvudprodukter + tillbehör)
+- Progress-visning för hur mycket som är packat
+- QR-kod för verifiering
+- Mobilvänlig verifieringssida
+- Loggning av vem som packade/verifierade varje artikel
