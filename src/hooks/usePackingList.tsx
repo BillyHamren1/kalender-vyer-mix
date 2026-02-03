@@ -56,7 +56,7 @@ const fetchPackingListItems = async (packingId: string, bookingId: string | null
     (items || []).map(async (item) => {
       const { data: product } = await supabase
         .from('booking_products')
-        .select('id, name, quantity, parent_product_id, sku, is_package_component, parent_package_id')
+        .select('id, name, quantity, parent_product_id')
         .eq('id', item.booking_product_id)
         .single();
 
@@ -66,10 +66,7 @@ const fetchPackingListItems = async (packingId: string, bookingId: string | null
           id: product.id,
           name: product.name,
           quantity: product.quantity,
-          parent_product_id: product.parent_product_id,
-          sku: product.sku,
-          is_package_component: product.is_package_component,
-          parent_package_id: product.parent_package_id
+          parent_product_id: product.parent_product_id
         } : undefined
       } as PackingListItem;
     })
@@ -79,86 +76,37 @@ const fetchPackingListItems = async (packingId: string, bookingId: string | null
   return sortPackingListItems(itemsWithProducts);
 };
 
-// Helper function to identify accessory products by name prefix
-const isAccessoryProduct = (name: string | undefined): boolean => {
-  if (!name) return false;
-  const trimmed = name.trim();
-  return trimmed.startsWith('└') || 
-         trimmed.startsWith('↳') || 
-         trimmed.startsWith('L,') || 
-         trimmed.startsWith('└,') ||
-         trimmed.startsWith('  ↳') ||
-         trimmed.startsWith('  └');
-};
-
-// Sort items: main products first (alphabetically), then children grouped under their parent
+// Sort items so main products come first, followed by their accessories
 const sortPackingListItems = (items: PackingListItem[]): PackingListItem[] => {
   const mainProducts: PackingListItem[] = [];
-  const childrenByParent: Record<string, PackingListItem[]> = {};
+  const accessoriesByParent: Record<string, PackingListItem[]> = {};
 
   items.forEach(item => {
-    // Use parent_product_id for ALL child items (accessories + components)
     const parentId = item.product?.parent_product_id;
-
     if (parentId) {
-      if (!childrenByParent[parentId]) {
-        childrenByParent[parentId] = [];
+      if (!accessoriesByParent[parentId]) {
+        accessoriesByParent[parentId] = [];
       }
-      childrenByParent[parentId].push(item);
+      accessoriesByParent[parentId].push(item);
     } else {
       mainProducts.push(item);
     }
-  });
-
-  // Sort main products alphabetically by name
-  mainProducts.sort((a, b) => {
-    const nameA = a.product?.name || '';
-    const nameB = b.product?.name || '';
-    return nameA.localeCompare(nameB, 'sv');
   });
 
   // Build sorted list
   const sorted: PackingListItem[] = [];
   mainProducts.forEach(main => {
     sorted.push(main);
-    if (main.product && childrenByParent[main.product.id]) {
-      // Sort children: package components first (⦿), accessories last (↳)
-      // Then alphabetically within each group
-      const sortedChildren = childrenByParent[main.product.id].sort((a, b) => {
-        const nameA = a.product?.name?.trim() || '';
-        const nameB = b.product?.name?.trim() || '';
-        
-        const aIsComponent = nameA.startsWith('⦿');
-        const bIsComponent = nameB.startsWith('⦿');
-        const aIsAccessory = isAccessoryProduct(nameA);
-        const bIsAccessory = isAccessoryProduct(nameB);
-        
-        // Components first, accessories last
-        if (aIsComponent && !bIsComponent) return -1;
-        if (!aIsComponent && bIsComponent) return 1;
-        if (aIsAccessory && !bIsAccessory) return 1;
-        if (!aIsAccessory && bIsAccessory) return -1;
-        
-        // Same type: sort alphabetically
-        return nameA.localeCompare(nameB, 'sv');
-      });
-      sorted.push(...sortedChildren);
+    if (main.product && accessoriesByParent[main.product.id]) {
+      sorted.push(...accessoriesByParent[main.product.id]);
     }
   });
 
   return sorted;
 };
 
-// Generate packing list items from booking products (only missing ones)
+// Generate packing list items from booking products
 const generatePackingListItems = async (packingId: string, bookingId: string): Promise<void> => {
-  // Fetch existing packing list items for this packing
-  const { data: existingItems } = await supabase
-    .from('packing_list_items')
-    .select('booking_product_id')
-    .eq('packing_id', packingId);
-
-  const existingProductIds = new Set((existingItems || []).map(item => item.booking_product_id));
-
   // Fetch all products for this booking
   const { data: products, error: productsError } = await supabase
     .from('booking_products')
@@ -168,12 +116,8 @@ const generatePackingListItems = async (packingId: string, bookingId: string): P
   if (productsError) throw productsError;
   if (!products || products.length === 0) return;
 
-  // Only insert items that don't already exist (prevent duplicates)
-  const newProducts = products.filter(p => !existingProductIds.has(p.id));
-  
-  if (newProducts.length === 0) return;
-
-  const itemsToInsert = newProducts.map(product => ({
+  // Create packing list items for each product
+  const itemsToInsert = products.map(product => ({
     packing_id: packingId,
     booking_product_id: product.id,
     quantity_to_pack: product.quantity,
@@ -239,8 +183,7 @@ export const usePackingList = (packingId: string) => {
   const { data: items = [], isLoading: isLoadingItems } = useQuery({
     queryKey: ['packing-list-items', packingId],
     queryFn: () => fetchPackingListItems(packingId, packing?.booking_id || null),
-    enabled: !!packingId && !!packing?.booking_id,
-    staleTime: 30000,
+    enabled: !!packingId && packing !== undefined
   });
 
   // Update item mutation

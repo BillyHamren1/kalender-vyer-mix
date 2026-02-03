@@ -27,13 +27,10 @@ const PackingListTab = ({
 }: PackingListTabProps) => {
   const [showQR, setShowQR] = useState(false);
 
-  // Group items by parent product/package
-  // parent_product_id is the INTERNAL database ID that links:
-  // 1. Accessories to their main product
-  // 2. Package components to their parent package (mapped during import)
-  const { mainProducts, children, progress } = useMemo(() => {
+  // Group items by parent product
+  const { mainProducts, accessories, progress } = useMemo(() => {
     const main: PackingListItem[] = [];
-    const childrenByParent: Record<string, PackingListItem[]> = {};
+    const acc: Record<string, PackingListItem[]> = {};
     
     let totalToPack = 0;
     let totalPacked = 0;
@@ -42,23 +39,18 @@ const PackingListTab = ({
       totalToPack += item.quantity_to_pack;
       totalPacked += item.quantity_packed;
       
-      // Both accessories and package components use parent_product_id 
-      // for internal linking (set during import)
       const parentId = item.product?.parent_product_id;
-
       if (parentId) {
-        // This is either an accessory or package component - group under parent
-        if (!childrenByParent[parentId]) childrenByParent[parentId] = [];
-        childrenByParent[parentId].push(item);
+        if (!acc[parentId]) acc[parentId] = [];
+        acc[parentId].push(item);
       } else {
-        // Main product or package (no parent)
         main.push(item);
       }
     });
 
     return {
       mainProducts: main,
-      children: childrenByParent,
+      accessories: acc,
       progress: {
         total: totalToPack,
         packed: totalPacked,
@@ -152,11 +144,11 @@ const PackingListTab = ({
                   onUpdate={onUpdateItem}
                   isAccessory={false}
                 />
-                {/* Render children (package components and accessories) */}
-                {item.product && children[item.product.id]?.map(child => (
+                {/* Render accessories for this product */}
+                {item.product && accessories[item.product.id]?.map(acc => (
                   <PackingListItemRow
-                    key={child.id}
-                    item={child}
+                    key={acc.id}
+                    item={acc}
                     onUpdate={onUpdateItem}
                     isAccessory={true}
                   />
