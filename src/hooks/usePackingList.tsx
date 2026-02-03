@@ -79,7 +79,19 @@ const fetchPackingListItems = async (packingId: string, bookingId: string | null
   return sortPackingListItems(itemsWithProducts);
 };
 
-// Sort items: main products first, then children (both accessories and package components)
+// Helper function to identify accessory products by name prefix
+const isAccessoryProduct = (name: string | undefined): boolean => {
+  if (!name) return false;
+  const trimmed = name.trim();
+  return trimmed.startsWith('└') || 
+         trimmed.startsWith('↳') || 
+         trimmed.startsWith('L,') || 
+         trimmed.startsWith('└,') ||
+         trimmed.startsWith('  ↳') ||
+         trimmed.startsWith('  └');
+};
+
+// Sort items: main products first, then children (package components first, accessories last)
 const sortPackingListItems = (items: PackingListItem[]): PackingListItem[] => {
   const mainProducts: PackingListItem[] = [];
   const childrenByParent: Record<string, PackingListItem[]> = {};
@@ -103,7 +115,17 @@ const sortPackingListItems = (items: PackingListItem[]): PackingListItem[] => {
   mainProducts.forEach(main => {
     sorted.push(main);
     if (main.product && childrenByParent[main.product.id]) {
-      sorted.push(...childrenByParent[main.product.id]);
+      // Sort children: package components first, accessories last
+      const sortedChildren = childrenByParent[main.product.id].sort((a, b) => {
+        const aIsAccessory = isAccessoryProduct(a.product?.name);
+        const bIsAccessory = isAccessoryProduct(b.product?.name);
+        
+        // Package components first (non-accessories), accessories last
+        if (aIsAccessory && !bIsAccessory) return 1;  // a after b
+        if (!aIsAccessory && bIsAccessory) return -1; // a before b
+        return 0; // Keep original order
+      });
+      sorted.push(...sortedChildren);
     }
   });
 
