@@ -1,82 +1,58 @@
 
-# Plan: Visa fullständig SKU vid klick istället för avkortad i text
+# Plan: Återställ korrekta förälder-barn-relationer
 
-## Problem
+## Problemet
 
-Nuvarande implementation i `PackingListItemRow.tsx` visar en avkortad SKU direkt efter produktnamnet:
-```typescript
-{item.product?.sku.substring(0, 8)}  // ← FÖRBJUDET!
+Den tidigare migrationen använde `ORDER BY bp.id::text` för att bestämma produktordning, men UUID:er är **slumpmässiga** och bevarar INTE importordningen. Detta resulterade i att:
+- F12-komponenter (`⦿ F12/20 Ben 3m`) pekar på Multiflex-paket
+- Komponenter från ett paket blandas med ett annat
+
+## Lösning
+
+Använd `parent_package_id` (externt API-ID) för att gruppera produkter som tillhör samma paket, och matcha sedan mot rätt intern huvudprodukt baserat på **namnprefix-matchning**:
+
+| Komponentprefix | Ska tillhöra |
+|-----------------|--------------|
+| `⦿ F12...` eller `⦿ F12/20...` | `F12 - 12x10/300` |
+| `⦿ M ...` (M + mellanslag) | Närmaste `Multiflex X` i samma `parent_package_id`-grupp |
+
+## Teknisk implementation
+
+### Steg 1: SQL-migration för att fixa F12-produkter
+
+Alla produkter med `parent_package_id = '00b1ca3b-de36-4ec4-a7a8-dd441152748a'` och namn som börjar med `⦿ F12` ska få `parent_product_id` satt till F12-paketets ID.
+
+```sql
+-- Fix F12 components - link to F12 - 12x10/300
+UPDATE booking_products
+SET parent_product_id = '4be34fff-95d2-4dda-8429-b1a8e13ee255'
+WHERE booking_id = 'ab56b4f6-5eaa-4182-b444-115671442a7f'
+  AND parent_package_id = '00b1ca3b-de36-4ec4-a7a8-dd441152748a';
 ```
 
-## Önskad funktionalitet
+### Steg 2: Fixa M-komponenter (Multiflex)
 
-- SKU ska **inte** visas i produktraden normalt
-- När man **klickar på produktnamnet** ska fullständig SKU visas (t.ex. i en popover eller tooltip)
+För varje unik `parent_package_id` som innehåller M-komponenter, identifiera vilken Multiflex som är korrekt förälder genom att:
+1. Hitta produkter utan parent_package_id (huvudprodukter)
+2. Matcha baserat på kontextuell logik (samma paketstorlek etc)
 
----
+### Steg 3: Generell fix för framtida imports
 
-## Teknisk ändring
-
-**Fil:** `src/components/packing/PackingListItemRow.tsx`
-
-### Ändring: Ta bort avkortad SKU och lägg till klickbar popover
-
-**Före (rad 116-128):**
-```typescript
-<div className="flex-1 min-w-0">
-  <p className={cn(...)}>
-    {isAccessory && <span className="text-muted-foreground mr-1">↳</span>}
-    {(item.product?.name || "Okänd produkt").replace(/^[\s↳└⦿]+/g, '').trim()}
-    {item.product?.sku && (
-      <span className="text-xs text-muted-foreground ml-2">
-        [{item.product.sku.substring(0, 8)}]  // ← FÖRBJUDET
-      </span>
-    )}
-  </p>
-  ...
-</div>
-```
-
-**Efter:**
-```typescript
-<div className="flex-1 min-w-0">
-  <Popover>
-    <PopoverTrigger asChild>
-      <p className={cn(
-        "font-medium truncate cursor-pointer hover:text-primary",
-        isFullyPacked && "line-through text-muted-foreground"
-      )}>
-        {isAccessory && <span className="text-muted-foreground mr-1">↳</span>}
-        {(item.product?.name || "Okänd produkt").replace(/^[\s↳└⦿]+/g, '').trim()}
-      </p>
-    </PopoverTrigger>
-    {item.product?.sku && (
-      <PopoverContent className="w-auto p-2" align="start">
-        <div className="text-sm">
-          <span className="text-muted-foreground">SKU:</span>{" "}
-          <span className="font-mono font-medium">{item.product.sku}</span>
-        </div>
-      </PopoverContent>
-    )}
-  </Popover>
-  {item.packed_by && item.packed_at && (
-    <p className="text-xs text-muted-foreground flex items-center gap-2">
-      ...
-    </p>
-  )}
-</div>
-```
+Uppdatera `import-bookings` Edge Function för att använda `parent_package_id` som grupperingsnykel istället för sekventiell ordning:
+- Skapa en map: `parent_package_id → internal parent UUID`
+- Vid insert av komponent, slå upp korrekt parent från denna map
 
 ---
 
 ## Sammanfattning
 
-| Fil | Ändring |
-|-----|---------|
-| `src/components/packing/PackingListItemRow.tsx` | Ta bort avkortad SKU från rad, lägg till popover vid klick som visar fullständig SKU |
+| Åtgärd | Beskrivning |
+|--------|-------------|
+| Migration | Fix `parent_product_id` baserat på `parent_package_id` + namnmönster |
+| Edge Function | Förbättra relationsskapande att använda external ID-gruppering |
 
-## Förväntat resultat
+## Förväntad resultat
 
-- Produktnamn visas rent utan SKU
-- Vid klick på produktnamnet visas en popover med "SKU: [fullständig-sku]"
-- SKU:n är **aldrig** avkortad
+- F12-komponenter grupperas under `F12 - 12x10/300`
+- Multiflex-komponenter grupperas under respektive Multiflex-paket
+- Inga blandade paket i packlistan
