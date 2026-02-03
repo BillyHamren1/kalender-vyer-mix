@@ -74,8 +74,8 @@ const PackingListItemRow = ({ item, onUpdate, isAccessory = false }: PackingList
   return (
     <div
       className={cn(
-        "flex items-center gap-3 py-2 px-3 rounded-lg transition-colors",
-        isAccessory && "ml-6 border-l-2 border-muted",
+        "flex items-center gap-2 py-1.5 px-2 rounded-md transition-colors text-xs",
+        isAccessory && "ml-5 border-l-2 border-muted",
         isFullyPacked && "bg-green-50 dark:bg-green-950/20",
         isPartiallyPacked && "bg-yellow-50 dark:bg-yellow-950/20"
       )}
@@ -88,24 +88,25 @@ const PackingListItemRow = ({ item, onUpdate, isAccessory = false }: PackingList
               checked={isFullyPacked}
               onCheckedChange={handleTogglePacked}
               className={cn(
-                "h-5 w-5",
+                "h-4 w-4",
                 isPartiallyPacked && "data-[state=unchecked]:bg-yellow-200"
               )}
             />
           </div>
         </PopoverTrigger>
-        <PopoverContent className="w-64 p-3" align="start">
+        <PopoverContent className="w-56 p-2" align="start">
           <div className="space-y-2">
-            <p className="text-sm font-medium">Vem packar?</p>
+            <p className="text-xs font-medium">Vem packar?</p>
             <Input
               placeholder="Ditt namn"
               value={packerName}
               onChange={(e) => setPackerName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleConfirmPacked()}
               autoFocus
+              className="h-7 text-xs"
             />
-            <Button size="sm" onClick={handleConfirmPacked} className="w-full">
-              <Check className="h-4 w-4 mr-2" />
+            <Button size="sm" onClick={handleConfirmPacked} className="w-full h-7 text-xs">
+              <Check className="h-3 w-3 mr-1" />
               Bekräfta
             </Button>
           </div>
@@ -115,40 +116,40 @@ const PackingListItemRow = ({ item, onUpdate, isAccessory = false }: PackingList
       {/* Product name */}
       <div className="flex-1 min-w-0">
         <p className={cn(
-          "font-medium truncate",
+          "font-medium truncate text-xs",
           isFullyPacked && "line-through text-muted-foreground"
         )}>
           {isAccessory && <span className="text-muted-foreground mr-1">↳</span>}
           {(item.product?.name || "Okänd produkt").replace(/^[\s↳└⦿]+/g, '').trim()}
           {item.product?.sku && (
-            <span className="text-xs text-muted-foreground ml-2">
+            <span className="text-[10px] text-muted-foreground ml-1.5">
               [{item.product.sku.substring(0, 8)}]
             </span>
           )}
         </p>
         {item.packed_by && item.packed_at && (
-          <p className="text-xs text-muted-foreground flex items-center gap-2">
-            <User className="h-3 w-3" />
+          <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+            <User className="h-2.5 w-2.5" />
             {item.packed_by}
-            <Clock className="h-3 w-3 ml-1" />
+            <Clock className="h-2.5 w-2.5 ml-0.5" />
             {format(new Date(item.packed_at), "d MMM HH:mm", { locale: sv })}
           </p>
         )}
       </div>
 
       {/* Quantity controls */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1">
         <Button
           variant="outline"
           size="icon"
-          className="h-7 w-7"
+          className="h-5 w-5"
           onClick={handleDecrement}
           disabled={item.quantity_packed === 0}
         >
-          <Minus className="h-3 w-3" />
+          <Minus className="h-2.5 w-2.5" />
         </Button>
         <span className={cn(
-          "text-sm font-medium min-w-[4rem] text-center",
+          "text-xs font-medium min-w-[3rem] text-center",
           isFullyPacked && "text-green-600",
           isPartiallyPacked && "text-yellow-600"
         )}>
@@ -157,11 +158,11 @@ const PackingListItemRow = ({ item, onUpdate, isAccessory = false }: PackingList
         <Button
           variant="outline"
           size="icon"
-          className="h-7 w-7"
+          className="h-5 w-5"
           onClick={handleIncrement}
           disabled={item.quantity_packed >= item.quantity_to_pack}
         >
-          <Plus className="h-3 w-3" />
+          <Plus className="h-2.5 w-2.5" />
         </Button>
       </div>
     </div>
