@@ -364,6 +364,8 @@ interface ProductData {
   unit_price?: number;
   total_price?: number;
   parent_product_id?: string;
+  is_package_component?: boolean;
+  parent_package_id?: string;
 }
 
 /**
@@ -379,6 +381,14 @@ const isAccessoryProduct = (name: string): boolean => {
          trimmed.startsWith('└,') ||
          trimmed.startsWith('  ↳') ||
          trimmed.startsWith('  └');
+};
+
+/**
+ * Check if a product is a package component (e.g., tent poles, roof sheets)
+ * Package components have is_package_component: true from the external API
+ */
+const isPackageComponent = (product: any): boolean => {
+  return product.is_package_component === true;
 };
 
 interface AttachmentData {
@@ -891,8 +901,9 @@ serve(async (req) => {
                   const totalPrice = unitPrice ? unitPrice * quantity : null;
                   const productName = product.name || product.product_name || 'Unknown Product';
                   const isAccessory = isAccessoryProduct(productName);
+                  const isPkgComponent = isPackageComponent(product);
                   
-                  console.log(`[Product Recovery] Product "${productName}": isAccessory=${isAccessory}, parentId=${isAccessory ? lastParentProductId : 'N/A'}`)
+                  console.log(`[Product Recovery] Product "${productName}": isAccessory=${isAccessory}, isPkgComponent=${isPkgComponent}, parentId=${isAccessory ? lastParentProductId : 'N/A'}`)
                   
                   const productData: ProductData = {
                     booking_id: existingBooking.id,
@@ -901,7 +912,9 @@ serve(async (req) => {
                     notes: product.notes || product.description || null,
                     unit_price: unitPrice,
                     total_price: totalPrice,
-                    parent_product_id: isAccessory && lastParentProductId ? lastParentProductId : undefined
+                    parent_product_id: isAccessory && lastParentProductId ? lastParentProductId : undefined,
+                    is_package_component: isPkgComponent || false,
+                    parent_package_id: isPkgComponent ? (product.parent_package_id || null) : null
                   }
 
                   const { data: insertedProduct, error: productError } = await supabase
@@ -915,7 +928,7 @@ serve(async (req) => {
                   } else {
                     results.products_imported++
                     
-                    if (!isAccessory && insertedProduct) {
+                    if (!isAccessory && !isPkgComponent && insertedProduct) {
                       lastParentProductId = insertedProduct.id;
                       console.log(`[Product Recovery] Set lastParentProductId to ${lastParentProductId} for "${productName}"`)
                     }
@@ -1054,10 +1067,16 @@ serve(async (req) => {
               const totalPrice = unitPrice ? unitPrice * quantity : null;
               const productName = product.name || product.product_name || 'Unknown Product';
               
-              // Check if this is an accessory (starts with ↳, └, etc.)
+              // Check if this is an accessory (starts with ↳, └, etc.) OR a package component
               const isAccessory = isAccessoryProduct(productName);
+              const isPkgComponent = isPackageComponent(product);
               
-              console.log(`Product "${productName}": unit_price=${unitPrice}, quantity=${quantity}, total_price=${totalPrice}, isAccessory=${isAccessory}, parentId=${isAccessory ? lastParentProductId : 'N/A'}`)
+              // Log package component detection
+              if (isPkgComponent) {
+                console.log(`[PACKAGE COMPONENT] "${productName}": parent_package_id=${product.parent_package_id}`)
+              }
+              
+              console.log(`Product "${productName}": unit_price=${unitPrice}, quantity=${quantity}, total_price=${totalPrice}, isAccessory=${isAccessory}, isPkgComponent=${isPkgComponent}, parentId=${isAccessory ? lastParentProductId : 'N/A'}`)
               
               const productData: ProductData = {
                 booking_id: bookingData.id,
@@ -1066,7 +1085,9 @@ serve(async (req) => {
                 notes: product.notes || product.description || null,
                 unit_price: unitPrice,
                 total_price: totalPrice,
-                parent_product_id: isAccessory && lastParentProductId ? lastParentProductId : undefined
+                parent_product_id: isAccessory && lastParentProductId ? lastParentProductId : undefined,
+                is_package_component: isPkgComponent || false,
+                parent_package_id: isPkgComponent ? (product.parent_package_id || null) : null
               }
 
               const { data: insertedProduct, error: productError } = await supabase
@@ -1080,8 +1101,8 @@ serve(async (req) => {
               } else {
                 results.products_imported++
                 
-                // If this is a parent product (not an accessory), store its ID for subsequent accessories
-                if (!isAccessory && insertedProduct) {
+                // If this is a parent product (not an accessory and not a package component), store its ID for subsequent accessories
+                if (!isAccessory && !isPkgComponent && insertedProduct) {
                   lastParentProductId = insertedProduct.id;
                   console.log(`Set lastParentProductId to ${lastParentProductId} for product "${productName}"`)
                 }
