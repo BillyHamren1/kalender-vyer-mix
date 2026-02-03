@@ -494,6 +494,152 @@ const getNextTeamAssignment = async (supabase: any, eventType: string, eventDate
 };
 
 /**
+ * Generate a signature for products to detect changes
+ */
+const getProductsSignature = (products: any[]): string => {
+  if (!products || products.length === 0) return '';
+  
+  const sorted = products
+    .map(p => `${(p.name || '').trim()}_${p.quantity || 0}`)
+    .sort();
+  return sorted.join('|');
+};
+
+/**
+ * Check if products have changed between external and existing data
+ * Returns { changed: boolean, added: string[], removed: string[], updated: string[] }
+ */
+const checkProductChanges = async (
+  supabase: any, 
+  bookingId: string, 
+  externalProducts: any[]
+): Promise<{ 
+  changed: boolean; 
+  added: string[]; 
+  removed: string[]; 
+  updated: string[];
+  existingProducts: any[];
+}> => {
+  // Fetch existing products
+  const { data: existingProducts, error } = await supabase
+    .from('booking_products')
+    .select('id, name, quantity')
+    .eq('booking_id', bookingId);
+  
+  if (error) {
+    console.error(`Error fetching existing products for ${bookingId}:`, error);
+    return { changed: false, added: [], removed: [], updated: [], existingProducts: [] };
+  }
+  
+  const existingMap = new Map((existingProducts || []).map((p: any) => [(p.name || '').trim().toLowerCase(), p]));
+  const externalMap = new Map((externalProducts || []).map(p => [(p.name || p.product_name || '').trim().toLowerCase(), p]));
+  
+  const added: string[] = [];
+  const removed: string[] = [];
+  const updated: string[] = [];
+  
+  // Check for added and updated products
+  for (const [name, extProduct] of externalMap) {
+    const existing = existingMap.get(name);
+    if (!existing) {
+      added.push(extProduct.name || extProduct.product_name || 'Unknown');
+    } else if (existing.quantity !== (extProduct.quantity || 1)) {
+      updated.push(`${extProduct.name || extProduct.product_name}: ${existing.quantity} → ${extProduct.quantity || 1}`);
+    }
+  }
+  
+  // Check for removed products
+  for (const [name, existingProduct] of existingMap) {
+    if (!externalMap.has(name)) {
+      removed.push(existingProduct.name);
+    }
+  }
+  
+  const changed = added.length > 0 || removed.length > 0 || updated.length > 0;
+  
+  if (changed) {
+    console.log(`[Product Changes] Booking ${bookingId}: +${added.length} added, -${removed.length} removed, ~${updated.length} updated`);
+  }
+  
+  return { changed, added, removed, updated, existingProducts: existingProducts || [] };
+};
+
+/**
+ * Update packing_list_items to reconnect to new product IDs
+ * Maps old products to new products by name and preserves packing status
+ */
+const reconnectPackingListItems = async (
+  supabase: any,
+  packingId: string,
+  oldProducts: any[],
+  newProducts: any[]
+): Promise<{ reconnected: number; orphaned: number }> => {
+  console.log(`[Packing Reconnect] Reconnecting packing list items for packing ${packingId}`);
+  
+  // Get existing packing_list_items
+  const { data: packingItems, error: fetchError } = await supabase
+    .from('packing_list_items')
+    .select('id, booking_product_id, quantity_packed, packed_by, packed_at, verified_by, verified_at')
+    .eq('packing_id', packingId);
+  
+  if (fetchError || !packingItems || packingItems.length === 0) {
+    console.log(`[Packing Reconnect] No packing items found for packing ${packingId}`);
+    return { reconnected: 0, orphaned: 0 };
+  }
+  
+  // Build maps: old product ID -> name, new product name -> ID
+  const oldIdToName = new Map(oldProducts.map(p => [p.id, (p.name || '').trim().toLowerCase()]));
+  const newNameToId = new Map(newProducts.map(p => [(p.name || '').trim().toLowerCase(), p.id]));
+  
+  let reconnected = 0;
+  let orphaned = 0;
+  
+  for (const item of packingItems) {
+    const oldName = oldIdToName.get(item.booking_product_id);
+    
+    if (!oldName) {
+      // Old product not found - orphaned
+      orphaned++;
+      console.log(`[Packing Reconnect] Orphaned item ${item.id} - old product ${item.booking_product_id} not found`);
+      continue;
+    }
+    
+    const newProductId = newNameToId.get(oldName);
+    
+    if (newProductId) {
+      // Update the packing_list_item to point to new product ID
+      const { error: updateError } = await supabase
+        .from('packing_list_items')
+        .update({ booking_product_id: newProductId })
+        .eq('id', item.id);
+      
+      if (updateError) {
+        console.error(`[Packing Reconnect] Error updating item ${item.id}:`, updateError);
+        orphaned++;
+      } else {
+        reconnected++;
+        console.log(`[Packing Reconnect] Reconnected item ${item.id}: ${item.booking_product_id} -> ${newProductId}`);
+      }
+    } else {
+      // Product was removed - delete the packing_list_item
+      const { error: deleteError } = await supabase
+        .from('packing_list_items')
+        .delete()
+        .eq('id', item.id);
+      
+      if (deleteError) {
+        console.error(`[Packing Reconnect] Error deleting orphaned item ${item.id}:`, deleteError);
+      }
+      orphaned++;
+      console.log(`[Packing Reconnect] Removed orphaned item ${item.id} - product "${oldName}" no longer exists`);
+    }
+  }
+  
+  console.log(`[Packing Reconnect] Completed: ${reconnected} reconnected, ${orphaned} orphaned/removed`);
+  return { reconnected, orphaned };
+};
+
+/**
  * Check if booking data has meaningfully changed
  */
 const hasBookingChanged = (externalBooking: any, existingBooking: any): boolean => {
@@ -632,13 +778,15 @@ serve(async (req) => {
       packing_projects_created: 0,
       products_imported: 0,
       attachments_imported: 0,
-      new_bookings: [],
-      updated_bookings: [],
-      status_changed_bookings: [],
-      cancelled_bookings_skipped: [],
-      duplicates_skipped: [],
-      unchanged_bookings_skipped: [],
-      errors: [],
+      new_bookings: [] as string[],
+      updated_bookings: [] as string[],
+      status_changed_bookings: [] as string[],
+      cancelled_bookings_skipped: [] as string[],
+      duplicates_skipped: [] as string[],
+      unchanged_bookings_skipped: [] as string[],
+      products_updated_bookings: [] as string[],
+      product_changes: [] as { bookingId: string; added: string[]; removed: string[]; updated: string[] }[],
+      errors: [] as { booking_id: string; error: string }[],
       sync_mode: isHistoricalImport ? 'historical' : syncMode,
       team_distribution: {
         'team-1': 0,
@@ -668,6 +816,13 @@ serve(async (req) => {
     console.log(`Found ${existingBookings?.length || 0} existing bookings in database`)
 
     for (const externalBooking of externalData.data) {
+      // Variables for packing list reconnection (must be declared here for scope)
+      let needsPackingReconnection = false;
+      let packingIdForReconnection: string | null = null;
+      let oldProductsForReconnection: any[] = [];
+      let needsProductUpdate = false;
+      let productChanges: { added: string[]; removed: string[]; updated: string[]; existingProducts: any[] } = { added: [], removed: [], updated: [], existingProducts: [] };
+      
       try {
         results.total++
 
@@ -914,7 +1069,32 @@ serve(async (req) => {
             }
           }
           
-          if (!hasChanged && !statusChanged && !needsCalendarRecovery && !needsWarehouseRecovery && !needsProductRecovery) {
+          // CHECK FOR PRODUCT CHANGES (even if booking metadata hasn't changed)
+          // Note: needsProductUpdate and productChanges are declared at the top of the loop
+          
+          if (externalBooking.products && Array.isArray(externalBooking.products)) {
+            productChanges = await checkProductChanges(supabase, existingBooking.id, externalBooking.products);
+            needsProductUpdate = productChanges.changed;
+            
+            if (needsProductUpdate) {
+              console.log(`[Product Update] Products changed for booking ${bookingData.id}:`, {
+                added: productChanges.added.length,
+                removed: productChanges.removed.length,
+                updated: productChanges.updated.length
+              });
+              
+              // Store product changes in results
+              results.product_changes.push({
+                bookingId: bookingData.id,
+                added: productChanges.added,
+                removed: productChanges.removed,
+                updated: productChanges.updated
+              });
+              results.products_updated_bookings.push(bookingData.id);
+            }
+          }
+          
+          if (!hasChanged && !statusChanged && !needsCalendarRecovery && !needsWarehouseRecovery && !needsProductRecovery && !needsProductUpdate) {
             console.log(`No changes detected for ${bookingData.id}, skipping update`)
             results.unchanged_bookings_skipped.push(bookingData.id)
             continue; // SKIP UPDATE - NO CHANGES
@@ -1134,9 +1314,29 @@ serve(async (req) => {
               .eq('booking_id', existingBooking.id);
           }
 
-          // Clear existing products and attachments for updated bookings
+          // PRODUCT UPDATE WITH PACKING LIST RECONNECTION
+          // 1. Fetch packing project for this booking (if exists)
+          const { data: packingProject } = await supabase
+            .from('packing_projects')
+            .select('id')
+            .eq('booking_id', existingBooking.id)
+            .single();
+          
+          // 2. Fetch existing products BEFORE deletion (for packing list reconnection)
+          const { data: oldProducts } = await supabase
+            .from('booking_products')
+            .select('id, name, quantity')
+            .eq('booking_id', existingBooking.id);
+          
+          // 3. Clear existing products and attachments for updated bookings
           await supabase.from('booking_products').delete().eq('booking_id', existingBooking.id)
           await supabase.from('booking_attachments').delete().eq('booking_id', existingBooking.id)
+
+          // Store references for packing reconnection after products are created
+          // Note: These variables are declared at the top of the loop
+          needsPackingReconnection = !!(packingProject?.id && oldProducts && oldProducts.length > 0 && needsProductUpdate);
+          packingIdForReconnection = packingProject?.id || null;
+          oldProductsForReconnection = oldProducts || [];
 
           bookingData.id = existingBooking.id
 
@@ -1283,6 +1483,51 @@ serve(async (req) => {
               }
             } catch (productErr) {
               console.error(`Error processing product for booking ${bookingData.id}:`, productErr)
+            }
+          }
+        }
+        
+        // RECONNECT PACKING LIST ITEMS after products have been created
+        if (needsPackingReconnection && packingIdForReconnection) {
+          console.log(`[Packing Reconnect] Starting packing list reconnection for booking ${bookingData.id}`);
+          
+          // Fetch newly created products
+          const { data: newProducts } = await supabase
+            .from('booking_products')
+            .select('id, name, quantity')
+            .eq('booking_id', bookingData.id);
+          
+          if (newProducts && newProducts.length > 0) {
+            const reconnectResult = await reconnectPackingListItems(
+              supabase,
+              packingIdForReconnection,
+              oldProductsForReconnection,
+              newProducts
+            );
+            
+            console.log(`[Packing Reconnect] Booking ${bookingData.id}: ${reconnectResult.reconnected} items reconnected, ${reconnectResult.orphaned} orphaned/removed`);
+            
+            // Create packing list items for NEW products that didn't exist before
+            const oldProductNames = new Set(oldProductsForReconnection.map((p: any) => (p.name || '').trim().toLowerCase()));
+            const newProductsToAdd = newProducts.filter(p => !oldProductNames.has((p.name || '').trim().toLowerCase()));
+            
+            if (newProductsToAdd.length > 0) {
+              console.log(`[Packing Reconnect] Creating ${newProductsToAdd.length} new packing list items`);
+              
+              const newPackingItems = newProductsToAdd.map(product => ({
+                packing_id: packingIdForReconnection,
+                booking_product_id: product.id,
+                quantity_to_pack: product.quantity || 1,
+                quantity_packed: 0
+              }));
+              
+              const { error: insertError } = await supabase
+                .from('packing_list_items')
+                .insert(newPackingItems);
+              
+              if (insertError) {
+                console.error(`[Packing Reconnect] Error creating new packing list items:`, insertError);
+              }
             }
           }
         }

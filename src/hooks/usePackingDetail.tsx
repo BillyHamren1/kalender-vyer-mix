@@ -120,6 +120,18 @@ export const usePackingDetail = (packingId: string) => {
     onError: () => toast.error('Kunde inte ta bort fil')
   });
 
+  // Refetch all data
+  const refetchAll = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['packing', packingId] }),
+      queryClient.invalidateQueries({ queryKey: ['packing-tasks', packingId] }),
+      queryClient.invalidateQueries({ queryKey: ['packing-comments', packingId] }),
+      queryClient.invalidateQueries({ queryKey: ['packing-files', packingId] }),
+      queryClient.invalidateQueries({ queryKey: ['packing-list-items', packingId] }),
+      queryClient.invalidateQueries({ queryKey: ['packing-for-list', packingId] })
+    ]);
+  };
+
   return {
     packing,
     tasks,
@@ -133,6 +145,7 @@ export const usePackingDetail = (packingId: string) => {
     addComment: addCommentMutation.mutate,
     uploadFile: uploadFileMutation.mutate,
     deleteFile: deleteFileMutation.mutate,
-    isUploadingFile: uploadFileMutation.isPending
+    isUploadingFile: uploadFileMutation.isPending,
+    refetchAll
   };
 };

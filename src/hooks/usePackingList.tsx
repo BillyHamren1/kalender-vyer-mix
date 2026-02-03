@@ -206,12 +206,19 @@ export const usePackingList = (packingId: string) => {
     onError: () => toast.error('Kunde inte markera alla som packade')
   });
 
+  // Refetch items
+  const refetchItems = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['packing-list-items', packingId] });
+    await queryClient.invalidateQueries({ queryKey: ['packing-for-list', packingId] });
+  };
+
   return {
     packing,
     items,
     isLoading: isLoadingPacking || isLoadingItems,
     updateItem: (id: string, updates: Partial<PackingListItem>) =>
       updateItemMutation.mutate({ id, updates }),
-    markAllPacked: (packedBy: string) => markAllPackedMutation.mutate(packedBy)
+    markAllPacked: (packedBy: string) => markAllPackedMutation.mutate(packedBy),
+    refetchItems
   };
 };

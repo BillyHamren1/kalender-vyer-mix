@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Calendar, MapPin, Phone, User, Package, ClipboardList } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, Phone, User, Package, ClipboardList, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import PackingStatusDropdown from "@/components/packing/PackingStatusDropdown";
 import PackingTaskList from "@/components/packing/PackingTaskList";
 import PackingFiles from "@/components/packing/PackingFiles";
@@ -19,6 +20,13 @@ import { PackingTask } from "@/types/packing";
 import { BookingProduct } from "@/types/booking";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
+import { toast } from "sonner";
+
+interface ProductChanges {
+  added: string[];
+  removed: string[];
+  updated: string[];
+}
 
 const PackingDetail = () => {
   const { packingId } = useParams<{ packingId: string }>();
@@ -26,6 +34,10 @@ const PackingDetail = () => {
   const [selectedTask, setSelectedTask] = useState<PackingTask | null>(null);
   const [products, setProducts] = useState<BookingProduct[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [productChanges, setProductChanges] = useState<ProductChanges | null>(null);
+  const [showChangesPopover, setShowChangesPopover] = useState(false);
+  const previousProductsRef = useRef<BookingProduct[]>([]);
   
   const {
     packing,
@@ -40,7 +52,8 @@ const PackingDetail = () => {
     addComment,
     uploadFile,
     deleteFile,
-    isUploadingFile
+    isUploadingFile,
+    refetchAll
   } = usePackingDetail(packingId || '');
 
   // Packing list hook
@@ -48,27 +61,115 @@ const PackingDetail = () => {
     items: packingListItems,
     isLoading: isLoadingPackingList,
     updateItem: updatePackingListItem,
-    markAllPacked
+    markAllPacked,
+    refetchItems
   } = usePackingList(packingId || '');
 
-  // Fetch products when we have a booking_id
-  useEffect(() => {
-    const loadProducts = async () => {
-      if (packing?.booking_id) {
-        setIsLoadingProducts(true);
-        try {
-          const productsData = await fetchPackingProducts(packing.booking_id);
-          setProducts(productsData);
-        } catch (error) {
-          console.error('Error loading products:', error);
-        } finally {
-          setIsLoadingProducts(false);
+  // Detect product changes between fetches
+  const detectProductChanges = useCallback((oldProducts: BookingProduct[], newProducts: BookingProduct[]): ProductChanges | null => {
+    if (oldProducts.length === 0) return null;
+    
+    const oldNames = new Set(oldProducts.map(p => p.name.trim().toLowerCase()));
+    const newNames = new Set(newProducts.map(p => p.name.trim().toLowerCase()));
+    const oldQuantities = new Map(oldProducts.map(p => [p.name.trim().toLowerCase(), p.quantity]));
+    
+    const added: string[] = [];
+    const removed: string[] = [];
+    const updated: string[] = [];
+    
+    // Check for added and updated
+    for (const product of newProducts) {
+      const nameLower = product.name.trim().toLowerCase();
+      if (!oldNames.has(nameLower)) {
+        added.push(product.name);
+      } else {
+        const oldQty = oldQuantities.get(nameLower);
+        if (oldQty !== undefined && oldQty !== product.quantity) {
+          updated.push(`${product.name}: ${oldQty} → ${product.quantity}`);
         }
       }
-    };
+    }
     
-    loadProducts();
+    // Check for removed
+    for (const product of oldProducts) {
+      const nameLower = product.name.trim().toLowerCase();
+      if (!newNames.has(nameLower)) {
+        removed.push(product.name);
+      }
+    }
+    
+    if (added.length === 0 && removed.length === 0 && updated.length === 0) {
+      return null;
+    }
+    
+    return { added, removed, updated };
+  }, []);
+
+  // Fetch products when we have a booking_id
+  const loadProducts = useCallback(async (showChanges = false) => {
+    if (packing?.booking_id) {
+      setIsLoadingProducts(true);
+      try {
+        const productsData = await fetchPackingProducts(packing.booking_id);
+        
+        // Detect changes if we have previous products
+        if (showChanges && previousProductsRef.current.length > 0) {
+          const changes = detectProductChanges(previousProductsRef.current, productsData);
+          if (changes) {
+            setProductChanges(changes);
+            setShowChangesPopover(true);
+            toast.info(`Produktlistan har uppdaterats: ${changes.added.length} nya, ${changes.removed.length} borttagna, ${changes.updated.length} ändrade`);
+          }
+        }
+        
+        previousProductsRef.current = productsData;
+        setProducts(productsData);
+      } catch (error) {
+        console.error('Error loading products:', error);
+      } finally {
+        setIsLoadingProducts(false);
+      }
+    }
+  }, [packing?.booking_id, detectProductChanges]);
+
+  useEffect(() => {
+    loadProducts(false);
   }, [packing?.booking_id]);
+
+  // Manual refresh handler
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        refetchAll(),
+        refetchItems()
+      ]);
+      await loadProducts(true);
+      toast.success("Data uppdaterad");
+    } catch (error) {
+      console.error('Error refreshing:', error);
+      toast.error("Kunde inte uppdatera data");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Auto-refresh on visibility change (tab focus)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && packingId) {
+        console.log('[PackingDetail] Tab became visible, refreshing data...');
+        refetchAll();
+        refetchItems();
+        loadProducts(true);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [packingId, refetchAll, refetchItems, loadProducts]);
 
   if (isLoading) {
     return (
@@ -114,10 +215,80 @@ const PackingDetail = () => {
               )}
             </div>
           </div>
-          <PackingStatusDropdown 
-            status={packing.status} 
-            onStatusChange={updateStatus} 
-          />
+          <div className="flex items-center gap-2">
+            {/* Changes Popover */}
+            {productChanges && (
+              <Popover open={showChangesPopover} onOpenChange={setShowChangesPopover}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="text-amber-600 border-amber-300 bg-amber-50 hover:bg-amber-100">
+                    Produktändringar
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80">
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-sm">Produktlistan har uppdaterats</h4>
+                    {productChanges.added.length > 0 && (
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Nya produkter:</p>
+                        <ul className="text-sm text-green-600 space-y-0.5">
+                          {productChanges.added.map((name, i) => (
+                            <li key={i}>+ {name}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {productChanges.removed.length > 0 && (
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Borttagna produkter:</p>
+                        <ul className="text-sm text-red-600 space-y-0.5">
+                          {productChanges.removed.map((name, i) => (
+                            <li key={i}>- {name}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {productChanges.updated.length > 0 && (
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Ändrade kvantiteter:</p>
+                        <ul className="text-sm text-amber-600 space-y-0.5">
+                          {productChanges.updated.map((change, i) => (
+                            <li key={i}>~ {change}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="w-full mt-2"
+                      onClick={() => {
+                        setProductChanges(null);
+                        setShowChangesPopover(false);
+                      }}
+                    >
+                      Stäng
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
+            
+            {/* Refresh Button */}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`h-4 w-4 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Uppdatera
+            </Button>
+            
+            <PackingStatusDropdown 
+              status={packing.status} 
+              onStatusChange={updateStatus} 
+            />
+          </div>
         </div>
 
         {/* Compact Booking Info */}
