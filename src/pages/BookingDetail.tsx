@@ -58,7 +58,12 @@ const BookingDetail = () => {
   }, [booking]);
   
   const handleBack = () => {
-    navigate(-1);
+    // Check if there's history to go back to, otherwise navigate to bookings list
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/bookings');
+    }
   };
 
   const handleStatusChange = (newStatus: string) => {
