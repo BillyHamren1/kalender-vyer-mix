@@ -14,36 +14,81 @@ interface ProductGroup {
   accessories: BookingProduct[];
 }
 
-const isAccessory = (name: string): boolean => {
-  return name.startsWith('└') || name.startsWith('L,') || name.startsWith('└,');
+/**
+ * Check if a product is an accessory based on parent_product_id or name prefix
+ * This handles both new imports (with parent_product_id) and legacy data (with name prefixes)
+ */
+const isAccessory = (product: BookingProduct): boolean => {
+  // If parent_product_id exists, it's definitely an accessory
+  if (product.parentProductId) {
+    return true;
+  }
+  // Fallback to name-based detection for legacy data
+  const name = product.name || '';
+  return name.startsWith('└') || 
+         name.startsWith('↳') || 
+         name.startsWith('L,') || 
+         name.startsWith('└,') ||
+         name.startsWith('  ↳') ||
+         name.startsWith('  └');
 };
 
+/**
+ * Group products by parent-child relationship
+ * Uses parent_product_id when available, falls back to sequential name-based grouping
+ */
 const groupProducts = (products: BookingProduct[]): ProductGroup[] => {
   const groups: ProductGroup[] = [];
+  
+  // First, try to group by parent_product_id
+  const parentProducts = products.filter(p => !isAccessory(p));
+  const accessoryProducts = products.filter(p => isAccessory(p));
+  
+  // Create a map of parent ID to accessories
+  const accessoriesByParentId = new Map<string, BookingProduct[]>();
+  
+  for (const accessory of accessoryProducts) {
+    if (accessory.parentProductId) {
+      const existing = accessoriesByParentId.get(accessory.parentProductId) || [];
+      existing.push(accessory);
+      accessoriesByParentId.set(accessory.parentProductId, existing);
+    }
+  }
+  
+  // Group products - first handle those with proper parent_product_id relationships
   let currentParent: BookingProduct | null = null;
   let currentAccessories: BookingProduct[] = [];
-
-  products.forEach((product) => {
-    if (isAccessory(product.name)) {
-      // This is an accessory, add to current group
-      currentAccessories.push(product);
-    } else {
+  
+  for (const product of products) {
+    if (!isAccessory(product)) {
       // This is a parent product
-      // First, save the previous group if exists
+      // Save the previous group if exists
       if (currentParent) {
-        groups.push({ parent: currentParent, accessories: currentAccessories });
+        // Merge accessories from parent_product_id and sequential grouping
+        const idBasedAccessories = accessoriesByParentId.get(currentParent.id) || [];
+        const mergedAccessories = [...new Map([...idBasedAccessories, ...currentAccessories].map(a => [a.id, a])).values()];
+        groups.push({ parent: currentParent, accessories: mergedAccessories });
       }
       // Start new group
       currentParent = product;
       currentAccessories = [];
+    } else {
+      // This is an accessory
+      // Only add to sequential group if it doesn't have a parent_product_id
+      // (those with parent_product_id are handled via the map)
+      if (!product.parentProductId) {
+        currentAccessories.push(product);
+      }
     }
-  });
-
+  }
+  
   // Don't forget the last group
   if (currentParent) {
-    groups.push({ parent: currentParent, accessories: currentAccessories });
+    const idBasedAccessories = accessoriesByParentId.get(currentParent.id) || [];
+    const mergedAccessories = [...new Map([...idBasedAccessories, ...currentAccessories].map(a => [a.id, a])).values()];
+    groups.push({ parent: currentParent, accessories: mergedAccessories });
   }
-
+  
   return groups;
 };
 

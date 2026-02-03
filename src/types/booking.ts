@@ -6,6 +6,7 @@ export interface BookingProduct {
   notes?: string;
   unitPrice?: number;
   totalPrice?: number;
+  parentProductId?: string;
 }
 
 export interface BookingAttachment {
