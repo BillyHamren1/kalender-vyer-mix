@@ -47,6 +47,174 @@ const parseAssignedToProject = (value: any): boolean => {
   return false;
 };
 
+/**
+ * Helper function to add days to a date string
+ */
+const addDays = (dateString: string, days: number): string => {
+  const date = new Date(dateString);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().split('T')[0];
+};
+
+/**
+ * Sync warehouse calendar events for a confirmed booking
+ * Creates 6 logistics events based on rig/event/rigdown dates
+ */
+const syncWarehouseEventsForBooking = async (supabase: any, booking: any): Promise<number> => {
+  console.log(`[Warehouse] Syncing warehouse events for booking ${booking.id}`);
+  
+  // Delete existing warehouse events for this booking (to avoid duplicates)
+  const { error: deleteError } = await supabase
+    .from('warehouse_calendar_events')
+    .delete()
+    .eq('booking_id', booking.id);
+  
+  if (deleteError) {
+    console.error(`[Warehouse] Error deleting existing events:`, deleteError);
+  }
+  
+  const events: any[] = [];
+  const clientName = booking.client || 'Okänd kund';
+  const deliveryAddress = booking.deliveryaddress || null;
+  const bookingNumber = booking.booking_number || null;
+  
+  // Warehouse event rules based on warehouseCalendarService.ts
+  // Packing: 4 days before rig, 08:00-11:00 (3 hours)
+  if (booking.rigdaydate) {
+    const packingDate = addDays(booking.rigdaydate, -4);
+    events.push({
+      booking_id: booking.id,
+      booking_number: bookingNumber,
+      title: `Packning - ${clientName}`,
+      event_type: 'packing',
+      start_time: `${packingDate}T08:00:00`,
+      end_time: `${packingDate}T11:00:00`,
+      delivery_address: deliveryAddress,
+      resource_id: 'warehouse-packing',
+      source_rig_date: booking.rigdaydate,
+      source_event_date: booking.eventdate || null,
+      source_rigdown_date: booking.rigdowndate || null,
+      has_source_changes: false,
+      manually_adjusted: false,
+      viewed: false
+    });
+    
+    // Delivery: same day as rig, 07:00-09:00
+    events.push({
+      booking_id: booking.id,
+      booking_number: bookingNumber,
+      title: `Utleverans - ${clientName}`,
+      event_type: 'delivery',
+      start_time: `${booking.rigdaydate}T07:00:00`,
+      end_time: `${booking.rigdaydate}T09:00:00`,
+      delivery_address: deliveryAddress,
+      resource_id: 'warehouse-packing',
+      source_rig_date: booking.rigdaydate,
+      source_event_date: booking.eventdate || null,
+      source_rigdown_date: booking.rigdowndate || null,
+      has_source_changes: false,
+      manually_adjusted: false,
+      viewed: false
+    });
+  }
+  
+  // Event: same day as eventdate, 09:00-17:00
+  if (booking.eventdate) {
+    events.push({
+      booking_id: booking.id,
+      booking_number: bookingNumber,
+      title: `Event - ${clientName}`,
+      event_type: 'event',
+      start_time: `${booking.eventdate}T09:00:00`,
+      end_time: `${booking.eventdate}T17:00:00`,
+      delivery_address: deliveryAddress,
+      resource_id: 'warehouse-packing',
+      source_rig_date: booking.rigdaydate || null,
+      source_event_date: booking.eventdate,
+      source_rigdown_date: booking.rigdowndate || null,
+      has_source_changes: false,
+      manually_adjusted: false,
+      viewed: false
+    });
+  }
+  
+  // Return delivery: same day as rigdown, 17:00-19:00
+  // Inventory: day after rigdown, 08:00-10:00
+  // Unpacking: day after rigdown, 10:00-12:00
+  if (booking.rigdowndate) {
+    events.push({
+      booking_id: booking.id,
+      booking_number: bookingNumber,
+      title: `Återleverans - ${clientName}`,
+      event_type: 'return',
+      start_time: `${booking.rigdowndate}T17:00:00`,
+      end_time: `${booking.rigdowndate}T19:00:00`,
+      delivery_address: deliveryAddress,
+      resource_id: 'warehouse-packing',
+      source_rig_date: booking.rigdaydate || null,
+      source_event_date: booking.eventdate || null,
+      source_rigdown_date: booking.rigdowndate,
+      has_source_changes: false,
+      manually_adjusted: false,
+      viewed: false
+    });
+    
+    const dayAfterRigdown = addDays(booking.rigdowndate, 1);
+    
+    events.push({
+      booking_id: booking.id,
+      booking_number: bookingNumber,
+      title: `Inventering - ${clientName}`,
+      event_type: 'inventory',
+      start_time: `${dayAfterRigdown}T08:00:00`,
+      end_time: `${dayAfterRigdown}T10:00:00`,
+      delivery_address: deliveryAddress,
+      resource_id: 'warehouse-packing',
+      source_rig_date: booking.rigdaydate || null,
+      source_event_date: booking.eventdate || null,
+      source_rigdown_date: booking.rigdowndate,
+      has_source_changes: false,
+      manually_adjusted: false,
+      viewed: false
+    });
+    
+    events.push({
+      booking_id: booking.id,
+      booking_number: bookingNumber,
+      title: `Upppackning - ${clientName}`,
+      event_type: 'unpacking',
+      start_time: `${dayAfterRigdown}T10:00:00`,
+      end_time: `${dayAfterRigdown}T12:00:00`,
+      delivery_address: deliveryAddress,
+      resource_id: 'warehouse-packing',
+      source_rig_date: booking.rigdaydate || null,
+      source_event_date: booking.eventdate || null,
+      source_rigdown_date: booking.rigdowndate,
+      has_source_changes: false,
+      manually_adjusted: false,
+      viewed: false
+    });
+  }
+  
+  // Insert all warehouse events
+  if (events.length > 0) {
+    console.log(`[Warehouse] Inserting ${events.length} warehouse events for booking ${booking.id}`);
+    const { error: insertError } = await supabase
+      .from('warehouse_calendar_events')
+      .insert(events);
+    
+    if (insertError) {
+      console.error(`[Warehouse] Error inserting events:`, insertError);
+      return 0;
+    }
+    
+    console.log(`[Warehouse] Successfully created ${events.length} warehouse events for booking ${booking.id}`);
+    return events.length;
+  }
+  
+  return 0;
+};
+
 interface ProductData {
   booking_id: string;
   name: string;
@@ -281,6 +449,7 @@ serve(async (req) => {
       imported: 0,
       failed: 0,
       calendar_events_created: 0,
+      warehouse_events_created: 0,
       products_imported: 0,
       attachments_imported: 0,
       new_bookings: [],
@@ -467,6 +636,8 @@ serve(async (req) => {
           
           // Check if this CONFIRMED booking is missing calendar events (recovery scenario)
           let needsCalendarRecovery = false;
+          let needsWarehouseRecovery = false;
+          
           if (bookingData.status === 'CONFIRMED') {
             const { data: existingCalEvents, error: calCheckError } = await supabase
               .from('calendar_events')
@@ -478,12 +649,45 @@ serve(async (req) => {
               needsCalendarRecovery = true;
               console.log(`Booking ${bookingData.id} is CONFIRMED but has NO calendar events - will recover`);
             }
+            
+            // Check if warehouse events are missing or outdated
+            const { data: existingWhEvents, error: whCheckError } = await supabase
+              .from('warehouse_calendar_events')
+              .select('id, source_rig_date, source_event_date, source_rigdown_date')
+              .eq('booking_id', existingBooking.id)
+              .limit(1);
+            
+            if (!whCheckError) {
+              // Recovery needed if no warehouse events exist
+              if (!existingWhEvents || existingWhEvents.length === 0) {
+                needsWarehouseRecovery = true;
+                console.log(`Booking ${bookingData.id} is CONFIRMED but has NO warehouse events - will recover`);
+              } else {
+                // Check if warehouse events have outdated source dates
+                const whEvent = existingWhEvents[0];
+                if (whEvent.source_rig_date !== bookingData.rigdaydate ||
+                    whEvent.source_event_date !== bookingData.eventdate ||
+                    whEvent.source_rigdown_date !== bookingData.rigdowndate) {
+                  needsWarehouseRecovery = true;
+                  console.log(`Booking ${bookingData.id} warehouse events have outdated dates - will recover`);
+                }
+              }
+            }
           }
           
-          if (!hasChanged && !statusChanged && !needsCalendarRecovery) {
+          if (!hasChanged && !statusChanged && !needsCalendarRecovery && !needsWarehouseRecovery) {
             console.log(`No changes detected for ${bookingData.id}, skipping update`)
             results.unchanged_bookings_skipped.push(bookingData.id)
             continue; // SKIP UPDATE - NO CHANGES
+          }
+          
+          // If only warehouse recovery is needed, sync now and continue
+          if (!hasChanged && !statusChanged && !needsCalendarRecovery && needsWarehouseRecovery) {
+            console.log(`Only warehouse recovery needed for ${bookingData.id}`);
+            const warehouseEventsCreated = await syncWarehouseEventsForBooking(supabase, bookingData);
+            results.warehouse_events_created += warehouseEventsCreated;
+            results.imported++;
+            continue;
           }
           
           if (statusChanged) {
@@ -758,6 +962,12 @@ serve(async (req) => {
           } else {
             console.log(`No new calendar events needed for booking ${bookingData.id}`)
           }
+          
+          // Sync warehouse calendar events for confirmed bookings with dates
+          if (bookingData.rigdaydate || bookingData.eventdate || bookingData.rigdowndate) {
+            const warehouseEventsCreated = await syncWarehouseEventsForBooking(supabase, bookingData);
+            results.warehouse_events_created += warehouseEventsCreated;
+          }
         }
 
       } catch (error) {
@@ -804,6 +1014,7 @@ serve(async (req) => {
       duplicates_skipped: results.duplicates_skipped.length,
       cancelled_skipped: results.cancelled_bookings_skipped.length,
       calendar_events_created: results.calendar_events_created,
+      warehouse_events_created: results.warehouse_events_created,
       team_distribution: results.team_distribution,
       mode: isHistoricalImport ? 'HISTORICAL' : syncMode
     })
@@ -827,6 +1038,7 @@ serve(async (req) => {
           imported: 0,
           failed: 0,
           calendar_events_created: 0,
+          warehouse_events_created: 0,
           products_imported: 0,
           attachments_imported: 0,
           new_bookings: [],
