@@ -79,31 +79,21 @@ const fetchPackingListItems = async (packingId: string, bookingId: string | null
   return sortPackingListItems(itemsWithProducts);
 };
 
-// Sort items: main products first, then package components, then accessories
+// Sort items: main products first, then children (both accessories and package components)
 const sortPackingListItems = (items: PackingListItem[]): PackingListItem[] => {
   const mainProducts: PackingListItem[] = [];
-  const accessoriesByParent: Record<string, PackingListItem[]> = {};
-  const packageComponentsByParent: Record<string, PackingListItem[]> = {};
+  const childrenByParent: Record<string, PackingListItem[]> = {};
 
   items.forEach(item => {
+    // Use parent_product_id for ALL child items (accessories + components)
     const parentId = item.product?.parent_product_id;
-    const isPackageComponent = item.product?.is_package_component;
-    const parentPackageId = item.product?.parent_package_id;
 
-    if (isPackageComponent && parentPackageId) {
-      // Package component - group by parent_package_id
-      if (!packageComponentsByParent[parentPackageId]) {
-        packageComponentsByParent[parentPackageId] = [];
+    if (parentId) {
+      if (!childrenByParent[parentId]) {
+        childrenByParent[parentId] = [];
       }
-      packageComponentsByParent[parentPackageId].push(item);
-    } else if (parentId) {
-      // Regular accessory - group by parent_product_id
-      if (!accessoriesByParent[parentId]) {
-        accessoriesByParent[parentId] = [];
-      }
-      accessoriesByParent[parentId].push(item);
+      childrenByParent[parentId].push(item);
     } else {
-      // Main product or package
       mainProducts.push(item);
     }
   });
@@ -112,15 +102,8 @@ const sortPackingListItems = (items: PackingListItem[]): PackingListItem[] => {
   const sorted: PackingListItem[] = [];
   mainProducts.forEach(main => {
     sorted.push(main);
-    if (main.product) {
-      // First add package components (items that belong to this package)
-      if (packageComponentsByParent[main.product.id]) {
-        sorted.push(...packageComponentsByParent[main.product.id]);
-      }
-      // Then add regular accessories
-      if (accessoriesByParent[main.product.id]) {
-        sorted.push(...accessoriesByParent[main.product.id]);
-      }
+    if (main.product && childrenByParent[main.product.id]) {
+      sorted.push(...childrenByParent[main.product.id]);
     }
   });
 
@@ -205,7 +188,8 @@ export const usePackingList = (packingId: string) => {
   const { data: items = [], isLoading: isLoadingItems } = useQuery({
     queryKey: ['packing-list-items', packingId],
     queryFn: () => fetchPackingListItems(packingId, packing?.booking_id || null),
-    enabled: !!packingId && packing !== undefined
+    enabled: !!packingId && !!packing?.booking_id,
+    staleTime: 30000,
   });
 
   // Update item mutation
