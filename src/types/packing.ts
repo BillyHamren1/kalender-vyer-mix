@@ -51,6 +51,27 @@ export interface PackingFile {
   uploaded_at: string;
 }
 
+export interface PackingListItem {
+  id: string;
+  packing_id: string;
+  booking_product_id: string;
+  quantity_to_pack: number;
+  quantity_packed: number;
+  packed_by: string | null;
+  packed_at: string | null;
+  verified_by: string | null;
+  verified_at: string | null;
+  notes: string | null;
+  created_at: string;
+  // Joined product info
+  product?: {
+    id: string;
+    name: string;
+    quantity: number;
+    parent_product_id: string | null;
+  };
+}
+
 export interface PackingWithBooking extends Packing {
   booking?: {
     id: string;

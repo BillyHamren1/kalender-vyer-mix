@@ -648,6 +648,63 @@ export type Database = {
           },
         ]
       }
+      packing_list_items: {
+        Row: {
+          booking_product_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          packed_at: string | null
+          packed_by: string | null
+          packing_id: string
+          quantity_packed: number
+          quantity_to_pack: number
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          booking_product_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          packed_at?: string | null
+          packed_by?: string | null
+          packing_id: string
+          quantity_packed?: number
+          quantity_to_pack?: number
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          booking_product_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          packed_at?: string | null
+          packed_by?: string | null
+          packing_id?: string
+          quantity_packed?: number
+          quantity_to_pack?: number
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packing_list_items_booking_product_id_fkey"
+            columns: ["booking_product_id"]
+            isOneToOne: false
+            referencedRelation: "booking_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_list_items_packing_id_fkey"
+            columns: ["packing_id"]
+            isOneToOne: false
+            referencedRelation: "packing_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       packing_projects: {
         Row: {
           booking_id: string | null
