@@ -795,6 +795,7 @@ serve(async (req) => {
           // Check if this CONFIRMED booking is missing calendar events (recovery scenario)
           let needsCalendarRecovery = false;
           let needsWarehouseRecovery = false;
+          let needsProductRecovery = false;
           
           if (bookingData.status === 'CONFIRMED') {
             const { data: existingCalEvents, error: calCheckError } = await supabase
@@ -831,20 +832,103 @@ serve(async (req) => {
                 }
               }
             }
+            
+            // Check if products need recovery (accessories missing parent_product_id)
+            const { data: existingProducts, error: productCheckError } = await supabase
+              .from('booking_products')
+              .select('id, parent_product_id, name')
+              .eq('booking_id', existingBooking.id);
+            
+            if (!productCheckError && existingProducts) {
+              // Check if any accessory is missing parent_product_id
+              const accessoriesWithoutParent = existingProducts.filter(
+                p => isAccessoryProduct(p.name) && !p.parent_product_id
+              );
+              
+              if (accessoriesWithoutParent.length > 0) {
+                needsProductRecovery = true;
+                console.log(`Booking ${bookingData.id} has ${accessoriesWithoutParent.length} accessories without parent_product_id - will recover`);
+              }
+              
+              // Also recover if booking has no products but external data has products
+              if (existingProducts.length === 0 && externalBooking.products && externalBooking.products.length > 0) {
+                needsProductRecovery = true;
+                console.log(`Booking ${bookingData.id} has NO products but external has ${externalBooking.products.length} - will recover`);
+              }
+            }
           }
           
-          if (!hasChanged && !statusChanged && !needsCalendarRecovery && !needsWarehouseRecovery) {
+          if (!hasChanged && !statusChanged && !needsCalendarRecovery && !needsWarehouseRecovery && !needsProductRecovery) {
             console.log(`No changes detected for ${bookingData.id}, skipping update`)
             results.unchanged_bookings_skipped.push(bookingData.id)
             continue; // SKIP UPDATE - NO CHANGES
           }
           
           // If only warehouse recovery is needed, sync now and continue
-          if (!hasChanged && !statusChanged && !needsCalendarRecovery && needsWarehouseRecovery) {
+          if (!hasChanged && !statusChanged && !needsCalendarRecovery && needsWarehouseRecovery && !needsProductRecovery) {
             console.log(`Only warehouse recovery needed for ${bookingData.id}`);
             const warehouseEventsCreated = await syncWarehouseEventsForBooking(supabase, bookingData);
             results.warehouse_events_created += warehouseEventsCreated;
             results.imported++;
+            continue;
+          }
+          
+          // If only product recovery is needed, clear products and reimport
+          if (!hasChanged && !statusChanged && !needsCalendarRecovery && !needsWarehouseRecovery && needsProductRecovery) {
+            console.log(`Only product recovery needed for ${bookingData.id} - clearing and reimporting products`);
+            await supabase.from('booking_products').delete().eq('booking_id', existingBooking.id);
+            
+            // Process products with parent-child relationship tracking
+            if (externalBooking.products && Array.isArray(externalBooking.products)) {
+              console.log(`[Product Recovery] Processing ${externalBooking.products.length} products for booking ${bookingData.id}`)
+              
+              let lastParentProductId: string | null = null;
+              
+              for (const product of externalBooking.products) {
+                try {
+                  const unitPrice = product.price || product.unit_price || product.rental_price || product.cost || null;
+                  const quantity = product.quantity || 1;
+                  const totalPrice = unitPrice ? unitPrice * quantity : null;
+                  const productName = product.name || product.product_name || 'Unknown Product';
+                  const isAccessory = isAccessoryProduct(productName);
+                  
+                  console.log(`[Product Recovery] Product "${productName}": isAccessory=${isAccessory}, parentId=${isAccessory ? lastParentProductId : 'N/A'}`)
+                  
+                  const productData: ProductData = {
+                    booking_id: existingBooking.id,
+                    name: productName,
+                    quantity: quantity,
+                    notes: product.notes || product.description || null,
+                    unit_price: unitPrice,
+                    total_price: totalPrice,
+                    parent_product_id: isAccessory && lastParentProductId ? lastParentProductId : undefined
+                  }
+
+                  const { data: insertedProduct, error: productError } = await supabase
+                    .from('booking_products')
+                    .insert(productData)
+                    .select('id')
+                    .single()
+
+                  if (productError) {
+                    console.error(`[Product Recovery] Error inserting product:`, productError)
+                  } else {
+                    results.products_imported++
+                    
+                    if (!isAccessory && insertedProduct) {
+                      lastParentProductId = insertedProduct.id;
+                      console.log(`[Product Recovery] Set lastParentProductId to ${lastParentProductId} for "${productName}"`)
+                    }
+                  }
+                } catch (productErr) {
+                  console.error(`[Product Recovery] Error processing product:`, productErr)
+                }
+              }
+            }
+            
+            results.imported++;
+            results.updated_bookings.push(existingBooking.id);
+            console.log(`[Product Recovery] Completed for booking ${bookingData.id}`);
             continue;
           }
           
