@@ -9,6 +9,7 @@ export interface BookingProduct {
   parentProductId?: string;
   isPackageComponent?: boolean;
   parentPackageId?: string;
+  sku?: string;
 }
 
 export interface BookingAttachment {
