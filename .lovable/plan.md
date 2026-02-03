@@ -1,71 +1,68 @@
 
-# Plan: Ta bort packningsprojekt vid avbokning
 
-## Problem
-När en bokning ändras till "CANCELLED" i det externa systemet tar import-funktionen bort kalenderhändelser, men packningsprojektet ligger kvar och visas i lagersystemet.
+# Plan: Lägg till möjlighet att sätta eget lösenord
 
-## Lösning
-Uppdatera `import-bookings` edge function för att också radera eller markera packningsprojekt när en bokning avbokas.
+## Sammanfattning
+Lägger till funktionalitet så att administratörer kan sätta ett eget lösenord för personalkonton, istället för att bara generera ett slumpmässigt.
 
 ---
 
-## Tekniska ändringar
+## Ändringar
 
-### 1. Edge Function - import-bookings/index.ts
+### 1. Uppdatera `StaffAccountCard.tsx`
+- **Lägg till ny knapp** "Ändra lösenord" bredvid "Återställ lösenord"
+- **Ny dialog** för att mata in eget lösenord med:
+  - Lösenordsfält (med möjlighet att visa/dölja)
+  - Bekräfta lösenord-fält
+  - Bekräfta-knapp
+  - Validering att lösenorden matchar och är minst 6 tecken
+- **Ny mutation** `setCustomPassword` som uppdaterar lösenordet till det valda värdet
 
-Lägg till radering av packningsprojekt i avbokningslogiken (efter rad 732):
+### 2. UI-flöde
 
-```typescript
-// Remove warehouse calendar events (befintlig kod)
-const { error: deleteWhError } = await supabase
-  .from('warehouse_calendar_events')
-  .delete()
-  .eq('booking_id', existingBooking.id)
-
-// ... befintlig loggning ...
-
-// ===== NY KOD =====
-// Ta bort packningsprojekt och tillhörande data
-const { error: deletePackingError } = await supabase
-  .from('packing_projects')
-  .delete()
-  .eq('booking_id', existingBooking.id)
-
-if (deletePackingError) {
-  console.error(`Error removing packing project for CANCELLED booking:`, deletePackingError)
-} else {
-  console.log(`Removed packing project for CANCELLED booking ${existingBooking.id}`)
-}
+```text
+┌─────────────────────────────────────────────────────┐
+│  Inloggningskonto                                   │
+├─────────────────────────────────────────────────────┤
+│  ✓ Konto aktivt                                     │
+│    Användarnamn: billy.hamren                       │
+│                                                     │
+│  [Ändra lösenord] [Återställ lösenord] [Ta bort]   │
+└─────────────────────────────────────────────────────┘
 ```
 
-### 2. Åtgärda existerande data
+När "Ändra lösenord" klickas öppnas en dialog:
 
-Kör en direkt SQL-rensning för att ta bort den befintliga avbokade packningsprojektet:
-
-```sql
-DELETE FROM packing_projects 
-WHERE booking_id IN (
-  SELECT id FROM bookings WHERE status = 'CANCELLED'
-);
+```text
+┌──────────────────────────────────────┐
+│  Ändra lösenord                      │
+├──────────────────────────────────────┤
+│  Nytt lösenord:                      │
+│  [________________] [👁]             │
+│                                      │
+│  Bekräfta lösenord:                  │
+│  [________________] [👁]             │
+│                                      │
+│  [Avbryt]           [Spara lösenord] │
+└──────────────────────────────────────┘
 ```
 
 ---
 
-## Filer som ändras
+## Tekniska detaljer
 
-| Fil | Ändring |
-|-----|---------|
-| `supabase/functions/import-bookings/index.ts` | Lägg till radering av packing_projects vid CANCELLED |
-| Databas | Engångsrensning av redan avbokade packningsprojekt |
+### Validering
+- Minst 6 tecken
+- Lösenorden måste matcha
+- Visa felmeddelande om validering misslyckas
 
----
+### Säkerhet
+- Lösenordet lagras som Base64-hash (samma som nuvarande implementation)
+- Ingen loggning av lösenord till konsolen
 
-## Resultat
+### Kod-ändringar i `StaffAccountCard.tsx`
+1. Lägg till state för dialog: `showPasswordDialog`
+2. Lägg till state för formulär: `newPassword`, `confirmPassword`, `showNewPassword`
+3. Ny mutation `setCustomPasswordMutation` som tar emot lösenordet och uppdaterar `password_hash`
+4. Ny `Dialog`-komponent med lösenordsfälten och validering
 
-1. När en bokning avbokas i externa systemet kommer:
-   - Bokningens status uppdateras till CANCELLED
-   - Kalenderhändelser raderas
-   - Lagerhändelser raderas
-   - **Packningsprojektet raderas** (nytt!)
-
-2. Den befintliga "A Catering Sweden AB"-packningsprojektet försvinner omedelbart efter SQL-rensning.
