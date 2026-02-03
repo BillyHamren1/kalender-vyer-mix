@@ -36,10 +36,20 @@ export const ProductsList = ({ products }: ProductsListProps) => {
                 <li key={product.id} className="py-2">
                   <div className="flex justify-between">
                     <span className="text-sm font-medium">{product.name}</span>
-                    <span className="text-xs text-gray-600">Qty: {product.quantity}</span>
+                    <span className="text-xs text-muted-foreground">Qty: {product.quantity}</span>
                   </div>
+                  {product.unitPrice && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {product.unitPrice.toLocaleString('sv-SE')} kr/st
+                      {product.totalPrice && (
+                        <span className="font-medium text-foreground ml-2">
+                          = {product.totalPrice.toLocaleString('sv-SE')} kr
+                        </span>
+                      )}
+                    </p>
+                  )}
                   {hasNotes && (
-                    <p className="text-xs text-gray-500 mt-0.5">{product.notes}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{product.notes}</p>
                   )}
                 </li>
               );

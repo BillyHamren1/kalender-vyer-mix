@@ -52,6 +52,8 @@ interface ProductData {
   name: string;
   quantity: number;
   notes?: string;
+  unit_price?: number;
+  total_price?: number;
 }
 
 interface AttachmentData {
@@ -594,11 +596,23 @@ serve(async (req) => {
           
           for (const product of externalBooking.products) {
             try {
+              // Log raw product data to see all available fields from external API
+              console.log(`RAW PRODUCT DATA from external API for booking ${bookingData.id}:`, JSON.stringify(product, null, 2))
+              
+              // Extract price data - try multiple possible field names
+              const unitPrice = product.price || product.unit_price || product.rental_price || product.cost || null;
+              const quantity = product.quantity || 1;
+              const totalPrice = unitPrice ? unitPrice * quantity : null;
+              
+              console.log(`Product "${product.name || product.product_name}": unit_price=${unitPrice}, quantity=${quantity}, total_price=${totalPrice}`)
+              
               const productData: ProductData = {
                 booking_id: bookingData.id,
                 name: product.name || product.product_name || 'Unknown Product',
-                quantity: product.quantity || 1,
-                notes: product.notes || product.description || null
+                quantity: quantity,
+                notes: product.notes || product.description || null,
+                unit_price: unitPrice,
+                total_price: totalPrice
               }
 
               const { error: productError } = await supabase
