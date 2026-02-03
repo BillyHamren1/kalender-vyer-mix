@@ -754,6 +754,18 @@ serve(async (req) => {
                 console.log(`Removed packing project for CANCELLED booking ${existingBooking.id}`)
               }
               
+              // Remove booking products for cancelled bookings
+              const { error: deleteProductsError } = await supabase
+                .from('booking_products')
+                .delete()
+                .eq('booking_id', existingBooking.id)
+              
+              if (deleteProductsError) {
+                console.error(`Error removing booking products for CANCELLED booking:`, deleteProductsError)
+              } else {
+                console.log(`Removed booking products for CANCELLED booking ${existingBooking.id}`)
+              }
+              
               results.status_changed_bookings.push(existingBooking.id)
               results.imported++
             }
