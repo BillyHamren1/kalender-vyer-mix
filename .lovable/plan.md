@@ -1,62 +1,145 @@
 
-# Plan: Tvinga reimport av produkter med parent_product_id
+# Plan: Fixa veckonavigering på Dashboard
 
 ## Problem
 
-Produkterna importerades **innan** logiken för `parent_product_id` implementerades. Nu har alla produkter (inklusive tillbehör som "↳ M Takduk 8m") `parent_product_id = null`. Importen hoppar över oförändrade bokningar, så produkterna uppdateras inte.
+Dashboardens veckovy visar **inga jobb** när du navigerar till vecka 5, trots att bokningar finns för 29-30 januari.
+
+### Grundorsak
+
+Det finns en **disconnect** mellan:
+1. **WeekProjectsView** komponenten som har lokal `useState` för `currentWeekStart` och tillåter navigering mellan veckor
+2. **fetchWeekProjects** i servicen som ALLTID hämtar data för den **aktuella veckan** (baserat på `new Date()`)
+
+När du klickar "föregående vecka" uppdateras UI:t för att visa vecka 5:s dagar, men data-fetchen fortsätter att hämta vecka 6:s bokningar. Resultatet: inga matchningar, alla dagar visar "Inga jobb".
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│  WeekProjectsView                                           │
+│  ┌─────────────────┐                                        │
+│  │ currentWeekStart│ ← navigerar till vecka 5               │
+│  │ (useState)      │                                        │
+│  └────────┬────────┘                                        │
+│           │                                                 │
+│           ▼                                                 │
+│  Renderar dagar för vecka 5 (26-30 jan)                     │
+│           │                                                 │
+│           │  Men filtrerar projekten mot:                   │
+│           ▼                                                 │
+│  ┌─────────────────┐                                        │
+│  │ projects prop   │ ← Data för vecka 6 (från hooken)       │
+│  │ (från parent)   │                                        │
+│  └─────────────────┘                                        │
+│           │                                                 │
+│           ▼                                                 │
+│  isSameDay(project.date, vecka5dag) = false för alla!       │
+│           │                                                 │
+│           ▼                                                 │
+│  "Inga jobb" visas överallt                                 │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ## Lösning
 
-### Steg 1: Ta bort befintliga produkter via migration
+Koppla ihop `currentWeekStart` med data-fetchen så att rätt veckas data hämtas.
 
-Skapa en migration som tar bort alla produkter från `booking_products` för de två befintliga bokningarna:
-- `ab56b4f6-5eaa-4182-b444-115671442a7f`
-- `190895cc-b4ee-43a9-be69-200eac620087`
-
-### Steg 2: Uppdatera Edge Function
-
-Lägg till en `force` parameter i import-funktionen som tillåter tvingad reimport av produkter även för oförändrade bokningar. Detta förhindrar framtida problem.
-
-### Steg 3: Kör reimport
-
-När produkterna är borttagna kommer importen att:
-1. Detektera att produkter saknas
-2. Importera produkter på nytt med korrekt `parent_product_id`
-
-## Tekniska ändringar
+### Tekniska ändringar
 
 | Fil | Ändring |
 |-----|---------|
-| `supabase/migrations/...` | Ta bort befintliga produkter |
-| `supabase/functions/import-bookings/index.ts` | Lägg till `needsProductRecovery` check |
+| `src/services/planningDashboardService.ts` | Uppdatera `fetchWeekProjects` att ta emot `weekStart: Date` parameter |
+| `src/hooks/usePlanningDashboard.tsx` | Lägg till `currentWeekStart` som parameter och inkludera i query key |
+| `src/pages/PlanningDashboard.tsx` | Flytta vecko-state hit och skicka ner till både hook och komponent |
+| `src/components/planning-dashboard/WeekProjectsView.tsx` | Ta emot `weekStart` och navigeringsfunktioner som props istället för lokal state |
 
-## Edge Function-ändring
+### Detaljerad implementation
 
-Lägg till logik för att upptäcka om produkter saknas `parent_product_id` och tvinga reimport:
+#### 1. Servicen (planningDashboardService.ts)
 
-```text
-// Kontrollera om produkter behöver uppdateras (saknar parent_product_id)
-if (bookingData.status === 'CONFIRMED') {
-  const { data: existingProducts } = await supabase
-    .from('booking_products')
-    .select('id, parent_product_id, name')
-    .eq('booking_id', existingBooking.id);
-  
-  // Kolla om någon accessory saknar parent_product_id
-  const accessoriesWithoutParent = existingProducts?.filter(
-    p => isAccessoryProduct(p.name) && !p.parent_product_id
-  ) || [];
-  
-  if (accessoriesWithoutParent.length > 0) {
-    needsProductRecovery = true;
-    console.log(`Booking ${bookingData.id} has accessories without parent_product_id - will recover`);
-  }
+```typescript
+// Ändra från:
+export const fetchWeekProjects = async (): Promise<WeekProject[]> => {
+  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+  ...
+}
+
+// Till:
+export const fetchWeekProjects = async (weekStart: Date): Promise<WeekProject[]> => {
+  // Nu använder parametern istället för new Date()
+  ...
 }
 ```
 
-## Resultat efter implementation
+#### 2. Hooken (usePlanningDashboard.tsx)
 
-1. Befintliga produkter tas bort
-2. Importen körs med ny logik
-3. Produkter importeras med korrekta `parent_product_id` relationer
-4. UI visar tillbehör grupperade under sina föräldrarprodukter
+```typescript
+export const usePlanningDashboard = (currentWeekStart: Date) => {
+  // ...
+  
+  const weekProjectsQuery = useQuery<WeekProject[]>({
+    queryKey: ['planning-dashboard', 'week-projects', format(currentWeekStart, 'yyyy-MM-dd')],
+    queryFn: () => fetchWeekProjects(currentWeekStart),
+    refetchInterval: 30000,
+  });
+  
+  // ...
+}
+```
+
+#### 3. Dashboard-sidan (PlanningDashboard.tsx)
+
+```typescript
+const PlanningDashboard = () => {
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => 
+    startOfWeek(new Date(), { weekStartsOn: 1 })
+  );
+  
+  const { weekProjects, ... } = usePlanningDashboard(currentWeekStart);
+  
+  const goToPreviousWeek = () => setCurrentWeekStart(prev => subWeeks(prev, 1));
+  const goToNextWeek = () => setCurrentWeekStart(prev => addWeeks(prev, 1));
+  
+  return (
+    <WeekProjectsView 
+      projects={weekProjects}
+      weekStart={currentWeekStart}
+      onPreviousWeek={goToPreviousWeek}
+      onNextWeek={goToNextWeek}
+      ...
+    />
+  );
+}
+```
+
+#### 4. WeekProjectsView (ta bort lokal state)
+
+```typescript
+interface WeekProjectsViewProps {
+  projects: WeekProject[];
+  weekStart: Date;
+  onPreviousWeek: () => void;
+  onNextWeek: () => void;
+  isLoading: boolean;
+  onStaffDrop: ...
+}
+
+const WeekProjectsView = ({ 
+  projects, 
+  weekStart,  // Nu från parent
+  onPreviousWeek, 
+  onNextWeek,
+  ... 
+}: WeekProjectsViewProps) => {
+  // Ta bort useState för currentWeekStart
+  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  ...
+}
+```
+
+## Resultat
+
+Efter implementation:
+- Veckonavigering hämtar rätt data för vald vecka
+- Vecka 5 visar bokningarna för 29-30 januari
+- Query key inkluderar vecko-start, så TanStack Query cachar per vecka
+- Fullt reaktivt: navigera fram/tillbaka och data uppdateras automatiskt
