@@ -1050,13 +1050,13 @@ serve(async (req) => {
             continue;
           }
           
+          // Declare status variables at the broader scope so they're available for updateData
+          const wasConfirmed = existingBooking.status === 'CONFIRMED';
+          const isNowConfirmed = bookingData.status === 'CONFIRMED';
+          
           if (statusChanged) {
             console.log(`Status changed for ${bookingData.id}: ${existingBooking.status} -> ${bookingData.status}`)
             results.status_changed_bookings.push(bookingData.id)
-            
-            // CRITICAL: Handle status changes that affect calendar
-            const wasConfirmed = existingBooking.status === 'CONFIRMED';
-            const isNowConfirmed = bookingData.status === 'CONFIRMED';
             
             // If booking was confirmed but now isn't - REMOVE all calendar events
             if (wasConfirmed && !isNowConfirmed) {
