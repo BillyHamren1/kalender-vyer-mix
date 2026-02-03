@@ -25,7 +25,7 @@ import {
 } from "@/services/planningDashboardService";
 import { format } from "date-fns";
 
-export const usePlanningDashboard = () => {
+export const usePlanningDashboard = (currentWeekStart: Date) => {
   const queryClient = useQueryClient();
 
   const statsQuery = useQuery<PlanningStats>({
@@ -71,8 +71,8 @@ export const usePlanningDashboard = () => {
   });
 
   const weekProjectsQuery = useQuery<WeekProject[]>({
-    queryKey: ['planning-dashboard', 'week-projects'],
-    queryFn: fetchWeekProjects,
+    queryKey: ['planning-dashboard', 'week-projects', format(currentWeekStart, 'yyyy-MM-dd')],
+    queryFn: () => fetchWeekProjects(currentWeekStart),
     refetchInterval: 30000,
   });
 

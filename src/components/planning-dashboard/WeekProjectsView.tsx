@@ -2,16 +2,19 @@ import { Calendar, MapPin, Users, ChevronLeft, ChevronRight, Clock } from "lucid
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useDrop } from "react-dnd";
-import { format, addDays, startOfWeek, isSameDay, addWeeks, subWeeks } from "date-fns";
+import { format, addDays, isSameDay } from "date-fns";
 import { sv } from "date-fns/locale";
 import { DRAG_TYPE_STAFF } from "./AllStaffCard";
 import { cn } from "@/lib/utils";
 import { WeekProject } from "@/services/planningDashboardService";
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 interface WeekProjectsViewProps {
   projects: WeekProject[];
+  weekStart: Date;
+  onPreviousWeek: () => void;
+  onNextWeek: () => void;
+  onCurrentWeek: () => void;
   isLoading: boolean;
   onStaffDrop: (staffId: string, bookingId: string, date: Date) => Promise<void>;
 }
@@ -246,19 +249,20 @@ const DayColumn = ({
   );
 };
 
-const WeekProjectsView = ({ projects, isLoading, onStaffDrop }: WeekProjectsViewProps) => {
+const WeekProjectsView = ({ 
+  projects, 
+  weekStart,
+  onPreviousWeek,
+  onNextWeek,
+  onCurrentWeek,
+  isLoading, 
+  onStaffDrop 
+}: WeekProjectsViewProps) => {
   const navigate = useNavigate();
-  const [currentWeekStart, setCurrentWeekStart] = useState(() => 
-    startOfWeek(new Date(), { weekStartsOn: 1 })
-  );
   
-  const days = Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i));
-  const weekNumber = format(currentWeekStart, 'w');
-  const monthYear = format(currentWeekStart, 'MMMM yyyy', { locale: sv });
-
-  const goToPreviousWeek = () => setCurrentWeekStart(prev => subWeeks(prev, 1));
-  const goToNextWeek = () => setCurrentWeekStart(prev => addWeeks(prev, 1));
-  const goToCurrentWeek = () => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const weekNumber = format(weekStart, 'w');
+  const monthYear = format(weekStart, 'MMMM yyyy', { locale: sv });
 
   const handleDayClick = (date: Date) => {
     const dateParam = format(date, 'yyyy-MM-dd');
@@ -275,7 +279,7 @@ const WeekProjectsView = ({ projects, isLoading, onStaffDrop }: WeekProjectsView
             <Button
               variant="ghost"
               size="icon"
-              onClick={goToPreviousWeek}
+              onClick={onPreviousWeek}
               className="text-primary-foreground hover:bg-primary-foreground/10 border border-primary-foreground/30 rounded-lg"
             >
               <ChevronLeft className="w-5 h-5" />
@@ -286,7 +290,7 @@ const WeekProjectsView = ({ projects, isLoading, onStaffDrop }: WeekProjectsView
             <Button
               variant="ghost"
               size="icon"
-              onClick={goToNextWeek}
+              onClick={onNextWeek}
               className="text-primary-foreground hover:bg-primary-foreground/10"
             >
               <ChevronRight className="w-5 h-5" />
