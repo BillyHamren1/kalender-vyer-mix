@@ -146,15 +146,9 @@ const ProjectDetail = () => {
         )}
 
         {/* Tabs Content */}
-        <Tabs defaultValue="gantt" className="space-y-6">
+        <Tabs defaultValue="establishment" className="space-y-6">
           <div className="border-b">
             <TabsList className="h-auto p-0 bg-transparent gap-0">
-              <TabsTrigger 
-                value="gantt"
-                className="relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground"
-              >
-                Gantt-schema
-              </TabsTrigger>
               <TabsTrigger 
                 value="establishment"
                 className="relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground"
@@ -214,13 +208,6 @@ const ProjectDetail = () => {
               </TabsTrigger>
             </TabsList>
           </div>
-
-          <TabsContent value="gantt">
-            <ProjectGanttChart 
-              tasks={tasks} 
-              onTaskClick={(task) => setSelectedTask(task)}
-            />
-          </TabsContent>
 
           <TabsContent value="establishment">
             <EstablishmentGanttChart 
