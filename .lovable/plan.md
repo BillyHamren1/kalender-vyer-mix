@@ -1,81 +1,70 @@
 
-# Plan: Sortera tillbehör sist inom varje produktgrupp
+# Plan: Visa fullständig SKU vid klick istället för avkortad i text
 
 ## Problem
 
-Du vill att i packlistan:
-1. Paketmedlemmar och tillbehör grupperas under samma förälder (detta fungerar redan)
-2. **Tillbehör ska alltid visas längst ner** i varje grupp (efter paketmedlemmarna)
+Nuvarande implementation i `PackingListItemRow.tsx` visar en avkortad SKU direkt efter produktnamnet:
+```typescript
+{item.product?.sku.substring(0, 8)}  // ← FÖRBJUDET!
+```
 
-## Nuvarande beteende
+## Önskad funktionalitet
 
-Barn-produkter läggs till i den ordning de hämtas från databasen, utan intern sortering.
-
-## Lösning
-
-Uppdatera sorteringsfunktionen så att inom varje grupp av barn:
-- **Paketmedlemmar** (`is_package_component: true`) visas först
-- **Tillbehör** (identifieras via namnprefix) visas sist
+- SKU ska **inte** visas i produktraden normalt
+- När man **klickar på produktnamnet** ska fullständig SKU visas (t.ex. i en popover eller tooltip)
 
 ---
 
 ## Teknisk ändring
 
-**Fil:** `src/hooks/usePackingList.tsx`
+**Fil:** `src/components/packing/PackingListItemRow.tsx`
 
-Lägg till en hjälpfunktion för att identifiera tillbehör och sortera barnen innan de läggs till i resultatet:
+### Ändring: Ta bort avkortad SKU och lägg till klickbar popover
 
+**Före (rad 116-128):**
 ```typescript
-// Hjälpfunktion för att identifiera tillbehör
-const isAccessoryProduct = (name: string | undefined): boolean => {
-  if (!name) return false;
-  const trimmed = name.trim();
-  return trimmed.startsWith('└') || 
-         trimmed.startsWith('↳') || 
-         trimmed.startsWith('L,') || 
-         trimmed.startsWith('└,') ||
-         trimmed.startsWith('  ↳') ||
-         trimmed.startsWith('  └');
-};
+<div className="flex-1 min-w-0">
+  <p className={cn(...)}>
+    {isAccessory && <span className="text-muted-foreground mr-1">↳</span>}
+    {(item.product?.name || "Okänd produkt").replace(/^[\s↳└⦿]+/g, '').trim()}
+    {item.product?.sku && (
+      <span className="text-xs text-muted-foreground ml-2">
+        [{item.product.sku.substring(0, 8)}]  // ← FÖRBJUDET
+      </span>
+    )}
+  </p>
+  ...
+</div>
+```
 
-// Uppdaterad sortering
-const sortPackingListItems = (items: PackingListItem[]): PackingListItem[] => {
-  const mainProducts: PackingListItem[] = [];
-  const childrenByParent: Record<string, PackingListItem[]> = {};
-
-  items.forEach(item => {
-    const parentId = item.product?.parent_product_id;
-    if (parentId) {
-      if (!childrenByParent[parentId]) {
-        childrenByParent[parentId] = [];
-      }
-      childrenByParent[parentId].push(item);
-    } else {
-      mainProducts.push(item);
-    }
-  });
-
-  // Bygg sorterad lista
-  const sorted: PackingListItem[] = [];
-  mainProducts.forEach(main => {
-    sorted.push(main);
-    if (main.product && childrenByParent[main.product.id]) {
-      // Sortera barn: paketmedlemmar först, tillbehör sist
-      const sortedChildren = childrenByParent[main.product.id].sort((a, b) => {
-        const aIsAccessory = isAccessoryProduct(a.product?.name);
-        const bIsAccessory = isAccessoryProduct(b.product?.name);
-        
-        // Paketmedlemmar först (icke-tillbehör), tillbehör sist
-        if (aIsAccessory && !bIsAccessory) return 1;  // a efter b
-        if (!aIsAccessory && bIsAccessory) return -1; // a före b
-        return 0; // Behåll ordning
-      });
-      sorted.push(...sortedChildren);
-    }
-  });
-
-  return sorted;
-};
+**Efter:**
+```typescript
+<div className="flex-1 min-w-0">
+  <Popover>
+    <PopoverTrigger asChild>
+      <p className={cn(
+        "font-medium truncate cursor-pointer hover:text-primary",
+        isFullyPacked && "line-through text-muted-foreground"
+      )}>
+        {isAccessory && <span className="text-muted-foreground mr-1">↳</span>}
+        {(item.product?.name || "Okänd produkt").replace(/^[\s↳└⦿]+/g, '').trim()}
+      </p>
+    </PopoverTrigger>
+    {item.product?.sku && (
+      <PopoverContent className="w-auto p-2" align="start">
+        <div className="text-sm">
+          <span className="text-muted-foreground">SKU:</span>{" "}
+          <span className="font-mono font-medium">{item.product.sku}</span>
+        </div>
+      </PopoverContent>
+    )}
+  </Popover>
+  {item.packed_by && item.packed_at && (
+    <p className="text-xs text-muted-foreground flex items-center gap-2">
+      ...
+    </p>
+  )}
+</div>
 ```
 
 ---
@@ -84,16 +73,10 @@ const sortPackingListItems = (items: PackingListItem[]): PackingListItem[] => {
 
 | Fil | Ändring |
 |-----|---------|
-| `src/hooks/usePackingList.tsx` | Lägg till `isAccessoryProduct`-funktion och sortera barn så att tillbehör alltid hamnar sist |
+| `src/components/packing/PackingListItemRow.tsx` | Ta bort avkortad SKU från rad, lägg till popover vid klick som visar fullständig SKU |
 
 ## Förväntat resultat
 
-Inom varje paketgrupp:
-```
-Multiflex 8x6 (huvudprodukt)
-  ↳ M Mittstolpe GRÖN     (paketmedlem - först)
-  ↳ M Knoppstag           (paketmedlem)
-  ↳ M Takduk VIT          (paketmedlem)
-  ↳ Sandpåsar             (tillbehör - sist)
-  ↳ Stolar                (tillbehör - sist)
-```
+- Produktnamn visas rent utan SKU
+- Vid klick på produktnamnet visas en popover med "SKU: [fullständig-sku]"
+- SKU:n är **aldrig** avkortad
