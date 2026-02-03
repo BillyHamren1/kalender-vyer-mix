@@ -731,6 +731,18 @@ serve(async (req) => {
                 console.log(`Removed warehouse events for CANCELLED booking ${existingBooking.id}`)
               }
               
+              // Remove packing projects for cancelled bookings
+              const { error: deletePackingError } = await supabase
+                .from('packing_projects')
+                .delete()
+                .eq('booking_id', existingBooking.id)
+              
+              if (deletePackingError) {
+                console.error(`Error removing packing project for CANCELLED booking:`, deletePackingError)
+              } else {
+                console.log(`Removed packing project for CANCELLED booking ${existingBooking.id}`)
+              }
+              
               results.status_changed_bookings.push(existingBooking.id)
               results.imported++
             }
