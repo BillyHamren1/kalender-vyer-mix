@@ -91,7 +91,7 @@ const isAccessoryProduct = (name: string | undefined): boolean => {
          trimmed.startsWith('  └');
 };
 
-// Sort items: main products first, then children (package components first, accessories last)
+// Sort items: main products first (alphabetically), then children grouped under their parent
 const sortPackingListItems = (items: PackingListItem[]): PackingListItem[] => {
   const mainProducts: PackingListItem[] = [];
   const childrenByParent: Record<string, PackingListItem[]> = {};
@@ -110,20 +110,37 @@ const sortPackingListItems = (items: PackingListItem[]): PackingListItem[] => {
     }
   });
 
+  // Sort main products alphabetically by name
+  mainProducts.sort((a, b) => {
+    const nameA = a.product?.name || '';
+    const nameB = b.product?.name || '';
+    return nameA.localeCompare(nameB, 'sv');
+  });
+
   // Build sorted list
   const sorted: PackingListItem[] = [];
   mainProducts.forEach(main => {
     sorted.push(main);
     if (main.product && childrenByParent[main.product.id]) {
-      // Sort children: package components first, accessories last
+      // Sort children: package components first (⦿), accessories last (↳)
+      // Then alphabetically within each group
       const sortedChildren = childrenByParent[main.product.id].sort((a, b) => {
-        const aIsAccessory = isAccessoryProduct(a.product?.name);
-        const bIsAccessory = isAccessoryProduct(b.product?.name);
+        const nameA = a.product?.name?.trim() || '';
+        const nameB = b.product?.name?.trim() || '';
         
-        // Package components first (non-accessories), accessories last
-        if (aIsAccessory && !bIsAccessory) return 1;  // a after b
-        if (!aIsAccessory && bIsAccessory) return -1; // a before b
-        return 0; // Keep original order
+        const aIsComponent = nameA.startsWith('⦿');
+        const bIsComponent = nameB.startsWith('⦿');
+        const aIsAccessory = isAccessoryProduct(nameA);
+        const bIsAccessory = isAccessoryProduct(nameB);
+        
+        // Components first, accessories last
+        if (aIsComponent && !bIsComponent) return -1;
+        if (!aIsComponent && bIsComponent) return 1;
+        if (aIsAccessory && !bIsAccessory) return 1;
+        if (!aIsAccessory && bIsAccessory) return -1;
+        
+        // Same type: sort alphabetically
+        return nameA.localeCompare(nameB, 'sv');
       });
       sorted.push(...sortedChildren);
     }
