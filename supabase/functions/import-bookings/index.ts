@@ -905,6 +905,8 @@ serve(async (req) => {
                   
                   console.log(`[Product Recovery] Product "${productName}": isAccessory=${isAccessory}, isPkgComponent=${isPkgComponent}, parentId=${isAccessory ? lastParentProductId : 'N/A'}`)
                   
+                  // IMPORTANT: Do NOT use parent_product_id from external API - it references IDs in the source system
+                  // which don't exist in our database. Only use lastParentProductId which we track locally.
                   const productData: ProductData = {
                     booking_id: existingBooking.id,
                     name: productName,
@@ -914,6 +916,7 @@ serve(async (req) => {
                     total_price: totalPrice,
                     parent_product_id: isAccessory && lastParentProductId ? lastParentProductId : undefined,
                     is_package_component: isPkgComponent || false,
+                    // parent_package_id is stored as text (no FK constraint) so it's safe to store external IDs
                     parent_package_id: isPkgComponent ? (product.parent_package_id || null) : null
                   }
 
@@ -1078,6 +1081,8 @@ serve(async (req) => {
               
               console.log(`Product "${productName}": unit_price=${unitPrice}, quantity=${quantity}, total_price=${totalPrice}, isAccessory=${isAccessory}, isPkgComponent=${isPkgComponent}, parentId=${isAccessory ? lastParentProductId : 'N/A'}`)
               
+              // IMPORTANT: Do NOT use parent_product_id from external API - it references IDs in the source system
+              // which don't exist in our database. Only use lastParentProductId which we track locally.
               const productData: ProductData = {
                 booking_id: bookingData.id,
                 name: productName,
@@ -1087,6 +1092,7 @@ serve(async (req) => {
                 total_price: totalPrice,
                 parent_product_id: isAccessory && lastParentProductId ? lastParentProductId : undefined,
                 is_package_component: isPkgComponent || false,
+                // parent_package_id is stored as text (no FK constraint) so it's safe to store external IDs
                 parent_package_id: isPkgComponent ? (product.parent_package_id || null) : null
               }
 
