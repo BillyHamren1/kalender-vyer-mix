@@ -894,6 +894,8 @@ serve(async (req) => {
               console.log(`[Product Recovery] Processing ${externalBooking.products.length} products for booking ${bookingData.id}`)
               
               let lastParentProductId: string | null = null;
+              const externalToInternalPackageMap: Record<string, string> = {};
+              const packageComponentsToUpdate: Array<{ internalId: string; externalPackageId: string }> = [];
               
               for (const product of externalBooking.products) {
                 try {
@@ -936,10 +938,32 @@ serve(async (req) => {
                     if (!isAccessory && !isPkgComponent && insertedProduct) {
                       lastParentProductId = insertedProduct.id;
                       console.log(`[Product Recovery] Set lastParentProductId to ${lastParentProductId} for "${productName}"`)
+                      
+                      if (product.id) {
+                        externalToInternalPackageMap[product.id] = insertedProduct.id;
+                      }
+                    }
+                    
+                    if (isPkgComponent && product.parent_package_id && insertedProduct) {
+                      packageComponentsToUpdate.push({
+                        internalId: insertedProduct.id,
+                        externalPackageId: product.parent_package_id
+                      });
                     }
                   }
                 } catch (productErr) {
                   console.error(`[Product Recovery] Error processing product:`, productErr)
+                }
+              }
+              
+              // Update package components with their internal parent_product_id
+              for (const component of packageComponentsToUpdate) {
+                const internalParentId = externalToInternalPackageMap[component.externalPackageId];
+                if (internalParentId) {
+                  await supabase
+                    .from('booking_products')
+                    .update({ parent_product_id: internalParentId })
+                    .eq('id', component.internalId);
                 }
               }
             }
@@ -1060,6 +1084,10 @@ serve(async (req) => {
           
           // Track the last parent product ID for linking accessories
           let lastParentProductId: string | null = null;
+          // Track external package IDs to our internal product IDs
+          const externalToInternalPackageMap: Record<string, string> = {};
+          // Track package components that need parent_product_id update after all packages are inserted
+          const packageComponentsToUpdate: Array<{ internalId: string; externalPackageId: string }> = [];
           
           for (const product of externalBooking.products) {
             try {
@@ -1114,10 +1142,42 @@ serve(async (req) => {
                 if (!isAccessory && !isPkgComponent && insertedProduct) {
                   lastParentProductId = insertedProduct.id;
                   console.log(`Set lastParentProductId to ${lastParentProductId} for product "${productName}"`)
+                  
+                  // If the external product has an ID, map it for package component linking
+                  if (product.id) {
+                    externalToInternalPackageMap[product.id] = insertedProduct.id;
+                    console.log(`Mapped external package ID ${product.id} to internal ID ${insertedProduct.id}`)
+                  }
+                }
+                
+                // Track package components for later update
+                if (isPkgComponent && product.parent_package_id && insertedProduct) {
+                  packageComponentsToUpdate.push({
+                    internalId: insertedProduct.id,
+                    externalPackageId: product.parent_package_id
+                  });
                 }
               }
             } catch (productErr) {
               console.error(`Error processing product for booking ${bookingData.id}:`, productErr)
+            }
+          }
+          
+          // Now update package components with their internal parent_product_id
+          for (const component of packageComponentsToUpdate) {
+            const internalParentId = externalToInternalPackageMap[component.externalPackageId];
+            if (internalParentId) {
+              console.log(`Updating package component ${component.internalId} with parent_product_id ${internalParentId}`)
+              const { error: updateError } = await supabase
+                .from('booking_products')
+                .update({ parent_product_id: internalParentId })
+                .eq('id', component.internalId);
+              
+              if (updateError) {
+                console.error(`Error updating package component parent:`, updateError);
+              }
+            } else {
+              console.log(`No internal parent found for external package ID ${component.externalPackageId}`)
             }
           }
         }
