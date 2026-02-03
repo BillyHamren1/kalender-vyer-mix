@@ -28,6 +28,9 @@ const PackingListTab = ({
   const [showQR, setShowQR] = useState(false);
 
   // Group items by parent product/package
+  // parent_product_id is the INTERNAL database ID that links:
+  // 1. Accessories to their main product
+  // 2. Package components to their parent package (mapped during import)
   const { mainProducts, children, progress } = useMemo(() => {
     const main: PackingListItem[] = [];
     const childrenByParent: Record<string, PackingListItem[]> = {};
@@ -39,20 +42,16 @@ const PackingListTab = ({
       totalToPack += item.quantity_to_pack;
       totalPacked += item.quantity_packed;
       
+      // Both accessories and package components use parent_product_id 
+      // for internal linking (set during import)
       const parentId = item.product?.parent_product_id;
-      const isPackageComponent = item.product?.is_package_component;
-      const parentPackageId = item.product?.parent_package_id;
 
-      if (isPackageComponent && parentPackageId) {
-        // Package component - group by parent_package_id
-        if (!childrenByParent[parentPackageId]) childrenByParent[parentPackageId] = [];
-        childrenByParent[parentPackageId].push(item);
-      } else if (parentId) {
-        // Regular accessory - group by parent_product_id
+      if (parentId) {
+        // This is either an accessory or package component - group under parent
         if (!childrenByParent[parentId]) childrenByParent[parentId] = [];
         childrenByParent[parentId].push(item);
       } else {
-        // Main product or package
+        // Main product or package (no parent)
         main.push(item);
       }
     });

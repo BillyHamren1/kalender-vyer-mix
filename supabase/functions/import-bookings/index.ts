@@ -906,10 +906,13 @@ serve(async (req) => {
                   const isAccessory = isAccessoryProduct(productName);
                   const isPkgComponent = isPackageComponent(product);
                   
-                  console.log(`[Product Recovery] Product "${productName}": isAccessory=${isAccessory}, isPkgComponent=${isPkgComponent}, parentId=${isAccessory ? lastParentProductId : 'N/A'}`)
+                  // Both accessories AND package components should be linked to last parent
+                  const shouldLinkToParent = isAccessory || isPkgComponent;
                   
-                  // IMPORTANT: Do NOT use parent_product_id from external API - it references IDs in the source system
-                  // which don't exist in our database. Only use lastParentProductId which we track locally.
+                  console.log(`[Product Recovery] Product "${productName}": isAccessory=${isAccessory}, isPkgComponent=${isPkgComponent}, parentId=${shouldLinkToParent ? lastParentProductId : 'N/A'}`)
+                  
+                  // IMPORTANT: Both accessories and package components use lastParentProductId
+                  // This ensures they are grouped under their parent package in the packing list
                   const productData: ProductData = {
                     booking_id: existingBooking.id,
                     name: productName,
@@ -917,9 +920,8 @@ serve(async (req) => {
                     notes: product.notes || product.description || null,
                     unit_price: unitPrice,
                     total_price: totalPrice,
-                    parent_product_id: isAccessory && lastParentProductId ? lastParentProductId : undefined,
+                    parent_product_id: shouldLinkToParent && lastParentProductId ? lastParentProductId : undefined,
                     is_package_component: isPkgComponent || false,
-                    // parent_package_id is stored as text (no FK constraint) so it's safe to store external IDs
                     parent_package_id: isPkgComponent ? (product.parent_package_id || null) : null,
                     sku: product.sku || product.inventory_item_type_id || product.article_number || null
                   }
@@ -1104,15 +1106,13 @@ serve(async (req) => {
               const isAccessory = isAccessoryProduct(productName);
               const isPkgComponent = isPackageComponent(product);
               
-              // Log package component detection
-              if (isPkgComponent) {
-                console.log(`[PACKAGE COMPONENT] "${productName}": parent_package_id=${product.parent_package_id}`)
-              }
+              // Both accessories AND package components should be linked to last parent
+              const shouldLinkToParent = isAccessory || isPkgComponent;
               
-              console.log(`Product "${productName}": unit_price=${unitPrice}, quantity=${quantity}, total_price=${totalPrice}, isAccessory=${isAccessory}, isPkgComponent=${isPkgComponent}, parentId=${isAccessory ? lastParentProductId : 'N/A'}`)
+              console.log(`Product "${productName}": unit_price=${unitPrice}, quantity=${quantity}, total_price=${totalPrice}, isAccessory=${isAccessory}, isPkgComponent=${isPkgComponent}, parentId=${shouldLinkToParent ? lastParentProductId : 'N/A'}`)
               
-              // IMPORTANT: Do NOT use parent_product_id from external API - it references IDs in the source system
-              // which don't exist in our database. Only use lastParentProductId which we track locally.
+              // IMPORTANT: Both accessories and package components use lastParentProductId
+              // This ensures they are grouped under their parent package in the packing list
               const productData: ProductData = {
                 booking_id: bookingData.id,
                 name: productName,
@@ -1120,9 +1120,8 @@ serve(async (req) => {
                 notes: product.notes || product.description || null,
                 unit_price: unitPrice,
                 total_price: totalPrice,
-                parent_product_id: isAccessory && lastParentProductId ? lastParentProductId : undefined,
+                parent_product_id: shouldLinkToParent && lastParentProductId ? lastParentProductId : undefined,
                 is_package_component: isPkgComponent || false,
-                // parent_package_id is stored as text (no FK constraint) so it's safe to store external IDs
                 parent_package_id: isPkgComponent ? (product.parent_package_id || null) : null,
                 sku: product.sku || product.inventory_item_type_id || product.article_number || null
               }
