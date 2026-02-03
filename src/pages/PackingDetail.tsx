@@ -120,61 +120,39 @@ const PackingDetail = () => {
           />
         </div>
 
-        {/* Booking Info Card */}
+        {/* Compact Booking Info */}
         {booking && (
-          <Card className="mb-6">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center justify-between">
-                Bokningsinformation
-                <Link to={`/booking/${booking.id}`}>
-                  <Button variant="outline" size="sm">Visa bokning</Button>
-                </Link>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="flex items-start gap-2">
-                  <User className="h-4 w-4 text-muted-foreground mt-0.5" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Kund</p>
-                    <p className="font-medium">{booking.client}</p>
-                  </div>
+          <div className="mb-4 px-4 py-3 bg-muted/50 rounded-lg border">
+            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+                <div className="flex items-center gap-1.5">
+                  <User className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="font-medium">{booking.client}</span>
                 </div>
                 {booking.eventdate && (
-                  <div className="flex items-start gap-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Eventdatum</p>
-                      <p className="font-medium">
-                        {format(new Date(booking.eventdate), 'd MMMM yyyy', { locale: sv })}
-                      </p>
-                    </div>
+                  <div className="flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span>{format(new Date(booking.eventdate), 'd MMM yyyy', { locale: sv })}</span>
                   </div>
                 )}
                 {booking.deliveryaddress && (
-                  <div className="flex items-start gap-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Adress</p>
-                      <p className="font-medium">{booking.deliveryaddress}</p>
-                    </div>
+                  <div className="flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span>{booking.deliveryaddress}</span>
                   </div>
                 )}
                 {booking.contact_name && (
-                  <div className="flex items-start gap-2">
-                    <Phone className="h-4 w-4 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Kontakt</p>
-                      <p className="font-medium">{booking.contact_name}</p>
-                      {booking.contact_phone && (
-                        <p className="text-sm text-muted-foreground">{booking.contact_phone}</p>
-                      )}
-                    </div>
+                  <div className="flex items-center gap-1.5">
+                    <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span>{booking.contact_name}</span>
                   </div>
                 )}
               </div>
-            </CardContent>
-          </Card>
+              <Link to={`/booking/${booking.id}`}>
+                <Button variant="outline" size="sm" className="h-7 text-xs">Visa bokning</Button>
+              </Link>
+            </div>
+          </div>
         )}
 
         {/* Tabs Content */}
