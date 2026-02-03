@@ -134,7 +134,7 @@ const BookingProductsDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           {isLoading ? (
             <>
@@ -218,7 +218,7 @@ const BookingProductsDialog = ({
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2 max-h-48 overflow-y-auto">
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
                   {products.map((product) => (
                     <div
                       key={product.id}
