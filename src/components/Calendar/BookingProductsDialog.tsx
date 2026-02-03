@@ -29,6 +29,8 @@ interface BookingProduct {
   name: string;
   quantity: number;
   notes: string | null;
+  unit_price: number | null;
+  total_price: number | null;
 }
 
 interface BookingData {
@@ -83,7 +85,7 @@ const BookingProductsDialog = ({
       // Fetch products
       const { data: productsData, error: productsError } = await supabase
         .from("booking_products")
-        .select("id, name, quantity, notes")
+        .select("id, name, quantity, notes, unit_price, total_price")
         .eq("booking_id", id);
 
       if (productsError) throw productsError;
@@ -227,6 +229,16 @@ const BookingProductsDialog = ({
                         {product.notes && (
                           <p className="text-xs text-muted-foreground mt-0.5 truncate">
                             {product.notes}
+                          </p>
+                        )}
+                        {product.unit_price && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {product.unit_price.toLocaleString('sv-SE')} kr/st
+                            {product.total_price && (
+                              <span className="font-medium text-foreground ml-2">
+                                = {product.total_price.toLocaleString('sv-SE')} kr
+                              </span>
+                            )}
                           </p>
                         )}
                       </div>

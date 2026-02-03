@@ -4,6 +4,8 @@ export interface BookingProduct {
   name: string;
   quantity: number;
   notes?: string;
+  unitPrice?: number;
+  totalPrice?: number;
 }
 
 export interface BookingAttachment {
