@@ -392,6 +392,17 @@ const isPackageComponent = (product: any): boolean => {
   return product.is_package_component === true;
 };
 
+/**
+ * External system IDs are not valid DB foreign keys, but we can use them as
+ * *temporary* keys during the import to map parent->child relationships safely.
+ */
+const getExternalProductId = (product: any): string | null => {
+  const candidate = product?.id ?? product?.product_id ?? product?.productId ?? null;
+  if (candidate === null || candidate === undefined) return null;
+  const s = String(candidate).trim();
+  return s.length > 0 ? s : null;
+};
+
 interface AttachmentData {
   booking_id: string;
   url: string;
@@ -859,7 +870,7 @@ serve(async (req) => {
             // Check if products need recovery (accessories missing parent_product_id)
             const { data: existingProducts, error: productCheckError } = await supabase
               .from('booking_products')
-              .select('id, parent_product_id, name')
+              .select('id, parent_product_id, parent_package_id, is_package_component, name')
               .eq('booking_id', existingBooking.id);
             
             if (!productCheckError && existingProducts) {
@@ -867,10 +878,20 @@ serve(async (req) => {
               const accessoriesWithoutParent = existingProducts.filter(
                 p => isAccessoryProduct(p.name) && !p.parent_product_id
               );
+
+              // Check if any package component is missing parent_product_id
+              const pkgComponentsWithoutParent = existingProducts.filter(
+                p => p.is_package_component === true && !p.parent_product_id
+              );
               
               if (accessoriesWithoutParent.length > 0) {
                 needsProductRecovery = true;
                 console.log(`Booking ${bookingData.id} has ${accessoriesWithoutParent.length} accessories without parent_product_id - will recover`);
+              }
+
+              if (pkgComponentsWithoutParent.length > 0) {
+                needsProductRecovery = true;
+                console.log(`Booking ${bookingData.id} has ${pkgComponentsWithoutParent.length} package components without parent_product_id - will recover`);
               }
               
               // Also recover if booking has no products but external data has products
@@ -905,6 +926,9 @@ serve(async (req) => {
             if (externalBooking.products && Array.isArray(externalBooking.products)) {
               console.log(`[Product Recovery] Processing ${externalBooking.products.length} products for booking ${bookingData.id}`)
               
+              const externalIdToInternalId = new Map<string, string>();
+              const pendingByExternalParentId = new Map<string, string[]>();
+              const pendingSequentialAccessoryIds: string[] = [];
               let lastParentProductId: string | null = null;
               
               for (const product of externalBooking.products) {
@@ -915,8 +939,17 @@ serve(async (req) => {
                   const productName = product.name || product.product_name || 'Unknown Product';
                   const isAccessory = isAccessoryProduct(productName);
                   const isPkgComponent = isPackageComponent(product);
+
+                  const externalId = getExternalProductId(product);
+                  const externalParentIdRaw = (isPkgComponent ? product.parent_package_id : product.parent_product_id) ?? null;
+                  const externalParentId = externalParentIdRaw === null || externalParentIdRaw === undefined
+                    ? null
+                    : String(externalParentIdRaw).trim();
+                  const mappedParentId = externalParentId ? (externalIdToInternalId.get(externalParentId) || null) : null;
+                  const sequentialParentId = (isAccessory || isPkgComponent) ? lastParentProductId : null;
+                  const resolvedParentId = mappedParentId || sequentialParentId;
                   
-                  console.log(`[Product Recovery] Product "${productName}": isAccessory=${isAccessory}, isPkgComponent=${isPkgComponent}, parentId=${isAccessory ? lastParentProductId : 'N/A'}`)
+                  console.log(`[Product Recovery] Product "${productName}": isAccessory=${isAccessory}, isPkgComponent=${isPkgComponent}, externalId=${externalId}, externalParentId=${externalParentId}, resolvedParentId=${resolvedParentId}`)
                   
                   // IMPORTANT: Do NOT use parent_product_id from external API - it references IDs in the source system
                   // which don't exist in our database. Only use lastParentProductId which we track locally.
@@ -927,7 +960,7 @@ serve(async (req) => {
                     notes: product.notes || product.description || null,
                     unit_price: unitPrice,
                     total_price: totalPrice,
-                    parent_product_id: isAccessory && lastParentProductId ? lastParentProductId : undefined,
+                    parent_product_id: resolvedParentId || undefined,
                     is_package_component: isPkgComponent || false,
                     // parent_package_id is stored as text (no FK constraint) so it's safe to store external IDs
                     parent_package_id: isPkgComponent ? (product.parent_package_id || null) : null,
@@ -944,10 +977,53 @@ serve(async (req) => {
                     console.error(`[Product Recovery] Error inserting product:`, productError)
                   } else {
                     results.products_imported++
+
+                    // Map external ID -> internal ID for later children (safe: only used in-memory during import)
+                    if (externalId && insertedProduct?.id) {
+                      externalIdToInternalId.set(externalId, insertedProduct.id);
+
+                      // If any children were waiting for this parent external ID, attach them now
+                      const pendingChildren = pendingByExternalParentId.get(externalId);
+                      if (pendingChildren && pendingChildren.length > 0) {
+                        const { error: pendingUpdateError } = await supabase
+                          .from('booking_products')
+                          .update({ parent_product_id: insertedProduct.id })
+                          .in('id', pendingChildren);
+
+                        if (pendingUpdateError) {
+                          console.error(`[Product Recovery] Error attaching pending children to ${insertedProduct.id}:`, pendingUpdateError);
+                        }
+                        pendingByExternalParentId.delete(externalId);
+                      }
+                    }
+
+                    // If we couldn't resolve parent yet but we have an external parent ref, park it until parent shows up
+                    if (!resolvedParentId && externalParentId && insertedProduct?.id) {
+                      const list = pendingByExternalParentId.get(externalParentId) || [];
+                      list.push(insertedProduct.id);
+                      pendingByExternalParentId.set(externalParentId, list);
+                    }
+
+                    // If accessory comes before first parent and has no explicit external parent, attach it to next parent we see
+                    if (isAccessory && !externalParentId && !resolvedParentId && insertedProduct?.id) {
+                      pendingSequentialAccessoryIds.push(insertedProduct.id);
+                    }
                     
                     if (!isAccessory && !isPkgComponent && insertedProduct) {
                       lastParentProductId = insertedProduct.id;
                       console.log(`[Product Recovery] Set lastParentProductId to ${lastParentProductId} for "${productName}"`)
+
+                      if (pendingSequentialAccessoryIds.length > 0) {
+                        const { error: seqUpdateError } = await supabase
+                          .from('booking_products')
+                          .update({ parent_product_id: lastParentProductId })
+                          .in('id', pendingSequentialAccessoryIds);
+
+                        if (seqUpdateError) {
+                          console.error(`[Product Recovery] Error attaching early accessories to ${lastParentProductId}:`, seqUpdateError);
+                        }
+                        pendingSequentialAccessoryIds.length = 0;
+                      }
                     }
                   }
                 } catch (productErr) {
@@ -1081,6 +1157,9 @@ serve(async (req) => {
           console.log(`Processing ${externalBooking.products.length} products for booking ${bookingData.id}`)
           
           // Track the last parent product ID for linking accessories
+          const externalIdToInternalId = new Map<string, string>();
+          const pendingByExternalParentId = new Map<string, string[]>();
+          const pendingSequentialAccessoryIds: string[] = [];
           let lastParentProductId: string | null = null;
           
           for (const product of externalBooking.products) {
@@ -1097,13 +1176,22 @@ serve(async (req) => {
               // Check if this is an accessory (starts with ↳, └, etc.) OR a package component
               const isAccessory = isAccessoryProduct(productName);
               const isPkgComponent = isPackageComponent(product);
+
+              const externalId = getExternalProductId(product);
+              const externalParentIdRaw = (isPkgComponent ? product.parent_package_id : product.parent_product_id) ?? null;
+              const externalParentId = externalParentIdRaw === null || externalParentIdRaw === undefined
+                ? null
+                : String(externalParentIdRaw).trim();
+              const mappedParentId = externalParentId ? (externalIdToInternalId.get(externalParentId) || null) : null;
+              const sequentialParentId = (isAccessory || isPkgComponent) ? lastParentProductId : null;
+              const resolvedParentId = mappedParentId || sequentialParentId;
               
               // Log package component detection
               if (isPkgComponent) {
                 console.log(`[PACKAGE COMPONENT] "${productName}": parent_package_id=${product.parent_package_id}`)
               }
               
-              console.log(`Product "${productName}": unit_price=${unitPrice}, quantity=${quantity}, total_price=${totalPrice}, isAccessory=${isAccessory}, isPkgComponent=${isPkgComponent}, parentId=${isAccessory ? lastParentProductId : 'N/A'}`)
+              console.log(`Product "${productName}": unit_price=${unitPrice}, quantity=${quantity}, total_price=${totalPrice}, isAccessory=${isAccessory}, isPkgComponent=${isPkgComponent}, externalId=${externalId}, externalParentId=${externalParentId}, resolvedParentId=${resolvedParentId}`)
               
               // IMPORTANT: Do NOT use parent_product_id from external API - it references IDs in the source system
               // which don't exist in our database. Only use lastParentProductId which we track locally.
@@ -1114,7 +1202,7 @@ serve(async (req) => {
                 notes: product.notes || product.description || null,
                 unit_price: unitPrice,
                 total_price: totalPrice,
-                parent_product_id: isAccessory && lastParentProductId ? lastParentProductId : undefined,
+                parent_product_id: resolvedParentId || undefined,
                 is_package_component: isPkgComponent || false,
                 // parent_package_id is stored as text (no FK constraint) so it's safe to store external IDs
                 parent_package_id: isPkgComponent ? (product.parent_package_id || null) : null,
@@ -1131,11 +1219,54 @@ serve(async (req) => {
                 console.error(`Error inserting product for booking ${bookingData.id}:`, productError)
               } else {
                 results.products_imported++
+
+                // Map external ID -> internal ID for later children (safe: only used in-memory during import)
+                if (externalId && insertedProduct?.id) {
+                  externalIdToInternalId.set(externalId, insertedProduct.id);
+
+                  // If any children were waiting for this parent external ID, attach them now
+                  const pendingChildren = pendingByExternalParentId.get(externalId);
+                  if (pendingChildren && pendingChildren.length > 0) {
+                    const { error: pendingUpdateError } = await supabase
+                      .from('booking_products')
+                      .update({ parent_product_id: insertedProduct.id })
+                      .in('id', pendingChildren);
+
+                    if (pendingUpdateError) {
+                      console.error(`Error attaching pending children to ${insertedProduct.id}:`, pendingUpdateError);
+                    }
+                    pendingByExternalParentId.delete(externalId);
+                  }
+                }
+
+                // If we couldn't resolve parent yet but we have an external parent ref, park it until parent shows up
+                if (!resolvedParentId && externalParentId && insertedProduct?.id) {
+                  const list = pendingByExternalParentId.get(externalParentId) || [];
+                  list.push(insertedProduct.id);
+                  pendingByExternalParentId.set(externalParentId, list);
+                }
+
+                // If accessory comes before first parent and has no explicit external parent, attach it to next parent we see
+                if (isAccessory && !externalParentId && !resolvedParentId && insertedProduct?.id) {
+                  pendingSequentialAccessoryIds.push(insertedProduct.id);
+                }
                 
                 // If this is a parent product (not an accessory and not a package component), store its ID for subsequent accessories
                 if (!isAccessory && !isPkgComponent && insertedProduct) {
                   lastParentProductId = insertedProduct.id;
                   console.log(`Set lastParentProductId to ${lastParentProductId} for product "${productName}"`)
+
+                  if (pendingSequentialAccessoryIds.length > 0) {
+                    const { error: seqUpdateError } = await supabase
+                      .from('booking_products')
+                      .update({ parent_product_id: lastParentProductId })
+                      .in('id', pendingSequentialAccessoryIds);
+
+                    if (seqUpdateError) {
+                      console.error(`Error attaching early accessories to ${lastParentProductId}:`, seqUpdateError);
+                    }
+                    pendingSequentialAccessoryIds.length = 0;
+                  }
                 }
               }
             } catch (productErr) {
