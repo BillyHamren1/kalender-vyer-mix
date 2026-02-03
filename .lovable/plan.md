@@ -1,139 +1,62 @@
 
+# Plan: Tvinga reimport av produkter med parent_product_id
 
-# Plan: Automatisk skapning av packlistor med produkter vid import
+## Problem
 
-## Problemöversikt
-
-När bokningar importeras idag:
-- ✅ Produkter sparas i `booking_products`
-- ✅ Kalenderhändelser skapas för personalplanering
-- ✅ Lagerhändelser skapas (nu)
-- ❌ **Packlistor skapas INTE automatiskt**
-- ❌ **Produkter visas INTE i packlistans detaljvy**
-
-Detta innebär att lagerpersonal måste manuellt skapa packlistor och har ingen direkt tillgång till produktinformationen.
-
----
+Produkterna importerades **innan** logiken för `parent_product_id` implementerades. Nu har alla produkter (inklusive tillbehör som "↳ M Takduk 8m") `parent_product_id = null`. Importen hoppar över oförändrade bokningar, så produkterna uppdateras inte.
 
 ## Lösning
 
-### Del 1: Automatisk skapning av packlistor vid import
+### Steg 1: Ta bort befintliga produkter via migration
 
-När en bekräftad bokning importeras:
-1. Skapa automatiskt en `packing_projects`-post
-2. Skapa standard-uppgifter i `packing_tasks` med beräknade deadlines baserade på bokningsdatum
-3. Namn formateras som: `{kund} - {eventdatum}`
+Skapa en migration som tar bort alla produkter från `booking_products` för de två befintliga bokningarna:
+- `ab56b4f6-5eaa-4182-b444-115671442a7f`
+- `190895cc-b4ee-43a9-be69-200eac620087`
 
-### Del 2: Visa produkter i packningsdetaljvyn
+### Steg 2: Uppdatera Edge Function
 
-Lägg till en ny flik "Produkter" på packningssidan som visar alla produkter från den kopplade bokningen (hämtas från `booking_products`).
+Lägg till en `force` parameter i import-funktionen som tillåter tvingad reimport av produkter även för oförändrade bokningar. Detta förhindrar framtida problem.
 
----
+### Steg 3: Kör reimport
+
+När produkterna är borttagna kommer importen att:
+1. Detektera att produkter saknas
+2. Importera produkter på nytt med korrekt `parent_product_id`
 
 ## Tekniska ändringar
 
-### 1. Edge Function: Skapa packlista vid import
+| Fil | Ändring |
+|-----|---------|
+| `supabase/migrations/...` | Ta bort befintliga produkter |
+| `supabase/functions/import-bookings/index.ts` | Lägg till `needsProductRecovery` check |
 
-**Fil:** `supabase/functions/import-bookings/index.ts`
+## Edge Function-ändring
 
-Ny hjälpfunktion `createPackingForBooking`:
-
-| Steg | Beskrivning |
-|------|-------------|
-| 1 | Kontrollera om packlista redan finns för bokningen |
-| 2 | Om inte: skapa `packing_projects` med namn baserat på kund + eventdatum |
-| 3 | Skapa standard-uppgifter i `packing_tasks` med deadlines |
-
-Standard-uppgifter som skapas automatiskt:
-
-| Uppgift | Deadline |
-|---------|----------|
-| Packning påbörjad | rigdaydate - 4 dagar |
-| Packlista klar | rigdaydate - 2 dagar |
-| Utrustning packad | rigdaydate - 1 dag |
-| Utleverans klarmarkerad | rigdaydate |
-| Inventering efter event | rigdowndate + 1 dag |
-| Upppackning klar | rigdowndate + 2 dagar |
-
-### 2. Frontend: Visa produkter i packningsdetalj
-
-**Fil:** `src/pages/PackingDetail.tsx`
-
-Ändringar:
-- Lägg till hook för att hämta produkter från `booking_products` baserat på `booking_id`
-- Lägg till ny flik "Produkter" i TabsList
-- Återanvänd `ProductsList`-komponenten
-
-### 3. Packing Service: Hämta produkter
-
-**Fil:** `src/services/packingService.ts`
-
-Ny funktion:
+Lägg till logik för att upptäcka om produkter saknas `parent_product_id` och tvinga reimport:
 
 ```text
-export const fetchPackingProducts = async (bookingId: string) => {
-  // Hämta produkter från booking_products där booking_id matchar
-  return data as BookingProduct[];
+// Kontrollera om produkter behöver uppdateras (saknar parent_product_id)
+if (bookingData.status === 'CONFIRMED') {
+  const { data: existingProducts } = await supabase
+    .from('booking_products')
+    .select('id, parent_product_id, name')
+    .eq('booking_id', existingBooking.id);
+  
+  // Kolla om någon accessory saknar parent_product_id
+  const accessoriesWithoutParent = existingProducts?.filter(
+    p => isAccessoryProduct(p.name) && !p.parent_product_id
+  ) || [];
+  
+  if (accessoriesWithoutParent.length > 0) {
+    needsProductRecovery = true;
+    console.log(`Booking ${bookingData.id} has accessories without parent_product_id - will recover`);
+  }
 }
 ```
 
----
-
-## Flödesdiagram
-
-```text
-Import-Bookings Edge Function
-           │
-           ▼
-    ┌──────────────┐
-    │ Bokning      │
-    │ bekräftad?   │
-    └──────┬───────┘
-           │ Ja
-           ▼
-    ┌──────────────┐     ┌──────────────┐
-    │ Skapa        │     │ Skapa        │
-    │ calendar_    │     │ warehouse_   │
-    │ events       │     │ events       │
-    └──────┬───────┘     └──────────────┘
-           │
-           ▼
-    ┌──────────────┐
-    │ Packlista    │
-    │ finns redan? │
-    └──────┬───────┘
-           │ Nej
-           ▼
-    ┌──────────────┐
-    │ Skapa        │
-    │ packing_     │
-    │ projects     │
-    └──────┬───────┘
-           │
-           ▼
-    ┌──────────────┐
-    │ Skapa        │
-    │ packing_     │
-    │ tasks        │
-    └──────────────┘
-```
-
----
-
-## Filer som ändras
-
-| Fil | Ändring |
-|-----|---------|
-| `supabase/functions/import-bookings/index.ts` | Lägg till `createPackingForBooking` funktion |
-| `src/pages/PackingDetail.tsx` | Lägg till produktflik och hämta produktdata |
-| `src/services/packingService.ts` | Lägg till `fetchPackingProducts` funktion |
-
----
-
 ## Resultat efter implementation
 
-1. ✅ Packlistor skapas automatiskt för alla bekräftade bokningar
-2. ✅ Standard-uppgifter med deadlines baserade på rig/event-datum
-3. ✅ Lagerpersonal kan se produktlistan direkt i packningsvyn
-4. ✅ Inga manuella steg krävs för att komma igång med packning
-
+1. Befintliga produkter tas bort
+2. Importen körs med ny logik
+3. Produkter importeras med korrekta `parent_product_id` relationer
+4. UI visar tillbehör grupperade under sina föräldrarprodukter
