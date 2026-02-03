@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Calendar, MapPin, Phone, User, Package } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, Phone, User, Package, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,8 +10,10 @@ import PackingFiles from "@/components/packing/PackingFiles";
 import PackingComments from "@/components/packing/PackingComments";
 import PackingGanttChart from "@/components/packing/PackingGanttChart";
 import PackingTaskDetailSheet from "@/components/packing/PackingTaskDetailSheet";
+import PackingListTab from "@/components/packing/PackingListTab";
 import { ProductsList } from "@/components/booking/ProductsList";
 import { usePackingDetail } from "@/hooks/usePackingDetail";
+import { usePackingList } from "@/hooks/usePackingList";
 import { fetchPackingProducts } from "@/services/packingService";
 import { PackingTask } from "@/types/packing";
 import { BookingProduct } from "@/types/booking";
@@ -40,6 +42,14 @@ const PackingDetail = () => {
     deleteFile,
     isUploadingFile
   } = usePackingDetail(packingId || '');
+
+  // Packing list hook
+  const {
+    items: packingListItems,
+    isLoading: isLoadingPackingList,
+    updateItem: updatePackingListItem,
+    markAllPacked
+  } = usePackingList(packingId || '');
 
   // Fetch products when we have a booking_id
   useEffect(() => {
@@ -168,8 +178,12 @@ const PackingDetail = () => {
         )}
 
         {/* Tabs Content */}
-        <Tabs defaultValue="gantt" className="space-y-4">
+        <Tabs defaultValue="packlist" className="space-y-4">
           <TabsList className="flex-wrap h-auto gap-1">
+            <TabsTrigger value="packlist" className="flex items-center gap-1">
+              <ClipboardList className="h-3.5 w-3.5" />
+              Packlista
+            </TabsTrigger>
             <TabsTrigger value="gantt">Gantt-schema</TabsTrigger>
             <TabsTrigger value="tasks">Uppgifter ({tasks.length})</TabsTrigger>
             {booking && (
@@ -181,6 +195,17 @@ const PackingDetail = () => {
             <TabsTrigger value="files">Filer ({files.length})</TabsTrigger>
             <TabsTrigger value="comments">Kommentarer ({comments.length})</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="packlist">
+            <PackingListTab
+              packingId={packingId || ''}
+              packingName={packing.name}
+              items={packingListItems}
+              isLoading={isLoadingPackingList}
+              onUpdateItem={updatePackingListItem}
+              onMarkAllPacked={() => markAllPacked("Okänd")}
+            />
+          </TabsContent>
 
           <TabsContent value="gantt">
             <PackingGanttChart 
