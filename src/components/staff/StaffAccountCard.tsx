@@ -4,8 +4,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Key, UserPlus, RefreshCw, Trash2, Check, AlertCircle, Copy, Eye, EyeOff } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Key, UserPlus, RefreshCw, Trash2, Check, AlertCircle, Copy, Eye, EyeOff, Lock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -43,6 +45,13 @@ const StaffAccountCard: React.FC<StaffAccountCardProps> = ({ staffId, staffName 
   const [showCredentials, setShowCredentials] = useState(false);
   const [credentials, setCredentials] = useState<{ username: string; password: string } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  
+  // Custom password dialog state
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
 
   // Fetch account for this staff member
   const { data: account, isLoading } = useQuery({
@@ -126,6 +135,30 @@ const StaffAccountCard: React.FC<StaffAccountCardProps> = ({ staffId, staffName 
     }
   });
 
+  // Set custom password mutation
+  const setCustomPasswordMutation = useMutation({
+    mutationFn: async (password: string) => {
+      const passwordHash = btoa(password);
+
+      const { error } = await supabase
+        .from('staff_accounts')
+        .update({ password_hash: passwordHash })
+        .eq('staff_id', staffId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setShowPasswordDialog(false);
+      setNewPassword('');
+      setConfirmPassword('');
+      setPasswordError('');
+      toast.success('Lösenord uppdaterat');
+    },
+    onError: () => {
+      toast.error('Kunde inte uppdatera lösenord');
+    }
+  });
+
   // Delete account mutation
   const deleteAccountMutation = useMutation({
     mutationFn: async () => {
@@ -151,6 +184,28 @@ const StaffAccountCard: React.FC<StaffAccountCardProps> = ({ staffId, staffName 
     const text = `Användarnamn: ${credentials.username}\nLösenord: ${credentials.password}`;
     navigator.clipboard.writeText(text);
     toast.success('Kopierat till urklipp');
+  };
+
+  const handleSetPassword = () => {
+    // Validate
+    if (newPassword.length < 6) {
+      setPasswordError('Lösenordet måste vara minst 6 tecken');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Lösenorden matchar inte');
+      return;
+    }
+    setPasswordError('');
+    setCustomPasswordMutation.mutate(newPassword);
+  };
+
+  const openPasswordDialog = () => {
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
+    setShowNewPassword(false);
+    setShowPasswordDialog(true);
   };
 
   if (isLoading) {
@@ -193,7 +248,15 @@ const StaffAccountCard: React.FC<StaffAccountCardProps> = ({ staffId, staffName 
                 </div>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={openPasswordDialog}
+                >
+                  <Lock className="h-4 w-4 mr-2" />
+                  Ändra lösenord
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -201,7 +264,7 @@ const StaffAccountCard: React.FC<StaffAccountCardProps> = ({ staffId, staffName 
                   disabled={resetPasswordMutation.isPending}
                 >
                   <RefreshCw className="h-4 w-4 mr-2" />
-                  Återställ lösenord
+                  Slumpa lösenord
                 </Button>
                 <Button
                   variant="outline"
@@ -284,6 +347,72 @@ const StaffAccountCard: React.FC<StaffAccountCardProps> = ({ staffId, staffName 
               </Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Custom Password Dialog */}
+      <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5" />
+              Ändra lösenord
+            </DialogTitle>
+            <DialogDescription>
+              Sätt ett eget lösenord för {staffName}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">Nytt lösenord</Label>
+              <div className="relative">
+                <Input
+                  id="newPassword"
+                  type={showNewPassword ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Minst 6 tecken"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                >
+                  {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Bekräfta lösenord</Label>
+              <Input
+                id="confirmPassword"
+                type={showNewPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Upprepa lösenordet"
+              />
+            </div>
+
+            {passwordError && (
+              <p className="text-sm text-destructive">{passwordError}</p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPasswordDialog(false)}>
+              Avbryt
+            </Button>
+            <Button 
+              onClick={handleSetPassword}
+              disabled={setCustomPasswordMutation.isPending}
+            >
+              Spara lösenord
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
