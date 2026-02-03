@@ -59,7 +59,7 @@ export const fetchJobs = async (): Promise<Job[]> => {
   });
 };
 
-// Fetch single job with staff assignments
+// Fetch single job with staff assignments and full booking data
 export const fetchJobById = async (jobId: string): Promise<Job | null> => {
   const { data, error } = await supabase
     .from('jobs')
@@ -72,18 +72,57 @@ export const fetchJobById = async (jobId: string): Promise<Job | null> => {
     return null;
   }
 
-  // Fetch booking data separately if there's a booking_id
+  // Fetch full booking data separately if there's a booking_id
   let bookingData = undefined;
+  let products: any[] = [];
+  let attachments: any[] = [];
+  
   if (data.booking_id) {
     const { data: booking } = await supabase
       .from('bookings')
-      .select('id, client, booking_number, deliveryaddress, rigdaydate, eventdate, rigdowndate')
+      .select('*')
       .eq('id', data.booking_id)
       .single();
     bookingData = booking;
+    
+    // Fetch products
+    const { data: productData } = await supabase
+      .from('booking_products')
+      .select('*')
+      .eq('booking_id', data.booking_id);
+    products = productData || [];
+    
+    // Fetch attachments
+    const { data: attachmentData } = await supabase
+      .from('booking_attachments')
+      .select('*')
+      .eq('booking_id', data.booking_id);
+    attachments = attachmentData || [];
   }
 
   const job = transformJob({ ...data, bookings: bookingData });
+  
+  // Add full booking data to job
+  if (bookingData) {
+    job.fullBooking = {
+      ...bookingData,
+      products: products.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        quantity: p.quantity,
+        unitPrice: p.unit_price,
+        totalPrice: p.total_price,
+        notes: p.notes,
+      })),
+      attachments: attachments.map((a: any) => ({
+        id: a.id,
+        fileName: a.file_name,
+        fileType: a.file_type,
+        url: a.url,
+        uploadedAt: a.uploaded_at,
+      })),
+    };
+  }
 
   // Fetch staff assignments
   const { data: assignments } = await supabase
