@@ -1,32 +1,71 @@
 
-# Plan: Lägg till SKU-nummer i bokningsimport ✅ IMPLEMENTERAD
+# Plan: Ta bort packningsprojekt vid avbokning
 
-## Genomförda ändringar
+## Problem
+När en bokning ändras till "CANCELLED" i det externa systemet tar import-funktionen bort kalenderhändelser, men packningsprojektet ligger kvar och visas i lagersystemet.
 
-### 1. ✅ Databas-migration
-Lagt till `sku` kolumn i `booking_products` (TEXT).
+## Lösning
+Uppdatera `import-bookings` edge function för att också radera eller markera packningsprojekt när en bokning avbokas.
 
-### 2. ✅ Edge Function (`import-bookings`)
-- Uppdaterat `ProductData` interface med `sku?: string`
-- Produktmappning extraherar nu SKU: `product.sku || product.inventory_item_type_id || product.article_number || null`
-- Både huvudimport och product recovery hanterar SKU
+---
 
-### 3. ✅ Frontend-typer
-- `src/types/booking.ts`: Lagt till `sku?: string` i BookingProduct
-- `src/types/packing.ts`: Lagt till `sku: string | null` i product-objektet
+## Tekniska ändringar
 
-### 4. ✅ Transformering
-- `src/services/booking/bookingUtils.ts`: Mappar `sku` från databas
+### 1. Edge Function - import-bookings/index.ts
 
-### 5. ✅ UI - Packlistan
-- `src/components/packing/PackingListItemRow.tsx`: Visar SKU i hakparenteser efter produktnamnet
+Lägg till radering av packningsprojekt i avbokningslogiken (efter rad 732):
+
+```typescript
+// Remove warehouse calendar events (befintlig kod)
+const { error: deleteWhError } = await supabase
+  .from('warehouse_calendar_events')
+  .delete()
+  .eq('booking_id', existingBooking.id)
+
+// ... befintlig loggning ...
+
+// ===== NY KOD =====
+// Ta bort packningsprojekt och tillhörande data
+const { error: deletePackingError } = await supabase
+  .from('packing_projects')
+  .delete()
+  .eq('booking_id', existingBooking.id)
+
+if (deletePackingError) {
+  console.error(`Error removing packing project for CANCELLED booking:`, deletePackingError)
+} else {
+  console.log(`Removed packing project for CANCELLED booking ${existingBooking.id}`)
+}
+```
+
+### 2. Åtgärda existerande data
+
+Kör en direkt SQL-rensning för att ta bort den befintliga avbokade packningsprojektet:
+
+```sql
+DELETE FROM packing_projects 
+WHERE booking_id IN (
+  SELECT id FROM bookings WHERE status = 'CANCELLED'
+);
+```
+
+---
+
+## Filer som ändras
+
+| Fil | Ändring |
+|-----|---------|
+| `supabase/functions/import-bookings/index.ts` | Lägg till radering av packing_projects vid CANCELLED |
+| Databas | Engångsrensning av redan avbokade packningsprojekt |
 
 ---
 
 ## Resultat
 
-Vid nästa import kommer produkter med SKU/inventory_item_type_id att sparas och visas i packlistan:
-```
-☐ M Ben [1616390d]  6 st
-☐ M Sidorör [a7e2b1c9]  12 st
-```
+1. När en bokning avbokas i externa systemet kommer:
+   - Bokningens status uppdateras till CANCELLED
+   - Kalenderhändelser raderas
+   - Lagerhändelser raderas
+   - **Packningsprojektet raderas** (nytt!)
+
+2. Den befintliga "A Catering Sweden AB"-packningsprojektet försvinner omedelbart efter SQL-rensning.
