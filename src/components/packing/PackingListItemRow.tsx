@@ -114,18 +114,25 @@ const PackingListItemRow = ({ item, onUpdate, isAccessory = false }: PackingList
 
       {/* Product name */}
       <div className="flex-1 min-w-0">
-        <p className={cn(
-          "font-medium truncate",
-          isFullyPacked && "line-through text-muted-foreground"
-        )}>
-          {isAccessory && <span className="text-muted-foreground mr-1">↳</span>}
-          {(item.product?.name || "Okänd produkt").replace(/^[\s↳└⦿]+/g, '').trim()}
+        <Popover>
+          <PopoverTrigger asChild>
+            <p className={cn(
+              "font-medium truncate cursor-pointer hover:text-primary transition-colors",
+              isFullyPacked && "line-through text-muted-foreground"
+            )}>
+              {isAccessory && <span className="text-muted-foreground mr-1">↳</span>}
+              {(item.product?.name || "Okänd produkt").replace(/^[\s↳└⦿]+/g, '').trim()}
+            </p>
+          </PopoverTrigger>
           {item.product?.sku && (
-            <span className="text-xs text-muted-foreground ml-2">
-              [{item.product.sku.substring(0, 8)}]
-            </span>
+            <PopoverContent className="w-auto p-2" align="start">
+              <div className="text-sm">
+                <span className="text-muted-foreground">SKU:</span>{" "}
+                <span className="font-mono font-medium">{item.product.sku}</span>
+              </div>
+            </PopoverContent>
           )}
-        </p>
+        </Popover>
         {item.packed_by && item.packed_at && (
           <p className="text-xs text-muted-foreground flex items-center gap-2">
             <User className="h-3 w-3" />
