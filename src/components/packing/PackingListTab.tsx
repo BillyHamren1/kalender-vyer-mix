@@ -27,10 +27,17 @@ const PackingListTab = ({
 }: PackingListTabProps) => {
   const [showQR, setShowQR] = useState(false);
 
-  // Group items by parent product
-  const { mainProducts, accessories, progress } = useMemo(() => {
+  // Helper to check if product is an accessory (starts with ↳ or L,)
+  const isAccessoryProduct = (name: string) => {
+    const trimmed = name.trim();
+    return trimmed.startsWith('↳') || trimmed.startsWith('└') || trimmed.startsWith('L,');
+  };
+
+  // Group items: main products, their package components, and collect all accessories together
+  const { mainProducts, packageComponents, allAccessories, progress } = useMemo(() => {
     const main: PackingListItem[] = [];
-    const acc: Record<string, PackingListItem[]> = {};
+    const pkgComponents: Record<string, PackingListItem[]> = {};
+    const accessories: PackingListItem[] = [];
     
     let totalToPack = 0;
     let totalPacked = 0;
@@ -39,18 +46,26 @@ const PackingListTab = ({
       totalToPack += item.quantity_to_pack;
       totalPacked += item.quantity_packed;
       
+      const productName = item.product?.name || '';
       const parentId = item.product?.parent_product_id;
-      if (parentId) {
-        if (!acc[parentId]) acc[parentId] = [];
-        acc[parentId].push(item);
+      
+      // Check if this is an accessory (↳ prefix)
+      if (isAccessoryProduct(productName)) {
+        accessories.push(item);
+      } else if (parentId) {
+        // Package component (⦿ prefix) - group under parent
+        if (!pkgComponents[parentId]) pkgComponents[parentId] = [];
+        pkgComponents[parentId].push(item);
       } else {
+        // Main product
         main.push(item);
       }
     });
 
     return {
       mainProducts: main,
-      accessories: acc,
+      packageComponents: pkgComponents,
+      allAccessories: accessories,
       progress: {
         total: totalToPack,
         packed: totalPacked,
@@ -137,6 +152,7 @@ const PackingListTab = ({
 
           {/* Product list - scrollable */}
           <div className="space-y-1 max-h-[60vh] overflow-y-auto pr-2">
+            {/* Main products with their package components */}
             {mainProducts.map(item => (
               <div key={item.id}>
                 <PackingListItemRow
@@ -144,8 +160,23 @@ const PackingListTab = ({
                   onUpdate={onUpdateItem}
                   isAccessory={false}
                 />
-                {/* Render accessories for this product */}
-                {item.product && accessories[item.product.id]?.map(acc => (
+                {/* Render package components (⦿) for this product */}
+                {item.product && packageComponents[item.product.id]?.map(comp => (
+                  <PackingListItemRow
+                    key={comp.id}
+                    item={comp}
+                    onUpdate={onUpdateItem}
+                    isAccessory={true}
+                  />
+                ))}
+              </div>
+            ))}
+            
+            {/* All accessories (↳) grouped together at the end */}
+            {allAccessories.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-border">
+                <h4 className="text-sm font-medium text-muted-foreground mb-2">Tillbehör</h4>
+                {allAccessories.map(acc => (
                   <PackingListItemRow
                     key={acc.id}
                     item={acc}
@@ -154,7 +185,7 @@ const PackingListTab = ({
                   />
                 ))}
               </div>
-            ))}
+            )}
           </div>
         </CardContent>
       </Card>
