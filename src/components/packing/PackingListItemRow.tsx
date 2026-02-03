@@ -120,6 +120,11 @@ const PackingListItemRow = ({ item, onUpdate, isAccessory = false }: PackingList
         )}>
           {isAccessory && <span className="text-muted-foreground mr-1">↳</span>}
           {(item.product?.name || "Okänd produkt").replace(/^[\s↳└⦿]+/g, '').trim()}
+          {item.product?.sku && (
+            <span className="text-xs text-muted-foreground ml-2">
+              [{item.product.sku.substring(0, 8)}]
+            </span>
+          )}
         </p>
         {item.packed_by && item.packed_at && (
           <p className="text-xs text-muted-foreground flex items-center gap-2">

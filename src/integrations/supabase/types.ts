@@ -117,6 +117,7 @@ export type Database = {
           parent_package_id: string | null
           parent_product_id: string | null
           quantity: number
+          sku: string | null
           total_price: number | null
           unit_price: number | null
         }
@@ -129,6 +130,7 @@ export type Database = {
           parent_package_id?: string | null
           parent_product_id?: string | null
           quantity?: number
+          sku?: string | null
           total_price?: number | null
           unit_price?: number | null
         }
@@ -141,6 +143,7 @@ export type Database = {
           parent_package_id?: string | null
           parent_product_id?: string | null
           quantity?: number
+          sku?: string | null
           total_price?: number | null
           unit_price?: number | null
         }

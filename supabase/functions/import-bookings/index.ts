@@ -366,6 +366,7 @@ interface ProductData {
   parent_product_id?: string;
   is_package_component?: boolean;
   parent_package_id?: string;
+  sku?: string;
 }
 
 /**
@@ -917,7 +918,8 @@ serve(async (req) => {
                     parent_product_id: isAccessory && lastParentProductId ? lastParentProductId : undefined,
                     is_package_component: isPkgComponent || false,
                     // parent_package_id is stored as text (no FK constraint) so it's safe to store external IDs
-                    parent_package_id: isPkgComponent ? (product.parent_package_id || null) : null
+                    parent_package_id: isPkgComponent ? (product.parent_package_id || null) : null,
+                    sku: product.sku || product.inventory_item_type_id || product.article_number || null
                   }
 
                   const { data: insertedProduct, error: productError } = await supabase
@@ -1093,7 +1095,8 @@ serve(async (req) => {
                 parent_product_id: isAccessory && lastParentProductId ? lastParentProductId : undefined,
                 is_package_component: isPkgComponent || false,
                 // parent_package_id is stored as text (no FK constraint) so it's safe to store external IDs
-                parent_package_id: isPkgComponent ? (product.parent_package_id || null) : null
+                parent_package_id: isPkgComponent ? (product.parent_package_id || null) : null,
+                sku: product.sku || product.inventory_item_type_id || product.article_number || null
               }
 
               const { data: insertedProduct, error: productError } = await supabase
