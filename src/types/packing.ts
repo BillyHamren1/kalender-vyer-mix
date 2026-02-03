@@ -70,6 +70,8 @@ export interface PackingListItem {
     quantity: number;
     parent_product_id: string | null;
     sku: string | null;
+    is_package_component: boolean | null;
+    parent_package_id: string | null;
   };
 }
 

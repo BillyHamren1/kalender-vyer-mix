@@ -56,7 +56,7 @@ const fetchPackingListItems = async (packingId: string, bookingId: string | null
     (items || []).map(async (item) => {
       const { data: product } = await supabase
         .from('booking_products')
-        .select('id, name, quantity, parent_product_id')
+        .select('id, name, quantity, parent_product_id, sku, is_package_component, parent_package_id')
         .eq('id', item.booking_product_id)
         .single();
 
@@ -66,7 +66,10 @@ const fetchPackingListItems = async (packingId: string, bookingId: string | null
           id: product.id,
           name: product.name,
           quantity: product.quantity,
-          parent_product_id: product.parent_product_id
+          parent_product_id: product.parent_product_id,
+          sku: product.sku,
+          is_package_component: product.is_package_component,
+          parent_package_id: product.parent_package_id
         } : undefined
       } as PackingListItem;
     })
@@ -76,19 +79,31 @@ const fetchPackingListItems = async (packingId: string, bookingId: string | null
   return sortPackingListItems(itemsWithProducts);
 };
 
-// Sort items so main products come first, followed by their accessories
+// Sort items: main products first, then package components, then accessories
 const sortPackingListItems = (items: PackingListItem[]): PackingListItem[] => {
   const mainProducts: PackingListItem[] = [];
   const accessoriesByParent: Record<string, PackingListItem[]> = {};
+  const packageComponentsByParent: Record<string, PackingListItem[]> = {};
 
   items.forEach(item => {
     const parentId = item.product?.parent_product_id;
-    if (parentId) {
+    const isPackageComponent = item.product?.is_package_component;
+    const parentPackageId = item.product?.parent_package_id;
+
+    if (isPackageComponent && parentPackageId) {
+      // Package component - group by parent_package_id
+      if (!packageComponentsByParent[parentPackageId]) {
+        packageComponentsByParent[parentPackageId] = [];
+      }
+      packageComponentsByParent[parentPackageId].push(item);
+    } else if (parentId) {
+      // Regular accessory - group by parent_product_id
       if (!accessoriesByParent[parentId]) {
         accessoriesByParent[parentId] = [];
       }
       accessoriesByParent[parentId].push(item);
     } else {
+      // Main product or package
       mainProducts.push(item);
     }
   });
@@ -97,8 +112,15 @@ const sortPackingListItems = (items: PackingListItem[]): PackingListItem[] => {
   const sorted: PackingListItem[] = [];
   mainProducts.forEach(main => {
     sorted.push(main);
-    if (main.product && accessoriesByParent[main.product.id]) {
-      sorted.push(...accessoriesByParent[main.product.id]);
+    if (main.product) {
+      // First add package components (items that belong to this package)
+      if (packageComponentsByParent[main.product.id]) {
+        sorted.push(...packageComponentsByParent[main.product.id]);
+      }
+      // Then add regular accessories
+      if (accessoriesByParent[main.product.id]) {
+        sorted.push(...accessoriesByParent[main.product.id]);
+      }
     }
   });
 
