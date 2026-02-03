@@ -1000,23 +1000,33 @@ serve(async (req) => {
             }
             
             // If booking is now confirmed but wasn't before - calendar events will be created below
+            // Also reset viewed flag so it appears as a new booking in the dashboard
             if (!wasConfirmed && isNowConfirmed) {
-              console.log(`Booking ${bookingData.id} is now CONFIRMED - calendar events will be created`);
+              console.log(`Booking ${bookingData.id} is now CONFIRMED - calendar events will be created and viewed will be reset`);
             }
           } else {
             console.log(`Data changed for ${bookingData.id}, updating`)
             results.updated_bookings.push(bookingData.id)
           }
 
+          // Prepare update data - reset viewed flag if booking is newly confirmed
+          const updateData: any = {
+            ...bookingData,
+            id: existingBooking.id,
+            version: (existingBooking.version || 1) + 1,
+            updated_at: new Date().toISOString()
+          };
+          
+          // Reset viewed flag when a booking transitions to CONFIRMED (re-confirmed after cancellation)
+          if (!wasConfirmed && isNowConfirmed) {
+            updateData.viewed = false;
+            console.log(`Resetting viewed flag for re-confirmed booking ${bookingData.id}`);
+          }
+
           // Update existing booking
           const { error: updateError } = await supabase
             .from('bookings')
-            .update({
-              ...bookingData,
-              id: existingBooking.id,
-              version: (existingBooking.version || 1) + 1,
-              updated_at: new Date().toISOString()
-            })
+            .update(updateData)
             .eq('id', existingBooking.id)
 
           if (updateError) {

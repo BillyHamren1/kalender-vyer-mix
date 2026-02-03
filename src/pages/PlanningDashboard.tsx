@@ -38,7 +38,7 @@ const PlanningDashboard = () => {
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="min-h-screen bg-muted/30 p-6">
+      <div className="h-full overflow-y-auto bg-muted/30 p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
