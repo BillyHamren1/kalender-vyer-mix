@@ -33,6 +33,7 @@ import WarehouseCalendarPage from "./pages/WarehouseCalendarPage";
 import PackingManagement from "./pages/PackingManagement";
 import PackingDetail from "./pages/PackingDetail";
 import PackingVerify from "./pages/PackingVerify";
+import WarehouseEconomy from "./pages/WarehouseEconomy";
 import WarehouseInventoryPlaceholder from "./pages/WarehouseInventoryPlaceholder";
 import WarehouseServicePlaceholder from "./pages/WarehouseServicePlaceholder";
 
@@ -100,6 +101,7 @@ const AppContent = () => {
               <Route path="/warehouse/packing" element={<WarehouseSystemLayout><PackingManagement /></WarehouseSystemLayout>} />
               <Route path="/warehouse/packing/:packingId" element={<WarehouseSystemLayout><PackingDetail /></WarehouseSystemLayout>} />
               <Route path="/warehouse/packing/:packingId/verify" element={<PackingVerify />} />
+              <Route path="/warehouse/economy" element={<WarehouseSystemLayout><WarehouseEconomy /></WarehouseSystemLayout>} />
               <Route path="/warehouse/inventory" element={<WarehouseSystemLayout><WarehouseInventoryPlaceholder /></WarehouseSystemLayout>} />
               <Route path="/warehouse/service" element={<WarehouseSystemLayout><WarehouseServicePlaceholder /></WarehouseSystemLayout>} />
 

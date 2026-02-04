@@ -7,7 +7,8 @@ import {
   Boxes,
   Wrench,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  TrendingUp
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +16,7 @@ const navigationItems = [
   { title: "Dashboard", url: "/warehouse", icon: LayoutDashboard, exact: true },
   { title: "Personalplanering", url: "/warehouse/calendar", icon: Calendar },
   { title: "Planera packning", url: "/warehouse/packing", icon: Package },
+  { title: "Lagerekonomi", url: "/warehouse/economy", icon: TrendingUp },
   { title: "Inventarier", url: "/warehouse/inventory", icon: Boxes },
   { title: "Service", url: "/warehouse/service", icon: Wrench },
 ];
