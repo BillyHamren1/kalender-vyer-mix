@@ -35,18 +35,32 @@ const fetchPackingForList = async (packingId: string): Promise<PackingWithBookin
 
 // Fetch packing list items with product info
 const fetchPackingListItems = async (packingId: string, bookingId: string | null): Promise<PackingListItem[]> => {
-  // First check if items exist
+  // First check existing items count
   const { data: existingItems, error: checkError } = await supabase
     .from('packing_list_items')
     .select('id')
-    .eq('packing_id', packingId)
-    .limit(1);
+    .eq('packing_id', packingId);
 
   if (checkError) throw checkError;
+  
+  const existingCount = existingItems?.length || 0;
 
-  // If no items exist and we have a booking, generate them
-  if (existingItems?.length === 0 && bookingId) {
-    await generatePackingListItems(packingId, bookingId);
+  // If we have a booking, check if we need to sync
+  if (bookingId) {
+    const { data: productCount } = await supabase
+      .from('booking_products')
+      .select('id')
+      .eq('booking_id', bookingId);
+    
+    const productCountValue = productCount?.length || 0;
+    
+    // If no items exist OR fewer items than products, sync to add missing
+    if (existingCount === 0) {
+      await generatePackingListItems(packingId, bookingId);
+    } else if (existingCount < productCountValue) {
+      // Some items exist but not all - sync to add missing ones
+      await syncPackingListItemsInternal(packingId, bookingId);
+    }
   }
 
   // Fetch items with product info
@@ -193,6 +207,37 @@ const generatePackingListItems = async (packingId: string, bookingId: string): P
     .insert(itemsToInsert);
 
   if (insertError) throw insertError;
+};
+
+// Internal sync function (doesn't return stats, used during fetch)
+const syncPackingListItemsInternal = async (packingId: string, bookingId: string): Promise<void> => {
+  const { data: products, error: productsError } = await supabase
+    .from('booking_products')
+    .select('id, quantity')
+    .eq('booking_id', bookingId);
+
+  if (productsError) throw productsError;
+  
+  const { data: existingItems, error: itemsError } = await supabase
+    .from('packing_list_items')
+    .select('booking_product_id')
+    .eq('packing_id', packingId);
+
+  if (itemsError) throw itemsError;
+
+  const existingProductIds = new Set((existingItems || []).map(i => i.booking_product_id));
+  const productsToAdd = (products || []).filter(p => !existingProductIds.has(p.id));
+
+  if (productsToAdd.length > 0) {
+    const itemsToInsert = productsToAdd.map(product => ({
+      packing_id: packingId,
+      booking_product_id: product.id,
+      quantity_to_pack: product.quantity,
+      quantity_packed: 0
+    }));
+
+    await supabase.from('packing_list_items').insert(itemsToInsert);
+  }
 };
 
 // Sync packing list items with current booking products (add missing only)
