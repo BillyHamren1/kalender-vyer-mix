@@ -1,103 +1,129 @@
 
-# Kolli-funktion för Scanner
+# SSO-integration med EventFlow Hub
 
 ## Översikt
-Lägger till en "Kolli"-knapp i scannerappen som låter användaren gruppera produkter i fysiska kollin (fraktpaket). Flödet blir:
+Implementerar SSO (Single Sign-On) för att användare automatiskt ska loggas in i Planerings-modulen när de navigerar från EventFlow Hub.
 
-1. Tryck på "Kolli"-knappen
-2. Scanna produkter som ska ingå i kolliet
-3. Produkterna länkas till kolliet med nummer (Kolli #1, Kolli #2, etc.)
-4. Tryck "Nästa kolli" för att starta ett nytt kolli, eller "Avsluta" för att gå tillbaka
-
-## Användarflöde
+## Hur det fungerar
 
 ```text
-┌─────────────────────────────────────┐
-│  Verifierings-vy                    │
-│                                     │
-│  [Progress bar]  [QR]  [📦 Kolli]   │
-│                                     │
-│  Produktlista...                    │
-└─────────────────────────────────────┘
-                │
-                ▼ Tryck "Kolli"
-┌─────────────────────────────────────┐
-│  KOLLI-LÄGE  (#1)                   │
-│  ─────────────────                  │
-│  Scanna produkter för Kolli #1      │
-│                                     │
-│  ✓ Produkt A → Kolli #1             │
-│  ✓ Produkt B → Kolli #1             │
-│                                     │
-│  [Nästa kolli]     [Avsluta]        │
-└─────────────────────────────────────┘
-                │
-                ▼ Tryck "Nästa kolli"
-┌─────────────────────────────────────┐
-│  KOLLI-LÄGE  (#2)                   │
-│  ─────────────────                  │
-│  Scanna produkter för Kolli #2      │
-│                                     │
-│  ✓ Produkt C → Kolli #2             │
-│                                     │
-│  [Nästa kolli]     [Avsluta]        │
-└─────────────────────────────────────┘
+┌─────────────────────┐          ┌─────────────────────────────────┐
+│   EventFlow Hub     │          │   Planerings-modulen            │
+│                     │          │   (kalender-vyer-mix)           │
+│                     │          │                                 │
+│  Användare klickar  │          │  1. useSsoListener fångar token │
+│  på Planering       │──────────│  2. Skickar till Edge Function  │
+│                     │          │  3. Verifierar signatur         │
+│  Genererar SSO-     │          │  4. Skapar Supabase-session     │
+│  token med HMAC     │          │  5. Användaren är inloggad!     │
+└─────────────────────┘          └─────────────────────────────────┘
+        │                                     │
+        │     Via URL: #sso_token=...         │
+        │     Via postMessage (fallback)      │
+        └─────────────────────────────────────┘
 ```
 
 ---
 
-## Tekniska ändringar
+## Del 1: Edge Function `verify-sso-token`
 
-### 1. Ny databastabell: `packing_parcels`
-Sparar varje kolli för en packlista:
+Skapar en ny Edge Function som:
+- Tar emot SSO-token från frontend
+- Normaliserar `full_name` (strippar icke-ASCII-tecken som å, ä, ö)
+- Verifierar HMAC-SHA256 signatur mot delad hemlighet
+- Kontrollerar att token inte är utgången
+- Skapar en Supabase-session via Admin API (magic link)
+- Returnerar access token för klienten
 
-| Kolumn | Typ | Beskrivning |
-|--------|-----|-------------|
-| id | UUID | Primärnyckel |
-| packing_id | UUID | Koppling till packlista |
-| parcel_number | INTEGER | Kollinummer (1, 2, 3...) |
-| created_by | TEXT | Vem som skapade kolliet |
-| created_at | TIMESTAMP | När det skapades |
+**Fil:** `supabase/functions/verify-sso-token/index.ts`
 
-### 2. Ny kolumn i `packing_list_items`
-Lägger till en referens till vilket kolli produkten packats i:
-
-| Kolumn | Typ | Beskrivning |
-|--------|-----|-------------|
-| parcel_id | UUID | Referens till kolli (nullable) |
-
-### 3. Nya tjänstefunktioner i `scannerService.ts`
-- `createParcel(packingId, createdBy)` - Skapa nytt kolli
-- `assignItemToParcel(itemId, parcelId)` - Länka produkt till kolli
-- `getParcelsByPacking(packingId)` - Hämta alla kolli för en packlista
-
-### 4. UI-ändringar i `VerificationView.tsx`
-- Ny knapp "Kolli" bredvid QR-knappen
-- Kolli-läge med header som visar aktuellt kollinummer
-- Vid scan/manuell bockning: produkten kopplas till aktivt kolli
-- Knappar "Nästa kolli" och "Avsluta"
-- Visuell indikator på produkter som visar vilket kolli de tillhör (t.ex. "📦 #1")
+**Config-uppdatering:** Lägger till `verify_jwt = false` för funktionen i `supabase/config.toml`
 
 ---
 
-## Visuellt i produktlistan
+## Del 2: Frontend Hook `useSsoListener`
 
-Efter kolli-tilldelning visas ett litet märke på produkten:
+Skapar en React hook som:
+- Kollar URL-hash vid laddning efter `sso_token=`
+- Lyssnar på `postMessage` events som fallback
+- Dekrypterar base64-token och skickar till Edge Function
+- Skickar tillbaka SSO_ACK eller SSO_ERROR till Hubben
+- Hanterar sessionsskapande i Supabase-klienten
 
-```text
-✓ MULTIFLEX 8X15          📦#1    1/1
-  ↳ Transparant Vägg 3M   📦#1    3/3
-  ↳ Tak                   📦#2    1/1
-```
+**Fil:** `src/hooks/useSsoListener.ts`
 
 ---
 
-## Filer som ändras
+## Del 3: Aktivera i App.tsx
+
+Anropar `useSsoListener()` hooken i AppContent-komponenten så den körs vid appstart.
+
+**Fil:** `src/App.tsx`
+
+---
+
+## Secret som behöver konfigureras
+
+| Secret | Beskrivning |
+|--------|-------------|
+| `SSO_SECRET` | Delad hemlighet för HMAC-signering (EventFlow Hub skickar värdet) |
+
+---
+
+## Filer som skapas/ändras
 
 | Fil | Ändring |
 |-----|---------|
-| `supabase/migrations/` | Ny tabell + kolumn |
-| `src/integrations/supabase/types.ts` | Uppdateras automatiskt |
-| `src/services/scannerService.ts` | Nya funktioner för kolli |
-| `src/components/scanner/VerificationView.tsx` | UI för kolli-läge |
-| `src/types/packing.ts` | Typdefinitioner för Parcel |
+| `supabase/functions/verify-sso-token/index.ts` | Ny Edge Function |
+| `supabase/config.toml` | Lägg till verify_jwt = false |
+| `src/hooks/useSsoListener.ts` | Ny hook för SSO-lyssnare |
+| `src/App.tsx` | Aktivera hooken |
+
+---
+
+## Tekniska detaljer
+
+### HMAC-SHA256 Verifiering
+```typescript
+// Normalisera payload (matcha Hubbens signering)
+const normalizedPayload = {
+  ...payload,
+  full_name: payload.full_name?.replace(/[^\x00-\x7F]/g, '') || null
+};
+
+// Verifiera signatur med Web Crypto API
+const cryptoKey = await crypto.subtle.importKey('raw', encoder.encode(secret), 
+  { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+const expectedSig = await crypto.subtle.sign('HMAC', cryptoKey, 
+  encoder.encode(JSON.stringify(normalizedPayload)));
+```
+
+### Session-skapande
+Använder Supabase Admin API för att generera en magic link och extrahera tokens:
+```typescript
+const { data: linkData } = await supabase.auth.admin.generateLink({
+  type: 'magiclink',
+  email: payload.email,
+});
+```
+
+### PostMessage-kommunikation
+```typescript
+// Skicka bekräftelse till Hubben
+window.parent.postMessage({ type: 'SSO_ACK', success: true }, '*');
+
+// Eller fel
+window.parent.postMessage({ 
+  type: 'SSO_ERROR', 
+  success: false, 
+  error_code: 'SIGNATURE_MISMATCH' 
+}, '*');
+```
+
+---
+
+## Information att skicka till EventFlow Hub-teamet
+
+Efter implementation:
+- **PLANERING_SUPABASE_URL:** `https://pihrhltinhewhoxefjxv.supabase.co`
+- **PLANERING_SERVICE_ROLE_KEY:** (hämtas från Supabase Dashboard → Settings → API)
