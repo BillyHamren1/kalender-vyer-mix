@@ -11,14 +11,16 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { 
   Building2, ArrowLeft, Plus, MapPin, Calendar, Users, 
-  FileText, MessageSquare, Wallet, Trash2, Search, Package
+  FileText, MessageSquare, Wallet, Trash2, Search, Package, GanttChart
 } from 'lucide-react';
 import { 
   fetchLargeProject, 
   updateLargeProject,
   addBookingToLargeProject,
   removeBookingFromLargeProject,
-  fetchAvailableBookingsForLargeProject
+  fetchAvailableBookingsForLargeProject,
+  fetchLargeProjectGanttSteps,
+  saveLargeProjectGanttSteps
 } from '@/services/largeProjectService';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -26,6 +28,8 @@ import { toast } from 'sonner';
 import MainSystemLayout from '@/components/layouts/MainSystemLayout';
 import { LargeProjectStatus, LARGE_PROJECT_STATUS_LABELS, LARGE_PROJECT_STATUS_COLORS } from '@/types/largeProject';
 import { cn } from '@/lib/utils';
+import { LargeProjectGanttSetup } from '@/components/project/LargeProjectGanttSetup';
+import { LargeProjectGanttChart, GanttStep } from '@/components/project/LargeProjectGanttChart';
 
 const LargeProjectDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -34,10 +38,17 @@ const LargeProjectDetail = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isAddBookingOpen, setIsAddBookingOpen] = useState(false);
   const [bookingSearch, setBookingSearch] = useState('');
+  const [isGanttSetupOpen, setIsGanttSetupOpen] = useState(false);
 
   const { data: project, isLoading } = useQuery({
     queryKey: ['large-project', id],
     queryFn: () => fetchLargeProject(id!),
+    enabled: !!id
+  });
+
+  const { data: ganttSteps = [] } = useQuery({
+    queryKey: ['large-project-gantt', id],
+    queryFn: () => fetchLargeProjectGanttSteps(id!),
     enabled: !!id
   });
 
@@ -89,6 +100,29 @@ const LargeProjectDetail = () => {
       navigate('/projects');
     }
   };
+
+  const handleSaveGantt = async (steps: GanttStep[]) => {
+    await saveLargeProjectGanttSteps(id!, steps.map(s => ({
+      key: s.key,
+      name: s.name,
+      start_date: s.start_date,
+      end_date: s.end_date,
+      is_milestone: s.is_milestone
+    })));
+    queryClient.invalidateQueries({ queryKey: ['large-project-gantt', id] });
+    setIsGanttSetupOpen(false);
+  };
+
+  // Convert DB gantt steps to component format
+  const formattedGanttSteps: GanttStep[] = ganttSteps.map(s => ({
+    id: s.id,
+    key: s.step_key,
+    name: s.step_name,
+    start_date: s.start_date || '',
+    end_date: s.end_date || '',
+    is_milestone: s.is_milestone,
+    sort_order: s.sort_order
+  }));
 
   const filteredAvailableBookings = availableBookings.filter(b => 
     b.client.toLowerCase().includes(bookingSearch.toLowerCase()) ||
@@ -172,6 +206,13 @@ const LargeProjectDetail = () => {
                 >
                   <Package className="w-4 h-4 mr-2" />
                   Översikt
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="gantt"
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-12 px-0"
+                >
+                  <GanttChart className="w-4 h-4 mr-2" />
+                  Schema
                 </TabsTrigger>
                 <TabsTrigger 
                   value="bookings"
@@ -343,6 +384,23 @@ const LargeProjectDetail = () => {
                     )}
                   </CardContent>
                 </Card>
+              </TabsContent>
+
+              {/* Gantt Tab */}
+              <TabsContent value="gantt" className="mt-0 space-y-6">
+                {isGanttSetupOpen || formattedGanttSteps.length === 0 ? (
+                  <LargeProjectGanttSetup
+                    largeProjectId={id!}
+                    existingSteps={formattedGanttSteps.length > 0 ? formattedGanttSteps : undefined}
+                    onSave={handleSaveGantt}
+                    onCancel={formattedGanttSteps.length > 0 ? () => setIsGanttSetupOpen(false) : undefined}
+                  />
+                ) : (
+                  <LargeProjectGanttChart
+                    steps={formattedGanttSteps}
+                    onEdit={() => setIsGanttSetupOpen(true)}
+                  />
+                )}
               </TabsContent>
 
               {/* Bookings Tab */}

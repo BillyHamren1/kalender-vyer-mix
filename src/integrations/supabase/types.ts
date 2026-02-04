@@ -731,6 +731,53 @@ export type Database = {
           },
         ]
       }
+      large_project_gantt_steps: {
+        Row: {
+          created_at: string
+          end_date: string | null
+          id: string
+          is_milestone: boolean | null
+          large_project_id: string
+          sort_order: number
+          start_date: string | null
+          step_key: string
+          step_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          is_milestone?: boolean | null
+          large_project_id: string
+          sort_order?: number
+          start_date?: string | null
+          step_key: string
+          step_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          is_milestone?: boolean | null
+          large_project_id?: string
+          sort_order?: number
+          start_date?: string | null
+          step_key?: string
+          step_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "large_project_gantt_steps_large_project_id_fkey"
+            columns: ["large_project_id"]
+            isOneToOne: false
+            referencedRelation: "large_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       large_project_purchases: {
         Row: {
           amount: number | null

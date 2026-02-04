@@ -451,3 +451,67 @@ export async function fetchAvailableBookingsForLargeProject(): Promise<any[]> {
   if (error) throw error;
   return data || [];
 }
+
+// ============================================
+// GANTT STEPS
+// ============================================
+
+export interface LargeProjectGanttStep {
+  id: string;
+  large_project_id: string;
+  step_key: string;
+  step_name: string;
+  start_date: string | null;
+  end_date: string | null;
+  is_milestone: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function fetchLargeProjectGanttSteps(largeProjectId: string): Promise<LargeProjectGanttStep[]> {
+  const { data, error } = await supabase
+    .from('large_project_gantt_steps')
+    .select('*')
+    .eq('large_project_id', largeProjectId)
+    .order('sort_order', { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function saveLargeProjectGanttSteps(
+  largeProjectId: string,
+  steps: Array<{
+    key: string;
+    name: string;
+    start_date: string;
+    end_date: string;
+    is_milestone: boolean;
+  }>
+): Promise<LargeProjectGanttStep[]> {
+  // Delete existing steps
+  await supabase
+    .from('large_project_gantt_steps')
+    .delete()
+    .eq('large_project_id', largeProjectId);
+
+  // Insert new steps
+  const stepsToInsert = steps.map((step, index) => ({
+    large_project_id: largeProjectId,
+    step_key: step.key,
+    step_name: step.name,
+    start_date: step.start_date,
+    end_date: step.end_date,
+    is_milestone: step.is_milestone,
+    sort_order: index
+  }));
+
+  const { data, error } = await supabase
+    .from('large_project_gantt_steps')
+    .insert(stepsToInsert)
+    .select();
+
+  if (error) throw error;
+  return data || [];
+}
