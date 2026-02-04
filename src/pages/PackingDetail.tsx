@@ -352,7 +352,7 @@ const PackingDetail = () => {
                       <div className="h-8 bg-muted rounded" />
                     </div>
                   ) : products.length > 0 ? (
-                    <ProductsList products={products} />
+                    <ProductsList products={products} showPricing={false} />
                   ) : (
                     <p className="text-muted-foreground text-center py-8">
                       Inga produkter kopplade till denna bokning

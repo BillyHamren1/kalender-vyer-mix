@@ -299,11 +299,12 @@ export const usePackingList = (packingId: string) => {
     enabled: !!packingId
   });
 
-  // Fetch items
+  // Fetch items - wait for packing to be loaded AND have a booking_id
+  const bookingId = packing?.booking_id || null;
   const { data: items = [], isLoading: isLoadingItems } = useQuery({
-    queryKey: ['packing-list-items', packingId],
-    queryFn: () => fetchPackingListItems(packingId, packing?.booking_id || null),
-    enabled: !!packingId && packing !== undefined
+    queryKey: ['packing-list-items', packingId, bookingId],
+    queryFn: () => fetchPackingListItems(packingId, bookingId),
+    enabled: !!packingId && !isLoadingPacking && !!bookingId
   });
 
   // Update item mutation
