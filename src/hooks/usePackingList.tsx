@@ -3,13 +3,20 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { PackingListItem, PackingWithBooking } from "@/types/packing";
 
+const NEW_ITEMS_STORAGE_KEY = (packingId: string) => `packing_list:new_items:${packingId}`;
+
+type NewItemsStoragePayload = {
+  ts: number;
+  productIds: string[];
+};
+
 // Fetch packing with booking info
 const fetchPackingForList = async (packingId: string): Promise<PackingWithBooking | null> => {
   const { data: packing, error } = await supabase
     .from('packing_projects')
     .select('*')
     .eq('id', packingId)
-    .single();
+    .maybeSingle();
 
   if (error) throw error;
   if (!packing) return null;
@@ -19,7 +26,7 @@ const fetchPackingForList = async (packingId: string): Promise<PackingWithBookin
       .from('bookings')
       .select('id, client, eventdate, deliveryaddress, contact_name, contact_phone, contact_email, booking_number')
       .eq('id', packing.booking_id)
-      .single();
+      .maybeSingle();
     return { ...packing, booking } as PackingWithBooking;
   }
 
@@ -53,65 +60,76 @@ const fetchPackingListItems = async (packingId: string, bookingId: string | null
 
   // Get all current booking product IDs to detect orphaned items
   let currentProductIds = new Set<string>();
-  let newProductIds = new Set<string>();
-  
   if (bookingId) {
-    const { data: currentProducts } = await supabase
+    const { data: currentProducts, error: currentError } = await supabase
       .from('booking_products')
       .select('id')
       .eq('booking_id', bookingId);
+
+    if (currentError) throw currentError;
     currentProductIds = new Set((currentProducts || []).map(p => p.id));
-    
-    // Check for newly added products (products that don't have packing list items yet)
-    const existingProductIds = new Set((items || []).map(i => i.booking_product_id));
-    newProductIds = new Set(
-      [...currentProductIds].filter(id => !existingProductIds.has(id))
-    );
   }
 
-  // Fetch product info for each item
-  const itemsWithProducts: PackingListItem[] = await Promise.all(
-    (items || []).map(async (item) => {
-      const { data: product } = await supabase
-        .from('booking_products')
-        .select('id, name, quantity, parent_product_id')
-        .eq('id', item.booking_product_id)
-        .single();
+  // Fetch product info in ONE query (avoid N+1 for large lists)
+  const itemProductIds = Array.from(new Set((items || []).map(i => i.booking_product_id)));
+  const productMap = new Map<string, { id: string; name: string; quantity: number; parent_product_id: string | null; sku: string | null }>();
 
-      const isOrphaned = !currentProductIds.has(item.booking_product_id) && currentProductIds.size > 0;
+  if (itemProductIds.length > 0) {
+    const { data: products, error: productsError } = await supabase
+      .from('booking_products')
+      .select('id, name, quantity, parent_product_id, sku')
+      .in('id', itemProductIds);
 
-      return {
-        ...item,
-        product: product ? {
-          id: product.id,
-          name: product.name,
-          quantity: product.quantity,
-          parent_product_id: product.parent_product_id
-        } : undefined,
-        isOrphaned
-      } as PackingListItem;
-    })
-  );
+    if (productsError) throw productsError;
+    (products || []).forEach((p) => productMap.set(p.id, p));
+  }
 
-  // Sort: new items first (highlighted), then main products, then orphaned at bottom
-  return sortPackingListItemsWithStatus(itemsWithProducts, newProductIds);
+  // Load newly-added IDs (written by sync) so we can highlight them deterministically
+  let newlyAddedIds = new Set<string>();
+  try {
+    const raw = localStorage.getItem(NEW_ITEMS_STORAGE_KEY(packingId));
+    if (raw) {
+      const parsed = JSON.parse(raw) as NewItemsStoragePayload;
+      // keep it short-lived (15 min)
+      if (parsed?.ts && Date.now() - parsed.ts < 15 * 60 * 1000) {
+        newlyAddedIds = new Set(parsed.productIds || []);
+      }
+      // clear after first read so it doesn't stick forever
+      localStorage.removeItem(NEW_ITEMS_STORAGE_KEY(packingId));
+    }
+  } catch {
+    // ignore storage errors
+  }
+
+  const itemsWithProducts: PackingListItem[] = (items || []).map((item) => {
+    const product = productMap.get(item.booking_product_id);
+    const isOrphaned = bookingId ? !currentProductIds.has(item.booking_product_id) : false;
+
+    return {
+      ...item,
+      product: product
+        ? {
+            id: product.id,
+            name: product.name,
+            quantity: product.quantity,
+            parent_product_id: product.parent_product_id,
+            sku: product.sku,
+          }
+        : undefined,
+      // If product row is missing, we still want to show the packing list item as orphaned
+      isOrphaned: isOrphaned || !product,
+      isNewlyAdded: newlyAddedIds.has(item.booking_product_id),
+    } as PackingListItem;
+  });
+
+  return sortPackingListItemsWithStatus(itemsWithProducts);
 };
 
 // Sort items: new first, main products, accessories grouped, orphaned last
-const sortPackingListItemsWithStatus = (items: PackingListItem[], newProductIds: Set<string>): PackingListItem[] => {
+const sortPackingListItemsWithStatus = (items: PackingListItem[]): PackingListItem[] => {
   // Separate orphaned items
   const activeItems = items.filter(i => !i.isOrphaned);
   const orphanedItems = items.filter(i => i.isOrphaned);
-
-  // Mark newly added items (items that were just synced in)
-  activeItems.forEach(item => {
-    // Check if the item was created very recently (within the last minute) - indicates newly synced
-    const createdAt = new Date(item.created_at);
-    const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
-    if (createdAt > oneMinuteAgo) {
-      item.isNewlyAdded = true;
-    }
-  });
 
   // Sort active items by parent hierarchy
   const mainProducts: PackingListItem[] = [];
@@ -177,8 +195,12 @@ const generatePackingListItems = async (packingId: string, bookingId: string): P
   if (insertError) throw insertError;
 };
 
-// Sync packing list items with current booking products (add missing, remove orphaned)
-const syncPackingListItems = async (packingId: string, bookingId: string): Promise<{ added: number; removed: number }> => {
+// Sync packing list items with current booking products (add missing only)
+// NOTE: Removed products should NOT be deleted from packing_list_items; they are shown at the bottom as orphaned.
+const syncPackingListItems = async (
+  packingId: string,
+  bookingId: string
+): Promise<{ added: number; addedProductIds: string[]; orphaned: number }> => {
   // Fetch all current booking products
   const { data: products, error: productsError } = await supabase
     .from('booking_products')
@@ -201,11 +223,11 @@ const syncPackingListItems = async (packingId: string, bookingId: string): Promi
   // Find products that need new packing list items
   const productsToAdd = (products || []).filter(p => !existingProductIds.has(p.id));
   
-  // Find packing list items that reference non-existent products
-  const itemsToRemove = (existingItems || []).filter(i => !productIds.has(i.booking_product_id));
+  // Count orphaned items (kept, but shown at bottom)
+  const orphanedItems = (existingItems || []).filter(i => !productIds.has(i.booking_product_id));
 
   let added = 0;
-  let removed = 0;
+  const addedProductIds: string[] = [];
 
   // Add missing items
   if (productsToAdd.length > 0) {
@@ -220,26 +242,13 @@ const syncPackingListItems = async (packingId: string, bookingId: string): Promi
       .from('packing_list_items')
       .insert(itemsToInsert);
 
-    if (!insertError) {
-      added = productsToAdd.length;
-    }
+    if (insertError) throw insertError;
+
+    added = productsToAdd.length;
+    addedProductIds.push(...productsToAdd.map(p => p.id));
   }
 
-  // Remove orphaned items
-  if (itemsToRemove.length > 0) {
-    const idsToRemove = itemsToRemove.map(i => i.id);
-    
-    const { error: deleteError } = await supabase
-      .from('packing_list_items')
-      .delete()
-      .in('id', idsToRemove);
-
-    if (!deleteError) {
-      removed = itemsToRemove.length;
-    }
-  }
-
-  return { added, removed };
+  return { added, addedProductIds, orphaned: orphanedItems.length };
 };
 
 // Update a packing list item
@@ -324,12 +333,19 @@ export const usePackingList = (packingId: string) => {
       return syncPackingListItems(packingId, packing.booking_id);
     },
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['packing-list-items', packingId] });
-      if (result.added > 0 || result.removed > 0) {
-        toast.success(`Packlistan synkad: ${result.added} tillagda, ${result.removed} borttagna`);
-      } else {
-        toast.info('Packlistan är redan synkad');
+      // Store newly added IDs so the next fetch can highlight them
+      if (result.addedProductIds.length > 0) {
+        try {
+          const payload: NewItemsStoragePayload = {
+            ts: Date.now(),
+            productIds: result.addedProductIds,
+          };
+          localStorage.setItem(NEW_ITEMS_STORAGE_KEY(packingId), JSON.stringify(payload));
+        } catch {
+          // ignore
+        }
       }
+      queryClient.invalidateQueries({ queryKey: ['packing-list-items', packingId] });
     },
     onError: () => toast.error('Kunde inte synka packlistan')
   });

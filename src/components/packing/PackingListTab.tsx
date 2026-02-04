@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { QrCode, CheckCircle2, Package, RefreshCw } from "lucide-react";
+import { QrCode, CheckCircle2, Package } from "lucide-react";
 import { PackingListItem } from "@/types/packing";
 import PackingListItemRow from "./PackingListItemRow";
 import PackingQRCode from "./PackingQRCode";
@@ -15,8 +15,6 @@ interface PackingListTabProps {
   isLoading: boolean;
   onUpdateItem: (id: string, updates: Partial<PackingListItem>) => void;
   onMarkAllPacked: () => void;
-  onSyncPackingList?: () => void;
-  isSyncing?: boolean;
 }
 
 const PackingListTab = ({
@@ -25,9 +23,7 @@ const PackingListTab = ({
   items,
   isLoading,
   onUpdateItem,
-  onMarkAllPacked,
-  onSyncPackingList,
-  isSyncing = false
+  onMarkAllPacked
 }: PackingListTabProps) => {
   const [showQR, setShowQR] = useState(false);
 
@@ -80,10 +76,22 @@ const PackingListTab = ({
       }
     });
 
-    // Sort main products: newly added first
+    // Sort main products: any group with new items first (parent OR any child)
+    const groupHasNew = (parent: PackingListItem) => {
+      const parentId = parent.product?.id;
+      if (!parentId) return !!parent.isNewlyAdded;
+      return (
+        !!parent.isNewlyAdded ||
+        (pkgComponents[parentId]?.some((i) => i.isNewlyAdded) ?? false) ||
+        (accByParent[parentId]?.some((i) => i.isNewlyAdded) ?? false)
+      );
+    };
+
     main.sort((a, b) => {
-      if (a.isNewlyAdded && !b.isNewlyAdded) return -1;
-      if (!a.isNewlyAdded && b.isNewlyAdded) return 1;
+      const aNew = groupHasNew(a);
+      const bNew = groupHasNew(b);
+      if (aNew && !bNew) return -1;
+      if (!aNew && bNew) return 1;
       return 0;
     });
 
@@ -139,17 +147,6 @@ const PackingListTab = ({
             Packlista
           </CardTitle>
           <div className="flex gap-2">
-            {onSyncPackingList && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onSyncPackingList}
-                disabled={isSyncing}
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
-                Synka lista
-              </Button>
-            )}
             <Button
               variant="outline"
               size="sm"
