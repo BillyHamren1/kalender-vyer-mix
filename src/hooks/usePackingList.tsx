@@ -51,6 +51,24 @@ const fetchPackingListItems = async (packingId: string, bookingId: string | null
 
   if (error) throw error;
 
+  // Get all current booking product IDs to detect orphaned items
+  let currentProductIds = new Set<string>();
+  let newProductIds = new Set<string>();
+  
+  if (bookingId) {
+    const { data: currentProducts } = await supabase
+      .from('booking_products')
+      .select('id')
+      .eq('booking_id', bookingId);
+    currentProductIds = new Set((currentProducts || []).map(p => p.id));
+    
+    // Check for newly added products (products that don't have packing list items yet)
+    const existingProductIds = new Set((items || []).map(i => i.booking_product_id));
+    newProductIds = new Set(
+      [...currentProductIds].filter(id => !existingProductIds.has(id))
+    );
+  }
+
   // Fetch product info for each item
   const itemsWithProducts: PackingListItem[] = await Promise.all(
     (items || []).map(async (item) => {
@@ -60,6 +78,8 @@ const fetchPackingListItems = async (packingId: string, bookingId: string | null
         .eq('id', item.booking_product_id)
         .single();
 
+      const isOrphaned = !currentProductIds.has(item.booking_product_id) && currentProductIds.size > 0;
+
       return {
         ...item,
         product: product ? {
@@ -67,21 +87,37 @@ const fetchPackingListItems = async (packingId: string, bookingId: string | null
           name: product.name,
           quantity: product.quantity,
           parent_product_id: product.parent_product_id
-        } : undefined
+        } : undefined,
+        isOrphaned
       } as PackingListItem;
     })
   );
 
-  // Sort: main products first, then accessories grouped under their parent
-  return sortPackingListItems(itemsWithProducts);
+  // Sort: new items first (highlighted), then main products, then orphaned at bottom
+  return sortPackingListItemsWithStatus(itemsWithProducts, newProductIds);
 };
 
-// Sort items so main products come first, followed by their accessories
-const sortPackingListItems = (items: PackingListItem[]): PackingListItem[] => {
+// Sort items: new first, main products, accessories grouped, orphaned last
+const sortPackingListItemsWithStatus = (items: PackingListItem[], newProductIds: Set<string>): PackingListItem[] => {
+  // Separate orphaned items
+  const activeItems = items.filter(i => !i.isOrphaned);
+  const orphanedItems = items.filter(i => i.isOrphaned);
+
+  // Mark newly added items (items that were just synced in)
+  activeItems.forEach(item => {
+    // Check if the item was created very recently (within the last minute) - indicates newly synced
+    const createdAt = new Date(item.created_at);
+    const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+    if (createdAt > oneMinuteAgo) {
+      item.isNewlyAdded = true;
+    }
+  });
+
+  // Sort active items by parent hierarchy
   const mainProducts: PackingListItem[] = [];
   const accessoriesByParent: Record<string, PackingListItem[]> = {};
 
-  items.forEach(item => {
+  activeItems.forEach(item => {
     const parentId = item.product?.parent_product_id;
     if (parentId) {
       if (!accessoriesByParent[parentId]) {
@@ -93,6 +129,13 @@ const sortPackingListItems = (items: PackingListItem[]): PackingListItem[] => {
     }
   });
 
+  // Sort main products: new ones first
+  mainProducts.sort((a, b) => {
+    if (a.isNewlyAdded && !b.isNewlyAdded) return -1;
+    if (!a.isNewlyAdded && b.isNewlyAdded) return 1;
+    return 0;
+  });
+
   // Build sorted list
   const sorted: PackingListItem[] = [];
   mainProducts.forEach(main => {
@@ -101,6 +144,9 @@ const sortPackingListItems = (items: PackingListItem[]): PackingListItem[] => {
       sorted.push(...accessoriesByParent[main.product.id]);
     }
   });
+
+  // Append orphaned items at the very end
+  sorted.push(...orphanedItems);
 
   return sorted;
 };

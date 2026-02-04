@@ -71,6 +71,9 @@ export interface PackingListItem {
     parent_product_id: string | null;
     sku: string | null;
   };
+  // UI state flags (not persisted)
+  isOrphaned?: boolean;
+  isNewlyAdded?: boolean;
 }
 
 export interface PackingWithBooking extends Packing {

@@ -4,7 +4,6 @@ import { ArrowLeft, Calendar, MapPin, Phone, User, Package, ClipboardList, Refre
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import PackingStatusDropdown from "@/components/packing/PackingStatusDropdown";
 import PackingTaskList from "@/components/packing/PackingTaskList";
 import PackingFiles from "@/components/packing/PackingFiles";
@@ -22,12 +21,6 @@ import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { toast } from "sonner";
 
-interface ProductChangeItem {
-  text: string;
-  type: 'added' | 'removed' | 'updated';
-  acknowledged: boolean;
-}
-
 interface ProductChanges {
   added: string[];
   removed: string[];
@@ -41,12 +34,9 @@ const PackingDetail = () => {
   const [products, setProducts] = useState<BookingProduct[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [productChanges, setProductChanges] = useState<ProductChanges | null>(null);
-  const [changeItems, setChangeItems] = useState<ProductChangeItem[]>([]);
-  const [showChangesPopover, setShowChangesPopover] = useState(false);
   const previousProductsRef = useRef<BookingProduct[]>([]);
   const loadRequestIdRef = useRef(0);
-  const lastChangeKeyRef = useRef<string | null>(null);
+  const lastNotifiedSignatureRef = useRef<string | null>(null);
   
   const {
     packing,
@@ -76,23 +66,12 @@ const PackingDetail = () => {
     refetchItems
   } = usePackingList(packingId || '');
 
+  // Create a stable signature of products for deduplication
   const makeProductsSignature = useCallback((list: BookingProduct[]) => {
-    // Stable business signature: if nothing in DB changed, this should remain identical
-    return list.map((p) => `${p.id}:${p.quantity}`).join("|");
+    return list.map((p) => `${p.id}:${p.quantity}`).sort().join("|");
   }, []);
 
-  const makeChangeKey = useCallback(
-    (oldList: BookingProduct[], newList: BookingProduct[]) =>
-      `${makeProductsSignature(oldList)}->${makeProductsSignature(newList)}`,
-    [makeProductsSignature]
-  );
-
-  const getAckStorageKey = useCallback((bookingId?: string | null) => {
-    if (!bookingId) return null;
-    return `packing_product_changes_ack:${bookingId}`;
-  }, []);
-
-  // Detect product changes between fetches (by ID to avoid false positives)
+  // Detect product changes between fetches (by ID)
   const detectProductChanges = useCallback((oldProducts: BookingProduct[], newProducts: BookingProduct[]): ProductChanges | null => {
     if (oldProducts.length === 0) return null;
 
@@ -128,38 +107,28 @@ const PackingDetail = () => {
     setIsLoadingProducts(true);
 
     try {
-      const bookingId = packing.booking_id;
-      const productsData = await fetchPackingProducts(bookingId);
+      const productsData = await fetchPackingProducts(packing.booking_id);
 
-      // Ignore stale/out-of-order responses (prevents duplicate popups on concurrent refreshes)
+      // Ignore stale/out-of-order responses
       if (requestId !== loadRequestIdRef.current) return;
 
       // Detect changes if we have previous products
       if (showChanges && previousProductsRef.current.length > 0) {
         const changes = detectProductChanges(previousProductsRef.current, productsData);
+        const newSignature = makeProductsSignature(productsData);
 
-        if (changes) {
-          const changeKey = makeChangeKey(previousProductsRef.current, productsData);
-          lastChangeKeyRef.current = changeKey;
-
-          const ackStorageKey = getAckStorageKey(bookingId);
-          const alreadyAcked = ackStorageKey ? localStorage.getItem(ackStorageKey) === changeKey : false;
-
-          if (!alreadyAcked) {
-            setProductChanges(changes);
-            const items: ProductChangeItem[] = [
-              ...changes.added.map((text) => ({ text, type: "added" as const, acknowledged: false })),
-              ...changes.removed.map((text) => ({ text, type: "removed" as const, acknowledged: false })),
-              ...changes.updated.map((text) => ({ text, type: "updated" as const, acknowledged: false })),
-            ];
-            setChangeItems(items);
-            setShowChangesPopover(true);
-            toast.info(
-              `Produktlistan har uppdaterats: ${changes.added.length} nya, ${changes.removed.length} borttagna, ${changes.updated.length} ändrade`
-            );
-          }
-        } else {
-          lastChangeKeyRef.current = null;
+        // Only show toast if this is actually new (not the same change set repeated)
+        if (changes && newSignature !== lastNotifiedSignatureRef.current) {
+          lastNotifiedSignatureRef.current = newSignature;
+          
+          // Simple toast notification - the packing list UI handles the visual display
+          toast.info(
+            `Produktlistan uppdaterad: ${changes.added.length} nya, ${changes.removed.length} borttagna, ${changes.updated.length} ändrade`,
+            { duration: 5000 }
+          );
+          
+          // Auto-sync the packing list to reflect the changes
+          syncPackingList();
         }
       }
 
@@ -172,60 +141,7 @@ const PackingDetail = () => {
         setIsLoadingProducts(false);
       }
     }
-  }, [detectProductChanges, getAckStorageKey, makeChangeKey, packing?.booking_id]);
-
-  // Acknowledge a single change item
-  const acknowledgeChange = useCallback((index: number) => {
-    setChangeItems((prev) => {
-      const next = prev.map((item, i) => (i === index ? { ...item, acknowledged: true } : item));
-
-      // If all are acknowledged, auto-close and clear so it doesn't linger
-      if (next.length > 0 && next.every((i) => i.acknowledged)) {
-        const bookingId = packing?.booking_id;
-        const ackStorageKey = getAckStorageKey(bookingId);
-        if (ackStorageKey && lastChangeKeyRef.current) {
-          localStorage.setItem(ackStorageKey, lastChangeKeyRef.current);
-        }
-        window.setTimeout(() => {
-          setShowChangesPopover(false);
-          setProductChanges(null);
-          setChangeItems([]);
-        }, 150);
-      }
-
-      return next;
-    });
-  }, [getAckStorageKey, packing?.booking_id]);
-
-  // Acknowledge all changes
-  const acknowledgeAllChanges = useCallback(() => {
-    setChangeItems((prev) => prev.map((item) => ({ ...item, acknowledged: true })));
-
-    const bookingId = packing?.booking_id;
-    const ackStorageKey = getAckStorageKey(bookingId);
-    if (ackStorageKey && lastChangeKeyRef.current) {
-      localStorage.setItem(ackStorageKey, lastChangeKeyRef.current);
-    }
-
-    window.setTimeout(() => {
-      setShowChangesPopover(false);
-      setProductChanges(null);
-      setChangeItems([]);
-    }, 150);
-  }, [getAckStorageKey, packing?.booking_id]);
-
-  // Dismiss all changes (close popover and clear)
-  const dismissAllChanges = useCallback(() => {
-    // Treat dismiss as acknowledgement to avoid the same change list popping up again
-    const bookingId = packing?.booking_id;
-    const ackStorageKey = getAckStorageKey(bookingId);
-    if (ackStorageKey && lastChangeKeyRef.current) {
-      localStorage.setItem(ackStorageKey, lastChangeKeyRef.current);
-    }
-    setProductChanges(null);
-    setChangeItems([]);
-    setShowChangesPopover(false);
-  }, [getAckStorageKey, packing?.booking_id]);
+  }, [detectProductChanges, makeProductsSignature, packing?.booking_id, syncPackingList]);
 
   useEffect(() => {
     loadProducts(false);
@@ -311,101 +227,6 @@ const PackingDetail = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* Changes Popover */}
-            {changeItems.length > 0 && (
-              <Popover open={showChangesPopover} onOpenChange={setShowChangesPopover}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="text-amber-600 border-amber-300 bg-amber-50 hover:bg-amber-100">
-                    Produktändringar ({changeItems.filter(i => !i.acknowledged).length})
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-96 max-h-[70vh] overflow-y-auto">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-medium text-sm">Produktlistan har uppdaterats</h4>
-                      {changeItems.some(i => !i.acknowledged) && (
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-6 text-xs"
-                          onClick={acknowledgeAllChanges}
-                        >
-                          Bekräfta alla
-                        </Button>
-                      )}
-                    </div>
-                    
-                    {/* Unacknowledged changes first */}
-                    <div className="space-y-1">
-                      {changeItems
-                        .map((item, index) => ({ item, originalIndex: index }))
-                        .filter(({ item }) => !item.acknowledged)
-                        .map(({ item, originalIndex }) => {
-                          const colorClass = item.type === 'added' 
-                            ? 'text-green-600' 
-                            : item.type === 'removed' 
-                              ? 'text-red-600' 
-                              : 'text-amber-600';
-                          const prefix = item.type === 'added' ? '+' : item.type === 'removed' ? '-' : '~';
-                          return (
-                            <div key={`unack-${originalIndex}`} className="flex items-center justify-between gap-2 py-1 border-b border-border/50">
-                              <span className={`text-sm ${colorClass}`}>
-                                {prefix} {item.text}
-                              </span>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 px-2 text-xs shrink-0"
-                                onClick={() => acknowledgeChange(originalIndex)}
-                              >
-                                OK
-                              </Button>
-                            </div>
-                          );
-                        })}
-                      {changeItems.filter(i => !i.acknowledged).length === 0 && (
-                        <p className="text-sm text-muted-foreground italic">Alla ändringar bekräftade!</p>
-                      )}
-                    </div>
-                    
-                    {/* Acknowledged changes at bottom - crossed out */}
-                    {changeItems.filter(i => i.acknowledged).length > 0 && (
-                      <div className="pt-2 border-t border-border">
-                        <p className="text-xs text-muted-foreground mb-2">Bekräftade ändringar:</p>
-                        <div className="space-y-0.5">
-                          {changeItems
-                            .map((item, index) => ({ item, originalIndex: index }))
-                            .filter(({ item }) => item.acknowledged)
-                            .map(({ item, originalIndex }) => {
-                              const colorClass = item.type === 'added' 
-                                ? 'text-green-600/50' 
-                                : item.type === 'removed' 
-                                  ? 'text-red-600/50' 
-                                  : 'text-amber-600/50';
-                              const prefix = item.type === 'added' ? '+' : item.type === 'removed' ? '-' : '~';
-                              return (
-                                <div key={`ack-${originalIndex}`} className={`text-sm ${colorClass} line-through`}>
-                                  {prefix} {item.text}
-                                </div>
-                              );
-                            })}
-                        </div>
-                      </div>
-                    )}
-                    
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="w-full mt-2"
-                      onClick={dismissAllChanges}
-                    >
-                      Stäng
-                    </Button>
-                  </div>
-                </PopoverContent>
-              </Popover>
-            )}
-            
             {/* Refresh Button */}
             <Button 
               variant="outline" 
@@ -493,33 +314,52 @@ const PackingDetail = () => {
 
           <TabsContent value="gantt">
             <PackingGanttChart 
-              tasks={tasks} 
-              onTaskClick={(task) => setSelectedTask(task)}
+              tasks={tasks}
+              onTaskClick={setSelectedTask}
             />
           </TabsContent>
 
           <TabsContent value="tasks">
-            <PackingTaskList
-              tasks={tasks}
-              onAddTask={addTask}
-              onUpdateTask={updateTask}
-              onDeleteTask={deleteTask}
-            />
+            <Card>
+              <CardHeader>
+                <CardTitle>Uppgifter</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <PackingTaskList
+                  tasks={tasks}
+                  onAddTask={(task) => addTask(task)}
+                  onUpdateTask={(data) => updateTask(data)}
+                  onDeleteTask={deleteTask}
+                />
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {booking && (
             <TabsContent value="products">
-              {isLoadingProducts ? (
-                <Card>
-                  <CardContent className="py-8">
-                    <div className="flex justify-center">
-                      <div className="animate-pulse text-muted-foreground">Laddar produkter...</div>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="h-5 w-5" />
+                    Produkter från bokning
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingProducts ? (
+                    <div className="animate-pulse space-y-2">
+                      <div className="h-8 bg-muted rounded" />
+                      <div className="h-8 bg-muted rounded" />
+                      <div className="h-8 bg-muted rounded" />
                     </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <ProductsList products={products} />
-              )}
+                  ) : products.length > 0 ? (
+                    <ProductsList products={products} />
+                  ) : (
+                    <p className="text-muted-foreground text-center py-8">
+                      Inga produkter kopplade till denna bokning
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
           )}
 
@@ -539,16 +379,19 @@ const PackingDetail = () => {
             />
           </TabsContent>
         </Tabs>
-
-        {/* Task detail sheet for Gantt clicks */}
-        <PackingTaskDetailSheet
-          task={selectedTask}
-          open={!!selectedTask}
-          onOpenChange={(open) => !open && setSelectedTask(null)}
-          onUpdateTask={updateTask}
-          onDeleteTask={deleteTask}
-        />
       </div>
+
+      {/* Task Detail Sheet */}
+      <PackingTaskDetailSheet
+        task={selectedTask}
+        open={!!selectedTask}
+        onOpenChange={(open) => !open && setSelectedTask(null)}
+        onUpdateTask={(data) => updateTask(data)}
+        onDeleteTask={(id) => {
+          deleteTask(id);
+          setSelectedTask(null);
+        }}
+      />
     </div>
   );
 };
