@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useBackgroundImport } from "@/hooks/useBackgroundImport";
+import { useSsoListener } from "@/hooks/useSsoListener";
 
 // Layouts
 import MainSystemLayout from "@/components/layouts/MainSystemLayout";
@@ -63,6 +64,9 @@ const AppContent = () => {
   
   // Centralized background import - runs once at app level
   useBackgroundImport();
+  
+  // SSO listener for EventFlow Hub integration
+  useSsoListener();
 
   const contextValue = {
     lastViewedDate,
