@@ -237,8 +237,11 @@ export const calculateEconomySummary = (
   
   const actualHours = timeReports.reduce((sum, r) => sum + r.total_hours + r.overtime_hours, 0);
   const staffActual = timeReports.reduce((sum, r) => sum + r.total_cost, 0);
-  const staffDeviation = staffActual - staffBudget;
-  const staffDeviationPercent = staffBudget > 0 ? (staffActual / staffBudget) * 100 : 0;
+  // Positive deviation = under budget (good), negative = over budget (bad)
+  const staffDeviation = staffBudget - staffActual;
+  const staffDeviationPercent = staffBudget > 0 
+    ? ((staffBudget - staffActual) / staffBudget) * 100 
+    : (staffActual > 0 ? -100 : 0);
   
   const purchasesTotal = purchases.reduce((sum, p) => sum + Number(p.amount), 0);
   const quotesTotal = quotes.reduce((sum, q) => sum + Number(q.quoted_amount), 0);
@@ -257,8 +260,11 @@ export const calculateEconomySummary = (
   
   const totalBudget = staffBudget + quotesTotal;
   const totalActual = staffActual + purchasesTotal + invoicesTotal;
-  const totalDeviation = totalActual - totalBudget;
-  const totalDeviationPercent = totalBudget > 0 ? (totalActual / totalBudget) * 100 : 0;
+  // Positive deviation = under budget (good), negative = over budget (bad)
+  const totalDeviation = totalBudget - totalActual;
+  const totalDeviationPercent = totalBudget > 0 
+    ? ((totalBudget - totalActual) / totalBudget) * 100 
+    : (totalActual > 0 ? -100 : 0);
   
   return {
     budgetedHours,

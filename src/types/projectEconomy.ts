@@ -82,9 +82,10 @@ export interface EconomySummary {
 
 export type DeviationStatus = 'ok' | 'warning' | 'danger';
 
-export const getDeviationStatus = (percent: number): DeviationStatus => {
-  if (percent <= 100) return 'ok';
-  if (percent <= 110) return 'warning';
+export const getDeviationStatus = (deviationPercent: number): DeviationStatus => {
+  // Positive = under budget (good), negative = over budget (bad)
+  if (deviationPercent >= 0) return 'ok';
+  if (deviationPercent >= -10) return 'warning';
   return 'danger';
 };
 
