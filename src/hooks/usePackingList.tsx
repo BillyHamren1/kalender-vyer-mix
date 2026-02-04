@@ -188,15 +188,11 @@ const generatePackingListItems = async (packingId: string, bookingId: string): P
     quantity_packed: 0
   }));
 
-  // Use upsert+ignoreDuplicates to avoid race-condition 409 conflicts when multiple tabs refresh.
-  const { error: upsertError } = await supabase
+  const { error: insertError } = await supabase
     .from('packing_list_items')
-    .upsert(itemsToInsert, {
-      onConflict: 'packing_id,booking_product_id',
-      ignoreDuplicates: true,
-    });
+    .insert(itemsToInsert);
 
-  if (upsertError) throw upsertError;
+  if (insertError) throw insertError;
 };
 
 // Sync packing list items with current booking products (add missing only)
@@ -216,7 +212,7 @@ const syncPackingListItems = async (
   // Fetch existing packing list items
   const { data: existingItems, error: itemsError } = await supabase
     .from('packing_list_items')
-    .select('id, booking_product_id, quantity_to_pack')
+    .select('id, booking_product_id')
     .eq('packing_id', packingId);
 
   if (itemsError) throw itemsError;
@@ -242,41 +238,14 @@ const syncPackingListItems = async (
       quantity_packed: 0
     }));
 
-    const { error: upsertError } = await supabase
+    const { error: insertError } = await supabase
       .from('packing_list_items')
-      .upsert(itemsToInsert, {
-        onConflict: 'packing_id,booking_product_id',
-        ignoreDuplicates: true,
-      });
+      .insert(itemsToInsert);
 
-    if (upsertError) throw upsertError;
+    if (insertError) throw insertError;
 
     added = productsToAdd.length;
     addedProductIds.push(...productsToAdd.map(p => p.id));
-  }
-
-  // Keep quantity_to_pack aligned with booking quantity (does NOT touch quantity_packed)
-  const productQty = new Map((products || []).map((p) => [p.id, p.quantity] as const));
-  const updates = (existingItems || [])
-    .map((item) => {
-      const targetQty = productQty.get(item.booking_product_id);
-      if (typeof targetQty !== 'number') return null;
-      if (item.quantity_to_pack === targetQty) return null;
-      return { id: item.id, quantity_to_pack: targetQty };
-    })
-    .filter(Boolean) as { id: string; quantity_to_pack: number }[];
-
-  if (updates.length > 0) {
-    await Promise.all(
-      updates.map(async (u) => {
-        const { error: updateError } = await supabase
-          .from('packing_list_items')
-          .update({ quantity_to_pack: u.quantity_to_pack })
-          .eq('id', u.id);
-
-        if (updateError) throw updateError;
-      })
-    );
   }
 
   return { added, addedProductIds, orphaned: orphanedItems.length };
