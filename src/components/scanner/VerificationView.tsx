@@ -31,8 +31,33 @@ interface PackingItem {
     quantity: number;
     sku: string | null;
     notes: string | null;
+    parent_product_id: string | null;
+    parent_package_id: string | null;
+    is_package_component: boolean | null;
   } | null;
 }
+
+// Remove prefix symbols from product names
+const cleanProductName = (name: string): string => {
+  return name.replace(/^[↳└⦿\s,L]+/, '').trim();
+};
+
+// Convert UPPERCASE text to Title Case, preserving abbreviations and measurements
+const formatToTitleCase = (text: string): string => {
+  // If text is not mostly uppercase, return as-is
+  const upperCount = (text.match(/[A-ZÅÄÖ]/g) || []).length;
+  const lowerCount = (text.match(/[a-zåäö]/g) || []).length;
+  if (lowerCount >= upperCount) return text;
+  
+  return text.split(' ').map(word => {
+    // Preserve short abbreviations (1-3 chars like LM, M, ST)
+    if (word.length <= 3 && /^[A-ZÅÄÖ0-9]+$/.test(word)) return word;
+    // Preserve measurements/numbers (e.g., 8X15, 3M, 2.5M)
+    if (/\d/.test(word)) return word;
+    // Title case the word
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  }).join(' ');
+};
 
 export const VerificationView: React.FC<VerificationViewProps> = ({ 
   packingId, 
@@ -281,8 +306,31 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
               <div className="divide-y divide-border/30">
                 {/* All items in order */}
                 {items.map(item => {
-                  const name = item.booking_products?.name || 'Okänd produkt';
-                  const isChild = name.startsWith('↳') || name.startsWith('└') || name.startsWith('L,');
+                  const rawName = item.booking_products?.name || 'Okänd produkt';
+                  const trimmedName = rawName.trimStart();
+                  
+                  // Determine child status via relations first, then prefix fallback
+                  const isChildByRelation = !!(
+                    item.booking_products?.parent_product_id || 
+                    item.booking_products?.parent_package_id || 
+                    item.booking_products?.is_package_component
+                  );
+                  const isChildByPrefix = (
+                    trimmedName.startsWith('↳') || 
+                    trimmedName.startsWith('└') || 
+                    trimmedName.startsWith('L,') ||
+                    trimmedName.startsWith('⦿')
+                  );
+                  const isChild = isChildByRelation || isChildByPrefix;
+                  
+                  // Clean name and determine prefix indicator
+                  const cleanName = cleanProductName(rawName);
+                  const isPackageComponent = item.booking_products?.is_package_component || trimmedName.startsWith('⦿');
+                  const prefixIndicator = isChild ? (isPackageComponent ? '⦿ ' : '↳ ') : '';
+                  
+                  // Format display name: UPPERCASE for main, Title Case for children
+                  const displayName = isChild ? formatToTitleCase(cleanName) : cleanName.toUpperCase();
+                  
                   const sku = item.booking_products?.sku;
                   const packed = item.quantity_packed || 0;
                   const total = item.quantity_to_pack;
@@ -316,13 +364,12 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                         {isPartial && <span className="text-white text-[10px] font-bold">{packed}</span>}
                       </div>
                       
-                      {/* Product name */}
-                      {/* Product name */}
+                      {/* Product name with prefix indicator */}
                       <div className="flex-1 min-w-0">
                         <span className={`block truncate ${
                           isChild 
-                            ? 'text-xs' 
-                            : 'text-sm font-semibold'
+                            ? 'text-xs font-normal' 
+                            : 'text-sm font-semibold tracking-wide'
                         } ${
                           isComplete 
                             ? 'text-green-700' 
@@ -332,10 +379,8 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                                 ? 'text-muted-foreground' 
                                 : 'text-foreground'
                         }`}>
-                          {isChild 
-                            ? name.slice(0, 2) + name.slice(2).toLowerCase()
-                            : name.toUpperCase()
-                          }
+                          {isChild && <span className="text-muted-foreground/70">{prefixIndicator}</span>}
+                          {displayName}
                         </span>
                       </div>
                       

@@ -76,7 +76,9 @@ export const fetchPackingListItems = async (packingId: string) => {
         quantity,
         sku,
         notes,
-        parent_product_id
+        parent_product_id,
+        parent_package_id,
+        is_package_component
       )
     `)
     .eq('packing_id', packingId);
