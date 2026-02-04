@@ -333,7 +333,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                                 : 'text-foreground'
                         }`}>
                           {isChild 
-                            ? name.charAt(0) + name.slice(1).charAt(0) + name.slice(2).toLowerCase()
+                            ? name.slice(0, 2) + name.slice(2).toLowerCase()
                             : name.toUpperCase()
                           }
                         </span>
