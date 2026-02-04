@@ -1,147 +1,104 @@
 
-# Plan: Fixa Godkännande av Tidrapporter
+# Plan: Korrigera Avvikelselogik för Ekonomisystemet
 
 ## Sammanfattning
-UI:t uppdateras inte efter godkännande pga tre buggar: fel ID skickas till Supabase-uppdateringen, fel query key invalideras, och aggregeringen tappar individuella rapport-ID:n.
+Avvikelsen (Deviation) beräknas idag som `Utfall - Budget`, vilket visar positiva värden när man spenderar MER än budget. Den korrekta logiken bör vara `Budget - Utfall`:
 
-## Ändringar
+- **Positiv avvikelse (+)** = under budget = BRA (grönt)
+- **Negativ avvikelse (-)** = över budget = DÅLIGT (rött)
 
-### 1. Uppdatera Service för att behålla rapport-ID:n
+## Vad som ändras
+
+### Kärnlogik - Avvikelseberäkning
 **Fil:** `src/services/projectEconomyService.ts`
 
-Utöka `fetchProjectTimeReports` för att returnera en lista med individuella rapport-ID:n för varje personal:
-
-```typescript
-export interface StaffTimeReport {
-  staff_id: string;
-  staff_name: string;
-  total_hours: number;
-  overtime_hours: number;
-  hourly_rate: number;
-  overtime_rate: number;
-  total_cost: number;
-  approved: boolean;
-  report_ids: string[];  // Lägg till lista med alla rapport-ID:n
-}
+Ändra beräkningen från:
+```javascript
+// FEL (nuvarande)
+const staffDeviation = staffActual - staffBudget;
+const totalDeviation = totalActual - totalBudget;
 ```
 
-### 2. Uppdatera typdefinitionen
+Till:
+```javascript
+// RÄTT (ny logik)
+const staffDeviation = staffBudget - staffActual;
+const totalDeviation = totalBudget - totalActual;
+```
+
+### Statuslogik - Färger och Ikoner
 **Fil:** `src/types/projectEconomy.ts`
 
-Lägg till `report_ids: string[]` i `StaffTimeReport`-interfacet.
+Uppdatera `getDeviationStatus` för att baseras på avvikelsens tecken:
+- Positiv eller noll = OK (grön)
+- Liten negativ (0 till -10% av budget) = Warning (gul)
+- Stor negativ (>-10% av budget) = Danger (röd)
 
-### 3. Fixa StaffCostTable för korrekt godkännande
-**Fil:** `src/components/project/StaffCostTable.tsx`
+### Visningslogik - EconomySummaryCard
+**Fil:** `src/components/project/EconomySummaryCard.tsx`
 
-**Problem att åtgärda:**
-- Ändra `handleApprove` så den godkänner alla rapporter för en personal via `report_ids`
-- Invalidera rätt query key: `['project-time-reports', bookingId]`
-- Invänta invalidering före toast med `await queryClient.invalidateQueries()`
-- Lägg till `bookingId` som prop för korrekt invalidering
+- Visa minus/plus korrekt baserat på ny logik
+- Grön check för positiv/noll avvikelse
+- Varning för negativ avvikelse
 
-### 4. Uppdatera komponenten som använder StaffCostTable
-**Fil:** `src/components/project/ProjectEconomyTab.tsx` (eller liknande)
+### Procentberäkning
+Ändra från "användning av budget" (Actual/Budget × 100) till "avvikelse från budget":
+- 0% = exakt på budget
+- +10% = 10% under budget (bra)
+- -10% = 10% över budget (dåligt)
 
-Skicka `bookingId` till `StaffCostTable` så att rätt query key kan invalideras.
+## Teknisk Implementation
 
-## Teknisk implementation
+### Steg 1: Uppdatera beräkningslogik
+```typescript
+// src/services/projectEconomyService.ts
 
-### Steg 1: Typ-uppdatering
+// Staff deviation: positive = under budget (good)
+const staffDeviation = staffBudget - staffActual;
+const staffDeviationPercent = staffBudget > 0 
+  ? ((staffBudget - staffActual) / staffBudget) * 100 
+  : (staffActual > 0 ? -100 : 0);
+
+// Total deviation: positive = under budget (good)  
+const totalDeviation = totalBudget - totalActual;
+const totalDeviationPercent = totalBudget > 0 
+  ? ((totalBudget - totalActual) / totalBudget) * 100 
+  : (totalActual > 0 ? -100 : 0);
+```
+
+### Steg 2: Uppdatera statuslogik
 ```typescript
 // src/types/projectEconomy.ts
-export interface StaffTimeReport {
-  staff_id: string;
-  staff_name: string;
-  total_hours: number;
-  overtime_hours: number;
-  hourly_rate: number;
-  overtime_rate: number;
-  total_cost: number;
-  approved: boolean;
-  report_ids: string[];  // NY: lista med rapport-ID för godkännande
-}
-```
 
-### Steg 2: Service-uppdatering
-```typescript
-// src/services/projectEconomyService.ts - fetchProjectTimeReports
-// Lägg till 'id' i SELECT och samla i report_ids array
-
-const { data, error } = await supabase
-  .from('time_reports')
-  .select(`
-    id,  // NYTT
-    staff_id,
-    hours_worked,
-    overtime_hours,
-    approved,
-    staff_members!inner(name, hourly_rate, overtime_rate)
-  `)
-  .eq('booking_id', bookingId);
-
-// Vid aggregering, samla alla id:n
-if (existing) {
-  existing.report_ids.push(report.id);
-  // ... resten av logiken
-} else {
-  staffMap.set(staffId, {
-    // ... befintliga fält
-    report_ids: [report.id]
-  });
-}
-```
-
-### Steg 3: Komponent-uppdatering
-```typescript
-// src/components/project/StaffCostTable.tsx
-
-interface StaffCostTableProps {
-  timeReports: StaffTimeReport[];
-  summary: EconomySummary;
-  bookingId: string | null;  // NY prop
-  onOpenBudgetSettings: () => void;
-}
-
-const handleApprove = async (reportIds: string[], staffName: string) => {
-  try {
-    // Godkänn ALLA rapporter för denna personal
-    const { error } = await supabase
-      .from('time_reports')
-      .update({
-        approved: true,
-        approved_at: new Date().toISOString(),
-        approved_by: 'Projektledare'
-      })
-      .in('id', reportIds);  // Använd .in() för flera ID:n
-
-    if (error) throw error;
-    
-    // Invalidera RÄTT query key och invänta
-    await queryClient.invalidateQueries({ 
-      queryKey: ['project-time-reports', bookingId] 
-    });
-    await queryClient.invalidateQueries({ 
-      queryKey: ['pending-time-reports'] 
-    });
-    
-    toast.success(`Tidrapport för ${staffName} godkänd`);
-  } catch (error) {
-    console.error('Error approving time report:', error);
-    toast.error('Kunde inte godkänna tidrapporten');
-  }
+export const getDeviationStatus = (deviationPercent: number): DeviationStatus => {
+  // Positive = under budget, negative = over budget
+  if (deviationPercent >= 0) return 'ok';
+  if (deviationPercent >= -10) return 'warning';
+  return 'danger';
 };
+```
 
-// I render, skicka report_ids istället för staff_id
-onClick={() => handleApprove(report.report_ids, report.staff_name)}
+### Steg 3: Uppdatera UI-visning
+```typescript
+// src/components/project/EconomySummaryCard.tsx
+
+// Show correct sign and color
+<p className={`text-2xl font-bold ${getDeviationColor(status)}`}>
+  {summary.totalDeviation >= 0 ? '+' : ''}{formatCurrency(summary.totalDeviation)}
+</p>
+
+// Progress bar: show how much of budget is used
+const budgetUsagePercent = summary.totalBudget > 0 
+  ? (summary.totalActual / summary.totalBudget) * 100 
+  : 0;
 ```
 
 ## Filer som påverkas
-1. `src/types/projectEconomy.ts` - Lägg till `report_ids`
-2. `src/services/projectEconomyService.ts` - Hämta och aggregera rapport-ID:n
-3. `src/components/project/StaffCostTable.tsx` - Fixa approve-logik och query keys
-4. `src/components/project/ProjectEconomyTab.tsx` - Skicka bookingId som prop
+1. `src/services/projectEconomyService.ts` - Ny beräkningslogik
+2. `src/types/projectEconomy.ts` - Ny statuslogik
+3. `src/components/project/EconomySummaryCard.tsx` - Uppdaterad visning
 
 ## Förväntat resultat
-- Godkännande uppdaterar korrekt alla tidrapporter för den valda personalen
-- UI:t uppdateras omedelbart efter godkännande
-- Toasten visas efter att UI:t har uppdaterats
+Med Budget = 0 kr och Utfall = 2 800 kr:
+- **Före:** Avvikelse visar "+2 800 kr" med grön check
+- **Efter:** Avvikelse visar "-2 800 kr" med röd varning
