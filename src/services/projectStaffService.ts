@@ -95,7 +95,10 @@ export const fetchTimeReports = async (bookingId: string): Promise<StaffTimeRepo
       end_time,
       hours_worked,
       overtime_hours,
-      description
+      description,
+      approved,
+      approved_at,
+      approved_by
     `)
     .eq('booking_id', bookingId)
     .order('report_date', { ascending: true });
@@ -119,7 +122,10 @@ export const fetchTimeReports = async (bookingId: string): Promise<StaffTimeRepo
   return data.map(report => ({
     ...report,
     staff_name: staffNameMap.get(report.staff_id) || 'Okänd',
-    overtime_hours: report.overtime_hours || 0
+    overtime_hours: report.overtime_hours || 0,
+    approved: report.approved || false,
+    approved_at: report.approved_at || null,
+    approved_by: report.approved_by || null
   }));
 };
 
@@ -212,7 +218,10 @@ export const createTimeReport = async (report: {
   return {
     ...data,
     staff_name: staffMember?.name || 'Okänd',
-    overtime_hours: data.overtime_hours || 0
+    overtime_hours: data.overtime_hours || 0,
+    approved: data.approved || false,
+    approved_at: data.approved_at || null,
+    approved_by: data.approved_by || null
   };
 };
 

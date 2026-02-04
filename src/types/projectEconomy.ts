@@ -58,6 +58,7 @@ export interface StaffTimeReport {
   hourly_rate: number;
   overtime_rate: number;
   total_cost: number;
+  approved: boolean;
 }
 
 export interface EconomySummary {

@@ -14,6 +14,7 @@ import EditStaffDialog from '@/components/staff/EditStaffDialog';
 import StaffColorSettings from '@/components/staff/StaffColorSettings';
 import StaffAccountsPanel from '@/components/staff/StaffAccountsPanel';
 import StaffExportDialog from '@/components/staff/StaffExportDialog';
+import TimeReportApprovalPanel from '@/components/staff/TimeReportApprovalPanel';
 
 const StaffManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -173,8 +174,11 @@ const StaffManagement: React.FC = () => {
             </Card>
           </div>
 
-          {/* Right side - Staff Accounts and Color Settings */}
+          {/* Right side - Time Report Approvals, Staff Accounts and Color Settings */}
           <div className="space-y-6">
+            {/* Time Report Approval Panel */}
+            <TimeReportApprovalPanel />
+
             {/* Staff Accounts Panel */}
             <StaffAccountsPanel />
 

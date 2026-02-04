@@ -173,6 +173,7 @@ export const fetchProjectTimeReports = async (bookingId: string): Promise<StaffT
       staff_id,
       hours_worked,
       overtime_hours,
+      approved,
       staff_members!inner(name, hourly_rate, overtime_rate)
     `)
     .eq('booking_id', bookingId);
@@ -195,6 +196,10 @@ export const fetchProjectTimeReports = async (bookingId: string): Promise<StaffT
       existing.overtime_hours += Number(report.overtime_hours) || 0;
       existing.total_cost = (existing.total_hours * existing.hourly_rate) + 
                            (existing.overtime_hours * existing.overtime_rate);
+      // Mark as not approved if any report is not approved
+      if (!report.approved) {
+        existing.approved = false;
+      }
     } else {
       const totalHours = Number(report.hours_worked) || 0;
       const overtimeHours = Number(report.overtime_hours) || 0;
@@ -206,7 +211,8 @@ export const fetchProjectTimeReports = async (bookingId: string): Promise<StaffT
         overtime_hours: overtimeHours,
         hourly_rate: hourlyRate,
         overtime_rate: overtimeRate,
-        total_cost: (totalHours * hourlyRate) + (overtimeHours * overtimeRate)
+        total_cost: (totalHours * hourlyRate) + (overtimeHours * overtimeRate),
+        approved: report.approved === true
       });
     }
   });

@@ -10,6 +10,9 @@ export interface TimeReport {
   description?: string;
   break_time?: number;
   overtime_hours?: number;
+  approved?: boolean;
+  approved_at?: string;
+  approved_by?: string;
   created_at: string;
   updated_at: string;
   staff_members?: {

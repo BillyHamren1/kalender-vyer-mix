@@ -1615,6 +1615,9 @@ export type Database = {
       }
       time_reports: {
         Row: {
+          approved: boolean | null
+          approved_at: string | null
+          approved_by: string | null
           booking_id: string
           break_time: number | null
           created_at: string
@@ -1629,6 +1632,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          approved?: boolean | null
+          approved_at?: string | null
+          approved_by?: string | null
           booking_id: string
           break_time?: number | null
           created_at?: string
@@ -1643,6 +1649,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          approved?: boolean | null
+          approved_at?: string | null
+          approved_by?: string | null
           booking_id?: string
           break_time?: number | null
           created_at?: string
