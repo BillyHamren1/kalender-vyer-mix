@@ -1,0 +1,170 @@
+import { supabase } from "@/integrations/supabase/client";
+import { PackingWithBooking } from "@/types/packing";
+
+export interface ScanResult {
+  type: 'packing_id' | 'product_sku' | 'unknown';
+  value: string;
+  packingId?: string;
+}
+
+// Parse a scanned value to determine what type it is
+export const parseScanResult = (scannedValue: string): ScanResult => {
+  // Check if it's a packing verification URL
+  const packingUrlMatch = scannedValue.match(/\/warehouse\/packing\/([a-f0-9-]+)\/verify/);
+  if (packingUrlMatch) {
+    return {
+      type: 'packing_id',
+      value: packingUrlMatch[1],
+      packingId: packingUrlMatch[1]
+    };
+  }
+
+  // Check if it's a UUID (packing ID directly)
+  const uuidPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+  if (uuidPattern.test(scannedValue)) {
+    return {
+      type: 'packing_id',
+      value: scannedValue,
+      packingId: scannedValue
+    };
+  }
+
+  // Otherwise treat as product SKU
+  return {
+    type: 'product_sku',
+    value: scannedValue
+  };
+};
+
+// Fetch active packing projects
+export const fetchActivePackings = async (): Promise<PackingWithBooking[]> => {
+  const { data: packings, error } = await supabase
+    .from('packing_projects')
+    .select('*')
+    .in('status', ['active', 'in_progress'])
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+
+  // Fetch booking info for each packing
+  const packingsWithBookings: PackingWithBooking[] = await Promise.all(
+    (packings || []).map(async (packing) => {
+      if (packing.booking_id) {
+        const { data: booking } = await supabase
+          .from('bookings')
+          .select('id, client, eventdate, rigdaydate, rigdowndate, deliveryaddress, contact_name, contact_phone, contact_email, booking_number')
+          .eq('id', packing.booking_id)
+          .single();
+        return { ...packing, booking } as PackingWithBooking;
+      }
+      return packing as PackingWithBooking;
+    })
+  );
+
+  return packingsWithBookings;
+};
+
+// Fetch packing list items for a specific packing
+export const fetchPackingListItems = async (packingId: string) => {
+  const { data, error } = await supabase
+    .from('packing_list_items')
+    .select(`
+      *,
+      booking_products (
+        id,
+        name,
+        quantity,
+        sku,
+        notes
+      )
+    `)
+    .eq('packing_id', packingId);
+
+  if (error) throw error;
+  return data || [];
+};
+
+// Verify a product by SKU
+export const verifyProductBySku = async (
+  packingId: string,
+  sku: string,
+  verifiedBy: string
+): Promise<{ success: boolean; productName?: string; error?: string }> => {
+  // Find the booking product with this SKU
+  const { data: packingItems, error: fetchError } = await supabase
+    .from('packing_list_items')
+    .select(`
+      id,
+      quantity_to_pack,
+      quantity_packed,
+      verified_at,
+      booking_products (
+        id,
+        name,
+        sku
+      )
+    `)
+    .eq('packing_id', packingId);
+
+  if (fetchError) {
+    return { success: false, error: 'Kunde inte hämta packlista' };
+  }
+
+  // Find item matching SKU
+  const matchingItem = packingItems?.find(
+    (item: any) => item.booking_products?.sku?.toLowerCase() === sku.toLowerCase()
+  );
+
+  if (!matchingItem) {
+    return { success: false, error: `Ingen produkt med SKU "${sku}" hittades` };
+  }
+
+  // Check if already verified
+  if (matchingItem.verified_at) {
+    return { 
+      success: false, 
+      error: `${(matchingItem as any).booking_products?.name} är redan verifierad`,
+      productName: (matchingItem as any).booking_products?.name
+    };
+  }
+
+  // Update the item as verified
+  const { error: updateError } = await supabase
+    .from('packing_list_items')
+    .update({
+      quantity_packed: matchingItem.quantity_to_pack,
+      packed_at: new Date().toISOString(),
+      packed_by: verifiedBy,
+      verified_at: new Date().toISOString(),
+      verified_by: verifiedBy
+    })
+    .eq('id', matchingItem.id);
+
+  if (updateError) {
+    return { success: false, error: 'Kunde inte uppdatera status' };
+  }
+
+  return { 
+    success: true, 
+    productName: (matchingItem as any).booking_products?.name 
+  };
+};
+
+// Get verification progress
+export const getVerificationProgress = async (packingId: string) => {
+  const { data, error } = await supabase
+    .from('packing_list_items')
+    .select('id, verified_at')
+    .eq('packing_id', packingId);
+
+  if (error) throw error;
+
+  const total = data?.length || 0;
+  const verified = data?.filter(item => item.verified_at !== null).length || 0;
+
+  return {
+    total,
+    verified,
+    percentage: total > 0 ? Math.round((verified / total) * 100) : 0
+  };
+};
