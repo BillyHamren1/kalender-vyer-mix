@@ -24,6 +24,7 @@ import ProjectEconomyDetail from "./pages/ProjectEconomyDetail";
 import PlanningDashboard from "./pages/PlanningDashboard";
 import StaffRevenueOverview from "./pages/StaffRevenueOverview";
 import JobDetail from "./pages/JobDetail";
+import LargeProjectDetail from "./pages/LargeProjectDetail";
 import APIDocumentation from "./pages/APIDocumentation";
 import NotFound from "./pages/NotFound";
 
@@ -94,6 +95,7 @@ const AppContent = () => {
               <Route path="/economy/staff-revenue" element={<MainSystemLayout><StaffRevenueOverview /></MainSystemLayout>} />
               <Route path="/economy/:id" element={<MainSystemLayout><ProjectEconomyDetail /></MainSystemLayout>} />
               <Route path="/jobs/:id" element={<JobDetail />} />
+              <Route path="/large-project/:id" element={<LargeProjectDetail />} />
               <Route path="/api-docs" element={<MainSystemLayout><APIDocumentation /></MainSystemLayout>} />
 
               {/* Warehouse System Routes */}
