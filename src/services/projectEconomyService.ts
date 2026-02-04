@@ -7,6 +7,7 @@ import type {
   StaffTimeReport,
   EconomySummary
 } from '@/types/projectEconomy';
+import type { ProductCostSummary } from '@/services/productCostService';
 
 // Budget operations
 export const fetchProjectBudget = async (projectId: string): Promise<ProjectBudget | null> => {
@@ -229,7 +230,8 @@ export const calculateEconomySummary = (
   timeReports: StaffTimeReport[],
   purchases: ProjectPurchase[],
   quotes: ProjectQuote[],
-  invoices: ProjectInvoice[]
+  invoices: ProjectInvoice[],
+  productCosts?: ProductCostSummary | null
 ): EconomySummary => {
   const budgetedHours = budget?.budgeted_hours || 0;
   const hourlyRate = budget?.hourly_rate || 350;
@@ -257,8 +259,16 @@ export const calculateEconomySummary = (
     }
     return sum;
   }, 0);
+
+  // Product cost budget from imported/manually set product costs
+  const productCostBudget = productCosts?.totalProductCost || 0;
+  const laborCostTotal = productCosts?.laborCostTotal || 0;
+  const materialCostTotal = productCosts?.materialCostTotal || 0;
+  const externalCostTotal = productCosts?.externalCostTotal || 0;
+  const setupHoursTotal = productCosts?.setupHoursTotal || 0;
   
-  const totalBudget = staffBudget + quotesTotal;
+  // Total budget now includes: staff budget + quotes + product costs
+  const totalBudget = staffBudget + quotesTotal + productCostBudget;
   const totalActual = staffActual + purchasesTotal + invoicesTotal;
   // Positive deviation = under budget (good), negative = over budget (bad)
   const totalDeviation = totalBudget - totalActual;
@@ -278,6 +288,11 @@ export const calculateEconomySummary = (
     quotesTotal,
     invoicesTotal,
     invoiceDeviation,
+    productCostBudget,
+    laborCostTotal,
+    materialCostTotal,
+    externalCostTotal,
+    setupHoursTotal,
     totalBudget,
     totalActual,
     totalDeviation,

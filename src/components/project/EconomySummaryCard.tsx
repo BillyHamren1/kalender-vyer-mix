@@ -59,6 +59,24 @@ export const EconomySummaryCard = ({ summary }: EconomySummaryCardProps) => {
             </p>
           </div>
         </div>
+
+        {/* Budget breakdown */}
+        {(summary.productCostBudget > 0 || summary.staffBudget > 0 || summary.quotesTotal > 0) && (
+          <div className="grid grid-cols-3 gap-4 mb-4 p-3 bg-muted/30 rounded-lg text-sm">
+            <div className="text-center">
+              <p className="text-muted-foreground">Produktkostnader</p>
+              <p className="font-medium">{formatCurrency(summary.productCostBudget)}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-muted-foreground">Personalbudget</p>
+              <p className="font-medium">{formatCurrency(summary.staffBudget)}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-muted-foreground">Offerter</p>
+              <p className="font-medium">{formatCurrency(summary.quotesTotal)}</p>
+            </div>
+          </div>
+        )}
         
         <div className="space-y-2">
           <div className="flex justify-between text-sm">

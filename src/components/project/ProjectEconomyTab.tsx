@@ -14,6 +14,7 @@ import { StaffCostTable } from './StaffCostTable';
 import { PurchasesList } from './PurchasesList';
 import { QuotesInvoicesList } from './QuotesInvoicesList';
 import { BudgetSettingsDialog } from './BudgetSettingsDialog';
+import { ProductCostsCard } from './ProductCostsCard';
 import { exportToExcel, exportToPDF } from '@/services/projectEconomyExportService';
 import { toast } from 'sonner';
 
@@ -32,6 +33,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
     purchases,
     quotes,
     invoices,
+    productCosts,
     summary,
     isLoading,
     saveBudget,
@@ -41,7 +43,8 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
     removeQuote,
     addInvoice,
     removeInvoice,
-    updateInvoice
+    updateInvoice,
+    updateProductCost
   } = useProjectEconomy(projectId, bookingId);
 
   const handleExportExcel = () => {
@@ -114,6 +117,15 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
 
       {/* Summary Card */}
       <EconomySummaryCard summary={summary} />
+
+      {/* Product Costs (Budget basis) */}
+      {productCosts && (
+        <ProductCostsCard
+          productCosts={productCosts}
+          onUpdateCost={updateProductCost}
+          isLoading={isLoading}
+        />
+      )}
 
       {/* Staff & Hours */}
       <StaffCostTable

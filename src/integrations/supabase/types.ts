@@ -110,39 +110,54 @@ export type Database = {
       booking_products: {
         Row: {
           booking_id: string
+          cost_notes: string | null
+          external_cost: number | null
           id: string
           is_package_component: boolean | null
+          labor_cost: number | null
+          material_cost: number | null
           name: string
           notes: string | null
           parent_package_id: string | null
           parent_product_id: string | null
           quantity: number
+          setup_hours: number | null
           sku: string | null
           total_price: number | null
           unit_price: number | null
         }
         Insert: {
           booking_id: string
+          cost_notes?: string | null
+          external_cost?: number | null
           id?: string
           is_package_component?: boolean | null
+          labor_cost?: number | null
+          material_cost?: number | null
           name: string
           notes?: string | null
           parent_package_id?: string | null
           parent_product_id?: string | null
           quantity?: number
+          setup_hours?: number | null
           sku?: string | null
           total_price?: number | null
           unit_price?: number | null
         }
         Update: {
           booking_id?: string
+          cost_notes?: string | null
+          external_cost?: number | null
           id?: string
           is_package_component?: boolean | null
+          labor_cost?: number | null
+          material_cost?: number | null
           name?: string
           notes?: string | null
           parent_package_id?: string | null
           parent_product_id?: string | null
           quantity?: number
+          setup_hours?: number | null
           sku?: string | null
           total_price?: number | null
           unit_price?: number | null
