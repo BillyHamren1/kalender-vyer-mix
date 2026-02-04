@@ -32,6 +32,9 @@ export interface StaffTimeReport {
   hours_worked: number;
   overtime_hours: number;
   description: string | null;
+  approved: boolean;
+  approved_at: string | null;
+  approved_by: string | null;
 }
 
 export interface ProjectStaffSummary {

@@ -134,7 +134,8 @@ const ProjectEconomyView: React.FC = () => {
                   overtime_hours: overtimeHours,
                   hourly_rate: hourlyRate,
                   overtime_rate: overtimeRate,
-                  total_cost: (totalHours * hourlyRate) + (overtimeHours * overtimeRate)
+                  total_cost: (totalHours * hourlyRate) + (overtimeHours * overtimeRate),
+                  approved: (report as any).approved === true
                 });
               }
             });
@@ -156,7 +157,8 @@ const ProjectEconomyView: React.FC = () => {
               overtime_hours: 0,
               hourly_rate: Number(cost.hourly_rate) || 0,
               overtime_rate: 0,
-              total_cost: (Number(cost.hours) || 0) * (Number(cost.hourly_rate) || 0)
+              total_cost: (Number(cost.hours) || 0) * (Number(cost.hourly_rate) || 0),
+              approved: true // Manual entries are considered approved
             });
           });
 
