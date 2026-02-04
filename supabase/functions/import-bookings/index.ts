@@ -269,23 +269,12 @@ const createPackingForBooking = async (supabase: any, booking: any): Promise<boo
   
   // Tasks based on rigdaydate
   if (booking.rigdaydate) {
-    // Packning påbörjad: rigdaydate - 4 days
+    // Packning: rigdaydate - 4 days
     tasks.push({
       packing_id: newPacking.id,
-      title: 'Packning påbörjad',
-      description: 'Börja packa utrustning för bokningen',
+      title: 'Packning',
+      description: 'Packa utrustning för bokningen',
       deadline: addDays(booking.rigdaydate, -4),
-      sort_order: sortOrder++,
-      completed: false,
-      is_info_only: false
-    });
-    
-    // Packlista klar: rigdaydate - 2 days
-    tasks.push({
-      packing_id: newPacking.id,
-      title: 'Packlista klar',
-      description: 'Verifiera att all utrustning på packlistan är kontrollerad',
-      deadline: addDays(booking.rigdaydate, -2),
       sort_order: sortOrder++,
       completed: false,
       is_info_only: false
