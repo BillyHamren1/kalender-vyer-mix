@@ -45,6 +45,8 @@ const PackingDetail = () => {
   const [changeItems, setChangeItems] = useState<ProductChangeItem[]>([]);
   const [showChangesPopover, setShowChangesPopover] = useState(false);
   const previousProductsRef = useRef<BookingProduct[]>([]);
+  const loadRequestIdRef = useRef(0);
+  const lastChangeKeyRef = useRef<string | null>(null);
   
   const {
     packing,
@@ -74,79 +76,103 @@ const PackingDetail = () => {
     refetchItems
   } = usePackingList(packingId || '');
 
-  // Detect product changes between fetches
+  const makeProductsSignature = useCallback((list: BookingProduct[]) => {
+    // Stable business signature: if nothing in DB changed, this should remain identical
+    return list.map((p) => `${p.id}:${p.quantity}`).join("|");
+  }, []);
+
+  const makeChangeKey = useCallback(
+    (oldList: BookingProduct[], newList: BookingProduct[]) =>
+      `${makeProductsSignature(oldList)}->${makeProductsSignature(newList)}`,
+    [makeProductsSignature]
+  );
+
+  const getAckStorageKey = useCallback((bookingId?: string | null) => {
+    if (!bookingId) return null;
+    return `packing_product_changes_ack:${bookingId}`;
+  }, []);
+
+  // Detect product changes between fetches (by ID to avoid false positives)
   const detectProductChanges = useCallback((oldProducts: BookingProduct[], newProducts: BookingProduct[]): ProductChanges | null => {
     if (oldProducts.length === 0) return null;
-    
-    const oldNames = new Set(oldProducts.map(p => p.name.trim().toLowerCase()));
-    const newNames = new Set(newProducts.map(p => p.name.trim().toLowerCase()));
-    const oldQuantities = new Map(oldProducts.map(p => [p.name.trim().toLowerCase(), p.quantity]));
-    
+
+    const oldById = new Map(oldProducts.map((p) => [p.id, p]));
+    const newById = new Map(newProducts.map((p) => [p.id, p]));
+
     const added: string[] = [];
     const removed: string[] = [];
     const updated: string[] = [];
-    
-    // Check for added and updated
-    for (const product of newProducts) {
-      const nameLower = product.name.trim().toLowerCase();
-      if (!oldNames.has(nameLower)) {
-        added.push(product.name);
-      } else {
-        const oldQty = oldQuantities.get(nameLower);
-        if (oldQty !== undefined && oldQty !== product.quantity) {
-          updated.push(`${product.name}: ${oldQty} → ${product.quantity}`);
-        }
+
+    for (const [id, p] of newById.entries()) {
+      const old = oldById.get(id);
+      if (!old) {
+        added.push(p.name);
+      } else if (old.quantity !== p.quantity) {
+        updated.push(`${p.name}: ${old.quantity} → ${p.quantity}`);
       }
     }
-    
-    // Check for removed
-    for (const product of oldProducts) {
-      const nameLower = product.name.trim().toLowerCase();
-      if (!newNames.has(nameLower)) {
-        removed.push(product.name);
-      }
+
+    for (const [id, p] of oldById.entries()) {
+      if (!newById.has(id)) removed.push(p.name);
     }
-    
-    if (added.length === 0 && removed.length === 0 && updated.length === 0) {
-      return null;
-    }
-    
+
+    if (added.length === 0 && removed.length === 0 && updated.length === 0) return null;
     return { added, removed, updated };
   }, []);
 
   // Fetch products when we have a booking_id
   const loadProducts = useCallback(async (showChanges = false) => {
-    if (packing?.booking_id) {
-      setIsLoadingProducts(true);
-      try {
-        const productsData = await fetchPackingProducts(packing.booking_id);
-        
-        // Detect changes if we have previous products
-        if (showChanges && previousProductsRef.current.length > 0) {
-          const changes = detectProductChanges(previousProductsRef.current, productsData);
-          if (changes) {
+    if (!packing?.booking_id) return;
+
+    const requestId = ++loadRequestIdRef.current;
+    setIsLoadingProducts(true);
+
+    try {
+      const bookingId = packing.booking_id;
+      const productsData = await fetchPackingProducts(bookingId);
+
+      // Ignore stale/out-of-order responses (prevents duplicate popups on concurrent refreshes)
+      if (requestId !== loadRequestIdRef.current) return;
+
+      // Detect changes if we have previous products
+      if (showChanges && previousProductsRef.current.length > 0) {
+        const changes = detectProductChanges(previousProductsRef.current, productsData);
+
+        if (changes) {
+          const changeKey = makeChangeKey(previousProductsRef.current, productsData);
+          lastChangeKeyRef.current = changeKey;
+
+          const ackStorageKey = getAckStorageKey(bookingId);
+          const alreadyAcked = ackStorageKey ? localStorage.getItem(ackStorageKey) === changeKey : false;
+
+          if (!alreadyAcked) {
             setProductChanges(changes);
-            // Create individual change items for the popover
             const items: ProductChangeItem[] = [
-              ...changes.added.map(text => ({ text, type: 'added' as const, acknowledged: false })),
-              ...changes.removed.map(text => ({ text, type: 'removed' as const, acknowledged: false })),
-              ...changes.updated.map(text => ({ text, type: 'updated' as const, acknowledged: false })),
+              ...changes.added.map((text) => ({ text, type: "added" as const, acknowledged: false })),
+              ...changes.removed.map((text) => ({ text, type: "removed" as const, acknowledged: false })),
+              ...changes.updated.map((text) => ({ text, type: "updated" as const, acknowledged: false })),
             ];
             setChangeItems(items);
             setShowChangesPopover(true);
-            toast.info(`Produktlistan har uppdaterats: ${changes.added.length} nya, ${changes.removed.length} borttagna, ${changes.updated.length} ändrade`);
+            toast.info(
+              `Produktlistan har uppdaterats: ${changes.added.length} nya, ${changes.removed.length} borttagna, ${changes.updated.length} ändrade`
+            );
           }
+        } else {
+          lastChangeKeyRef.current = null;
         }
-        
-        previousProductsRef.current = productsData;
-        setProducts(productsData);
-      } catch (error) {
-        console.error('Error loading products:', error);
-      } finally {
+      }
+
+      previousProductsRef.current = productsData;
+      setProducts(productsData);
+    } catch (error) {
+      console.error("Error loading products:", error);
+    } finally {
+      if (requestId === loadRequestIdRef.current) {
         setIsLoadingProducts(false);
       }
     }
-  }, [packing?.booking_id, detectProductChanges]);
+  }, [detectProductChanges, getAckStorageKey, makeChangeKey, packing?.booking_id]);
 
   // Acknowledge a single change item
   const acknowledgeChange = useCallback((index: number) => {
@@ -155,6 +181,11 @@ const PackingDetail = () => {
 
       // If all are acknowledged, auto-close and clear so it doesn't linger
       if (next.length > 0 && next.every((i) => i.acknowledged)) {
+        const bookingId = packing?.booking_id;
+        const ackStorageKey = getAckStorageKey(bookingId);
+        if (ackStorageKey && lastChangeKeyRef.current) {
+          localStorage.setItem(ackStorageKey, lastChangeKeyRef.current);
+        }
         window.setTimeout(() => {
           setShowChangesPopover(false);
           setProductChanges(null);
@@ -164,24 +195,37 @@ const PackingDetail = () => {
 
       return next;
     });
-  }, []);
+  }, [getAckStorageKey, packing?.booking_id]);
 
   // Acknowledge all changes
   const acknowledgeAllChanges = useCallback(() => {
     setChangeItems((prev) => prev.map((item) => ({ ...item, acknowledged: true })));
+
+    const bookingId = packing?.booking_id;
+    const ackStorageKey = getAckStorageKey(bookingId);
+    if (ackStorageKey && lastChangeKeyRef.current) {
+      localStorage.setItem(ackStorageKey, lastChangeKeyRef.current);
+    }
+
     window.setTimeout(() => {
       setShowChangesPopover(false);
       setProductChanges(null);
       setChangeItems([]);
     }, 150);
-  }, []);
+  }, [getAckStorageKey, packing?.booking_id]);
 
   // Dismiss all changes (close popover and clear)
   const dismissAllChanges = useCallback(() => {
+    // Treat dismiss as acknowledgement to avoid the same change list popping up again
+    const bookingId = packing?.booking_id;
+    const ackStorageKey = getAckStorageKey(bookingId);
+    if (ackStorageKey && lastChangeKeyRef.current) {
+      localStorage.setItem(ackStorageKey, lastChangeKeyRef.current);
+    }
     setProductChanges(null);
     setChangeItems([]);
     setShowChangesPopover(false);
-  }, []);
+  }, [getAckStorageKey, packing?.booking_id]);
 
   useEffect(() => {
     loadProducts(false);
