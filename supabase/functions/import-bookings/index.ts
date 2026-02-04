@@ -819,7 +819,31 @@ serve(async (req) => {
 
     console.log(`Found ${existingBookings?.length || 0} existing bookings in database`)
 
+    // Helper to check if a booking has any future dates
+    const hasFutureDates = (booking: any): boolean => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Start of today
+      
+      const dates = [booking.rigdaydate, booking.eventdate, booking.rigdowndate].filter(Boolean);
+      if (dates.length === 0) return true; // No dates = allow import (edge case)
+      
+      return dates.some(dateStr => {
+        const date = new Date(dateStr);
+        return date >= today;
+      });
+    };
+
     for (const externalBooking of externalData.data) {
+      // Skip bookings with only past dates (unless historical mode)
+      if (!isHistoricalImport && !hasFutureDates(externalBooking)) {
+        const latestDate = [externalBooking.rigdaydate, externalBooking.eventdate, externalBooking.rigdowndate]
+          .filter(Boolean)
+          .sort()
+          .pop() || 'no dates';
+        console.log(`SKIPPING OLD BOOKING ${externalBooking.id} (${externalBooking.client}) - latest date: ${latestDate}`);
+        continue;
+      }
+
       // Variables for packing list reconnection (must be declared here for scope)
       let needsPackingReconnection = false;
       let packingIdForReconnection: string | null = null;
