@@ -278,7 +278,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                 <span className="text-sm font-medium text-muted-foreground">Antal</span>
               </div>
               
-              <div className="divide-y">
+              <div className="divide-y divide-border/50">
                 {/* Unverified items */}
                 {unverifiedItems.map(item => {
                   const name = item.booking_products?.name || 'Okänd produkt';
@@ -287,21 +287,25 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                   return (
                     <div 
                       key={item.id}
-                      className={`flex items-center justify-between py-2.5 ${isChild ? 'pl-8 pr-4' : 'px-4'}`}
+                      className={`flex items-center justify-between ${isChild ? 'pl-10 pr-4 py-1.5' : 'px-4 py-2.5'}`}
                     >
-                      <div className={`flex-1 min-w-0 ${isChild ? '' : ''}`}>
-                        <div className={`inline-flex items-center px-3 py-1.5 rounded-full ${
+                      <div className="flex-1 min-w-0">
+                        <div className={`inline-flex items-center rounded-full ${
                           isChild 
-                            ? 'bg-muted/50 text-foreground' 
-                            : 'bg-muted text-foreground font-semibold'
+                            ? 'bg-muted/40 text-muted-foreground px-2.5 py-1' 
+                            : 'bg-muted text-foreground font-semibold px-3 py-1.5'
                         }`}>
-                          <span className="text-sm truncate">
+                          <span className={`truncate ${isChild ? 'text-xs' : 'text-sm'}`}>
                             {isChild ? name : name.toUpperCase()}
                           </span>
                         </div>
                       </div>
-                      <div className="flex items-center justify-center min-w-[48px] h-8 rounded-full bg-muted/50 px-3">
-                        <span className="text-sm font-medium">{item.quantity_to_pack}</span>
+                      <div className={`flex items-center justify-center rounded-full bg-muted/50 ${
+                        isChild ? 'min-w-[36px] h-6 px-2' : 'min-w-[44px] h-7 px-3'
+                      }`}>
+                        <span className={`font-medium ${isChild ? 'text-xs text-muted-foreground' : 'text-sm'}`}>
+                          {item.quantity_to_pack}
+                        </span>
                       </div>
                     </div>
                   );
@@ -321,21 +325,25 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                       return (
                         <div 
                           key={item.id}
-                          className={`flex items-center justify-between py-2.5 bg-green-50/50 ${isChild ? 'pl-8 pr-4' : 'px-4'}`}
+                          className={`flex items-center justify-between bg-green-50/50 ${isChild ? 'pl-10 pr-4 py-1.5' : 'px-4 py-2.5'}`}
                         >
                           <div className="flex-1 min-w-0">
-                            <div className={`inline-flex items-center px-3 py-1.5 rounded-full ${
+                            <div className={`inline-flex items-center rounded-full ${
                               isChild 
-                                ? 'bg-green-100/50 text-green-700' 
-                                : 'bg-green-100 text-green-800 font-semibold'
+                                ? 'bg-green-100/50 text-green-600 px-2.5 py-1' 
+                                : 'bg-green-100 text-green-800 font-semibold px-3 py-1.5'
                             }`}>
-                              <span className="text-sm truncate">
+                              <span className={`truncate ${isChild ? 'text-xs' : 'text-sm'}`}>
                                 {isChild ? name : name.toUpperCase()}
                               </span>
                             </div>
                           </div>
-                          <div className="flex items-center justify-center min-w-[48px] h-8 rounded-full bg-green-100 px-3">
-                            <span className="text-sm font-medium text-green-700">{item.quantity_to_pack}</span>
+                          <div className={`flex items-center justify-center rounded-full bg-green-100 ${
+                            isChild ? 'min-w-[36px] h-6 px-2' : 'min-w-[44px] h-7 px-3'
+                          }`}>
+                            <span className={`font-medium text-green-700 ${isChild ? 'text-xs' : 'text-sm'}`}>
+                              {item.quantity_to_pack}
+                            </span>
                           </div>
                         </div>
                       );
