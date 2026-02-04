@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Project, ProjectTask, ProjectComment, ProjectFile, ProjectStatus, ProjectWithBooking } from "@/types/project";
+import { recordJobCompletion } from "@/services/jobCompletionAnalyticsService";
 
 // Projects
 export const fetchProjects = async (): Promise<ProjectWithBooking[]> => {
@@ -61,12 +62,30 @@ export const createProject = async (project: { name: string; booking_id?: string
 };
 
 export const updateProjectStatus = async (id: string, status: ProjectStatus): Promise<void> => {
+  // First get the project to check for booking_id
+  const { data: project, error: fetchError } = await supabase
+    .from('projects')
+    .select('booking_id')
+    .eq('id', id)
+    .single();
+
+  if (fetchError) throw fetchError;
+
   const { error } = await supabase
     .from('projects')
     .update({ status, updated_at: new Date().toISOString() })
     .eq('id', id);
 
   if (error) throw error;
+
+  // If project is marked as completed and has a booking, record analytics
+  if (status === 'completed' && project?.booking_id) {
+    console.log('[ProjectService] Project completed, recording job analytics for booking:', project.booking_id);
+    // Fire and forget - don't block status update on analytics
+    recordJobCompletion(project.booking_id).catch(err => {
+      console.error('[ProjectService] Failed to record job completion:', err);
+    });
+  }
 };
 
 export const deleteProject = async (id: string): Promise<void> => {

@@ -384,6 +384,119 @@ export type Database = {
           },
         ]
       }
+      job_completion_analytics: {
+        Row: {
+          booking_id: string
+          booking_number: string | null
+          carry_more_than_10m: boolean | null
+          client_name: string
+          completed_at: string
+          created_at: string
+          delivery_address: string | null
+          delivery_city: string | null
+          event_date: string | null
+          exact_time_required: boolean | null
+          ground_nails_allowed: boolean | null
+          id: string
+          margin_percentage: number | null
+          product_categories: Json | null
+          project_id: string | null
+          rig_date: string | null
+          rigdown_date: string | null
+          staff_assignments: Json | null
+          total_external_cost: number | null
+          total_hours_worked: number | null
+          total_labor_cost: number | null
+          total_margin: number | null
+          total_material_cost: number | null
+          total_overtime_hours: number | null
+          total_product_value: number | null
+          total_products: number | null
+          total_purchases: number | null
+          total_revenue: number | null
+          total_setup_hours_estimated: number | null
+          total_staff_count: number | null
+          updated_at: string
+          warehouse_handling_cost: number | null
+        }
+        Insert: {
+          booking_id: string
+          booking_number?: string | null
+          carry_more_than_10m?: boolean | null
+          client_name: string
+          completed_at?: string
+          created_at?: string
+          delivery_address?: string | null
+          delivery_city?: string | null
+          event_date?: string | null
+          exact_time_required?: boolean | null
+          ground_nails_allowed?: boolean | null
+          id?: string
+          margin_percentage?: number | null
+          product_categories?: Json | null
+          project_id?: string | null
+          rig_date?: string | null
+          rigdown_date?: string | null
+          staff_assignments?: Json | null
+          total_external_cost?: number | null
+          total_hours_worked?: number | null
+          total_labor_cost?: number | null
+          total_margin?: number | null
+          total_material_cost?: number | null
+          total_overtime_hours?: number | null
+          total_product_value?: number | null
+          total_products?: number | null
+          total_purchases?: number | null
+          total_revenue?: number | null
+          total_setup_hours_estimated?: number | null
+          total_staff_count?: number | null
+          updated_at?: string
+          warehouse_handling_cost?: number | null
+        }
+        Update: {
+          booking_id?: string
+          booking_number?: string | null
+          carry_more_than_10m?: boolean | null
+          client_name?: string
+          completed_at?: string
+          created_at?: string
+          delivery_address?: string | null
+          delivery_city?: string | null
+          event_date?: string | null
+          exact_time_required?: boolean | null
+          ground_nails_allowed?: boolean | null
+          id?: string
+          margin_percentage?: number | null
+          product_categories?: Json | null
+          project_id?: string | null
+          rig_date?: string | null
+          rigdown_date?: string | null
+          staff_assignments?: Json | null
+          total_external_cost?: number | null
+          total_hours_worked?: number | null
+          total_labor_cost?: number | null
+          total_margin?: number | null
+          total_material_cost?: number | null
+          total_overtime_hours?: number | null
+          total_product_value?: number | null
+          total_products?: number | null
+          total_purchases?: number | null
+          total_revenue?: number | null
+          total_setup_hours_estimated?: number | null
+          total_staff_count?: number | null
+          updated_at?: string
+          warehouse_handling_cost?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_completion_analytics_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_staff_assignments: {
         Row: {
           assignment_date: string
@@ -1486,6 +1599,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      staff_job_affinity: {
+        Row: {
+          affinity_score: number | null
+          avg_efficiency_score: number | null
+          created_at: string
+          id: string
+          jobs_completed: number | null
+          last_job_date: string | null
+          product_category: string
+          staff_id: string
+          staff_name: string
+          total_hours_on_category: number | null
+          updated_at: string
+        }
+        Insert: {
+          affinity_score?: number | null
+          avg_efficiency_score?: number | null
+          created_at?: string
+          id?: string
+          jobs_completed?: number | null
+          last_job_date?: string | null
+          product_category: string
+          staff_id: string
+          staff_name: string
+          total_hours_on_category?: number | null
+          updated_at?: string
+        }
+        Update: {
+          affinity_score?: number | null
+          avg_efficiency_score?: number | null
+          created_at?: string
+          id?: string
+          jobs_completed?: number | null
+          last_job_date?: string | null
+          product_category?: string
+          staff_id?: string
+          staff_name?: string
+          total_hours_on_category?: number | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       staff_members: {
         Row: {
