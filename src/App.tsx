@@ -31,6 +31,7 @@ import LargeProjectDetail from "./pages/LargeProjectDetail";
 import APIDocumentation from "./pages/APIDocumentation";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
+import AuthResetPassword from "./pages/AuthResetPassword";
 
 // Warehouse system pages
 import WarehouseDashboard from "./pages/WarehouseDashboard";
@@ -86,8 +87,9 @@ const AppContent = () => {
           <BrowserRouter>
             <AuthProvider>
               <Routes>
-                {/* Auth Route - Not Protected */}
+                {/* Auth Routes - Not Protected */}
                 <Route path="/auth" element={<Auth />} />
+                <Route path="/auth/reset" element={<AuthResetPassword />} />
 
                 {/* Main System Routes - Protected */}
                 <Route path="/" element={<ProtectedRoute><MainSystemLayout><PlanningDashboard /></MainSystemLayout></ProtectedRoute>} />
