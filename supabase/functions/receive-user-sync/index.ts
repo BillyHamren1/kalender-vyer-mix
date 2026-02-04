@@ -62,6 +62,22 @@ Deno.serve(async (req) => {
 
     if (existingUser) {
       console.log(`User already exists: ${existingUser.id}`);
+
+      // Update password if provided
+      // NOTE: Never log passwords.
+      if (password) {
+        const { error: passwordError } = await adminClient.auth.admin.updateUserById(
+          existingUser.id,
+          { password }
+        );
+        if (passwordError) {
+          console.error(`Error updating password for user ${existingUser.id}:`, passwordError);
+          return new Response(
+            JSON.stringify({ error: "Failed to update password" }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
       
       // Update profile if full_name provided
       if (full_name) {
@@ -103,7 +119,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: "User already exists, roles synced", 
+          message: "User already exists, synced", 
           user_id: existingUser.id 
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
