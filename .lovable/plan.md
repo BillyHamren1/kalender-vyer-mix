@@ -1,73 +1,47 @@
 
-## Ändra scanner-startsidan till direkt packlista
+# Konsolidera Gantt-steg: Ta bort "Byggnation"
 
-### Bakgrund
-Nuvarande startsida har stora kort ("Skanna QR", "Välj lista", RFID-info, instruktioner) som tar upp plats innan användaren kan börja arbeta. Användaren vill komma direkt till listan med packlistor.
+## Sammanfattning
+Minskar antalet Gantt-steg från 4 till 3 genom att ta bort "Byggnation" som separat fas, eftersom det är samma sak som "Etablering".
 
-### Mål
-Visa alla packlistor direkt på startsidan med:
-- Sökfält högst upp
-- Sorterat: Pågående (in_progress) först → Närmast datum → Resten
-- QR-scanner tillgänglig via kompakt knapp (inte stort kort)
+## Nya steg
 
-### Ny layout
+| Steg | Namn | Typ |
+|------|------|-----|
+| 1 | Etablering | Arbetsperiod |
+| 2 | Event | Milstolpe |
+| 3 | Avetablering | Arbetsperiod |
 
-```text
-┌────────────────────────────────────┐
-│ Lagerscanner              [📷QR]  │  ← Kompakt header med QR-knapp
-├────────────────────────────────────┤
-│ 🔍 Sök packlista, kund...         │  ← Sökfält
-├────────────────────────────────────┤
-│ Pågående                          │
-│ ┌──────────────────────────────┐  │
-│ │ PACKLISTA A       Pågående   │  │
-│ │ Kund: ABC         15 jan     │  │
-│ └──────────────────────────────┘  │
-├────────────────────────────────────┤
-│ Kommande                          │
-│ ┌──────────────────────────────┐  │
-│ │ PACKLISTA B       Planering  │  │
-│ │ Kund: XYZ         17 jan     │  │
-│ └──────────────────────────────┘  │
-│ ...                                │
-└────────────────────────────────────┘
-```
+## Ändringar
 
-### Ändringar
-
-**`src/pages/MobileScannerApp.tsx`**
-1. Ta bort "home"-vy med kort och RFID-info
-2. Ta bort "selecting"-state (listan visas direkt på home)
-3. Behåll endast två states: `home` (med lista) och `verifying`
-4. Integrera PackingSelector-logiken direkt i home-vyn
-5. Lägg till QR-knapp i headern istället för som kort
-
-**`src/services/scannerService.ts`**
-Uppdatera `fetchActivePackings` för att sortera:
-1. `in_progress` först (pågående)
-2. Sedan efter närmaste datum (`booking.rigdaydate` eller `booking.eventdate`)
-3. Resten sist
-
-### Sorteringslogik (i scannerService)
+### 1. LargeProjectGanttSetup.tsx
+Uppdatera `DEFAULT_STEPS` konstanten:
 
 ```typescript
-// Sortera: in_progress först, sedan efter datum
-packingsWithBookings.sort((a, b) => {
-  // in_progress först
-  if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
-  if (b.status === 'in_progress' && a.status !== 'in_progress') return 1;
-  
-  // Sedan efter närmaste datum
-  const dateA = a.booking?.rigdaydate || a.booking?.eventdate;
-  const dateB = b.booking?.rigdaydate || b.booking?.eventdate;
-  if (dateA && dateB) return new Date(dateA).getTime() - new Date(dateB).getTime();
-  if (dateA) return -1;
-  if (dateB) return 1;
-  
-  return 0;
-});
+const DEFAULT_STEPS = [
+  { key: 'establishment', name: 'Etablering', is_milestone: false },
+  { key: 'event', name: 'Event', is_milestone: true },
+  { key: 'deestablishment', name: 'Avetablering', is_milestone: false },
+];
 ```
 
-### Filer som ändras
-- `src/pages/MobileScannerApp.tsx` – Förenklad layout, lista direkt
-- `src/services/scannerService.ts` – Sorteringslogik
+### 2. LargeProjectGanttChart.tsx
+Uppdatera `STEP_COLORS` om det finns referens till 'construction':
+
+```typescript
+const STEP_COLORS: Record<string, string> = {
+  establishment: 'bg-blue-500',
+  event: 'bg-purple-500',
+  deestablishment: 'bg-orange-500',
+};
+```
+
+### 3. Befintlig data i databasen
+Om det finns stora projekt som redan har sparat "construction"-steg behöver dessa hanteras. Alternativ:
+- Migrera befintliga "construction"-poster till "establishment"
+- Eller låta gammal data vara kvar (systemet visar bara de steg som finns)
+
+## Tekniska detaljer
+- Ändra `DEFAULT_STEPS` array i `LargeProjectGanttSetup.tsx` rad 28-33
+- Uppdatera eventuella färgmappningar i `LargeProjectGanttChart.tsx`
+- Valfritt: Skapa databasmigration för att rensa gamla 'construction'-poster
