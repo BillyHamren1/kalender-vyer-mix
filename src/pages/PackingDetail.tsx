@@ -312,6 +312,9 @@ const PackingDetail = () => {
           <TabsContent value="gantt">
             <PackingGanttChart 
               tasks={tasks}
+              rigDate={booking?.rigdaydate}
+              eventDate={booking?.eventdate}
+              rigdownDate={booking?.rigdowndate}
               onTaskClick={setSelectedTask}
             />
           </TabsContent>

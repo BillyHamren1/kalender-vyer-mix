@@ -17,7 +17,7 @@ export const fetchPackings = async (): Promise<PackingWithBooking[]> => {
       if (packing.booking_id) {
         const { data: booking } = await supabase
           .from('bookings')
-          .select('id, client, eventdate, deliveryaddress, contact_name, contact_phone, contact_email, booking_number')
+          .select('id, client, eventdate, rigdaydate, rigdowndate, deliveryaddress, contact_name, contact_phone, contact_email, booking_number')
           .eq('id', packing.booking_id)
           .single();
         return { ...packing, booking } as PackingWithBooking;
@@ -43,7 +43,7 @@ export const fetchPacking = async (id: string): Promise<PackingWithBooking | nul
   if (packing.booking_id) {
     const { data: booking } = await supabase
       .from('bookings')
-      .select('id, client, eventdate, deliveryaddress, contact_name, contact_phone, contact_email, booking_number')
+      .select('id, client, eventdate, rigdaydate, rigdowndate, deliveryaddress, contact_name, contact_phone, contact_email, booking_number')
       .eq('id', packing.booking_id)
       .single();
     return { ...packing, booking } as PackingWithBooking;
