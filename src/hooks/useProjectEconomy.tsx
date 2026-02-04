@@ -17,6 +17,7 @@ import {
   fetchProjectTimeReports,
   calculateEconomySummary
 } from '@/services/projectEconomyService';
+import { fetchProductCosts, updateProductCost } from '@/services/productCostService';
 import type { ProjectPurchase, ProjectQuote, ProjectInvoice } from '@/types/projectEconomy';
 
 export const useProjectEconomy = (projectId: string | undefined, bookingId: string | null | undefined) => {
@@ -57,8 +58,15 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     enabled: !!projectId,
   });
 
-  // Calculate summary
-  const summary = calculateEconomySummary(budget || null, timeReports, purchases, quotes, invoices);
+  // Fetch product costs for budget calculation
+  const { data: productCosts, isLoading: productCostsLoading } = useQuery({
+    queryKey: ['product-costs', bookingId],
+    queryFn: () => fetchProductCosts(bookingId!),
+    enabled: !!bookingId,
+  });
+
+  // Calculate summary with product costs included
+  const summary = calculateEconomySummary(budget || null, timeReports, purchases, quotes, invoices, productCosts || null);
 
   // Budget mutation
   const saveBudgetMutation = useMutation({
@@ -148,7 +156,25 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     onError: () => toast.error('Kunde inte ta bort faktura'),
   });
 
-  const isLoading = budgetLoading || timeReportsLoading || purchasesLoading || quotesLoading || invoicesLoading;
+  // Product cost mutation
+  const updateProductCostMutation = useMutation({
+    mutationFn: ({ productId, costs }: { 
+      productId: string; 
+      costs: {
+        labor_cost?: number;
+        material_cost?: number;
+        setup_hours?: number;
+        external_cost?: number;
+        cost_notes?: string | null;
+      }
+    }) => updateProductCost(productId, costs),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['product-costs', bookingId] });
+    },
+    onError: () => toast.error('Kunde inte uppdatera produktkostnad'),
+  });
+
+  const isLoading = budgetLoading || timeReportsLoading || purchasesLoading || quotesLoading || invoicesLoading || productCostsLoading;
 
   return {
     budget,
@@ -156,6 +182,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     purchases,
     quotes,
     invoices,
+    productCosts,
     summary,
     isLoading,
     saveBudget: saveBudgetMutation.mutate,
@@ -167,5 +194,12 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     addInvoice: addInvoiceMutation.mutate,
     updateInvoice: updateInvoiceMutation.mutate,
     removeInvoice: removeInvoiceMutation.mutate,
+    updateProductCost: (productId: string, costs: {
+      labor_cost?: number;
+      material_cost?: number;
+      setup_hours?: number;
+      external_cost?: number;
+      cost_notes?: string | null;
+    }) => updateProductCostMutation.mutateAsync({ productId, costs }),
   };
 };

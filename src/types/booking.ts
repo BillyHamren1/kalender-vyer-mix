@@ -10,6 +10,12 @@ export interface BookingProduct {
   isPackageComponent?: boolean;
   parentPackageId?: string;
   sku?: string;
+  // Cost fields for budget calculation
+  laborCost?: number;
+  materialCost?: number;
+  setupHours?: number;
+  externalCost?: number;
+  costNotes?: string;
 }
 
 export interface BookingAttachment {

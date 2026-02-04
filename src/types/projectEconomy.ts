@@ -74,6 +74,12 @@ export interface EconomySummary {
   quotesTotal: number;
   invoicesTotal: number;
   invoiceDeviation: number;
+  // Product cost budget fields
+  productCostBudget: number;
+  laborCostTotal: number;
+  materialCostTotal: number;
+  externalCostTotal: number;
+  setupHoursTotal: number;
   totalBudget: number;
   totalActual: number;
   totalDeviation: number;

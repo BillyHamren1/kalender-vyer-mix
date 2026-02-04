@@ -367,6 +367,12 @@ interface ProductData {
   is_package_component?: boolean;
   parent_package_id?: string;
   sku?: string;
+  // Cost fields for budget calculation
+  labor_cost?: number;
+  material_cost?: number;
+  setup_hours?: number;
+  external_cost?: number;
+  cost_notes?: string;
 }
 
 /**
@@ -1143,6 +1149,13 @@ serve(async (req) => {
                   
                   console.log(`[Product Recovery] Product "${productName}": isAccessory=${isAccessory}, isPkgComponent=${isPkgComponent}, externalId=${externalId}, externalParentId=${externalParentId}, resolvedParentId=${resolvedParentId}`)
                   
+                  // Extract cost data from external product (also for recovery)
+                  const laborCost = product.labor_cost || product.work_cost || product.setup_cost || 0;
+                  const materialCost = product.material_cost || product.material || 0;
+                  const setupHours = product.setup_hours || product.work_hours || product.hours || 0;
+                  const externalCost = product.external_cost || product.subrent_cost || product.rental_cost_out || 0;
+                  const costNotes = product.cost_notes || null;
+
                   // IMPORTANT: Do NOT use parent_product_id from external API - it references IDs in the source system
                   // which don't exist in our database. Only use lastParentProductId which we track locally.
                   const productData: ProductData = {
@@ -1156,7 +1169,13 @@ serve(async (req) => {
                     is_package_component: isPkgComponent || false,
                     // parent_package_id is stored as text (no FK constraint) so it's safe to store external IDs
                     parent_package_id: isPkgComponent ? (product.parent_package_id || null) : null,
-                    sku: product.sku || product.inventory_item_type_id || product.article_number || null
+                    sku: product.sku || product.inventory_item_type_id || product.article_number || null,
+                    // Cost fields for budget calculation
+                    labor_cost: laborCost,
+                    material_cost: materialCost,
+                    setup_hours: setupHours,
+                    external_cost: externalCost,
+                    cost_notes: costNotes
                   }
 
                   const { data: insertedProduct, error: productError } = await supabase
@@ -1405,6 +1424,13 @@ serve(async (req) => {
               
               console.log(`Product "${productName}": unit_price=${unitPrice}, quantity=${quantity}, total_price=${totalPrice}, isAccessory=${isAccessory}, isPkgComponent=${isPkgComponent}, externalId=${externalId}, externalParentId=${externalParentId}, resolvedParentId=${resolvedParentId}`)
               
+              // Extract cost data from external product
+              const laborCost = product.labor_cost || product.work_cost || product.setup_cost || 0;
+              const materialCost = product.material_cost || product.material || 0;
+              const setupHours = product.setup_hours || product.work_hours || product.hours || 0;
+              const externalCost = product.external_cost || product.subrent_cost || product.rental_cost_out || 0;
+              const costNotes = product.cost_notes || null;
+
               // IMPORTANT: Do NOT use parent_product_id from external API - it references IDs in the source system
               // which don't exist in our database. Only use lastParentProductId which we track locally.
               const productData: ProductData = {
@@ -1418,7 +1444,13 @@ serve(async (req) => {
                 is_package_component: isPkgComponent || false,
                 // parent_package_id is stored as text (no FK constraint) so it's safe to store external IDs
                 parent_package_id: isPkgComponent ? (product.parent_package_id || null) : null,
-                sku: product.sku || product.inventory_item_type_id || product.article_number || null
+                sku: product.sku || product.inventory_item_type_id || product.article_number || null,
+                // Cost fields for budget calculation
+                labor_cost: laborCost,
+                material_cost: materialCost,
+                setup_hours: setupHours,
+                external_cost: externalCost,
+                cost_notes: costNotes
               }
 
               const { data: insertedProduct, error: productError } = await supabase
