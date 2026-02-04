@@ -36,12 +36,12 @@ export const parseScanResult = (scannedValue: string): ScanResult => {
   };
 };
 
-// Fetch active packing projects
+// Fetch active packing projects (planning and in_progress)
 export const fetchActivePackings = async (): Promise<PackingWithBooking[]> => {
   const { data: packings, error } = await supabase
     .from('packing_projects')
     .select('*')
-    .in('status', ['active', 'in_progress'])
+    .in('status', ['planning', 'in_progress'])
     .order('created_at', { ascending: false });
 
   if (error) throw error;
