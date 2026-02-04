@@ -10,6 +10,7 @@ import WeekPackingsView from "@/components/warehouse-dashboard/WeekPackingsView"
 import NewPackingJobsCard from "@/components/warehouse-dashboard/NewPackingJobsCard";
 import ActivePackingsCard from "@/components/warehouse-dashboard/ActivePackingsCard";
 import CompletedPackingsCard from "@/components/warehouse-dashboard/CompletedPackingsCard";
+import WarehouseStaffUtilizationCard from "@/components/warehouse-dashboard/WarehouseStaffUtilizationCard";
 import BookingProductsDialog from "@/components/Calendar/BookingProductsDialog";
 import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
 import { toast } from "sonner";
@@ -185,14 +186,70 @@ const WarehouseDashboard = () => {
     }
   });
 
+  // Fetch staff utilization for the week
+  const staffUtilizationQuery = useQuery({
+    queryKey: ['warehouse-staff-utilization', format(currentWeekStart, 'yyyy-MM-dd')],
+    queryFn: async () => {
+      const startStr = format(currentWeekStart, 'yyyy-MM-dd');
+      const endStr = format(weekEnd, 'yyyy-MM-dd');
+
+      // Get staff members with department 'Lager' or similar
+      const { data: staffMembers } = await supabase
+        .from('staff_members')
+        .select('id, name')
+        .eq('is_active', true);
+
+      // Get labor costs for the week
+      const { data: laborCosts } = await supabase
+        .from('packing_labor_costs')
+        .select('staff_id, hours')
+        .gte('work_date', startStr)
+        .lte('work_date', endStr);
+
+      // Get active packings assigned to each staff
+      const { data: packingTasks } = await supabase
+        .from('packing_tasks')
+        .select('assigned_to, packing_id')
+        .eq('completed', false);
+
+      // Aggregate hours by staff
+      const hoursMap = (laborCosts || []).reduce((acc, row) => {
+        acc[row.staff_id] = (acc[row.staff_id] || 0) + (row.hours || 0);
+        return acc;
+      }, {} as Record<string, number>);
+
+      // Count active packings per staff
+      const activePackingsMap = (packingTasks || []).reduce((acc, task) => {
+        if (task.assigned_to) {
+          if (!acc[task.assigned_to]) acc[task.assigned_to] = new Set();
+          acc[task.assigned_to].add(task.packing_id);
+        }
+        return acc;
+      }, {} as Record<string, Set<string>>);
+
+      // Target hours per week (40h default)
+      const TARGET_HOURS = 40;
+
+      return (staffMembers || []).map(staff => ({
+        id: staff.id,
+        name: staff.name,
+        hoursThisWeek: hoursMap[staff.id] || 0,
+        targetHours: TARGET_HOURS,
+        utilizationPercent: Math.round(((hoursMap[staff.id] || 0) / TARGET_HOURS) * 100),
+        activePackings: activePackingsMap[staff.id]?.size || 0
+      })).filter(s => s.hoursThisWeek > 0 || s.activePackings > 0);
+    }
+  });
+
   const isLoading = weekPackingsQuery.isLoading || newJobsQuery.isLoading || 
-    activePackingsQuery.isLoading || completedPackingsQuery.isLoading;
+    activePackingsQuery.isLoading || completedPackingsQuery.isLoading || staffUtilizationQuery.isLoading;
 
   const refetchAll = () => {
     weekPackingsQuery.refetch();
     newJobsQuery.refetch();
     activePackingsQuery.refetch();
     completedPackingsQuery.refetch();
+    staffUtilizationQuery.refetch();
   };
 
   // Handle create packing
@@ -267,8 +324,8 @@ const WarehouseDashboard = () => {
         />
       </div>
 
-      {/* Main Grid - 4 columns like PlanningDashboard */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      {/* Main Grid - 5 columns */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* New Packing Jobs */}
         <div className="lg:col-span-1">
           <NewPackingJobsCard 
@@ -278,11 +335,20 @@ const WarehouseDashboard = () => {
           />
         </div>
 
-        {/* Active Packings - span 2 columns */}
+        {/* Active Packings */}
         <div className="lg:col-span-2">
           <ActivePackingsCard 
             packings={activePackingsQuery.data || []}
             isLoading={activePackingsQuery.isLoading}
+          />
+        </div>
+
+        {/* Staff Utilization */}
+        <div className="lg:col-span-1">
+          <WarehouseStaffUtilizationCard 
+            staff={staffUtilizationQuery.data || []}
+            isLoading={staffUtilizationQuery.isLoading}
+            weekNumber={format(currentWeekStart, 'w')}
           />
         </div>
 
