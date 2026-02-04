@@ -10,7 +10,11 @@ interface EconomySummaryCardProps {
 
 export const EconomySummaryCard = ({ summary }: EconomySummaryCardProps) => {
   const status = getDeviationStatus(summary.totalDeviationPercent);
-  const progressValue = Math.min(summary.totalDeviationPercent, 150);
+  // Budget usage for progress bar (how much of budget is used)
+  const budgetUsagePercent = summary.totalBudget > 0 
+    ? (summary.totalActual / summary.totalBudget) * 100 
+    : (summary.totalActual > 0 ? 150 : 0);
+  const progressValue = Math.min(budgetUsagePercent, 150);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('sv-SE', { 
@@ -21,10 +25,6 @@ export const EconomySummaryCard = ({ summary }: EconomySummaryCardProps) => {
     }).format(amount);
   };
 
-  const formatPercent = (value: number) => {
-    const sign = value > 100 ? '+' : '';
-    return `${sign}${(value - 100).toFixed(1)}%`;
-  };
 
   return (
     <Card>
@@ -44,9 +44,9 @@ export const EconomySummaryCard = ({ summary }: EconomySummaryCardProps) => {
           
           <div className="text-center">
             <p className="text-sm text-muted-foreground mb-1">Avvikelse</p>
-            <div className="flex items-center justify-center gap-2">
+          <div className="flex items-center justify-center gap-2">
               <p className={`text-2xl font-bold ${getDeviationColor(status)}`}>
-                {summary.totalDeviation > 0 ? '+' : ''}{formatCurrency(summary.totalDeviation)}
+                {summary.totalDeviation >= 0 ? '+' : ''}{formatCurrency(summary.totalDeviation)}
               </p>
               {status === 'ok' ? (
                 <CheckCircle className="h-5 w-5 text-green-600" />
@@ -55,7 +55,7 @@ export const EconomySummaryCard = ({ summary }: EconomySummaryCardProps) => {
               )}
             </div>
             <p className={`text-xs ${getDeviationColor(status)}`}>
-              {summary.totalBudget > 0 ? formatPercent(summary.totalDeviationPercent) : '-'}
+              {summary.totalBudget > 0 ? `${summary.totalDeviationPercent >= 0 ? '+' : ''}${summary.totalDeviationPercent.toFixed(1)}%` : '-'}
             </p>
           </div>
         </div>
@@ -64,7 +64,7 @@ export const EconomySummaryCard = ({ summary }: EconomySummaryCardProps) => {
           <div className="flex justify-between text-sm">
             <span>Budgetanvändning</span>
             <span className={getDeviationColor(status)}>
-              {summary.totalDeviationPercent.toFixed(0)}%
+              {budgetUsagePercent.toFixed(0)}%
             </span>
           </div>
           <div className="relative">
@@ -72,9 +72,9 @@ export const EconomySummaryCard = ({ summary }: EconomySummaryCardProps) => {
               value={Math.min(progressValue, 100)} 
               className="h-3" 
             />
-            {summary.totalDeviationPercent > 100 && (
+            {budgetUsagePercent > 100 && (
               <div 
-                className="absolute top-0 h-3 bg-red-500 rounded-r-full"
+                className="absolute top-0 h-3 bg-destructive rounded-r-full"
                 style={{ 
                   left: `${(100 / progressValue) * 100}%`,
                   width: `${((progressValue - 100) / progressValue) * 100}%`
