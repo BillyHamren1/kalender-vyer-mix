@@ -80,29 +80,120 @@ export const fetchActivePackings = async (): Promise<PackingWithBooking[]> => {
   return packingsWithBookings;
 };
 
-// Fetch packing list items for a specific packing
+// Fetch packing list items for a specific packing (auto-generates if needed)
 export const fetchPackingListItems = async (packingId: string) => {
+  // First, get the packing to find booking_id
+  const { data: packing, error: packingError } = await supabase
+    .from('packing_projects')
+    .select('booking_id')
+    .eq('id', packingId)
+    .single();
+
+  if (packingError || !packing?.booking_id) {
+    // No booking linked, just fetch existing items
+    const { data, error } = await supabase
+      .from('packing_list_items')
+      .select(`
+        *,
+        booking_products (
+          id, name, quantity, sku, notes,
+          parent_product_id, parent_package_id, is_package_component
+        )
+      `)
+      .eq('packing_id', packingId);
+    
+    if (error) throw error;
+    return sortPackingItems(data || []);
+  }
+
+  const bookingId = packing.booking_id;
+
+  // Check existing items count vs products count
+  const [itemsCountResult, productsCountResult] = await Promise.all([
+    supabase.from('packing_list_items').select('id', { count: 'exact', head: true }).eq('packing_id', packingId),
+    supabase.from('booking_products').select('id', { count: 'exact', head: true }).eq('booking_id', bookingId)
+  ]);
+
+  const existingCount = itemsCountResult.count || 0;
+  const productCount = productsCountResult.count || 0;
+
+  // Auto-generate if no items exist
+  if (existingCount === 0 && productCount > 0) {
+    await generatePackingListItems(packingId, bookingId);
+  } else if (existingCount < productCount) {
+    // Sync missing items
+    await syncMissingPackingItems(packingId, bookingId);
+  }
+
+  // Now fetch all items
   const { data, error } = await supabase
     .from('packing_list_items')
     .select(`
       *,
       booking_products (
-        id,
-        name,
-        quantity,
-        sku,
-        notes,
-        parent_product_id,
-        parent_package_id,
-        is_package_component
+        id, name, quantity, sku, notes,
+        parent_product_id, parent_package_id, is_package_component
       )
     `)
     .eq('packing_id', packingId);
 
   if (error) throw error;
-  
-  // Group items: main products first, then children under their parent
-  const items = data || [];
+  return sortPackingItems(data || []);
+};
+
+// Generate packing list items from booking products
+const generatePackingListItems = async (packingId: string, bookingId: string): Promise<void> => {
+  const { data: products, error: productsError } = await supabase
+    .from('booking_products')
+    .select('id, quantity')
+    .eq('booking_id', bookingId);
+
+  if (productsError) throw productsError;
+  if (!products || products.length === 0) return;
+
+  const itemsToInsert = products.map(product => ({
+    packing_id: packingId,
+    booking_product_id: product.id,
+    quantity_to_pack: product.quantity,
+    quantity_packed: 0
+  }));
+
+  const { error: insertError } = await supabase
+    .from('packing_list_items')
+    .insert(itemsToInsert);
+
+  if (insertError) throw insertError;
+};
+
+// Sync missing packing items (add new products without removing existing)
+const syncMissingPackingItems = async (packingId: string, bookingId: string): Promise<void> => {
+  const { data: products } = await supabase
+    .from('booking_products')
+    .select('id, quantity')
+    .eq('booking_id', bookingId);
+
+  const { data: existingItems } = await supabase
+    .from('packing_list_items')
+    .select('booking_product_id')
+    .eq('packing_id', packingId);
+
+  const existingProductIds = new Set((existingItems || []).map(i => i.booking_product_id));
+  const productsToAdd = (products || []).filter(p => !existingProductIds.has(p.id));
+
+  if (productsToAdd.length > 0) {
+    const itemsToInsert = productsToAdd.map(product => ({
+      packing_id: packingId,
+      booking_product_id: product.id,
+      quantity_to_pack: product.quantity,
+      quantity_packed: 0
+    }));
+
+    await supabase.from('packing_list_items').insert(itemsToInsert);
+  }
+};
+
+// Sort packing items: parents first with children underneath
+const sortPackingItems = (items: any[]) => {
   const mainProducts: typeof items = [];
   const childrenByParent: Record<string, typeof items> = {};
   
