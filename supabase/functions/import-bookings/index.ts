@@ -1146,14 +1146,36 @@ serve(async (req) => {
             
             // Process products with parent-child relationship tracking
             if (externalBooking.products && Array.isArray(externalBooking.products)) {
-              console.log(`[Product Recovery] Processing ${externalBooking.products.length} products for booking ${bookingData.id}`)
+              console.log(`[Product Recovery] Processing ${externalBooking.products.length} raw products for booking ${bookingData.id}`)
+              
+              // DEDUPLICATE: External API sometimes sends duplicate rows - merge by name + parent
+              const deduplicatedProducts: any[] = [];
+              const productKeyMap = new Map<string, number>();
+              
+              for (const rawProduct of externalBooking.products) {
+                const name = (rawProduct.name || rawProduct.product_name || '').trim();
+                const parentId = rawProduct.parent_product_id || rawProduct.parent_package_id || 'root';
+                const key = `${name}::${parentId}`;
+                
+                if (productKeyMap.has(key)) {
+                  const existingIdx = productKeyMap.get(key)!;
+                  deduplicatedProducts[existingIdx].quantity = 
+                    (deduplicatedProducts[existingIdx].quantity || 1) + (rawProduct.quantity || 1);
+                  console.log(`[Product Recovery][Dedup] Merged duplicate "${name}" - new quantity: ${deduplicatedProducts[existingIdx].quantity}`);
+                } else {
+                  productKeyMap.set(key, deduplicatedProducts.length);
+                  deduplicatedProducts.push({ ...rawProduct, quantity: rawProduct.quantity || 1 });
+                }
+              }
+              
+              console.log(`[Product Recovery] Processing ${deduplicatedProducts.length} deduplicated products`);
               
               const externalIdToInternalId = new Map<string, string>();
               const pendingByExternalParentId = new Map<string, string[]>();
               const pendingSequentialAccessoryIds: string[] = [];
               let lastParentProductId: string | null = null;
               
-              for (const product of externalBooking.products) {
+              for (const product of deduplicatedProducts) {
                 try {
                   const unitPrice = product.price || product.unit_price || product.rental_price || product.cost || null;
                   const quantity = product.quantity || 1;
@@ -1496,7 +1518,30 @@ serve(async (req) => {
 
         // Process products with parent-child relationship tracking
         if (externalBooking.products && Array.isArray(externalBooking.products)) {
-          console.log(`Processing ${externalBooking.products.length} products for booking ${bookingData.id}`)
+          console.log(`Processing ${externalBooking.products.length} raw products for booking ${bookingData.id}`)
+          
+          // DEDUPLICATE: External API sometimes sends duplicate rows - merge by name + parent
+          const deduplicatedProducts: any[] = [];
+          const productKeyMap = new Map<string, number>(); // key -> index in deduplicatedProducts
+          
+          for (const product of externalBooking.products) {
+            const name = (product.name || product.product_name || '').trim();
+            const parentId = product.parent_product_id || product.parent_package_id || 'root';
+            const key = `${name}::${parentId}`;
+            
+            if (productKeyMap.has(key)) {
+              // Merge: add quantities
+              const existingIdx = productKeyMap.get(key)!;
+              deduplicatedProducts[existingIdx].quantity = 
+                (deduplicatedProducts[existingIdx].quantity || 1) + (product.quantity || 1);
+              console.log(`[Dedup] Merged duplicate "${name}" - new quantity: ${deduplicatedProducts[existingIdx].quantity}`);
+            } else {
+              productKeyMap.set(key, deduplicatedProducts.length);
+              deduplicatedProducts.push({ ...product, quantity: product.quantity || 1 });
+            }
+          }
+          
+          console.log(`Processing ${deduplicatedProducts.length} deduplicated products for booking ${bookingData.id}`);
           
           // Track the last parent product ID for linking accessories
           const externalIdToInternalId = new Map<string, string>();
@@ -1504,7 +1549,7 @@ serve(async (req) => {
           const pendingSequentialAccessoryIds: string[] = [];
           let lastParentProductId: string | null = null;
           
-          for (const product of externalBooking.products) {
+          for (const product of deduplicatedProducts) {
             try {
               // Log raw product data to see all available fields from external API
               console.log(`RAW PRODUCT DATA from external API for booking ${bookingData.id}:`, JSON.stringify(product, null, 2))
