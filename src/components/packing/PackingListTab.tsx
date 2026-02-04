@@ -7,6 +7,7 @@ import { PackingListItem } from "@/types/packing";
 import PackingListItemRow from "./PackingListItemRow";
 import PackingQRCode from "./PackingQRCode";
 import { Skeleton } from "@/components/ui/skeleton";
+import PackingListGroup from "./PackingListGroup";
 
 interface PackingListTabProps {
   packingId: string;
@@ -26,6 +27,7 @@ const PackingListTab = ({
   onMarkAllPacked
 }: PackingListTabProps) => {
   const [showQR, setShowQR] = useState(false);
+  const [showRemoved, setShowRemoved] = useState(false);
 
   // Helper to check if product is an accessory (↳/└/L, prefix)
   const isAccessoryProduct = (name: string) => {
@@ -38,11 +40,12 @@ const PackingListTab = ({
   // - accessories: child items marked as accessories (↳)
   // - orphanedItems: items whose product no longer exists in the booking
   // Accessories should appear under their parent and be listed together (contiguously).
-  const { mainProducts, packageComponents, accessoriesByParent, orphanedItems, progress } = useMemo(() => {
+  const { mainProducts, packageComponents, accessoriesByParent, orphanedItems, progress, groupHasNewByKey } = useMemo(() => {
     const main: PackingListItem[] = [];
     const pkgComponents: Record<string, PackingListItem[]> = {};
     const accByParent: Record<string, PackingListItem[]> = {};
     const orphaned: PackingListItem[] = [];
+    const groupNewMap: Record<string, boolean> = {};
     
     let totalToPack = 0;
     let totalPacked = 0;
@@ -87,6 +90,12 @@ const PackingListTab = ({
       );
     };
 
+    // Precompute for rendering
+    main.forEach((p) => {
+      const key = p.product?.id ?? p.id;
+      groupNewMap[key] = groupHasNew(p);
+    });
+
     main.sort((a, b) => {
       const aNew = groupHasNew(a);
       const bNew = groupHasNew(b);
@@ -100,6 +109,7 @@ const PackingListTab = ({
       packageComponents: pkgComponents,
       accessoriesByParent: accByParent,
       orphanedItems: orphaned,
+      groupHasNewByKey: groupNewMap,
       progress: {
         total: totalToPack,
         packed: totalPacked,
@@ -189,33 +199,13 @@ const PackingListTab = ({
             {/* Main products with their children */}
             {mainProducts.map(item => (
               <div key={item.id}>
-                <PackingListItemRow
-                  item={item}
+                <PackingListGroup
+                  parent={item}
+                  packageComponents={item.product ? (packageComponents[item.product.id] || []) : []}
+                  accessories={item.product ? (accessoriesByParent[item.product.id] || []) : []}
                   onUpdate={onUpdateItem}
-                  isAccessory={false}
-                  isNewlyAdded={item.isNewlyAdded}
+                  defaultOpen={groupHasNewByKey[item.product?.id ?? item.id] ?? false}
                 />
-                {/* Render package components (⦿) for this product */}
-                {item.product && packageComponents[item.product.id]?.map(comp => (
-                  <PackingListItemRow
-                    key={comp.id}
-                    item={comp}
-                    onUpdate={onUpdateItem}
-                    isAccessory={true}
-                    isNewlyAdded={comp.isNewlyAdded}
-                  />
-                ))}
-
-                {/* Render accessories (↳) for this product, grouped together */}
-                {item.product && accessoriesByParent[item.product.id]?.map(acc => (
-                  <PackingListItemRow
-                    key={acc.id}
-                    item={acc}
-                    onUpdate={onUpdateItem}
-                    isAccessory={true}
-                    isNewlyAdded={acc.isNewlyAdded}
-                  />
-                ))}
               </div>
             ))}
 
@@ -223,19 +213,29 @@ const PackingListTab = ({
             {orphanedItems.length > 0 && (
               <>
                 <div className="border-t border-dashed border-destructive/30 mt-4 pt-3">
-                  <p className="text-xs text-destructive font-medium mb-2">
-                    Borttagna från bokningen ({orphanedItems.length})
-                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-destructive"
+                    onClick={() => setShowRemoved((v) => !v)}
+                  >
+                    {showRemoved ? "Dölj" : "Visa"} borttagna från bokningen ({orphanedItems.length})
+                  </Button>
                 </div>
-                {orphanedItems.map(item => (
-                  <PackingListItemRow
-                    key={item.id}
-                    item={item}
-                    onUpdate={onUpdateItem}
-                    isAccessory={!!item.product?.parent_product_id}
-                    isOrphaned={true}
-                  />
-                ))}
+                {showRemoved && (
+                  <div className="space-y-1">
+                    {orphanedItems.map(item => (
+                      <PackingListItemRow
+                        key={item.id}
+                        item={item}
+                        onUpdate={onUpdateItem}
+                        isAccessory={!!item.product?.parent_product_id}
+                        isOrphaned={true}
+                      />
+                    ))}
+                  </div>
+                )}
               </>
             )}
           </div>
