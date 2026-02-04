@@ -468,65 +468,39 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           
           <div className="divide-y divide-border/30 max-h-[calc(100vh-220px)] overflow-y-auto">
             {(() => {
-              // Build parent-children map for auto-complete logic
-              const childrenByParent: Record<string, PackingItem[]> = {};
-              items.forEach(item => {
-                const parentId = item.booking_products?.parent_product_id;
-                if (parentId) {
-                  if (!childrenByParent[parentId]) childrenByParent[parentId] = [];
-                  childrenByParent[parentId].push(item);
-                }
-              });
-
-              return items.map(item => {
-                const rawName = item.booking_products?.name || 'Okänd produkt';
+              // Filter out child items - only show main products in scanner view
+              const mainProductsOnly = items.filter(item => {
+                const rawName = item.booking_products?.name || '';
                 const trimmedName = rawName.trimStart();
-                const productId = item.booking_products?.id;
                 
-                // Determine child status via relations first, then prefix fallback
+                // Check if child by relation
                 const isChildByRelation = !!(
                   item.booking_products?.parent_product_id || 
                   item.booking_products?.parent_package_id || 
                   item.booking_products?.is_package_component
                 );
+                // Check if child by prefix
                 const isChildByPrefix = (
                   trimmedName.startsWith('↳') || 
                   trimmedName.startsWith('└') || 
                   trimmedName.startsWith('L,') ||
                   trimmedName.startsWith('⦿')
                 );
-                const isChild = isChildByRelation || isChildByPrefix;
                 
-                // Check if this is a parent with children
-                const hasChildren = productId ? (childrenByParent[productId]?.length || 0) > 0 : false;
-                const isParent = !isChild && hasChildren;
+                // Only include if NOT a child
+                return !isChildByRelation && !isChildByPrefix;
+              });
+
+              return mainProductsOnly.map(item => {
+                const rawName = item.booking_products?.name || 'Okänd produkt';
                 
-                // For parents: calculate completion based on children
-                let packed = item.quantity_packed || 0;
-                let total = item.quantity_to_pack;
+                // For main products: use their own quantity (typically 1)
+                const packed = item.quantity_packed || 0;
+                const total = item.quantity_to_pack;
                 
-                if (isParent && productId) {
-                  const children = childrenByParent[productId] || [];
-                  const childrenPacked = children.filter(c => (c.quantity_packed || 0) >= c.quantity_to_pack).length;
-                  const allChildrenPacked = children.length > 0 && childrenPacked === children.length;
-                  
-                  // Display children progress for parent
-                  packed = childrenPacked;
-                  total = children.length;
-                  
-                  // If all children packed, show complete
-                  if (allChildrenPacked) {
-                    packed = total;
-                  }
-                }
-                
-                // Clean name and determine prefix indicator
+                // Clean name - main products only, no prefix indicators
                 const cleanName = cleanProductName(rawName);
-                const isPackageComponent = item.booking_products?.is_package_component || trimmedName.startsWith('⦿');
-                const prefixIndicator = isChild ? (isPackageComponent ? '⦿ ' : '↳ ') : '';
-                
-                // Format display name: UPPERCASE for main, Title Case for children
-                const displayName = isChild ? formatToTitleCase(cleanName) : cleanName.toUpperCase();
+                const displayName = cleanName.toUpperCase();
                 
                 const isComplete = packed >= total && total > 0;
                 const isPartial = packed > 0 && packed < total;
@@ -537,59 +511,38 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                 return (
                   <button 
                     key={item.id}
-                    onClick={() => handleManualToggle(item.id, isComplete, item.quantity_to_pack, isParent)}
-                    disabled={isParent}
-                    className={`w-full flex items-center gap-2 text-left transition-colors ${
+                    onClick={() => handleManualToggle(item.id, isComplete, item.quantity_to_pack, false)}
+                    className={`w-full flex items-center gap-2 text-left transition-colors px-2 py-2 ${
                       isComplete 
                         ? 'bg-green-50/70' 
                         : isPartial 
                           ? 'bg-amber-50/50' 
                           : ''
-                    } ${
-                      isParent 
-                        ? 'cursor-default opacity-80' 
-                        : 'hover:bg-muted/40 active:bg-muted/60'
-                    } ${isChild ? 'pl-6 pr-2 py-1.5' : 'px-2 py-2'}`}
+                    } hover:bg-muted/40 active:bg-muted/60`}
                   >
                     {/* Status indicator circle */}
-                    <div className={`shrink-0 rounded-full flex items-center justify-center ${
-                      isChild ? 'w-4 h-4' : 'w-5 h-5'
-                    } ${
+                    <div className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${
                       isComplete 
                         ? 'bg-green-500' 
                         : isPartial 
                           ? 'bg-amber-500' 
-                          : isParent
-                            ? 'border-2 border-dashed border-muted-foreground/30'
-                            : 'border-2 border-muted-foreground/40'
+                          : 'border-2 border-muted-foreground/40'
                     }`}>
                       {isComplete && <Check className="text-white w-2.5 h-2.5" />}
                       {isPartial && <span className="text-white text-[8px] font-bold">{packed}</span>}
                     </div>
                     
-                    {/* Product name with prefix indicator */}
+                    {/* Product name */}
                     <div className="flex-1 min-w-0">
-                      <span className={`block truncate ${
-                        isChild 
-                          ? 'text-[11px] font-normal' 
-                          : 'text-xs font-semibold tracking-wide'
-                      } ${
+                      <span className={`block truncate text-xs font-semibold tracking-wide ${
                         isComplete 
                           ? 'text-green-700' 
                           : isPartial 
                             ? 'text-amber-800'
-                            : isChild 
-                              ? 'text-muted-foreground' 
-                              : 'text-foreground'
+                            : 'text-foreground'
                       }`}>
-                        {isChild && <span className="text-muted-foreground/70">{prefixIndicator}</span>}
                         {displayName}
                       </span>
-                      {isParent && (
-                        <span className="text-[9px] text-muted-foreground">
-                          Markeras när alla delar är packade
-                        </span>
-                      )}
                     </div>
                     
                     {/* Parcel badge if assigned */}
@@ -600,7 +553,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                       </div>
                     )}
                     
-                    {/* Quantity badge: packed/total or children progress */}
+                    {/* Quantity badge */}
                     <div className={`shrink-0 min-w-[40px] flex items-center justify-center rounded px-1.5 py-0.5 ${
                       isComplete 
                         ? 'bg-green-100 text-green-700' 
@@ -608,7 +561,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                           ? 'bg-amber-100 text-amber-700'
                           : 'bg-muted/60 text-muted-foreground'
                     }`}>
-                      <span className={`font-mono font-bold ${isChild ? 'text-[10px]' : 'text-xs'}`}>
+                      <span className="font-mono font-bold text-xs">
                         {packed}/{total}
                       </span>
                     </div>
