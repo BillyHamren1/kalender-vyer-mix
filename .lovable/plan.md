@@ -1,156 +1,147 @@
 
-# Plan: Fixa produktsynk och automatisk uppdatering av packsidan
+# Plan: Fixa Godkännande av Tidrapporter
 
-## 1. Sammanfattning
-Produktändringar i externa systemet upptäcks inte av den nuvarande synklogiken, och packvyn uppdateras inte heller automatiskt. Denna plan åtgärdar båda problemen och hanterar packlista-kopplingarna korrekt.
+## Sammanfattning
+UI:t uppdateras inte efter godkännande pga tre buggar: fel ID skickas till Supabase-uppdateringen, fel query key invalideras, och aggregeringen tappar individuella rapport-ID:n.
 
----
+## Ändringar
 
-## 2. Ändringar
+### 1. Uppdatera Service för att behålla rapport-ID:n
+**Fil:** `src/services/projectEconomyService.ts`
 
-### 2.1 Utöka `hasBookingChanged` med produktjämförelse (Edge Function)
+Utöka `fetchProjectTimeReports` för att returnera en lista med individuella rapport-ID:n för varje personal:
 
-**Fil:** `supabase/functions/import-bookings/index.ts`
-
-Lägg till en funktion som hämtar nuvarande antal produkter och deras namn/kvantitet från databasen och jämför med externa produkter.
-
-```text
-+--------------------------------------------+
-|  hasBookingChanged + hasProductsChanged    |
-|  - Jämför antal produkter                  |
-|  - Jämför produktnamn + kvantiteter hash   |
-|  - Returnera sant om produkter avviker     |
-+--------------------------------------------+
-```
-
-**Ny logik:**
-- Skapa en snabb produktsignatur (t.ex. sortera namn+kvantitet och skapa en hash/sträng).
-- Om signaturen skiljer sig → sätt `needsProductUpdate = true`.
-- Om `needsProductUpdate` och ingen annan ändring → kör produktsynk men visa popover-info.
-
-### 2.2 Återkoppla packing_list_items vid produktuppdatering
-
-**Fil:** `supabase/functions/import-bookings/index.ts`
-
-Vid produktändring:
-1. Hämta befintliga `packing_list_items` med koppling till den gamla produkten (via namn/SKU).
-2. Radera gamla `booking_products`.
-3. Skapa nya `booking_products`.
-4. Mappa om `packing_list_items.booking_product_id` till nya IDn baserat på matchning (namn/SKU).
-5. Lägg till nya rader för nya produkter, ta bort rader för borttagna produkter.
-6. Returnera en lista med justeringar (tillagda, borttagna, kvantitetsändringar).
-
-### 2.3 Lägg till "products_updated"-flagga i import-resultatet
-
-**Fil:** `supabase/functions/import-bookings/index.ts`
-
-Utöka `results`-objektet:
-- `products_updated_bookings: string[]` – boknings-IDn där produkter ändrades.
-- `product_changes: { bookingId, added: [], removed: [], updated: [] }[]`
-
-### 2.4 Auto-uppdatering av PackingDetail (Frontend)
-
-**Fil:** `src/pages/PackingDetail.tsx`
-
-1. Lägg till en `refetch`-funktion som hämtar produkter och packlistor på nytt.
-2. Lägg till en `useEffect` som lyssnar på `visibilitychange` (när fönstret får fokus → refetch).
-3. Lägg till en synlig "Uppdatera"-knapp.
-4. Visa ett toast-meddelande/popover när produkter har ändrats.
-
-### 2.5 Visa popover med produktjusteringar
-
-**Fil:** `src/pages/PackingDetail.tsx`
-
-När nya produktdata laddas:
-- Jämför med tidigare data i state.
-- Om skillnader finns → visa en popover/toast som listar:
-  - Tillagda produkter
-  - Borttagna produkter
-  - Ändringar i kvantitet
-
----
-
-## 3. Teknisk implementation i Edge Function
-
-### 3.1 Produktsignatur-funktion (pseudo)
 ```typescript
-const getProductsSignature = (products: any[]): string => {
-  const sorted = products
-    .map(p => `${p.name || ''}_${p.quantity || 0}`)
-    .sort();
-  return sorted.join('|');
-};
-```
-
-### 3.2 Jämförelse mot databas
-```typescript
-const { data: existingProducts } = await supabase
-  .from('booking_products')
-  .select('name, quantity')
-  .eq('booking_id', bookingId);
-
-const existingSignature = getProductsSignature(existingProducts || []);
-const externalSignature = getProductsSignature(externalProducts);
-
-const productsChanged = existingSignature !== externalSignature;
-```
-
-### 3.3 Återkoppling av packing_list_items
-```typescript
-// 1. Spara mappning gamla produkt-id -> namn
-const oldProductMap = new Map(existingProducts.map(p => [p.id, p.name]));
-
-// 2. Radera och skapa nya produkter (befintlig logik)
-
-// 3. Skapa mappning nya produkt-id -> namn
-const newProductMap = new Map(newProducts.map(p => [p.name, p.id]));
-
-// 4. Uppdatera packing_list_items
-for (const packItem of packingListItems) {
-  const oldName = oldProductMap.get(packItem.booking_product_id);
-  const newId = newProductMap.get(oldName);
-  if (newId) {
-    await supabase
-      .from('packing_list_items')
-      .update({ booking_product_id: newId })
-      .eq('id', packItem.id);
-  } else {
-    // Produkt borttagen → logga/visa varning
-  }
+export interface StaffTimeReport {
+  staff_id: string;
+  staff_name: string;
+  total_hours: number;
+  overtime_hours: number;
+  hourly_rate: number;
+  overtime_rate: number;
+  total_cost: number;
+  approved: boolean;
+  report_ids: string[];  // Lägg till lista med alla rapport-ID:n
 }
 ```
 
----
+### 2. Uppdatera typdefinitionen
+**Fil:** `src/types/projectEconomy.ts`
 
-## 4. Frontend-flöde
+Lägg till `report_ids: string[]` i `StaffTimeReport`-interfacet.
 
-```text
-Sidan öppnas/fokus → refetch data
-        ↓
-Jämför med tidigare state
-        ↓
-  ┌─────────────────────────────────┐
-  │ Skillnader?                     │
-  │   Ja → Visa toast/popover       │
-  │   Nej → Inget meddelande        │
-  └─────────────────────────────────┘
+### 3. Fixa StaffCostTable för korrekt godkännande
+**Fil:** `src/components/project/StaffCostTable.tsx`
+
+**Problem att åtgärda:**
+- Ändra `handleApprove` så den godkänner alla rapporter för en personal via `report_ids`
+- Invalidera rätt query key: `['project-time-reports', bookingId]`
+- Invänta invalidering före toast med `await queryClient.invalidateQueries()`
+- Lägg till `bookingId` som prop för korrekt invalidering
+
+### 4. Uppdatera komponenten som använder StaffCostTable
+**Fil:** `src/components/project/ProjectEconomyTab.tsx` (eller liknande)
+
+Skicka `bookingId` till `StaffCostTable` så att rätt query key kan invalideras.
+
+## Teknisk implementation
+
+### Steg 1: Typ-uppdatering
+```typescript
+// src/types/projectEconomy.ts
+export interface StaffTimeReport {
+  staff_id: string;
+  staff_name: string;
+  total_hours: number;
+  overtime_hours: number;
+  hourly_rate: number;
+  overtime_rate: number;
+  total_cost: number;
+  approved: boolean;
+  report_ids: string[];  // NY: lista med rapport-ID för godkännande
+}
 ```
 
----
+### Steg 2: Service-uppdatering
+```typescript
+// src/services/projectEconomyService.ts - fetchProjectTimeReports
+// Lägg till 'id' i SELECT och samla i report_ids array
 
-## 5. Filer som ändras
+const { data, error } = await supabase
+  .from('time_reports')
+  .select(`
+    id,  // NYTT
+    staff_id,
+    hours_worked,
+    overtime_hours,
+    approved,
+    staff_members!inner(name, hourly_rate, overtime_rate)
+  `)
+  .eq('booking_id', bookingId);
 
-| Fil | Ändring |
-|-----|---------|
-| `supabase/functions/import-bookings/index.ts` | Produktjämförelse, packing_list_items-återkoppling |
-| `src/pages/PackingDetail.tsx` | Auto-refetch, uppdateringsknapp, change-popover |
-| `src/hooks/usePackingList.tsx` | Eventuellt refetchQuery-exponering |
+// Vid aggregering, samla alla id:n
+if (existing) {
+  existing.report_ids.push(report.id);
+  // ... resten av logiken
+} else {
+  staffMap.set(staffId, {
+    // ... befintliga fält
+    report_ids: [report.id]
+  });
+}
+```
 
----
+### Steg 3: Komponent-uppdatering
+```typescript
+// src/components/project/StaffCostTable.tsx
 
-## 6. Säkerhetskontroller
+interface StaffCostTableProps {
+  timeReports: StaffTimeReport[];
+  summary: EconomySummary;
+  bookingId: string | null;  // NY prop
+  onOpenBudgetSettings: () => void;
+}
 
-- Förhindra att packlistor förloras vid import.
-- Logga alla produktändringar för spårbarhet.
-- Visa tydligt vilka produkter som lagts till/tagits bort.
+const handleApprove = async (reportIds: string[], staffName: string) => {
+  try {
+    // Godkänn ALLA rapporter för denna personal
+    const { error } = await supabase
+      .from('time_reports')
+      .update({
+        approved: true,
+        approved_at: new Date().toISOString(),
+        approved_by: 'Projektledare'
+      })
+      .in('id', reportIds);  // Använd .in() för flera ID:n
 
+    if (error) throw error;
+    
+    // Invalidera RÄTT query key och invänta
+    await queryClient.invalidateQueries({ 
+      queryKey: ['project-time-reports', bookingId] 
+    });
+    await queryClient.invalidateQueries({ 
+      queryKey: ['pending-time-reports'] 
+    });
+    
+    toast.success(`Tidrapport för ${staffName} godkänd`);
+  } catch (error) {
+    console.error('Error approving time report:', error);
+    toast.error('Kunde inte godkänna tidrapporten');
+  }
+};
+
+// I render, skicka report_ids istället för staff_id
+onClick={() => handleApprove(report.report_ids, report.staff_name)}
+```
+
+## Filer som påverkas
+1. `src/types/projectEconomy.ts` - Lägg till `report_ids`
+2. `src/services/projectEconomyService.ts` - Hämta och aggregera rapport-ID:n
+3. `src/components/project/StaffCostTable.tsx` - Fixa approve-logik och query keys
+4. `src/components/project/ProjectEconomyTab.tsx` - Skicka bookingId som prop
+
+## Förväntat resultat
+- Godkännande uppdaterar korrekt alla tidrapporter för den valda personalen
+- UI:t uppdateras omedelbart efter godkännande
+- Toasten visas efter att UI:t har uppdaterats
