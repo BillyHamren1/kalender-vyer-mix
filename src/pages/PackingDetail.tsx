@@ -148,16 +148,30 @@ const PackingDetail = () => {
 
   // Acknowledge a single change item
   const acknowledgeChange = useCallback((index: number) => {
-    setChangeItems(prev => 
-      prev.map((item, i) => 
-        i === index ? { ...item, acknowledged: true } : item
-      )
-    );
+    setChangeItems((prev) => {
+      const next = prev.map((item, i) => (i === index ? { ...item, acknowledged: true } : item));
+
+      // If all are acknowledged, auto-close and clear so it doesn't linger
+      if (next.length > 0 && next.every((i) => i.acknowledged)) {
+        window.setTimeout(() => {
+          setShowChangesPopover(false);
+          setProductChanges(null);
+          setChangeItems([]);
+        }, 150);
+      }
+
+      return next;
+    });
   }, []);
 
   // Acknowledge all changes
   const acknowledgeAllChanges = useCallback(() => {
-    setChangeItems(prev => prev.map(item => ({ ...item, acknowledged: true })));
+    setChangeItems((prev) => prev.map((item) => ({ ...item, acknowledged: true })));
+    window.setTimeout(() => {
+      setShowChangesPopover(false);
+      setProductChanges(null);
+      setChangeItems([]);
+    }, 150);
   }, []);
 
   // Dismiss all changes (close popover and clear)
