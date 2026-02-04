@@ -69,6 +69,8 @@ const PackingDetail = () => {
     isLoading: isLoadingPackingList,
     updateItem: updatePackingListItem,
     markAllPacked,
+    syncPackingList,
+    isSyncing,
     refetchItems
   } = usePackingList(packingId || '');
 
@@ -440,6 +442,8 @@ const PackingDetail = () => {
               isLoading={isLoadingPackingList}
               onUpdateItem={updatePackingListItem}
               onMarkAllPacked={() => markAllPacked("Okänd")}
+              onSyncPackingList={syncPackingList}
+              isSyncing={isSyncing}
             />
           </TabsContent>
 
