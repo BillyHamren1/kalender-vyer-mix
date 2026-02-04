@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useBackgroundImport } from "@/hooks/useBackgroundImport";
 import { useSsoListener } from "@/hooks/useSsoListener";
+import { AuthProvider } from "@/contexts/AuthContext";
+import ProtectedRoute from "@/components/auth/ProtectedRoute";
 
 // Layouts
 import MainSystemLayout from "@/components/layouts/MainSystemLayout";
@@ -28,6 +30,7 @@ import JobDetail from "./pages/JobDetail";
 import LargeProjectDetail from "./pages/LargeProjectDetail";
 import APIDocumentation from "./pages/APIDocumentation";
 import NotFound from "./pages/NotFound";
+import Auth from "./pages/Auth";
 
 // Warehouse system pages
 import WarehouseDashboard from "./pages/WarehouseDashboard";
@@ -81,43 +84,48 @@ const AppContent = () => {
         <TooltipProvider>
           <Toaster />
           <BrowserRouter>
-            <Routes>
-              {/* Main System Routes */}
-              <Route path="/" element={<MainSystemLayout><PlanningDashboard /></MainSystemLayout>} />
-              <Route path="/dashboard" element={<MainSystemLayout><PlanningDashboard /></MainSystemLayout>} />
-              <Route path="/calendar" element={<MainSystemLayout><CustomCalendarPage /></MainSystemLayout>} />
-              <Route path="/staff-management" element={<MainSystemLayout><StaffManagement /></MainSystemLayout>} />
-              <Route path="/staff-management/time-approvals" element={<MainSystemLayout><TimeReportApprovals /></MainSystemLayout>} />
-              <Route path="/staff/:staffId" element={<MainSystemLayout><StaffDetail /></MainSystemLayout>} />
-              <Route path="/booking/:bookingId" element={<MainSystemLayout><BookingDetail /></MainSystemLayout>} />
-              <Route path="/booking-list" element={<MainSystemLayout><BookingList /></MainSystemLayout>} />
-              <Route path="/projects" element={<MainSystemLayout><ProjectManagement /></MainSystemLayout>} />
-              <Route path="/project/:projectId" element={<MainSystemLayout><ProjectDetail /></MainSystemLayout>} />
-              <Route path="/economy" element={<MainSystemLayout><EconomyOverview /></MainSystemLayout>} />
-              <Route path="/economy/projects" element={<MainSystemLayout><EconomyOverview view="projects" /></MainSystemLayout>} />
-              <Route path="/economy/staff" element={<MainSystemLayout><EconomyOverview view="staff" /></MainSystemLayout>} />
-              <Route path="/economy/staff-revenue" element={<MainSystemLayout><StaffRevenueOverview /></MainSystemLayout>} />
-              <Route path="/economy/:id" element={<MainSystemLayout><ProjectEconomyDetail /></MainSystemLayout>} />
-              <Route path="/jobs/:id" element={<JobDetail />} />
-              <Route path="/large-project/:id" element={<LargeProjectDetail />} />
-              <Route path="/api-docs" element={<MainSystemLayout><APIDocumentation /></MainSystemLayout>} />
+            <AuthProvider>
+              <Routes>
+                {/* Auth Route - Not Protected */}
+                <Route path="/auth" element={<Auth />} />
 
-              {/* Warehouse System Routes */}
-              <Route path="/warehouse" element={<WarehouseSystemLayout><WarehouseDashboard /></WarehouseSystemLayout>} />
-              <Route path="/warehouse/calendar" element={<WarehouseSystemLayout><WarehouseCalendarPage /></WarehouseSystemLayout>} />
-              <Route path="/warehouse/packing" element={<WarehouseSystemLayout><PackingManagement /></WarehouseSystemLayout>} />
-              <Route path="/warehouse/packing/:packingId" element={<WarehouseSystemLayout><PackingDetail /></WarehouseSystemLayout>} />
-              <Route path="/warehouse/packing/:packingId/verify" element={<PackingVerify />} />
-              <Route path="/warehouse/economy" element={<WarehouseSystemLayout><WarehouseEconomy /></WarehouseSystemLayout>} />
-              <Route path="/warehouse/inventory" element={<WarehouseSystemLayout><WarehouseInventoryPlaceholder /></WarehouseSystemLayout>} />
-              <Route path="/warehouse/service" element={<WarehouseSystemLayout><WarehouseServicePlaceholder /></WarehouseSystemLayout>} />
-              
-              {/* Mobile Scanner App (standalone for Capacitor) */}
-              <Route path="/scanner" element={<MobileScannerApp />} />
+                {/* Main System Routes - Protected */}
+                <Route path="/" element={<ProtectedRoute><MainSystemLayout><PlanningDashboard /></MainSystemLayout></ProtectedRoute>} />
+                <Route path="/dashboard" element={<ProtectedRoute><MainSystemLayout><PlanningDashboard /></MainSystemLayout></ProtectedRoute>} />
+                <Route path="/calendar" element={<ProtectedRoute><MainSystemLayout><CustomCalendarPage /></MainSystemLayout></ProtectedRoute>} />
+                <Route path="/staff-management" element={<ProtectedRoute><MainSystemLayout><StaffManagement /></MainSystemLayout></ProtectedRoute>} />
+                <Route path="/staff-management/time-approvals" element={<ProtectedRoute><MainSystemLayout><TimeReportApprovals /></MainSystemLayout></ProtectedRoute>} />
+                <Route path="/staff/:staffId" element={<ProtectedRoute><MainSystemLayout><StaffDetail /></MainSystemLayout></ProtectedRoute>} />
+                <Route path="/booking/:bookingId" element={<ProtectedRoute><MainSystemLayout><BookingDetail /></MainSystemLayout></ProtectedRoute>} />
+                <Route path="/booking-list" element={<ProtectedRoute><MainSystemLayout><BookingList /></MainSystemLayout></ProtectedRoute>} />
+                <Route path="/projects" element={<ProtectedRoute><MainSystemLayout><ProjectManagement /></MainSystemLayout></ProtectedRoute>} />
+                <Route path="/project/:projectId" element={<ProtectedRoute><MainSystemLayout><ProjectDetail /></MainSystemLayout></ProtectedRoute>} />
+                <Route path="/economy" element={<ProtectedRoute><MainSystemLayout><EconomyOverview /></MainSystemLayout></ProtectedRoute>} />
+                <Route path="/economy/projects" element={<ProtectedRoute><MainSystemLayout><EconomyOverview view="projects" /></MainSystemLayout></ProtectedRoute>} />
+                <Route path="/economy/staff" element={<ProtectedRoute><MainSystemLayout><EconomyOverview view="staff" /></MainSystemLayout></ProtectedRoute>} />
+                <Route path="/economy/staff-revenue" element={<ProtectedRoute><MainSystemLayout><StaffRevenueOverview /></MainSystemLayout></ProtectedRoute>} />
+                <Route path="/economy/:id" element={<ProtectedRoute><MainSystemLayout><ProjectEconomyDetail /></MainSystemLayout></ProtectedRoute>} />
+                <Route path="/jobs/:id" element={<ProtectedRoute><JobDetail /></ProtectedRoute>} />
+                <Route path="/large-project/:id" element={<ProtectedRoute><LargeProjectDetail /></ProtectedRoute>} />
+                <Route path="/api-docs" element={<ProtectedRoute><MainSystemLayout><APIDocumentation /></MainSystemLayout></ProtectedRoute>} />
 
-              {/* Fallback */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+                {/* Warehouse System Routes - Protected */}
+                <Route path="/warehouse" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseDashboard /></WarehouseSystemLayout></ProtectedRoute>} />
+                <Route path="/warehouse/calendar" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseCalendarPage /></WarehouseSystemLayout></ProtectedRoute>} />
+                <Route path="/warehouse/packing" element={<ProtectedRoute><WarehouseSystemLayout><PackingManagement /></WarehouseSystemLayout></ProtectedRoute>} />
+                <Route path="/warehouse/packing/:packingId" element={<ProtectedRoute><WarehouseSystemLayout><PackingDetail /></WarehouseSystemLayout></ProtectedRoute>} />
+                <Route path="/warehouse/packing/:packingId/verify" element={<ProtectedRoute><PackingVerify /></ProtectedRoute>} />
+                <Route path="/warehouse/economy" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseEconomy /></WarehouseSystemLayout></ProtectedRoute>} />
+                <Route path="/warehouse/inventory" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseInventoryPlaceholder /></WarehouseSystemLayout></ProtectedRoute>} />
+                <Route path="/warehouse/service" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseServicePlaceholder /></WarehouseSystemLayout></ProtectedRoute>} />
+                
+                {/* Mobile Scanner App - Protected */}
+                <Route path="/scanner" element={<ProtectedRoute><MobileScannerApp /></ProtectedRoute>} />
+
+                {/* Fallback */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </AuthProvider>
           </BrowserRouter>
         </TooltipProvider>
       </QueryClientProvider>
