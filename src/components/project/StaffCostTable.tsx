@@ -12,10 +12,11 @@ import { cn } from '@/lib/utils';
 interface StaffCostTableProps {
   timeReports: StaffTimeReport[];
   summary: EconomySummary;
+  bookingId: string | null;
   onOpenBudgetSettings: () => void;
 }
 
-export const StaffCostTable = ({ timeReports, summary, onOpenBudgetSettings }: StaffCostTableProps) => {
+export const StaffCostTable = ({ timeReports, summary, bookingId, onOpenBudgetSettings }: StaffCostTableProps) => {
   const queryClient = useQueryClient();
   const status = getDeviationStatus(summary.staffDeviationPercent);
 
@@ -28,7 +29,7 @@ export const StaffCostTable = ({ timeReports, summary, onOpenBudgetSettings }: S
     }).format(amount);
   };
 
-  const handleApprove = async (reportId: string, staffName: string) => {
+  const handleApprove = async (reportIds: string[], staffName: string) => {
     try {
       const { error } = await supabase
         .from('time_reports')
@@ -37,13 +38,15 @@ export const StaffCostTable = ({ timeReports, summary, onOpenBudgetSettings }: S
           approved_at: new Date().toISOString(),
           approved_by: 'Projektledare'
         })
-        .eq('id', reportId);
+        .in('id', reportIds);
 
       if (error) throw error;
       
+      // Invalidate correct query keys and await completion
+      await queryClient.invalidateQueries({ queryKey: ['project-time-reports', bookingId] });
+      await queryClient.invalidateQueries({ queryKey: ['pending-time-reports'] });
+      
       toast.success(`Tidrapport för ${staffName} godkänd`);
-      queryClient.invalidateQueries({ queryKey: ['project-economy'] });
-      queryClient.invalidateQueries({ queryKey: ['pending-time-reports'] });
     } catch (error) {
       console.error('Error approving time report:', error);
       toast.error('Kunde inte godkänna tidrapporten');
@@ -106,7 +109,7 @@ export const StaffCostTable = ({ timeReports, summary, onOpenBudgetSettings }: S
                             size="sm"
                             variant="ghost"
                             className="h-7 px-2 text-amber-600 hover:text-green-600 hover:bg-green-50"
-                            onClick={() => handleApprove(report.staff_id, report.staff_name)}
+                            onClick={() => handleApprove(report.report_ids, report.staff_name)}
                             title="Klicka för att godkänna"
                           >
                             <Clock className="h-4 w-4 mr-1" />

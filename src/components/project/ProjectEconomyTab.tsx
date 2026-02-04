@@ -119,6 +119,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
       <StaffCostTable
         timeReports={timeReports}
         summary={summary}
+        bookingId={bookingId}
         onOpenBudgetSettings={() => setBudgetDialogOpen(true)}
       />
 
