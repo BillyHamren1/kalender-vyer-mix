@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle } from 'lucide-react';
-import { fetchPackingListItems, verifyProductBySku, getVerificationProgress, parseScanResult } from '@/services/scannerService';
+import { fetchPackingListItems, verifyProductBySku, getVerificationProgress, parseScanResult, togglePackingItemManually } from '@/services/scannerService';
 import { fetchPacking } from '@/services/packingService';
 import { PackingWithBooking } from '@/types/packing';
 import { QRScanner } from './QRScanner';
@@ -122,6 +122,18 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     // Close QR scanner after scan
     setIsQRActive(false);
   }, [packingId, verifierName, loadData]);
+
+  // Handle manual checkbox toggle
+  const handleManualToggle = useCallback(async (itemId: string, isCurrentlyPacked: boolean, quantityToPack: number) => {
+    const result = await togglePackingItemManually(itemId, isCurrentlyPacked, quantityToPack, verifierName);
+    
+    if (result.success) {
+      toast.success(isCurrentlyPacked ? 'Avmarkerad' : 'Markerad som packad');
+      loadData();
+    } else {
+      toast.error(result.error || 'Kunde inte uppdatera');
+    }
+  }, [verifierName, loadData]);
 
   if (isLoading) {
     return (
@@ -242,15 +254,14 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
               return (
                 <button 
                   key={item.id}
-                  onClick={() => sku && handleScan(sku)}
-                  disabled={!sku || isComplete}
+                  onClick={() => handleManualToggle(item.id, isComplete, total)}
                   className={`w-full flex items-center gap-2 text-left transition-colors ${
                     isComplete 
                       ? 'bg-green-50/70' 
                       : isPartial 
                         ? 'bg-amber-50/50 hover:bg-amber-50/80' 
                         : 'hover:bg-muted/40 active:bg-muted/60'
-                  } ${isChild ? 'pl-6 pr-2 py-1.5' : 'px-2 py-2'} ${!sku && !isComplete ? 'opacity-50' : ''}`}
+                  } ${isChild ? 'pl-6 pr-2 py-1.5' : 'px-2 py-2'}`}
                 >
                   {/* Status indicator circle */}
                   <div className={`shrink-0 rounded-full flex items-center justify-center ${
