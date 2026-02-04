@@ -317,6 +317,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                       </div>
                       
                       {/* Product name */}
+                      {/* Product name */}
                       <div className="flex-1 min-w-0">
                         <span className={`block truncate ${
                           isChild 
@@ -331,7 +332,10 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                                 ? 'text-muted-foreground' 
                                 : 'text-foreground'
                         }`}>
-                          {isChild ? name : name.toUpperCase()}
+                          {isChild 
+                            ? name.charAt(0) + name.slice(1).charAt(0) + name.slice(2).toLowerCase()
+                            : name.toUpperCase()
+                          }
                         </span>
                       </div>
                       
