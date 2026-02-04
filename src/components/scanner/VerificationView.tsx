@@ -263,102 +263,93 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
             >
               <CardTitle className="text-base flex items-center gap-2">
                 <Package className="h-4 w-4" />
-                Att skanna ({unverifiedItems.length} kvar)
+                Packlista
               </CardTitle>
-              <Badge variant={unverifiedItems.length === 0 ? "default" : "secondary"}>
-                {unverifiedItems.length === 0 ? 'Klart!' : `${unverifiedItems.length} st`}
+              <Badge variant={progress.verified === progress.total && progress.total > 0 ? "default" : "secondary"}>
+                {progress.verified}/{progress.total}
               </Badge>
             </button>
           </CardHeader>
           {showProducts && (
             <CardContent className="p-0">
               {/* Table header */}
-              <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
-                <span className="text-sm font-medium text-muted-foreground">Produkt</span>
-                <span className="text-sm font-medium text-muted-foreground">Antal</span>
+              <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Produkt</span>
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Packat</span>
               </div>
               
-              <div className="divide-y divide-border/50">
-                {/* Unverified items */}
-                {unverifiedItems.map(item => {
+              <div className="divide-y divide-border/30">
+                {/* All items in order */}
+                {items.map(item => {
                   const name = item.booking_products?.name || 'Okänd produkt';
                   const isChild = name.startsWith('↳') || name.startsWith('└') || name.startsWith('L,');
                   const sku = item.booking_products?.sku;
+                  const packed = item.quantity_packed || 0;
+                  const total = item.quantity_to_pack;
+                  const isComplete = packed >= total;
+                  const isPartial = packed > 0 && packed < total;
                   
                   return (
                     <button 
                       key={item.id}
                       onClick={() => sku && handleScan(sku)}
-                      disabled={!sku}
-                      className={`w-full flex items-center justify-between transition-colors hover:bg-muted/30 active:bg-muted/50 ${isChild ? 'pl-10 pr-4 py-1.5' : 'px-4 py-2.5'} ${!sku ? 'opacity-60' : ''}`}
+                      disabled={!sku || isComplete}
+                      className={`w-full flex items-center gap-3 text-left transition-colors ${
+                        isComplete 
+                          ? 'bg-green-50/70' 
+                          : isPartial 
+                            ? 'bg-amber-50/50 hover:bg-amber-50/80' 
+                            : 'hover:bg-muted/40 active:bg-muted/60'
+                      } ${isChild ? 'pl-8 pr-3 py-2' : 'px-3 py-3'} ${!sku && !isComplete ? 'opacity-50' : ''}`}
                     >
-                      <div className="flex-1 min-w-0 flex items-center gap-2">
-                        {/* Unchecked circle indicator */}
-                        <div className={`shrink-0 rounded-full border-2 border-muted-foreground/30 ${isChild ? 'w-4 h-4' : 'w-5 h-5'}`} />
-                        <div className={`inline-flex items-center rounded-full ${
-                          isChild 
-                            ? 'bg-muted/40 text-muted-foreground px-2.5 py-1' 
-                            : 'bg-muted text-foreground font-semibold px-3 py-1.5'
-                        }`}>
-                          <span className={`truncate ${isChild ? 'text-xs' : 'text-sm'}`}>
-                            {isChild ? name : name.toUpperCase()}
-                          </span>
-                        </div>
-                      </div>
-                      <div className={`flex items-center justify-center rounded-full bg-muted/50 ${
-                        isChild ? 'min-w-[36px] h-6 px-2' : 'min-w-[44px] h-7 px-3'
+                      {/* Status indicator circle */}
+                      <div className={`shrink-0 rounded-full flex items-center justify-center ${
+                        isChild ? 'w-5 h-5' : 'w-6 h-6'
+                      } ${
+                        isComplete 
+                          ? 'bg-green-500' 
+                          : isPartial 
+                            ? 'bg-amber-500' 
+                            : 'border-2 border-muted-foreground/40'
                       }`}>
-                        <span className={`font-medium ${isChild ? 'text-xs text-muted-foreground' : 'text-sm'}`}>
-                          {item.quantity_to_pack}
+                        {isComplete && <Check className="text-white w-3 h-3" />}
+                        {isPartial && <span className="text-white text-[10px] font-bold">{packed}</span>}
+                      </div>
+                      
+                      {/* Product name */}
+                      <div className="flex-1 min-w-0">
+                        <span className={`block truncate ${
+                          isChild 
+                            ? 'text-xs' 
+                            : 'text-sm font-semibold'
+                        } ${
+                          isComplete 
+                            ? 'text-green-700' 
+                            : isPartial 
+                              ? 'text-amber-800'
+                              : isChild 
+                                ? 'text-muted-foreground' 
+                                : 'text-foreground'
+                        }`}>
+                          {isChild ? name : name.toUpperCase()}
+                        </span>
+                      </div>
+                      
+                      {/* Quantity badge: packed/total */}
+                      <div className={`shrink-0 min-w-[50px] flex items-center justify-center rounded px-2 py-1 ${
+                        isComplete 
+                          ? 'bg-green-100 text-green-700' 
+                          : isPartial 
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-muted/60 text-muted-foreground'
+                      }`}>
+                        <span className={`font-mono font-bold ${isChild ? 'text-xs' : 'text-sm'}`}>
+                          {packed}/{total}
                         </span>
                       </div>
                     </button>
                   );
                 })}
-
-                {/* Verified items section */}
-                {verifiedItems.length > 0 && (
-                  <>
-                    <div className="px-4 py-2 bg-green-50 text-green-800 text-xs font-medium flex items-center gap-2">
-                      <Check className="h-3 w-3" />
-                      Verifierade ({verifiedItems.length})
-                    </div>
-                    {verifiedItems.map(item => {
-                      const name = item.booking_products?.name || 'Okänd produkt';
-                      const isChild = name.startsWith('↳') || name.startsWith('└') || name.startsWith('L,');
-                      
-                      return (
-                        <div 
-                          key={item.id}
-                          className={`flex items-center justify-between bg-green-50/50 ${isChild ? 'pl-10 pr-4 py-1.5' : 'px-4 py-2.5'}`}
-                        >
-                          <div className="flex-1 min-w-0 flex items-center gap-2">
-                            {/* Checked circle indicator */}
-                            <div className={`shrink-0 rounded-full bg-green-500 flex items-center justify-center ${isChild ? 'w-4 h-4' : 'w-5 h-5'}`}>
-                              <Check className={`text-white ${isChild ? 'w-2.5 h-2.5' : 'w-3 h-3'}`} />
-                            </div>
-                            <div className={`inline-flex items-center rounded-full ${
-                              isChild 
-                                ? 'bg-green-100/50 text-green-600 px-2.5 py-1' 
-                                : 'bg-green-100 text-green-800 font-semibold px-3 py-1.5'
-                            }`}>
-                              <span className={`truncate ${isChild ? 'text-xs' : 'text-sm'}`}>
-                                {isChild ? name : name.toUpperCase()}
-                              </span>
-                            </div>
-                          </div>
-                          <div className={`flex items-center justify-center rounded-full bg-green-100 ${
-                            isChild ? 'min-w-[36px] h-6 px-2' : 'min-w-[44px] h-7 px-3'
-                          }`}>
-                            <span className={`font-medium text-green-700 ${isChild ? 'text-xs' : 'text-sm'}`}>
-                              {item.quantity_to_pack}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </>
-                )}
               </div>
             </CardContent>
           )}
