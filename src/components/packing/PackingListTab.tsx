@@ -40,16 +40,24 @@ const PackingListTab = ({
   // Group items per main product:
   // - packageComponents: child items that are NOT accessories
   // - accessories: child items marked as accessories (↳)
+  // - orphanedItems: items whose product no longer exists in the booking
   // Accessories should appear under their parent and be listed together (contiguously).
-  const { mainProducts, packageComponents, accessoriesByParent, progress } = useMemo(() => {
+  const { mainProducts, packageComponents, accessoriesByParent, orphanedItems, progress } = useMemo(() => {
     const main: PackingListItem[] = [];
     const pkgComponents: Record<string, PackingListItem[]> = {};
     const accByParent: Record<string, PackingListItem[]> = {};
+    const orphaned: PackingListItem[] = [];
     
     let totalToPack = 0;
     let totalPacked = 0;
 
     items.forEach(item => {
+      // Orphaned items go to a separate section
+      if (item.isOrphaned) {
+        orphaned.push(item);
+        return;
+      }
+
       totalToPack += item.quantity_to_pack;
       totalPacked += item.quantity_packed;
       
@@ -72,10 +80,18 @@ const PackingListTab = ({
       }
     });
 
+    // Sort main products: newly added first
+    main.sort((a, b) => {
+      if (a.isNewlyAdded && !b.isNewlyAdded) return -1;
+      if (!a.isNewlyAdded && b.isNewlyAdded) return 1;
+      return 0;
+    });
+
     return {
       mainProducts: main,
       packageComponents: pkgComponents,
       accessoriesByParent: accByParent,
+      orphanedItems: orphaned,
       progress: {
         total: totalToPack,
         packed: totalPacked,
@@ -180,6 +196,7 @@ const PackingListTab = ({
                   item={item}
                   onUpdate={onUpdateItem}
                   isAccessory={false}
+                  isNewlyAdded={item.isNewlyAdded}
                 />
                 {/* Render package components (⦿) for this product */}
                 {item.product && packageComponents[item.product.id]?.map(comp => (
@@ -188,6 +205,7 @@ const PackingListTab = ({
                     item={comp}
                     onUpdate={onUpdateItem}
                     isAccessory={true}
+                    isNewlyAdded={comp.isNewlyAdded}
                   />
                 ))}
 
@@ -198,10 +216,31 @@ const PackingListTab = ({
                     item={acc}
                     onUpdate={onUpdateItem}
                     isAccessory={true}
+                    isNewlyAdded={acc.isNewlyAdded}
                   />
                 ))}
               </div>
             ))}
+
+            {/* Orphaned items section - at the bottom */}
+            {orphanedItems.length > 0 && (
+              <>
+                <div className="border-t border-dashed border-destructive/30 mt-4 pt-3">
+                  <p className="text-xs text-destructive font-medium mb-2">
+                    Borttagna från bokningen ({orphanedItems.length})
+                  </p>
+                </div>
+                {orphanedItems.map(item => (
+                  <PackingListItemRow
+                    key={item.id}
+                    item={item}
+                    onUpdate={onUpdateItem}
+                    isAccessory={!!item.product?.parent_product_id}
+                    isOrphaned={true}
+                  />
+                ))}
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
