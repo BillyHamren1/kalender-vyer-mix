@@ -1,72 +1,107 @@
 
-# SSO-integration med EventFlow Hub
+# Autentisering: Skyddade routes + Fallback-inloggning
 
 ## Översikt
-Implementerar SSO (Single Sign-On) för att användare automatiskt ska loggas in i Planerings-modulen när de navigerar från EventFlow Hub.
-
-## Hur det fungerar
+Implementerar krav på inloggning för hela appen med en fallback-inloggningssida för användare som inte kommer via SSO från Hubben.
 
 ```text
-┌─────────────────────┐          ┌─────────────────────────────────┐
-│   EventFlow Hub     │          │   Planerings-modulen            │
-│                     │          │   (kalender-vyer-mix)           │
-│                     │          │                                 │
-│  Användare klickar  │          │  1. useSsoListener fångar token │
-│  på Planering       │──────────│  2. Skickar till Edge Function  │
-│                     │          │  3. Verifierar signatur         │
-│  Genererar SSO-     │          │  4. Skapar Supabase-session     │
-│  token med HMAC     │          │  5. Användaren är inloggad!     │
-└─────────────────────┘          └─────────────────────────────────┘
-        │                                     │
-        │     Via URL: #sso_token=...         │
-        │     Via postMessage (fallback)      │
-        └─────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                        Användarflöde                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────┐     SSO-token?      ┌─────────────────────┐   │
+│  │   Besökare  │ ────────────────────│  SSO-verifiering    │   │
+│  │   kommer    │        JA           │  (befintlig hook)   │   │
+│  └─────────────┘                     └──────────┬──────────┘   │
+│        │                                        │              │
+│        │ NEJ                                    │ OK           │
+│        ▼                                        ▼              │
+│  ┌─────────────────────┐               ┌───────────────────┐   │
+│  │  Inloggad redan?    │               │   Appen öppnas    │   │
+│  └─────────────────────┘               │   (Dashboard)     │   │
+│        │                               └───────────────────┘   │
+│   NEJ  │  JA                                    ▲              │
+│        ▼   ────────────────────────────────────-┘              │
+│  ┌─────────────────────┐                                       │
+│  │  Fallback-login     │                                       │
+│  │  (/auth)            │                                       │
+│  └─────────────────────┘                                       │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Del 1: Edge Function `verify-sso-token`
+## Del 1: AuthContext och AuthProvider
 
-Skapar en ny Edge Function som:
-- Tar emot SSO-token från frontend
-- Normaliserar `full_name` (strippar icke-ASCII-tecken som å, ä, ö)
-- Verifierar HMAC-SHA256 signatur mot delad hemlighet
-- Kontrollerar att token inte är utgången
-- Skapar en Supabase-session via Admin API (magic link)
-- Returnerar access token för klienten
+Skapar en global autentiseringskontext som håller koll på användarens inloggningsstatus.
 
-**Fil:** `supabase/functions/verify-sso-token/index.ts`
+**Fil:** `src/contexts/AuthContext.tsx`
 
-**Config-uppdatering:** Lägger till `verify_jwt = false` för funktionen i `supabase/config.toml`
+```typescript
+// Innehåller:
+- user: User | null
+- session: Session | null
+- isLoading: boolean
+- signIn(email, password)
+- signOut()
+```
 
----
-
-## Del 2: Frontend Hook `useSsoListener`
-
-Skapar en React hook som:
-- Kollar URL-hash vid laddning efter `sso_token=`
-- Lyssnar på `postMessage` events som fallback
-- Dekrypterar base64-token och skickar till Edge Function
-- Skickar tillbaka SSO_ACK eller SSO_ERROR till Hubben
-- Hanterar sessionsskapande i Supabase-klienten
-
-**Fil:** `src/hooks/useSsoListener.ts`
+Denna context:
+- Lyssnar på `onAuthStateChange` för att hålla session uppdaterad
+- Kollar befintlig session vid start med `getSession()`
+- Exponerar inloggnings- och utloggningsfunktioner
 
 ---
 
-## Del 3: Aktivera i App.tsx
+## Del 2: ProtectedRoute-komponent
 
-Anropar `useSsoListener()` hooken i AppContent-komponenten så den körs vid appstart.
+En wrapper-komponent som kontrollerar om användaren är inloggad innan innehållet visas.
 
-**Fil:** `src/App.tsx`
+**Fil:** `src/components/auth/ProtectedRoute.tsx`
+
+```typescript
+// Om inte inloggad → redirect till /auth
+// Om inloggad → visa children
+// Visar loading-spinner under kontroll
+```
 
 ---
 
-## Secret som behöver konfigureras
+## Del 3: Fallback-inloggningssida
 
-| Secret | Beskrivning |
-|--------|-------------|
-| `SSO_SECRET` | Delad hemlighet för HMAC-signering (EventFlow Hub skickar värdet) |
+En enkel inloggningssida för användare som inte kommer via SSO.
+
+**Fil:** `src/pages/Auth.tsx`
+
+Innehåller:
+- E-post/lösenord-inloggning (ingen signup - användare skapas via SSO)
+- Snyggt UI som matchar resten av appen
+- Felhantering med tydliga meddelanden
+- Redirect till dashboard efter lyckad inloggning
+- Information om att man normalt loggar in via Hubben
+
+---
+
+## Del 4: Uppdatera App.tsx
+
+Lägger till AuthProvider och skyddar alla routes utom `/auth`.
+
+**Ändringar i `src/App.tsx`:**
+
+```typescript
+// Wrappar hela appen med AuthProvider
+// Alla routes utom /auth går genom ProtectedRoute
+```
+
+---
+
+## Del 5: Uppdatera useSsoListener
+
+Hooken behöver informera AuthContext om lyckad SSO-inloggning så att appen reagerar direkt utan reload.
+
+**Ändringar i `src/hooks/useSsoListener.ts`:**
+- Efter lyckad verifiering behövs ingen ändring - Supabase `onAuthStateChange` i AuthContext fångar upp sessionen automatiskt
 
 ---
 
@@ -74,56 +109,77 @@ Anropar `useSsoListener()` hooken i AppContent-komponenten så den körs vid app
 
 | Fil | Ändring |
 |-----|---------|
-| `supabase/functions/verify-sso-token/index.ts` | Ny Edge Function |
-| `supabase/config.toml` | Lägg till verify_jwt = false |
-| `src/hooks/useSsoListener.ts` | Ny hook för SSO-lyssnare |
-| `src/App.tsx` | Aktivera hooken |
+| `src/contexts/AuthContext.tsx` | **Ny** - Global auth-state |
+| `src/components/auth/ProtectedRoute.tsx` | **Ny** - Route-skydd |
+| `src/pages/Auth.tsx` | **Ny** - Inloggningssida |
+| `src/App.tsx` | Lägg till AuthProvider + skydda routes |
 
 ---
 
 ## Tekniska detaljer
 
-### HMAC-SHA256 Verifiering
+### AuthContext Implementation
 ```typescript
-// Normalisera payload (matcha Hubbens signering)
-const normalizedPayload = {
-  ...payload,
-  full_name: payload.full_name?.replace(/[^\x00-\x7F]/g, '') || null
+// Följer Supabase best practices:
+// 1. Sätter upp lyssnare FÖRST
+// 2. Kollar befintlig session SEDAN
+useEffect(() => {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    (event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+    }
+  );
+
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    setSession(session);
+    setUser(session?.user ?? null);
+    setIsLoading(false);
+  });
+
+  return () => subscription.unsubscribe();
+}, []);
+```
+
+### ProtectedRoute Logic
+```typescript
+const ProtectedRoute = ({ children }) => {
+  const { user, isLoading } = useAuth();
+  const location = useLocation();
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" state={{ from: location }} replace />;
+  }
+
+  return <>{children}</>;
 };
-
-// Verifiera signatur med Web Crypto API
-const cryptoKey = await crypto.subtle.importKey('raw', encoder.encode(secret), 
-  { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-const expectedSig = await crypto.subtle.sign('HMAC', cryptoKey, 
-  encoder.encode(JSON.stringify(normalizedPayload)));
 ```
 
-### Session-skapande
-Använder Supabase Admin API för att generera en magic link och extrahera tokens:
-```typescript
-const { data: linkData } = await supabase.auth.admin.generateLink({
-  type: 'magiclink',
-  email: payload.email,
-});
-```
-
-### PostMessage-kommunikation
-```typescript
-// Skicka bekräftelse till Hubben
-window.parent.postMessage({ type: 'SSO_ACK', success: true }, '*');
-
-// Eller fel
-window.parent.postMessage({ 
-  type: 'SSO_ERROR', 
-  success: false, 
-  error_code: 'SIGNATURE_MISMATCH' 
-}, '*');
-```
+### Inloggningssidans UI
+- EventFlow-logotyp/titel
+- E-post och lösenord-fält
+- "Logga in"-knapp
+- Informationstext: "Normalt loggas du in automatiskt via EventFlow Hub"
+- Felmeddelanden vid misslyckad inloggning
 
 ---
 
-## Information att skicka till EventFlow Hub-teamet
+## SSO + Fallback samverkan
 
-Efter implementation:
-- **PLANERING_SUPABASE_URL:** `https://pihrhltinhewhoxefjxv.supabase.co`
-- **PLANERING_SERVICE_ROLE_KEY:** (hämtas från Supabase Dashboard → Settings → API)
+1. **SSO-flöde (primärt):** 
+   - Användare klickar i Hubben → SSO-token skickas → session skapas → AuthContext uppdateras → appen visas
+
+2. **Fallback-flöde:**
+   - Användare går direkt till URL → ProtectedRoute ser ingen session → redirect till `/auth` → manuell inloggning → redirect tillbaka
+
+---
+
+## Noteringar
+
+- **Ingen signup:** Användare skapas via SSO från Hubben, så signup-flöde behövs inte
+- **Scanner-app:** `/scanner` är för Capacitor-appen och har separat autentisering, men bör också skyddas
+- **RLS-policies:** Befintliga "allow all"-policies fungerar fortsatt eftersom användare nu måste vara autentiserade för att nå appen överhuvudtaget
