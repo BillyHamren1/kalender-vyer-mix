@@ -13,6 +13,7 @@ import WarehouseSystemLayout from "@/components/layouts/WarehouseSystemLayout";
 import Index from "./pages/Index";
 import CustomCalendarPage from "./pages/CustomCalendarPage";
 import StaffManagement from "./pages/StaffManagement";
+import TimeReportApprovals from "./pages/TimeReportApprovals";
 import StaffDetail from "./pages/StaffDetail";
 import BookingDetail from "./pages/BookingDetail";
 import BookingList from "./pages/BookingList";
@@ -78,6 +79,7 @@ const AppContent = () => {
               <Route path="/dashboard" element={<MainSystemLayout><PlanningDashboard /></MainSystemLayout>} />
               <Route path="/calendar" element={<MainSystemLayout><CustomCalendarPage /></MainSystemLayout>} />
               <Route path="/staff-management" element={<MainSystemLayout><StaffManagement /></MainSystemLayout>} />
+              <Route path="/staff-management/time-approvals" element={<MainSystemLayout><TimeReportApprovals /></MainSystemLayout>} />
               <Route path="/staff/:staffId" element={<MainSystemLayout><StaffDetail /></MainSystemLayout>} />
               <Route path="/booking/:bookingId" element={<MainSystemLayout><BookingDetail /></MainSystemLayout>} />
               <Route path="/booking-list" element={<MainSystemLayout><BookingList /></MainSystemLayout>} />

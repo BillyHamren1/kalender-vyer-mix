@@ -33,7 +33,15 @@ const navigationItems: NavItem[] = [
       { title: "Personal", url: "/economy/staff" },
     ]
   },
-  { title: "Personaladministration", url: "/staff-management", icon: Users },
+  { 
+    title: "Personaladministration", 
+    url: "/staff-management", 
+    icon: Users,
+    children: [
+      { title: "Personal", url: "/staff-management" },
+      { title: "Tidgodkännanden", url: "/staff-management/time-approvals" },
+    ]
+  },
 ];
 
 export function Sidebar3D() {
