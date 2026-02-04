@@ -253,7 +253,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </Card>
       )}
 
-      {/* Product list - Unverified first */}
+      {/* Product list */}
       {items.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
@@ -272,71 +272,74 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           </CardHeader>
           {showProducts && (
             <CardContent className="p-0">
+              {/* Table header */}
+              <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
+                <span className="text-sm font-medium text-muted-foreground">Produkt</span>
+                <span className="text-sm font-medium text-muted-foreground">Antal</span>
+              </div>
+              
               <div className="divide-y">
-                {/* Unverified items first */}
-                {unverifiedItems.map(item => (
-                  <div 
-                    key={item.id}
-                    className="p-3 flex items-center gap-3"
-                  >
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-muted border-2 border-dashed border-muted-foreground/30">
-                      <span className="text-xs font-medium text-muted-foreground">
-                        {item.quantity_packed}/{item.quantity_to_pack}
-                      </span>
+                {/* Unverified items */}
+                {unverifiedItems.map(item => {
+                  const name = item.booking_products?.name || 'Okänd produkt';
+                  const isChild = name.startsWith('↳') || name.startsWith('└') || name.startsWith('L,');
+                  
+                  return (
+                    <div 
+                      key={item.id}
+                      className={`flex items-center justify-between py-2.5 ${isChild ? 'pl-8 pr-4' : 'px-4'}`}
+                    >
+                      <div className={`flex-1 min-w-0 ${isChild ? '' : ''}`}>
+                        <div className={`inline-flex items-center px-3 py-1.5 rounded-full ${
+                          isChild 
+                            ? 'bg-muted/50 text-foreground' 
+                            : 'bg-muted text-foreground font-semibold'
+                        }`}>
+                          <span className="text-sm truncate">
+                            {isChild ? name : name.toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-center min-w-[48px] h-8 rounded-full bg-muted/50 px-3">
+                        <span className="text-sm font-medium">{item.quantity_to_pack}</span>
+                      </div>
                     </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm line-clamp-1">
-                        {item.booking_products?.name || 'Okänd produkt'}
-                      </p>
-                      {item.booking_products?.sku ? (
-                        <p className="text-xs text-primary font-mono bg-primary/10 px-1.5 py-0.5 rounded inline-block mt-0.5">
-                          SKU: {item.booking_products.sku}
-                        </p>
-                      ) : (
-                        <p className="text-xs text-amber-600 mt-0.5">
-                          ⚠️ Ingen SKU – kan inte skannas
-                        </p>
-                      )}
-                    </div>
+                  );
+                })}
 
-                    <Badge variant="outline" className="shrink-0">
-                      x{item.quantity_to_pack}
-                    </Badge>
-                  </div>
-                ))}
-
-                {/* Verified items */}
+                {/* Verified items section */}
                 {verifiedItems.length > 0 && (
                   <>
-                    <div className="px-3 py-2 bg-green-50 text-green-800 text-xs font-medium">
-                      ✓ Verifierade ({verifiedItems.length})
+                    <div className="px-4 py-2 bg-green-50 text-green-800 text-xs font-medium flex items-center gap-2">
+                      <Check className="h-3 w-3" />
+                      Verifierade ({verifiedItems.length})
                     </div>
-                    {verifiedItems.map(item => (
-                      <div 
-                        key={item.id}
-                        className="p-3 flex items-center gap-3 bg-green-50/50"
-                      >
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center bg-green-500 text-white">
-                          <Check className="h-4 w-4" />
+                    {verifiedItems.map(item => {
+                      const name = item.booking_products?.name || 'Okänd produkt';
+                      const isChild = name.startsWith('↳') || name.startsWith('└') || name.startsWith('L,');
+                      
+                      return (
+                        <div 
+                          key={item.id}
+                          className={`flex items-center justify-between py-2.5 bg-green-50/50 ${isChild ? 'pl-8 pr-4' : 'px-4'}`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className={`inline-flex items-center px-3 py-1.5 rounded-full ${
+                              isChild 
+                                ? 'bg-green-100/50 text-green-700' 
+                                : 'bg-green-100 text-green-800 font-semibold'
+                            }`}>
+                              <span className="text-sm truncate">
+                                {isChild ? name : name.toUpperCase()}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-center min-w-[48px] h-8 rounded-full bg-green-100 px-3">
+                            <span className="text-sm font-medium text-green-700">{item.quantity_to_pack}</span>
+                          </div>
                         </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm line-clamp-1 text-green-800">
-                            {item.booking_products?.name || 'Okänd produkt'}
-                          </p>
-                          {item.booking_products?.sku && (
-                            <p className="text-xs text-green-600 font-mono">
-                              SKU: {item.booking_products.sku}
-                            </p>
-                          )}
-                        </div>
-
-                        <Badge variant="outline" className="shrink-0 border-green-300 text-green-700">
-                          x{item.quantity_to_pack}
-                        </Badge>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </>
                 )}
               </div>
