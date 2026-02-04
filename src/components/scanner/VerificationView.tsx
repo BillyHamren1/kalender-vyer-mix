@@ -468,83 +468,91 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           
           <div className="divide-y divide-border/30 max-h-[calc(100vh-220px)] overflow-y-auto">
             {(() => {
-              // Filter out child items - only show main products in scanner view
-              const mainProductsOnly = items.filter(item => {
+              // Show main products + paketmedlemmar (⦿), but hide accessories (↳/└/L, och parent_product_id)
+              const visibleItems = items.filter(item => {
                 const rawName = item.booking_products?.name || '';
                 const trimmedName = rawName.trimStart();
-                
-                // Check if child by relation
-                const isChildByRelation = !!(
-                  item.booking_products?.parent_product_id || 
-                  item.booking_products?.parent_package_id || 
-                  item.booking_products?.is_package_component
+
+                const isAccessoryByRelation = !!item.booking_products?.parent_product_id;
+                const isAccessoryByPrefix = (
+                  trimmedName.startsWith('↳') ||
+                  trimmedName.startsWith('└') ||
+                  trimmedName.startsWith('L,')
                 );
-                // Check if child by prefix
-                const isChildByPrefix = (
-                  trimmedName.startsWith('↳') || 
-                  trimmedName.startsWith('└') || 
-                  trimmedName.startsWith('L,') ||
-                  trimmedName.startsWith('⦿')
-                );
-                
-                // Only include if NOT a child
-                return !isChildByRelation && !isChildByPrefix;
+
+                return !(isAccessoryByRelation || isAccessoryByPrefix);
               });
 
-              return mainProductsOnly.map(item => {
+              return visibleItems.map(item => {
                 const rawName = item.booking_products?.name || 'Okänd produkt';
-                
-                // For main products: use their own quantity (typically 1)
+                const trimmedName = rawName.trimStart();
+
+                const isPackageComponent = !!(
+                  item.booking_products?.is_package_component ||
+                  item.booking_products?.parent_package_id ||
+                  trimmedName.startsWith('⦿')
+                );
+
                 const packed = item.quantity_packed || 0;
                 const total = item.quantity_to_pack;
-                
-                // Clean name - main products only, no prefix indicators
-                const cleanName = cleanProductName(rawName);
-                const displayName = cleanName.toUpperCase();
-                
                 const isComplete = packed >= total && total > 0;
                 const isPartial = packed > 0 && packed < total;
-                
-                // Get parcel number if assigned
+
+                const cleanName = cleanProductName(rawName);
+                const displayName = isPackageComponent
+                  ? formatToTitleCase(cleanName)
+                  : cleanName.toUpperCase();
+
                 const parcelNumber = itemParcelMap[item.id];
-                
+
                 return (
-                  <button 
+                  <button
                     key={item.id}
                     onClick={() => handleManualToggle(item.id, isComplete, item.quantity_to_pack, false)}
-                    className={`w-full flex items-center gap-2 text-left transition-colors px-2 py-2 ${
-                      isComplete 
-                        ? 'bg-green-50/70' 
-                        : isPartial 
-                          ? 'bg-amber-50/50' 
+                    className={`w-full flex items-center gap-2 text-left transition-colors ${
+                      isPackageComponent ? 'pl-6 pr-2 py-1.5' : 'px-2 py-2'
+                    } ${
+                      isComplete
+                        ? 'bg-green-50/70'
+                        : isPartial
+                          ? 'bg-amber-50/50'
                           : ''
                     } hover:bg-muted/40 active:bg-muted/60`}
                   >
                     {/* Status indicator circle */}
-                    <div className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${
-                      isComplete 
-                        ? 'bg-green-500' 
-                        : isPartial 
-                          ? 'bg-amber-500' 
+                    <div className={`shrink-0 rounded-full flex items-center justify-center ${
+                      isPackageComponent ? 'w-4 h-4' : 'w-5 h-5'
+                    } ${
+                      isComplete
+                        ? 'bg-green-500'
+                        : isPartial
+                          ? 'bg-amber-500'
                           : 'border-2 border-muted-foreground/40'
                     }`}>
                       {isComplete && <Check className="text-white w-2.5 h-2.5" />}
                       {isPartial && <span className="text-white text-[8px] font-bold">{packed}</span>}
                     </div>
-                    
+
                     {/* Product name */}
                     <div className="flex-1 min-w-0">
-                      <span className={`block truncate text-xs font-semibold tracking-wide ${
-                        isComplete 
-                          ? 'text-green-700' 
-                          : isPartial 
+                      <span className={`block truncate ${
+                        isPackageComponent ? 'text-[11px] font-normal' : 'text-xs font-semibold tracking-wide'
+                      } ${
+                        isComplete
+                          ? 'text-green-700'
+                          : isPartial
                             ? 'text-amber-800'
-                            : 'text-foreground'
+                            : isPackageComponent
+                              ? 'text-muted-foreground'
+                              : 'text-foreground'
                       }`}>
+                        {isPackageComponent && (
+                          <span className="text-muted-foreground/70">⦿ </span>
+                        )}
                         {displayName}
                       </span>
                     </div>
-                    
+
                     {/* Parcel badge if assigned */}
                     {parcelNumber && (
                       <div className="shrink-0 flex items-center gap-0.5 text-primary">
@@ -552,12 +560,12 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                         <span className="text-[10px] font-bold">#{parcelNumber}</span>
                       </div>
                     )}
-                    
+
                     {/* Quantity badge */}
                     <div className={`shrink-0 min-w-[40px] flex items-center justify-center rounded px-1.5 py-0.5 ${
-                      isComplete 
-                        ? 'bg-green-100 text-green-700' 
-                        : isPartial 
+                      isComplete
+                        ? 'bg-green-100 text-green-700'
+                        : isPartial
                           ? 'bg-amber-100 text-amber-700'
                           : 'bg-muted/60 text-muted-foreground'
                     }`}>
