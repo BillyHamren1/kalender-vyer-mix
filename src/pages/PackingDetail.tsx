@@ -22,6 +22,12 @@ import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { toast } from "sonner";
 
+interface ProductChangeItem {
+  text: string;
+  type: 'added' | 'removed' | 'updated';
+  acknowledged: boolean;
+}
+
 interface ProductChanges {
   added: string[];
   removed: string[];
@@ -36,6 +42,7 @@ const PackingDetail = () => {
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [productChanges, setProductChanges] = useState<ProductChanges | null>(null);
+  const [changeItems, setChangeItems] = useState<ProductChangeItem[]>([]);
   const [showChangesPopover, setShowChangesPopover] = useState(false);
   const previousProductsRef = useRef<BookingProduct[]>([]);
   
@@ -117,6 +124,13 @@ const PackingDetail = () => {
           const changes = detectProductChanges(previousProductsRef.current, productsData);
           if (changes) {
             setProductChanges(changes);
+            // Create individual change items for the popover
+            const items: ProductChangeItem[] = [
+              ...changes.added.map(text => ({ text, type: 'added' as const, acknowledged: false })),
+              ...changes.removed.map(text => ({ text, type: 'removed' as const, acknowledged: false })),
+              ...changes.updated.map(text => ({ text, type: 'updated' as const, acknowledged: false })),
+            ];
+            setChangeItems(items);
             setShowChangesPopover(true);
             toast.info(`Produktlistan har uppdaterats: ${changes.added.length} nya, ${changes.removed.length} borttagna, ${changes.updated.length} ändrade`);
           }
@@ -131,6 +145,27 @@ const PackingDetail = () => {
       }
     }
   }, [packing?.booking_id, detectProductChanges]);
+
+  // Acknowledge a single change item
+  const acknowledgeChange = useCallback((index: number) => {
+    setChangeItems(prev => 
+      prev.map((item, i) => 
+        i === index ? { ...item, acknowledged: true } : item
+      )
+    );
+  }, []);
+
+  // Acknowledge all changes
+  const acknowledgeAllChanges = useCallback(() => {
+    setChangeItems(prev => prev.map(item => ({ ...item, acknowledged: true })));
+  }, []);
+
+  // Dismiss all changes (close popover and clear)
+  const dismissAllChanges = useCallback(() => {
+    setProductChanges(null);
+    setChangeItems([]);
+    setShowChangesPopover(false);
+  }, []);
 
   useEffect(() => {
     loadProducts(false);
@@ -217,54 +252,87 @@ const PackingDetail = () => {
           </div>
           <div className="flex items-center gap-2">
             {/* Changes Popover */}
-            {productChanges && (
+            {changeItems.length > 0 && (
               <Popover open={showChangesPopover} onOpenChange={setShowChangesPopover}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm" className="text-amber-600 border-amber-300 bg-amber-50 hover:bg-amber-100">
-                    Produktändringar
+                    Produktändringar ({changeItems.filter(i => !i.acknowledged).length})
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-80">
+                <PopoverContent className="w-96 max-h-[70vh] overflow-y-auto">
                   <div className="space-y-3">
-                    <h4 className="font-medium text-sm">Produktlistan har uppdaterats</h4>
-                    {productChanges.added.length > 0 && (
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-1">Nya produkter:</p>
-                        <ul className="text-sm text-green-600 space-y-0.5">
-                          {productChanges.added.map((name, i) => (
-                            <li key={i}>+ {name}</li>
-                          ))}
-                        </ul>
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium text-sm">Produktlistan har uppdaterats</h4>
+                      {changeItems.some(i => !i.acknowledged) && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-6 text-xs"
+                          onClick={acknowledgeAllChanges}
+                        >
+                          Bekräfta alla
+                        </Button>
+                      )}
+                    </div>
+                    
+                    {/* Unacknowledged changes first */}
+                    {changeItems.filter(i => !i.acknowledged).length > 0 && (
+                      <div className="space-y-1">
+                        {changeItems.map((item, index) => {
+                          if (item.acknowledged) return null;
+                          const colorClass = item.type === 'added' 
+                            ? 'text-green-600' 
+                            : item.type === 'removed' 
+                              ? 'text-red-600' 
+                              : 'text-amber-600';
+                          const prefix = item.type === 'added' ? '+' : item.type === 'removed' ? '-' : '~';
+                          return (
+                            <div key={index} className="flex items-center justify-between gap-2 py-1 border-b border-border/50">
+                              <span className={`text-sm ${colorClass}`}>
+                                {prefix} {item.text}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-xs shrink-0"
+                                onClick={() => acknowledgeChange(index)}
+                              >
+                                OK
+                              </Button>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
-                    {productChanges.removed.length > 0 && (
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-1">Borttagna produkter:</p>
-                        <ul className="text-sm text-red-600 space-y-0.5">
-                          {productChanges.removed.map((name, i) => (
-                            <li key={i}>- {name}</li>
-                          ))}
-                        </ul>
+                    
+                    {/* Acknowledged changes at bottom - crossed out */}
+                    {changeItems.filter(i => i.acknowledged).length > 0 && (
+                      <div className="pt-2 border-t border-border">
+                        <p className="text-xs text-muted-foreground mb-2">Bekräftade ändringar:</p>
+                        <div className="space-y-0.5">
+                          {changeItems.map((item, index) => {
+                            if (!item.acknowledged) return null;
+                            const colorClass = item.type === 'added' 
+                              ? 'text-green-600/50' 
+                              : item.type === 'removed' 
+                                ? 'text-red-600/50' 
+                                : 'text-amber-600/50';
+                            const prefix = item.type === 'added' ? '+' : item.type === 'removed' ? '-' : '~';
+                            return (
+                              <div key={index} className={`text-sm ${colorClass} line-through`}>
+                                {prefix} {item.text}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
-                    {productChanges.updated.length > 0 && (
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-1">Ändrade kvantiteter:</p>
-                        <ul className="text-sm text-amber-600 space-y-0.5">
-                          {productChanges.updated.map((change, i) => (
-                            <li key={i}>~ {change}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                    
                     <Button 
-                      variant="ghost" 
+                      variant="outline" 
                       size="sm" 
                       className="w-full mt-2"
-                      onClick={() => {
-                        setProductChanges(null);
-                        setShowChangesPopover(false);
-                      }}
+                      onClick={dismissAllChanges}
                     >
                       Stäng
                     </Button>
