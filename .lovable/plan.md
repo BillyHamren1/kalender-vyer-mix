@@ -1,76 +1,96 @@
 
-# Plan: Ny projektstruktur med tre nivåer
+# Buggfix: Packlistan visas inte
 
-## Status: ✅ Fas 1-3 Implementerad
+## Problem
+Packlistan visar "Ingen packlista tillgänglig" trots att det finns 22 produkter i bokningen.
 
-### Genomfört
+### Analys
+1. **Bara 4 av 22 items genererades** - `generatePackingListItems` skapade bara 4 items istället för 22
+2. **Alla 4 är barn-items** - De har alla `parent_product_id` satt (accessories)
+3. **Huvudprodukterna saknas** - De 3 "Multiflex"-huvudprodukterna finns inte i `packing_list_items`
+4. **UI visar bara mainProducts** - PackingListTab itererar bara över `mainProducts`, och children visas under dem. Eftersom det inte finns några mainProducts visas inget alls.
 
-#### Fas 1: Namnbyte ✅
-- "Jobb" → "Projekt litet" i all UI
-- "Projekt" → "Projekt medel" i all UI
-- Uppdaterade komponenter: JobsListPanel, ProjectManagement, IncomingBookingsList, JobDetail
+## Lösning
 
-#### Fas 2: Databas ✅
-- Ny tabell `large_projects` (huvudprojekt)
-- Ny tabell `large_project_bookings` (koppling till bokningar)
-- Nya tabeller för tasks, files, comments, purchases, budget
-- `bookings.large_project_id` för referens till stora projekt
-- Triggers för updated_at
+### Del 1: Synka packlistan med alla produkter
+Anropa `syncPackingListItems` direkt vid laddning för att lägga till saknade produkter (de 18 som saknas).
 
-#### Fas 3: Projekt stort - Grundfunktionalitet ✅
-- LargeProjectsListPanel.tsx - lista/skapa/ta bort stora projekt
-- LargeProjectDetail.tsx - detaljsida med flikar
-- largeProjectService.ts - komplett API för alla CRUD-operationer
-- largeProject.ts - TypeScript-typer
-- Route `/large-project/:id` tillagd
+**Ändring i `usePackingList.tsx`:**
+- I `fetchPackingListItems`: Om det finns items men färre än booking_products, kör synkning automatiskt
 
-### Återstår
+### Del 2: Visa orphaned children korrekt
+Om ett barn-item har en parent_product_id men den producen inte finns i packlistan (inte renderas), ska barnet ändå visas.
 
-#### Fas 4: Avancerade funktioner
-- [ ] Aggregerad ekonomi (visa kostnader från alla bokningar)
-- [ ] Kommentarsfunktion för stora projekt
-- [ ] Filuppladdning för stora projekt
-- [ ] Gemensam personalhantering
-- [ ] Samordnad logistik/transport
+**Ändring i `PackingListTab.tsx`:**
+- Efter gruppering, samla barn vars parent inte finns i mainProducts
+- Visa dessa "föräldralösa barn" som egna items (med indrag/varning)
 
-## Arkitektur
+### Tekniska ändringar
 
+**Fil: `src/hooks/usePackingList.tsx`**
+```typescript
+// I fetchPackingListItems, efter check för existingItems?.length === 0:
+// Lägg till: Om det finns items men antalet < booking_products, synka för att komplettera
+
+const fetchPackingListItems = async (packingId: string, bookingId: string | null): Promise<PackingListItem[]> => {
+  if (!bookingId) return [];
+
+  // Fetch existing items count
+  const { data: existingItems, error: checkError } = await supabase
+    .from('packing_list_items')
+    .select('id')
+    .eq('packing_id', packingId);
+
+  if (checkError) throw checkError;
+
+  // Fetch booking products count
+  const { data: productCount } = await supabase
+    .from('booking_products')
+    .select('id')
+    .eq('booking_id', bookingId);
+
+  const existingCount = existingItems?.length || 0;
+  const productCountValue = productCount?.length || 0;
+
+  // If no items OR if fewer than products, sync
+  if (existingCount === 0 || existingCount < productCountValue) {
+    await generatePackingListItems(packingId, bookingId);
+  }
+  // ... rest of function
+};
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    PROJEKTHANTERING (/projects)                  │
-├─────────────────┬─────────────────┬─────────────────────────────┤
-│ Projekt litet   │ Projekt medel   │ Projekt stort               │
-│ (jobs)          │ (projects)      │ (large_projects)            │
-│ 1 bokning       │ 1 bokning       │ N bokningar                 │
-│ Enkel struktur  │ Full hantering  │ Mässor, samordning          │
-└─────────────────┴─────────────────┴─────────────────────────────┘
 
-Nya bokningar (IncomingBookingsList):
-[Litet] [Medel] [Stort] - tre knappar för att välja projekttyp
+**Fil: `src/components/packing/PackingListTab.tsx`**
+```typescript
+// I useMemo: Hitta barn utan synlig parent och visa dem som egna items
+const { mainProducts, ..., orphanedChildren } = useMemo(() => {
+  // ... existing logic ...
+  
+  // Collect children whose parent is not in mainProducts
+  const mainProductIds = new Set(main.map(m => m.product?.id));
+  const orphanedChildItems: PackingListItem[] = [];
+  
+  // Check accessories
+  Object.entries(accByParent).forEach(([parentId, items]) => {
+    if (!mainProductIds.has(parentId)) {
+      orphanedChildItems.push(...items);
+    }
+  });
+  
+  // Check package components  
+  Object.entries(pkgComponents).forEach(([parentId, items]) => {
+    if (!mainProductIds.has(parentId)) {
+      orphanedChildItems.push(...items);
+    }
+  });
+
+  return { ..., orphanedChildren: orphanedChildItems };
+});
+
+// Visa orphanedChildren i UI (som saknar parent)
 ```
 
-## Tekniska filer
-
-### Nya filer skapade:
-- `src/types/largeProject.ts`
-- `src/services/largeProjectService.ts`
-- `src/pages/LargeProjectDetail.tsx`
-- `src/components/project/LargeProjectsListPanel.tsx`
-
-### Ändrade filer:
-- `src/pages/ProjectManagement.tsx` - tre-kolumns layout
-- `src/components/project/JobsListPanel.tsx` - namnbyte
-- `src/components/project/IncomingBookingsList.tsx` - tre knappar
-- `src/pages/JobDetail.tsx` - namnbyte
-- `src/App.tsx` - ny route
-
-## Databas
-
-### Tabeller:
-- `large_projects` - huvudtabell
-- `large_project_bookings` - koppling projekt ↔ bokningar
-- `large_project_tasks` - uppgifter
-- `large_project_files` - filer
-- `large_project_comments` - kommentarer
-- `large_project_purchases` - inköp
-- `large_project_budget` - budget
+## Resultat
+- Packlistan kommer visa alla 22 produkter korrekt
+- Synkronisering sker automatiskt vid laddning om items saknas
+- Barn-items utan parent visas även om deras parent saknas i listan
