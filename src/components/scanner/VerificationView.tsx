@@ -283,13 +283,18 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                 {unverifiedItems.map(item => {
                   const name = item.booking_products?.name || 'Okänd produkt';
                   const isChild = name.startsWith('↳') || name.startsWith('└') || name.startsWith('L,');
+                  const sku = item.booking_products?.sku;
                   
                   return (
-                    <div 
+                    <button 
                       key={item.id}
-                      className={`flex items-center justify-between ${isChild ? 'pl-10 pr-4 py-1.5' : 'px-4 py-2.5'}`}
+                      onClick={() => sku && handleScan(sku)}
+                      disabled={!sku}
+                      className={`w-full flex items-center justify-between transition-colors hover:bg-muted/30 active:bg-muted/50 ${isChild ? 'pl-10 pr-4 py-1.5' : 'px-4 py-2.5'} ${!sku ? 'opacity-60' : ''}`}
                     >
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 flex items-center gap-2">
+                        {/* Unchecked circle indicator */}
+                        <div className={`shrink-0 rounded-full border-2 border-muted-foreground/30 ${isChild ? 'w-4 h-4' : 'w-5 h-5'}`} />
                         <div className={`inline-flex items-center rounded-full ${
                           isChild 
                             ? 'bg-muted/40 text-muted-foreground px-2.5 py-1' 
@@ -307,7 +312,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                           {item.quantity_to_pack}
                         </span>
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
 
@@ -327,7 +332,11 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                           key={item.id}
                           className={`flex items-center justify-between bg-green-50/50 ${isChild ? 'pl-10 pr-4 py-1.5' : 'px-4 py-2.5'}`}
                         >
-                          <div className="flex-1 min-w-0">
+                          <div className="flex-1 min-w-0 flex items-center gap-2">
+                            {/* Checked circle indicator */}
+                            <div className={`shrink-0 rounded-full bg-green-500 flex items-center justify-center ${isChild ? 'w-4 h-4' : 'w-5 h-5'}`}>
+                              <Check className={`text-white ${isChild ? 'w-2.5 h-2.5' : 'w-3 h-3'}`} />
+                            </div>
                             <div className={`inline-flex items-center rounded-full ${
                               isChild 
                                 ? 'bg-green-100/50 text-green-600 px-2.5 py-1' 
