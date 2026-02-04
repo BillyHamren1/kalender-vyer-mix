@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Inbox, Calendar, MapPin, FolderKanban, Briefcase } from 'lucide-react';
+import { Inbox, Calendar, MapPin, FolderKanban, Briefcase, Building2 } from 'lucide-react';
 import { fetchBookings } from '@/services/bookingService';
 import { createJobFromBooking } from '@/services/jobService';
 import { format } from 'date-fns';
@@ -14,10 +14,12 @@ import { toast } from 'sonner';
 
 interface IncomingBookingsListProps {
   onCreateProject: (bookingId: string) => void;
+  onCreateLargeProject?: (bookingId: string) => void;
 }
 
 export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
-  onCreateProject
+  onCreateProject,
+  onCreateLargeProject
 }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -47,12 +49,12 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     onSuccess: (job) => {
       queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
-      toast.success('Jobb skapat');
+      toast.success('Projekt litet skapat');
       navigate(`/jobs/${job.id}`);
     },
     onError: (error) => {
-      toast.error('Kunde inte skapa jobb');
-      console.error('Error creating job:', error);
+      toast.error('Kunde inte skapa litet projekt');
+      console.error('Error creating small project:', error);
     }
   });
 
@@ -109,7 +111,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
           {bookings.map(booking => (
             <div 
               key={booking.id}
-              className="grid grid-cols-[1fr_auto_auto] items-center gap-4 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+              className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
             >
               {/* Left column: Client info - clickable to view booking */}
               <div 
@@ -146,24 +148,38 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                 </div>
               </div>
 
-              {/* Right column: Actions */}
+              {/* Actions: Three buttons for different project types */}
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => createJobMutation.mutate(booking.id)}
                 disabled={createJobMutation.isPending}
-                className="gap-1.5 w-24"
+                className="gap-1.5"
+                title="Skapa ett litet projekt (enkel struktur)"
               >
                 <Briefcase className="w-4 h-4" />
-                Jobb
+                <span className="hidden xl:inline">Litet</span>
               </Button>
               <Button
+                variant="outline"
                 size="sm"
                 onClick={() => onCreateProject(booking.id)}
-                className="gap-1.5 w-24"
+                className="gap-1.5"
+                title="Skapa ett medelstort projekt (full projekthantering)"
               >
                 <FolderKanban className="w-4 h-4" />
-                Projekt
+                <span className="hidden xl:inline">Medel</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onCreateLargeProject?.(booking.id)}
+                className="gap-1.5"
+                title="Lägg till i ett stort projekt (flera bokningar)"
+                disabled={!onCreateLargeProject}
+              >
+                <Building2 className="w-4 h-4" />
+                <span className="hidden xl:inline">Stort</span>
               </Button>
             </div>
           ))}

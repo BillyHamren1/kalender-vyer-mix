@@ -184,7 +184,7 @@ const JobDetail = () => {
     return (
       <MainSystemLayout>
         <div className="container mx-auto p-6 max-w-4xl text-center">
-          <p className="text-muted-foreground">Jobbet kunde inte hittas</p>
+          <p className="text-muted-foreground">Projektet kunde inte hittas</p>
           <Button onClick={() => navigate('/projects')} className="mt-4">
             Tillbaka till projekthantering
           </Button>

@@ -11,6 +11,7 @@ import ProjectCard from "@/components/project/ProjectCard";
 import CreateProjectWizard from "@/components/project/CreateProjectWizard";
 import { IncomingBookingsList } from "@/components/project/IncomingBookingsList";
 import JobsListPanel from "@/components/project/JobsListPanel";
+import LargeProjectsListPanel from "@/components/project/LargeProjectsListPanel";
 import { fetchProjects, deleteProject } from "@/services/projectService";
 import { ProjectStatus, PROJECT_STATUS_LABELS } from "@/types/project";
 import { toast } from "sonner";
@@ -69,7 +70,7 @@ const ProjectManagement = () => {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Projekthantering</h1>
-            <p className="text-muted-foreground">Hantera dina projekt och jobb</p>
+            <p className="text-muted-foreground">Hantera små, medelstora och stora projekt</p>
           </div>
         </div>
         <Button onClick={() => { setSelectedBookingId(null); setIsCreateOpen(true); }}>
@@ -85,24 +86,29 @@ const ProjectManagement = () => {
         />
       </div>
 
-      {/* Two Column Layout: Projects & Jobs */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Projects Column - takes 2/3 */}
+      {/* Three Column Layout: Litet, Medel, Stort */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Column 1: Projekt litet (Jobs) */}
+        <div>
+          <JobsListPanel />
+        </div>
+
+        {/* Column 2: Projekt medel */}
         <div>
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <FolderKanban className="h-5 w-5 text-primary" />
-                  <CardTitle className="text-lg">Projekt</CardTitle>
+                  <CardTitle className="text-lg">Projekt medel</CardTitle>
                 </div>
                 <Badge variant="outline">{filteredProjects.length}</Badge>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Filters */}
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
+              <div className="flex flex-col gap-3">
+                <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Sök projekt..."
@@ -112,7 +118,7 @@ const ProjectManagement = () => {
                   />
                 </div>
                 <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as ProjectStatus | "all")}>
-                  <SelectTrigger className="w-[160px]">
+                  <SelectTrigger>
                     <SelectValue placeholder="Filtrera status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -124,12 +130,12 @@ const ProjectManagement = () => {
                 </Select>
               </div>
 
-              {/* Project Grid */}
-              <div className="max-h-[600px] overflow-y-auto pr-1">
+              {/* Project List */}
+              <div className="max-h-[500px] overflow-y-auto pr-1 space-y-2">
                 {isLoading ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {[1, 2, 3, 4].map(i => (
-                      <div key={i} className="h-32 bg-muted animate-pulse rounded-lg" />
+                  <div className="space-y-3">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="h-24 bg-muted animate-pulse rounded-lg" />
                     ))}
                   </div>
                 ) : filteredProjects.length === 0 ? (
@@ -138,29 +144,27 @@ const ProjectManagement = () => {
                     <p className="text-sm text-muted-foreground">
                       {search || statusFilter !== "all" 
                         ? "Inga projekt hittades" 
-                        : "Inga projekt skapade ännu"}
+                        : "Inga medelstora projekt ännu"}
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {filteredProjects.map(project => (
-                      <ProjectCard
-                        key={project.id}
-                        project={project}
-                        onClick={() => handleProjectClick(project.id)}
-                        onDelete={() => handleDelete(project.id)}
-                      />
-                    ))}
-                  </div>
+                  filteredProjects.map(project => (
+                    <ProjectCard
+                      key={project.id}
+                      project={project}
+                      onClick={() => handleProjectClick(project.id)}
+                      onDelete={() => handleDelete(project.id)}
+                    />
+                  ))
                 )}
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Jobs Column - takes 1/3 */}
+        {/* Column 3: Projekt stort */}
         <div>
-          <JobsListPanel />
+          <LargeProjectsListPanel />
         </div>
       </div>
 

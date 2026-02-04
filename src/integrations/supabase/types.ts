@@ -241,6 +241,7 @@ export type Database = {
           ground_nails_allowed: boolean | null
           id: string
           internalnotes: string | null
+          large_project_id: string | null
           last_calendar_sync: string | null
           rig_end_time: string | null
           rig_start_time: string | null
@@ -277,6 +278,7 @@ export type Database = {
           ground_nails_allowed?: boolean | null
           id: string
           internalnotes?: string | null
+          large_project_id?: string | null
           last_calendar_sync?: string | null
           rig_end_time?: string | null
           rig_start_time?: string | null
@@ -313,6 +315,7 @@ export type Database = {
           ground_nails_allowed?: boolean | null
           id?: string
           internalnotes?: string | null
+          large_project_id?: string | null
           last_calendar_sync?: string | null
           rig_end_time?: string | null
           rig_start_time?: string | null
@@ -325,7 +328,15 @@ export type Database = {
           version?: number
           viewed?: boolean
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "bookings_large_project_id_fkey"
+            columns: ["large_project_id"]
+            isOneToOne: false
+            referencedRelation: "large_projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       calendar_events: {
         Row: {
@@ -558,6 +569,299 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      large_project_bookings: {
+        Row: {
+          booking_id: string
+          created_at: string
+          display_name: string | null
+          id: string
+          large_project_id: string
+          sort_order: number | null
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          large_project_id: string
+          sort_order?: number | null
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          large_project_id?: string
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "large_project_bookings_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "large_project_bookings_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "confirmed_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "large_project_bookings_large_project_id_fkey"
+            columns: ["large_project_id"]
+            isOneToOne: false
+            referencedRelation: "large_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      large_project_budget: {
+        Row: {
+          budgeted_hours: number | null
+          created_at: string
+          description: string | null
+          hourly_rate: number | null
+          id: string
+          large_project_id: string
+          updated_at: string
+        }
+        Insert: {
+          budgeted_hours?: number | null
+          created_at?: string
+          description?: string | null
+          hourly_rate?: number | null
+          id?: string
+          large_project_id: string
+          updated_at?: string
+        }
+        Update: {
+          budgeted_hours?: number | null
+          created_at?: string
+          description?: string | null
+          hourly_rate?: number | null
+          id?: string
+          large_project_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "large_project_budget_large_project_id_fkey"
+            columns: ["large_project_id"]
+            isOneToOne: true
+            referencedRelation: "large_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      large_project_comments: {
+        Row: {
+          author_name: string
+          content: string
+          created_at: string
+          id: string
+          large_project_id: string
+        }
+        Insert: {
+          author_name: string
+          content: string
+          created_at?: string
+          id?: string
+          large_project_id: string
+        }
+        Update: {
+          author_name?: string
+          content?: string
+          created_at?: string
+          id?: string
+          large_project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "large_project_comments_large_project_id_fkey"
+            columns: ["large_project_id"]
+            isOneToOne: false
+            referencedRelation: "large_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      large_project_files: {
+        Row: {
+          file_name: string
+          file_type: string | null
+          id: string
+          large_project_id: string
+          uploaded_at: string
+          uploaded_by: string | null
+          url: string
+        }
+        Insert: {
+          file_name: string
+          file_type?: string | null
+          id?: string
+          large_project_id: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+          url: string
+        }
+        Update: {
+          file_name?: string
+          file_type?: string | null
+          id?: string
+          large_project_id?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "large_project_files_large_project_id_fkey"
+            columns: ["large_project_id"]
+            isOneToOne: false
+            referencedRelation: "large_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      large_project_purchases: {
+        Row: {
+          amount: number | null
+          category: string | null
+          created_at: string
+          created_by: string | null
+          description: string
+          id: string
+          large_project_id: string
+          purchase_date: string | null
+          receipt_url: string | null
+          supplier: string | null
+        }
+        Insert: {
+          amount?: number | null
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          description: string
+          id?: string
+          large_project_id: string
+          purchase_date?: string | null
+          receipt_url?: string | null
+          supplier?: string | null
+        }
+        Update: {
+          amount?: number | null
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          large_project_id?: string
+          purchase_date?: string | null
+          receipt_url?: string | null
+          supplier?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "large_project_purchases_large_project_id_fkey"
+            columns: ["large_project_id"]
+            isOneToOne: false
+            referencedRelation: "large_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      large_project_tasks: {
+        Row: {
+          assigned_to: string | null
+          completed: boolean | null
+          created_at: string
+          deadline: string | null
+          description: string | null
+          id: string
+          is_info_only: boolean | null
+          large_project_id: string
+          sort_order: number | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          completed?: boolean | null
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          is_info_only?: boolean | null
+          large_project_id: string
+          sort_order?: number | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          completed?: boolean | null
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          is_info_only?: boolean | null
+          large_project_id?: string
+          sort_order?: number | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "large_project_tasks_large_project_id_fkey"
+            columns: ["large_project_id"]
+            isOneToOne: false
+            referencedRelation: "large_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      large_projects: {
+        Row: {
+          created_at: string
+          description: string | null
+          end_date: string | null
+          id: string
+          location: string | null
+          name: string
+          project_leader: string | null
+          start_date: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          location?: string | null
+          name: string
+          project_leader?: string | null
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          location?: string | null
+          name?: string
+          project_leader?: string | null
+          start_date?: string | null
           status?: string
           updated_at?: string
         }
