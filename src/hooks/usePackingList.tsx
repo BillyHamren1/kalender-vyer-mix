@@ -131,6 +131,71 @@ const generatePackingListItems = async (packingId: string, bookingId: string): P
   if (insertError) throw insertError;
 };
 
+// Sync packing list items with current booking products (add missing, remove orphaned)
+const syncPackingListItems = async (packingId: string, bookingId: string): Promise<{ added: number; removed: number }> => {
+  // Fetch all current booking products
+  const { data: products, error: productsError } = await supabase
+    .from('booking_products')
+    .select('id, quantity')
+    .eq('booking_id', bookingId);
+
+  if (productsError) throw productsError;
+  
+  // Fetch existing packing list items
+  const { data: existingItems, error: itemsError } = await supabase
+    .from('packing_list_items')
+    .select('id, booking_product_id')
+    .eq('packing_id', packingId);
+
+  if (itemsError) throw itemsError;
+
+  const productIds = new Set((products || []).map(p => p.id));
+  const existingProductIds = new Set((existingItems || []).map(i => i.booking_product_id));
+
+  // Find products that need new packing list items
+  const productsToAdd = (products || []).filter(p => !existingProductIds.has(p.id));
+  
+  // Find packing list items that reference non-existent products
+  const itemsToRemove = (existingItems || []).filter(i => !productIds.has(i.booking_product_id));
+
+  let added = 0;
+  let removed = 0;
+
+  // Add missing items
+  if (productsToAdd.length > 0) {
+    const itemsToInsert = productsToAdd.map(product => ({
+      packing_id: packingId,
+      booking_product_id: product.id,
+      quantity_to_pack: product.quantity,
+      quantity_packed: 0
+    }));
+
+    const { error: insertError } = await supabase
+      .from('packing_list_items')
+      .insert(itemsToInsert);
+
+    if (!insertError) {
+      added = productsToAdd.length;
+    }
+  }
+
+  // Remove orphaned items
+  if (itemsToRemove.length > 0) {
+    const idsToRemove = itemsToRemove.map(i => i.id);
+    
+    const { error: deleteError } = await supabase
+      .from('packing_list_items')
+      .delete()
+      .in('id', idsToRemove);
+
+    if (!deleteError) {
+      removed = itemsToRemove.length;
+    }
+  }
+
+  return { added, removed };
+};
+
 // Update a packing list item
 const updatePackingListItem = async (id: string, updates: Partial<PackingListItem>): Promise<void> => {
   // Remove readonly fields
@@ -206,6 +271,23 @@ export const usePackingList = (packingId: string) => {
     onError: () => toast.error('Kunde inte markera alla som packade')
   });
 
+  // Sync packing list mutation
+  const syncPackingListMutation = useMutation({
+    mutationFn: () => {
+      if (!packing?.booking_id) throw new Error('No booking ID');
+      return syncPackingListItems(packingId, packing.booking_id);
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['packing-list-items', packingId] });
+      if (result.added > 0 || result.removed > 0) {
+        toast.success(`Packlistan synkad: ${result.added} tillagda, ${result.removed} borttagna`);
+      } else {
+        toast.info('Packlistan är redan synkad');
+      }
+    },
+    onError: () => toast.error('Kunde inte synka packlistan')
+  });
+
   // Refetch items
   const refetchItems = async () => {
     await queryClient.invalidateQueries({ queryKey: ['packing-list-items', packingId] });
@@ -219,6 +301,8 @@ export const usePackingList = (packingId: string) => {
     updateItem: (id: string, updates: Partial<PackingListItem>) =>
       updateItemMutation.mutate({ id, updates }),
     markAllPacked: (packedBy: string) => markAllPackedMutation.mutate(packedBy),
+    syncPackingList: () => syncPackingListMutation.mutate(),
+    isSyncing: syncPackingListMutation.isPending,
     refetchItems
   };
 };
