@@ -158,6 +158,18 @@ export async function addBookingToLargeProject(
   bookingId: string, 
   displayName?: string
 ): Promise<LargeProjectBooking> {
+  // Check if booking is already added to this project
+  const { data: existingLink } = await supabase
+    .from('large_project_bookings')
+    .select('id')
+    .eq('large_project_id', largeProjectId)
+    .eq('booking_id', bookingId)
+    .maybeSingle();
+
+  if (existingLink) {
+    throw new Error('BOOKING_ALREADY_ADDED');
+  }
+
   // Get the max sort_order
   const { data: existing } = await supabase
     .from('large_project_bookings')

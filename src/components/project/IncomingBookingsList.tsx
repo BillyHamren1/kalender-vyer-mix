@@ -30,7 +30,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
-      // Filter: only CONFIRMED, not assigned to project, and upcoming (event date >= today)
+      // Filter: only CONFIRMED, not assigned to project (small/medium or large), and upcoming (event date >= today)
       return allBookings.filter(b => {
         const eventDate = b.eventDate ? new Date(b.eventDate) : null;
         const isUpcoming = eventDate ? eventDate >= today : false;
@@ -38,6 +38,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
         return (
           b.status === 'CONFIRMED' &&
           !b.assignedToProject &&
+          !b.largeProjectId &&
           isUpcoming
         );
       });

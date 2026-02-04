@@ -27,6 +27,7 @@ export const transformBookingData = (dbBooking: any): Booking => {
     assignedProjectId: dbBooking.assigned_project_id,
     assignedProjectName: dbBooking.assigned_project_name,
     assignedToProject: dbBooking.assigned_to_project,
+    largeProjectId: dbBooking.large_project_id,
     products: dbBooking.booking_products?.map((product: any) => ({
       id: product.id,
       name: product.name,
