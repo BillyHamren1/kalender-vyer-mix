@@ -1,123 +1,103 @@
 
-# Buggfix: Packlistan visar inte produkter i rätt ordning
+## Mål
+I scanner-vyn (/scanner) ska endast huvud-/paketrader visas i VERSALER. Medlemmar/underartiklar (tillbehör + paketkomponenter) ska visas i normal text (inte versaler), samtidigt som packlistans flöde och räkning (t.ex. 2/3) fortsätter fungera.
 
-## Problem
-Packlistan visar produkter i fel ordning. Huvudprodukter (t.ex. "Multiflex 6x12") ska ha sina tillbehör (t.ex. "↳ M Takduk 6m") listade direkt under sig, precis som i resten av systemet.
+## Varför det fortfarande blir versaler
+I `src/components/scanner/VerificationView.tsx` avgörs “child” just nu med:
+- `name.startsWith('↳') || name.startsWith('└') || name.startsWith('L,')`
 
-## Analys
-Datan i databasen är korrekt:
-- 3 huvudprodukter finns (2x Multiflex 6x12 + 1x Multiflex 8x15)
-- Varje tillbehör har rätt `parent_product_id` som pekar på sin huvudprodukt
+Det faller i praktiken ofta på:
+- inledande mellanslag/indentering i strängen (t.ex. `"  └ ..."`)
+- andra prefix som förekommer i systemet (t.ex. `⦿`)
+- eller att hierarkin egentligen bör avgöras via databashierarki (`parent_product_id`, `parent_package_id`, `is_package_component`) istället för textprefix.
 
-**Problemet är dubbel sortering/gruppering:**
-1. `usePackingList.tsx` sorterar i `sortPackingListItemsWithStatus()` 
-2. `PackingListTab.tsx` försöker gruppera igen med `useMemo`
+När `isChild` blir `false` triggas `name.toUpperCase()` och då blir allt versaler.
 
-Detta skapar förvirring där items hamnar i fel ordning.
+## Lösningsidé (robust och konsekvent med övriga packlistan)
+1) Sluta lita på prefix i texten för hierarki (eller använd det bara som fallback).
+2) Avgör child/top-level primärt via fälten på `booking_products`:
+   - `parent_product_id`
+   - `parent_package_id`
+   - `is_package_component`
+3) Rensa prefixsymboler från visningsnamnet (som ni redan gör på andra ställen i warehouse-UI) och rendera indikator (↳/⦿) separat i UI.
+4) Casing-regler:
+   - Top-level: VERSALER
+   - Child: “normal” (inte versaler). Om datat kommer in som HELT versaler kan vi konvertera till läsbar form (Title Case) med enkel heuristik som bevarar korta förkortningar som “LM”, “M”, samt mått/nummer.
 
-## Lösning
-**Förenklad approach:** Ta bort sorteringslogiken från `usePackingList.tsx` och låt `PackingListTab.tsx` hantera all gruppering/sortering. Detta följer samma mönster som `ProductsList.tsx` använder.
+## Steg-för-steg ändringar (kod)
+### 1) Utöka datan som hämtas för packlist-items (för korrekt hierarki)
+**Fil:** `src/services/scannerService.ts`  
+**Ändring:** I `fetchPackingListItems()` uppdatera select så att `booking_products` även hämtar:
+- `parent_product_id` (finns redan)
+- `parent_package_id`
+- `is_package_component`
 
-### Ändringar
+Det gör att scanner-vyn kan avgöra child korrekt utan att gissa via text.
 
-**Fil: `src/hooks/usePackingList.tsx`**
-- Ta bort `sortPackingListItemsWithStatus()` funktionen
-- Returnera items direkt utan försortering
-- Låt UI-komponenten hantera all sortering/gruppering
+### 2) Uppdatera typer i VerificationView för de nya fälten
+**Fil:** `src/components/scanner/VerificationView.tsx`  
+**Ändring:** I `PackingItem`-interfacet, lägg till i `booking_products`:
+- `parent_product_id?: string | null`
+- `parent_package_id?: string | null`
+- `is_package_component?: boolean | null`
 
-**Fil: `src/components/packing/PackingListTab.tsx`**
-- Förbättra grupperingslogiken för att matcha `ProductsList.tsx`
-- Säkerställ att ordningen är: **Huvudprodukt → Paketkomponenter (⦿) → Tillbehör (↳)**
-- Gruppera korrekt baserat på `parent_product_id`
+### 3) Bygg en robust “är child?”-check
+**Fil:** `src/components/scanner/VerificationView.tsx`  
+**Ändring:** Ersätt nuvarande `isChild` med något i stil med:
+- `const rawName = item.booking_products?.name ?? ''`
+- `const trimmedForPrefix = rawName.trimStart()`
+- `const isChildByRelation = !!item.booking_products?.parent_product_id || !!item.booking_products?.parent_package_id || !!item.booking_products?.is_package_component`
+- `const isChildByPrefix = trimmedForPrefix.startsWith('↳') || trimmedForPrefix.startsWith('└') || trimmedForPrefix.startsWith('L,') || trimmedForPrefix.startsWith('⦿')`
+- `const isChild = isChildByRelation || isChildByPrefix`
 
-### Tekniska detaljer
+Det här gör att medlemmar alltid identifieras korrekt (även om prefix varierar eller har mellanslag).
 
-**I `usePackingList.tsx` - ta bort sortering:**
-```typescript
-// FÖRE: return sortPackingListItemsWithStatus(itemsWithProducts);
-// EFTER: return itemsWithProducts;
-```
+### 4) Rensa prefix i visningsnamn + rendera prefix som UI-indikator
+**Fil:** `src/components/scanner/VerificationView.tsx`  
+Inför en lokal `cleanName()` (samma princip som i t.ex. `ProductCostsCard` / `PackingListItemRow`):
+- `const clean = rawName.replace(/^[↳└⦿\s,L]+/, '').trim()`
 
-**I `PackingListTab.tsx` - förbättrad gruppering:**
-```typescript
-const { mainProducts, childrenByParent, orphanedItems, orphanedChildren } = useMemo(() => {
-  const main: PackingListItem[] = [];
-  const childrenByParentId: Record<string, PackingListItem[]> = {};
-  const orphaned: PackingListItem[] = [];
-  
-  // Första pass: identifiera huvudprodukter och barn
-  items.forEach(item => {
-    if (item.isOrphaned) {
-      orphaned.push(item);
-      return;
-    }
-    
-    const parentId = item.product?.parent_product_id;
-    if (!parentId) {
-      // Huvudprodukt
-      main.push(item);
-    } else {
-      // Barn-produkt
-      if (!childrenByParentId[parentId]) childrenByParentId[parentId] = [];
-      childrenByParentId[parentId].push(item);
-    }
-  });
+Och rendera sedan t.ex.:
+- om `isChild`: visa en liten `↳` (eller `⦿` om `is_package_component`/prefix `⦿`) före namnet via `<span>` i UI
+- själva namnet utan de här symbolerna
 
-  // Sortera barn: paketkomponenter (⦿) först, sedan tillbehör (↳)
-  Object.values(childrenByParentId).forEach(children => {
-    children.sort((a, b) => {
-      const aName = a.product?.name || '';
-      const bName = b.product?.name || '';
-      const aIsAccessory = aName.includes('↳') || aName.includes('└');
-      const bIsAccessory = bName.includes('↳') || bName.includes('└');
-      // Paketkomponenter (⦿) före tillbehör (↳)
-      if (!aIsAccessory && bIsAccessory) return -1;
-      if (aIsAccessory && !bIsAccessory) return 1;
-      return 0;
-    });
-  });
+Det gör listan mindre “stökig” och mer som resten av packlistan.
 
-  // Hitta barn utan förälder i huvudlistan
-  const mainProductIds = new Set(main.map(m => m.product?.id).filter(Boolean));
-  const orphanedChildItems: PackingListItem[] = [];
-  
-  Object.entries(childrenByParentId).forEach(([parentId, children]) => {
-    if (!mainProductIds.has(parentId)) {
-      orphanedChildItems.push(...children);
-    }
-  });
+### 5) Fix för casing (endast huvudrad i versaler)
+**Fil:** `src/components/scanner/VerificationView.tsx`  
+- Top-level: `clean.toUpperCase()`
+- Child: visa `clean` i normal/läsbar form.
 
-  return { 
-    mainProducts: main, 
-    childrenByParent: childrenByParentId,
-    orphanedItems: orphaned,
-    orphanedChildren: orphanedChildItems
-  };
-}, [items]);
-```
+För att hantera att child-namn kan vara importerade i HELA versaler, lägg in en hjälpfunktion `formatChildDisplayName(clean)` som:
+- om texten redan är blandad (inte “mostly uppercase”) → returnera som den är
+- annars → Title Case per ord, men behåll:
+  - ord som är korta förkortningar (t.ex. 1–3 tecken) i originalversaler (LM, M)
+  - ord som innehåller siffror/mått (t.ex. 8X15) i originalformat
 
-**Rendering - förenklad:**
-```tsx
-{mainProducts.map(item => (
-  <div key={item.id}>
-    {/* Huvudprodukt */}
-    <PackingListItemRow item={item} onUpdate={onUpdateItem} isAccessory={false} />
-    
-    {/* Alla barn under denna produkt */}
-    {item.product?.id && childrenByParent[item.product.id]?.map(child => (
-      <PackingListItemRow
-        key={child.id}
-        item={child}
-        onUpdate={onUpdateItem}
-        isAccessory={true}
-      />
-    ))}
-  </div>
-))}
-```
+Resultat: `└ NÅLFILTSMATTA - BORDEAUX` blir t.ex. `↳ Nålfiltsmatta - Bordeaux` och “LM” förblir “LM”.
 
-## Resultat
-- Huvudprodukter visas först
-- Paketkomponenter (⦿) visas direkt under huvudprodukten
-- Tillbehör (↳) visas efter paketkomponenterna
-- Ordningen matchar nu resten av systemet (ProductsList, VerificationView, etc.)
+### 6) Snabb visuell förbättring så listan känns “packlista”, inte ful
+(utan att ändra funktion)
+**Fil:** `src/components/scanner/VerificationView.tsx`
+- Behåll 0/1, 2/3 etc (redan återinfört)
+- Justera typografi så child inte ser “skrikig” ut:
+  - child: `text-xs text-muted-foreground font-normal normal-case`
+  - main: `text-sm font-semibold tracking-wide` (och uppercase via data eller class)
+- Se till att indikatorn (↳/⦿) är diskret (muted-foreground)
+
+## Testplan (acceptanskriterier)
+1) Öppna `/scanner` → välj/öppna en packlista med både huvudprodukter och medlemmar.
+2) Verifiera att:
+   - huvudrader är i versaler
+   - alla underartiklar/medlemmar inte är i versaler
+   - 0/1, 2/3 etc syns per rad och uppdateras vid skanning/klick
+   - rader som är klara fortsätter vara disabled och markeras grönt
+3) Skanna en SKU som tillhör en underartikel och säkerställ att rätt rad uppdateras och att progress (badge + procent) uppdateras.
+
+## Filer som kommer ändras
+- `src/services/scannerService.ts` (select: hämta hierarchy-fält)
+- `src/components/scanner/VerificationView.tsx` (hierarki-detektering + cleanName + casing + liten UI-justering)
+
+## Risker / Edge cases
+- Om vissa äldre data saknar `parent_*` men har prefix i texten: fallback via `trimStart()` + prefix-check täcker det.
+- Om vissa child-namn måste förbli exakta (specialförkortningar): heuristiken bevarar korta förkortningar och siffertokens.
