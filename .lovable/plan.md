@@ -1,125 +1,132 @@
 
-# Plan: Bomba Planeringsassistenten med Information
+
+# Plan: Fixa Lager-Ganttschemat med korrekt logik
 
 ## Sammanfattning
-Utöka AI-planeringsassistenten ("EstablishmentAIAssistant") med betydligt rikare kontext från databasen. Detta ger assistenten möjlighet att ge mer relevanta och detaljerade förslag.
 
-## Ny information som läggs till
+Ganttschemat för packningsprojekt (`PackingGanttChart.tsx`) använder fel logik. Det är kopierat från projekthanteringens logik med 7-dagars perioder och nyckelordssökning ("feedback", "stängning"), men lagersystemet har en helt annan struktur baserad på bokningens datum (riggdag, eventdag, rigdowndag).
 
-### 1. Utökad bokningsinformation
-- **Bokningsnummer** - För referens
-- **Status** - Aktuell status på bokningen  
-- **Kontaktperson** - Namn, telefon, e-post
-- **Logistikinställningar**:
-  - Bärs längre än 10m? (ja/nej)
-  - Markspett tillåtet? (ja/nej)
-  - Exakt tid krävs? (ja/nej + info)
-- **Interna anteckningar** - Viktig information från tidigare planering
+---
 
-### 2. Detaljerade tider
-- Start- och sluttid för riggdag
-- Start- och sluttid för eventdag  
-- Start- och sluttid för avetablering
+## Vad som är fel
 
-### 3. Utökad produktinformation
-- **Kategorisering** - Paket vs tillbehör
-- **Priser** - Enhetspris och totalpris (ger AI förståelse för projektets storlek)
-- **Beräknade arbetstimmar** (setup_hours) per produkt
-- **Kostnadsinformation** - Arbetskostnad, materialkostnad, externa kostnader
-
-### 4. Utökad personalinformation  
-- **Roll/kompetens** - T.ex. "Riggare", "Ljustekniker"
-- **Timpris** - Ger AI förståelse för budgetkonsekvenser
-- **Team-tillhörighet** - Vilken grupp de arbetar med
-
-### 5. Projektkontext (om bokning är kopplad)
-- **Projektstatus** - Ej påbörjat/Pågående/Avslutat
-- **Projektledare** - Vem som ansvarar
-- **Checklista/uppgifter** - Status på förberedelser
-
-### 6. Historisk data
-- **Tidigare tidrapporter** - Hur lång tid tog liknande arbete?
-- **Packningsstatus** - Är allt packat och klart?
-
-## Teknisk implementation
-
-### Steg 1: Utöka data-hämtning
-Uppdatera `fetchEstablishmentBookingData` i `establishmentPlanningService.ts` för att hämta:
-- Utökad bokningsdata (logistik, kontakt, notes)
-- Produkter med priser och kostnader
-- Personal med timpris
-- Projekt-info om kopplat
-- Tidrapporter för historik
-- Packningsstatus
-
-### Steg 2: Uppdatera TypeScript-interfaces
-Utöka `EstablishmentBookingData` och `AssignedStaff` med nya fält.
-
-### Steg 3: Berika AI-kontexten
-Uppdatera `buildContext()` i `EstablishmentAIAssistant.tsx` för att inkludera all ny data i prompten som skickas till AI:n.
-
-### Steg 4: Förbättra förslagsgenerering
-Ge AI:n mer specifika instruktioner baserat på tillgänglig data, t.ex.:
-- Om exakt tid krävs: föreslå detaljerat minutschema
-- Om bärsträcka > 10m: påminn om extra personal/utrustning
-- Om budgeten är hög: föreslå kvalitetskontroller
-
-## Filer som ändras
-
-**Ändras:**
-- `src/services/establishmentPlanningService.ts` - Utökad datahämtning
-- `src/components/project/EstablishmentGanttChart.tsx` - Skicka mer data till AI
-- `src/components/project/EstablishmentAIAssistant.tsx` - Utökad `buildContext()`
-- `supabase/functions/establishment-ai-assistant/index.ts` - Bättre systemprompt
-
-## Exempel på ny AI-kontext
-
+### Nuvarande (felaktig) logik:
 ```text
-AKTUELL BOKNING:
-- Bokningsnummer: BK-2024-0342
-- Kund: Spotify AB
-- Status: Bekräftad
-- Adress: Kungsgatan 8, Stockholm
-- Kontakt: Anna Svensson, 070-123 45 67, anna@spotify.com
+┌─────────────────────────────────────────────────────────────┐
+│  Titeln innehåller "feedback"? → 6 dagar tillbaka från deadline │
+│  Titeln innehåller "stängning"? → 7 dagar tillbaka            │
+│  Annars: 7 dagar tillbaka från deadline                      │
+└─────────────────────────────────────────────────────────────┘
+```
+Detta fungerar inte för lagret eftersom uppgifterna baseras på specifika datum-offsets från bokningens rigg- och rigdowndatum.
 
-DATUM & TIDER:
-- Riggdag: 2024-03-15 (08:00 - 18:00)
-- Eventdag: 2024-03-16 (10:00 - 22:00)  
-- Avetablering: 2024-03-17 (08:00 - 14:00)
+### Korrekt lagerlogik (från import-bookings):
+```text
+Tidslinje baserad på bokningens datum:
 
-LOGISTIK:
-- Bärsträcka över 10m: Ja
-- Markspett tillåtet: Nej
-- Exakt tid krävs: Ja - "Kunden har strikt access 08:00"
-
-PRODUKTER (12 st, totalt 145 000 kr):
-- Scen 8x6m (1 st) - 45 000 kr, ~8 arbetstimmar
-  └ Stakettäcke 6m (4 st) - ingår i paket
-  └ Trappa scenfront (2 st) - ingår i paket
-- PA-system Large (1 st) - 35 000 kr, ~4 arbetstimmar
-- Belysningsrigg 12m (1 st) - 28 000 kr, ~6 arbetstimmar
-...
-
-TILLDELAD PERSONAL:
-- Erik Johansson (Riggare) - 450 kr/h - 15-16 mars
-- Maria Lindqvist (Ljustekniker) - 520 kr/h - 15-16 mars
-- Anders Berg (Riggare) - 420 kr/h - endast 15 mars
-
-PROJEKTSTATUS:
-- Status: Pågående
-- Projektledare: Sofia Andersson
-- Förberedelser: 4/7 klara (packning ej påbörjad)
-
-INTERNA ANTECKNINGAR:
-"Viktigt: Kunden vill ha extra tyst riggning, grannar har klagat tidigare."
+     Rigg -4d     Rigg -2d    Rigg -1d      Rigg       Event      Rigdown    Rigdown +1d   Rigdown +2d
+        │            │           │            │          │           │            │             │
+   ┌────┴────┐   ┌───┴───┐   ┌───┴───┐    ┌───┴───┐            ┌───────┐    ┌────┴────┐    ┌────┴────┐
+   │Packning │   │Packlista│   │Utrustning│  │Utleverans│         │Återlev│   │Inventering│  │Upppackning│
+   │påbörjad │   │klar    │   │packad    │  │klar     │         │       │   │          │  │klar      │
+   └─────────┘   └────────┘   └──────────┘  └─────────┘         └───────┘   └──────────┘  └──────────┘
 ```
 
-## Förväntade förbättringar
+---
 
-Med denna rikare kontext kan AI:n:
-- Ge mer exakta tidsuppskattningar baserat på produkternas arbetstimmar
-- Varna för logistikutmaningar (lång bärsträcka, inga markspett)
-- Beakta budgetrestriktioner vid personalförslag
-- Påminna om viktiga noteringar och kundkrav
-- Föreslå rätt kompetenser baserat på produkttyper
-- Identifiera om förberedelser (packning) ligger efter
+## Teknisk lösning
+
+### 1. Uppdatera bokning-fetch för att inkludera datum
+**Fil:** `src/services/packingService.ts`
+
+Utöka `fetchPacking()` för att även hämta `rigdaydate`, `eventdate` och `rigdowndate` från den kopplade bokningen.
+
+### 2. Skicka bokningsdatum till Ganttschemat
+**Fil:** `src/pages/PackingDetail.tsx`
+
+Lägg till props för `rigdaydate`, `eventdate` och `rigdowndate` till `PackingGanttChart`.
+
+### 3. Bygg om Gantt-logiken
+**Fil:** `src/components/packing/PackingGanttChart.tsx`
+
+Helt ny `calculateTaskDates()`-funktion:
+
+- **Tar emot:** task-titel + bokningens datum
+- **Mappar uppgiftstitlar till rätt datum-offset:**
+  - "packning påbörjad" → Riggdag - 4 dagar
+  - "packlista klar" → Riggdag - 2 dagar  
+  - "utrustning packad" → Riggdag - 1 dag
+  - "utleverans" → Riggdag
+  - "inventering" → Rigdown + 1 dag
+  - "upppackning klar" → Rigdown + 2 dagar
+- **Fallback:** Om titeln inte matchar, använd uppgiftens deadline
+
+### 4. Visuella förbättringar
+- Lägg till milstolpar för Riggdag, Eventdag och Rigdowndag som vertikala linjer
+- Använd lager-färgerna (lila för packning, blå för leverans, etc.)
+- Matcha stilen med `EstablishmentGanttChart` för konsistens
+
+---
+
+## Tekniska detaljer
+
+### Ändrade typer
+```typescript
+interface PackingGanttChartProps {
+  tasks: PackingTask[];
+  rigDate?: string | null;       // Ny
+  eventDate?: string | null;     // Ny  
+  rigdownDate?: string | null;   // Ny
+  onTaskClick?: (task: PackingTask) => void;
+}
+```
+
+### Ny datumlogik (pseudo-kod)
+```typescript
+function calculateWarehouseTaskDates(task: PackingTask, rigDate: Date | null, rigdownDate: Date | null) {
+  const title = task.title.toLowerCase();
+  
+  if (rigDate) {
+    if (title.includes('packning påbörjad')) return { start: subDays(rigDate, 4), end: subDays(rigDate, 4) };
+    if (title.includes('packlista')) return { start: subDays(rigDate, 2), end: subDays(rigDate, 2) };
+    if (title.includes('utrustning')) return { start: subDays(rigDate, 1), end: subDays(rigDate, 1) };
+    if (title.includes('utleverans')) return { start: rigDate, end: rigDate };
+  }
+  
+  if (rigdownDate) {
+    if (title.includes('inventering')) return { start: addDays(rigdownDate, 1), end: addDays(rigdownDate, 1) };
+    if (title.includes('upppackning')) return { start: addDays(rigdownDate, 2), end: addDays(rigdownDate, 2) };
+  }
+  
+  // Fallback: använd deadline
+  return { start: task.deadline, end: task.deadline };
+}
+```
+
+### Uppdaterad service
+```typescript
+// packingService.ts - utökad bokningsdata
+.select('id, client, eventdate, rigdaydate, rigdowndate, deliveryaddress, ...')
+```
+
+---
+
+## Berörda filer
+
+| Fil | Ändring |
+|-----|---------|
+| `src/services/packingService.ts` | Lägg till `rigdaydate`, `rigdowndate` i booking-select |
+| `src/types/packing.ts` | Utöka `PackingWithBooking.booking` med nya datum-fält |
+| `src/pages/PackingDetail.tsx` | Skicka bokningsdatum till Ganttschemat |
+| `src/components/packing/PackingGanttChart.tsx` | Ny datumlogik, milstolpar, färger |
+
+---
+
+## Resultat
+
+Efter implementationen:
+- Ganttschemat visar uppgifter på rätt dagar baserat på bokningens faktiska datum
+- Milstolpar markerar Riggdag, Eventdag och Rigdowndag tydligt
+- Konsistent stil med övriga Gantt-scheman i systemet
+- Egen-skapade uppgifter faller tillbaka på sin deadline
+
