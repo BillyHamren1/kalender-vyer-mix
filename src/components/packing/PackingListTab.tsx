@@ -38,15 +38,17 @@ const PackingListTab = ({
   // - accessories: child items marked as accessories (↳)
   // - orphanedItems: items whose product no longer exists in the booking
   // Accessories should appear under their parent and be listed together (contiguously).
-  const { mainProducts, packageComponents, accessoriesByParent, orphanedItems, orphanedChildren, progress } = useMemo(() => {
+  // Group items: mainProducts at top, children grouped by parent_product_id
+  // Order within children: package components (⦿) first, then accessories (↳)
+  const { mainProducts, childrenByParent, orphanedItems, orphanedChildren, progress } = useMemo(() => {
     const main: PackingListItem[] = [];
-    const pkgComponents: Record<string, PackingListItem[]> = {};
-    const accByParent: Record<string, PackingListItem[]> = {};
+    const childrenByParentId: Record<string, PackingListItem[]> = {};
     const orphaned: PackingListItem[] = [];
     
     let totalToPack = 0;
     let totalPacked = 0;
 
+    // First pass: separate main products from children
     items.forEach(item => {
       // Orphaned items go to a separate section
       if (item.isOrphaned) {
@@ -57,33 +59,39 @@ const PackingListTab = ({
       totalToPack += item.quantity_to_pack;
       totalPacked += item.quantity_packed;
       
-      const productName = item.product?.name || '';
       const parentId = item.product?.parent_product_id;
 
-      // Main product
       if (!parentId) {
+        // Main product (no parent)
         main.push(item);
-        return;
-      }
-
-      // Child item under parent
-      if (isAccessoryProduct(productName)) {
-        if (!accByParent[parentId]) accByParent[parentId] = [];
-        accByParent[parentId].push(item);
       } else {
-        if (!pkgComponents[parentId]) pkgComponents[parentId] = [];
-        pkgComponents[parentId].push(item);
+        // Child product - group by parent
+        if (!childrenByParentId[parentId]) childrenByParentId[parentId] = [];
+        childrenByParentId[parentId].push(item);
       }
     });
 
-    // Sort main products: any group with new items first (parent OR any child)
+    // Sort children: package components (⦿) first, then accessories (↳)
+    Object.values(childrenByParentId).forEach(children => {
+      children.sort((a, b) => {
+        const aName = a.product?.name || '';
+        const bName = b.product?.name || '';
+        const aIsAccessory = isAccessoryProduct(aName);
+        const bIsAccessory = isAccessoryProduct(bName);
+        // Package components (not accessories) come before accessories
+        if (!aIsAccessory && bIsAccessory) return -1;
+        if (aIsAccessory && !bIsAccessory) return 1;
+        return 0;
+      });
+    });
+
+    // Sort main products: groups with new items first
     const groupHasNew = (parent: PackingListItem) => {
       const parentId = parent.product?.id;
       if (!parentId) return !!parent.isNewlyAdded;
       return (
         !!parent.isNewlyAdded ||
-        (pkgComponents[parentId]?.some((i) => i.isNewlyAdded) ?? false) ||
-        (accByParent[parentId]?.some((i) => i.isNewlyAdded) ?? false)
+        (childrenByParentId[parentId]?.some((i) => i.isNewlyAdded) ?? false)
       );
     };
 
@@ -99,22 +107,15 @@ const PackingListTab = ({
     const mainProductIds = new Set(main.map(m => m.product?.id).filter(Boolean));
     const orphanedChildItems: PackingListItem[] = [];
 
-    Object.entries(accByParent).forEach(([parentId, childItems]) => {
+    Object.entries(childrenByParentId).forEach(([parentId, children]) => {
       if (!mainProductIds.has(parentId)) {
-        orphanedChildItems.push(...childItems);
-      }
-    });
-
-    Object.entries(pkgComponents).forEach(([parentId, childItems]) => {
-      if (!mainProductIds.has(parentId)) {
-        orphanedChildItems.push(...childItems);
+        orphanedChildItems.push(...children);
       }
     });
 
     return {
       mainProducts: main,
-      packageComponents: pkgComponents,
-      accessoriesByParent: accByParent,
+      childrenByParent: childrenByParentId,
       orphanedItems: orphaned,
       orphanedChildren: orphanedChildItems,
       progress: {
@@ -203,34 +204,24 @@ const PackingListTab = ({
 
           {/* Product list - scrollable */}
           <div className="space-y-1 max-h-[60vh] overflow-y-auto pr-2">
-            {/* Main products with their children */}
+            {/* Main products with their children (package components + accessories) */}
             {mainProducts.map(item => (
               <div key={item.id}>
+                {/* Main product */}
                 <PackingListItemRow
                   item={item}
                   onUpdate={onUpdateItem}
                   isAccessory={false}
                   isNewlyAdded={item.isNewlyAdded}
                 />
-                {/* Render package components (⦿) for this product */}
-                {item.product && packageComponents[item.product.id]?.map(comp => (
+                {/* All children under this product (sorted: ⦿ first, then ↳) */}
+                {item.product?.id && childrenByParent[item.product.id]?.map(child => (
                   <PackingListItemRow
-                    key={comp.id}
-                    item={comp}
+                    key={child.id}
+                    item={child}
                     onUpdate={onUpdateItem}
                     isAccessory={true}
-                    isNewlyAdded={comp.isNewlyAdded}
-                  />
-                ))}
-
-                {/* Render accessories (↳) for this product, grouped together */}
-                {item.product && accessoriesByParent[item.product.id]?.map(acc => (
-                  <PackingListItemRow
-                    key={acc.id}
-                    item={acc}
-                    onUpdate={onUpdateItem}
-                    isAccessory={true}
-                    isNewlyAdded={acc.isNewlyAdded}
+                    isNewlyAdded={child.isNewlyAdded}
                   />
                 ))}
               </div>

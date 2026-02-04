@@ -136,51 +136,8 @@ const fetchPackingListItems = async (packingId: string, bookingId: string | null
     } as PackingListItem;
   });
 
-  return sortPackingListItemsWithStatus(itemsWithProducts);
-};
-
-// Sort items: new first, main products, accessories grouped, orphaned last
-const sortPackingListItemsWithStatus = (items: PackingListItem[]): PackingListItem[] => {
-  // Separate orphaned items
-  const activeItems = items.filter(i => !i.isOrphaned);
-  const orphanedItems = items.filter(i => i.isOrphaned);
-
-  // Sort active items by parent hierarchy
-  const mainProducts: PackingListItem[] = [];
-  const accessoriesByParent: Record<string, PackingListItem[]> = {};
-
-  activeItems.forEach(item => {
-    const parentId = item.product?.parent_product_id;
-    if (parentId) {
-      if (!accessoriesByParent[parentId]) {
-        accessoriesByParent[parentId] = [];
-      }
-      accessoriesByParent[parentId].push(item);
-    } else {
-      mainProducts.push(item);
-    }
-  });
-
-  // Sort main products: new ones first
-  mainProducts.sort((a, b) => {
-    if (a.isNewlyAdded && !b.isNewlyAdded) return -1;
-    if (!a.isNewlyAdded && b.isNewlyAdded) return 1;
-    return 0;
-  });
-
-  // Build sorted list
-  const sorted: PackingListItem[] = [];
-  mainProducts.forEach(main => {
-    sorted.push(main);
-    if (main.product && accessoriesByParent[main.product.id]) {
-      sorted.push(...accessoriesByParent[main.product.id]);
-    }
-  });
-
-  // Append orphaned items at the very end
-  sorted.push(...orphanedItems);
-
-  return sorted;
+  // Return items without sorting - let UI component handle grouping/ordering
+  return itemsWithProducts;
 };
 
 // Generate packing list items from booking products
