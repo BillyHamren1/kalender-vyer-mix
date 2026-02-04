@@ -52,4 +52,5 @@ export interface Booking {
   assignedProjectId?: string;
   assignedProjectName?: string;
   assignedToProject?: boolean;
+  largeProjectId?: string;
 }

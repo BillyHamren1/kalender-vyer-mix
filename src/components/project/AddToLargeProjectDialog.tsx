@@ -69,8 +69,12 @@ export const AddToLargeProjectDialog: React.FC<AddToLargeProjectDialogProps> = (
       onOpenChange(false);
       navigate(`/large-project/${projectId}`);
     },
-    onError: () => {
-      toast.error('Kunde inte lägga till bokning i projekt');
+    onError: (error: any) => {
+      if (error?.message === 'BOOKING_ALREADY_ADDED') {
+        toast.error('Bokningen är redan tillagd i detta projekt');
+      } else {
+        toast.error('Kunde inte lägga till bokning i projekt');
+      }
     },
   });
 
