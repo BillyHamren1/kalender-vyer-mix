@@ -31,6 +31,7 @@ const navigationItems: NavItem[] = [
     children: [
       { title: "Projekt", url: "/economy/projects" },
       { title: "Personal", url: "/economy/staff" },
+      { title: "Personalekonomi", url: "/economy/staff-revenue" },
     ]
   },
   { 

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Bot, Send, Sparkles, Loader2, Lightbulb, X } from "lucide-react";
+import { Bot, Send, Sparkles, Loader2, Lightbulb, X, Brain } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +12,11 @@ import ReactMarkdown from 'react-markdown';
 import type { EstablishmentBookingData } from "@/services/establishmentPlanningService";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
+import { 
+  getAnalyticsSummaryForAI, 
+  getStaffRecommendations, 
+  hasEnoughDataForRecommendations 
+} from "@/services/jobCompletionAnalyticsService";
 
 interface Message {
   id: string;
@@ -39,8 +44,43 @@ const EstablishmentAIAssistant = ({
   const [isLoading, setIsLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
+  const [aiDataReady, setAiDataReady] = useState<{ hasEnough: boolean; count: number } | null>(null);
+  const [aiAnalytics, setAiAnalytics] = useState<Awaited<ReturnType<typeof getAnalyticsSummaryForAI>> | null>(null);
+  const [staffRecommendations, setStaffRecommendations] = useState<Awaited<ReturnType<typeof getStaffRecommendations>>>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Load AI analytics data on mount
+  useEffect(() => {
+    const loadAiData = async () => {
+      try {
+        const [dataStatus, analytics] = await Promise.all([
+          hasEnoughDataForRecommendations(),
+          getAnalyticsSummaryForAI(50)
+        ]);
+        setAiDataReady(dataStatus);
+        setAiAnalytics(analytics);
+        
+        // Get staff recommendations if we have product categories
+        if (bookingData?.products && bookingData.products.length > 0) {
+          const categories = [...new Set(bookingData.products.map(p => {
+            const name = p.name.toLowerCase();
+            if (name.includes('scen')) return 'Scen';
+            if (name.includes('ljud') || name.includes('pa-')) return 'Ljud/PA';
+            if (name.includes('ljus') || name.includes('belysning')) return 'Belysning';
+            if (name.includes('tält')) return 'Tält';
+            if (name.includes('video') || name.includes('led')) return 'Video/LED';
+            return p.name.split(' ')[0];
+          }))];
+          const recommendations = await getStaffRecommendations(categories, 5);
+          setStaffRecommendations(recommendations);
+        }
+      } catch (error) {
+        console.error('[AI] Failed to load analytics:', error);
+      }
+    };
+    loadAiData();
+  }, [bookingData?.products]);
 
   // Generate initial suggestions based on booking data
   useEffect(() => {
@@ -227,6 +267,49 @@ INTERNA ANTECKNINGAR
 `;
     }
 
+    // Add AI learning data if available
+    if (aiDataReady?.hasEnough && aiAnalytics) {
+      context += `
+═══════════════════════════════════════════════════
+🧠 AI-INLÄRNINGSDATA (baserat på ${aiAnalytics.completedJobs} avslutade jobb)
+═══════════════════════════════════════════════════
+`;
+      
+      // Add staff patterns
+      if (aiAnalytics.staffPatterns.length > 0) {
+        context += `PERSONAL SOM PRESTERAR BRA PÅ LIKNANDE JOBB:\n`;
+        aiAnalytics.staffPatterns.slice(0, 5).forEach(pattern => {
+          context += `• ${pattern.staff_name}: Bäst på ${pattern.top_categories.join(', ')} (poäng: ${pattern.score.toFixed(1)})\n`;
+        });
+        context += '\n';
+      }
+
+      // Add category stats
+      if (aiAnalytics.categoryStats.length > 0) {
+        context += `GENOMSNITTLIG DATA PER PRODUKTKATEGORI:\n`;
+        aiAnalytics.categoryStats.slice(0, 6).forEach(stat => {
+          context += `• ${stat.category}: ~${stat.avg_hours.toFixed(1)}h arbete, ${stat.avg_margin.toFixed(0)}% marginal\n`;
+        });
+        context += '\n';
+      }
+
+      // Add specific recommendations for this job
+      if (staffRecommendations.length > 0) {
+        context += `REKOMMENDERAD PERSONAL FÖR DETTA JOBB:\n`;
+        staffRecommendations.forEach(rec => {
+          context += `• ${rec.staff_name} (${rec.jobs_completed} liknande jobb, effektivitetspoäng: ${rec.avg_efficiency_score.toFixed(2)})\n`;
+        });
+      }
+    } else if (aiDataReady) {
+      context += `
+═══════════════════════════════════════════════════
+AI-INLÄRNING
+═══════════════════════════════════════════════════
+• Status: ${aiDataReady.count}/10 jobb analyserade
+• AI-rekommendationer aktiveras efter 10 avslutade jobb
+`;
+    }
+
     context += `
 ═══════════════════════════════════════════════════
 DINA INSTRUKTIONER
@@ -239,6 +322,7 @@ DINA INSTRUKTIONER
 - Var proaktiv med att identifiera potentiella problem eller risker
 - Om packning inte är klar, påminn om detta
 - Ta hänsyn till personalens roller och kompetenser
+- Om AI-rekommendationer finns, använd dessa för att föreslå lämplig personal
 - Svara alltid på svenska
 `;
 
@@ -351,12 +435,29 @@ DINA INSTRUKTIONER
   return (
     <Card className="h-full flex flex-col">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Bot className="h-4 w-4 text-primary" />
-          Planeringsassistent
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Bot className="h-4 w-4 text-primary" />
+            Planeringsassistent
+          </CardTitle>
+          {aiDataReady && (
+            <Badge 
+              variant={aiDataReady.hasEnough ? "default" : "secondary"} 
+              className="text-xs flex items-center gap-1"
+            >
+              <Brain className="h-3 w-3" />
+              {aiDataReady.hasEnough 
+                ? `${aiAnalytics?.completedJobs || aiDataReady.count} jobb inlärda`
+                : `${aiDataReady.count}/10 jobb`
+              }
+            </Badge>
+          )}
+        </div>
         <p className="text-xs text-muted-foreground">
-          AI som lär sig era arbetsrutiner
+          {aiDataReady?.hasEnough 
+            ? 'AI med inlärda mönster från era tidigare jobb'
+            : 'AI som lär sig era arbetsrutiner'
+          }
         </p>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col gap-3 p-3 pt-0 overflow-hidden">
