@@ -3,10 +3,19 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle } from 'lucide-react';
-import { fetchPackingListItems, verifyProductBySku, getVerificationProgress, parseScanResult, togglePackingItemManually } from '@/services/scannerService';
+import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X } from 'lucide-react';
+import { 
+  fetchPackingListItems, 
+  verifyProductBySku, 
+  getVerificationProgress, 
+  parseScanResult, 
+  togglePackingItemManually,
+  createParcel,
+  assignItemToParcel,
+  getItemParcels
+} from '@/services/scannerService';
 import { fetchPacking } from '@/services/packingService';
-import { PackingWithBooking } from '@/types/packing';
+import { PackingWithBooking, PackingParcel } from '@/types/packing';
 import { QRScanner } from './QRScanner';
 
 interface VerificationViewProps {
@@ -21,6 +30,7 @@ interface PackingItem {
   quantity_packed: number;
   verified_at: string | null;
   verified_by: string | null;
+  parcel_id: string | null;
   booking_products: {
     id: string;
     name: string;
@@ -66,21 +76,28 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [isQRActive, setIsQRActive] = useState(false);
   const [lastScan, setLastScan] = useState<{ value: string; result: string; success: boolean } | null>(null);
+  
+  // Kolli mode state
+  const [isKolliMode, setIsKolliMode] = useState(false);
+  const [activeParcel, setActiveParcel] = useState<PackingParcel | null>(null);
+  const [itemParcelMap, setItemParcelMap] = useState<Record<string, number>>({});
 
   // Load packing data
   const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
       
-      const [packingData, itemsData, progressData] = await Promise.all([
+      const [packingData, itemsData, progressData, parcelsData] = await Promise.all([
         fetchPacking(packingId),
         fetchPackingListItems(packingId),
-        getVerificationProgress(packingId)
+        getVerificationProgress(packingId),
+        getItemParcels(packingId)
       ]);
 
       setPacking(packingData);
       setItems(itemsData as PackingItem[]);
       setProgress(progressData);
+      setItemParcelMap(parcelsData);
     } catch (err) {
       console.error('Error loading packing data:', err);
       toast.error('Kunde inte ladda packlista');
@@ -91,6 +108,43 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
 
   useEffect(() => {
     loadData();
+  }, [loadData]);
+
+  // Start Kolli mode - create first parcel
+  const startKolliMode = useCallback(async () => {
+    try {
+      const parcel = await createParcel(packingId, verifierName);
+      setActiveParcel(parcel);
+      setIsKolliMode(true);
+      toast.success(`Kolli #${parcel.parcel_number} startat`);
+    } catch (err) {
+      console.error('Error creating parcel:', err);
+      toast.error('Kunde inte skapa kolli');
+    }
+  }, [packingId, verifierName]);
+
+  // Create next parcel
+  const nextParcel = useCallback(async () => {
+    try {
+      const parcel = await createParcel(packingId, verifierName);
+      setActiveParcel(parcel);
+      toast.success(`Kolli #${parcel.parcel_number} startat`);
+      // Refresh to get updated parcel assignments
+      const parcelsData = await getItemParcels(packingId);
+      setItemParcelMap(parcelsData);
+    } catch (err) {
+      console.error('Error creating next parcel:', err);
+      toast.error('Kunde inte skapa nästa kolli');
+    }
+  }, [packingId, verifierName]);
+
+  // Exit Kolli mode
+  const exitKolliMode = useCallback(async () => {
+    setIsKolliMode(false);
+    setActiveParcel(null);
+    // Refresh data to show final parcel assignments
+    await loadData();
+    toast.info('Kolli-läge avslutat');
   }, [loadData]);
 
   // Handle scan result
@@ -113,6 +167,21 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
 
     if (result.success) {
       toast.success(`${result.productName} verifierad!`);
+      
+      // If in Kolli mode, assign scanned item to active parcel
+      if (isKolliMode && activeParcel) {
+        // Find the item that was just verified
+        const itemsData = await fetchPackingListItems(packingId);
+        const justVerifiedItem = (itemsData as PackingItem[]).find(
+          item => item.booking_products?.sku?.toLowerCase() === scannedValue.toLowerCase()
+        );
+        if (justVerifiedItem) {
+          await assignItemToParcel(justVerifiedItem.id, activeParcel.id);
+          setItemParcelMap(prev => ({ ...prev, [justVerifiedItem.id]: activeParcel.parcel_number }));
+          toast.info(`Tillagd i Kolli #${activeParcel.parcel_number}`);
+        }
+      }
+      
       // Refresh data
       loadData();
     } else {
@@ -121,7 +190,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
 
     // Close QR scanner after scan
     setIsQRActive(false);
-  }, [packingId, verifierName, loadData]);
+  }, [packingId, verifierName, loadData, isKolliMode, activeParcel]);
 
   // Handle manual checkbox toggle - only for child items
   const handleManualToggle = useCallback(async (itemId: string, isCurrentlyPacked: boolean, quantityToPack: number, isParent: boolean) => {
@@ -134,11 +203,19 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     
     if (result.success) {
       toast.success(isCurrentlyPacked ? 'Avmarkerad' : 'Markerad som packad');
+      
+      // If in Kolli mode and we're packing (not unpacking), assign to parcel
+      if (isKolliMode && activeParcel && !isCurrentlyPacked) {
+        await assignItemToParcel(itemId, activeParcel.id);
+        setItemParcelMap(prev => ({ ...prev, [itemId]: activeParcel.parcel_number }));
+        toast.info(`Tillagd i Kolli #${activeParcel.parcel_number}`);
+      }
+      
       loadData();
     } else {
       toast.error(result.error || 'Kunde inte uppdatera');
     }
-  }, [verifierName, loadData]);
+  }, [verifierName, loadData, isKolliMode, activeParcel]);
 
   if (isLoading) {
     return (
@@ -148,6 +225,163 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     );
   }
 
+  // Kolli Mode UI
+  if (isKolliMode && activeParcel) {
+    return (
+      <div className="space-y-3">
+        {/* Kolli Mode Header */}
+        <div className="bg-primary text-primary-foreground rounded-lg p-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              <span className="font-semibold">KOLLI-LÄGE</span>
+            </div>
+            <div className="bg-primary-foreground/20 px-3 py-1 rounded-full">
+              <span className="font-bold text-lg">#{activeParcel.parcel_number}</span>
+            </div>
+          </div>
+          <p className="text-xs mt-1 opacity-90">Scanna eller klicka på produkter för Kolli #{activeParcel.parcel_number}</p>
+        </div>
+
+        {/* QR Button for Kolli mode */}
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => setIsQRActive(true)}
+            className="flex-1 gap-2"
+          >
+            <Camera className="h-4 w-4" />
+            Scanna produkt
+          </Button>
+        </div>
+
+        {/* Product list in Kolli mode */}
+        <div className="border rounded-lg overflow-hidden bg-card">
+          <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/40">
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Produkt</span>
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Kolli</span>
+          </div>
+          
+          <div className="divide-y divide-border/30 max-h-[calc(100vh-320px)] overflow-y-auto">
+            {items.map(item => {
+              const rawName = item.booking_products?.name || 'Okänd produkt';
+              const trimmedName = rawName.trimStart();
+              const productId = item.booking_products?.id;
+              
+              const isChildByRelation = !!(
+                item.booking_products?.parent_product_id || 
+                item.booking_products?.parent_package_id || 
+                item.booking_products?.is_package_component
+              );
+              const isChildByPrefix = (
+                trimmedName.startsWith('↳') || 
+                trimmedName.startsWith('└') || 
+                trimmedName.startsWith('L,') ||
+                trimmedName.startsWith('⦿')
+              );
+              const isChild = isChildByRelation || isChildByPrefix;
+              
+              // Build parent-children map for this render
+              const childrenByParent: Record<string, PackingItem[]> = {};
+              items.forEach(i => {
+                const parentId = i.booking_products?.parent_product_id;
+                if (parentId) {
+                  if (!childrenByParent[parentId]) childrenByParent[parentId] = [];
+                  childrenByParent[parentId].push(i);
+                }
+              });
+              
+              const hasChildren = productId ? (childrenByParent[productId]?.length || 0) > 0 : false;
+              const isParent = !isChild && hasChildren;
+              
+              const packed = item.quantity_packed || 0;
+              const total = item.quantity_to_pack;
+              const isComplete = packed >= total && total > 0;
+              
+              const cleanName = cleanProductName(rawName);
+              const isPackageComponent = item.booking_products?.is_package_component || trimmedName.startsWith('⦿');
+              const prefixIndicator = isChild ? (isPackageComponent ? '⦿ ' : '↳ ') : '';
+              const displayName = isChild ? formatToTitleCase(cleanName) : cleanName.toUpperCase();
+              
+              const parcelNumber = itemParcelMap[item.id];
+              
+              return (
+                <button 
+                  key={item.id}
+                  onClick={() => handleManualToggle(item.id, isComplete, item.quantity_to_pack, isParent)}
+                  disabled={isParent || isComplete}
+                  className={`w-full flex items-center gap-2 text-left transition-colors ${
+                    isComplete ? 'bg-green-50/70' : ''
+                  } ${
+                    isParent || isComplete ? 'cursor-default opacity-60' : 'hover:bg-muted/40 active:bg-muted/60'
+                  } ${isChild ? 'pl-6 pr-2 py-1.5' : 'px-2 py-2'}`}
+                >
+                  {/* Status indicator */}
+                  <div className={`shrink-0 rounded-full flex items-center justify-center ${
+                    isChild ? 'w-4 h-4' : 'w-5 h-5'
+                  } ${
+                    isComplete ? 'bg-green-500' : 'border-2 border-muted-foreground/40'
+                  }`}>
+                    {isComplete && <Check className="text-white w-2.5 h-2.5" />}
+                  </div>
+                  
+                  {/* Product name */}
+                  <div className="flex-1 min-w-0">
+                    <span className={`block truncate ${
+                      isChild ? 'text-[11px] font-normal' : 'text-xs font-semibold tracking-wide'
+                    } ${isComplete ? 'text-green-700' : isChild ? 'text-muted-foreground' : 'text-foreground'}`}>
+                      {isChild && <span className="text-muted-foreground/70">{prefixIndicator}</span>}
+                      {displayName}
+                    </span>
+                  </div>
+                  
+                  {/* Parcel badge */}
+                  {parcelNumber ? (
+                    <div className="shrink-0 flex items-center gap-1 bg-primary/10 text-primary px-2 py-0.5 rounded">
+                      <Package className="h-3 w-3" />
+                      <span className="text-[10px] font-bold">#{parcelNumber}</span>
+                    </div>
+                  ) : isComplete ? (
+                    <div className="shrink-0 text-[10px] text-muted-foreground">
+                      Inget kolli
+                    </div>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Kolli action buttons */}
+        <div className="flex gap-2">
+          <Button 
+            onClick={nextParcel}
+            variant="outline"
+            className="flex-1 gap-2"
+          >
+            <ChevronRight className="h-4 w-4" />
+            Nästa kolli
+          </Button>
+          <Button 
+            onClick={exitKolliMode}
+            variant="secondary"
+            className="flex-1 gap-2"
+          >
+            <X className="h-4 w-4" />
+            Avsluta
+          </Button>
+        </div>
+
+        {/* QR Scanner overlay */}
+        <QRScanner 
+          isActive={isQRActive}
+          onScan={handleScan}
+          onClose={() => setIsQRActive(false)}
+        />
+      </div>
+    );
+  }
+
+  // Normal verification UI
   return (
     <div className="space-y-3">
       {/* Compact Header */}
@@ -166,8 +400,8 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </Button>
       </div>
 
-      {/* Compact Progress + QR button inline */}
-      <div className="flex items-center gap-3 px-1">
+      {/* Compact Progress + QR + Kolli buttons inline */}
+      <div className="flex items-center gap-2 px-1">
         <div className="flex-1">
           <Progress value={progress.percentage} className="h-2.5" />
         </div>
@@ -180,10 +414,19 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         <Button 
           onClick={() => setIsQRActive(true)}
           size="sm"
-          className="h-8 px-3 gap-1.5"
+          className="h-8 px-2.5 gap-1"
         >
           <Camera className="h-3.5 w-3.5" />
           <span className="text-xs">QR</span>
+        </Button>
+        <Button 
+          onClick={startKolliMode}
+          size="sm"
+          variant="outline"
+          className="h-8 px-2.5 gap-1"
+        >
+          <Package className="h-3.5 w-3.5" />
+          <span className="text-xs">Kolli</span>
         </Button>
       </div>
 
@@ -288,6 +531,9 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                 const isComplete = packed >= total && total > 0;
                 const isPartial = packed > 0 && packed < total;
                 
+                // Get parcel number if assigned
+                const parcelNumber = itemParcelMap[item.id];
+                
                 return (
                   <button 
                     key={item.id}
@@ -345,6 +591,14 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                         </span>
                       )}
                     </div>
+                    
+                    {/* Parcel badge if assigned */}
+                    {parcelNumber && (
+                      <div className="shrink-0 flex items-center gap-0.5 text-primary">
+                        <Package className="h-3 w-3" />
+                        <span className="text-[10px] font-bold">#{parcelNumber}</span>
+                      </div>
+                    )}
                     
                     {/* Quantity badge: packed/total or children progress */}
                     <div className={`shrink-0 min-w-[40px] flex items-center justify-center rounded px-1.5 py-0.5 ${
