@@ -198,7 +198,7 @@ export function Sidebar3D() {
 
                   {/* Sub-items */}
                   {hasChildren && !isCollapsed && (
-                    <div className="ml-6 mt-1 space-y-1">
+                    <div className="ml-11 mt-1 space-y-1">
                       {item.children!.map((child) => {
                         const isChildActive = location.pathname === child.url;
                         return (
