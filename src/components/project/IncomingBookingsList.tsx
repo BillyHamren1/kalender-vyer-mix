@@ -158,7 +158,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                 title="Skapa ett litet projekt (enkel struktur)"
               >
                 <Briefcase className="w-4 h-4" />
-                <span className="hidden xl:inline">Litet</span>
+                Jobb
               </Button>
               <Button
                 variant="outline"
@@ -168,7 +168,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                 title="Skapa ett medelstort projekt (full projekthantering)"
               >
                 <FolderKanban className="w-4 h-4" />
-                <span className="hidden xl:inline">Medel</span>
+                Projekt
               </Button>
               <Button
                 variant="outline"
@@ -179,8 +179,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                 disabled={!onCreateLargeProject}
               >
                 <Building2 className="w-4 h-4" />
-                <span className="hidden xl:inline">Stort</span>
-              </Button>
+                Stort</Button>
             </div>
           ))}
         </div>
