@@ -46,9 +46,9 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
   const [checklistItems, setChecklistItems] = useState<ChecklistItemData[]>([]);
   const [newTaskTitle, setNewTaskTitle] = useState("");
 
-  // Fetch available bookings
+  // Fetch available bookings (exclude those with active projects, allow cancelled/preselected)
   const { data: bookings = [] } = useQuery({
-    queryKey: ['available-bookings-wizard'],
+    queryKey: ['available-bookings-wizard', preselectedBookingId],
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const bookingsRes: any = await supabase
@@ -57,11 +57,22 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
         .order('eventdate', { ascending: true });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const projectsRes: any = await supabase.from('projects').select('booking_id');
+      const projectsRes: any = await supabase
+        .from('projects')
+        .select('booking_id, status')
+        .neq('status', 'cancelled'); // Only exclude bookings with ACTIVE projects
 
       const allBookings: BookingOption[] = bookingsRes.data || [];
-      const usedBookingIds = new Set((projectsRes.data || []).map((p: { booking_id: string }) => p.booking_id));
-      return allBookings.filter(b => !usedBookingIds.has(b.id));
+      const usedBookingIds = new Set(
+        (projectsRes.data || [])
+          .filter((p: { booking_id: string | null }) => p.booking_id)
+          .map((p: { booking_id: string }) => p.booking_id)
+      );
+      
+      // Filter: not used by active project, OR is the preselected booking
+      return allBookings.filter(b => 
+        !usedBookingIds.has(b.id) || b.id === preselectedBookingId
+      );
     },
     enabled: open
   });
