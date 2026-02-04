@@ -1,208 +1,201 @@
 import { useState, useMemo } from "react";
-import { RefreshCw, Plus, Clock, CalendarDays, Package, CheckCircle2, Filter } from "lucide-react";
+import { RefreshCw, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
-import { format, startOfWeek, endOfWeek, addWeeks, addDays, isWithinInterval, parseISO } from "date-fns";
+import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, isSameDay, parseISO } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import DashboardListWidget, { ListItem } from "@/components/warehouse-dashboard/DashboardListWidget";
-import JobOverviewCalendar from "@/components/warehouse-dashboard/JobOverviewCalendar";
-import WarehouseStatsRow from "@/components/warehouse-dashboard/WarehouseStatsRow";
+import WeekPackingsView from "@/components/warehouse-dashboard/WeekPackingsView";
+import NewPackingJobsCard from "@/components/warehouse-dashboard/NewPackingJobsCard";
+import ActivePackingsCard from "@/components/warehouse-dashboard/ActivePackingsCard";
+import CompletedPackingsCard from "@/components/warehouse-dashboard/CompletedPackingsCard";
 import BookingProductsDialog from "@/components/Calendar/BookingProductsDialog";
 import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
 import { toast } from "sonner";
 
-// Helper to get week filter options
-const getWeekOptions = () => {
-  const today = new Date();
-  const options = [];
-  
-  for (let i = -2; i <= 4; i++) {
-    const weekStart = startOfWeek(addWeeks(today, i), { weekStartsOn: 1 });
-    const weekEnd = endOfWeek(addWeeks(today, i), { weekStartsOn: 1 });
-    const weekNum = format(weekStart, 'w');
-    const label = i === 0 
-      ? `Vecka ${weekNum} (denna vecka)` 
-      : `Vecka ${weekNum}`;
-    
-    options.push({
-      value: i.toString(),
-      label,
-      start: weekStart,
-      end: weekEnd
-    });
-  }
-  
-  return options;
-};
+interface WeekPacking {
+  id: string;
+  bookingId: string;
+  bookingNumber: string | null;
+  client: string;
+  date: Date;
+  eventType: 'packing' | 'delivery' | 'return' | 'inventory' | 'unpacking' | 'rig' | 'event' | 'rigdown';
+  status: string;
+}
 
 const WarehouseDashboard = () => {
   const navigate = useNavigate();
-  const [weekOffset, setWeekOffset] = useState("0");
-  const weekOptions = useMemo(() => getWeekOptions(), []);
-  
-  const selectedWeek = weekOptions.find(w => w.value === weekOffset) || weekOptions[2];
-  const weekStart = selectedWeek.start;
-  const weekEnd = selectedWeek.end;
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => 
+    startOfWeek(new Date(), { weekStartsOn: 1 })
+  );
+  const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
 
   // Dialog states
   const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [showBookingDialog, setShowBookingDialog] = useState(false);
 
-  // Fetch stats
-  const statsQuery = useQuery({
-    queryKey: ['warehouse-stats'],
+  const goToPreviousWeek = () => setCurrentWeekStart(prev => subWeeks(prev, 1));
+  const goToNextWeek = () => setCurrentWeekStart(prev => addWeeks(prev, 1));
+  const goToCurrentWeek = () => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
+
+  // Fetch week packings/events from warehouse calendar
+  const weekPackingsQuery = useQuery({
+    queryKey: ['warehouse-week-packings', format(currentWeekStart, 'yyyy-MM-dd')],
+    queryFn: async () => {
+      const startStr = format(currentWeekStart, 'yyyy-MM-dd');
+      const endStr = format(weekEnd, 'yyyy-MM-dd');
+
+      const { data, error } = await supabase
+        .from('warehouse_calendar_events')
+        .select('id, booking_id, booking_number, title, event_type, start_time')
+        .gte('start_time', startStr)
+        .lte('start_time', endStr + 'T23:59:59')
+        .order('start_time', { ascending: true });
+
+      if (error) throw error;
+
+      // Map events to WeekPacking format
+      const packings: WeekPacking[] = (data || []).map(event => ({
+        id: event.id,
+        bookingId: event.booking_id || '',
+        bookingNumber: event.booking_number,
+        client: event.title,
+        date: new Date(event.start_time),
+        eventType: (event.event_type?.toLowerCase() || 'other') as WeekPacking['eventType'],
+        status: 'active'
+      }));
+
+      return packings;
+    }
+  });
+
+  // Fetch new jobs without packing
+  const newJobsQuery = useQuery({
+    queryKey: ['warehouse-new-jobs'],
     queryFn: async () => {
       const today = format(new Date(), 'yyyy-MM-dd');
       
-      const [upcomingRes, activeRes, overdueRes] = await Promise.all([
-        supabase.from('bookings').select('*', { count: 'exact', head: true })
-          .gte('rigdaydate', today).eq('status', 'CONFIRMED'),
-        supabase.from('packing_projects').select('*', { count: 'exact', head: true })
-          .eq('status', 'in_progress'),
-        supabase.from('packing_tasks').select('*', { count: 'exact', head: true })
-          .lt('deadline', today).eq('completed', false)
-      ]);
-
-      return {
-        upcomingJobs: upcomingRes.count || 0,
-        activePackings: activeRes.count || 0,
-        urgentPackings: 0,
-        overdueTasks: overdueRes.count || 0
-      };
-    }
-  });
-
-  // Fetch recently received jobs (last 7 days)
-  const recentJobsQuery = useQuery({
-    queryKey: ['warehouse-recent-jobs'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+      // Get confirmed bookings with upcoming rig dates
+      const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
-        .select('id, client, booking_number, created_at, status')
+        .select('id, client, booking_number, rigdaydate, eventdate, created_at')
         .eq('status', 'CONFIRMED')
-        .order('created_at', { ascending: false })
-        .limit(10);
+        .gte('rigdaydate', today)
+        .order('rigdaydate', { ascending: true })
+        .limit(20);
 
-      if (error) throw error;
-      return data || [];
+      if (bookingsError) throw bookingsError;
+
+      // Get packing projects to check which bookings have packings
+      const { data: packings } = await supabase
+        .from('packing_projects')
+        .select('booking_id');
+
+      const packingBookingIds = new Set((packings || []).map(p => p.booking_id));
+
+      return (bookings || []).map(booking => ({
+        id: booking.id,
+        bookingNumber: booking.booking_number,
+        client: booking.client,
+        rigDate: booking.rigdaydate,
+        eventDate: booking.eventdate,
+        createdAt: booking.created_at,
+        hasPacking: packingBookingIds.has(booking.id)
+      }));
     }
   });
 
-  // Fetch upcoming jobs for next 14 days (by rig date)
-  const upcomingJobsQuery = useQuery({
-    queryKey: ['warehouse-upcoming-jobs-14'],
-    queryFn: async () => {
-      const today = new Date();
-      const startStr = format(today, 'yyyy-MM-dd');
-      const endStr = format(addDays(today, 14), 'yyyy-MM-dd');
-
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('id, client, booking_number, rigdaydate, status')
-        .gte('rigdaydate', startStr)
-        .lte('rigdaydate', endStr)
-        .eq('status', 'CONFIRMED')
-        .order('rigdaydate', { ascending: true });
-
-      if (error) throw error;
-      return data || [];
-    }
-  });
-
-  // Fetch in-progress packings
-  const inProgressPackingsQuery = useQuery({
-    queryKey: ['warehouse-inprogress-packings'],
+  // Fetch active packings
+  const activePackingsQuery = useQuery({
+    queryKey: ['warehouse-active-packings'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('packing_projects')
-        .select('id, name, status, booking_id, updated_at')
-        .eq('status', 'in_progress')
+        .select(`
+          id, 
+          name, 
+          status, 
+          project_leader, 
+          updated_at,
+          booking_id
+        `)
+        .in('status', ['planning', 'in_progress'])
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+
+      // Get packing list items count for progress
+      const packingIds = (data || []).map(p => p.id);
+      const { data: listItems } = await supabase
+        .from('packing_list_items')
+        .select('packing_id, quantity_to_pack, quantity_packed')
+        .in('packing_id', packingIds);
+
+      const itemsByPacking = (listItems || []).reduce((acc, item) => {
+        if (!acc[item.packing_id]) {
+          acc[item.packing_id] = { total: 0, packed: 0 };
+        }
+        acc[item.packing_id].total += item.quantity_to_pack || 0;
+        acc[item.packing_id].packed += item.quantity_packed || 0;
+        return acc;
+      }, {} as Record<string, { total: number; packed: number }>);
+
+      return (data || []).map(packing => {
+        const items = itemsByPacking[packing.id] || { total: 0, packed: 0 };
+        const progress = items.total > 0 ? Math.round((items.packed / items.total) * 100) : 0;
+        
+        return {
+          id: packing.id,
+          name: packing.name,
+          status: packing.status,
+          progress,
+          totalItems: items.total,
+          packedItems: items.packed,
+          projectLeader: packing.project_leader,
+          updatedAt: packing.updated_at
+        };
+      });
     }
   });
 
   // Fetch completed packings for selected week
   const completedPackingsQuery = useQuery({
-    queryKey: ['warehouse-completed-packings', weekOffset],
+    queryKey: ['warehouse-completed-packings', format(currentWeekStart, 'yyyy-MM-dd')],
     queryFn: async () => {
-      const startStr = format(weekStart, 'yyyy-MM-dd');
+      const startStr = format(currentWeekStart, 'yyyy-MM-dd');
       const endStr = format(weekEnd, 'yyyy-MM-dd');
 
       const { data, error } = await supabase
         .from('packing_projects')
-        .select('id, name, status, updated_at')
+        .select('id, name, updated_at')
         .eq('status', 'completed')
         .gte('updated_at', startStr)
         .lte('updated_at', endStr + 'T23:59:59')
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+
+      return (data || []).map(packing => ({
+        id: packing.id,
+        name: packing.name,
+        completedAt: packing.updated_at
+      }));
     }
   });
 
-  const isLoading = statsQuery.isLoading || recentJobsQuery.isLoading || 
-    upcomingJobsQuery.isLoading || inProgressPackingsQuery.isLoading || completedPackingsQuery.isLoading;
+  const isLoading = weekPackingsQuery.isLoading || newJobsQuery.isLoading || 
+    activePackingsQuery.isLoading || completedPackingsQuery.isLoading;
 
   const refetchAll = () => {
-    statsQuery.refetch();
-    recentJobsQuery.refetch();
-    upcomingJobsQuery.refetch();
-    inProgressPackingsQuery.refetch();
+    weekPackingsQuery.refetch();
+    newJobsQuery.refetch();
+    activePackingsQuery.refetch();
     completedPackingsQuery.refetch();
   };
 
-  // Transform data to list items
-  const recentJobItems: ListItem[] = (recentJobsQuery.data || []).map(job => ({
-    id: job.id,
-    primaryText: `#${job.booking_number || '—'} - ${job.client}`,
-    secondaryText: job.created_at ? format(new Date(job.created_at), 'd MMM yyyy', { locale: sv }) : undefined,
-    status: 'Bekräftad',
-    statusVariant: 'default' as const,
-    onClick: () => {
-      setSelectedBookingId(job.id);
-      setShowBookingDialog(true);
-    }
-  }));
-
-  const upcomingJobItems: ListItem[] = (upcomingJobsQuery.data || []).map(job => ({
-    id: job.id,
-    primaryText: `#${job.booking_number || '—'} - ${job.client}`,
-    secondaryText: job.rigdaydate ? `Montage: ${format(new Date(job.rigdaydate), 'd MMM', { locale: sv })}` : undefined,
-    status: 'Bekräftad',
-    statusVariant: 'default' as const,
-    onClick: () => {
-      setSelectedBookingId(job.id);
-      setShowBookingDialog(true);
-    }
-  }));
-
-  const inProgressItems: ListItem[] = (inProgressPackingsQuery.data || []).map(packing => ({
-    id: packing.id,
-    primaryText: packing.name,
-    secondaryText: packing.updated_at ? `Uppdaterad: ${format(new Date(packing.updated_at), 'd MMM', { locale: sv })}` : undefined,
-    status: 'Pågående',
-    statusVariant: 'warning' as const,
-    onClick: () => navigate(`/warehouse/packing/${packing.id}`)
-  }));
-
-  const completedItems: ListItem[] = (completedPackingsQuery.data || []).map(packing => ({
-    id: packing.id,
-    primaryText: packing.name,
-    secondaryText: packing.updated_at ? `Slutförd: ${format(new Date(packing.updated_at), 'd MMM', { locale: sv })}` : undefined,
-    status: 'Klar',
-    statusVariant: 'success' as const,
-    onClick: () => navigate(`/warehouse/packing/${packing.id}`)
-  }));
-
-  // Handle create packing from dialog
+  // Handle create packing
   const handleCreatePacking = async (bookingId: string, bookingClient: string) => {
     try {
       const { data, error } = await supabase
@@ -218,8 +211,6 @@ const WarehouseDashboard = () => {
       if (error) throw error;
 
       toast.success('Packning skapad');
-      setShowBookingDialog(false);
-      setSelectedBookingId(null);
       refetchAll();
       navigate(`/warehouse/packing/${data.id}`);
     } catch (error) {
@@ -228,109 +219,80 @@ const WarehouseDashboard = () => {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-muted/50">
-      <div className="container mx-auto px-4 py-6 max-w-7xl">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Lagerdashboard</h1>
-            <p className="text-muted-foreground text-sm">
-              Översikt över lagerlogistik och packningsarbete
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Week filter */}
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <Select value={weekOffset} onValueChange={setWeekOffset}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {weekOptions.map(option => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button
-              onClick={() => setShowCreateWizard(true)}
-              className="bg-warehouse hover:bg-warehouse/90"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Ny packning
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={refetchAll}
-              disabled={isLoading}
-            >
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            </Button>
-          </div>
-        </div>
+  const handleDialogCreatePacking = async (bookingId: string, bookingClient: string) => {
+    await handleCreatePacking(bookingId, bookingClient);
+    setShowBookingDialog(false);
+    setSelectedBookingId(null);
+  };
 
-        {/* Stats Row */}
-        <div className="mb-6">
-          <WarehouseStatsRow 
-            stats={statsQuery.data || { upcomingJobs: 0, activePackings: 0, urgentPackings: 0, overdueTasks: 0 }} 
-            isLoading={statsQuery.isLoading} 
+  return (
+    <div className="h-full overflow-y-auto bg-muted/30 p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">Lagerdashboard</h1>
+          <p className="text-muted-foreground">
+            {format(new Date(), "EEEE d MMMM yyyy", { locale: sv })}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setShowCreateWizard(true)}
+            className="bg-warehouse hover:bg-warehouse/90"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Ny packning
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={refetchAll}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Uppdatera
+          </Button>
+        </div>
+      </div>
+
+      {/* Week Planning - Packings View */}
+      <div className="mb-6">
+        <WeekPackingsView 
+          packings={weekPackingsQuery.data || []}
+          weekStart={currentWeekStart}
+          onPreviousWeek={goToPreviousWeek}
+          onNextWeek={goToNextWeek}
+          onCurrentWeek={goToCurrentWeek}
+          isLoading={weekPackingsQuery.isLoading}
+        />
+      </div>
+
+      {/* Main Grid - 4 columns like PlanningDashboard */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* New Packing Jobs */}
+        <div className="lg:col-span-1">
+          <NewPackingJobsCard 
+            jobs={newJobsQuery.data || []}
+            isLoading={newJobsQuery.isLoading}
+            onCreatePacking={handleCreatePacking}
           />
         </div>
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* Left Column - Calendar Overview */}
-          <div className="xl:col-span-1">
-            <JobOverviewCalendar />
-          </div>
+        {/* Active Packings - span 2 columns */}
+        <div className="lg:col-span-2">
+          <ActivePackingsCard 
+            packings={activePackingsQuery.data || []}
+            isLoading={activePackingsQuery.isLoading}
+          />
+        </div>
 
-          {/* Right Column - List Widgets */}
-          <div className="xl:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Senast inkomna jobb */}
-            <DashboardListWidget
-              title="Senast inkomna jobb"
-              icon={<Clock className="h-5 w-5 text-primary" />}
-              items={recentJobItems}
-              isLoading={recentJobsQuery.isLoading}
-              emptyText="Inga nya jobb"
-              maxVisible={5}
-            />
-
-            {/* Kommande jobb 14 dagar */}
-            <DashboardListWidget
-              title="Kommande jobb 14 dagar"
-              icon={<CalendarDays className="h-5 w-5 text-warehouse" />}
-              items={upcomingJobItems}
-              isLoading={upcomingJobsQuery.isLoading}
-              emptyText="Inga kommande jobb"
-              maxVisible={5}
-            />
-
-            {/* Påbörjade packningar */}
-            <DashboardListWidget
-              title="Påbörjade packningar"
-              icon={<Package className="h-5 w-5 text-warehouse" />}
-              items={inProgressItems}
-              isLoading={inProgressPackingsQuery.isLoading}
-              emptyText="Inga pågående packningar"
-              maxVisible={5}
-            />
-
-            {/* Slutförda packningar */}
-            <DashboardListWidget
-              title={`Slutförda vecka ${format(weekStart, 'w')}`}
-              icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
-              items={completedItems}
-              isLoading={completedPackingsQuery.isLoading}
-              emptyText="Inga slutförda packningar denna vecka"
-              maxVisible={5}
-            />
-          </div>
+        {/* Completed Packings */}
+        <div className="lg:col-span-1">
+          <CompletedPackingsCard 
+            packings={completedPackingsQuery.data || []}
+            isLoading={completedPackingsQuery.isLoading}
+            weekNumber={format(currentWeekStart, 'w')}
+          />
         </div>
       </div>
 
@@ -342,7 +304,7 @@ const WarehouseDashboard = () => {
           setShowBookingDialog(open);
           if (!open) setSelectedBookingId(null);
         }}
-        onCreatePacking={handleCreatePacking}
+        onCreatePacking={handleDialogCreatePacking}
       />
 
       {/* Create Packing Wizard */}
