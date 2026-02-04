@@ -75,13 +75,61 @@ export const fetchPackingListItems = async (packingId: string) => {
         name,
         quantity,
         sku,
-        notes
+        notes,
+        parent_product_id
       )
     `)
     .eq('packing_id', packingId);
 
   if (error) throw error;
-  return data || [];
+  
+  // Group items: main products first, then children under their parent
+  const items = data || [];
+  const mainProducts: typeof items = [];
+  const childrenByParent: Record<string, typeof items> = {};
+  
+  items.forEach(item => {
+    const parentId = item.booking_products?.parent_product_id;
+    if (!parentId) {
+      mainProducts.push(item);
+    } else {
+      if (!childrenByParent[parentId]) childrenByParent[parentId] = [];
+      childrenByParent[parentId].push(item);
+    }
+  });
+  
+  // Sort children: package components first, then accessories (↳)
+  Object.values(childrenByParent).forEach(children => {
+    children.sort((a, b) => {
+      const aName = a.booking_products?.name || '';
+      const bName = b.booking_products?.name || '';
+      const aIsAccessory = aName.startsWith('↳') || aName.startsWith('└') || aName.startsWith('L,');
+      const bIsAccessory = bName.startsWith('↳') || bName.startsWith('└') || bName.startsWith('L,');
+      if (!aIsAccessory && bIsAccessory) return -1;
+      if (aIsAccessory && !bIsAccessory) return 1;
+      return 0;
+    });
+  });
+  
+  // Build ordered list: main product followed by its children
+  const orderedItems: typeof items = [];
+  mainProducts.forEach(main => {
+    orderedItems.push(main);
+    const parentId = main.booking_products?.id;
+    if (parentId && childrenByParent[parentId]) {
+      orderedItems.push(...childrenByParent[parentId]);
+    }
+  });
+  
+  // Add any orphaned children (parent not in list)
+  const mainProductIds = new Set(mainProducts.map(m => m.booking_products?.id).filter(Boolean));
+  Object.entries(childrenByParent).forEach(([parentId, children]) => {
+    if (!mainProductIds.has(parentId)) {
+      orderedItems.push(...children);
+    }
+  });
+  
+  return orderedItems;
 };
 
 // Verify a product by SKU
