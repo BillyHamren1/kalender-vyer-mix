@@ -903,6 +903,32 @@ serve(async (req) => {
                 console.log(`Removed warehouse events for CANCELLED booking ${existingBooking.id}`)
               }
               
+              // Handle linked project - set status to 'cancelled' instead of deleting
+              const { data: linkedProject, error: projectFetchError } = await supabase
+                .from('projects')
+                .select('id, status')
+                .eq('booking_id', existingBooking.id)
+                .limit(1)
+              
+              if (!projectFetchError && linkedProject && linkedProject.length > 0) {
+                const project = linkedProject[0];
+                console.log(`Found linked project ${project.id} for CANCELLED booking - updating status to cancelled`);
+                
+                const { error: projectUpdateError } = await supabase
+                  .from('projects')
+                  .update({ 
+                    status: 'cancelled',
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', project.id);
+                
+                if (projectUpdateError) {
+                  console.error(`Error updating project status to cancelled:`, projectUpdateError);
+                } else {
+                  console.log(`Updated project ${project.id} status to cancelled`);
+                }
+              }
+              
               // Remove packing projects for cancelled bookings
               const { error: deletePackingError } = await supabase
                 .from('packing_projects')
@@ -1308,6 +1334,93 @@ serve(async (req) => {
           if (!wasConfirmed && isNowConfirmed) {
             updateData.viewed = false;
             console.log(`Resetting viewed flag for re-confirmed booking ${bookingData.id}`);
+            
+            // Check if there's a cancelled project with data that should be reactivated
+            const { data: existingProject, error: projectCheckError } = await supabase
+              .from('projects')
+              .select('id, status')
+              .eq('booking_id', existingBooking.id)
+              .limit(1);
+            
+            if (!projectCheckError && existingProject && existingProject.length > 0) {
+              const project = existingProject[0];
+              console.log(`Found existing project ${project.id} for re-confirmed booking ${bookingData.id} (status: ${project.status})`);
+              
+              // Check if project has any valuable data (time reports, labor costs, purchases, etc.)
+              const { data: timeReports } = await supabase
+                .from('time_reports')
+                .select('id')
+                .eq('booking_id', existingBooking.id)
+                .limit(1);
+              
+              const { data: laborCosts } = await supabase
+                .from('project_labor_costs')
+                .select('id')
+                .eq('project_id', project.id)
+                .limit(1);
+              
+              const { data: purchases } = await supabase
+                .from('project_purchases')
+                .select('id')
+                .eq('project_id', project.id)
+                .limit(1);
+              
+              const { data: quotes } = await supabase
+                .from('project_quotes')
+                .select('id')
+                .eq('project_id', project.id)
+                .limit(1);
+              
+              const { data: invoices } = await supabase
+                .from('project_invoices')
+                .select('id')
+                .eq('project_id', project.id)
+                .limit(1);
+              
+              const hasTimeReports = timeReports && timeReports.length > 0;
+              const hasLaborCosts = laborCosts && laborCosts.length > 0;
+              const hasPurchases = purchases && purchases.length > 0;
+              const hasQuotes = quotes && quotes.length > 0;
+              const hasInvoices = invoices && invoices.length > 0;
+              const hasValuableData = hasTimeReports || hasLaborCosts || hasPurchases || hasQuotes || hasInvoices;
+              
+              if (hasValuableData) {
+                console.log(`Project ${project.id} has valuable data - reactivating instead of creating new`);
+                console.log(`  - Time reports: ${hasTimeReports}, Labor costs: ${hasLaborCosts}, Purchases: ${hasPurchases}, Quotes: ${hasQuotes}, Invoices: ${hasInvoices}`);
+                
+                // Reactivate the project by setting status to 'planning'
+                const { error: reactivateError } = await supabase
+                  .from('projects')
+                  .update({ 
+                    status: 'planning',
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', project.id);
+                
+                if (reactivateError) {
+                  console.error(`Error reactivating project ${project.id}:`, reactivateError);
+                } else {
+                  console.log(`Successfully reactivated project ${project.id} for re-confirmed booking ${bookingData.id}`);
+                }
+              } else if (project.status === 'cancelled') {
+                // Project exists but has no data - also reactivate it
+                console.log(`Project ${project.id} exists but is cancelled with no data - reactivating`);
+                
+                const { error: reactivateError } = await supabase
+                  .from('projects')
+                  .update({ 
+                    status: 'planning',
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', project.id);
+                
+                if (reactivateError) {
+                  console.error(`Error reactivating project ${project.id}:`, reactivateError);
+                } else {
+                  console.log(`Successfully reactivated cancelled project ${project.id}`);
+                }
+              }
+            }
           }
 
           // Update existing booking
