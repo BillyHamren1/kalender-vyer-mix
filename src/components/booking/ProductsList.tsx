@@ -7,6 +7,7 @@ import { BookingProduct } from '@/types/booking';
 
 interface ProductsListProps {
   products: BookingProduct[];
+  showPricing?: boolean; // New prop to control pricing visibility
 }
 
 interface ProductGroup {
@@ -92,7 +93,7 @@ const groupProducts = (products: BookingProduct[]): ProductGroup[] => {
   return groups;
 };
 
-const ProductItem = ({ product, isAccessory: isAcc }: { product: BookingProduct; isAccessory?: boolean }) => {
+const ProductItem = ({ product, isAccessory: isAcc, showPricing = true }: { product: BookingProduct; isAccessory?: boolean; showPricing?: boolean }) => {
   const hasNotes = product.notes && 
                   typeof product.notes === 'string' && 
                   product.notes.trim().length > 0;
@@ -103,7 +104,7 @@ const ProductItem = ({ product, isAccessory: isAcc }: { product: BookingProduct;
         <span className={`text-sm ${isAcc ? '' : 'font-medium'}`}>{product.name}</span>
         <span className="text-xs text-muted-foreground">Qty: {product.quantity}</span>
       </div>
-      {product.unitPrice && (
+      {showPricing && product.unitPrice && (
         <p className="text-xs text-muted-foreground mt-0.5">
           {product.unitPrice.toLocaleString('sv-SE')} kr/st
           {product.totalPrice && (
@@ -120,14 +121,14 @@ const ProductItem = ({ product, isAccessory: isAcc }: { product: BookingProduct;
   );
 };
 
-const ProductGroupItem = ({ group }: { group: ProductGroup }) => {
+const ProductGroupItem = ({ group, showPricing = true }: { group: ProductGroup; showPricing?: boolean }) => {
   const [isOpen, setIsOpen] = useState(false);
   const hasAccessories = group.accessories.length > 0;
 
   if (!hasAccessories) {
     return (
       <div className="border-b border-border last:border-b-0">
-        <ProductItem product={group.parent} />
+        <ProductItem product={group.parent} showPricing={showPricing} />
       </div>
     );
   }
@@ -151,7 +152,7 @@ const ProductGroupItem = ({ group }: { group: ProductGroup }) => {
             </div>
           </div>
         </div>
-        {group.parent.unitPrice && (
+        {showPricing && group.parent.unitPrice && (
           <p className="text-xs text-muted-foreground mt-0.5 pl-6 pb-1">
             {group.parent.unitPrice.toLocaleString('sv-SE')} kr/st
             {group.parent.totalPrice && (
@@ -165,7 +166,7 @@ const ProductGroupItem = ({ group }: { group: ProductGroup }) => {
       <CollapsibleContent>
         <div className="pl-2 border-l-2 border-muted ml-2 mb-2">
           {group.accessories.map((accessory) => (
-            <ProductItem key={accessory.id} product={accessory} isAccessory />
+            <ProductItem key={accessory.id} product={accessory} isAccessory showPricing={showPricing} />
           ))}
         </div>
       </CollapsibleContent>
@@ -173,7 +174,7 @@ const ProductGroupItem = ({ group }: { group: ProductGroup }) => {
   );
 };
 
-export const ProductsList = ({ products }: ProductsListProps) => {
+export const ProductsList = ({ products, showPricing = true }: ProductsListProps) => {
   const hasProducts = products && products.length > 0;
   const groups = hasProducts ? groupProducts(products) : [];
 
@@ -189,7 +190,7 @@ export const ProductsList = ({ products }: ProductsListProps) => {
         {hasProducts ? (
           <div>
             {groups.map((group) => (
-              <ProductGroupItem key={group.parent.id} group={group} />
+              <ProductGroupItem key={group.parent.id} group={group} showPricing={showPricing} />
             ))}
           </div>
         ) : (
