@@ -501,7 +501,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                 const hasChildren = productId ? (childrenByParent[productId]?.length || 0) > 0 : false;
                 const isParent = !isChild && hasChildren;
                 
-                // For parents: calculate completion based on children
+                // For parents: show as 0/1 until ALL children are packed, then 1/1
                 let packed = item.quantity_packed || 0;
                 let total = item.quantity_to_pack;
                 
@@ -510,14 +510,9 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                   const childrenPacked = children.filter(c => (c.quantity_packed || 0) >= c.quantity_to_pack).length;
                   const allChildrenPacked = children.length > 0 && childrenPacked === children.length;
                   
-                  // Display children progress for parent
-                  packed = childrenPacked;
-                  total = children.length;
-                  
-                  // If all children packed, show complete
-                  if (allChildrenPacked) {
-                    packed = total;
-                  }
+                  // Display as single package: 0/1 or 1/1
+                  total = 1;
+                  packed = allChildrenPacked ? 1 : 0;
                 }
                 
                 // Clean name and determine prefix indicator
