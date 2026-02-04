@@ -215,7 +215,7 @@ export default function StaffRevenueOverview() {
         </Card>
 
         <Card className={cn(
-          (kpis.total_margin || 0) >= 0 ? "bg-green-50 border-green-200" : "bg-destructive/10 border-destructive/20"
+          (kpis.total_margin || 0) >= 0 ? "bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20" : "bg-destructive/10 border-destructive/20"
         )}>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -223,17 +223,17 @@ export default function StaffRevenueOverview() {
                 <p className="text-sm text-muted-foreground">Total marginal</p>
                 <p className={cn(
                   "text-2xl font-bold",
-                  (kpis.total_margin || 0) >= 0 ? "text-green-600" : "text-destructive"
+                  (kpis.total_margin || 0) >= 0 ? "text-primary" : "text-destructive"
                 )}>
                   {formatCurrency(kpis.total_margin || 0)}
                 </p>
               </div>
               <div className={cn(
                 "p-3 rounded-full",
-                (kpis.total_margin || 0) >= 0 ? "bg-green-200" : "bg-destructive/20"
+                (kpis.total_margin || 0) >= 0 ? "bg-primary/20" : "bg-destructive/20"
               )}>
                 {(kpis.total_margin || 0) >= 0 ? (
-                  <TrendingUp className="w-6 h-6 text-green-600" />
+                  <TrendingUp className="w-6 h-6 text-primary" />
                 ) : (
                   <TrendingDown className="w-6 h-6 text-destructive" />
                 )}
@@ -284,9 +284,9 @@ export default function StaffRevenueOverview() {
       {sortedStaff.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Top Revenue */}
-          <Card className="border-amber-200 bg-amber-50/50">
+          <Card className="border-primary/20 bg-gradient-to-br from-primary/10 to-primary/5">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-amber-700">
+              <CardTitle className="flex items-center gap-2 text-primary">
                 <Award className="w-5 h-5" />
                 Högst intäkt
               </CardTitle>
@@ -298,9 +298,9 @@ export default function StaffRevenueOverview() {
                     <div className="flex items-center gap-3">
                       <div className={cn(
                         "w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm",
-                        idx === 0 ? "bg-amber-500 text-white" :
-                        idx === 1 ? "bg-gray-400 text-white" :
-                        "bg-amber-700 text-white"
+                        idx === 0 ? "bg-primary text-primary-foreground" :
+                        idx === 1 ? "bg-muted-foreground text-white" :
+                        "bg-primary/70 text-primary-foreground"
                       )}>
                         {idx + 1}
                       </div>
@@ -322,9 +322,9 @@ export default function StaffRevenueOverview() {
           </Card>
 
           {/* Top Margin */}
-          <Card className="border-green-200 bg-green-50/50">
+          <Card className="border-primary/20 bg-gradient-to-br from-primary/10 to-primary/5">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-green-700">
+              <CardTitle className="flex items-center gap-2 text-primary">
                 <Target className="w-5 h-5" />
                 Högst marginal
               </CardTitle>
@@ -339,9 +339,9 @@ export default function StaffRevenueOverview() {
                     <div className="flex items-center gap-3">
                       <div className={cn(
                         "w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm",
-                        idx === 0 ? "bg-green-500 text-white" :
-                        idx === 1 ? "bg-gray-400 text-white" :
-                        "bg-green-700 text-white"
+                        idx === 0 ? "bg-primary text-primary-foreground" :
+                        idx === 1 ? "bg-muted-foreground text-white" :
+                        "bg-primary/70 text-primary-foreground"
                       )}>
                         {idx + 1}
                       </div>
@@ -353,7 +353,7 @@ export default function StaffRevenueOverview() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-green-600">{formatCurrency(staff.margin)}</p>
+                      <p className="font-bold text-primary">{formatCurrency(staff.margin)}</p>
                       <p className="text-xs text-muted-foreground">{formatPercent(staff.margin_percentage)}</p>
                     </div>
                   </div>
@@ -436,7 +436,7 @@ export default function StaffRevenueOverview() {
                     <td className="text-right py-3 px-2">
                       {formatHours(staff.total_hours)}
                       {staff.overtime_hours > 0 && (
-                        <span className="text-amber-600 text-xs ml-1">
+                        <span className="text-primary text-xs ml-1">
                           (+{staff.overtime_hours.toFixed(1)})
                         </span>
                       )}
@@ -453,7 +453,7 @@ export default function StaffRevenueOverview() {
                     <td className="text-right py-3 px-2">
                       <span className={cn(
                         "font-medium",
-                        staff.margin >= 0 ? "text-green-600" : "text-destructive"
+                        staff.margin >= 0 ? "text-primary" : "text-destructive"
                       )}>
                         {formatCurrency(staff.margin)}
                       </span>
@@ -483,7 +483,7 @@ export default function StaffRevenueOverview() {
                   <td className="text-right py-3 px-2">{formatCurrency(kpis.total_labor_cost || 0)}</td>
                   <td className="text-right py-3 px-2">
                     <span className={cn(
-                      (kpis.total_margin || 0) >= 0 ? "text-green-600" : "text-destructive"
+                      (kpis.total_margin || 0) >= 0 ? "text-primary" : "text-destructive"
                     )}>
                       {formatCurrency(kpis.total_margin || 0)}
                     </span>
