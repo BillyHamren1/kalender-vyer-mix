@@ -55,17 +55,11 @@ function calculateWarehouseTaskDates(
 
   // Packing phase tasks (relative to rig day)
   if (rigDate) {
-    if (title.includes('packning påbörjad') || title.includes('packing started')) {
+    // Match "packning" but not "upppackning"
+    if ((title === 'packning' || title.includes('packning påbörjad') || title.includes('packing started')) && !title.includes('upppackning')) {
       return { 
         startDate: subDays(rigDate, 4), 
         endDate: subDays(rigDate, 4),
-        taskType: 'packing'
-      };
-    }
-    if (title.includes('packlista') || title.includes('packing list')) {
-      return { 
-        startDate: subDays(rigDate, 2), 
-        endDate: subDays(rigDate, 2),
         taskType: 'packing'
       };
     }
