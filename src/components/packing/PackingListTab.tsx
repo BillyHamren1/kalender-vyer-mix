@@ -38,7 +38,7 @@ const PackingListTab = ({
   // - accessories: child items marked as accessories (↳)
   // - orphanedItems: items whose product no longer exists in the booking
   // Accessories should appear under their parent and be listed together (contiguously).
-  const { mainProducts, packageComponents, accessoriesByParent, orphanedItems, progress } = useMemo(() => {
+  const { mainProducts, packageComponents, accessoriesByParent, orphanedItems, orphanedChildren, progress } = useMemo(() => {
     const main: PackingListItem[] = [];
     const pkgComponents: Record<string, PackingListItem[]> = {};
     const accByParent: Record<string, PackingListItem[]> = {};
@@ -95,11 +95,28 @@ const PackingListTab = ({
       return 0;
     });
 
+    // Find children whose parent is NOT in mainProducts (orphaned children)
+    const mainProductIds = new Set(main.map(m => m.product?.id).filter(Boolean));
+    const orphanedChildItems: PackingListItem[] = [];
+
+    Object.entries(accByParent).forEach(([parentId, childItems]) => {
+      if (!mainProductIds.has(parentId)) {
+        orphanedChildItems.push(...childItems);
+      }
+    });
+
+    Object.entries(pkgComponents).forEach(([parentId, childItems]) => {
+      if (!mainProductIds.has(parentId)) {
+        orphanedChildItems.push(...childItems);
+      }
+    });
+
     return {
       mainProducts: main,
       packageComponents: pkgComponents,
       accessoriesByParent: accByParent,
       orphanedItems: orphaned,
+      orphanedChildren: orphanedChildItems,
       progress: {
         total: totalToPack,
         packed: totalPacked,
@@ -218,6 +235,26 @@ const PackingListTab = ({
                 ))}
               </div>
             ))}
+
+            {/* Orphaned children (children without parent in list) - shown as main items */}
+            {orphanedChildren.length > 0 && (
+              <>
+                <div className="border-t border-dashed border-warning/30 mt-4 pt-3">
+                  <p className="text-xs text-warning font-medium mb-2">
+                    Tillbehör utan huvudprodukt ({orphanedChildren.length})
+                  </p>
+                </div>
+                {orphanedChildren.map(item => (
+                  <PackingListItemRow
+                    key={item.id}
+                    item={item}
+                    onUpdate={onUpdateItem}
+                    isAccessory={false}
+                    isNewlyAdded={item.isNewlyAdded}
+                  />
+                ))}
+              </>
+            )}
 
             {/* Orphaned items section - at the bottom */}
             {orphanedItems.length > 0 && (
