@@ -1,11 +1,101 @@
 import { supabase } from "@/integrations/supabase/client";
-import { PackingWithBooking } from "@/types/packing";
+import { PackingWithBooking, PackingParcel } from "@/types/packing";
 
 export interface ScanResult {
   type: 'packing_id' | 'product_sku' | 'unknown';
   value: string;
   packingId?: string;
 }
+
+// ============== PARCEL (KOLLI) FUNCTIONS ==============
+
+// Create a new parcel for a packing
+export const createParcel = async (
+  packingId: string, 
+  createdBy: string
+): Promise<PackingParcel> => {
+  // Get current max parcel number
+  const { data: existing } = await supabase
+    .from('packing_parcels')
+    .select('parcel_number')
+    .eq('packing_id', packingId)
+    .order('parcel_number', { ascending: false })
+    .limit(1);
+
+  const nextNumber = (existing && existing.length > 0) ? existing[0].parcel_number + 1 : 1;
+
+  const { data, error } = await supabase
+    .from('packing_parcels')
+    .insert({
+      packing_id: packingId,
+      parcel_number: nextNumber,
+      created_by: createdBy
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as PackingParcel;
+};
+
+// Assign a packing list item to a parcel
+export const assignItemToParcel = async (
+  itemId: string, 
+  parcelId: string | null
+): Promise<void> => {
+  const { error } = await supabase
+    .from('packing_list_items')
+    .update({ parcel_id: parcelId })
+    .eq('id', itemId);
+
+  if (error) throw error;
+};
+
+// Get all parcels for a packing
+export const getParcelsByPacking = async (packingId: string): Promise<PackingParcel[]> => {
+  const { data, error } = await supabase
+    .from('packing_parcels')
+    .select('*')
+    .eq('packing_id', packingId)
+    .order('parcel_number', { ascending: true });
+
+  if (error) throw error;
+  return (data || []) as PackingParcel[];
+};
+
+// Get parcel info for all items in a packing
+export const getItemParcels = async (packingId: string): Promise<Record<string, number>> => {
+  const { data: items } = await supabase
+    .from('packing_list_items')
+    .select('id, parcel_id')
+    .eq('packing_id', packingId)
+    .not('parcel_id', 'is', null);
+
+  if (!items || items.length === 0) return {};
+
+  const parcelIds = [...new Set(items.map(i => i.parcel_id).filter(Boolean))];
+  
+  const { data: parcels } = await supabase
+    .from('packing_parcels')
+    .select('id, parcel_number')
+    .in('id', parcelIds);
+
+  const parcelMap: Record<string, number> = {};
+  (parcels || []).forEach((p: any) => {
+    parcelMap[p.id] = p.parcel_number;
+  });
+
+  const itemParcelNumbers: Record<string, number> = {};
+  items.forEach(item => {
+    if (item.parcel_id && parcelMap[item.parcel_id]) {
+      itemParcelNumbers[item.id] = parcelMap[item.parcel_id];
+    }
+  });
+
+  return itemParcelNumbers;
+};
+
+// ============== EXISTING FUNCTIONS ==============
 
 // Parse a scanned value to determine what type it is
 export const parseScanResult = (scannedValue: string): ScanResult => {

@@ -104,3 +104,17 @@ export const PACKING_STATUS_COLORS: Record<PackingStatus, string> = {
   delivered: 'bg-purple-100 text-purple-800',
   completed: 'bg-green-100 text-green-800'
 };
+
+// Parcel (Kolli) types
+export interface PackingParcel {
+  id: string;
+  packing_id: string;
+  parcel_number: number;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface PackingListItemWithParcel extends PackingListItem {
+  parcel_id: string | null;
+  parcel?: PackingParcel | null;
+}

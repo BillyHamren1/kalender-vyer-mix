@@ -1145,6 +1145,7 @@ export type Database = {
           packed_at: string | null
           packed_by: string | null
           packing_id: string
+          parcel_id: string | null
           quantity_packed: number
           quantity_to_pack: number
           verified_at: string | null
@@ -1158,6 +1159,7 @@ export type Database = {
           packed_at?: string | null
           packed_by?: string | null
           packing_id: string
+          parcel_id?: string | null
           quantity_packed?: number
           quantity_to_pack?: number
           verified_at?: string | null
@@ -1171,6 +1173,7 @@ export type Database = {
           packed_at?: string | null
           packed_by?: string | null
           packing_id?: string
+          parcel_id?: string | null
           quantity_packed?: number
           quantity_to_pack?: number
           verified_at?: string | null
@@ -1186,6 +1189,45 @@ export type Database = {
           },
           {
             foreignKeyName: "packing_list_items_packing_id_fkey"
+            columns: ["packing_id"]
+            isOneToOne: false
+            referencedRelation: "packing_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_list_items_parcel_id_fkey"
+            columns: ["parcel_id"]
+            isOneToOne: false
+            referencedRelation: "packing_parcels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      packing_parcels: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          packing_id: string
+          parcel_number: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          packing_id: string
+          parcel_number: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          packing_id?: string
+          parcel_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packing_parcels_packing_id_fkey"
             columns: ["packing_id"]
             isOneToOne: false
             referencedRelation: "packing_projects"
