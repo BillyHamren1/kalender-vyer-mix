@@ -753,7 +753,16 @@ serve(async (req) => {
     })
 
     if (!externalResponse.ok) {
-      throw new Error(`External API error: ${externalResponse.status}`)
+      // Try to get error details from response body
+      let errorDetails = '';
+      try {
+        const errorBody = await externalResponse.text();
+        errorDetails = errorBody.substring(0, 500); // Limit to 500 chars
+        console.error(`External API error response body: ${errorDetails}`);
+      } catch (e) {
+        console.error('Could not read external API error response body');
+      }
+      throw new Error(`External API error: ${externalResponse.status}${errorDetails ? ` - ${errorDetails}` : ''}`)
     }
 
     const externalData = await externalResponse.json()
