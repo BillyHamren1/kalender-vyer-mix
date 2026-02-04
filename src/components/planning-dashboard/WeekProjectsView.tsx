@@ -183,7 +183,7 @@ const DayColumn = ({
 
   return (
     <div className={cn(
-      "flex flex-col flex-1 min-w-[180px]",
+      "flex flex-col flex-1 min-w-[160px]",
       isPast && "opacity-50"
     )}>
       {/* Day header - clickable */}
@@ -223,7 +223,7 @@ const DayColumn = ({
       
       {/* Projects container */}
       <div className={cn(
-        "flex-1 p-2 space-y-2 min-h-[300px] border-x border-b rounded-b-xl",
+        "flex-1 p-2 space-y-2 min-h-[280px] border-x border-b rounded-b-xl",
         isToday ? "bg-primary/5 border-primary/30" : "bg-card border-border"
       )}>
         {dayProjects.length === 0 ? (
@@ -301,7 +301,7 @@ const WeekProjectsView = ({
       
       {/* Week grid */}
       <div className="p-3 overflow-x-auto">
-        <div className="flex gap-2 min-w-[1260px] items-stretch">
+        <div className="flex gap-2 min-w-[1120px] items-stretch">
           {days.map(day => (
             <DayColumn 
               key={day.toISOString()}
