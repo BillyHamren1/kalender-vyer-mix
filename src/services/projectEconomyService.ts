@@ -170,6 +170,7 @@ export const fetchProjectTimeReports = async (bookingId: string): Promise<StaffT
   const { data, error } = await supabase
     .from('time_reports')
     .select(`
+      id,
       staff_id,
       hours_worked,
       overtime_hours,
@@ -192,6 +193,7 @@ export const fetchProjectTimeReports = async (bookingId: string): Promise<StaffT
     const overtimeRate = Number(staffData?.overtime_rate) || hourlyRate * 1.5;
     
     if (existing) {
+      existing.report_ids.push(report.id);
       existing.total_hours += Number(report.hours_worked) || 0;
       existing.overtime_hours += Number(report.overtime_hours) || 0;
       existing.total_cost = (existing.total_hours * existing.hourly_rate) + 
@@ -212,7 +214,8 @@ export const fetchProjectTimeReports = async (bookingId: string): Promise<StaffT
         hourly_rate: hourlyRate,
         overtime_rate: overtimeRate,
         total_cost: (totalHours * hourlyRate) + (overtimeHours * overtimeRate),
-        approved: report.approved === true
+        approved: report.approved === true,
+        report_ids: [report.id]
       });
     }
   });
