@@ -216,6 +216,48 @@ export const verifyProductBySku = async (
   };
 };
 
+// Toggle a packing item manually (check/uncheck)
+export const togglePackingItemManually = async (
+  itemId: string,
+  currentlyPacked: boolean,
+  quantityToPack: number,
+  verifiedBy: string
+): Promise<{ success: boolean; error?: string }> => {
+  const now = new Date().toISOString();
+  
+  if (currentlyPacked) {
+    // Uncheck - reset to 0
+    const { error } = await supabase
+      .from('packing_list_items')
+      .update({
+        quantity_packed: 0,
+        packed_at: null,
+        packed_by: null,
+        verified_at: null,
+        verified_by: null
+      })
+      .eq('id', itemId);
+    
+    if (error) return { success: false, error: 'Kunde inte avmarkera' };
+  } else {
+    // Check - set as fully packed
+    const { error } = await supabase
+      .from('packing_list_items')
+      .update({
+        quantity_packed: quantityToPack,
+        packed_at: now,
+        packed_by: verifiedBy,
+        verified_at: now,
+        verified_by: verifiedBy
+      })
+      .eq('id', itemId);
+    
+    if (error) return { success: false, error: 'Kunde inte markera som packad' };
+  }
+  
+  return { success: true };
+};
+
 // Get verification progress
 export const getVerificationProgress = async (packingId: string) => {
   const { data, error } = await supabase
