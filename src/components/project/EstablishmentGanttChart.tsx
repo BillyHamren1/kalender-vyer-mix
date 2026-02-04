@@ -222,22 +222,7 @@ const EstablishmentGanttChart = ({
   const timelineWidth = ganttData.totalDays * dayWidth;
   const today = startOfDay(new Date());
 
-  // Prepare data for AI assistant
-  const aiBookingData = {
-    client,
-    products: bookingData?.products.map(p => ({ name: p.name, quantity: p.quantity })) || [],
-    dates: {
-      rigdaydate: rigDate || null,
-      eventdate: eventDate || null,
-      rigdowndate: bookingData?.dates?.rigdowndate || null
-    },
-    assignedStaff: bookingData?.assignedStaff.map(s => ({
-      name: s.name,
-      role: s.role,
-      assignment_date: s.assignment_date
-    })) || [],
-    address
-  };
+  // AI assistant now receives full bookingData directly
 
   return (
     <div className="flex gap-4 h-[600px]">
@@ -446,7 +431,7 @@ const EstablishmentGanttChart = ({
           
           {/* AI Assistant */}
           <div className="flex-1 min-h-0">
-            <EstablishmentAIAssistant bookingData={aiBookingData} />
+            <EstablishmentAIAssistant bookingData={bookingData || null} />
           </div>
         </div>
       )}

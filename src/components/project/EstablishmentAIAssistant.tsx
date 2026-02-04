@@ -9,6 +9,9 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import ReactMarkdown from 'react-markdown';
+import type { EstablishmentBookingData } from "@/services/establishmentPlanningService";
+import { format } from "date-fns";
+import { sv } from "date-fns/locale";
 
 interface Message {
   id: string;
@@ -23,17 +26,7 @@ interface Suggestion {
 }
 
 interface EstablishmentAIAssistantProps {
-  bookingData: {
-    client: string;
-    products: { name: string; quantity: number }[];
-    dates: {
-      rigdaydate: string | null;
-      eventdate: string | null;
-      rigdowndate: string | null;
-    };
-    assignedStaff: { name: string; role: string | null; assignment_date: string }[];
-    address: string | null;
-  };
+  bookingData: EstablishmentBookingData | null;
   onSuggestionApply?: (suggestion: any) => void;
 }
 
@@ -51,10 +44,10 @@ const EstablishmentAIAssistant = ({
 
   // Generate initial suggestions based on booking data
   useEffect(() => {
-    if (bookingData.products.length > 0 || bookingData.dates.rigdaydate) {
+    if (bookingData && (bookingData.products.length > 0 || bookingData.dates.rigdaydate)) {
       generateSuggestions();
     }
-  }, []);
+  }, [bookingData?.booking?.bookingNumber]);
 
   const scrollToBottom = () => {
     if (scrollRef.current) {
@@ -66,34 +59,190 @@ const EstablishmentAIAssistant = ({
     scrollToBottom();
   }, [messages]);
 
-  const buildContext = () => {
-    const productList = bookingData.products.map(p => `- ${p.name} (${p.quantity} st)`).join('\n');
-    const staffList = bookingData.assignedStaff.map(s => `- ${s.name}${s.role ? ` (${s.role})` : ''} - ${s.assignment_date}`).join('\n');
-    
-    return `
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return 'Ej angiven';
+    try {
+      return format(new Date(dateStr), 'd MMMM yyyy', { locale: sv });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const formatTime = (timeStr: string | null) => {
+    if (!timeStr) return '';
+    return timeStr.substring(0, 5); // HH:MM
+  };
+
+  const buildContext = (): string => {
+    if (!bookingData) return 'Ingen bokningsdata tillgänglig.';
+
+    const { booking, products, dates, assignedStaff, project, timeReports, packing } = bookingData;
+
+    // Build address string
+    const addressParts = [booking.deliveryAddress, booking.deliveryPostalCode, booking.deliveryCity].filter(Boolean);
+    const fullAddress = addressParts.length > 0 ? addressParts.join(', ') : 'Ej angiven';
+
+    // Build product list with cost info
+    const mainProducts = products.filter(p => !p.isPackageComponent);
+    const totalProductValue = products.reduce((sum, p) => sum + (p.totalPrice || 0), 0);
+    const totalSetupHours = products.reduce((sum, p) => sum + ((p.setupHours || 0) * p.quantity), 0);
+
+    const productListItems: string[] = [];
+    mainProducts.forEach(product => {
+      const accessories = products.filter(p => p.parentPackageId === product.id);
+      const priceStr = product.totalPrice ? ` - ${product.totalPrice.toLocaleString('sv-SE')} kr` : '';
+      const hoursStr = product.setupHours ? `, ~${product.setupHours * product.quantity}h arbete` : '';
+      productListItems.push(`- ${product.name} (${product.quantity} st)${priceStr}${hoursStr}`);
+      
+      if (accessories.length > 0) {
+        accessories.forEach(acc => {
+          productListItems.push(`  └ ${acc.name} (${acc.quantity} st)`);
+        });
+      }
+    });
+    const productList = productListItems.join('\n');
+
+    // Build staff list with rates
+    const staffByDate = new Map<string, typeof assignedStaff>();
+    assignedStaff.forEach(staff => {
+      const existing = staffByDate.get(staff.assignment_date) || [];
+      existing.push(staff);
+      staffByDate.set(staff.assignment_date, existing);
+    });
+
+    const staffListItems: string[] = [];
+    const sortedDates = Array.from(staffByDate.keys()).sort();
+    sortedDates.forEach(date => {
+      const dateStaff = staffByDate.get(date) || [];
+      const formattedDate = formatDate(date);
+      dateStaff.forEach(s => {
+        const roleStr = s.role ? ` (${s.role})` : '';
+        const rateStr = s.hourlyRate ? ` - ${s.hourlyRate} kr/h` : '';
+        staffListItems.push(`- ${s.name}${roleStr}${rateStr} - ${formattedDate}`);
+      });
+    });
+    const staffList = staffListItems.join('\n');
+
+    // Build logistics warnings
+    const logisticsWarnings: string[] = [];
+    if (booking.carryMoreThan10m) {
+      logisticsWarnings.push('⚠️ Bärsträcka över 10m - överväg extra personal/transportutrustning');
+    }
+    if (!booking.groundNailsAllowed) {
+      logisticsWarnings.push('⚠️ Markspett EJ tillåtet - kräver alternativ förankring');
+    }
+    if (booking.exactTimeNeeded) {
+      logisticsWarnings.push(`⚠️ Exakt tid krävs: ${booking.exactTimeInfo || 'Se anteckningar'}`);
+    }
+
+    // Build context string
+    let context = `
 Du är en erfaren planeringsassistent för etablering av event. Du hjälper till att planera och optimera etableringsscheman.
 
-AKTUELL BOKNING:
-- Kund: ${bookingData.client}
-- Adress: ${bookingData.address || 'Ej angiven'}
-- Riggdag: ${bookingData.dates.rigdaydate || 'Ej angiven'}
-- Eventdag: ${bookingData.dates.eventdate || 'Ej angiven'}
-- Avetablering: ${bookingData.dates.rigdowndate || 'Ej angiven'}
+═══════════════════════════════════════════════════
+AKTUELL BOKNING
+═══════════════════════════════════════════════════
+• Bokningsnummer: ${booking.bookingNumber || 'Ej angivet'}
+• Kund: ${booking.client}
+• Status: ${booking.status || 'Okänd'}
+• Adress: ${fullAddress}
 
-PRODUKTER ATT ETABLERA:
+KONTAKTPERSON:
+• Namn: ${booking.contactName || 'Ej angiven'}
+• Telefon: ${booking.contactPhone || 'Ej angiven'}
+• E-post: ${booking.contactEmail || 'Ej angiven'}
+
+═══════════════════════════════════════════════════
+DATUM & TIDER
+═══════════════════════════════════════════════════
+• Riggdag: ${formatDate(dates.rigdaydate)}${dates.rig_start_time ? ` (${formatTime(dates.rig_start_time)} - ${formatTime(dates.rig_end_time)})` : ''}
+• Eventdag: ${formatDate(dates.eventdate)}${dates.event_start_time ? ` (${formatTime(dates.event_start_time)} - ${formatTime(dates.event_end_time)})` : ''}
+• Avetablering: ${formatDate(dates.rigdowndate)}${dates.rigdown_start_time ? ` (${formatTime(dates.rigdown_start_time)} - ${formatTime(dates.rigdown_end_time)})` : ''}
+
+═══════════════════════════════════════════════════
+LOGISTIK
+═══════════════════════════════════════════════════
+• Bärsträcka över 10m: ${booking.carryMoreThan10m ? 'Ja' : 'Nej'}
+• Markspett tillåtet: ${booking.groundNailsAllowed ? 'Ja' : 'Nej'}
+• Exakt tid krävs: ${booking.exactTimeNeeded ? `Ja - "${booking.exactTimeInfo || 'Se anteckningar'}"` : 'Nej'}
+
+${logisticsWarnings.length > 0 ? `VIKTIGA VARNINGAR:\n${logisticsWarnings.join('\n')}\n` : ''}
+═══════════════════════════════════════════════════
+PRODUKTER (${products.length} st${totalProductValue > 0 ? `, totalt ${totalProductValue.toLocaleString('sv-SE')} kr` : ''}${totalSetupHours > 0 ? `, ~${totalSetupHours}h beräknat arbete` : ''})
+═══════════════════════════════════════════════════
 ${productList || 'Inga produkter angivna'}
 
-TILLDELAD PERSONAL:
+═══════════════════════════════════════════════════
+TILLDELAD PERSONAL (${assignedStaff.length} personer)
+═══════════════════════════════════════════════════
 ${staffList || 'Ingen personal tilldelad'}
+`;
 
-INSTRUKTIONER:
+    // Add project context if available
+    if (project) {
+      context += `
+═══════════════════════════════════════════════════
+PROJEKTSTATUS
+═══════════════════════════════════════════════════
+• Projekt: ${project.name}
+• Status: ${project.status}
+• Projektledare: ${project.projectLeader || 'Ej angiven'}
+• Förberedelser: ${project.tasksCompleted}/${project.tasksTotal} klara
+`;
+    }
+
+    // Add time report history
+    if (timeReports && timeReports.reportCount > 0) {
+      context += `
+═══════════════════════════════════════════════════
+HISTORISK DATA (från tidigare tidrapporter)
+═══════════════════════════════════════════════════
+• Totalt rapporterade timmar: ${timeReports.totalHours.toFixed(1)}h
+• Antal rapporter: ${timeReports.reportCount}
+• Snitt per arbetsdag: ${timeReports.averageHoursPerDay.toFixed(1)}h
+`;
+    }
+
+    // Add packing status
+    if (packing) {
+      const packingProgress = packing.itemsTotal > 0 
+        ? Math.round((packing.itemsPacked / packing.itemsTotal) * 100) 
+        : 0;
+      context += `
+═══════════════════════════════════════════════════
+PACKNINGSSTATUS
+═══════════════════════════════════════════════════
+• Status: ${packing.status}
+• Progress: ${packing.itemsPacked}/${packing.itemsTotal} artiklar packade (${packingProgress}%)
+`;
+    }
+
+    // Add internal notes
+    if (booking.internalNotes) {
+      context += `
+═══════════════════════════════════════════════════
+INTERNA ANTECKNINGAR
+═══════════════════════════════════════════════════
+"${booking.internalNotes}"
+`;
+    }
+
+    context += `
+═══════════════════════════════════════════════════
+DINA INSTRUKTIONER
+═══════════════════════════════════════════════════
 - Ge konkreta, praktiska förslag för etableringsplanering
-- Ta hänsyn till produkternas storlek och komplexitet
-- Föreslå realistiska tidsramar baserat på erfarenhet
+- Ta hänsyn till produkternas storlek, setup-timmar och komplexitet
+- Föreslå realistiska tidsramar baserat på beräknade arbetstimmar
+- VIKTIGT: Beakta logistikvarningar (bärsträcka, markspett, exakt tid)
 - Om du föreslår ett schema, formatera det tydligt med datum och tider
 - Var proaktiv med att identifiera potentiella problem eller risker
+- Om packning inte är klar, påminn om detta
+- Ta hänsyn till personalens roller och kompetenser
 - Svara alltid på svenska
-`.trim();
+`;
+
+    return context.trim();
   };
 
   const generateSuggestions = async () => {
