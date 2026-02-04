@@ -61,6 +61,22 @@ export const fetchActivePackings = async (): Promise<PackingWithBooking[]> => {
     })
   );
 
+  // Sort: in_progress first, then by nearest date, then the rest
+  packingsWithBookings.sort((a, b) => {
+    // in_progress first
+    if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
+    if (b.status === 'in_progress' && a.status !== 'in_progress') return 1;
+    
+    // Then by nearest date
+    const dateA = a.booking?.rigdaydate || a.booking?.eventdate;
+    const dateB = b.booking?.rigdaydate || b.booking?.eventdate;
+    if (dateA && dateB) return new Date(dateA).getTime() - new Date(dateB).getTime();
+    if (dateA) return -1;
+    if (dateB) return 1;
+    
+    return 0;
+  });
+
   return packingsWithBookings;
 };
 
