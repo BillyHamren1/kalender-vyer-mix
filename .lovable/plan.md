@@ -1,210 +1,72 @@
 
+# Fixa: "Kunde inte lägga till bokning i projekt"
 
-# Implementera Rollsystem för Planerings-modulen
+## Sammanfattning av problemet
+Bokningen "A Catering Sweden AB" är redan tillagd i "Swedish game fair" men visas ändå i listan "Nya bokningar". När du försöker lägga till den igen får du felet eftersom databasen har en unik begränsning som förhindrar dubletter.
 
-## Översikt
-Skapar ett komplett rollsystem med de specifika rollerna för EventFlow-ekosystemet: `admin`, `forsaljning`, `projekt`, `lager`. Endast användare med rollen `projekt` eller `lager` får åtkomst till Planerings-appen.
+## Åtgärder
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                    Rollstruktur                                 │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│   Roll            │  Planering  │  Bokning  │  Lager           │
-│   ────────────────┼─────────────┼───────────┼─────────         │
-│   admin           │     ✅      │    ✅     │    ✅            │
-│   forsaljning     │     ❌      │    ✅     │    ❌            │
-│   projekt         │     ✅      │    ❌     │    ❌            │
-│   lager           │     ✅      │    ❌     │    ✅            │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+### 1. Filtrera bort redan tilldelade bokningar
+Uppdatera Project Management-sidan så att "Nya bokningar"-listan exkluderar bokningar som redan har ett `large_project_id`.
 
----
+**Fil**: `src/pages/ProjectManagement.tsx` eller relevant service-fil
 
-## Del 1: Databas-schema
+**Ändring**: Lägg till filter `large_project_id IS NULL` i frågan som hämtar nya/obesvarade bokningar.
 
-### Skapa app_role enum
+### 2. Bättre felhantering i dialogen
+Uppdatera `AddToLargeProjectDialog` för att ge ett mer informativt felmeddelande när bokningen redan finns.
 
-```sql
-CREATE TYPE public.app_role AS ENUM ('admin', 'forsaljning', 'projekt', 'lager');
-```
+**Fil**: `src/components/project/AddToLargeProjectDialog.tsx`
 
-### Skapa user_roles-tabell
+**Ändring**: Fånga specifika fel (duplicate key) och visa meddelandet "Bokningen är redan tillagd i detta projekt".
 
-```sql
-CREATE TABLE public.user_roles (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-    role app_role NOT NULL,
-    created_at timestamptz DEFAULT now(),
-    UNIQUE (user_id, role)
-);
-
-ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
-```
-
-### Skapa has_role-funktion (Security Definer)
-
-```sql
-CREATE OR REPLACE FUNCTION public.has_role(_role app_role, _user_id uuid DEFAULT auth.uid())
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.user_roles
-    WHERE user_id = _user_id
-      AND role = _role
-  )
-$$;
-```
-
-### Skapa has_planning_access-funktion
-
-En bekvämlighets-funktion som kontrollerar om användaren har åtkomst till Planering:
-
-```sql
-CREATE OR REPLACE FUNCTION public.has_planning_access(_user_id uuid DEFAULT auth.uid())
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.user_roles
-    WHERE user_id = _user_id
-      AND role IN ('admin', 'projekt', 'lager')
-  )
-$$;
-```
-
-### RLS-policy för user_roles
-
-```sql
--- Användare kan se sina egna roller
-CREATE POLICY "Users can view own roles"
-ON public.user_roles FOR SELECT
-TO authenticated
-USING (user_id = auth.uid());
-
--- Admins kan hantera alla roller (via service role eller Edge Function)
-```
-
----
-
-## Del 2: Uppdatera Webhook-funktionen
-
-Uppdaterar `receive-user-sync` för att också skapa roller:
-
-**Ändringar i `supabase/functions/receive-user-sync/index.ts`:**
-
-```typescript
-// Efter att användaren skapats:
-if (newUser.user?.id && roles && Array.isArray(roles)) {
-  for (const role of roles) {
-    // Endast tillåtna roller
-    if (['admin', 'forsaljning', 'projekt', 'lager'].includes(role)) {
-      await adminClient
-        .from('user_roles')
-        .insert({ user_id: newUser.user.id, role })
-        .select();
-    }
-  }
-}
-```
-
----
-
-## Del 3: React Hook för rollkontroll
-
-Skapar en hook för att kontrollera användarens roller i frontend:
-
-**Ny fil:** `src/hooks/useUserRoles.ts`
-
-```typescript
-export const useUserRoles = () => {
-  const { user } = useAuth();
-  const [roles, setRoles] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Hämtar roller från user_roles-tabellen
-  // Exponerar: hasRole(), hasPlanningAccess, isAdmin, etc.
-};
-```
-
----
-
-## Del 4: Uppdatera ProtectedRoute
-
-Lägger till rollkontroll i `ProtectedRoute`:
-
-**Ändringar i `src/components/auth/ProtectedRoute.tsx`:**
-
-```typescript
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-  requiredRoles?: ('admin' | 'projekt' | 'lager')[];
-}
-
-// Kontrollerar att användaren har minst en av de krävda rollerna
-```
-
----
-
-## Del 5: Uppdatera TypeScript-typer
-
-Lägger till de nya tabellerna i `src/integrations/supabase/types.ts`:
-
-- `user_roles` tabell med `app_role` enum
-- Typade interfaces för rollhantering
-
----
-
-## Filer som skapas/ändras
-
-| Fil | Ändring |
-|-----|---------|
-| **Databas-migration** | Ny: `app_role` enum, `user_roles` tabell, `has_role` + `has_planning_access` funktioner |
-| `supabase/functions/receive-user-sync/index.ts` | Lägg till rollskapande efter user creation |
-| `src/hooks/useUserRoles.ts` | **Ny**: Hook för att hämta och kontrollera roller |
-| `src/components/auth/ProtectedRoute.tsx` | Lägg till rollkontroll |
-| `src/integrations/supabase/types.ts` | Lägg till typer för user_roles |
+### 3. Kontrollera före tillägg (valfritt)
+Lägg till en kontroll i `addBookingToLargeProject`-funktionen som först kollar om kombinationen redan finns, för att ge ett renare felmeddelande.
 
 ---
 
 ## Tekniska detaljer
 
-### Säker rollkontroll
-- Roller hämtas från databasen, ALDRIG från localStorage
-- `has_role` funktionen är SECURITY DEFINER för att undvika RLS-rekursion
-- Admin-roller kan endast sättas via service_role (Edge Functions)
+### Databasstruktur
+- Tabellen `large_project_bookings` har en unik begränsning på `(large_project_id, booking_id)`
+- Tabellen `bookings` har en kolumn `large_project_id` som uppdateras vid tilldelning
 
-### Synkronisering med Hubben
-När Hubben skickar en användare med roller, t.ex.:
-```json
-{
-  "email": "anna@foretag.se",
-  "roles": ["projekt", "lager"]
-}
-```
+### Berörda filer
+1. `src/pages/ProjectManagement.tsx` - hämtning av nya bokningar
+2. `src/services/largeProjectService.ts` - `addBookingToLargeProject` funktion
+3. `src/components/project/AddToLargeProjectDialog.tsx` - felhantering
 
-Så skapas automatiskt två rader i `user_roles`:
-- `user_id: xxx, role: 'projekt'`
-- `user_id: xxx, role: 'lager'`
+### Planerade ändringar
 
-### Åtkomstkontroll i appen
+**largeProjectService.ts (rad 156-191)**:
 ```typescript
-// I ProtectedRoute
-const { hasPlanningAccess } = useUserRoles();
-
-if (!hasPlanningAccess) {
-  return <AccessDenied message="Du har inte behörighet till Planering" />;
+export async function addBookingToLargeProject(...) {
+  // Ny: Kolla om redan tillagd
+  const { data: existing } = await supabase
+    .from('large_project_bookings')
+    .select('id')
+    .eq('large_project_id', largeProjectId)
+    .eq('booking_id', bookingId)
+    .single();
+  
+  if (existing) {
+    throw new Error('BOOKING_ALREADY_ADDED');
+  }
+  
+  // ... resten av koden
 }
 ```
 
+**AddToLargeProjectDialog.tsx (rad 57-68)**:
+```typescript
+onError: (error: any) => {
+  if (error?.message === 'BOOKING_ALREADY_ADDED') {
+    toast.error('Bokningen är redan tillagd i detta projekt');
+  } else {
+    toast.error('Kunde inte lägga till bokning i projekt');
+  }
+},
+```
+
+**Query för nya bokningar**:
+Lägg till `.is('large_project_id', null)` i frågan som hämtar nya bokningar.
