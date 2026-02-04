@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import ProjectCard from "@/components/project/ProjectCard";
 import CreateProjectWizard from "@/components/project/CreateProjectWizard";
 import { IncomingBookingsList } from "@/components/project/IncomingBookingsList";
+import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
 import JobsListPanel from "@/components/project/JobsListPanel";
 import LargeProjectsListPanel from "@/components/project/LargeProjectsListPanel";
 import { fetchProjects, deleteProject } from "@/services/projectService";
@@ -23,6 +24,7 @@ const ProjectManagement = () => {
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+  const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
 
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ['projects'],
@@ -60,6 +62,10 @@ const ProjectManagement = () => {
     setIsCreateOpen(true);
   };
 
+  const handleCreateLargeProject = (bookingId: string) => {
+    setLargeProjectBookingId(bookingId);
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
@@ -83,6 +89,7 @@ const ProjectManagement = () => {
       <div className="mb-8">
         <IncomingBookingsList 
           onCreateProject={handleCreateProject}
+          onCreateLargeProject={handleCreateLargeProject}
         />
       </div>
 
@@ -178,6 +185,12 @@ const ProjectManagement = () => {
           queryClient.invalidateQueries({ queryKey: ['projects'] });
           queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
         }}
+      />
+
+      <AddToLargeProjectDialog
+        open={!!largeProjectBookingId}
+        onOpenChange={(open) => !open && setLargeProjectBookingId(null)}
+        bookingId={largeProjectBookingId || ''}
       />
     </div>
   );
