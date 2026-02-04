@@ -93,3 +93,6 @@ verify_jwt = false
 
 [functions.verify-sso-token]
 verify_jwt = false
+
+[functions.receive-user-sync]
+verify_jwt = false
