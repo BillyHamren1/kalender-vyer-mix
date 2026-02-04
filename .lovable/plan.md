@@ -1,108 +1,53 @@
 
 
-# Användarsynkronisering från EventFlow Hub
+# Implementera Rollsystem för Planerings-modulen
 
 ## Översikt
-Implementerar stöd för att ta emot användare som skapas centralt i EventFlow Hub. Eftersom projektet är ett externt Supabase-projekt (inte Lovable Cloud) rekommenderas **Alternativ A** - dela credentials med Hubben.
+Skapar ett komplett rollsystem med de specifika rollerna för EventFlow-ekosystemet: `admin`, `forsaljning`, `projekt`, `lager`. Endast användare med rollen `projekt` eller `lager` får åtkomst till Planerings-appen.
 
 ```text
-┌─────────────────────┐                    ┌────────────────────────────────┐
-│   EventFlow Hub     │                    │   Planerings-modulen           │
-│                     │                    │                                │
-│  Admin skapar       │   Service Role     │  Supabase Auth                 │
-│  ny användare       │ ──────────────────▶│  ├─ Användare skapas           │
-│                     │   API-anrop        │  └─ Trigger körs               │
-└─────────────────────┘                    │         │                      │
-                                           │         ▼                      │
-                                           │  Profiles-tabell               │
-                                           │  (automatiskt via trigger)     │
-                                           └────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                    Rollstruktur                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│   Roll            │  Planering  │  Bokning  │  Lager           │
+│   ────────────────┼─────────────┼───────────┼─────────         │
+│   admin           │     ✅      │    ✅     │    ✅            │
+│   forsaljning     │     ❌      │    ✅     │    ❌            │
+│   projekt         │     ✅      │    ❌     │    ❌            │
+│   lager           │     ✅      │    ❌     │    ✅            │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Del 1: Databas-schema
 
-Skapar nödvändiga tabeller för profilhantering.
-
-### Profiles-tabell
-Lagrar användarinformation som är tillgänglig via RLS:
+### Skapa app_role enum
 
 ```sql
-CREATE TABLE public.profiles (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID UNIQUE NOT NULL,
-  email TEXT,
-  full_name TEXT,
-  organization_id UUID,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
+CREATE TYPE public.app_role AS ENUM ('admin', 'forsaljning', 'projekt', 'lager');
 ```
 
-### Automatisk trigger
-Skapar profil automatiskt när en användare registreras i Auth:
+### Skapa user_roles-tabell
 
 ```sql
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.profiles (user_id, email, full_name)
-  VALUES (
-    NEW.id, 
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', NULL)
-  );
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-```
-
-### RLS-policies
-Skyddar profildata:
-
-```sql
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-
--- Användare kan se sin egen profil
-CREATE POLICY "Users can view own profile"
-  ON public.profiles FOR SELECT
-  USING (auth.uid() = user_id);
-
--- Alla inloggade kan se grundläggande profilinfo (för team-visning)
-CREATE POLICY "Authenticated users can view all profiles"
-  ON public.profiles FOR SELECT
-  TO authenticated
-  USING (true);
-```
-
----
-
-## Del 2: User Roles (Valfritt men rekommenderat)
-
-Om ni vill hantera roller lokalt i Planerings-appen:
-
-### Enum och tabell
-
-```sql
-CREATE TYPE public.app_role AS ENUM ('admin', 'planner', 'warehouse', 'viewer');
-
 CREATE TABLE public.user_roles (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  role app_role NOT NULL,
-  UNIQUE (user_id, role)
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+    role app_role NOT NULL,
+    created_at timestamptz DEFAULT now(),
+    UNIQUE (user_id, role)
 );
+
+ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
 ```
 
-### Security Definer Function
+### Skapa has_role-funktion (Security Definer)
 
 ```sql
-CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role app_role)
+CREATE OR REPLACE FUNCTION public.has_role(_role app_role, _user_id uuid DEFAULT auth.uid())
 RETURNS boolean
 LANGUAGE sql
 STABLE
@@ -118,80 +63,148 @@ AS $$
 $$;
 ```
 
----
+### Skapa has_planning_access-funktion
 
-## Del 3: Webhook-mottagare (Extra säkerhet)
+En bekvämlighets-funktion som kontrollerar om användaren har åtkomst till Planering:
 
-Även om Hubben kan skapa användare direkt via service_role, kan en webhook-funktion ge extra kontroll och loggning.
+```sql
+CREATE OR REPLACE FUNCTION public.has_planning_access(_user_id uuid DEFAULT auth.uid())
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.user_roles
+    WHERE user_id = _user_id
+      AND role IN ('admin', 'projekt', 'lager')
+  )
+$$;
+```
 
-**Fil:** `supabase/functions/receive-user-sync/index.ts`
+### RLS-policy för user_roles
 
-Funktionen:
-- Verifierar webhook-hemlighet i header
-- Tar emot användardata från Hubben
-- Skapar användare via Admin API
-- Loggar all aktivitet
-- Returnerar bekräftelse
+```sql
+-- Användare kan se sina egna roller
+CREATE POLICY "Users can view own roles"
+ON public.user_roles FOR SELECT
+TO authenticated
+USING (user_id = auth.uid());
 
----
-
-## Del 4: Config-uppdatering
-
-Lägger till den nya funktionen i `supabase/config.toml`:
-
-```toml
-[functions.receive-user-sync]
-verify_jwt = false
+-- Admins kan hantera alla roller (via service role eller Edge Function)
 ```
 
 ---
 
-## Del 5: Secret att konfigurera
+## Del 2: Uppdatera Webhook-funktionen
 
-Om ni väljer att också använda webhook-funktionen:
+Uppdaterar `receive-user-sync` för att också skapa roller:
 
-| Secret | Beskrivning |
-|--------|-------------|
-| `WEBHOOK_SECRET` | Hemlig nyckel för att verifiera webhook-anrop (minst 32 tecken) |
+**Ändringar i `supabase/functions/receive-user-sync/index.ts`:**
+
+```typescript
+// Efter att användaren skapats:
+if (newUser.user?.id && roles && Array.isArray(roles)) {
+  for (const role of roles) {
+    // Endast tillåtna roller
+    if (['admin', 'forsaljning', 'projekt', 'lager'].includes(role)) {
+      await adminClient
+        .from('user_roles')
+        .insert({ user_id: newUser.user.id, role })
+        .select();
+    }
+  }
+}
+```
 
 ---
 
-## Credentials att skicka till EventFlow Hub-teamet
+## Del 3: React Hook för rollkontroll
 
-### Alternativ A (Rekommenderat):
+Skapar en hook för att kontrollera användarens roller i frontend:
 
-| Credential | Var hittar ni det |
-|------------|-------------------|
-| `PLANERING_SUPABASE_URL` | `https://pihrhltinhewhoxefjxv.supabase.co` |
-| `PLANERING_SERVICE_ROLE_KEY` | Supabase Dashboard → Settings → API → service_role |
+**Ny fil:** `src/hooks/useUserRoles.ts`
 
-### Alternativ B (Om webhook):
+```typescript
+export const useUserRoles = () => {
+  const { user } = useAuth();
+  const [roles, setRoles] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-| Credential | Värde |
-|------------|-------|
-| `PLANERING_WEBHOOK_URL` | `https://pihrhltinhewhoxefjxv.supabase.co/functions/v1/receive-user-sync` |
-| `PLANERING_WEBHOOK_SECRET` | Er egen hemlighet (minst 32 tecken) |
+  // Hämtar roller från user_roles-tabellen
+  // Exponerar: hasRole(), hasPlanningAccess, isAdmin, etc.
+};
+```
+
+---
+
+## Del 4: Uppdatera ProtectedRoute
+
+Lägger till rollkontroll i `ProtectedRoute`:
+
+**Ändringar i `src/components/auth/ProtectedRoute.tsx`:**
+
+```typescript
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  requiredRoles?: ('admin' | 'projekt' | 'lager')[];
+}
+
+// Kontrollerar att användaren har minst en av de krävda rollerna
+```
+
+---
+
+## Del 5: Uppdatera TypeScript-typer
+
+Lägger till de nya tabellerna i `src/integrations/supabase/types.ts`:
+
+- `user_roles` tabell med `app_role` enum
+- Typade interfaces för rollhantering
 
 ---
 
 ## Filer som skapas/ändras
 
-| Resurs | Ändring |
-|--------|---------|
-| **Databas** | Ny `profiles`-tabell med trigger |
-| **Databas** | (Valfritt) `user_roles`-tabell + `has_role`-funktion |
-| `supabase/functions/receive-user-sync/index.ts` | Ny webhook-mottagare |
-| `supabase/config.toml` | Lägg till receive-user-sync |
+| Fil | Ändring |
+|-----|---------|
+| **Databas-migration** | Ny: `app_role` enum, `user_roles` tabell, `has_role` + `has_planning_access` funktioner |
+| `supabase/functions/receive-user-sync/index.ts` | Lägg till rollskapande efter user creation |
+| `src/hooks/useUserRoles.ts` | **Ny**: Hook för att hämta och kontrollera roller |
+| `src/components/auth/ProtectedRoute.tsx` | Lägg till rollkontroll |
+| `src/integrations/supabase/types.ts` | Lägg till typer för user_roles |
 
 ---
 
-## Rekommendation
+## Tekniska detaljer
 
-1. **Primärt: Alternativ A** - Dela service_role-nyckeln med Hubben för enkel och direkt synkronisering
-2. **Sekundärt: Lägg till webhook** - För extra loggning och kontroll om ni vill det senare
+### Säker rollkontroll
+- Roller hämtas från databasen, ALDRIG från localStorage
+- `has_role` funktionen är SECURITY DEFINER för att undvika RLS-rekursion
+- Admin-roller kan endast sättas via service_role (Edge Functions)
 
-Ska jag implementera:
-- ✅ Profiles-tabell med trigger (rekommenderas starkt)
-- ✅ Webhook-funktion (för framtida flexibilitet)
-- ❓ User roles-tabell (behöver ni rollhantering i appen?)
+### Synkronisering med Hubben
+När Hubben skickar en användare med roller, t.ex.:
+```json
+{
+  "email": "anna@foretag.se",
+  "roles": ["projekt", "lager"]
+}
+```
+
+Så skapas automatiskt två rader i `user_roles`:
+- `user_id: xxx, role: 'projekt'`
+- `user_id: xxx, role: 'lager'`
+
+### Åtkomstkontroll i appen
+```typescript
+// I ProtectedRoute
+const { hasPlanningAccess } = useUserRoles();
+
+if (!hasPlanningAccess) {
+  return <AccessDenied message="Du har inte behörighet till Planering" />;
+}
+```
 
