@@ -4,12 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, Package, RefreshCw, Camera, Bluetooth } from 'lucide-react';
+import { ArrowLeft, Check, Package, RefreshCw, Camera, Bluetooth, Calendar, MapPin, AlertCircle, Barcode } from 'lucide-react';
 import { fetchPackingListItems, verifyProductBySku, getVerificationProgress, parseScanResult } from '@/services/scannerService';
 import { fetchPacking } from '@/services/packingService';
 import { PackingWithBooking } from '@/types/packing';
 import { QRScanner } from './QRScanner';
 import { BluetoothRFID } from './BluetoothRFID';
+import { format } from 'date-fns';
+import { sv } from 'date-fns/locale';
 
 interface VerificationViewProps {
   packingId: string;
@@ -43,6 +45,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [isQRActive, setIsQRActive] = useState(false);
   const [lastScan, setLastScan] = useState<{ value: string; result: string; success: boolean } | null>(null);
+  const [showProducts, setShowProducts] = useState(true);
 
   // Load packing data
   const loadData = useCallback(async () => {
@@ -108,6 +111,9 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     );
   }
 
+  const unverifiedItems = items.filter(item => !item.verified_at);
+  const verifiedItems = items.filter(item => item.verified_at);
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -121,7 +127,44 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
             <p className="text-sm text-muted-foreground">{packing.booking.client}</p>
           )}
         </div>
+        <Button variant="ghost" size="icon" onClick={loadData}>
+          <RefreshCw className="h-4 w-4" />
+        </Button>
       </div>
+
+      {/* Booking details card */}
+      {packing?.booking && (
+        <Card className="bg-muted/30">
+          <CardContent className="py-3 space-y-2">
+            {packing.booking.eventdate && (
+              <div className="flex items-center gap-2 text-sm">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">Eventdatum:</span>
+                <span>{format(new Date(packing.booking.eventdate), 'd MMMM yyyy', { locale: sv })}</span>
+              </div>
+            )}
+            {packing.booking.rigdaydate && (
+              <div className="flex items-center gap-2 text-sm">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">Rigg:</span>
+                <span>{format(new Date(packing.booking.rigdaydate), 'd MMMM yyyy', { locale: sv })}</span>
+              </div>
+            )}
+            {packing.booking.deliveryaddress && (
+              <div className="flex items-center gap-2 text-sm">
+                <MapPin className="h-4 w-4 text-muted-foreground" />
+                <span className="line-clamp-2">{packing.booking.deliveryaddress}</span>
+              </div>
+            )}
+            {packing.booking.booking_number && (
+              <div className="flex items-center gap-2 text-sm">
+                <Barcode className="h-4 w-4 text-muted-foreground" />
+                <span className="font-mono">#{packing.booking.booking_number}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Progress */}
       <Card>
@@ -138,6 +181,40 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           </p>
         </CardContent>
       </Card>
+
+      {/* No items warning */}
+      {items.length === 0 && (
+        <Card className="border-amber-500/50 bg-amber-50">
+          <CardContent className="py-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-amber-800">Inga produkter i packlistan</p>
+                <p className="text-sm text-amber-700 mt-1">
+                  Packlistan har inte genererats än. Gå till "Planera packning" i webgränssnittet för att skapa packlistan baserat på bokningens produkter.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Scan instructions */}
+      {items.length > 0 && unverifiedItems.length > 0 && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="py-3">
+            <div className="flex items-start gap-3">
+              <Barcode className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-sm">Skanna produkternas SKU</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Skanna streckkoden eller QR-koden på produkten. SKU-numret matchas automatiskt mot listan.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Scan buttons */}
       <div className="grid grid-cols-2 gap-3">
@@ -176,58 +253,97 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </Card>
       )}
 
-      {/* Product list */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Package className="h-4 w-4" />
-            Produkter
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="divide-y">
-            {items.map(item => (
-              <div 
-                key={item.id}
-                className={`p-3 flex items-center gap-3 ${
-                  item.verified_at ? 'bg-green-50' : ''
-                }`}
-              >
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                  item.verified_at 
-                    ? 'bg-green-500 text-white' 
-                    : 'bg-muted'
-                }`}>
-                  {item.verified_at ? (
-                    <Check className="h-4 w-4" />
-                  ) : (
-                    <span className="text-xs text-muted-foreground">
-                      {item.quantity_packed}/{item.quantity_to_pack}
-                    </span>
-                  )}
-                </div>
-                
-                <div className="flex-1 min-w-0">
-                  <p className={`font-medium text-sm line-clamp-1 ${
-                    item.verified_at ? 'text-green-800' : ''
-                  }`}>
-                    {item.booking_products?.name || 'Okänd produkt'}
-                  </p>
-                  {item.booking_products?.sku && (
-                    <p className="text-xs text-muted-foreground font-mono">
-                      SKU: {item.booking_products.sku}
-                    </p>
-                  )}
-                </div>
+      {/* Product list - Unverified first */}
+      {items.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <button 
+              onClick={() => setShowProducts(!showProducts)}
+              className="flex items-center justify-between w-full"
+            >
+              <CardTitle className="text-base flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                Att skanna ({unverifiedItems.length} kvar)
+              </CardTitle>
+              <Badge variant={unverifiedItems.length === 0 ? "default" : "secondary"}>
+                {unverifiedItems.length === 0 ? 'Klart!' : `${unverifiedItems.length} st`}
+              </Badge>
+            </button>
+          </CardHeader>
+          {showProducts && (
+            <CardContent className="p-0">
+              <div className="divide-y">
+                {/* Unverified items first */}
+                {unverifiedItems.map(item => (
+                  <div 
+                    key={item.id}
+                    className="p-3 flex items-center gap-3"
+                  >
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-muted border-2 border-dashed border-muted-foreground/30">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {item.quantity_packed}/{item.quantity_to_pack}
+                      </span>
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm line-clamp-1">
+                        {item.booking_products?.name || 'Okänd produkt'}
+                      </p>
+                      {item.booking_products?.sku ? (
+                        <p className="text-xs text-primary font-mono bg-primary/10 px-1.5 py-0.5 rounded inline-block mt-0.5">
+                          SKU: {item.booking_products.sku}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-amber-600 mt-0.5">
+                          ⚠️ Ingen SKU – kan inte skannas
+                        </p>
+                      )}
+                    </div>
 
-                <Badge variant="outline" className="shrink-0">
-                  x{item.quantity_to_pack}
-                </Badge>
+                    <Badge variant="outline" className="shrink-0">
+                      x{item.quantity_to_pack}
+                    </Badge>
+                  </div>
+                ))}
+
+                {/* Verified items */}
+                {verifiedItems.length > 0 && (
+                  <>
+                    <div className="px-3 py-2 bg-green-50 text-green-800 text-xs font-medium">
+                      ✓ Verifierade ({verifiedItems.length})
+                    </div>
+                    {verifiedItems.map(item => (
+                      <div 
+                        key={item.id}
+                        className="p-3 flex items-center gap-3 bg-green-50/50"
+                      >
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center bg-green-500 text-white">
+                          <Check className="h-4 w-4" />
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm line-clamp-1 text-green-800">
+                            {item.booking_products?.name || 'Okänd produkt'}
+                          </p>
+                          {item.booking_products?.sku && (
+                            <p className="text-xs text-green-600 font-mono">
+                              SKU: {item.booking_products.sku}
+                            </p>
+                          )}
+                        </div>
+
+                        <Badge variant="outline" className="shrink-0 border-green-300 text-green-700">
+                          x{item.quantity_to_pack}
+                        </Badge>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          )}
+        </Card>
+      )}
 
       {/* QR Scanner overlay */}
       <QRScanner 
