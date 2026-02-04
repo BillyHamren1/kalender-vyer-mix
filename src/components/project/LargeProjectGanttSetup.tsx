@@ -27,7 +27,6 @@ interface LargeProjectGanttSetupProps {
 
 const DEFAULT_STEPS = [
   { key: 'establishment', name: 'Etablering', is_milestone: false },
-  { key: 'construction', name: 'Byggnation', is_milestone: true },
   { key: 'event', name: 'Event', is_milestone: true },
   { key: 'deestablishment', name: 'Avetablering', is_milestone: false },
 ];
