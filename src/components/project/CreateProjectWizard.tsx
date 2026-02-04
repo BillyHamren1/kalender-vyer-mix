@@ -108,26 +108,29 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
   // Reset form when dialog opens
   useEffect(() => {
     if (open) {
-      setName("");
-      setSelectedLeaderId("");
       setNewTaskTitle("");
+      setSelectedLeaderId("");
       
-      // If preselected booking, use it
-      if (preselectedBookingId) {
-        setSelectedBookingId(preselectedBookingId);
-        const booking = bookings.find(b => b.id === preselectedBookingId);
-        if (booking) {
-          const dateStr = booking.eventdate 
-            ? format(new Date(booking.eventdate), 'd MMMM yyyy', { locale: sv })
-            : '';
-          setName(`${booking.client}${dateStr ? ` - ${dateStr}` : ''}`);
-          initializeChecklist(booking);
-        } else {
-          initializeChecklist(null);
-        }
-      } else {
+      // If NO preselected booking, reset everything
+      if (!preselectedBookingId) {
+        setName("");
         setSelectedBookingId("");
         initializeChecklist(null);
+      }
+    }
+  }, [open, preselectedBookingId, initializeChecklist]);
+
+  // Handle preselected booking when bookings data is loaded
+  useEffect(() => {
+    if (open && preselectedBookingId && bookings.length > 0) {
+      const booking = bookings.find(b => b.id === preselectedBookingId);
+      if (booking) {
+        setSelectedBookingId(preselectedBookingId);
+        const dateStr = booking.eventdate 
+          ? format(new Date(booking.eventdate), 'd MMMM yyyy', { locale: sv })
+          : '';
+        setName(`${booking.client}${dateStr ? ` - ${dateStr}` : ''}`);
+        initializeChecklist(booking);
       }
     }
   }, [open, preselectedBookingId, bookings, initializeChecklist]);
