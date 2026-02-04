@@ -1,104 +1,193 @@
 
-# Plan: Korrigera Avvikelselogik för Ekonomisystemet
+
+# Plan: Produktkostnader som Budgetunderlag
 
 ## Sammanfattning
-Avvikelsen (Deviation) beräknas idag som `Utfall - Budget`, vilket visar positiva värden när man spenderar MER än budget. Den korrekta logiken bör vara `Budget - Utfall`:
+Utöka systemet så att produkter har sina egna kostnader (arbetskostnad, materialkostnad etc.) som automatiskt skapar ett budgetunderlag för projektet. Dessa kostnader kan importeras från det externa bokningssystemet och/eller justeras manuellt.
 
-- **Positiv avvikelse (+)** = under budget = BRA (grönt)
-- **Negativ avvikelse (-)** = över budget = DÅLIGT (rött)
+## Vad som byggs
 
-## Vad som ändras
+### 1. Databasutökning för produktkostnader
 
-### Kärnlogik - Avvikelseberäkning
+Lägg till nya kolumner i `booking_products` för att lagra kostnadsinformation:
+
+```text
+booking_products
+├── ... (befintliga kolumner)
+├── labor_cost (numeric) - Arbetskostnad för produkten
+├── material_cost (numeric) - Materialkostnad  
+├── setup_hours (numeric) - Beräknade arbetstimmar för montering
+├── external_cost (numeric) - Externa kostnader (underhyrning etc.)
+└── cost_notes (text) - Noteringar om kostnader
+```
+
+**SQL Migration:**
+```sql
+ALTER TABLE booking_products
+ADD COLUMN labor_cost NUMERIC DEFAULT 0,
+ADD COLUMN material_cost NUMERIC DEFAULT 0,
+ADD COLUMN setup_hours NUMERIC DEFAULT 0,
+ADD COLUMN external_cost NUMERIC DEFAULT 0,
+ADD COLUMN cost_notes TEXT;
+```
+
+### 2. Uppdatera import-funktionen
+
+Utöka `import-bookings` Edge Function för att läsa kostnadsfält från externa produkter:
+
+```typescript
+// Nya fält att extrahera från externa produkter
+const laborCost = product.labor_cost || product.work_cost || product.setup_cost || 0;
+const materialCost = product.material_cost || product.material || 0;
+const setupHours = product.setup_hours || product.work_hours || product.hours || 0;
+const externalCost = product.external_cost || product.subrent_cost || product.rental_cost_out || 0;
+```
+
+### 3. Ny Service: Produktkostnadsberäkning
+
+Skapa en service för att beräkna totalkostnader från produkter per projekt/bokning:
+
+**Fil:** `src/services/productCostService.ts`
+
+```typescript
+interface ProductCostSummary {
+  laborCostTotal: number;
+  materialCostTotal: number;
+  setupHoursTotal: number;
+  externalCostTotal: number;
+  totalProductCost: number;
+}
+
+export const fetchProductCosts = async (bookingId: string): Promise<ProductCostSummary>
+export const updateProductCost = async (productId: string, costs: Partial<ProductCosts>): Promise<void>
+```
+
+### 4. Integrera i Ekonomisystemet
+
+Uppdatera `calculateEconomySummary` för att inkludera produktkostnader som en del av budgeten:
+
 **Fil:** `src/services/projectEconomyService.ts`
 
-Ändra beräkningen från:
-```javascript
-// FEL (nuvarande)
-const staffDeviation = staffActual - staffBudget;
-const totalDeviation = totalActual - totalBudget;
+```typescript
+// Ny budgetkomponent från produkter
+const productCostBudget = productCosts.totalProductCost;
+
+// Uppdatera total budget
+const totalBudget = staffBudget + purchasesTotal + productCostBudget;
 ```
 
-Till:
-```javascript
-// RÄTT (ny logik)
-const staffDeviation = staffBudget - staffActual;
-const totalDeviation = totalBudget - totalActual;
+### 5. UI för manuell kostnadsjustering
+
+Skapa en komponent för att visa och redigera produktkostnader:
+
+**Fil:** `src/components/booking/ProductCostEditor.tsx`
+
+- Visas i bokningsdetaljvyn eller projektdetaljvyn
+- Tabellformat med kolumner: Produkt | Arbetstid | Arbetskostnad | Material | Externt | Totalt
+- Redigerbara fält för manuell justering
+- Spara-knapp som uppdaterar databasen
+
+### 6. Uppdatera EconomySummaryCard
+
+Lägg till sektion för produktkostnader i ekonomiöversikten:
+
+```text
+┌─────────────────────────────────────────┐
+│ Produktkostnader                        │
+├─────────────────────────────────────────┤
+│ Arbetskostnad:     12 500 kr            │
+│ Materialkostnad:    3 200 kr            │
+│ Externa kostnader:  8 000 kr            │
+├─────────────────────────────────────────┤
+│ Totalt:            23 700 kr            │
+└─────────────────────────────────────────┘
 ```
-
-### Statuslogik - Färger och Ikoner
-**Fil:** `src/types/projectEconomy.ts`
-
-Uppdatera `getDeviationStatus` för att baseras på avvikelsens tecken:
-- Positiv eller noll = OK (grön)
-- Liten negativ (0 till -10% av budget) = Warning (gul)
-- Stor negativ (>-10% av budget) = Danger (röd)
-
-### Visningslogik - EconomySummaryCard
-**Fil:** `src/components/project/EconomySummaryCard.tsx`
-
-- Visa minus/plus korrekt baserat på ny logik
-- Grön check för positiv/noll avvikelse
-- Varning för negativ avvikelse
-
-### Procentberäkning
-Ändra från "användning av budget" (Actual/Budget × 100) till "avvikelse från budget":
-- 0% = exakt på budget
-- +10% = 10% under budget (bra)
-- -10% = 10% över budget (dåligt)
 
 ## Teknisk Implementation
 
-### Steg 1: Uppdatera beräkningslogik
+### Steg 1: Databasmigrering
+Skapa SQL-migrering för nya kolumner i `booking_products`.
+
+### Steg 2: Uppdatera TypeScript-typer
+**Fil:** `src/types/booking.ts`
 ```typescript
-// src/services/projectEconomyService.ts
-
-// Staff deviation: positive = under budget (good)
-const staffDeviation = staffBudget - staffActual;
-const staffDeviationPercent = staffBudget > 0 
-  ? ((staffBudget - staffActual) / staffBudget) * 100 
-  : (staffActual > 0 ? -100 : 0);
-
-// Total deviation: positive = under budget (good)  
-const totalDeviation = totalBudget - totalActual;
-const totalDeviationPercent = totalBudget > 0 
-  ? ((totalBudget - totalActual) / totalBudget) * 100 
-  : (totalActual > 0 ? -100 : 0);
+export interface BookingProduct {
+  // ... befintliga
+  laborCost?: number;
+  materialCost?: number;
+  setupHours?: number;
+  externalCost?: number;
+  costNotes?: string;
+}
 ```
 
-### Steg 2: Uppdatera statuslogik
-```typescript
-// src/types/projectEconomy.ts
+### Steg 3: Uppdatera Import Edge Function
+**Fil:** `supabase/functions/import-bookings/index.ts`
+- Lägg till extraktion av kostnadsfält
+- Spara till databasen
 
-export const getDeviationStatus = (deviationPercent: number): DeviationStatus => {
-  // Positive = under budget, negative = over budget
-  if (deviationPercent >= 0) return 'ok';
-  if (deviationPercent >= -10) return 'warning';
-  return 'danger';
-};
+### Steg 4: Skapa ProductCostService
+**Fil:** `src/services/productCostService.ts`
+- Fetch-funktion för att hämta produktkostnader per bokning
+- Update-funktion för att ändra enskilda kostnader
+- Summafunktion för totalkostnad
+
+### Steg 5: Integrera i Ekonomi-hook
+**Fil:** `src/hooks/useProjectEconomy.tsx`
+- Lägg till query för produktkostnader
+- Inkludera i summary-beräkningen
+
+### Steg 6: Bygg UI-komponent
+**Fil:** `src/components/booking/ProductCostEditor.tsx`
+- Tabell med produkter och kostnader
+- Inline-redigering eller dialog för ändringar
+
+### Steg 7: Uppdatera Ekonomivy
+**Fil:** `src/components/project/ProjectEconomyTab.tsx`
+- Lägg till sektion för produktkostnader
+- Visa budget vs. utfall per kostnadstyp
+
+## Filer som skapas/ändras
+
+**Nya filer:**
+- `src/services/productCostService.ts`
+- `src/components/booking/ProductCostEditor.tsx`
+
+**Ändrade filer:**
+- `supabase/migrations/[timestamp]_add_product_costs.sql` (ny migration)
+- `src/types/booking.ts` - Utöka BookingProduct interface
+- `src/integrations/supabase/types.ts` - Regenereras med nya fält
+- `supabase/functions/import-bookings/index.ts` - Lägg till kostnadsfält
+- `src/services/projectEconomyService.ts` - Inkludera produktkostnader
+- `src/hooks/useProjectEconomy.tsx` - Lägg till produktkostnads-query
+- `src/components/project/ProjectEconomyTab.tsx` - Visa produktkostnader
+- `src/components/project/EconomySummaryCard.tsx` - Inkludera i totalen
+
+## Dataflöde
+
+```text
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ Externt System  │────▶│ Import Function │────▶│ booking_products│
+│ (produktkostn.) │     │                 │     │ (med kostnader) │
+└─────────────────┘     └─────────────────┘     └────────┬────────┘
+                                                         │
+                        ┌────────────────────────────────┘
+                        ▼
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ ProductCost     │────▶│ useProjectEcon. │────▶│ EconomySummary  │
+│ Service         │     │                 │     │ Card + Tabs     │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+        ▲
+        │
+┌───────┴───────┐
+│ ProductCost   │
+│ Editor (UI)   │
+└───────────────┘
 ```
 
-### Steg 3: Uppdatera UI-visning
-```typescript
-// src/components/project/EconomySummaryCard.tsx
+## Förväntat Resultat
+- Produktkostnader importeras automatiskt vid bokningsimport
+- Kostnader kan justeras manuellt i UI
+- Ekonomiöversikten visar budgetunderlag baserat på produkternas kostnader
+- Avvikelse beräknas: Produktbudget vs Faktisk kostnad (personal + inköp)
 
-// Show correct sign and color
-<p className={`text-2xl font-bold ${getDeviationColor(status)}`}>
-  {summary.totalDeviation >= 0 ? '+' : ''}{formatCurrency(summary.totalDeviation)}
-</p>
-
-// Progress bar: show how much of budget is used
-const budgetUsagePercent = summary.totalBudget > 0 
-  ? (summary.totalActual / summary.totalBudget) * 100 
-  : 0;
-```
-
-## Filer som påverkas
-1. `src/services/projectEconomyService.ts` - Ny beräkningslogik
-2. `src/types/projectEconomy.ts` - Ny statuslogik
-3. `src/components/project/EconomySummaryCard.tsx` - Uppdaterad visning
-
-## Förväntat resultat
-Med Budget = 0 kr och Utfall = 2 800 kr:
-- **Före:** Avvikelse visar "+2 800 kr" med grön check
-- **Efter:** Avvikelse visar "-2 800 kr" med röd varning
