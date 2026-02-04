@@ -276,10 +276,11 @@ const PackingDetail = () => {
                     </div>
                     
                     {/* Unacknowledged changes first */}
-                    {changeItems.filter(i => !i.acknowledged).length > 0 && (
-                      <div className="space-y-1">
-                        {changeItems.map((item, index) => {
-                          if (item.acknowledged) return null;
+                    <div className="space-y-1">
+                      {changeItems
+                        .map((item, index) => ({ item, originalIndex: index }))
+                        .filter(({ item }) => !item.acknowledged)
+                        .map(({ item, originalIndex }) => {
                           const colorClass = item.type === 'added' 
                             ? 'text-green-600' 
                             : item.type === 'removed' 
@@ -287,7 +288,7 @@ const PackingDetail = () => {
                               : 'text-amber-600';
                           const prefix = item.type === 'added' ? '+' : item.type === 'removed' ? '-' : '~';
                           return (
-                            <div key={index} className="flex items-center justify-between gap-2 py-1 border-b border-border/50">
+                            <div key={`unack-${originalIndex}`} className="flex items-center justify-between gap-2 py-1 border-b border-border/50">
                               <span className={`text-sm ${colorClass}`}>
                                 {prefix} {item.text}
                               </span>
@@ -295,35 +296,39 @@ const PackingDetail = () => {
                                 variant="ghost"
                                 size="sm"
                                 className="h-6 px-2 text-xs shrink-0"
-                                onClick={() => acknowledgeChange(index)}
+                                onClick={() => acknowledgeChange(originalIndex)}
                               >
                                 OK
                               </Button>
                             </div>
                           );
                         })}
-                      </div>
-                    )}
+                      {changeItems.filter(i => !i.acknowledged).length === 0 && (
+                        <p className="text-sm text-muted-foreground italic">Alla ändringar bekräftade!</p>
+                      )}
+                    </div>
                     
                     {/* Acknowledged changes at bottom - crossed out */}
                     {changeItems.filter(i => i.acknowledged).length > 0 && (
                       <div className="pt-2 border-t border-border">
                         <p className="text-xs text-muted-foreground mb-2">Bekräftade ändringar:</p>
                         <div className="space-y-0.5">
-                          {changeItems.map((item, index) => {
-                            if (!item.acknowledged) return null;
-                            const colorClass = item.type === 'added' 
-                              ? 'text-green-600/50' 
-                              : item.type === 'removed' 
-                                ? 'text-red-600/50' 
-                                : 'text-amber-600/50';
-                            const prefix = item.type === 'added' ? '+' : item.type === 'removed' ? '-' : '~';
-                            return (
-                              <div key={index} className={`text-sm ${colorClass} line-through`}>
-                                {prefix} {item.text}
-                              </div>
-                            );
-                          })}
+                          {changeItems
+                            .map((item, index) => ({ item, originalIndex: index }))
+                            .filter(({ item }) => item.acknowledged)
+                            .map(({ item, originalIndex }) => {
+                              const colorClass = item.type === 'added' 
+                                ? 'text-green-600/50' 
+                                : item.type === 'removed' 
+                                  ? 'text-red-600/50' 
+                                  : 'text-amber-600/50';
+                              const prefix = item.type === 'added' ? '+' : item.type === 'removed' ? '-' : '~';
+                              return (
+                                <div key={`ack-${originalIndex}`} className={`text-sm ${colorClass} line-through`}>
+                                  {prefix} {item.text}
+                                </div>
+                              );
+                            })}
                         </div>
                       </div>
                     )}
