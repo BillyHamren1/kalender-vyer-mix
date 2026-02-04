@@ -1,96 +1,123 @@
 
-# Buggfix: Packlistan visas inte
+# Buggfix: Packlistan visar inte produkter i rätt ordning
 
 ## Problem
-Packlistan visar "Ingen packlista tillgänglig" trots att det finns 22 produkter i bokningen.
+Packlistan visar produkter i fel ordning. Huvudprodukter (t.ex. "Multiflex 6x12") ska ha sina tillbehör (t.ex. "↳ M Takduk 6m") listade direkt under sig, precis som i resten av systemet.
 
-### Analys
-1. **Bara 4 av 22 items genererades** - `generatePackingListItems` skapade bara 4 items istället för 22
-2. **Alla 4 är barn-items** - De har alla `parent_product_id` satt (accessories)
-3. **Huvudprodukterna saknas** - De 3 "Multiflex"-huvudprodukterna finns inte i `packing_list_items`
-4. **UI visar bara mainProducts** - PackingListTab itererar bara över `mainProducts`, och children visas under dem. Eftersom det inte finns några mainProducts visas inget alls.
+## Analys
+Datan i databasen är korrekt:
+- 3 huvudprodukter finns (2x Multiflex 6x12 + 1x Multiflex 8x15)
+- Varje tillbehör har rätt `parent_product_id` som pekar på sin huvudprodukt
+
+**Problemet är dubbel sortering/gruppering:**
+1. `usePackingList.tsx` sorterar i `sortPackingListItemsWithStatus()` 
+2. `PackingListTab.tsx` försöker gruppera igen med `useMemo`
+
+Detta skapar förvirring där items hamnar i fel ordning.
 
 ## Lösning
+**Förenklad approach:** Ta bort sorteringslogiken från `usePackingList.tsx` och låt `PackingListTab.tsx` hantera all gruppering/sortering. Detta följer samma mönster som `ProductsList.tsx` använder.
 
-### Del 1: Synka packlistan med alla produkter
-Anropa `syncPackingListItems` direkt vid laddning för att lägga till saknade produkter (de 18 som saknas).
-
-**Ändring i `usePackingList.tsx`:**
-- I `fetchPackingListItems`: Om det finns items men färre än booking_products, kör synkning automatiskt
-
-### Del 2: Visa orphaned children korrekt
-Om ett barn-item har en parent_product_id men den producen inte finns i packlistan (inte renderas), ska barnet ändå visas.
-
-**Ändring i `PackingListTab.tsx`:**
-- Efter gruppering, samla barn vars parent inte finns i mainProducts
-- Visa dessa "föräldralösa barn" som egna items (med indrag/varning)
-
-### Tekniska ändringar
+### Ändringar
 
 **Fil: `src/hooks/usePackingList.tsx`**
-```typescript
-// I fetchPackingListItems, efter check för existingItems?.length === 0:
-// Lägg till: Om det finns items men antalet < booking_products, synka för att komplettera
-
-const fetchPackingListItems = async (packingId: string, bookingId: string | null): Promise<PackingListItem[]> => {
-  if (!bookingId) return [];
-
-  // Fetch existing items count
-  const { data: existingItems, error: checkError } = await supabase
-    .from('packing_list_items')
-    .select('id')
-    .eq('packing_id', packingId);
-
-  if (checkError) throw checkError;
-
-  // Fetch booking products count
-  const { data: productCount } = await supabase
-    .from('booking_products')
-    .select('id')
-    .eq('booking_id', bookingId);
-
-  const existingCount = existingItems?.length || 0;
-  const productCountValue = productCount?.length || 0;
-
-  // If no items OR if fewer than products, sync
-  if (existingCount === 0 || existingCount < productCountValue) {
-    await generatePackingListItems(packingId, bookingId);
-  }
-  // ... rest of function
-};
-```
+- Ta bort `sortPackingListItemsWithStatus()` funktionen
+- Returnera items direkt utan försortering
+- Låt UI-komponenten hantera all sortering/gruppering
 
 **Fil: `src/components/packing/PackingListTab.tsx`**
+- Förbättra grupperingslogiken för att matcha `ProductsList.tsx`
+- Säkerställ att ordningen är: **Huvudprodukt → Paketkomponenter (⦿) → Tillbehör (↳)**
+- Gruppera korrekt baserat på `parent_product_id`
+
+### Tekniska detaljer
+
+**I `usePackingList.tsx` - ta bort sortering:**
 ```typescript
-// I useMemo: Hitta barn utan synlig parent och visa dem som egna items
-const { mainProducts, ..., orphanedChildren } = useMemo(() => {
-  // ... existing logic ...
+// FÖRE: return sortPackingListItemsWithStatus(itemsWithProducts);
+// EFTER: return itemsWithProducts;
+```
+
+**I `PackingListTab.tsx` - förbättrad gruppering:**
+```typescript
+const { mainProducts, childrenByParent, orphanedItems, orphanedChildren } = useMemo(() => {
+  const main: PackingListItem[] = [];
+  const childrenByParentId: Record<string, PackingListItem[]> = {};
+  const orphaned: PackingListItem[] = [];
   
-  // Collect children whose parent is not in mainProducts
-  const mainProductIds = new Set(main.map(m => m.product?.id));
+  // Första pass: identifiera huvudprodukter och barn
+  items.forEach(item => {
+    if (item.isOrphaned) {
+      orphaned.push(item);
+      return;
+    }
+    
+    const parentId = item.product?.parent_product_id;
+    if (!parentId) {
+      // Huvudprodukt
+      main.push(item);
+    } else {
+      // Barn-produkt
+      if (!childrenByParentId[parentId]) childrenByParentId[parentId] = [];
+      childrenByParentId[parentId].push(item);
+    }
+  });
+
+  // Sortera barn: paketkomponenter (⦿) först, sedan tillbehör (↳)
+  Object.values(childrenByParentId).forEach(children => {
+    children.sort((a, b) => {
+      const aName = a.product?.name || '';
+      const bName = b.product?.name || '';
+      const aIsAccessory = aName.includes('↳') || aName.includes('└');
+      const bIsAccessory = bName.includes('↳') || bName.includes('└');
+      // Paketkomponenter (⦿) före tillbehör (↳)
+      if (!aIsAccessory && bIsAccessory) return -1;
+      if (aIsAccessory && !bIsAccessory) return 1;
+      return 0;
+    });
+  });
+
+  // Hitta barn utan förälder i huvudlistan
+  const mainProductIds = new Set(main.map(m => m.product?.id).filter(Boolean));
   const orphanedChildItems: PackingListItem[] = [];
   
-  // Check accessories
-  Object.entries(accByParent).forEach(([parentId, items]) => {
+  Object.entries(childrenByParentId).forEach(([parentId, children]) => {
     if (!mainProductIds.has(parentId)) {
-      orphanedChildItems.push(...items);
-    }
-  });
-  
-  // Check package components  
-  Object.entries(pkgComponents).forEach(([parentId, items]) => {
-    if (!mainProductIds.has(parentId)) {
-      orphanedChildItems.push(...items);
+      orphanedChildItems.push(...children);
     }
   });
 
-  return { ..., orphanedChildren: orphanedChildItems };
-});
+  return { 
+    mainProducts: main, 
+    childrenByParent: childrenByParentId,
+    orphanedItems: orphaned,
+    orphanedChildren: orphanedChildItems
+  };
+}, [items]);
+```
 
-// Visa orphanedChildren i UI (som saknar parent)
+**Rendering - förenklad:**
+```tsx
+{mainProducts.map(item => (
+  <div key={item.id}>
+    {/* Huvudprodukt */}
+    <PackingListItemRow item={item} onUpdate={onUpdateItem} isAccessory={false} />
+    
+    {/* Alla barn under denna produkt */}
+    {item.product?.id && childrenByParent[item.product.id]?.map(child => (
+      <PackingListItemRow
+        key={child.id}
+        item={child}
+        onUpdate={onUpdateItem}
+        isAccessory={true}
+      />
+    ))}
+  </div>
+))}
 ```
 
 ## Resultat
-- Packlistan kommer visa alla 22 produkter korrekt
-- Synkronisering sker automatiskt vid laddning om items saknas
-- Barn-items utan parent visas även om deras parent saknas i listan
+- Huvudprodukter visas först
+- Paketkomponenter (⦿) visas direkt under huvudprodukten
+- Tillbehör (↳) visas efter paketkomponenterna
+- Ordningen matchar nu resten av systemet (ProductsList, VerificationView, etc.)
