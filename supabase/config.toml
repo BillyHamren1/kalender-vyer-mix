@@ -90,3 +90,6 @@ verify_jwt = false
 
 [functions.establishment-ai-assistant]
 verify_jwt = false
+
+[functions.verify-sso-token]
+verify_jwt = false
