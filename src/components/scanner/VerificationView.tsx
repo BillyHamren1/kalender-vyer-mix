@@ -468,20 +468,8 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           
           <div className="divide-y divide-border/30 max-h-[calc(100vh-220px)] overflow-y-auto">
             {(() => {
-              // Show main products + paketmedlemmar (⦿), but hide accessories (↳/└/L, och parent_product_id)
-              const visibleItems = items.filter(item => {
-                const rawName = item.booking_products?.name || '';
-                const trimmedName = rawName.trimStart();
-
-                const isAccessoryByRelation = !!item.booking_products?.parent_product_id;
-                const isAccessoryByPrefix = (
-                  trimmedName.startsWith('↳') ||
-                  trimmedName.startsWith('└') ||
-                  trimmedName.startsWith('L,')
-                );
-
-                return !(isAccessoryByRelation || isAccessoryByPrefix);
-              });
+              // Show ALL items - no filtering
+              const visibleItems = items;
 
               return visibleItems.map(item => {
                 const rawName = item.booking_products?.name || 'Okänd produkt';
