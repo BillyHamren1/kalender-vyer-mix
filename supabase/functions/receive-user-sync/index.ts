@@ -5,6 +5,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-webhook-secret",
 };
 
+// Valid roles for the application
+const VALID_ROLES = ['admin', 'forsaljning', 'projekt', 'lager'] as const;
+type AppRole = typeof VALID_ROLES[number];
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -42,6 +46,7 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Receiving user sync request for: ${email}`);
+    console.log(`Roles received: ${JSON.stringify(roles)}`);
 
     // Create admin client
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -66,10 +71,39 @@ Deno.serve(async (req) => {
           .eq('user_id', existingUser.id);
       }
 
+      // Sync roles for existing user (delete old roles, add new ones)
+      if (roles && Array.isArray(roles)) {
+        console.log(`Syncing roles for existing user: ${existingUser.id}`);
+        
+        // Delete existing roles
+        await adminClient
+          .from('user_roles')
+          .delete()
+          .eq('user_id', existingUser.id);
+        
+        // Add new roles
+        for (const role of roles) {
+          if (VALID_ROLES.includes(role as AppRole)) {
+            const { error: roleError } = await adminClient
+              .from('user_roles')
+              .insert({ user_id: existingUser.id, role })
+              .select();
+            
+            if (roleError) {
+              console.error(`Error adding role ${role}:`, roleError);
+            } else {
+              console.log(`Role ${role} added for user ${existingUser.id}`);
+            }
+          } else {
+            console.warn(`Invalid role ignored: ${role}`);
+          }
+        }
+      }
+
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: "User already exists", 
+          message: "User already exists, roles synced", 
           user_id: existingUser.id 
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -129,11 +163,33 @@ Deno.serve(async (req) => {
         .eq('user_id', newUser.user.id);
     }
 
+    // Create roles for the new user
+    if (newUser.user?.id && roles && Array.isArray(roles)) {
+      console.log(`Creating roles for new user: ${newUser.user.id}`);
+      
+      for (const role of roles) {
+        if (VALID_ROLES.includes(role as AppRole)) {
+          const { error: roleError } = await adminClient
+            .from('user_roles')
+            .insert({ user_id: newUser.user.id, role })
+            .select();
+          
+          if (roleError) {
+            console.error(`Error adding role ${role}:`, roleError);
+          } else {
+            console.log(`Role ${role} added for user ${newUser.user.id}`);
+          }
+        } else {
+          console.warn(`Invalid role ignored: ${role}`);
+        }
+      }
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
         user_id: newUser.user?.id,
-        message: "User created successfully"
+        message: "User created successfully with roles"
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

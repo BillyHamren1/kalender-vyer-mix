@@ -2282,6 +2282,27 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       warehouse_calendar_events: {
         Row: {
           booking_id: string | null
@@ -2427,9 +2448,18 @@ export type Database = {
         }
         Returns: Json
       }
+      has_planning_access: { Args: { _user_id?: string }; Returns: boolean }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id?: string
+        }
+        Returns: boolean
+      }
       jsonb_object_keys_array: { Args: { j: Json }; Returns: string[] }
     }
     Enums: {
+      app_role: "admin" | "forsaljning" | "projekt" | "lager"
       availability_type: "available" | "unavailable" | "blocked"
     }
     CompositeTypes: {
@@ -2558,6 +2588,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["admin", "forsaljning", "projekt", "lager"],
       availability_type: ["available", "unavailable", "blocked"],
     },
   },
