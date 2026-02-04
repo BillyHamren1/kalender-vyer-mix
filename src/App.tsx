@@ -36,6 +36,7 @@ import PackingVerify from "./pages/PackingVerify";
 import WarehouseEconomy from "./pages/WarehouseEconomy";
 import WarehouseInventoryPlaceholder from "./pages/WarehouseInventoryPlaceholder";
 import WarehouseServicePlaceholder from "./pages/WarehouseServicePlaceholder";
+import MobileScannerApp from "./pages/MobileScannerApp";
 
 const queryClient = new QueryClient();
 
@@ -104,6 +105,9 @@ const AppContent = () => {
               <Route path="/warehouse/economy" element={<WarehouseSystemLayout><WarehouseEconomy /></WarehouseSystemLayout>} />
               <Route path="/warehouse/inventory" element={<WarehouseSystemLayout><WarehouseInventoryPlaceholder /></WarehouseSystemLayout>} />
               <Route path="/warehouse/service" element={<WarehouseSystemLayout><WarehouseServicePlaceholder /></WarehouseSystemLayout>} />
+              
+              {/* Mobile Scanner App (standalone for Capacitor) */}
+              <Route path="/scanner" element={<MobileScannerApp />} />
 
               {/* Fallback */}
               <Route path="*" element={<NotFound />} />
