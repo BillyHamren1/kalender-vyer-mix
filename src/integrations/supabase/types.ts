@@ -111,6 +111,8 @@ export type Database = {
         Row: {
           booking_id: string
           cost_notes: string | null
+          estimated_volume_m3: number | null
+          estimated_weight_kg: number | null
           external_cost: number | null
           id: string
           is_package_component: boolean | null
@@ -129,6 +131,8 @@ export type Database = {
         Insert: {
           booking_id: string
           cost_notes?: string | null
+          estimated_volume_m3?: number | null
+          estimated_weight_kg?: number | null
           external_cost?: number | null
           id?: string
           is_package_component?: boolean | null
@@ -147,6 +151,8 @@ export type Database = {
         Update: {
           booking_id?: string
           cost_notes?: string | null
+          estimated_volume_m3?: number | null
+          estimated_weight_kg?: number | null
           external_cost?: number | null
           id?: string
           is_package_component?: boolean | null
@@ -2282,6 +2288,53 @@ export type Database = {
           },
         ]
       }
+      transport_assignments: {
+        Row: {
+          actual_arrival: string | null
+          booking_id: string
+          created_at: string
+          driver_notes: string | null
+          estimated_arrival: string | null
+          id: string
+          status: string | null
+          stop_order: number | null
+          transport_date: string
+          vehicle_id: string
+        }
+        Insert: {
+          actual_arrival?: string | null
+          booking_id: string
+          created_at?: string
+          driver_notes?: string | null
+          estimated_arrival?: string | null
+          id?: string
+          status?: string | null
+          stop_order?: number | null
+          transport_date: string
+          vehicle_id: string
+        }
+        Update: {
+          actual_arrival?: string | null
+          booking_id?: string
+          created_at?: string
+          driver_notes?: string | null
+          estimated_arrival?: string | null
+          id?: string
+          status?: string | null
+          stop_order?: number | null
+          transport_date?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transport_assignments_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -2300,6 +2353,95 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      vehicle_gps_history: {
+        Row: {
+          heading: number | null
+          id: string
+          lat: number
+          lng: number
+          recorded_at: string
+          speed_kmh: number | null
+          vehicle_id: string
+        }
+        Insert: {
+          heading?: number | null
+          id?: string
+          lat: number
+          lng: number
+          recorded_at?: string
+          speed_kmh?: number | null
+          vehicle_id: string
+        }
+        Update: {
+          heading?: number | null
+          id?: string
+          lat?: number
+          lng?: number
+          recorded_at?: string
+          speed_kmh?: number | null
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_gps_history_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicles: {
+        Row: {
+          assigned_driver_id: string | null
+          created_at: string
+          current_heading: number | null
+          current_lat: number | null
+          current_lng: number | null
+          id: string
+          is_active: boolean | null
+          last_gps_update: string | null
+          max_volume_m3: number | null
+          max_weight_kg: number | null
+          name: string
+          registration_number: string | null
+          updated_at: string
+          vehicle_type: string | null
+        }
+        Insert: {
+          assigned_driver_id?: string | null
+          created_at?: string
+          current_heading?: number | null
+          current_lat?: number | null
+          current_lng?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_gps_update?: string | null
+          max_volume_m3?: number | null
+          max_weight_kg?: number | null
+          name: string
+          registration_number?: string | null
+          updated_at?: string
+          vehicle_type?: string | null
+        }
+        Update: {
+          assigned_driver_id?: string | null
+          created_at?: string
+          current_heading?: number | null
+          current_lat?: number | null
+          current_lng?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_gps_update?: string | null
+          max_volume_m3?: number | null
+          max_weight_kg?: number | null
+          name?: string
+          registration_number?: string | null
+          updated_at?: string
+          vehicle_type?: string | null
         }
         Relationships: []
       }
