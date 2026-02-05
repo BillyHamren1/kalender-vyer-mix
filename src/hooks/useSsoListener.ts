@@ -100,17 +100,17 @@ export function useSsoListener() {
         return;
       }
 
-      console.log('[SSO] Verification successful, verifying OTP');
+      console.log('[SSO] Verification successful, setting session directly');
 
-      // Använd verifyOtp för att etablera sessionen
-      const { data: sessionData, error: sessionError } = await supabase.auth.verifyOtp({
-        token_hash: data.hashed_token,
-        type: 'magiclink',
+      // Använd setSession med tokens från edge function - INTE verifyOtp!
+      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
       });
 
       if (sessionError) {
-        console.error('[SSO] Session verification failed:', sessionError);
-        sendSsoResponse(false, { status: 500, code: 'SESSION_VERIFY_FAILED', message: sessionError.message });
+        console.error('[SSO] Session set failed:', sessionError);
+        sendSsoResponse(false, { status: 500, code: 'SESSION_SET_FAILED', message: sessionError.message });
         return;
       }
 
