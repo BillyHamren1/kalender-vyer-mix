@@ -1,15 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Building2, Search, Plus, Trash2, MapPin, Calendar, Users } from 'lucide-react';
+import { Building2, Search, Plus, Trash2, MapPin, Calendar, Users, ArrowUpRight } from 'lucide-react';
 import { fetchLargeProjects, createLargeProject, deleteLargeProject } from '@/services/largeProjectService';
 import { toast } from 'sonner';
 import { LargeProjectStatus, LARGE_PROJECT_STATUS_LABELS, LARGE_PROJECT_STATUS_COLORS } from '@/types/largeProject';
@@ -81,132 +79,166 @@ const LargeProjectsListPanel = () => {
 
   return (
     <>
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">Projekt stort</CardTitle>
+      <div className="relative group">
+        {/* Premium card container */}
+        <div 
+          className="relative rounded-2xl overflow-hidden"
+          style={{
+            background: 'linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--card) / 0.95) 100%)',
+            boxShadow: '0 4px 24px -4px rgba(0, 0, 0, 0.08), 0 0 0 1px hsl(var(--border) / 0.5)',
+          }}
+        >
+          {/* Gradient accent bar */}
+          <div className="h-1.5 bg-gradient-to-r from-primary/80 via-primary to-primary/80" />
+          
+          {/* Header */}
+          <div className="p-5 pb-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 ring-1 ring-primary/20">
+                  <Building2 className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg text-foreground">Projekt stort</h3>
+                  <p className="text-xs text-muted-foreground">Flera bokningar</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge 
+                  variant="secondary" 
+                  className="h-7 px-3 text-sm font-medium bg-muted/80 hover:bg-muted"
+                >
+                  {filteredProjects.length}
+                </Badge>
+                <Button 
+                  size="sm" 
+                  onClick={() => setIsCreateOpen(true)}
+                  className="h-8 w-8 p-0 rounded-lg shadow-sm"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">{filteredProjects.length}</Badge>
-              <Button size="sm" variant="outline" onClick={() => setIsCreateOpen(true)}>
-                <Plus className="h-4 w-4" />
-              </Button>
+
+            {/* Filters */}
+            <div className="space-y-3">
+              <div className="relative">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
+                <Input
+                  placeholder="Sök stora projekt..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-10 h-10 bg-muted/30 border-muted-foreground/10 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as LargeProjectStatus | 'all')}>
+                <SelectTrigger className="h-10 bg-muted/30 border-muted-foreground/10 rounded-xl">
+                  <SelectValue placeholder="Filtrera status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alla statusar</SelectItem>
+                  {Object.entries(LARGE_PROJECT_STATUS_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Sök stora projekt..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as LargeProjectStatus | 'all')}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Filtrera status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Alla statusar</SelectItem>
-                {Object.entries(LARGE_PROJECT_STATUS_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           {/* Projects List */}
-          <div className="max-h-[400px] overflow-y-auto pr-1">
-            {isLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map(i => (
-                  <Skeleton key={i} className="h-20" />
-                ))}
-              </div>
-            ) : filteredProjects.length === 0 ? (
-              <div className="text-center py-12">
-                <Building2 className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground">
-                  {search || statusFilter !== 'all' 
-                    ? 'Inga stora projekt hittades' 
-                    : 'Inga stora projekt skapade ännu'}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Stora projekt samlar flera bokningar under ett paraply
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {filteredProjects.map(project => (
-                  <Card 
+          <div className="px-5 pb-5">
+            <div className="max-h-[420px] overflow-y-auto pr-1 space-y-2.5 scrollbar-thin">
+              {isLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-24 bg-muted/50 animate-pulse rounded-xl" />
+                  ))}
+                </div>
+              ) : filteredProjects.length === 0 ? (
+                <div className="text-center py-12 px-4">
+                  <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-muted/50 flex items-center justify-center">
+                    <Building2 className="h-7 w-7 text-muted-foreground/40" />
+                  </div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    {search || statusFilter !== 'all' 
+                      ? 'Inga projekt hittades' 
+                      : 'Inga stora projekt ännu'}
+                  </p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">
+                    Samla flera bokningar under ett paraply
+                  </p>
+                </div>
+              ) : (
+                filteredProjects.map(project => (
+                  <div
                     key={project.id}
-                    className="group cursor-pointer hover:shadow-md transition-all border-l-4 border-l-primary"
                     onClick={() => navigate(`/large-project/${project.id}`)}
+                    className="group/card relative p-4 rounded-xl cursor-pointer transition-all duration-200 hover:-translate-y-0.5 border border-border/50 bg-gradient-to-br from-background to-muted/20 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
                   >
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Building2 className="w-4 h-4 text-primary shrink-0" />
-                            <h3 className="font-medium truncate">{project.name}</h3>
-                          </div>
-                          
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge className={cn("text-xs", LARGE_PROJECT_STATUS_COLORS[project.status])}>
-                              {LARGE_PROJECT_STATUS_LABELS[project.status]}
-                            </Badge>
-                            <Badge variant="secondary" className="text-xs">
-                              <Users className="w-3 h-3 mr-1" />
-                              {project.bookingCount || 0} bokningar
-                            </Badge>
-                          </div>
-
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                            {project.location && (
-                              <span className="flex items-center gap-1">
-                                <MapPin className="w-3 h-3" />
-                                {project.location}
-                              </span>
-                            )}
-                            {project.start_date && (
-                              <span className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
-                                {formatDate(project.start_date)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={(e) => handleDelete(e, project.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                        </Button>
+                    {/* Hover arrow indicator */}
+                    <div className="absolute right-3 top-3 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                      <ArrowUpRight className="h-4 w-4 text-primary/60" />
+                    </div>
+                    
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-lg bg-primary/10 shrink-0">
+                        <Building2 className="w-4 h-4 text-primary" />
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
+                      <div className="flex-1 min-w-0 pr-6">
+                        <h4 className="font-medium text-foreground truncate mb-1 group-hover/card:text-primary transition-colors">
+                          {project.name}
+                        </h4>
+                        
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <Badge className={cn("text-xs font-medium", LARGE_PROJECT_STATUS_COLORS[project.status])}>
+                            {LARGE_PROJECT_STATUS_LABELS[project.status]}
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs bg-muted/60">
+                            <Users className="w-3 h-3 mr-1" />
+                            {project.bookingCount || 0} bokningar
+                          </Badge>
+                        </div>
+
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          {project.location && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              {project.location}
+                            </span>
+                          )}
+                          {project.start_date && (
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {formatDate(project.start_date)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Delete button */}
+                    <button
+                      onClick={(e) => handleDelete(e, project.id)}
+                      className="absolute right-3 bottom-3 p-1.5 rounded-lg opacity-0 group-hover/card:opacity-100 transition-all hover:bg-destructive/10"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive transition-colors" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Create Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-primary" />
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Building2 className="h-5 w-5 text-primary" />
+              </div>
               Nytt stort projekt
             </DialogTitle>
           </DialogHeader>
@@ -219,6 +251,7 @@ const LargeProjectsListPanel = () => {
                 placeholder="T.ex. Stockholmsmässan 2026"
                 value={newProjectName}
                 onChange={(e) => setNewProjectName(e.target.value)}
+                className="rounded-xl"
               />
             </div>
             <div className="space-y-2">
@@ -228,17 +261,19 @@ const LargeProjectsListPanel = () => {
                 placeholder="T.ex. Älvsjömässan"
                 value={newProjectLocation}
                 onChange={(e) => setNewProjectLocation(e.target.value)}
+                className="rounded-xl"
               />
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+            <Button variant="outline" onClick={() => setIsCreateOpen(false)} className="rounded-xl">
               Avbryt
             </Button>
             <Button 
               onClick={() => createMutation.mutate()}
               disabled={!newProjectName.trim() || createMutation.isPending}
+              className="rounded-xl"
             >
               Skapa projekt
             </Button>

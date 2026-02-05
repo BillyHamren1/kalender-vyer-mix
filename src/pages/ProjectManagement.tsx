@@ -1,35 +1,24 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, FolderKanban } from "lucide-react";
+import { Plus, FolderKanban, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import ProjectCard from "@/components/project/ProjectCard";
 import CreateProjectWizard from "@/components/project/CreateProjectWizard";
 import { IncomingBookingsList } from "@/components/project/IncomingBookingsList";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
 import JobsListPanel from "@/components/project/JobsListPanel";
 import LargeProjectsListPanel from "@/components/project/LargeProjectsListPanel";
-import { fetchProjects, deleteProject } from "@/services/projectService";
-import { ProjectStatus, PROJECT_STATUS_LABELS } from "@/types/project";
+import MediumProjectsListPanel from "@/components/project/MediumProjectsListPanel";
+import { deleteProject } from "@/services/projectService";
 import { toast } from "sonner";
 
 const ProjectManagement = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
-
-  const { data: projects = [], isLoading } = useQuery({
-    queryKey: ['projects'],
-    queryFn: fetchProjects
-  });
 
   const deleteMutation = useMutation({
     mutationFn: deleteProject,
@@ -39,23 +28,6 @@ const ProjectManagement = () => {
     },
     onError: () => toast.error('Kunde inte ta bort projekt')
   });
-
-  const filteredProjects = projects.filter(project => {
-    const matchesSearch = project.name.toLowerCase().includes(search.toLowerCase()) ||
-      project.booking?.client?.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === "all" || project.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  const handleProjectClick = (projectId: string) => {
-    navigate(`/project/${projectId}`);
-  };
-
-  const handleDelete = (projectId: string) => {
-    if (confirm('Är du säker på att du vill ta bort detta projekt?')) {
-      deleteMutation.mutate(projectId);
-    }
-  };
 
   const handleCreateProject = (bookingId: string) => {
     setSelectedBookingId(bookingId);
@@ -67,131 +39,79 @@ const ProjectManagement = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <FolderKanban className="h-6 w-6 text-primary" />
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+      <div className="container mx-auto px-4 py-8 max-w-[1600px]">
+        {/* Premium Header */}
+        <div className="relative mb-10">
+          {/* Decorative background */}
+          <div className="absolute inset-0 -z-10 overflow-hidden rounded-3xl">
+            <div className="absolute -top-20 -right-20 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
+            <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-primary/3 rounded-full blur-2xl" />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Projekthantering</h1>
-            <p className="text-muted-foreground">Hantera små, medelstora och stora projekt</p>
+          
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 p-6 rounded-2xl bg-gradient-to-r from-card/80 via-card to-card/80 backdrop-blur-sm border border-border/50 shadow-lg">
+            <div className="flex items-center gap-4">
+              <div 
+                className="relative p-3.5 rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-lg"
+                style={{ boxShadow: '0 8px 32px hsl(var(--primary) / 0.3)' }}
+              >
+                <FolderKanban className="h-7 w-7 text-primary-foreground" />
+                <Sparkles className="absolute -top-1 -right-1 h-4 w-4 text-primary-foreground/80" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+                  Projekthantering
+                </h1>
+                <p className="text-muted-foreground mt-0.5">
+                  Hantera små, medelstora och stora projekt
+                </p>
+              </div>
+            </div>
+            <Button 
+              onClick={() => { setSelectedBookingId(null); setIsCreateOpen(true); }}
+              size="lg"
+              className="shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5 rounded-xl px-6"
+              style={{ boxShadow: '0 4px 20px hsl(var(--primary) / 0.25)' }}
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              Nytt projekt
+            </Button>
           </div>
         </div>
-        <Button onClick={() => { setSelectedBookingId(null); setIsCreateOpen(true); }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nytt projekt
-        </Button>
-      </div>
 
-      {/* Incoming Bookings Section */}
-      <div className="mb-8">
-        <IncomingBookingsList 
-          onCreateProject={handleCreateProject}
-          onCreateLargeProject={handleCreateLargeProject}
-        />
-      </div>
+        {/* Incoming Bookings Section */}
+        <div className="mb-10">
+          <IncomingBookingsList 
+            onCreateProject={handleCreateProject}
+            onCreateLargeProject={handleCreateLargeProject}
+          />
+        </div>
 
-      {/* Three Column Layout: Litet, Medel, Stort */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Column 1: Projekt litet (Jobs) */}
-        <div>
+        {/* Three Column Layout: Litet, Medel, Stort */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <JobsListPanel />
-        </div>
-
-        {/* Column 2: Projekt medel */}
-        <div>
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FolderKanban className="h-5 w-5 text-primary" />
-                  <CardTitle className="text-lg">Projekt medel</CardTitle>
-                </div>
-                <Badge variant="outline">{filteredProjects.length}</Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Filters */}
-              <div className="flex flex-col gap-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Sök projekt..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as ProjectStatus | "all")}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Filtrera status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Alla statusar</SelectItem>
-                    {Object.entries(PROJECT_STATUS_LABELS).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Project List */}
-              <div className="max-h-[500px] overflow-y-auto pr-1 space-y-2">
-                {isLoading ? (
-                  <div className="space-y-3">
-                    {[1, 2, 3].map(i => (
-                      <div key={i} className="h-24 bg-muted animate-pulse rounded-lg" />
-                    ))}
-                  </div>
-                ) : filteredProjects.length === 0 ? (
-                  <div className="text-center py-12">
-                    <FolderKanban className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-                    <p className="text-sm text-muted-foreground">
-                      {search || statusFilter !== "all" 
-                        ? "Inga projekt hittades" 
-                        : "Inga medelstora projekt ännu"}
-                    </p>
-                  </div>
-                ) : (
-                  filteredProjects.map(project => (
-                    <ProjectCard
-                      key={project.id}
-                      project={project}
-                      onClick={() => handleProjectClick(project.id)}
-                      onDelete={() => handleDelete(project.id)}
-                    />
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Column 3: Projekt stort */}
-        <div>
+          <MediumProjectsListPanel />
           <LargeProjectsListPanel />
         </div>
+
+        <CreateProjectWizard 
+          open={isCreateOpen} 
+          onOpenChange={setIsCreateOpen}
+          preselectedBookingId={selectedBookingId}
+          onSuccess={() => {
+            setIsCreateOpen(false);
+            setSelectedBookingId(null);
+            queryClient.invalidateQueries({ queryKey: ['projects'] });
+            queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+          }}
+        />
+
+        <AddToLargeProjectDialog
+          open={!!largeProjectBookingId}
+          onOpenChange={(open) => !open && setLargeProjectBookingId(null)}
+          bookingId={largeProjectBookingId || ''}
+        />
       </div>
-
-      <CreateProjectWizard 
-        open={isCreateOpen} 
-        onOpenChange={setIsCreateOpen}
-        preselectedBookingId={selectedBookingId}
-        onSuccess={() => {
-          setIsCreateOpen(false);
-          setSelectedBookingId(null);
-          queryClient.invalidateQueries({ queryKey: ['projects'] });
-          queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
-        }}
-      />
-
-      <AddToLargeProjectDialog
-        open={!!largeProjectBookingId}
-        onOpenChange={(open) => !open && setLargeProjectBookingId(null)}
-        bookingId={largeProjectBookingId || ''}
-      />
     </div>
   );
 };
