@@ -108,16 +108,51 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false }
     });
 
-    // 1. Kontrollera om användaren finns
-    console.log('[SSO] Checking if user exists:', payload.user_id);
-    const { data: existingUser, error: getUserError } = await supabase.auth.admin.getUserById(payload.user_id);
+    // Normalisera email för säker sökning
+    const normalizedEmail = payload.email.trim().toLowerCase();
+    console.log('[SSO] Normalized email:', normalizedEmail);
 
-    if (getUserError || !existingUser?.user) {
-      // Användaren finns inte - skapa den
-      console.log('[SSO] User does not exist, creating:', payload.email);
+    // 1. IDEMPOTENT: Sök först via email (inte user_id) för att hantera existerande användare
+    let userId = payload.user_id;
+    let userExists = false;
+
+    // Försök hitta användare via email i profiles-tabellen först (snabbast)
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('user_id')
+      .ilike('email', normalizedEmail)
+      .maybeSingle();
+
+    if (profileData?.user_id) {
+      console.log('[SSO] Found existing user via profiles:', profileData.user_id);
+      userId = profileData.user_id;
+      userExists = true;
+    } else {
+      // Fallback: Sök via admin listUsers API (paginerad sökning)
+      console.log('[SSO] Searching for user via admin API...');
+      const { data: listData, error: listError } = await supabase.auth.admin.listUsers({
+        page: 1,
+        perPage: 1000
+      });
+
+      if (!listError && listData?.users) {
+        const existingUser = listData.users.find(
+          u => u.email?.toLowerCase() === normalizedEmail
+        );
+        if (existingUser) {
+          console.log('[SSO] Found existing user via admin search:', existingUser.id);
+          userId = existingUser.id;
+          userExists = true;
+        }
+      }
+    }
+
+    // 2. Om användaren inte finns - skapa den
+    if (!userExists) {
+      console.log('[SSO] User does not exist, creating:', normalizedEmail);
       const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
         id: payload.user_id,
-        email: payload.email,
+        email: normalizedEmail,
         email_confirm: true,
         user_metadata: { 
           full_name: normalizedPayload.full_name,
@@ -126,22 +161,49 @@ Deno.serve(async (req) => {
       });
 
       if (createError) {
-        console.error('[SSO] Failed to create user:', createError);
-        return new Response(
-          JSON.stringify({ success: false, error_code: 'USER_CREATE_FAILED', message: createError.message }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        // Dubbelkolla om "already registered" - i så fall hitta användaren
+        if (createError.message?.includes('already been registered')) {
+          console.log('[SSO] User already registered (race condition), searching again...');
+          const { data: retryList } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+          const found = retryList?.users?.find(u => u.email?.toLowerCase() === normalizedEmail);
+          if (found) {
+            userId = found.id;
+            userExists = true;
+            console.log('[SSO] Found user on retry:', userId);
+          } else {
+            console.error('[SSO] Failed to find user even after retry');
+            return new Response(
+              JSON.stringify({ success: false, error_code: 'USER_CREATE_FAILED', message: createError.message }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        } else {
+          console.error('[SSO] Failed to create user:', createError);
+          return new Response(
+            JSON.stringify({ success: false, error_code: 'USER_CREATE_FAILED', message: createError.message }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      } else {
+        console.log('[SSO] User created successfully:', newUser?.user?.id);
+        userId = newUser?.user?.id || payload.user_id;
       }
-      console.log('[SSO] User created successfully:', newUser?.user?.id);
     } else {
-      console.log('[SSO] User exists:', existingUser.user.id);
+      // Uppdatera metadata för befintlig användare
+      console.log('[SSO] Updating existing user metadata:', userId);
+      await supabase.auth.admin.updateUserById(userId, {
+        user_metadata: { 
+          full_name: normalizedPayload.full_name,
+          organization_id: payload.organization_id 
+        }
+      });
     }
 
-    // 2. Generera tillfälligt lösenord och logga in
+    // 3. Generera tillfälligt lösenord och logga in
     const tempPassword = crypto.randomUUID();
     
-    console.log('[SSO] Setting temporary password for user');
-    const { error: updateError } = await supabase.auth.admin.updateUserById(payload.user_id, {
+    console.log('[SSO] Setting temporary password for user:', userId);
+    const { error: updateError } = await supabase.auth.admin.updateUserById(userId, {
       password: tempPassword
     });
 
@@ -153,10 +215,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 3. Logga in med tillfälligt lösenord för att få session
+    // 4. Logga in med tillfälligt lösenord för att få session
     console.log('[SSO] Signing in with temporary password');
     const { data: sessionData, error: signInError } = await supabase.auth.signInWithPassword({
-      email: payload.email,
+      email: normalizedEmail,
       password: tempPassword,
     });
 
@@ -170,15 +232,15 @@ Deno.serve(async (req) => {
 
     console.log('[SSO] Session created successfully for:', payload.email);
 
-    // 4. Returnera access_token och refresh_token
+    // 5. Returnera access_token och refresh_token
     return new Response(
       JSON.stringify({ 
         success: true,
         access_token: sessionData.session.access_token,
         refresh_token: sessionData.session.refresh_token,
         user: {
-          id: payload.user_id,
-          email: payload.email,
+          id: userId,
+          email: normalizedEmail,
           organization_id: payload.organization_id,
         }
       }),
