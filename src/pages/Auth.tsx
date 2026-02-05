@@ -37,7 +37,7 @@ const Auth: React.FC = () => {
   // Redirect if already logged in
   useEffect(() => {
     if (user) {
-      navigate(from, { replace: true });
+      navigate(from, { replace: true, state: { skipRoleCheck: true } });
     }
   }, [user, navigate, from]);
 
