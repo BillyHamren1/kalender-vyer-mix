@@ -1,5 +1,5 @@
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfWeek, addDays } from 'date-fns';
@@ -292,24 +292,34 @@ export const useUnifiedStaffOperations = (currentDate: Date, mode: 'daily' | 'we
     }
   }, [currentDate, availableStaff, fetchAssignments]);
 
-  // Get staff for a specific team and date (now sync - filtering happens at fetch time)
-  const getStaffForTeamAndDate = useCallback((teamId: string, date: Date): StaffMember[] => {
-    const dateStr = format(date, 'yyyy-MM-dd');
-    console.log(`🔎 [getStaffForTeamAndDate] Called with teamId: ${teamId}, date: ${dateStr}`);
+  // Memoized staff lookup with cache to prevent duplicate computations
+  const getStaffForTeamAndDate = useMemo(() => {
+    const cache = new Map<string, StaffMember[]>();
     
-    const filtered = assignments.filter(a => {
-      const teamMatch = a.teamId === teamId;
-      const dateMatch = a.date === dateStr;
-      return teamMatch && dateMatch;
-    });
-    
-    console.log(`✅ [getStaffForTeamAndDate] Returning ${filtered.length} staff (already filtered for availability)`);
-
-    return filtered.map(a => ({
-      id: a.staffId,
-      name: a.staffName,
-      color: a.color || '#E3F2FD'
-    }));
+    return (teamId: string, date: Date): StaffMember[] => {
+      const dateStr = format(date, 'yyyy-MM-dd');
+      const cacheKey = `${teamId}-${dateStr}`;
+      
+      // Return cached result if available
+      if (cache.has(cacheKey)) {
+        return cache.get(cacheKey)!;
+      }
+      
+      const filtered = assignments.filter(a => {
+        const teamMatch = a.teamId === teamId;
+        const dateMatch = a.date === dateStr;
+        return teamMatch && dateMatch;
+      });
+      
+      const result = filtered.map(a => ({
+        id: a.staffId,
+        name: a.staffName,
+        color: a.color || '#E3F2FD'
+      }));
+      
+      cache.set(cacheKey, result);
+      return result;
+    };
   }, [assignments]);
 
   // Get available staff for a specific date - queries DB for correct date-specific availability
