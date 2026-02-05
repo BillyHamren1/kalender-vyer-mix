@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { 
   Calendar, 
@@ -47,7 +47,23 @@ const navigationItems: NavItem[] = [
 
 export function Sidebar3D() {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const location = useLocation();
+
+  // Auto-expand parent if a child route is active
+  useEffect(() => {
+    navigationItems.forEach(item => {
+      if (item.children?.some(child => location.pathname === child.url)) {
+        setExpandedItems(prev => prev.includes(item.url) ? prev : [...prev, item.url]);
+      }
+    });
+  }, [location.pathname]);
+
+  const toggleExpanded = (url: string) => {
+    setExpandedItems(prev => 
+      prev.includes(url) ? prev.filter(u => u !== url) : [...prev, url]
+    );
+  };
 
   return (
     <>
@@ -130,75 +146,130 @@ export function Sidebar3D() {
               const isParentActive = hasChildren 
                 ? item.children!.some(child => location.pathname === child.url)
                 : location.pathname === item.url || location.pathname.startsWith(item.url + '/');
+              const isExpanded = expandedItems.includes(item.url);
               
               return (
                 <div key={item.url}>
-                  <NavLink
-                    to={hasChildren ? item.children![0].url : item.url}
-                    className={cn(
-                      "group relative flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-300",
-                      "hover:bg-accent/50",
-                      isParentActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
-                    )}
-                    style={{
-                      animationDelay: `${index * 50}ms`,
-                      transform: isParentActive && !hasChildren ? "translateX(4px)" : undefined,
-                    }}
-                  >
-                    {/* Active Background (only for items without children) */}
-                    {isParentActive && !hasChildren && (
-                      <div
-                        className="absolute inset-0 rounded-xl bg-primary/10 border border-primary/20"
-                        style={{ boxShadow: "0 0 20px hsl(var(--primary) / 0.15)" }}
-                      />
-                    )}
-
-                    {/* Hover Effect */}
-                    <div
-                      className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                      style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%)" }}
-                    />
-
-                    {/* Icon */}
-                    <div
+                  {hasChildren ? (
+                    <button
+                      onClick={() => toggleExpanded(item.url)}
                       className={cn(
-                        "relative z-10 p-2 rounded-lg transition-all duration-300",
-                        isParentActive ? "bg-primary text-primary-foreground shadow-md" : "bg-muted/50 group-hover:bg-muted"
+                        "group relative flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-300 w-full text-left",
+                        "hover:bg-accent/50",
+                        isParentActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
                       )}
-                      style={{
-                        transform: isParentActive ? "perspective(100px) rotateY(-5deg)" : undefined,
-                        boxShadow: isParentActive ? "0 4px 12px hsl(var(--primary) / 0.3)" : undefined,
-                      }}
+                      style={{ animationDelay: `${index * 50}ms` }}
                     >
-                      <item.icon className="w-4 h-4" />
-                    </div>
-
-                    {/* Label */}
-                    {!isCollapsed && (
-                      <span className="relative z-10 font-medium text-sm flex-1">
-                        {item.title}
-                      </span>
-                    )}
-
-                    {/* Tooltip (collapsed) */}
-                    {isCollapsed && (
+                      {/* Hover Effect */}
+                      <div
+                        className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                        style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%)" }}
+                      />
+                      {/* Icon */}
                       <div
                         className={cn(
-                          "absolute left-full ml-3 px-3 py-2 rounded-lg bg-popover text-popover-foreground text-sm font-medium",
-                          "opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200",
-                          "shadow-lg border border-border whitespace-nowrap"
+                          "relative z-10 p-2 rounded-lg transition-all duration-300",
+                          isParentActive ? "bg-primary text-primary-foreground shadow-md" : "bg-muted/50 group-hover:bg-muted"
                         )}
-                        style={{ transform: "perspective(200px) rotateY(-5deg)" }}
+                        style={{
+                          transform: isParentActive ? "perspective(100px) rotateY(-5deg)" : undefined,
+                          boxShadow: isParentActive ? "0 4px 12px hsl(var(--primary) / 0.3)" : undefined,
+                        }}
                       >
-                        {item.title}
-                        <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-popover border-l border-b border-border rotate-45" />
+                        <item.icon className="w-4 h-4" />
                       </div>
-                    )}
-                  </NavLink>
-
+                      {/* Label */}
+                      {!isCollapsed && (
+                        <>
+                          <span className="relative z-10 font-medium text-sm flex-1">
+                            {item.title}
+                          </span>
+                          <ChevronDown 
+                            className={cn(
+                              "w-4 h-4 transition-transform duration-200 text-muted-foreground",
+                              isExpanded && "rotate-180"
+                            )} 
+                          />
+                        </>
+                      )}
+                      {/* Tooltip (collapsed) */}
+                      {isCollapsed && (
+                        <div
+                          className={cn(
+                            "absolute left-full ml-3 px-3 py-2 rounded-lg bg-popover text-popover-foreground text-sm font-medium",
+                            "opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200",
+                            "shadow-lg border border-border whitespace-nowrap"
+                          )}
+                          style={{ transform: "perspective(200px) rotateY(-5deg)" }}
+                        >
+                          {item.title}
+                          <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-popover border-l border-b border-border rotate-45" />
+                        </div>
+                      )}
+                    </button>
+                  ) : (
+                    <NavLink
+                      to={item.url}
+                      className={cn(
+                        "group relative flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-300",
+                        "hover:bg-accent/50",
+                        isParentActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                      )}
+                      style={{
+                        animationDelay: `${index * 50}ms`,
+                        transform: isParentActive ? "translateX(4px)" : undefined,
+                      }}
+                    >
+                      {/* Active Background */}
+                      {isParentActive && (
+                        <div
+                          className="absolute inset-0 rounded-xl bg-primary/10 border border-primary/20"
+                          style={{ boxShadow: "0 0 20px hsl(var(--primary) / 0.15)" }}
+                        />
+                      )}
+                      {/* Hover Effect */}
+                      <div
+                        className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                        style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%)" }}
+                      />
+                      {/* Icon */}
+                      <div
+                        className={cn(
+                          "relative z-10 p-2 rounded-lg transition-all duration-300",
+                          isParentActive ? "bg-primary text-primary-foreground shadow-md" : "bg-muted/50 group-hover:bg-muted"
+                        )}
+                        style={{
+                          transform: isParentActive ? "perspective(100px) rotateY(-5deg)" : undefined,
+                          boxShadow: isParentActive ? "0 4px 12px hsl(var(--primary) / 0.3)" : undefined,
+                        }}
+                      >
+                        <item.icon className="w-4 h-4" />
+                      </div>
+                      {/* Label */}
+                      {!isCollapsed && (
+                        <span className="relative z-10 font-medium text-sm flex-1">
+                          {item.title}
+                        </span>
+                      )}
+                      {/* Tooltip (collapsed) */}
+                      {isCollapsed && (
+                        <div
+                          className={cn(
+                            "absolute left-full ml-3 px-3 py-2 rounded-lg bg-popover text-popover-foreground text-sm font-medium",
+                            "opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200",
+                            "shadow-lg border border-border whitespace-nowrap"
+                          )}
+                          style={{ transform: "perspective(200px) rotateY(-5deg)" }}
+                        >
+                          {item.title}
+                          <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-popover border-l border-b border-border rotate-45" />
+                        </div>
+                      )}
+                    </NavLink>
+                  )}
                   {/* Sub-items */}
-                  {hasChildren && !isCollapsed && (
-                    <div className="ml-11 mt-1 space-y-1">
+                  {hasChildren && !isCollapsed && isExpanded && (
+                    <div className="ml-11 mt-1 space-y-1 animate-accordion-down">
                       {item.children!.map((child) => {
                         const isChildActive = location.pathname === child.url;
                         return (
