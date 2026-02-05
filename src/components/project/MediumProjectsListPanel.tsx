@@ -141,7 +141,7 @@ const MediumProjectsListPanel = () => {
                 <div
                   key={project.id}
                   onClick={() => navigate(`/project/${project.id}`)}
-                  className="group/card relative p-4 rounded-xl cursor-pointer transition-all duration-200 hover:-translate-y-0.5 border border-border/50 bg-gradient-to-br from-background to-muted/20 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
+                  className="group/card relative p-4 rounded-xl cursor-pointer transition-all duration-200 hover:-translate-y-0.5 border border-border bg-card shadow-sm hover:border-primary/50 hover:shadow-md"
                 >
                   {/* Hover arrow indicator */}
                   <div className="absolute right-3 top-3 opacity-0 group-hover/card:opacity-100 transition-opacity">
