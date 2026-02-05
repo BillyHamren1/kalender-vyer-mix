@@ -1,4 +1,5 @@
 import React from 'react';
+import { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserRoles, AppRole } from '@/hooks/useUserRoles';
@@ -18,7 +19,17 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRoles
   const [copied, setCopied] = useState(false);
   
   // Check if user came from /auth login (skip role check in that case)
-  const skipRoleCheck = (location.state as { skipRoleCheck?: boolean })?.skipRoleCheck === true;
+  // Check both location.state and sessionStorage for the flag
+  const skipRoleCheckState = (location.state as { skipRoleCheck?: boolean })?.skipRoleCheck === true;
+  const skipRoleCheckStorage = sessionStorage.getItem('skipRoleCheck') === 'true';
+  const skipRoleCheck = skipRoleCheckState || skipRoleCheckStorage;
+  
+  // Clear the sessionStorage flag after reading it (one-time use)
+  useEffect(() => {
+    if (skipRoleCheckStorage) {
+      sessionStorage.removeItem('skipRoleCheck');
+    }
+  }, [skipRoleCheckStorage]);
 
   // Show loading while auth or roles are loading
   if (authLoading || (user && rolesLoading)) {

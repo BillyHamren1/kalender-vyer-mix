@@ -37,6 +37,8 @@ const Auth: React.FC = () => {
   // Redirect if already logged in
   useEffect(() => {
     if (user) {
+      // Mark that user logged in via /auth to skip role check
+      sessionStorage.setItem('skipRoleCheck', 'true');
       navigate(from, { replace: true, state: { skipRoleCheck: true } });
     }
   }, [user, navigate, from]);
