@@ -9,7 +9,8 @@ import {
   ChevronDown,
   Sparkles,
   PieChart,
-  LayoutDashboard
+  LayoutDashboard,
+  Truck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +33,16 @@ const navigationItems: NavItem[] = [
       { title: "Projekt", url: "/economy/projects" },
       { title: "Personal", url: "/economy/staff" },
       { title: "Personalekonomi", url: "/economy/staff-revenue" },
+    ]
+  },
+  { 
+    title: "Logistikplanering", 
+    url: "/logistics", 
+    icon: Truck,
+    children: [
+      { title: "Transportplanering", url: "/logistics/planning" },
+      { title: "Ruttplanering", url: "/logistics/routes" },
+      { title: "Fordon", url: "/logistics/vehicles" },
     ]
   },
   { 

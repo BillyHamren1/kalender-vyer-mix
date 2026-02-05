@@ -33,6 +33,11 @@ import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import AuthResetPassword from "./pages/AuthResetPassword";
 
+// Logistics pages
+import LogisticsPlanning from "./pages/LogisticsPlanning";
+import LogisticsVehicles from "./pages/LogisticsVehicles";
+import LogisticsRoutes from "./pages/LogisticsRoutes";
+
 // Warehouse system pages
 import WarehouseDashboard from "./pages/WarehouseDashboard";
 import WarehouseCalendarPage from "./pages/WarehouseCalendarPage";
@@ -110,6 +115,12 @@ const AppContent = () => {
                 <Route path="/jobs/:id" element={<ProtectedRoute><JobDetail /></ProtectedRoute>} />
                 <Route path="/large-project/:id" element={<ProtectedRoute><LargeProjectDetail /></ProtectedRoute>} />
                 <Route path="/api-docs" element={<ProtectedRoute><MainSystemLayout><APIDocumentation /></MainSystemLayout></ProtectedRoute>} />
+
+                {/* Logistics Routes - Protected */}
+                <Route path="/logistics" element={<ProtectedRoute><MainSystemLayout><LogisticsPlanning /></MainSystemLayout></ProtectedRoute>} />
+                <Route path="/logistics/planning" element={<ProtectedRoute><MainSystemLayout><LogisticsPlanning /></MainSystemLayout></ProtectedRoute>} />
+                <Route path="/logistics/routes" element={<ProtectedRoute><MainSystemLayout><LogisticsRoutes /></MainSystemLayout></ProtectedRoute>} />
+                <Route path="/logistics/vehicles" element={<ProtectedRoute><MainSystemLayout><LogisticsVehicles /></MainSystemLayout></ProtectedRoute>} />
 
                 {/* Warehouse System Routes - Protected */}
                 <Route path="/warehouse" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseDashboard /></WarehouseSystemLayout></ProtectedRoute>} />
