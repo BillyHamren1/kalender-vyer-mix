@@ -48,7 +48,7 @@ export const useRealTimeCalendarEvents = () => {
     return stored ? new Date(stored) : new Date();
   });
 
-  // Enhanced event loading with better data mapping
+  // Enhanced event loading with batch fetching (replaces N+1 queries)
   const loadEvents = useCallback(async () => {
     try {
       console.log('Loading calendar events...');
@@ -57,65 +57,65 @@ export const useRealTimeCalendarEvents = () => {
       const calendarEvents = await fetchCalendarEvents();
       
       if (activeRef.current) {
-        // Enhance events with booking data for better hover information
-        const enhancedEvents = await Promise.all(
-          calendarEvents.map(async (event) => {
-            console.log('Processing event:', event.id, 'with booking ID:', event.bookingId);
-            
-            if (event.bookingId) {
-              try {
-                // Fetch booking details for enhanced hover data including project info
-                const { data: booking } = await supabase
-                  .from('bookings')
-                  .select(`
-                    *,
-                    booking_products (
-                      name,
-                      quantity,
-                      notes
-                    )
-                  `)
-                  .eq('id', event.bookingId)
-                  .single();
-
-                if (booking) {
-                  console.log('Enhanced event with booking data:', {
-                    eventId: event.id,
-                    bookingNumber: booking.booking_number,
-                    deliveryCity: booking.delivery_city,
-                    projectName: booking.assigned_project_name
-                  });
-
-                  return {
-                    ...event,
-                    bookingNumber: booking.booking_number,
-                    extendedProps: {
-                      ...event.extendedProps,
-                      client: booking.client,
-                      deliveryAddress: booking.deliveryaddress,
-                      deliveryCity: booking.delivery_city,
-                      deliveryPostalCode: booking.delivery_postal_code,
-                      exactTimeNeeded: booking.exact_time_needed,
-                      exactTimeInfo: booking.exact_time_info,
-                      internalNotes: booking.internalnotes,
-                      carryMoreThan10m: booking.carry_more_than_10m,
-                      groundNailsAllowed: booking.ground_nails_allowed,
-                      products: booking.booking_products || [],
-                      bookingNumber: booking.booking_number,
-                      booking_id: booking.id,
-                      assignedProjectId: booking.assigned_project_id,
-                      assignedProjectName: booking.assigned_project_name,
-                      assignedToProject: booking.assigned_to_project
-                    }
-                  };
-                }
-              } catch (error) {
-                console.warn(`Failed to fetch booking details for event ${event.id}:`, error);
+        // Collect all booking IDs for batch fetching (instead of N+1 queries)
+        const bookingIds = calendarEvents
+          .filter(e => e.bookingId)
+          .map(e => e.bookingId);
+        
+        const uniqueBookingIds = [...new Set(bookingIds)];
+        console.log(`Batch fetching ${uniqueBookingIds.length} bookings (instead of ${bookingIds.length} individual queries)`);
+        
+        // Single batch query for all bookings
+        let bookingMap = new Map<string, any>();
+        if (uniqueBookingIds.length > 0) {
+          const { data: bookings, error } = await supabase
+            .from('bookings')
+            .select(`
+              id, client, booking_number, deliveryaddress, delivery_city, 
+              delivery_postal_code, exact_time_needed, exact_time_info,
+              internalnotes, carry_more_than_10m, ground_nails_allowed,
+              assigned_project_id, assigned_project_name, assigned_to_project,
+              booking_products (name, quantity, notes)
+            `)
+            .in('id', uniqueBookingIds);
+          
+          if (error) {
+            console.error('Error batch fetching bookings:', error);
+          } else {
+            bookingMap = new Map(bookings?.map(b => [b.id, b]) || []);
+            console.log(`Fetched ${bookingMap.size} bookings in one query`);
+          }
+        }
+        
+        // Enhance events using the pre-fetched booking data (no async, pure map)
+        const enhancedEvents = calendarEvents.map(event => {
+          if (event.bookingId && bookingMap.has(event.bookingId)) {
+            const booking = bookingMap.get(event.bookingId);
+            return {
+              ...event,
+              bookingNumber: booking.booking_number,
+              extendedProps: {
+                ...event.extendedProps,
+                client: booking.client,
+                deliveryAddress: booking.deliveryaddress,
+                deliveryCity: booking.delivery_city,
+                deliveryPostalCode: booking.delivery_postal_code,
+                exactTimeNeeded: booking.exact_time_needed,
+                exactTimeInfo: booking.exact_time_info,
+                internalNotes: booking.internalnotes,
+                carryMoreThan10m: booking.carry_more_than_10m,
+                groundNailsAllowed: booking.ground_nails_allowed,
+                products: booking.booking_products || [],
+                bookingNumber: booking.booking_number,
+                booking_id: booking.id,
+                assignedProjectId: booking.assigned_project_id,
+                assignedProjectName: booking.assigned_project_name,
+                assignedToProject: booking.assigned_to_project
               }
-            }
-            return event;
-          })
-        );
+            };
+          }
+          return event;
+        });
 
         setEvents(enhancedEvents);
         console.log(`Loaded ${enhancedEvents.length} calendar events with enhanced data`);
