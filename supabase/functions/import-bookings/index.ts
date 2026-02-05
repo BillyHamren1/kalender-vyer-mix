@@ -1,3 +1,4 @@
+// Import bookings from external API - filters out bookings before 2026-01-01
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -819,17 +820,18 @@ serve(async (req) => {
 
     console.log(`Found ${existingBookings?.length || 0} existing bookings in database`)
 
-    // Helper to check if a booking has any future dates
+    // Helper to check if a booking has any dates >= 2026-01-01
+    // This prevents syncing old/historical bookings back into the system
+    const CUTOFF_DATE = new Date('2026-01-01');
+    CUTOFF_DATE.setHours(0, 0, 0, 0);
+    
     const hasFutureDates = (booking: any): boolean => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // Start of today
-      
       const dates = [booking.rigdaydate, booking.eventdate, booking.rigdowndate].filter(Boolean);
       if (dates.length === 0) return true; // No dates = allow import (edge case)
       
       return dates.some(dateStr => {
         const date = new Date(dateStr);
-        return date >= today;
+        return date >= CUTOFF_DATE;
       });
     };
 
