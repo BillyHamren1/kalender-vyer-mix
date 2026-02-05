@@ -21,6 +21,11 @@ interface SsoError {
   message?: string;
 }
 
+// Generate a fingerprint from the token signature for deduplication
+function getTokenFingerprint(signature: string): string {
+  return signature.slice(0, 32); // First 32 chars of signature is unique enough
+}
+
 function sendSsoResponse(success: boolean, error?: SsoError) {
   // Endast skicka om vi är i en iframe
   if (window.parent === window) return;
@@ -37,18 +42,48 @@ function sendSsoResponse(success: boolean, error?: SsoError) {
   }
 }
 
+// Use sessionStorage key for cross-render deduplication
+const SSO_PROCESSED_KEY = 'sso_last_processed_fingerprint';
+const SSO_PROCESSING_KEY = 'sso_currently_processing';
+
 export function useSsoListener() {
   const isProcessingRef = useRef(false);
+  const lastProcessedRef = useRef<string | null>(null);
 
   const verifySsoToken = useCallback(async (ssoToken: SsoToken) => {
-    // Förhindra dubbel-verifiering
+    const fingerprint = getTokenFingerprint(ssoToken.signature);
+    
+    // Check 1: Already processed this exact token (in-memory)
+    if (lastProcessedRef.current === fingerprint) {
+      console.log('[SSO] Token already processed (memory), skipping:', fingerprint);
+      return;
+    }
+    
+    // Check 2: Already processed this token (sessionStorage - survives React Strict Mode double-mount)
+    const storedFingerprint = sessionStorage.getItem(SSO_PROCESSED_KEY);
+    if (storedFingerprint === fingerprint) {
+      console.log('[SSO] Token already processed (storage), skipping:', fingerprint);
+      return;
+    }
+    
+    // Check 3: Another tab/instance is currently processing
+    const currentlyProcessing = sessionStorage.getItem(SSO_PROCESSING_KEY);
+    if (currentlyProcessing === fingerprint) {
+      console.log('[SSO] Token currently being processed elsewhere, skipping:', fingerprint);
+      return;
+    }
+    
+    // Check 4: In-memory processing flag
     if (isProcessingRef.current) {
       console.log('[SSO] Already processing a token, skipping');
       return;
     }
     
+    // Lock immediately - both in-memory and sessionStorage
     isProcessingRef.current = true;
-    console.log('[SSO] Starting verification for:', ssoToken.payload.email);
+    sessionStorage.setItem(SSO_PROCESSING_KEY, fingerprint);
+    
+    console.log('[SSO] Starting verification for:', ssoToken.payload.email, 'fingerprint:', fingerprint);
 
     try {
       const response = await fetch(`https://pihrhltinhewhoxefjxv.supabase.co/functions/v1/verify-sso-token`, {
@@ -62,7 +97,6 @@ export function useSsoListener() {
       if (!response.ok || !data.success) {
         console.error('[SSO] Verification failed:', data);
         sendSsoResponse(false, { status: response.status, code: data.error_code, message: data.message });
-        isProcessingRef.current = false;
         return;
       }
 
@@ -77,20 +111,22 @@ export function useSsoListener() {
       if (sessionError) {
         console.error('[SSO] Session verification failed:', sessionError);
         sendSsoResponse(false, { status: 500, code: 'SESSION_VERIFY_FAILED', message: sessionError.message });
-        isProcessingRef.current = false;
         return;
       }
 
+      // Mark as successfully processed AFTER session is established
+      lastProcessedRef.current = fingerprint;
+      sessionStorage.setItem(SSO_PROCESSED_KEY, fingerprint);
+      
       console.log('[SSO] Session established successfully for:', data.user.email);
       sendSsoResponse(true);
-      
-      // Sessionen är nu aktiv - ingen reload behövs om komponenter lyssnar på auth state changes
 
     } catch (err) {
       console.error('[SSO] Exception during verification:', err);
       sendSsoResponse(false, { status: 500, code: 'NETWORK_ERROR', message: String(err) });
     } finally {
       isProcessingRef.current = false;
+      sessionStorage.removeItem(SSO_PROCESSING_KEY);
     }
   }, []);
 
@@ -114,15 +150,16 @@ export function useSsoListener() {
       }
     }
 
-    // 2. Lyssna på postMessage som fallback
+    // 2. Lyssna på postMessage
     function handleMessage(event: MessageEvent) {
       const data = event.data;
       if (data?.type === 'SSO_TOKEN') {
         console.log('[SSO] Received SSO_TOKEN via postMessage');
         
-        // Försök med base64-variant först, sedan det parsade objektet
+        // Försök med olika format som Hubben kan skicka
         let ssoToken: SsoToken | null = null;
         
+        // Format 1: event.data.sso_token_b64 (base64-kodat)
         if (data.sso_token_b64) {
           try {
             ssoToken = JSON.parse(atob(data.sso_token_b64));
@@ -131,8 +168,14 @@ export function useSsoListener() {
           }
         }
         
+        // Format 2: event.data.sso_token (direkt objekt)
         if (!ssoToken && data.sso_token) {
           ssoToken = data.sso_token;
+        }
+        
+        // Format 3: event.data.token (enligt dokumentationen)
+        if (!ssoToken && data.token) {
+          ssoToken = data.token;
         }
         
         if (ssoToken) {
