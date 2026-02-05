@@ -1,31 +1,64 @@
 
-## Hoppa över rollkontroll vid manuell inloggning från /auth
+## Fixa SSO Race Condition
 
-### Vad jag kommer göra
-Ändra så att användare som loggar in via `/auth`-sidan (lösenord, magic link, eller password reset) kommer in i appen även om de saknar roller i `user_roles`-tabellen. Istället för att visa "Åtkomst nekad" vid inloggning får de en tydlig vy som förklarar att de behöver kontakta admin för att få roller tilldelade.
+### Problemet
+Loggarna visar att edge function:en anropas 10+ gånger på samma sekund med samma email. Varje anrop genererar en ny magic link, vilket invaliderar alla tidigare. När frontend sedan kör `verifyOtp` med den första tokenen är den redan ogiltig.
 
-### Teknisk lösning
+Felet "Email link is invalid or has expired" uppstår för att:
+1. Hubben skickar SSO_TOKEN flera gånger (eller postMessage triggas multipelt)
+2. `isProcessingRef` skyddar inte mot parallella asynkrona anrop som redan startats
+3. Supabase magic link tokens är engångs-tokens
 
-#### 1. Lägg till flagga i `location.state` när inloggning lyckas
-När användaren loggar in från `/auth` sätter jag en flagga `skipRoleCheck: true` i navigerings-state. Detta följer med till nästa sida.
+### Lösning
+Ändra autentiseringsflödet till att använda Supabase Admin API för att generera en fullständig session direkt, istället för magic link som måste verifieras separat.
 
-**Fil:** `src/pages/Auth.tsx`
-- Efter lyckad inloggning: `navigate(from, { replace: true, state: { skipRoleCheck: true } })`
+### Tekniska ändringar
 
-#### 2. Uppdatera `ProtectedRoute` att respektera flaggan
-`ProtectedRoute` kollar om `location.state?.skipRoleCheck` är satt. Om ja, hoppar den över rollkontroll och släpper igenom användaren.
+#### 1. Edge Function - Returnera session direkt
+Uppdatera `verify-sso-token` att använda `admin.generateLink` med korrekt hantering och returnera `hashed_token` som kan verifieras klient-sidan, MEN lägg också till möjlighet att returnera komplett session.
 
-**Fil:** `src/components/auth/ProtectedRoute.tsx`
-- Lägg till: `const skipRoleCheck = (location.state as any)?.skipRoleCheck === true;`
-- I access-kontrollen: `if (skipRoleCheck || hasAccess) { return <>{children}</>; }`
+Alternativt: Använd en helt annan approach - generera en custom session token som kan sättas direkt.
 
-#### 3. Alternativ: "Roller saknas"-vy inne i appen
-Om du vill att användare som saknar roller ska se en specifik sida inne i appen (inte blockeras helt), kan vi skapa en `NoRolesPage` som visas när användaren är inloggad men saknar roller. Detta är säkrare än att helt hoppa över rollkontroll.
+#### 2. Frontend - Starkare deduplicering
+Förbättra `useSsoListener` med:
+- **Token-fingerprint tracking**: Spara hash av senast processade token i sessionStorage
+- **Striktare lås**: Sätt flag INNAN async-anrop påbörjas, med timeout-reset
+- **Debounce**: Vänta några ms innan verifiering startar för att undvika parallella anrop
 
-### Säkerhetsövervägande
-- Detta innebär att användare utan roller kan "komma in" i appen, men de får ändå inte åtkomst till data pga RLS-policies i databasen.
-- Om du hellre vill ha en dedikerad "väntar på roller"-sida istället för att helt skippa kontrollen, kan jag implementera det istället.
+#### 3. Alternativ: Session direkt via Admin API
+Istället för magic link, kan edge function:en skapa sessionen direkt och returnera access_token + refresh_token som frontend sätter via `supabase.auth.setSession()`.
+
+### Rekommenderad implementation
+
+```text
+┌──────────────────────────────────────────────────────────────┐
+│  FÖRE (nuvarande - race condition)                           │
+├──────────────────────────────────────────────────────────────┤
+│  Hub → postMessage (x5)                                       │
+│    ↓                                                          │
+│  useSsoListener → verifySsoToken (x5 parallellt)             │
+│    ↓                                                          │
+│  Edge Function → generateLink (x5) → 5 olika tokens          │
+│    ↓                                                          │
+│  Frontend → verifyOtp med token #1 → INVALID (redan ersatt)  │
+└──────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│  EFTER (fixat)                                                │
+├──────────────────────────────────────────────────────────────┤
+│  Hub → postMessage (x5)                                       │
+│    ↓                                                          │
+│  useSsoListener → token-fingerprint check → endast 1 anrop   │
+│    ↓                                                          │
+│  Edge Function → generateLink → 1 token                       │
+│    ↓                                                          │
+│  Frontend → verifyOtp → SESSION ESTABLISHED                   │
+└──────────────────────────────────────────────────────────────┘
+```
 
 ### Filer som ändras
-- `src/pages/Auth.tsx` - lägger till state vid navigation efter login
-- `src/components/auth/ProtectedRoute.tsx` - respekterar skipRoleCheck-flagga
+- **src/hooks/useSsoListener.ts** - Lägg till token-fingerprint tracking för att förhindra duplicerade verifieringar
+- **supabase/functions/verify-sso-token/index.ts** - Eventuellt optimera för att hantera duplicerade requests
+
+### Säkerhetsnotering
+Denna ändring påverkar inte säkerheten - signaturverifieringen sker fortfarande i edge function:en.
