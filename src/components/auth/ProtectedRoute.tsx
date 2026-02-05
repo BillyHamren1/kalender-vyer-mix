@@ -16,6 +16,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRoles
   const { roles, hasPlanningAccess, hasAnyRole, isLoading: rolesLoading } = useUserRoles();
   const location = useLocation();
   const [copied, setCopied] = useState(false);
+  
+  // Check if user came from /auth login (skip role check in that case)
+  const skipRoleCheck = (location.state as { skipRoleCheck?: boolean })?.skipRoleCheck === true;
 
   // Show loading while auth or roles are loading
   if (authLoading || (user && rolesLoading)) {
@@ -38,6 +41,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRoles
   const hasAccess = requiredRoles 
     ? hasAnyRole(requiredRoles) 
     : hasPlanningAccess; // Default: require planning access
+  
+  // If user logged in via /auth, skip role check and let them in
+  if (skipRoleCheck) {
+    return <>{children}</>;
+  }
 
   const copyUserId = () => {
     if (user?.id) {
