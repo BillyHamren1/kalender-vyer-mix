@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Skapa session för användaren med admin-API
+    // Skapa session direkt med admin-API
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
@@ -108,33 +108,74 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false }
     });
 
-    // Generera en magic link (för att få en giltig session)
-    console.log('[SSO] Generating magic link for:', payload.email);
-    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-      type: 'magiclink',
-      email: payload.email,
+    // 1. Kontrollera om användaren finns
+    console.log('[SSO] Checking if user exists:', payload.user_id);
+    const { data: existingUser, error: getUserError } = await supabase.auth.admin.getUserById(payload.user_id);
+
+    if (getUserError || !existingUser?.user) {
+      // Användaren finns inte - skapa den
+      console.log('[SSO] User does not exist, creating:', payload.email);
+      const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+        id: payload.user_id,
+        email: payload.email,
+        email_confirm: true,
+        user_metadata: { 
+          full_name: normalizedPayload.full_name,
+          organization_id: payload.organization_id 
+        }
+      });
+
+      if (createError) {
+        console.error('[SSO] Failed to create user:', createError);
+        return new Response(
+          JSON.stringify({ success: false, error_code: 'USER_CREATE_FAILED', message: createError.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      console.log('[SSO] User created successfully:', newUser?.user?.id);
+    } else {
+      console.log('[SSO] User exists:', existingUser.user.id);
+    }
+
+    // 2. Generera tillfälligt lösenord och logga in
+    const tempPassword = crypto.randomUUID();
+    
+    console.log('[SSO] Setting temporary password for user');
+    const { error: updateError } = await supabase.auth.admin.updateUserById(payload.user_id, {
+      password: tempPassword
     });
 
-    if (linkError || !linkData) {
-      console.error('[SSO] Generate link error:', linkError);
+    if (updateError) {
+      console.error('[SSO] Failed to set temp password:', updateError);
       return new Response(
-        JSON.stringify({ success: false, error_code: 'SESSION_CREATE_FAILED', message: linkError?.message }),
+        JSON.stringify({ success: false, error_code: 'PASSWORD_UPDATE_FAILED', message: updateError.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Extrahera tokens från länken
-    const url = new URL(linkData.properties.action_link);
-    const accessToken = url.searchParams.get('token') || linkData.properties.hashed_token;
+    // 3. Logga in med tillfälligt lösenord för att få session
+    console.log('[SSO] Signing in with temporary password');
+    const { data: sessionData, error: signInError } = await supabase.auth.signInWithPassword({
+      email: payload.email,
+      password: tempPassword,
+    });
 
-    console.log('[SSO] Successfully verified and generated session for:', payload.email);
+    if (signInError || !sessionData?.session) {
+      console.error('[SSO] Sign in failed:', signInError);
+      return new Response(
+        JSON.stringify({ success: false, error_code: 'SIGN_IN_FAILED', message: signInError?.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
+    console.log('[SSO] Session created successfully for:', payload.email);
+
+    // 4. Returnera access_token och refresh_token
     return new Response(
       JSON.stringify({ 
         success: true,
-        access_token: accessToken,
-        hashed_token: linkData.properties.hashed_token,
-        verification_type: 'magiclink',
+        access_token: sessionData.session.access_token,
+        refresh_token: sessionData.session.refresh_token,
         user: {
           id: payload.user_id,
           email: payload.email,
