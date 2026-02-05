@@ -2397,12 +2397,14 @@ export type Database = {
       vehicles: {
         Row: {
           assigned_driver_id: string | null
+          company_name: string | null
           created_at: string
           current_heading: number | null
           current_lat: number | null
           current_lng: number | null
           id: string
           is_active: boolean | null
+          is_external: boolean
           last_gps_update: string | null
           max_volume_m3: number | null
           max_weight_kg: number | null
@@ -2413,12 +2415,14 @@ export type Database = {
         }
         Insert: {
           assigned_driver_id?: string | null
+          company_name?: string | null
           created_at?: string
           current_heading?: number | null
           current_lat?: number | null
           current_lng?: number | null
           id?: string
           is_active?: boolean | null
+          is_external?: boolean
           last_gps_update?: string | null
           max_volume_m3?: number | null
           max_weight_kg?: number | null
@@ -2429,12 +2433,14 @@ export type Database = {
         }
         Update: {
           assigned_driver_id?: string | null
+          company_name?: string | null
           created_at?: string
           current_heading?: number | null
           current_lat?: number | null
           current_lng?: number | null
           id?: string
           is_active?: boolean | null
+          is_external?: boolean
           last_gps_update?: string | null
           max_volume_m3?: number | null
           max_weight_kg?: number | null

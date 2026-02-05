@@ -10,6 +10,8 @@ export interface Vehicle {
   max_volume_m3: number;
   vehicle_type: 'van' | 'truck' | 'trailer' | 'other';
   is_active: boolean;
+  is_external: boolean;
+  company_name: string | null;
   current_lat: number | null;
   current_lng: number | null;
   current_heading: number | null;
@@ -26,6 +28,8 @@ export interface VehicleFormData {
   max_volume_m3: number;
   vehicle_type: 'van' | 'truck' | 'trailer' | 'other';
   is_active: boolean;
+  is_external: boolean;
+  company_name?: string;
 }
 
 export const useVehicles = () => {
