@@ -46,7 +46,7 @@ const navigationItems: NavItem[] = [
     ]
   },
   { 
-    title: "Personaladministration", 
+    title: "Personal-\nadministration", 
     url: "/staff-management", 
     icon: Users,
     children: [
@@ -192,7 +192,7 @@ export function Sidebar3D() {
                       {/* Label */}
                       {!isCollapsed && (
                         <>
-                          <span className="relative z-10 font-medium text-sm flex-1">
+                          <span className="relative z-10 font-medium text-sm flex-1 whitespace-pre-line leading-tight">
                             {item.title}
                           </span>
                           <ChevronDown 
@@ -258,7 +258,7 @@ export function Sidebar3D() {
                       </div>
                       {/* Label */}
                       {!isCollapsed && (
-                        <span className="relative z-10 font-medium text-sm flex-1">
+                        <span className="relative z-10 font-medium text-sm flex-1 whitespace-pre-line leading-tight">
                           {item.title}
                         </span>
                       )}
