@@ -119,34 +119,76 @@ Deno.serve(async (req) => {
 
 // ==================== HANDLERS ====================
 
-async function handleLogin(supabase: any, data: { username: string; password: string }) {
-  const { username, password } = data
+async function handleLogin(supabase: any, data: { username?: string; password: string; email?: string }) {
+  const { password } = data
+  const identifier = data.email || data.username
 
-  if (!username || !password) {
+  if (!identifier || !password) {
     return new Response(
-      JSON.stringify({ error: 'Username and password required' }),
+      JSON.stringify({ error: 'Email/username and password required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
-  // Find staff account
-  const { data: account, error: accountError } = await supabase
-    .from('staff_accounts')
-    .select('staff_id, username, password_hash')
-    .eq('username', username.toLowerCase())
-    .maybeSingle()
+  const normalizedIdentifier = identifier.trim().toLowerCase()
+  let account: any = null
 
-  if (accountError) {
-    console.error('Login query error:', accountError)
-    return new Response(
-      JSON.stringify({ error: 'Login failed' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+  // Check if identifier looks like an email
+  const isEmail = normalizedIdentifier.includes('@')
+
+  if (isEmail) {
+    // Find staff member by email first, then get their account
+    const { data: staffByEmail, error: emailError } = await supabase
+      .from('staff_members')
+      .select('id')
+      .eq('email', normalizedIdentifier)
+      .maybeSingle()
+
+    if (emailError) {
+      console.error('Email lookup error:', emailError)
+      return new Response(
+        JSON.stringify({ error: 'Login failed' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (staffByEmail) {
+      const { data: acctByStaff, error: acctError } = await supabase
+        .from('staff_accounts')
+        .select('staff_id, username, password_hash')
+        .eq('staff_id', staffByEmail.id)
+        .maybeSingle()
+
+      if (acctError) {
+        console.error('Account lookup error:', acctError)
+        return new Response(
+          JSON.stringify({ error: 'Login failed' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      account = acctByStaff
+    }
+  } else {
+    // Legacy username-based lookup
+    const { data: acctByUsername, error: accountError } = await supabase
+      .from('staff_accounts')
+      .select('staff_id, username, password_hash')
+      .eq('username', normalizedIdentifier)
+      .maybeSingle()
+
+    if (accountError) {
+      console.error('Login query error:', accountError)
+      return new Response(
+        JSON.stringify({ error: 'Login failed' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    account = acctByUsername
   }
 
   if (!account) {
     return new Response(
-      JSON.stringify({ error: 'Invalid username or password' }),
+      JSON.stringify({ error: 'Invalid email or password' }),
       { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }

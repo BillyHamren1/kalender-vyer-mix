@@ -8,7 +8,7 @@ import { Loader2, LogIn, Zap } from 'lucide-react';
 
 const MobileLogin = () => {
   const { isAuthenticated, login, isLoading: authLoading } = useMobileAuth();
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -29,17 +29,17 @@ const MobileLogin = () => {
     e.preventDefault();
     setError('');
     
-    if (!username.trim() || !password.trim()) {
-      setError('Fyll i användarnamn och lösenord');
+    if (!email.trim() || !password.trim()) {
+      setError('Fyll i e-postadress och lösenord');
       return;
     }
 
     setIsLoading(true);
     try {
-      await login(username.trim(), password);
+      await login(email.trim(), password);
     } catch (err: any) {
-      setError(err.message === 'Invalid username or password' 
-        ? 'Fel användarnamn eller lösenord' 
+      setError(err.message === 'Invalid email or password' 
+        ? 'Fel e-postadress eller lösenord' 
         : 'Inloggningen misslyckades');
     } finally {
       setIsLoading(false);
@@ -63,15 +63,17 @@ const MobileLogin = () => {
         {/* Login form */}
         <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="username" className="text-sm font-medium">Användarnamn</Label>
+            <Label htmlFor="email" className="text-sm font-medium">E-postadress</Label>
             <Input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="ditt.namn"
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="namn@foretag.se"
               autoCapitalize="none"
               autoCorrect="off"
+              autoComplete="email"
+              inputMode="email"
               className="h-12 text-base rounded-xl border-border bg-card"
             />
           </div>

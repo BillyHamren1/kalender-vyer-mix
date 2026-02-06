@@ -117,8 +117,8 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
 
 // API methods
 export const mobileApi = {
-  login: (username: string, password: string) =>
-    callApi<{ success: boolean; token: string; staff: MobileStaff }>('login', { username, password }),
+  login: (email: string, password: string) =>
+    callApi<{ success: boolean; token: string; staff: MobileStaff }>('login', { email, password }),
 
   me: () => callApi<{ staff: MobileStaff }>('me'),
 
