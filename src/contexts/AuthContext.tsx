@@ -35,6 +35,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        console.log('[Auth] State change:', event);
+        
+        // Handle token refresh errors - clear invalid session
+        if (event === 'TOKEN_REFRESHED' && !session) {
+          console.warn('[Auth] Token refresh failed, clearing session');
+          setSession(null);
+          setUser(null);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Handle sign out or session expiry
+        if (event === 'SIGNED_OUT') {
+          console.log('[Auth] User signed out');
+          setSession(null);
+          setUser(null);
+          setIsLoading(false);
+          return;
+        }
+        
         setSession(session);
         setUser(session?.user ?? null);
         setIsLoading(false);
@@ -42,7 +62,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('[Auth] Failed to get session:', error.message);
+        // Clear any stale session data on error
+        setSession(null);
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+      
       setSession(session);
       setUser(session?.user ?? null);
       setIsLoading(false);
