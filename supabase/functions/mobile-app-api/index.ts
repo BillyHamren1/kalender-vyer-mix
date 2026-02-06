@@ -825,12 +825,11 @@ async function handleGetBookingDetails(supabase: any, staffId: string, data: { b
     )
   }
 
-  // Fetch products with parent relationship fields for grouping
+  // Fetch products
   const { data: products } = await supabase
     .from('booking_products')
-    .select('id, name, quantity, notes, parent_product_id, parent_package_id, is_package_component')
+    .select('id, name, quantity, notes')
     .eq('booking_id', booking_id)
-    .order('created_at', { ascending: true })
 
   // Fetch attachments
   const { data: attachments } = await supabase
