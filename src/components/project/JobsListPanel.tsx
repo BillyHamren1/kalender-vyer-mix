@@ -24,7 +24,11 @@ const statusColors: Record<JobStatus, string> = {
   completed: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
 };
 
-const JobsListPanel = () => {
+interface JobsListPanelProps {
+  completedOnly?: boolean;
+}
+
+const JobsListPanel = ({ completedOnly = false }: JobsListPanelProps) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -48,7 +52,9 @@ const JobsListPanel = () => {
   const filteredJobs = jobs.filter(job => {
     const matchesSearch = job.name.toLowerCase().includes(search.toLowerCase()) ||
       job.booking?.client?.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || job.status === statusFilter;
+    const matchesStatus = statusFilter === 'all'
+      ? (completedOnly ? job.status === 'completed' : job.status !== 'completed')
+      : job.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 

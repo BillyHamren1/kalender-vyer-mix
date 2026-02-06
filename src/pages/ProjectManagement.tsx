@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus, FolderKanban, Sparkles } from "lucide-react";
+import { Plus, FolderKanban, Sparkles, Archive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ProjectCard from "@/components/project/ProjectCard";
 import CreateProjectWizard from "@/components/project/CreateProjectWizard";
@@ -67,15 +67,26 @@ const ProjectManagement = () => {
                 </p>
               </div>
             </div>
-            <Button 
-              onClick={() => { setSelectedBookingId(null); setIsCreateOpen(true); }}
-              size="lg"
-              className="shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5 rounded-xl px-6"
-              style={{ boxShadow: '0 4px 20px hsl(var(--primary) / 0.25)' }}
-            >
-              <Plus className="h-5 w-5 mr-2" />
-              Nytt projekt
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button 
+                onClick={() => navigate('/projects/archive')}
+                variant="outline"
+                size="lg"
+                className="rounded-xl px-5"
+              >
+                <Archive className="h-5 w-5 mr-2" />
+                Arkiv
+              </Button>
+              <Button 
+                onClick={() => { setSelectedBookingId(null); setIsCreateOpen(true); }}
+                size="lg"
+                className="shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5 rounded-xl px-6"
+                style={{ boxShadow: '0 4px 20px hsl(var(--primary) / 0.25)' }}
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                Nytt projekt
+              </Button>
+            </div>
           </div>
         </div>
 

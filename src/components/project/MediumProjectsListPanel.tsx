@@ -12,7 +12,11 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 
-const MediumProjectsListPanel = () => {
+interface MediumProjectsListPanelProps {
+  completedOnly?: boolean;
+}
+
+const MediumProjectsListPanel = ({ completedOnly = false }: MediumProjectsListPanelProps) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -35,7 +39,9 @@ const MediumProjectsListPanel = () => {
   const filteredProjects = projects.filter(project => {
     const matchesSearch = project.name.toLowerCase().includes(search.toLowerCase()) ||
       project.booking?.client?.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || project.status === statusFilter;
+    const matchesStatus = statusFilter === 'all'
+      ? (completedOnly ? project.status === 'completed' : project.status !== 'completed')
+      : project.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
