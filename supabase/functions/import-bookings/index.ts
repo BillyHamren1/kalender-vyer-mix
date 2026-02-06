@@ -927,30 +927,34 @@ serve(async (req) => {
                 console.log(`Removed warehouse events for CANCELLED booking ${existingBooking.id}`)
               }
               
-              // Handle linked project - set status to 'cancelled' instead of deleting
-              const { data: linkedProject, error: projectFetchError } = await supabase
+              // Handle linked project - set status to 'completed' (not 'cancelled' which is invalid)
+              const { error: projectUpdateError } = await supabase
                 .from('projects')
-                .select('id, status')
-                .eq('booking_id', existingBooking.id)
-                .limit(1)
+                .update({ 
+                  status: 'completed',
+                  updated_at: new Date().toISOString()
+                })
+                .eq('booking_id', existingBooking.id);
               
-              if (!projectFetchError && linkedProject && linkedProject.length > 0) {
-                const project = linkedProject[0];
-                console.log(`Found linked project ${project.id} for CANCELLED booking - updating status to cancelled`);
-                
-                const { error: projectUpdateError } = await supabase
-                  .from('projects')
-                  .update({ 
-                    status: 'cancelled',
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('id', project.id);
-                
-                if (projectUpdateError) {
-                  console.error(`Error updating project status to cancelled:`, projectUpdateError);
-                } else {
-                  console.log(`Updated project ${project.id} status to cancelled`);
-                }
+              if (projectUpdateError) {
+                console.error(`Error updating project status to completed for CANCELLED booking:`, projectUpdateError);
+              } else {
+                console.log(`Updated projects for CANCELLED booking ${existingBooking.id} to completed`);
+              }
+
+              // Also complete linked jobs (small projects)
+              const { error: jobUpdateError } = await supabase
+                .from('jobs')
+                .update({ 
+                  status: 'completed',
+                  updated_at: new Date().toISOString()
+                })
+                .eq('booking_id', existingBooking.id);
+              
+              if (jobUpdateError) {
+                console.error(`Error updating jobs status to completed for CANCELLED booking:`, jobUpdateError);
+              } else {
+                console.log(`Updated jobs for CANCELLED booking ${existingBooking.id} to completed`);
               }
               
               // Remove packing projects for cancelled bookings
@@ -1355,6 +1359,50 @@ serve(async (req) => {
                 console.error(`Error removing warehouse events:`, deleteWhError);
               } else {
                 console.log(`Removed warehouse events for booking ${existingBooking.id}`);
+              }
+
+              // Complete linked projects when booking is no longer confirmed
+              const { error: projCompleteErr } = await supabase
+                .from('projects')
+                .update({ status: 'completed', updated_at: new Date().toISOString() })
+                .eq('booking_id', existingBooking.id);
+              
+              if (projCompleteErr) {
+                console.error(`Error completing projects for de-confirmed booking:`, projCompleteErr);
+              } else {
+                console.log(`Completed projects for de-confirmed booking ${existingBooking.id}`);
+              }
+
+              // Complete linked jobs
+              const { error: jobCompleteErr } = await supabase
+                .from('jobs')
+                .update({ status: 'completed', updated_at: new Date().toISOString() })
+                .eq('booking_id', existingBooking.id);
+              
+              if (jobCompleteErr) {
+                console.error(`Error completing jobs for de-confirmed booking:`, jobCompleteErr);
+              } else {
+                console.log(`Completed jobs for de-confirmed booking ${existingBooking.id}`);
+              }
+
+              // Remove packing projects
+              const { error: packingErr } = await supabase
+                .from('packing_projects')
+                .delete()
+                .eq('booking_id', existingBooking.id);
+              
+              if (packingErr) {
+                console.error(`Error removing packing projects for de-confirmed booking:`, packingErr);
+              }
+
+              // Remove booking products
+              const { error: productsErr } = await supabase
+                .from('booking_products')
+                .delete()
+                .eq('booking_id', existingBooking.id);
+              
+              if (productsErr) {
+                console.error(`Error removing products for de-confirmed booking:`, productsErr);
               }
             }
             
