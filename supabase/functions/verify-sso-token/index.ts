@@ -5,41 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Måste matcha Hubbens normalisering - strippar icke-ASCII-tecken
-function stripNonAscii(value: string): string {
-  return value.replace(/[^\x00-\x7F]/g, '');
-}
-
-// HMAC-SHA256 verifiering - EXAKT samma som Hubbens signering
-async function verifySignature(payload: string, signature: string, secret: string): Promise<boolean> {
-  const encoder = new TextEncoder();
-  const keyData = encoder.encode(secret);
-  const messageData = encoder.encode(payload);
-  
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    keyData,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-  
-  const expectedSig = await crypto.subtle.sign('HMAC', cryptoKey, messageData);
-  
-  // Konvertera till hex-sträng (lowercase)
-  const expectedHex = Array.from(new Uint8Array(expectedSig))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
-  
-  // DIAGNOSTIK: Logga för att identifiera mismatch-orsak
-  console.log('[SSO-DEBUG] Payload length:', payload.length);
-  console.log('[SSO-DEBUG] Payload string:', payload);
-  console.log('[SSO-DEBUG] Expected sig (first 16):', expectedHex.substring(0, 16));
-  console.log('[SSO-DEBUG] Received sig (first 16):', signature.toLowerCase().substring(0, 16));
-  console.log('[SSO-DEBUG] Signatures match:', expectedHex === signature.toLowerCase());
-  
-  return expectedHex === signature.toLowerCase();
-}
+const HUB_VERIFY_URL = 'https://dmhuzjefqiqwafdtcipt.supabase.co/functions/v1/verify-sso-token';
 
 interface SsoPreferences {
   language?: string;
@@ -57,7 +23,53 @@ interface SsoPayload {
   preferences?: SsoPreferences;
 }
 
+interface HubVerifyResponse {
+  valid: boolean;
+  payload?: SsoPayload;
+  error?: string;
+}
+
 type AppRole = 'admin' | 'forsaljning' | 'projekt' | 'lager';
+
+// Delegera signaturverifiering till Hubbens centrala endpoint
+async function verifyWithHub(payload: SsoPayload, signature: string): Promise<HubVerifyResponse> {
+  console.log('[SSO] Delegating signature verification to Hub...');
+  
+  const response = await fetch(HUB_VERIFY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ payload, signature }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('[SSO] Hub verification request failed:', response.status, errorText);
+    try {
+      const errorJson = JSON.parse(errorText);
+      return { valid: false, error: errorJson.error_code || errorJson.error || 'HUB_ERROR' };
+    } catch {
+      return { valid: false, error: 'HUB_UNREACHABLE' };
+    }
+  }
+
+  const result = await response.json();
+  console.log('[SSO] Hub verification result:', { valid: result.valid, error: result.error });
+  
+  // Hub returnerar { valid: true, payload: {...} } eller { valid: false, error: "..." }
+  if (result.valid !== undefined) {
+    return result as HubVerifyResponse;
+  }
+  // Fallback: om Hub returnerar success-format
+  if (result.success !== undefined) {
+    return {
+      valid: result.success === true,
+      payload: result.success ? payload : undefined,
+      error: result.error_code || result.error,
+    };
+  }
+  
+  return { valid: false, error: 'UNEXPECTED_HUB_RESPONSE' };
+}
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -82,49 +94,20 @@ Deno.serve(async (req) => {
       );
     }
 
-    const ssoSecret = Deno.env.get('SSO_SECRET');
-    if (!ssoSecret) {
-      console.error('[SSO] SSO_SECRET not configured');
+    // Delegera signaturverifiering till Hubben (ingen lokal HMAC)
+    const hubResult = await verifyWithHub(payload, signature);
+
+    if (!hubResult.valid) {
+      console.error('[SSO] Hub rejected token:', hubResult.error);
       return new Response(
-        JSON.stringify({ success: false, error_code: 'SSO_NOT_CONFIGURED' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Normalisera full_name innan verifiering (måste matcha Hubbens signering)
-    const normalizedPayload = {
-      ...payload,
-      full_name: payload.full_name ? stripNonAscii(payload.full_name) : null,
-    };
-
-    // Remove preferences from signature verification (may not be signed)
-    const payloadForSignature = {
-      user_id: normalizedPayload.user_id,
-      email: normalizedPayload.email,
-      organization_id: normalizedPayload.organization_id,
-      full_name: normalizedPayload.full_name,
-      timestamp: normalizedPayload.timestamp,
-      expires_at: normalizedPayload.expires_at,
-    };
-
-    const payloadString = JSON.stringify(payloadForSignature);
-    console.log('[SSO-DEBUG] payloadForSignature keys:', Object.keys(payloadForSignature));
-    console.log('[SSO-DEBUG] payloadString:', payloadString);
-    console.log('[SSO-DEBUG] received signature:', signature);
-    console.log('[SSO-DEBUG] SSO_SECRET length:', ssoSecret.length);
-    console.log('[SSO-DEBUG] SSO_SECRET first 4 chars:', ssoSecret.substring(0, 4));
-    
-    const isValid = await verifySignature(payloadString, signature, ssoSecret);
-
-    if (!isValid) {
-      console.error('[SSO] Signature mismatch');
-      return new Response(
-        JSON.stringify({ success: false, error_code: 'SIGNATURE_MISMATCH' }),
+        JSON.stringify({ success: false, error_code: hubResult.error || 'SIGNATURE_MISMATCH' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Kontrollera att token inte är utgången
+    console.log('[SSO] Hub verified token successfully for:', payload.email);
+
+    // Kontrollera att token inte är utgången (extra säkerhet lokalt)
     const now = Math.floor(Date.now() / 1000);
     if (payload.expires_at < now) {
       console.error('[SSO] Token expired at:', payload.expires_at, 'current time:', now);
@@ -134,7 +117,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Skapa session direkt med admin-API
+    // === Befintlig sessionsskapande logik (oförändrad) ===
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
@@ -144,13 +128,14 @@ Deno.serve(async (req) => {
 
     // Normalisera email för säker sökning
     const normalizedEmail = payload.email.trim().toLowerCase();
+    const normalizedFullName = payload.full_name || null;
     console.log('[SSO] Normalized email:', normalizedEmail);
 
-    // 1. IDEMPOTENT: Sök först via email (inte user_id) för att hantera existerande användare
+    // 1. IDEMPOTENT: Sök först via email för att hantera existerande användare
     let userId = payload.user_id;
     let userExists = false;
 
-    // Försök hitta användare via email i profiles-tabellen först (snabbast)
+    // Försök hitta användare via email i profiles-tabellen först
     const { data: profileData } = await supabase
       .from('profiles')
       .select('user_id')
@@ -162,7 +147,7 @@ Deno.serve(async (req) => {
       userId = profileData.user_id;
       userExists = true;
     } else {
-      // Fallback: Sök via admin listUsers API (paginerad sökning)
+      // Fallback: Sök via admin listUsers API
       console.log('[SSO] Searching for user via admin API...');
       const { data: listData, error: listError } = await supabase.auth.admin.listUsers({
         page: 1,
@@ -189,14 +174,13 @@ Deno.serve(async (req) => {
         email: normalizedEmail,
         email_confirm: true,
         user_metadata: { 
-          full_name: normalizedPayload.full_name,
+          full_name: normalizedFullName,
           organization_id: payload.organization_id,
-          sso_user: true, // Mark as SSO user
+          sso_user: true,
         }
       });
 
       if (createError) {
-        // Dubbelkolla om "already registered" - i så fall hitta användaren
         if (createError.message?.includes('already been registered')) {
           console.log('[SSO] User already registered (race condition), searching again...');
           const { data: retryList } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
@@ -228,9 +212,9 @@ Deno.serve(async (req) => {
       console.log('[SSO] Updating existing user metadata:', userId);
       await supabase.auth.admin.updateUserById(userId, {
         user_metadata: { 
-          full_name: normalizedPayload.full_name,
+          full_name: normalizedFullName,
           organization_id: payload.organization_id,
-          sso_user: true, // Mark as SSO user
+          sso_user: true,
         }
       });
     }
@@ -238,7 +222,6 @@ Deno.serve(async (req) => {
     // 3. Auto-assign roles for SSO users based on target_view
     console.log('[SSO] Ensuring roles for user:', userId, 'target_view:', target_view);
     
-    // Determine which roles to assign
     const rolesToAssign: AppRole[] = [];
     
     if (target_view === 'warehouse') {
@@ -246,11 +229,9 @@ Deno.serve(async (req) => {
     } else if (target_view === 'planning') {
       rolesToAssign.push('projekt');
     } else {
-      // Default: assign both roles for full access
       rolesToAssign.push('projekt', 'lager');
     }
     
-    // Check existing roles
     const { data: existingRoles } = await supabase
       .from('user_roles')
       .select('role')
@@ -258,7 +239,6 @@ Deno.serve(async (req) => {
     
     const existingRoleSet = new Set(existingRoles?.map(r => r.role) || []);
     
-    // Insert missing roles (idempotent - ignore conflicts)
     for (const role of rolesToAssign) {
       if (!existingRoleSet.has(role)) {
         console.log('[SSO] Assigning role:', role, 'to user:', userId);
@@ -289,7 +269,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 5. Verifiera OTP-token för att få session (utan att röra lösenord)
+    // 5. Verifiera OTP-token för att få session
     console.log('[SSO] Verifying OTP to create session');
     const { data: sessionData, error: verifyError } = await supabase.auth.verifyOtp({
       token_hash: linkData.properties.hashed_token,
@@ -316,7 +296,7 @@ Deno.serve(async (req) => {
           id: userId,
           email: normalizedEmail,
           organization_id: payload.organization_id,
-          full_name: normalizedPayload.full_name,
+          full_name: normalizedFullName,
           sso_user: true,
         },
         preferences: payload.preferences || null,
