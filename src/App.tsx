@@ -24,6 +24,7 @@ import StaffDetail from "./pages/StaffDetail";
 import BookingDetail from "./pages/BookingDetail";
 import BookingList from "./pages/BookingList";
 import ProjectManagement from "./pages/ProjectManagement";
+import ProjectArchive from "./pages/ProjectArchive";
 import ProjectDetail from "./pages/ProjectDetail";
 import EconomyOverview from "./pages/EconomyOverview";
 import ProjectEconomyDetail from "./pages/ProjectEconomyDetail";
@@ -127,6 +128,7 @@ const AppContent = () => {
                       <Route path="/booking/:bookingId" element={<ProtectedRoute><MainSystemLayout><BookingDetail /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/booking-list" element={<ProtectedRoute><MainSystemLayout><BookingList /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/projects" element={<ProtectedRoute><MainSystemLayout><ProjectManagement /></MainSystemLayout></ProtectedRoute>} />
+                      <Route path="/projects/archive" element={<ProtectedRoute><MainSystemLayout><ProjectArchive /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/project/:projectId" element={<ProtectedRoute><MainSystemLayout><ProjectDetail /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/economy" element={<ProtectedRoute><MainSystemLayout><EconomyOverview /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/economy/projects" element={<ProtectedRoute><MainSystemLayout><EconomyOverview view="projects" /></MainSystemLayout></ProtectedRoute>} />
