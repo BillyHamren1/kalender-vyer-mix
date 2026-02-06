@@ -13,6 +13,8 @@ export const fetchBookingById = async (id: string) => {
       booking_attachments (*)
     `)
     .eq('id', id)
+    .order('parent_product_id', { referencedTable: 'booking_products', ascending: true, nullsFirst: true })
+    .order('parent_package_id', { referencedTable: 'booking_products', ascending: true, nullsFirst: true })
     .single();
 
   if (error) {
@@ -48,7 +50,9 @@ export const fetchBookings = async (filters?: {
       booking_products (*),
       booking_attachments (*)
     `)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .order('parent_product_id', { referencedTable: 'booking_products', ascending: true, nullsFirst: true })
+    .order('parent_package_id', { referencedTable: 'booking_products', ascending: true, nullsFirst: true });
 
   // Apply filters
   if (filters?.status) {
@@ -92,7 +96,9 @@ export const fetchConfirmedBookings = async () => {
       booking_attachments (*)
     `)
     .eq('status', 'CONFIRMED')
-    .order('eventdate', { ascending: true });
+    .order('eventdate', { ascending: true })
+    .order('parent_product_id', { referencedTable: 'booking_products', ascending: true, nullsFirst: true })
+    .order('parent_package_id', { referencedTable: 'booking_products', ascending: true, nullsFirst: true });
 
   if (error) {
     console.error('Error fetching confirmed bookings:', error);
@@ -115,7 +121,9 @@ export const fetchUpcomingBookings = async () => {
       booking_attachments (*)
     `)
     .gte('eventdate', today)
-    .order('eventdate', { ascending: true });
+    .order('eventdate', { ascending: true })
+    .order('parent_product_id', { referencedTable: 'booking_products', ascending: true, nullsFirst: true })
+    .order('parent_package_id', { referencedTable: 'booking_products', ascending: true, nullsFirst: true });
 
   if (error) {
     console.error('Error fetching upcoming bookings:', error);

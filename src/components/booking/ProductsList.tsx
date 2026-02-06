@@ -16,14 +16,26 @@ interface ProductGroup {
 }
 
 /**
- * Check if a product is an accessory based on parent_product_id or name prefix
- * This handles both new imports (with parent_product_id) and legacy data (with name prefixes)
+ * Clean product names by removing prefix characters used for hierarchy indication
  */
-const isAccessory = (product: BookingProduct): boolean => {
-  // If parent_product_id exists, it's definitely an accessory
-  if (product.parentProductId) {
-    return true;
-  }
+const cleanProductName = (name: string): string => {
+  return name
+    .replace(/^[└↳]\s*,?\s*/, '')
+    .replace(/^L,\s*/, '')
+    .replace(/^⦿\s*/, '')
+    .replace(/^\s+/, '')
+    .trim();
+};
+
+/**
+ * Check if a product is a child (accessory or package component) based on DB fields or name prefix
+ * This handles both new imports (with parent_product_id/parent_package_id/is_package_component)
+ * and legacy data (with name prefixes)
+ */
+const isChildProduct = (product: BookingProduct): boolean => {
+  if (product.parentProductId) return true;
+  if (product.parentPackageId) return true;
+  if (product.isPackageComponent) return true;
   // Fallback to name-based detection for legacy data
   const name = product.name || '';
   return name.startsWith('└') || 
@@ -31,63 +43,58 @@ const isAccessory = (product: BookingProduct): boolean => {
          name.startsWith('L,') || 
          name.startsWith('└,') ||
          name.startsWith('  ↳') ||
-         name.startsWith('  └');
+         name.startsWith('  └') ||
+         name.startsWith('⦿');
 };
 
 /**
  * Group products by parent-child relationship
- * Uses parent_product_id when available, falls back to sequential name-based grouping
+ * Uses parent_product_id and parent_package_id when available,
+ * falls back to sequential name-based grouping for legacy data
  */
 const groupProducts = (products: BookingProduct[]): ProductGroup[] => {
   const groups: ProductGroup[] = [];
+  const childProducts = products.filter(p => isChildProduct(p));
   
-  // First, try to group by parent_product_id
-  const parentProducts = products.filter(p => !isAccessory(p));
-  const accessoryProducts = products.filter(p => isAccessory(p));
+  // Build child maps by both parent_product_id AND parent_package_id
+  const childrenByParentId = new Map<string, BookingProduct[]>();
   
-  // Create a map of parent ID to accessories
-  const accessoriesByParentId = new Map<string, BookingProduct[]>();
-  
-  for (const accessory of accessoryProducts) {
-    if (accessory.parentProductId) {
-      const existing = accessoriesByParentId.get(accessory.parentProductId) || [];
-      existing.push(accessory);
-      accessoriesByParentId.set(accessory.parentProductId, existing);
+  for (const child of childProducts) {
+    const parentId = child.parentProductId || child.parentPackageId;
+    if (parentId) {
+      const existing = childrenByParentId.get(parentId) || [];
+      existing.push(child);
+      childrenByParentId.set(parentId, existing);
     }
   }
   
-  // Group products - first handle those with proper parent_product_id relationships
+  // Iterate sequentially to group products
   let currentParent: BookingProduct | null = null;
-  let currentAccessories: BookingProduct[] = [];
+  let currentSequentialChildren: BookingProduct[] = [];
   
   for (const product of products) {
-    if (!isAccessory(product)) {
-      // This is a parent product
-      // Save the previous group if exists
+    if (!isChildProduct(product)) {
+      // Save previous group
       if (currentParent) {
-        // Merge accessories from parent_product_id and sequential grouping
-        const idBasedAccessories = accessoriesByParentId.get(currentParent.id) || [];
-        const mergedAccessories = [...new Map([...idBasedAccessories, ...currentAccessories].map(a => [a.id, a])).values()];
-        groups.push({ parent: currentParent, accessories: mergedAccessories });
+        const idChildren = childrenByParentId.get(currentParent.id) || [];
+        const merged = [...new Map([...idChildren, ...currentSequentialChildren].map(a => [a.id, a])).values()];
+        groups.push({ parent: currentParent, accessories: merged });
       }
-      // Start new group
       currentParent = product;
-      currentAccessories = [];
+      currentSequentialChildren = [];
     } else {
-      // This is an accessory
-      // Only add to sequential group if it doesn't have a parent_product_id
-      // (those with parent_product_id are handled via the map)
-      if (!product.parentProductId) {
-        currentAccessories.push(product);
+      // Only add to sequential group if it doesn't have an ID-based parent link
+      if (!product.parentProductId && !product.parentPackageId) {
+        currentSequentialChildren.push(product);
       }
     }
   }
   
   // Don't forget the last group
   if (currentParent) {
-    const idBasedAccessories = accessoriesByParentId.get(currentParent.id) || [];
-    const mergedAccessories = [...new Map([...idBasedAccessories, ...currentAccessories].map(a => [a.id, a])).values()];
-    groups.push({ parent: currentParent, accessories: mergedAccessories });
+    const idChildren = childrenByParentId.get(currentParent.id) || [];
+    const merged = [...new Map([...idChildren, ...currentSequentialChildren].map(a => [a.id, a])).values()];
+    groups.push({ parent: currentParent, accessories: merged });
   }
   
   return groups;
@@ -101,7 +108,7 @@ const ProductItem = ({ product, isAccessory: isAcc, showPricing = true }: { prod
   return (
     <div className={`py-2 ${isAcc ? 'pl-4 text-muted-foreground' : ''}`}>
       <div className="flex justify-between">
-        <span className={`text-sm ${isAcc ? '' : 'font-medium'}`}>{product.name}</span>
+        <span className={`text-sm ${isAcc ? '' : 'font-medium'}`}>{cleanProductName(product.name)}</span>
         <span className="text-xs text-muted-foreground">Qty: {product.quantity}</span>
       </div>
       {showPricing && product.unitPrice && (
@@ -143,7 +150,7 @@ const ProductGroupItem = ({ group, showPricing = true }: { group: ProductGroup; 
             <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
           )}
           <div className="flex-1 flex justify-between items-center">
-            <span className="text-sm font-medium">{group.parent.name}</span>
+            <span className="text-sm font-medium">{cleanProductName(group.parent.name)}</span>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                 +{group.accessories.length}

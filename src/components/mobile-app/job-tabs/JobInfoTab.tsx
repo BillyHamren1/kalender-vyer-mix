@@ -34,9 +34,9 @@ const cleanProductName = (name: string): string => {
 };
 
 const isChildProduct = (product: ProductItem): boolean => {
-  if (product.parent_product_id || product.parent_package_id || product.is_package_component) {
-    return true;
-  }
+  if (product.parent_product_id) return true;
+  if (product.parent_package_id) return true;
+  if (product.is_package_component) return true;
   const name = product.name || '';
   return name.startsWith('└') || 
          name.startsWith('↳') || 
@@ -49,39 +49,42 @@ const isChildProduct = (product: ProductItem): boolean => {
 
 const groupProducts = (products: ProductItem[]): ProductGroup[] => {
   const groups: ProductGroup[] = [];
-  let currentParent: ProductItem | null = null;
-  let currentChildren: ProductItem[] = [];
+  const childProducts = products.filter(p => isChildProduct(p));
 
-  // Build a map of parent_product_id -> children for ID-based grouping
+  // Build child map by both parent_product_id AND parent_package_id
   const childrenByParentId = new Map<string, ProductItem[]>();
-  for (const p of products) {
-    const parentId = p.parent_product_id || p.parent_package_id;
+  for (const child of childProducts) {
+    const parentId = child.parent_product_id || child.parent_package_id;
     if (parentId) {
       const existing = childrenByParentId.get(parentId) || [];
-      existing.push(p);
+      existing.push(child);
       childrenByParentId.set(parentId, existing);
     }
   }
+
+  let currentParent: ProductItem | null = null;
+  let currentSequentialChildren: ProductItem[] = [];
 
   for (const product of products) {
     if (!isChildProduct(product)) {
       if (currentParent) {
         const idChildren = childrenByParentId.get(currentParent.id) || [];
-        const merged = [...new Map([...idChildren, ...currentChildren].map(c => [c.id, c])).values()];
+        const merged = [...new Map([...idChildren, ...currentSequentialChildren].map(c => [c.id, c])).values()];
         groups.push({ parent: currentParent, children: merged });
       }
       currentParent = product;
-      currentChildren = [];
+      currentSequentialChildren = [];
     } else {
+      // Only add to sequential group if no ID-based parent link
       if (!product.parent_product_id && !product.parent_package_id) {
-        currentChildren.push(product);
+        currentSequentialChildren.push(product);
       }
     }
   }
 
   if (currentParent) {
     const idChildren = childrenByParentId.get(currentParent.id) || [];
-    const merged = [...new Map([...idChildren, ...currentChildren].map(c => [c.id, c])).values()];
+    const merged = [...new Map([...idChildren, ...currentSequentialChildren].map(c => [c.id, c])).values()];
     groups.push({ parent: currentParent, children: merged });
   }
 
