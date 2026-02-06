@@ -1,67 +1,68 @@
 
-# Fix: Produkthierarki i bade desktop- och mobilvy
+# Lagg till radering av bilder i mobilappen
 
-## Problem
-Tva buggar i produktvisningen:
+## Sammanfattning
+Anvandaren ska kunna ta bort uppladdade bilder fran jobbvyn i mobilappen. Idag saknas bade backend-stod och UI-knappar for detta.
 
-1. **Paketmedlemmar ignoreras**: Koden i desktop-vyn (`ProductsList.tsx`) kollar bara `parentProductId` for att avgora om en produkt ar ett barn. Den ignorerar `isPackageComponent` och `parentPackageId` helt -- sa paketmedlemmar visas som separata foraldraprodukter istallet for under sitt paket.
+## Andringar
 
-2. **Duplicering och felaktig ordning**: Fragan `booking_products (*)` i Supabase har **ingen ORDER-klausul**, vilket innebar att barn kan hamna FORE sin foraldraprodukt i listan. Grupperingslogiken gar igenom listan sekventiellt och skapar darigenom felaktiga grupperingar nar ordningen ar oforutsagbar.
+### 1. Edge Function: Ny `delete_file`-handler
+**Fil:** `supabase/functions/mobile-app-api/index.ts`
 
-## Losning
+- Lagg till `case 'delete_file'` i switch-satsen (rad 80-110)
+- Ny funktion `handleDeleteFile` som:
+  - Tar emot `file_id`
+  - Hamtar filen fran `project_files`-tabellen for att fa URL och project_id
+  - Extraherar lagringssokvaegen fran URL:en (splittar pa `/project-files/`)
+  - Raderar filen fran Supabase Storage-bucket `project-files`
+  - Raderar posten fran databastabellen `project_files`
+  - Returnerar `{ success: true }`
+- Samma moenster som befintliga `deleteProjectFile` i desktop-systemet
 
-### 1. Desktop: `ProductsList.tsx` -- Uppdatera grupperingslogik
-- Byt namn pa `isAccessory` till `isChildProduct` 
-- Lagg till kontroll av `isPackageComponent` och `parentPackageId` (inte bara `parentProductId`)
-- Uppdatera `groupProducts` att bygga sin barn-map med bade `parentProductId` OCH `parentPackageId`
-- Rensa visningsnamn fran prefix-tecken (`↳`, `└`, `L,`, `⦿`)
-- Behall collapsible-granssnitt som idag
+### 2. Frontend API: Ny metod `deleteFile`
+**Fil:** `src/services/mobileApiService.ts`
 
-### 2. Desktop: `bookingFetchService.ts` -- Lagg till ORDER-klausul
-- Andra `booking_products (*)` till att ordna produkterna sa att foraldrar alltid kommer fore sina barn
-- Anvand ordning som garanterar korrekt sekventiell gruppering: foraldrar forst (de utan `parent_product_id`), sedan barn
-
-### 3. Mobil: `JobInfoTab.tsx` -- Synka med desktop-logiken
-- Mobilkoden har redan ratt faltkontroller (`parent_product_id`, `parent_package_id`, `is_package_component`) men samma grupperingsproblem
-- Sakerstall att barn som inte hittar sin foralder via ID visas under narmaste foregaende foralder istallet for att forsvinna
-- Aterstand: produktnamn rensas redan korrekt i mobilversionen
-
-### 4. Edge Function: `mobile-app-api` -- Ordna produkter
-- Lagg till `.order('parent_product_id', { ascending: true, nullsFirst: true })` i produktfragan
-- Sakerstaller att foraldraprodukter (med null parent_product_id) kommer fore sina barn
-
-## Tekniska detaljer
-
-### Ny `isChildProduct`-logik (bada vyerna):
-
+- Lagg till metoden:
 ```text
-isChildProduct(product):
-  1. Om parent_product_id finns -> ar barn
-  2. Om parent_package_id finns -> ar barn
-  3. Om is_package_component = true -> ar barn
-  4. Fallback: kontrollera namnprefix (for legacy-data)
+deleteFile: (fileId: string) =>
+  callApi<{ success: boolean }>('delete_file', { file_id: fileId })
 ```
 
-### Ny `groupProducts`-logik:
+### 3. UI: Raderingsknapp pa bilder och i helskarmslage
+**Fil:** `src/components/mobile-app/job-tabs/JobPhotosTab.tsx`
+
+- **I bildrutnatet**: Lagg till en liten rod papperskorg-ikon (`Trash2`) i ovre hoegra hornet pa varje bild. Klick oeppnar en bekraftelsedialog.
+- **I helskarmslaget**: Lagg till en "Radera"-knapp laengst ner (rod) bredvid stang-knappen.
+- **Bekraftelse**: Anvand `window.confirm('Vill du radera denna bild?')` for att forhindra misstag.
+- **State-hantering**: Efter lyckad radering, uppdatera listan genom att filtrera bort den raderade filen fran `files`-state. Stang aven helskarmslaget om bilden som visas raderas.
+- **Feedback**: Visa `toast.success('Bilden har raderats')` vid lyckat resultat.
+
+## Visuellt resultat
 
 ```text
-1. Bygg barn-map: parent_product_id -> [barn]
-2. Bygg barn-map: parent_package_id -> [barn]
-3. Slå ihop bada mapparna
-4. Iterera produkter sekventiellt:
-   - Foralder: spara foregaende grupp, starta ny
-   - Barn utan ID-koppling: lagg under foregaende foralder
-5. For varje grupp: slå ihop ID-barn och sekventiella barn (deduplicera)
++---------------------------+
+|  [Bild]         [Trash]   |  <- Papperskorg-ikon i hoernet
+|                           |
+|                           |
++---------------------------+
 ```
 
-### Filer som andras:
+I helskarmslaget:
 
-| Fil | Andringar |
-|-----|-----------|
-| `src/components/booking/ProductsList.tsx` | `isAccessory` -> `isChildProduct`, lagg till `parentPackageId`/`isPackageComponent`-kontroll, rensa produktnamn |
-| `src/services/booking/bookingFetchService.ts` | Ordna `booking_products` i fragan |
-| `src/components/mobile-app/job-tabs/JobInfoTab.tsx` | Fixa orphaned children-bugg, synka logik |
-| `supabase/functions/mobile-app-api/index.ts` | Ordna produkter i `handleGetBookingDetails` |
+```text
++-------------------------------+
+|                         [X]   |
+|                               |
+|        [Stor bild]            |
+|                               |
+|     [Radera bild]             |  <- Rod knapp
++-------------------------------+
+```
 
-## Resultat
-Bade desktop- och mobilvy visar produkter i korrekt hierarki: paketmedlemmar OCH tillbehor grupperade under sina foraldraprodukter, med rensade namn och utan duplicering.
+## Filer som andras
+
+| Fil | Andring |
+|-----|---------|
+| `supabase/functions/mobile-app-api/index.ts` | Ny `delete_file`-action + `handleDeleteFile`-funktion |
+| `src/services/mobileApiService.ts` | Ny `deleteFile`-metod |
+| `src/components/mobile-app/job-tabs/JobPhotosTab.tsx` | Raderingsknappar i rutnaat och helskarm, bekraftelsedialog |
