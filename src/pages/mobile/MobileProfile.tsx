@@ -1,30 +1,13 @@
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useNavigate } from 'react-router-dom';
-import { getGpsSettings, setGpsSettings } from '@/hooks/useGeofencing';
-import { useState } from 'react';
+import { getGpsSettings } from '@/hooks/useGeofencing';
 import { User, Mail, Phone, MapPin, LogOut, Radar, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 
 const MobileProfile = () => {
   const { staff, logout } = useMobileAuth();
   const navigate = useNavigate();
-  const [gps, setGps] = useState(getGpsSettings);
-
-  const handleGpsToggle = (enabled: boolean) => {
-    const updated = { ...gps, enabled };
-    setGps(updated);
-    setGpsSettings(updated);
-  };
-
-  const handleRadiusChange = (value: string) => {
-    const radius = Math.max(50, Math.min(500, parseInt(value) || 150));
-    const updated = { ...gps, radius };
-    setGps(updated);
-    setGpsSettings(updated);
-  };
+  const gps = getGpsSettings();
 
   const handleLogout = () => {
     logout();
@@ -90,39 +73,28 @@ const MobileProfile = () => {
           )}
         </div>
 
-        {/* GPS Settings */}
+        {/* GPS Settings - read-only display */}
         <div className="rounded-xl border bg-card p-4 space-y-4">
           <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">GPS & Geofencing</h2>
           
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <MapPin className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Automatisk tidrapportering</p>
-                <p className="text-xs text-muted-foreground">Starta timer vid arbetsplatsen</p>
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <MapPin className="w-4 h-4 text-primary" />
             </div>
-            <Switch checked={gps.enabled} onCheckedChange={handleGpsToggle} />
+            <div className="flex-1">
+              <p className="text-sm font-medium">Automatisk tidrapportering</p>
+              <p className="text-xs text-muted-foreground">Starta timer vid arbetsplatsen</p>
+            </div>
+            <div className="px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold">
+              {gps.enabled ? 'Aktiv' : 'Inaktiv'}
+            </div>
           </div>
 
-          {gps.enabled && (
-            <div className="flex items-center gap-3 pl-12">
-              <div className="flex items-center gap-2">
-                <Radar className="w-4 h-4 text-muted-foreground" />
-                <Label className="text-xs text-muted-foreground">Radie (m)</Label>
-              </div>
-              <Input
-                type="number"
-                value={gps.radius}
-                onChange={e => handleRadiusChange(e.target.value)}
-                className="h-8 w-20 rounded-lg text-sm"
-                min={50}
-                max={500}
-              />
-            </div>
-          )}
+          <div className="flex items-center gap-3 pl-12">
+            <Radar className="w-4 h-4 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Radie</span>
+            <span className="text-sm font-medium">{gps.radius} m</span>
+          </div>
         </div>
 
         {/* App info */}
