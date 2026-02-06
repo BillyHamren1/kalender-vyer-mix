@@ -259,7 +259,7 @@ const WeekPackingsView = ({
               variant="ghost"
               size="icon"
               onClick={onNextWeek}
-              className="text-white hover:bg-white/10"
+              className="text-white hover:bg-white/10 border border-white/30 rounded-lg"
             >
               <ChevronRight className="w-5 h-5" />
             </Button>
