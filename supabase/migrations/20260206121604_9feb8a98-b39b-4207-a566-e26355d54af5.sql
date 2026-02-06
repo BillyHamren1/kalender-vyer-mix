@@ -1,0 +1,1 @@
+DELETE FROM packing_projects WHERE id != 'f946d4e4-27de-427c-8ec2-b6cf50f3c948';
