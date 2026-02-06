@@ -77,12 +77,20 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
     enabled: open
   });
 
-  // Fetch staff members for project leader selection
+  // Fetch system users (profiles) for project leader selection
   const { data: staffMembers = [] } = useQuery({
-    queryKey: ['staff-members-list'],
+    queryKey: ['system-users-list'],
     queryFn: async () => {
-      const { data } = await (supabase.from('staff_members') as any).select('id, name').eq('active', true).order('name');
-      return (data || []) as StaffMember[];
+      const { data } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, email')
+        .order('full_name');
+      return (data || [])
+        .filter((p: any) => p.full_name || p.email)
+        .map((p: any) => ({
+          id: p.user_id,
+          name: p.full_name || p.email,
+        })) as StaffMember[];
     },
     enabled: open
   });
