@@ -1,10 +1,94 @@
+import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Calendar, Clock, FileText, StickyNote } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronRight, Clock, FileText, StickyNote } from 'lucide-react';
 
 interface JobInfoTabProps {
   booking: any;
 }
+
+// --- Product grouping logic (mirrors desktop ProductsList.tsx) ---
+
+interface ProductItem {
+  id: string;
+  name: string;
+  quantity: number;
+  notes?: string;
+  parent_product_id?: string;
+  parent_package_id?: string;
+  is_package_component?: boolean;
+}
+
+interface ProductGroup {
+  parent: ProductItem;
+  children: ProductItem[];
+}
+
+const cleanProductName = (name: string): string => {
+  return name
+    .replace(/^[└↳]\s*,?\s*/, '')
+    .replace(/^L,\s*/, '')
+    .replace(/^⦿\s*/, '')
+    .replace(/^\s+/, '')
+    .trim();
+};
+
+const isChildProduct = (product: ProductItem): boolean => {
+  if (product.parent_product_id || product.parent_package_id || product.is_package_component) {
+    return true;
+  }
+  const name = product.name || '';
+  return name.startsWith('└') || 
+         name.startsWith('↳') || 
+         name.startsWith('L,') || 
+         name.startsWith('└,') ||
+         name.startsWith('  ↳') ||
+         name.startsWith('  └') ||
+         name.startsWith('⦿');
+};
+
+const groupProducts = (products: ProductItem[]): ProductGroup[] => {
+  const groups: ProductGroup[] = [];
+  let currentParent: ProductItem | null = null;
+  let currentChildren: ProductItem[] = [];
+
+  // Build a map of parent_product_id -> children for ID-based grouping
+  const childrenByParentId = new Map<string, ProductItem[]>();
+  for (const p of products) {
+    const parentId = p.parent_product_id || p.parent_package_id;
+    if (parentId) {
+      const existing = childrenByParentId.get(parentId) || [];
+      existing.push(p);
+      childrenByParentId.set(parentId, existing);
+    }
+  }
+
+  for (const product of products) {
+    if (!isChildProduct(product)) {
+      if (currentParent) {
+        const idChildren = childrenByParentId.get(currentParent.id) || [];
+        const merged = [...new Map([...idChildren, ...currentChildren].map(c => [c.id, c])).values()];
+        groups.push({ parent: currentParent, children: merged });
+      }
+      currentParent = product;
+      currentChildren = [];
+    } else {
+      if (!product.parent_product_id && !product.parent_package_id) {
+        currentChildren.push(product);
+      }
+    }
+  }
+
+  if (currentParent) {
+    const idChildren = childrenByParentId.get(currentParent.id) || [];
+    const merged = [...new Map([...idChildren, ...currentChildren].map(c => [c.id, c])).values()];
+    groups.push({ parent: currentParent, children: merged });
+  }
+
+  return groups;
+};
+
+// --- Sub-components ---
 
 const InfoRow = ({ label, value, icon: Icon }: { label: string; value: string | null; icon?: any }) => {
   if (!value) return null;
@@ -36,7 +120,60 @@ const TimeBlock = ({ label, date, start, end }: { label: string; date: string | 
   );
 };
 
+const ProductGroupRow = ({ group }: { group: ProductGroup }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const hasChildren = group.children.length > 0;
+
+  return (
+    <div className="border-b last:border-0 border-border/50">
+      <button
+        type="button"
+        onClick={() => hasChildren && setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between text-sm py-2 text-left"
+      >
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          {hasChildren && (
+            isOpen
+              ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          )}
+          <span className="font-medium text-foreground truncate">
+            {cleanProductName(group.parent.name)}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0 ml-2">
+          {hasChildren && (
+            <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-medium">
+              +{group.children.length}
+            </span>
+          )}
+          <span className="text-muted-foreground text-xs">{group.parent.quantity} st</span>
+        </div>
+      </button>
+
+      {isOpen && hasChildren && (
+        <div className="pl-5 pb-2 space-y-0.5 border-l-2 border-muted ml-2">
+          {group.children.map((child) => (
+            <div key={child.id} className="flex items-center justify-between text-sm py-1 text-muted-foreground">
+              <span className="text-xs truncate">
+                <span className="text-muted-foreground/60 mr-1">↳</span>
+                {cleanProductName(child.name)}
+              </span>
+              <span className="text-xs shrink-0 ml-2">{child.quantity} st</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- Main component ---
+
 const JobInfoTab = ({ booking }: JobInfoTabProps) => {
+  const products: ProductItem[] = booking.products || [];
+  const groups = groupProducts(products);
+
   return (
     <div className="space-y-4">
       {/* Dates */}
@@ -78,16 +215,13 @@ const JobInfoTab = ({ booking }: JobInfoTabProps) => {
         </div>
       )}
 
-      {/* Products */}
-      {booking.products && booking.products.length > 0 && (
+      {/* Products - grouped hierarchy */}
+      {groups.length > 0 && (
         <div className="rounded-xl border bg-card p-3">
           <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Produkter</p>
-          <div className="space-y-1">
-            {booking.products.map((p: any, i: number) => (
-              <div key={i} className="flex items-center justify-between text-sm py-1 border-b last:border-0 border-border/50">
-                <span className="text-foreground">{p.description || p.name}</span>
-                {p.quantity && <span className="text-muted-foreground text-xs">{p.quantity} st</span>}
-              </div>
+          <div>
+            {groups.map((group) => (
+              <ProductGroupRow key={group.parent.id} group={group} />
             ))}
           </div>
         </div>
