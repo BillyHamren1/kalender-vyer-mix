@@ -1,63 +1,60 @@
 
 
 ## Problem
-Edge-funktionen `verify-sso-token` skriver over anvandares riktiga losenord med ett slumpmasigt UUID varje gang SSO-flodet kors. Detta gor att:
-- Direkt inloggning via /auth slutar fungera for alla anvandare som nagonsin loggat in via Hub
-- Losenordet ersatts permanent och kan inte aterstallas utan manuell atgard
+Alla SSO-inloggningar från Hub:en misslyckas med "Signature mismatch" i edge-funktionen `verify-sso-token`. Inget annat har andrats - signaturfelet intraffer INNAN den kod som andrades i forra fixan (steg 4-5). Trolig orsak: antingen har SSO_SECRET i Supabase inte samma varde som Hub:en anvander, eller sa skiljer sig payload-formatet (t.ex. faltordning i JSON.stringify).
 
 ## Losning
-Byt ut "temp password"-metoden mot Supabase Admin API:s `generateLink` med `magiclink`-typ. Detta skapar en session **utan att rora anvandares losenord**.
-
-Flodet blir:
-1. Verifiera SSO-token (oforandrat)
-2. Skapa/uppdatera anvandare idempotent (oforandrat)  
-3. Tilldela roller (oforandrat)
-4. **NY METOD**: Anvand `admin.generateLink({ type: 'magiclink', email })` for att fa en `hashed_token`
-5. **NY METOD**: Anvand `verifyOtp({ token_hash, type: 'magiclink' })` for att skapa en riktig session
-6. Returnera `access_token` och `refresh_token` (oforandrat)
+Lagg till detaljerad diagnostisk loggning i signaturverifieringen for att identifiera exakt vad som skiljer sig. Logga:
+- Payload-strangen som signeras
+- De forsta tecknen av forvantad vs mottagen signatur
+- Det hjalper oss se om det ar en nyckel-mismatch eller format-mismatch
 
 ## Paverkade filer
 
-### 1. `supabase/functions/verify-sso-token/index.ts`
-- **Ta bort**: Steg 4 (sat temporart losenord) och Steg 5 (logga in med temp-losenord)
-- **Ersatt med**: `admin.generateLink({ type: 'magiclink', email })` foljt av `verifyOtp({ token_hash, type: 'magiclink' })` for att hamta session-tokens
-- Inga andra delar av funktionen andras
+### `supabase/functions/verify-sso-token/index.ts`
 
-### 2. Aterstall losenord for paverkade anvandare
-- Kora en losenordsaterstallning via Supabase admin for `billy.hamren@fransaugust.se` och eventuellt andra paverkade anvandare, eller informera dem att anvanda "Skicka inloggningslan" pa /auth-sidan for att komma in igen
+**Andring 1: Utokad diagnostisk loggning i `verifySignature`-funktionen**
+- Logga de forsta 16 tecknen av bade forvantad (beraknad) och mottagen signatur
+- Logga langden pa payload-strangen
+
+**Andring 2: Logga payload-strangen fore signaturverifiering**
+- Logga `payloadString` (den faktiska strangen som hashas) for att kunna jamfora med Hub:ens signerade data
+- Logga signaturen som mottas fran klienten
+
+Dessa loggar ar tillfalliga for felsokningsandamal och bor tas bort nar problemet ar lost.
 
 ## Tekniska detaljer
 
-Nuvarande kod (tas bort):
+Ny diagnostisk logging i `verifySignature`:
 ```text
-// Steg 4: Temporart losenord
-const tempPassword = crypto.randomUUID();
-await supabase.auth.admin.updateUserById(userId, { password: tempPassword });
+async function verifySignature(payload: string, signature: string, secret: string): Promise<boolean> {
+  // ... existing HMAC code ...
 
-// Steg 5: Logga in
-const { data: sessionData } = await supabase.auth.signInWithPassword({
-  email, password: tempPassword
-});
+  const expectedHex = Array.from(new Uint8Array(expectedSig))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+
+  // DIAGNOSTIK: Logga for att identifiera mismatch-orsak
+  console.log('[SSO-DEBUG] Payload length:', payload.length);
+  console.log('[SSO-DEBUG] Payload string:', payload);
+  console.log('[SSO-DEBUG] Expected sig (first 16):', expectedHex.substring(0, 16));
+  console.log('[SSO-DEBUG] Received sig (first 16):', signature.toLowerCase().substring(0, 16));
+  console.log('[SSO-DEBUG] Signatures match:', expectedHex === signature.toLowerCase());
+
+  return expectedHex === signature.toLowerCase();
+}
 ```
 
-Ny kod (ersatter ovan):
+Fore signaturverifiering (rad ~103):
 ```text
-// Steg 4: Generera magiclink for att skapa session utan att andra losenord
-const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-  type: 'magiclink',
-  email: normalizedEmail,
-});
-
-// Steg 5: Verifiera OTP-token for att fa session
-const { data: sessionData, error: verifyError } = await supabase.auth.verifyOtp({
-  token_hash: linkData.properties.hashed_token,
-  type: 'magiclink',
-});
+console.log('[SSO-DEBUG] payloadForSignature keys:', Object.keys(payloadForSignature));
+console.log('[SSO-DEBUG] payloadString:', payloadString);
+console.log('[SSO-DEBUG] received signature:', signature);
 ```
 
-## Risker och avvagningar
-- `generateLink` + `verifyOtp` ar den rekommenderade metoden fran Supabase for server-side session-skapande
-- Befintliga anvandares losenord bevaras intakt
-- Inga UI-andringar kravs - returnerade tokens hanteras identiskt av klienten
-- Anvandare som redan fatt sina losenord overskrivna behover anvanda "Skicka inloggningslan" for att komma in igen, eller sa kan vi aterstalla deras losenord manuellt
+## Nasta steg
+1. Deploya den uppdaterade edge-funktionen
+2. Be anvandaren att forsoka logga in via Hub:en igen
+3. Lasa loggarna for att se exakt var mismatchen ligger
+4. Baserat pa resultatet - antingen korrigera SSO_SECRET eller justera payload-formatet
 
