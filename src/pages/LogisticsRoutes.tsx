@@ -3,7 +3,6 @@ import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { Route, MapPin, Navigation, ExternalLink, Zap, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
   Select, 
@@ -12,6 +11,9 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
+import { PageContainer } from '@/components/ui/PageContainer';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { PremiumCard, SimpleCard } from '@/components/ui/PremiumCard';
 import { useVehicles } from '@/hooks/useVehicles';
 import { useTransportAssignments, TransportAssignment } from '@/hooks/useTransportAssignments';
 import { useVehicleTracking } from '@/hooks/useVehicleTracking';
@@ -215,84 +217,77 @@ const LogisticsRoutes: React.FC = () => {
   const isLoading = vehiclesLoading || assignmentsLoading;
 
   return (
-    <div className="space-y-6">
+    <PageContainer>
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Route className="h-6 w-6 text-primary" />
-            Ruttplanering
-          </h1>
-          <p className="text-muted-foreground">
-            Optimera och följ leveransrutter
-          </p>
-        </div>
+      <PageHeader
+        icon={Route}
+        title="Ruttplanering"
+        subtitle="Optimera och följ leveransrutter"
+      >
+        <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
+          <SelectTrigger className="w-[200px] rounded-xl">
+            <SelectValue placeholder="Välj fordon" />
+          </SelectTrigger>
+          <SelectContent>
+            {activeVehicles.map(vehicle => (
+              <SelectItem key={vehicle.id} value={vehicle.id}>
+                {vehicle.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-        <div className="flex items-center gap-2">
-          <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Välj fordon" />
-            </SelectTrigger>
-            <SelectContent>
-              {activeVehicles.map(vehicle => (
-                <SelectItem key={vehicle.id} value={vehicle.id}>
-                  {vehicle.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <input 
-            type="date" 
-            value={format(selectedDate, 'yyyy-MM-dd')}
-            onChange={e => setSelectedDate(new Date(e.target.value))}
-            className="px-3 py-2 border rounded-md bg-background"
-          />
-        </div>
-      </div>
+        <input 
+          type="date" 
+          value={format(selectedDate, 'yyyy-MM-dd')}
+          onChange={e => setSelectedDate(new Date(e.target.value))}
+          className="px-3 py-2 border rounded-xl bg-background h-10"
+        />
+      </PageHeader>
 
       {/* Main Content */}
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Stop List */}
-        <Card className="lg:col-span-1">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">
-                Stopp ({vehicleAssignments.length})
-              </CardTitle>
-              {vehicleAssignments.length > 1 && (
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={handleOptimize}
-                  disabled={isOptimizing}
-                >
-                  {isOptimizing ? (
-                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                  ) : (
-                    <Zap className="h-3 w-3 mr-1" />
-                  )}
-                  Optimera
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2 max-h-[500px] overflow-y-auto">
+        <PremiumCard
+          icon={MapPin}
+          title="Stopp"
+          count={vehicleAssignments.length}
+          headerAction={
+            vehicleAssignments.length > 1 && (
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={handleOptimize}
+                disabled={isOptimizing}
+                className="rounded-lg"
+              >
+                {isOptimizing ? (
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                ) : (
+                  <Zap className="h-3 w-3 mr-1" />
+                )}
+                Optimera
+              </Button>
+            )
+          }
+          className="lg:col-span-1"
+        >
+          <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
             {isLoading ? (
               <div className="text-center py-4 text-muted-foreground">Laddar...</div>
             ) : vehicleAssignments.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                <MapPin className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <MapPin className="h-10 w-10 mx-auto mb-3 opacity-40" />
                 <p>Inga stopp för detta fordon</p>
               </div>
             ) : (
               vehicleAssignments.map((assignment, idx) => (
-                <div
+                <SimpleCard
                   key={assignment.id}
                   className={cn(
-                    "p-3 rounded-lg border transition-colors",
-                    assignment.status === 'delivered' && "bg-green-50 border-green-200 dark:bg-green-950/20",
-                    assignment.status === 'in_transit' && "bg-blue-50 border-blue-200 dark:bg-blue-950/20"
+                    "p-3 transition-colors",
+                    assignment.status === 'delivered' && "bg-emerald-50/50 border-emerald-200",
+                    assignment.status === 'in_transit' && "bg-blue-50/50 border-blue-200"
                   )}
                 >
                   <div className="flex items-start gap-3">
@@ -300,10 +295,10 @@ const LogisticsRoutes: React.FC = () => {
                       {assignment.stop_order || idx + 1}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">
+                      <p className="font-medium truncate text-sm">
                         {assignment.booking?.client || 'Okänd kund'}
                       </p>
-                      <p className="text-sm text-muted-foreground truncate">
+                      <p className="text-xs text-muted-foreground truncate">
                         {assignment.booking?.deliveryaddress}
                         {assignment.booking?.delivery_city && `, ${assignment.booking.delivery_city}`}
                       </p>
@@ -315,16 +310,16 @@ const LogisticsRoutes: React.FC = () => {
                       </Badge>
                     </div>
                   </div>
-                </div>
+                </SimpleCard>
               ))
             )}
-          </CardContent>
+          </div>
 
           {/* Actions */}
           {googleMapsUrl && (
-            <div className="p-4 border-t">
+            <div className="pt-4 mt-4 border-t">
               <Button 
-                className="w-full" 
+                className="w-full rounded-xl" 
                 onClick={() => window.open(googleMapsUrl, '_blank')}
               >
                 <Navigation className="h-4 w-4 mr-2" />
@@ -333,34 +328,33 @@ const LogisticsRoutes: React.FC = () => {
               </Button>
             </div>
           )}
-        </Card>
+        </PremiumCard>
 
         {/* Map */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Karta</CardTitle>
-              {vehiclePosition?.isOnline && (
-                <Badge variant="outline" className="bg-green-50 text-green-700">
-                  <div className="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse" />
-                  {selectedVehicle?.name} är live
-                </Badge>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div 
-              ref={mapContainer} 
-              className="h-[500px] rounded-b-lg"
-            />
-          </CardContent>
-        </Card>
+        <PremiumCard
+          title="Karta"
+          headerAction={
+            vehiclePosition?.isOnline && (
+              <Badge variant="outline" className="bg-emerald-50 text-emerald-700">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 mr-2 animate-pulse" />
+                {selectedVehicle?.name} är live
+              </Badge>
+            )
+          }
+          className="lg:col-span-2"
+          noPadding
+        >
+          <div 
+            ref={mapContainer} 
+            className="h-[500px] rounded-b-xl"
+          />
+        </PremiumCard>
       </div>
 
       {/* Route Summary */}
       {vehicleAssignments.length > 0 && (
-        <Card>
-          <CardContent className="py-4">
+        <PremiumCard className="mt-6" noPadding>
+          <div className="p-4">
             <div className="flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center gap-6 text-sm">
                 <div>
@@ -369,7 +363,7 @@ const LogisticsRoutes: React.FC = () => {
                 </div>
                 <div>
                   <span className="text-muted-foreground">Levererade:</span>{' '}
-                  <span className="font-medium text-green-600">
+                  <span className="font-medium text-emerald-600">
                     {vehicleAssignments.filter(a => a.status === 'delivered').length}
                   </span>
                 </div>
@@ -384,10 +378,10 @@ const LogisticsRoutes: React.FC = () => {
                 {format(selectedDate, 'EEEE d MMMM yyyy', { locale: sv })}
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </PremiumCard>
       )}
-    </div>
+    </PageContainer>
   );
 };
 

@@ -510,17 +510,38 @@ interface EconomyOverviewProps {
 
 const EconomyOverview: React.FC<EconomyOverviewProps> = ({ view = 'projects' }) => {
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Ekonomiöversikt</h1>
-        <p className="text-muted-foreground">
-          {view === 'projects' ? 'Översikt över projektekonomi' : 'Översikt över personalekonomi'}
-        </p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+      <div className="container mx-auto px-4 py-8 max-w-[1600px]">
+        {/* Premium Header */}
+        <div className="relative mb-8">
+          <div className="absolute inset-0 -z-10 overflow-hidden rounded-3xl">
+            <div className="absolute -top-20 -right-20 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
+            <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-primary/3 rounded-full blur-2xl" />
+          </div>
+          
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 p-6 rounded-2xl bg-gradient-to-r from-card/80 via-card to-card/80 backdrop-blur-sm border border-border/50 shadow-lg">
+            <div className="flex items-center gap-4">
+              <div 
+                className="relative p-3.5 rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-lg"
+                style={{ boxShadow: '0 8px 32px hsl(var(--primary) / 0.3)' }}
+              >
+                <DollarSign className="h-7 w-7 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+                  Ekonomiöversikt
+                </h1>
+                <p className="text-muted-foreground mt-0.5">
+                  {view === 'projects' ? 'Översikt över projektekonomi' : 'Översikt över personalekonomi'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
 
-      {/* Content based on view */}
-      {view === 'projects' ? <ProjectEconomyView /> : <StaffEconomyView />}
+        {/* Content based on view */}
+        {view === 'projects' ? <ProjectEconomyView /> : <StaffEconomyView />}
+      </div>
     </div>
   );
 };

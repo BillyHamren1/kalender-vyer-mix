@@ -1,6 +1,8 @@
-import { RefreshCw } from "lucide-react";
+import { LayoutDashboard, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePlanningDashboard } from "@/hooks/usePlanningDashboard";
+import { PageContainer } from "@/components/ui/PageContainer";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 import OngoingProjectsCard from "@/components/planning-dashboard/OngoingProjectsCard";
 import CompletedTodayCard from "@/components/planning-dashboard/CompletedTodayCard";
@@ -38,27 +40,24 @@ const PlanningDashboard = () => {
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="h-full overflow-y-auto bg-muted/30 p-6">
+      <PageContainer>
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold">Planerings-Dashboard</h1>
-            <p className="text-muted-foreground">
-              {format(new Date(), "EEEE d MMMM yyyy", { locale: sv })}
-            </p>
-          </div>
+        <PageHeader
+          icon={LayoutDashboard}
+          title="Planerings-Dashboard"
+          subtitle={format(new Date(), "EEEE d MMMM yyyy", { locale: sv })}
+        >
           <Button 
             variant="outline" 
             size="sm"
             onClick={refetchAll}
             disabled={isLoading}
+            className="rounded-xl"
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Uppdatera
           </Button>
-        </div>
-
-
+        </PageHeader>
 
         {/* Week Planning - Projects View */}
         <div className="mb-6">
@@ -102,7 +101,7 @@ const PlanningDashboard = () => {
             <CompletedTodayCard completed={completedToday} isLoading={isLoading} />
           </div>
         </div>
-      </div>
+      </PageContainer>
     </DndProvider>
   );
 };
