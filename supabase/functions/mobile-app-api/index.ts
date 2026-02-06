@@ -693,7 +693,12 @@ async function handleUploadFile(supabase: any, staffId: string, data: any) {
       )
     }
 
-    const storagePath = `${project.id}/${Date.now()}-${file_name}`
+    // Sanitize filename: remove special chars, spaces, and non-ASCII to avoid InvalidKey errors
+    const sanitizedName = file_name
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip diacritics (ä->a, ö->o)
+      .replace(/[^a-zA-Z0-9._-]/g, '_') // replace anything not alphanumeric/dot/dash/underscore
+      .replace(/_+/g, '_') // collapse multiple underscores
+    const storagePath = `${project.id}/${Date.now()}-${sanitizedName}`
 
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('project-files')
