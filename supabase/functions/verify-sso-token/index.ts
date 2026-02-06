@@ -31,6 +31,13 @@ async function verifySignature(payload: string, signature: string, secret: strin
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
   
+  // DIAGNOSTIK: Logga för att identifiera mismatch-orsak
+  console.log('[SSO-DEBUG] Payload length:', payload.length);
+  console.log('[SSO-DEBUG] Payload string:', payload);
+  console.log('[SSO-DEBUG] Expected sig (first 16):', expectedHex.substring(0, 16));
+  console.log('[SSO-DEBUG] Received sig (first 16):', signature.toLowerCase().substring(0, 16));
+  console.log('[SSO-DEBUG] Signatures match:', expectedHex === signature.toLowerCase());
+  
   return expectedHex === signature.toLowerCase();
 }
 
@@ -101,7 +108,11 @@ Deno.serve(async (req) => {
     };
 
     const payloadString = JSON.stringify(payloadForSignature);
-    console.log('[SSO] Verifying signature for normalized payload');
+    console.log('[SSO-DEBUG] payloadForSignature keys:', Object.keys(payloadForSignature));
+    console.log('[SSO-DEBUG] payloadString:', payloadString);
+    console.log('[SSO-DEBUG] received signature:', signature);
+    console.log('[SSO-DEBUG] SSO_SECRET length:', ssoSecret.length);
+    console.log('[SSO-DEBUG] SSO_SECRET first 4 chars:', ssoSecret.substring(0, 4));
     
     const isValid = await verifySignature(payloadString, signature, ssoSecret);
 
