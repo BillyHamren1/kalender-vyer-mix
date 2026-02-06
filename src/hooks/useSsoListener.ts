@@ -1,5 +1,4 @@
 import { useEffect, useCallback, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 
 interface SsoPreferences {
@@ -98,15 +97,14 @@ const SSO_PROCESSING_KEY = 'sso_currently_processing';
 export function useSsoListener() {
   const isProcessingRef = useRef(false);
   const lastProcessedRef = useRef<string | null>(null);
-  const location = useLocation();
 
-  // Determine target view based on current route
+  // Determine target view based on current route (use window.location to avoid Router dependency)
   const getTargetView = useCallback((): 'planning' | 'warehouse' => {
-    if (location.pathname.startsWith('/warehouse')) {
+    if (window.location.pathname.startsWith('/warehouse')) {
       return 'warehouse';
     }
     return 'planning';
-  }, [location.pathname]);
+  }, []);
 
   const verifySsoToken = useCallback(async (ssoToken: SsoToken) => {
     const fingerprint = getTokenFingerprint(ssoToken.signature);
