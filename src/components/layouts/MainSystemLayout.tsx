@@ -10,7 +10,7 @@ const MainSystemLayout: React.FC<MainSystemLayoutProps> = ({ children }) => {
     <div className="h-screen flex overflow-hidden">
       <Sidebar3D />
       {/* Main content - sidebar takes space in layout (no reserved margin) */}
-      <main className="flex-1 pb-20 md:pb-0 flex flex-col overflow-hidden">
+      <main className="flex-1 pb-20 md:pb-0 flex flex-col overflow-y-auto">
         {children}
       </main>
     </div>
