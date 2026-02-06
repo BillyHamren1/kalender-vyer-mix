@@ -1,108 +1,107 @@
+import { useState } from "react";
 import { LayoutDashboard, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { usePlanningDashboard } from "@/hooks/usePlanningDashboard";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { PageHeader } from "@/components/ui/PageHeader";
-
-import OngoingProjectsCard from "@/components/planning-dashboard/OngoingProjectsCard";
-import CompletedTodayCard from "@/components/planning-dashboard/CompletedTodayCard";
-import AllStaffCard from "@/components/planning-dashboard/AllStaffCard";
-import WeekProjectsView from "@/components/planning-dashboard/WeekProjectsView";
-import UnopenedBookingsCard from "@/components/planning-dashboard/UnopenedBookingsCard";
-import { format, startOfWeek, addWeeks, subWeeks } from "date-fns";
+import { format, startOfWeek, addWeeks, subWeeks, addDays, subDays, addMonths, subMonths } from "date-fns";
 import { sv } from "date-fns/locale";
-import { DndProvider } from "react-dnd";
-import { HTML5Backend } from "react-dnd-html5-backend";
-import { useState } from "react";
+
+import { useDashboardEvents, useDashboardStats, EventCategory, DashboardViewMode } from "@/hooks/useDashboardEvents";
+import DashboardAlertWidgets from "@/components/dashboard/DashboardAlertWidgets";
+import DashboardFilters from "@/components/dashboard/DashboardFilters";
+import DashboardWeekView from "@/components/dashboard/DashboardWeekView";
+import DashboardDayView from "@/components/dashboard/DashboardDayView";
+import DashboardMonthView from "@/components/dashboard/DashboardMonthView";
 
 const PlanningDashboard = () => {
-  const [currentWeekStart, setCurrentWeekStart] = useState(() => 
-    startOfWeek(new Date(), { weekStartsOn: 1 })
-  );
+  const [viewMode, setViewMode] = useState<DashboardViewMode>('week');
+  const [activeCategories, setActiveCategories] = useState<EventCategory[]>(['planning', 'warehouse', 'logistics']);
+  const [currentDate, setCurrentDate] = useState(new Date());
 
-  const {
-    stats,
-    staffLocations,
-    ongoingProjects,
-    completedToday,
-    allStaff,
-    weekProjects,
-    unopenedBookings,
-    isLoading,
-    refetchAll,
-    handleToggleStaffActive,
-    handleStaffDropToBooking
-  } = usePlanningDashboard(currentWeekStart);
+  const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
 
-  const goToPreviousWeek = () => setCurrentWeekStart(prev => subWeeks(prev, 1));
-  const goToNextWeek = () => setCurrentWeekStart(prev => addWeeks(prev, 1));
-  const goToCurrentWeek = () => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const { events, isLoading, refetchAll } = useDashboardEvents(viewMode, currentDate, activeCategories);
+  const { data: stats, isLoading: statsLoading } = useDashboardStats();
+
+  // Navigation handlers
+  const goToPreviousWeek = () => setCurrentDate(prev => subWeeks(prev, 1));
+  const goToNextWeek = () => setCurrentDate(prev => addWeeks(prev, 1));
+  const goToPreviousDay = () => setCurrentDate(prev => subDays(prev, 1));
+  const goToNextDay = () => setCurrentDate(prev => addDays(prev, 1));
+  const goToPreviousMonth = () => setCurrentDate(prev => subMonths(prev, 1));
+  const goToNextMonth = () => setCurrentDate(prev => addMonths(prev, 1));
+
+  const handleDayClickFromMonth = (date: Date) => {
+    setCurrentDate(date);
+    setViewMode('day');
+  };
 
   return (
-    <DndProvider backend={HTML5Backend}>
-      <PageContainer>
-        {/* Header */}
-        <PageHeader
-          icon={LayoutDashboard}
-          title="Planerings-Dashboard"
-          subtitle={format(new Date(), "EEEE d MMMM yyyy", { locale: sv })}
+    <PageContainer>
+      <PageHeader
+        icon={LayoutDashboard}
+        title="Dashboard"
+        subtitle={format(new Date(), "EEEE d MMMM yyyy", { locale: sv })}
+      >
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={() => { refetchAll(); }}
+          disabled={isLoading}
+          className="rounded-xl"
         >
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={refetchAll}
-            disabled={isLoading}
-            className="rounded-xl"
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Uppdatera
-          </Button>
-        </PageHeader>
+          <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+          Uppdatera
+        </Button>
+      </PageHeader>
 
-        {/* Week Planning - Projects View */}
-        <div className="mb-6">
-          <WeekProjectsView 
-            projects={weekProjects}
-            weekStart={currentWeekStart}
+      {/* Alert Widgets */}
+      <div className="mb-4">
+        <DashboardAlertWidgets stats={stats} isLoading={statsLoading} />
+      </div>
+
+      {/* Filters */}
+      <div className="mb-4">
+        <DashboardFilters
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          activeCategories={activeCategories}
+          onCategoriesChange={setActiveCategories}
+        />
+      </div>
+
+      {/* Calendar View */}
+      <div className="mb-6">
+        {viewMode === 'week' && (
+          <DashboardWeekView
+            events={events}
+            weekStart={weekStart}
             onPreviousWeek={goToPreviousWeek}
             onNextWeek={goToNextWeek}
-            onCurrentWeek={goToCurrentWeek}
             isLoading={isLoading}
-            onStaffDrop={handleStaffDropToBooking}
           />
-        </div>
-
-        {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Unopened Bookings - First Column */}
-          <div className="lg:col-span-1">
-            <UnopenedBookingsCard 
-              bookings={unopenedBookings}
-              isLoading={isLoading}
-            />
-          </div>
-
-          {/* Staff Column with Toggle */}
-          <div className="lg:col-span-1">
-            <AllStaffCard 
-              staff={allStaff}
-              isLoading={isLoading}
-              onToggleActive={handleToggleStaffActive}
-            />
-          </div>
-
-          {/* Projects */}
-          <div className="lg:col-span-1">
-            <OngoingProjectsCard projects={ongoingProjects} isLoading={isLoading} />
-          </div>
-
-          {/* Completed */}
-          <div className="lg:col-span-1">
-            <CompletedTodayCard completed={completedToday} isLoading={isLoading} />
-          </div>
-        </div>
-      </PageContainer>
-    </DndProvider>
+        )}
+        {viewMode === 'day' && (
+          <DashboardDayView
+            events={events}
+            currentDate={currentDate}
+            onPreviousDay={goToPreviousDay}
+            onNextDay={goToNextDay}
+            isLoading={isLoading}
+          />
+        )}
+        {viewMode === 'month' && (
+          <DashboardMonthView
+            events={events}
+            currentDate={currentDate}
+            onPreviousMonth={goToPreviousMonth}
+            onNextMonth={goToNextMonth}
+            onDayClick={handleDayClickFromMonth}
+            isLoading={isLoading}
+          />
+        )}
+      </div>
+    </PageContainer>
   );
 };
 
