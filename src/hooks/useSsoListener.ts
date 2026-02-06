@@ -1,5 +1,12 @@
 import { useEffect, useCallback, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+
+interface SsoPreferences {
+  language?: string;
+  timezone?: string;
+  dateFormat?: string;
+}
 
 interface SsoPayload {
   user_id: string;
@@ -8,6 +15,7 @@ interface SsoPayload {
   full_name: string | null;
   timestamp: number;
   expires_at: number;
+  preferences?: SsoPreferences;
 }
 
 interface SsoToken {
@@ -18,6 +26,23 @@ interface SsoToken {
 interface SsoError {
   status?: number;
   code?: string;
+  message?: string;
+}
+
+interface SsoResult {
+  success: boolean;
+  access_token?: string;
+  refresh_token?: string;
+  user?: {
+    id: string;
+    email: string;
+    organization_id: string | null;
+    full_name: string | null;
+    sso_user: boolean;
+  };
+  preferences?: SsoPreferences | null;
+  roles?: string[];
+  error_code?: string;
   message?: string;
 }
 
@@ -42,6 +67,30 @@ function sendSsoResponse(success: boolean, error?: SsoError) {
   }
 }
 
+// Apply preferences to the application
+function applyPreferences(preferences: SsoPreferences) {
+  if (!preferences) return;
+  
+  console.log('[SSO] Applying preferences:', preferences);
+  
+  // Store preferences in localStorage for persistence
+  if (preferences.language) {
+    localStorage.setItem('app_language', preferences.language);
+    document.documentElement.lang = preferences.language;
+  }
+  
+  if (preferences.timezone) {
+    localStorage.setItem('app_timezone', preferences.timezone);
+  }
+  
+  if (preferences.dateFormat) {
+    localStorage.setItem('app_date_format', preferences.dateFormat);
+  }
+  
+  // Dispatch custom event for components that need to react
+  window.dispatchEvent(new CustomEvent('preferences-updated', { detail: preferences }));
+}
+
 // Use sessionStorage key for cross-render deduplication
 const SSO_PROCESSED_KEY = 'sso_last_processed_fingerprint';
 const SSO_PROCESSING_KEY = 'sso_currently_processing';
@@ -49,6 +98,15 @@ const SSO_PROCESSING_KEY = 'sso_currently_processing';
 export function useSsoListener() {
   const isProcessingRef = useRef(false);
   const lastProcessedRef = useRef<string | null>(null);
+  const location = useLocation();
+
+  // Determine target view based on current route
+  const getTargetView = useCallback((): 'planning' | 'warehouse' => {
+    if (location.pathname.startsWith('/warehouse')) {
+      return 'warehouse';
+    }
+    return 'planning';
+  }, [location.pathname]);
 
   const verifySsoToken = useCallback(async (ssoToken: SsoToken) => {
     const fingerprint = getTokenFingerprint(ssoToken.signature);
@@ -83,16 +141,20 @@ export function useSsoListener() {
     isProcessingRef.current = true;
     sessionStorage.setItem(SSO_PROCESSING_KEY, fingerprint);
     
-    console.log('[SSO] Starting verification for:', ssoToken.payload.email, 'fingerprint:', fingerprint);
+    const targetView = getTargetView();
+    console.log('[SSO] Starting verification for:', ssoToken.payload.email, 'fingerprint:', fingerprint, 'target_view:', targetView);
 
     try {
       const response = await fetch(`https://pihrhltinhewhoxefjxv.supabase.co/functions/v1/verify-sso-token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(ssoToken),
+        body: JSON.stringify({
+          ...ssoToken,
+          target_view: targetView,
+        }),
       });
 
-      const data = await response.json();
+      const data: SsoResult = await response.json();
 
       if (!response.ok || !data.success) {
         console.error('[SSO] Verification failed:', data);
@@ -102,10 +164,10 @@ export function useSsoListener() {
 
       console.log('[SSO] Verification successful, setting session directly');
 
-      // Använd setSession med tokens från edge function - INTE verifyOtp!
+      // Använd setSession med tokens från edge function
       const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-        access_token: data.access_token,
-        refresh_token: data.refresh_token,
+        access_token: data.access_token!,
+        refresh_token: data.refresh_token!,
       });
 
       if (sessionError) {
@@ -114,11 +176,20 @@ export function useSsoListener() {
         return;
       }
 
+      // Mark user as SSO user in sessionStorage (for ProtectedRoute to skip role check)
+      sessionStorage.setItem('isSsoUser', 'true');
+      sessionStorage.setItem('skipRoleCheck', 'true');
+      
+      // Apply preferences from SSO token
+      if (data.preferences) {
+        applyPreferences(data.preferences);
+      }
+
       // Mark as successfully processed AFTER session is established
       lastProcessedRef.current = fingerprint;
       sessionStorage.setItem(SSO_PROCESSED_KEY, fingerprint);
       
-      console.log('[SSO] Session established successfully for:', data.user.email);
+      console.log('[SSO] Session established successfully for:', data.user?.email, 'roles:', data.roles);
       sendSsoResponse(true);
 
     } catch (err) {
@@ -128,7 +199,7 @@ export function useSsoListener() {
       isProcessingRef.current = false;
       sessionStorage.removeItem(SSO_PROCESSING_KEY);
     }
-  }, []);
+  }, [getTargetView]);
 
   useEffect(() => {
     // 1. Kolla URL-hash först
@@ -153,6 +224,8 @@ export function useSsoListener() {
     // 2. Lyssna på postMessage
     function handleMessage(event: MessageEvent) {
       const data = event.data;
+      
+      // Handle SSO_TOKEN message
       if (data?.type === 'SSO_TOKEN') {
         console.log('[SSO] Received SSO_TOKEN via postMessage');
         
@@ -185,6 +258,15 @@ export function useSsoListener() {
           sendSsoResponse(false, { status: 400, code: 'INVALID_TOKEN', message: 'No valid SSO token in message' });
         }
       }
+      
+      // Handle PREFERENCES_UPDATE message from Hub
+      if (data?.type === 'PREFERENCES_UPDATE') {
+        console.log('[SSO] Received PREFERENCES_UPDATE via postMessage');
+        const preferences = data.preferences as SsoPreferences;
+        if (preferences) {
+          applyPreferences(preferences);
+        }
+      }
     }
 
     window.addEventListener('message', handleMessage);
@@ -194,4 +276,22 @@ export function useSsoListener() {
       window.removeEventListener('message', handleMessage);
     };
   }, [verifySsoToken]);
+}
+
+// Hook to get current preferences
+export function useAppPreferences() {
+  const getPreferences = useCallback((): SsoPreferences => {
+    return {
+      language: localStorage.getItem('app_language') || 'sv',
+      timezone: localStorage.getItem('app_timezone') || 'Europe/Stockholm',
+      dateFormat: localStorage.getItem('app_date_format') || 'DD/MM/YYYY',
+    };
+  }, []);
+
+  return { getPreferences };
+}
+
+// Check if current user is an SSO user
+export function isSsoUser(): boolean {
+  return sessionStorage.getItem('isSsoUser') === 'true';
 }

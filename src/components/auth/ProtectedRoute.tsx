@@ -1,11 +1,10 @@
 import React from 'react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserRoles, AppRole } from '@/hooks/useUserRoles';
 import { Loader2, ShieldX, UserX, Copy, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useState } from 'react';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -13,23 +12,26 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRoles }) => {
-  const { user, isLoading: authLoading, signOut } = useAuth();
+  const { user, isLoading: authLoading, signOut, isSsoUser } = useAuth();
   const { roles, hasPlanningAccess, hasAnyRole, isLoading: rolesLoading } = useUserRoles();
   const location = useLocation();
   const [copied, setCopied] = useState(false);
   
-  // Check if user came from /auth login (skip role check in that case)
+  // Check if user came from /auth login or is an SSO user (skip role check in those cases)
   // Check both location.state and sessionStorage for the flag
   const skipRoleCheckState = (location.state as { skipRoleCheck?: boolean })?.skipRoleCheck === true;
   const skipRoleCheckStorage = sessionStorage.getItem('skipRoleCheck') === 'true';
-  const skipRoleCheck = skipRoleCheckState || skipRoleCheckStorage;
+  const isSsoUserStorage = sessionStorage.getItem('isSsoUser') === 'true';
   
-  // Clear the sessionStorage flag after reading it (one-time use)
+  // SSO users always skip role check - they are pre-authorized from Hub
+  const skipRoleCheck = skipRoleCheckState || skipRoleCheckStorage || isSsoUser || isSsoUserStorage;
+  
+  // Clear the one-time skipRoleCheck flag (but NOT isSsoUser which persists for the session)
   useEffect(() => {
-    if (skipRoleCheckStorage) {
+    if (skipRoleCheckStorage && !isSsoUserStorage) {
       sessionStorage.removeItem('skipRoleCheck');
     }
-  }, [skipRoleCheckStorage]);
+  }, [skipRoleCheckStorage, isSsoUserStorage]);
 
   // Show loading while auth or roles are loading
   if (authLoading || (user && rolesLoading)) {
