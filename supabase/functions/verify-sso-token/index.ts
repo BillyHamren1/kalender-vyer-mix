@@ -263,33 +263,32 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 4. Generera tillfälligt lösenord och logga in
-    const tempPassword = crypto.randomUUID();
-    
-    console.log('[SSO] Setting temporary password for user:', userId);
-    const { error: updateError } = await supabase.auth.admin.updateUserById(userId, {
-      password: tempPassword
+    // 4. Generera magiclink för att skapa session utan att ändra lösenord
+    console.log('[SSO] Generating magiclink for user:', normalizedEmail);
+    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+      type: 'magiclink',
+      email: normalizedEmail,
     });
 
-    if (updateError) {
-      console.error('[SSO] Failed to set temp password:', updateError);
+    if (linkError || !linkData?.properties?.hashed_token) {
+      console.error('[SSO] Failed to generate magiclink:', linkError);
       return new Response(
-        JSON.stringify({ success: false, error_code: 'PASSWORD_UPDATE_FAILED', message: updateError.message }),
+        JSON.stringify({ success: false, error_code: 'LINK_GENERATION_FAILED', message: linkError?.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 5. Logga in med tillfälligt lösenord för att få session
-    console.log('[SSO] Signing in with temporary password');
-    const { data: sessionData, error: signInError } = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
-      password: tempPassword,
+    // 5. Verifiera OTP-token för att få session (utan att röra lösenord)
+    console.log('[SSO] Verifying OTP to create session');
+    const { data: sessionData, error: verifyError } = await supabase.auth.verifyOtp({
+      token_hash: linkData.properties.hashed_token,
+      type: 'magiclink',
     });
 
-    if (signInError || !sessionData?.session) {
-      console.error('[SSO] Sign in failed:', signInError);
+    if (verifyError || !sessionData?.session) {
+      console.error('[SSO] OTP verification failed:', verifyError);
       return new Response(
-        JSON.stringify({ success: false, error_code: 'SIGN_IN_FAILED', message: signInError?.message }),
+        JSON.stringify({ success: false, error_code: 'SESSION_CREATE_FAILED', message: verifyError?.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
