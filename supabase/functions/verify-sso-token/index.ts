@@ -34,6 +34,12 @@ async function verifySignature(payload: string, signature: string, secret: strin
   return expectedHex === signature.toLowerCase();
 }
 
+interface SsoPreferences {
+  language?: string;
+  timezone?: string;
+  dateFormat?: string;
+}
+
 interface SsoPayload {
   user_id: string;
   email: string;
@@ -41,7 +47,10 @@ interface SsoPayload {
   full_name: string | null;
   timestamp: number;
   expires_at: number;
+  preferences?: SsoPreferences;
 }
+
+type AppRole = 'admin' | 'forsaljning' | 'projekt' | 'lager';
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -50,9 +59,13 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { payload, signature } = await req.json() as { payload: SsoPayload; signature: string };
+    const { payload, signature, target_view } = await req.json() as { 
+      payload: SsoPayload; 
+      signature: string;
+      target_view?: 'planning' | 'warehouse';
+    };
 
-    console.log('[SSO] Received verification request for:', payload?.email);
+    console.log('[SSO] Received verification request for:', payload?.email, 'target_view:', target_view);
 
     if (!payload || !signature) {
       console.error('[SSO] Missing payload or signature');
@@ -77,7 +90,17 @@ Deno.serve(async (req) => {
       full_name: payload.full_name ? stripNonAscii(payload.full_name) : null,
     };
 
-    const payloadString = JSON.stringify(normalizedPayload);
+    // Remove preferences from signature verification (may not be signed)
+    const payloadForSignature = {
+      user_id: normalizedPayload.user_id,
+      email: normalizedPayload.email,
+      organization_id: normalizedPayload.organization_id,
+      full_name: normalizedPayload.full_name,
+      timestamp: normalizedPayload.timestamp,
+      expires_at: normalizedPayload.expires_at,
+    };
+
+    const payloadString = JSON.stringify(payloadForSignature);
     console.log('[SSO] Verifying signature for normalized payload');
     
     const isValid = await verifySignature(payloadString, signature, ssoSecret);
@@ -156,7 +179,8 @@ Deno.serve(async (req) => {
         email_confirm: true,
         user_metadata: { 
           full_name: normalizedPayload.full_name,
-          organization_id: payload.organization_id 
+          organization_id: payload.organization_id,
+          sso_user: true, // Mark as SSO user
         }
       });
 
@@ -194,12 +218,52 @@ Deno.serve(async (req) => {
       await supabase.auth.admin.updateUserById(userId, {
         user_metadata: { 
           full_name: normalizedPayload.full_name,
-          organization_id: payload.organization_id 
+          organization_id: payload.organization_id,
+          sso_user: true, // Mark as SSO user
         }
       });
     }
 
-    // 3. Generera tillfälligt lösenord och logga in
+    // 3. Auto-assign roles for SSO users based on target_view
+    console.log('[SSO] Ensuring roles for user:', userId, 'target_view:', target_view);
+    
+    // Determine which roles to assign
+    const rolesToAssign: AppRole[] = [];
+    
+    if (target_view === 'warehouse') {
+      rolesToAssign.push('lager');
+    } else if (target_view === 'planning') {
+      rolesToAssign.push('projekt');
+    } else {
+      // Default: assign both roles for full access
+      rolesToAssign.push('projekt', 'lager');
+    }
+    
+    // Check existing roles
+    const { data: existingRoles } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId);
+    
+    const existingRoleSet = new Set(existingRoles?.map(r => r.role) || []);
+    
+    // Insert missing roles (idempotent - ignore conflicts)
+    for (const role of rolesToAssign) {
+      if (!existingRoleSet.has(role)) {
+        console.log('[SSO] Assigning role:', role, 'to user:', userId);
+        const { error: roleError } = await supabase
+          .from('user_roles')
+          .insert({ user_id: userId, role })
+          .select()
+          .single();
+        
+        if (roleError && !roleError.message?.includes('duplicate')) {
+          console.warn('[SSO] Failed to assign role:', role, roleError.message);
+        }
+      }
+    }
+
+    // 4. Generera tillfälligt lösenord och logga in
     const tempPassword = crypto.randomUUID();
     
     console.log('[SSO] Setting temporary password for user:', userId);
@@ -215,7 +279,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 4. Logga in med tillfälligt lösenord för att få session
+    // 5. Logga in med tillfälligt lösenord för att få session
     console.log('[SSO] Signing in with temporary password');
     const { data: sessionData, error: signInError } = await supabase.auth.signInWithPassword({
       email: normalizedEmail,
@@ -232,7 +296,7 @@ Deno.serve(async (req) => {
 
     console.log('[SSO] Session created successfully for:', payload.email);
 
-    // 5. Returnera access_token och refresh_token
+    // 6. Returnera access_token, refresh_token, och preferences
     return new Response(
       JSON.stringify({ 
         success: true,
@@ -242,7 +306,11 @@ Deno.serve(async (req) => {
           id: userId,
           email: normalizedEmail,
           organization_id: payload.organization_id,
-        }
+          full_name: normalizedPayload.full_name,
+          sso_user: true,
+        },
+        preferences: payload.preferences || null,
+        roles: [...existingRoleSet, ...rolesToAssign.filter(r => !existingRoleSet.has(r))],
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
