@@ -1,13 +1,29 @@
+import { useState, useEffect } from 'react';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useNavigate } from 'react-router-dom';
 import { getGpsSettings } from '@/hooks/useGeofencing';
-import { User, Mail, Phone, MapPin, LogOut, Radar, Shield } from 'lucide-react';
+import { mobileApi, MobileTimeReport } from '@/services/mobileApiService';
+import { format, parseISO } from 'date-fns';
+import { sv } from 'date-fns/locale';
+import { User, Mail, Phone, MapPin, LogOut, Radar, Shield, Clock, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 const MobileProfile = () => {
   const { staff, logout } = useMobileAuth();
   const navigate = useNavigate();
   const gps = getGpsSettings();
+
+  const [timeReports, setTimeReports] = useState<MobileTimeReport[]>([]);
+  const [isLoadingReports, setIsLoadingReports] = useState(true);
+  const [showAllReports, setShowAllReports] = useState(false);
+
+  useEffect(() => {
+    mobileApi.getTimeReports()
+      .then(res => setTimeReports(res.time_reports))
+      .catch(() => toast.error('Kunde inte ladda rapporter'))
+      .finally(() => setIsLoadingReports(false));
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -15,6 +31,9 @@ const MobileProfile = () => {
   };
 
   if (!staff) return null;
+
+  const visibleReports = showAllReports ? timeReports : timeReports.slice(0, 5);
+  const totalHours = timeReports.reduce((sum, r) => sum + r.hours_worked, 0);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -70,6 +89,82 @@ const MobileProfile = () => {
                 <p className="text-sm font-medium">{staff.department}</p>
               </div>
             </div>
+          )}
+        </div>
+
+        {/* Time report history */}
+        <div className="rounded-xl border bg-card p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Tidrapporter</h2>
+            {!isLoadingReports && timeReports.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">{timeReports.length} st</span>
+                <span className="text-xs font-semibold text-primary">{totalHours}h totalt</span>
+              </div>
+            )}
+          </div>
+
+          {isLoadingReports ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+            </div>
+          ) : timeReports.length === 0 ? (
+            <div className="text-center py-6">
+              <Clock className="w-8 h-8 mx-auto text-muted-foreground/20 mb-2" />
+              <p className="text-sm text-muted-foreground">Inga rapporter ännu</p>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                {visibleReports.map(report => (
+                  <div key={report.id} className="rounded-lg border bg-muted/30 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-sm truncate">
+                          {report.bookings?.client || 'Okänt jobb'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {format(parseISO(report.report_date), 'd MMM yyyy', { locale: sv })}
+                          {report.start_time && report.end_time && (
+                            <span> · {report.start_time.slice(0, 5)}–{report.end_time.slice(0, 5)}</span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="font-bold text-sm">{report.hours_worked}h</p>
+                        {report.overtime_hours > 0 && (
+                          <p className="text-[10px] text-primary font-medium">+{report.overtime_hours}h öt</p>
+                        )}
+                      </div>
+                    </div>
+                    {report.description && (
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{report.description}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {timeReports.length > 5 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-xs gap-1 text-muted-foreground"
+                  onClick={() => setShowAllReports(!showAllReports)}
+                >
+                  {showAllReports ? (
+                    <>
+                      <ChevronUp className="w-3.5 h-3.5" />
+                      Visa färre
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-3.5 h-3.5" />
+                      Visa alla ({timeReports.length})
+                    </>
+                  )}
+                </Button>
+              )}
+            </>
           )}
         </div>
 
