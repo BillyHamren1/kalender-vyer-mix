@@ -50,23 +50,38 @@ const cleanName = (name: string): string => {
   return name.replace(/^(↳|└|L,)\s*/, '').trim();
 };
 
-// Group products: parent with children underneath
+// Group products using ID-based parent lookup (order-independent)
 const groupProducts = (products: any[]) => {
-  const groups: { parent: any; children: any[] }[] = [];
-  let currentGroup: { parent: any; children: any[] } | null = null;
+  // First pass: identify parents and create group map
+  const groupMap = new Map<string, { parent: any; children: any[] }>();
+  const parents: any[] = [];
+  const children: any[] = [];
 
   for (const p of products) {
     if (isChildProduct(p)) {
-      if (currentGroup) {
-        currentGroup.children.push(p);
-      } else {
-        // Orphan child — create solo group
-        groups.push({ parent: p, children: [] });
-      }
+      children.push(p);
     } else {
-      currentGroup = { parent: p, children: [] };
-      groups.push(currentGroup);
+      parents.push(p);
+      groupMap.set(p.id, { parent: p, children: [] });
     }
+  }
+
+  // Second pass: assign children to their parent by ID
+  const orphans: any[] = [];
+  for (const child of children) {
+    const parentId = child.parent_product_id || child.parent_package_id;
+    if (parentId && groupMap.has(parentId)) {
+      groupMap.get(parentId)!.children.push(child);
+    } else {
+      // Orphan — show as standalone item
+      orphans.push(child);
+    }
+  }
+
+  // Build final array: parents in original order, then orphans
+  const groups = parents.map(p => groupMap.get(p.id)!);
+  for (const o of orphans) {
+    groups.push({ parent: o, children: [] });
   }
 
   return groups;
