@@ -5,7 +5,7 @@ interface MobileAuthContextType {
   staff: MobileStaff | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -43,8 +43,8 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, []);
 
-  const login = useCallback(async (username: string, password: string) => {
-    const res = await mobileApi.login(username, password);
+  const login = useCallback(async (email: string, password: string) => {
+    const res = await mobileApi.login(email, password);
     setAuth(res.token, res.staff);
     setStaff(res.staff);
   }, []);
