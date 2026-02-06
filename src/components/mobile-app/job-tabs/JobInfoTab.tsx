@@ -159,7 +159,6 @@ const ProductGroupRow = ({ group }: { group: ProductGroup }) => {
           {group.children.map((child) => (
             <div key={child.id} className="flex items-center justify-between text-sm py-1 text-muted-foreground">
               <span className="text-xs truncate">
-                <span className="text-muted-foreground/60 mr-1">↳</span>
                 {cleanProductName(child.name)}
               </span>
               <span className="text-xs shrink-0 ml-2">{child.quantity} st</span>
