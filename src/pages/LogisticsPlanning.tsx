@@ -14,7 +14,8 @@ import {
   Navigation,
   Zap,
   Route,
-  Calendar
+  Calendar,
+  Building2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -246,12 +247,18 @@ const LogisticsPlanning: React.FC = () => {
                 </div>
                 <h3 className="text-lg font-medium mb-2">Inga fordon registrerade</h3>
                 <p className="text-muted-foreground mb-6">
-                  Lägg till ditt första fordon för att börja planera transporter
+                  Lägg till ditt första fordon eller transportpartner för att börja planera transporter
                 </p>
-                <Button onClick={() => navigate('/logistics/vehicles')} className="rounded-xl">
-                  <Truck className="h-4 w-4 mr-2" />
-                  Lägg till fordon
-                </Button>
+                <div className="flex flex-wrap gap-3 justify-center">
+                  <Button onClick={() => navigate('/logistics/vehicles')} className="rounded-xl">
+                    <Truck className="h-4 w-4 mr-2" />
+                    Lägg till fordon
+                  </Button>
+                  <Button onClick={() => navigate('/logistics/vehicles?tab=partners')} variant="outline" className="rounded-xl">
+                    <Building2 className="h-4 w-4 mr-2" />
+                    Lägg till transportpartner
+                  </Button>
+                </div>
               </div>
             </PremiumCard>
           ) : (
