@@ -240,6 +240,18 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
 
       if (projectError) throw projectError;
 
+      // Mark the booking as assigned to a project
+      if (selectedBookingId && selectedBookingId !== "none") {
+        await supabase
+          .from('bookings')
+          .update({ 
+            assigned_to_project: true,
+            assigned_project_id: project.id,
+            assigned_project_name: name.trim()
+          })
+          .eq('id', selectedBookingId);
+      }
+
       // Create tasks
       const tasks = checklistItems.map((item, index) => ({
         project_id: project.id,
