@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Truck, Plus, Edit2, Trash2, Weight, Box, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
   Dialog, 
@@ -22,6 +21,9 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PageContainer } from '@/components/ui/PageContainer';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { PremiumCard, SimpleCard } from '@/components/ui/PremiumCard';
 import { useVehicles, Vehicle, VehicleFormData } from '@/hooks/useVehicles';
 import { cn } from '@/lib/utils';
 
@@ -128,135 +130,127 @@ const LogisticsVehicles: React.FC = () => {
   const renderVehicleGrid = (vehicleList: Vehicle[], emptyMessage: string, emptySubMessage: string) => {
     if (vehicleList.length === 0) {
       return (
-        <Card>
-          <CardContent className="py-12 text-center">
+        <PremiumCard>
+          <div className="py-8 text-center">
             {activeTab === 'external' ? (
-              <Building2 className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+              <Building2 className="h-16 w-16 mx-auto text-muted-foreground/40 mb-4" />
             ) : (
-              <Truck className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+              <Truck className="h-16 w-16 mx-auto text-muted-foreground/40 mb-4" />
             )}
             <h3 className="text-lg font-medium mb-2">{emptyMessage}</h3>
             <p className="text-muted-foreground mb-4">{emptySubMessage}</p>
-            <Button onClick={openCreateForm}>
+            <Button onClick={openCreateForm} className="rounded-xl">
               <Plus className="h-4 w-4 mr-2" />
               {activeTab === 'external' ? 'Lägg till transportbolag' : 'Lägg till fordon'}
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </PremiumCard>
       );
     }
 
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {vehicleList.map(vehicle => (
-          <Card 
+          <SimpleCard 
             key={vehicle.id}
             className={cn(
-              "transition-opacity",
+              "transition-all",
               !vehicle.is_active && "opacity-60"
             )}
           >
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">{getVehicleIcon(vehicle.vehicle_type, vehicle.is_external)}</span>
-                  <div>
-                    <CardTitle className="text-base">{vehicle.name}</CardTitle>
-                    {vehicle.is_external && vehicle.company_name && (
-                      <p className="text-xs text-muted-foreground">
-                        {vehicle.company_name}
-                      </p>
-                    )}
-                    {!vehicle.is_external && vehicle.registration_number && (
-                      <p className="text-xs text-muted-foreground">
-                        {vehicle.registration_number}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex flex-col gap-1 items-end">
-                  <Badge variant={vehicle.is_active ? 'default' : 'secondary'}>
-                    {vehicle.is_active ? 'Aktiv' : 'Inaktiv'}
-                  </Badge>
-                  {vehicle.is_external && (
-                    <Badge variant="outline" className="text-xs">
-                      Extern
-                    </Badge>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{getVehicleIcon(vehicle.vehicle_type, vehicle.is_external)}</span>
+                <div>
+                  <h3 className="font-medium">{vehicle.name}</h3>
+                  {vehicle.is_external && vehicle.company_name && (
+                    <p className="text-xs text-muted-foreground">
+                      {vehicle.company_name}
+                    </p>
+                  )}
+                  {!vehicle.is_external && vehicle.registration_number && (
+                    <p className="text-xs text-muted-foreground">
+                      {vehicle.registration_number}
+                    </p>
                   )}
                 </div>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <Weight className="h-4 w-4 text-muted-foreground" />
-                  <span>{vehicle.max_weight_kg} kg</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Box className="h-4 w-4 text-muted-foreground" />
-                  <span>{vehicle.max_volume_m3} m³</span>
-                </div>
+              <div className="flex flex-col gap-1 items-end">
+                <Badge variant={vehicle.is_active ? 'default' : 'secondary'}>
+                  {vehicle.is_active ? 'Aktiv' : 'Inaktiv'}
+                </Badge>
+                {vehicle.is_external && (
+                  <Badge variant="outline" className="text-xs">
+                    Extern
+                  </Badge>
+                )}
               </div>
+            </div>
 
-              <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="flex-1"
-                  onClick={() => openEditForm(vehicle)}
-                >
-                  <Edit2 className="h-3 w-3 mr-1" />
-                  Redigera
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="text-destructive hover:text-destructive"
-                  onClick={() => confirmDelete(vehicle)}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
+            <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Weight className="h-4 w-4" />
+                <span>{vehicle.max_weight_kg} kg</span>
               </div>
-            </CardContent>
-          </Card>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Box className="h-4 w-4" />
+                <span>{vehicle.max_volume_m3} m³</span>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex-1 rounded-lg"
+                onClick={() => openEditForm(vehicle)}
+              >
+                <Edit2 className="h-3 w-3 mr-1" />
+                Redigera
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="rounded-lg text-destructive hover:text-destructive"
+                onClick={() => confirmDelete(vehicle)}
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </div>
+          </SimpleCard>
         ))}
       </div>
     );
   };
 
   return (
-    <div className="space-y-6">
+    <PageContainer>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Truck className="h-6 w-6 text-primary" />
-            Fordonshantering
-          </h1>
-          <p className="text-muted-foreground">
-            Hantera fordon och externa transportbolag
-          </p>
-        </div>
-        <Button onClick={openCreateForm}>
-          <Plus className="h-4 w-4 mr-2" />
-          {activeTab === 'external' ? 'Lägg till transportbolag' : 'Lägg till fordon'}
-        </Button>
-      </div>
+      <PageHeader
+        icon={Truck}
+        title="Fordonshantering"
+        subtitle="Hantera fordon och externa transportbolag"
+        action={{
+          label: activeTab === 'external' ? 'Lägg till transportbolag' : 'Lägg till fordon',
+          icon: Plus,
+          onClick: openCreateForm
+        }}
+      />
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'internal' | 'external')}>
-        <TabsList>
-          <TabsTrigger value="internal" className="gap-2">
+        <TabsList className="mb-6">
+          <TabsTrigger value="internal" className="gap-2 rounded-lg">
             <Truck className="h-4 w-4" />
             Egna fordon ({internalVehicles.length})
           </TabsTrigger>
-          <TabsTrigger value="external" className="gap-2">
+          <TabsTrigger value="external" className="gap-2 rounded-lg">
             <Building2 className="h-4 w-4" />
             Transportbolag ({externalVehicles.length})
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="internal" className="mt-4">
+        <TabsContent value="internal">
           {isLoading ? (
             <div className="text-center py-8 text-muted-foreground">Laddar...</div>
           ) : (
@@ -268,7 +262,7 @@ const LogisticsVehicles: React.FC = () => {
           )}
         </TabsContent>
 
-        <TabsContent value="external" className="mt-4">
+        <TabsContent value="external">
           {isLoading ? (
             <div className="text-center py-8 text-muted-foreground">Laddar...</div>
           ) : (
@@ -280,11 +274,15 @@ const LogisticsVehicles: React.FC = () => {
           )}
         </TabsContent>
       </Tabs>
+
       {/* Create/Edit Form Dialog */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-primary/10">
+                {formData.is_external ? <Building2 className="h-5 w-5 text-primary" /> : <Truck className="h-5 w-5 text-primary" />}
+              </div>
               {editingVehicle 
                 ? (formData.is_external ? 'Redigera transportbolag' : 'Redigera fordon')
                 : (formData.is_external ? 'Lägg till transportbolag' : 'Lägg till fordon')
@@ -301,6 +299,7 @@ const LogisticsVehicles: React.FC = () => {
                 onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
                 placeholder={formData.is_external ? 'T.ex. DHL Expressleverans' : 'T.ex. Bil 1, Volvo lastbil'}
                 required
+                className="rounded-xl"
               />
             </div>
 
@@ -312,6 +311,7 @@ const LogisticsVehicles: React.FC = () => {
                   value={formData.company_name}
                   onChange={e => setFormData(prev => ({ ...prev, company_name: e.target.value }))}
                   placeholder="T.ex. DHL, Schenker, PostNord"
+                  className="rounded-xl"
                 />
               </div>
             )}
@@ -324,6 +324,7 @@ const LogisticsVehicles: React.FC = () => {
                   value={formData.registration_number}
                   onChange={e => setFormData(prev => ({ ...prev, registration_number: e.target.value }))}
                   placeholder="ABC 123"
+                  className="rounded-xl"
                 />
               </div>
             )}
@@ -337,7 +338,7 @@ const LogisticsVehicles: React.FC = () => {
                   vehicle_type: value as VehicleFormData['vehicle_type'] 
                 }))}
               >
-                <SelectTrigger>
+                <SelectTrigger className="rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -362,6 +363,7 @@ const LogisticsVehicles: React.FC = () => {
                     max_weight_kg: parseInt(e.target.value) || 0 
                   }))}
                   min={0}
+                  className="rounded-xl"
                 />
               </div>
               <div className="space-y-2">
@@ -376,6 +378,7 @@ const LogisticsVehicles: React.FC = () => {
                     max_volume_m3: parseFloat(e.target.value) || 0 
                   }))}
                   min={0}
+                  className="rounded-xl"
                 />
               </div>
             </div>
@@ -390,10 +393,10 @@ const LogisticsVehicles: React.FC = () => {
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)} className="rounded-xl">
                 Avbryt
               </Button>
-              <Button type="submit">
+              <Button type="submit" className="rounded-xl">
                 {editingVehicle ? 'Spara ändringar' : (formData.is_external ? 'Skapa transportbolag' : 'Skapa fordon')}
               </Button>
             </DialogFooter>
@@ -403,7 +406,7 @@ const LogisticsVehicles: React.FC = () => {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>
               {vehicleToDelete?.is_external ? 'Ta bort transportbolag' : 'Ta bort fordon'}
@@ -414,16 +417,16 @@ const LogisticsVehicles: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)} className="rounded-xl">
               Avbryt
             </Button>
-            <Button variant="destructive" onClick={handleDelete}>
+            <Button variant="destructive" onClick={handleDelete} className="rounded-xl">
               Ta bort
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageContainer>
   );
 };
 

@@ -1,10 +1,11 @@
-
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Users, Plus, Search, RotateCcw, Download, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageContainer } from '@/components/ui/PageContainer';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { PremiumCard } from '@/components/ui/PremiumCard';
 import { fetchStaffMembers, updateStaffColor } from '@/services/staffService';
 import { importStaffData } from '@/services/staffImportService';
 import { toast } from 'sonner';
@@ -39,7 +40,7 @@ const StaffManagement: React.FC = () => {
 
   const handleRefresh = () => {
     refetch();
-    toast.success('Staff list refreshed');
+    toast.success('Personallistan uppdaterad');
   };
 
   const handleStaffImport = async () => {
@@ -47,7 +48,7 @@ const StaffManagement: React.FC = () => {
     try {
       const result = await importStaffData();
       if (result.success) {
-        refetch(); // Refresh the local staff list
+        refetch();
       }
     } catch (error) {
       console.error('Staff import failed:', error);
@@ -59,18 +60,18 @@ const StaffManagement: React.FC = () => {
   const handleStaffAdded = () => {
     setIsAddDialogOpen(false);
     refetch();
-    toast.success('Staff member added successfully');
+    toast.success('Personal tillagd');
   };
 
   const handleStaffUpdated = () => {
     setSelectedStaffForEdit(null);
     refetch();
-    toast.success('Staff member updated successfully');
+    toast.success('Personal uppdaterad');
   };
 
   const handleColorUpdate = async (staffId: string, color: string) => {
     await updateStaffColor(staffId, color);
-    refetch(); // Refresh the list to show updated colors
+    refetch();
   };
 
   // Filter staff based on search term
@@ -83,121 +84,113 @@ const StaffManagement: React.FC = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">Error loading staff: {error.message}</p>
-          <Button onClick={handleRefresh}>Retry</Button>
+      <PageContainer>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <p className="text-destructive mb-4">Kunde inte ladda personal: {error.message}</p>
+            <Button onClick={handleRefresh}>Försök igen</Button>
+          </div>
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <PageContainer>
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <Users className="h-8 w-8 text-[#82b6c6]" />
-            <h1 className="text-3xl font-bold text-gray-900">Staff Management</h1>
-          </div>
-          <div className="flex items-center space-x-4">
-            <Button 
-              onClick={handleStaffImport}
-              disabled={isImportingStaff}
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              <UserPlus className={`h-4 w-4 ${isImportingStaff ? 'animate-spin' : ''}`} />
-              Import Staff
-            </Button>
-            <Button 
-              onClick={() => setIsExportDialogOpen(true)}
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              <Download className="h-4 w-4" />
-              Export Staff
-            </Button>
-            <Button 
-              onClick={() => setIsAddDialogOpen(true)}
-              className="bg-[#82b6c6] hover:bg-[#6a9fb0] text-white"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Staff Member
-            </Button>
-            <Button 
-              onClick={handleRefresh} 
-              variant="outline" 
-              size="sm"
-              disabled={isLoading}
-            >
-              <RotateCcw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={Users}
+        title="Personaladministration"
+        subtitle="Hantera personal, konton och inställningar"
+        action={{
+          label: "Lägg till personal",
+          icon: Plus,
+          onClick: () => setIsAddDialogOpen(true)
+        }}
+      >
+        <Button 
+          onClick={handleStaffImport}
+          disabled={isImportingStaff}
+          variant="outline"
+          className="rounded-xl"
+        >
+          <UserPlus className={`h-4 w-4 mr-2 ${isImportingStaff ? 'animate-spin' : ''}`} />
+          Importera
+        </Button>
+        <Button 
+          onClick={() => setIsExportDialogOpen(true)}
+          variant="outline"
+          className="rounded-xl"
+        >
+          <Download className="h-4 w-4 mr-2" />
+          Exportera
+        </Button>
+        <Button 
+          onClick={handleRefresh} 
+          variant="outline"
+          disabled={isLoading}
+          className="rounded-xl"
+        >
+          <RotateCcw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+          Uppdatera
+        </Button>
+      </PageHeader>
 
       {/* Main Content */}
-      <div className="p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left side - Staff Directory */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Search and Filters */}
-            <Card>
-              <CardHeader className="py-4">
-                <CardTitle className="text-lg">Staff Directory</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="flex items-center space-x-4 mb-4">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                    <Input
-                      placeholder="Search by name, email, phone, or role..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-                
-                {/* Staff List */}
-                <StaffList 
-                  staffMembers={filteredStaff}
-                  isLoading={isLoading}
-                  onRefresh={refetch}
-                  onColorEdit={setSelectedStaffForColor}
-                  onEdit={setSelectedStaffForEdit}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left side - Staff Directory */}
+        <div className="lg:col-span-2">
+          <PremiumCard
+            icon={Users}
+            title="Personalkatalog"
+            subtitle={`${filteredStaff.length} personer`}
+            count={filteredStaff.length}
+          >
+            <div className="space-y-4">
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
+                <Input
+                  placeholder="Sök namn, e-post, telefon eller roll..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 h-10 bg-muted/30 border-muted-foreground/10 rounded-xl"
                 />
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Right side - Staff Accounts and Color Settings */}
-          <div className="space-y-6">
-            {/* Staff Accounts Panel */}
-            <StaffAccountsPanel />
-
-            {/* Color Settings */}
-            {selectedStaffForColor ? (
-              <StaffColorSettings
-                staff={selectedStaffForColor}
-                onColorUpdate={handleColorUpdate}
+              </div>
+              
+              {/* Staff List */}
+              <StaffList 
+                staffMembers={filteredStaff}
+                isLoading={isLoading}
+                onRefresh={refetch}
+                onColorEdit={setSelectedStaffForColor}
+                onEdit={setSelectedStaffForEdit}
               />
-            ) : (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Färginställningar</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-600">
-                    Välj en personal från listan för att ändra deras färg.
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+            </div>
+          </PremiumCard>
+        </div>
+
+        {/* Right side - Staff Accounts and Color Settings */}
+        <div className="space-y-6">
+          {/* Staff Accounts Panel */}
+          <StaffAccountsPanel />
+
+          {/* Color Settings */}
+          {selectedStaffForColor ? (
+            <StaffColorSettings
+              staff={selectedStaffForColor}
+              onColorUpdate={handleColorUpdate}
+            />
+          ) : (
+            <PremiumCard
+              title="Färginställningar"
+              subtitle="Välj personal för att ändra"
+            >
+              <p className="text-sm text-muted-foreground">
+                Välj en person från listan för att ändra deras kalenderfärg.
+              </p>
+            </PremiumCard>
+          )}
         </div>
       </div>
 
@@ -224,7 +217,7 @@ const StaffManagement: React.FC = () => {
         onClose={() => setIsExportDialogOpen(false)}
         staffMembers={staffMembers}
       />
-    </div>
+    </PageContainer>
   );
 };
 

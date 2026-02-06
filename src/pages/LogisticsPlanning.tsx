@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Truck, ChevronLeft, ChevronRight, MapPin, Package, Clock } from 'lucide-react';
+import { Truck, ChevronLeft, ChevronRight, MapPin, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { PageContainer } from '@/components/ui/PageContainer';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { PremiumCard, SimpleCard } from '@/components/ui/PremiumCard';
 import { useVehicles } from '@/hooks/useVehicles';
 import { useTransportAssignments } from '@/hooks/useTransportAssignments';
 import { cn } from '@/lib/utils';
@@ -36,39 +38,33 @@ const LogisticsPlanning: React.FC = () => {
     const updateTime = new Date(lastUpdate);
     const minutesAgo = (Date.now() - updateTime.getTime()) / 60000;
     
-    if (minutesAgo < 5) return { color: 'bg-green-500', label: 'Live' };
-    if (minutesAgo < 30) return { color: 'bg-yellow-500', label: `${Math.round(minutesAgo)}m` };
-    return { color: 'bg-red-500', label: 'Offline' };
+    if (minutesAgo < 5) return { color: 'bg-emerald-500', label: 'Live' };
+    if (minutesAgo < 30) return { color: 'bg-amber-500', label: `${Math.round(minutesAgo)}m` };
+    return { color: 'bg-destructive', label: 'Offline' };
   };
 
   const getCapacityColor = (percentage: number) => {
     if (percentage > 100) return 'bg-destructive';
-    if (percentage > 80) return 'bg-yellow-500';
+    if (percentage > 80) return 'bg-amber-500';
     return 'bg-primary';
   };
 
   const isLoading = vehiclesLoading || assignmentsLoading;
 
   return (
-    <div className="space-y-6">
+    <PageContainer>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Truck className="h-6 w-6 text-primary" />
-            Transportplanering
-          </h1>
-          <p className="text-muted-foreground">
-            Planera och optimera leveranser
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        icon={Truck}
+        title="Transportplanering"
+        subtitle="Planera och optimera leveranser"
+      />
 
       {/* Week Navigation */}
-      <Card>
-        <CardContent className="py-4">
+      <PremiumCard className="mb-6" noPadding>
+        <div className="p-4">
           <div className="flex items-center justify-between">
-            <Button variant="outline" size="icon" onClick={() => navigateWeek('prev')}>
+            <Button variant="outline" size="icon" onClick={() => navigateWeek('prev')} className="rounded-xl">
               <ChevronLeft className="h-4 w-4" />
             </Button>
             
@@ -78,7 +74,7 @@ const LogisticsPlanning: React.FC = () => {
                   key={day.toISOString()}
                   variant={isSameDay(day, selectedDate) ? 'default' : 'ghost'}
                   className={cn(
-                    "flex flex-col h-auto py-2 px-3 min-w-[60px]",
+                    "flex flex-col h-auto py-2 px-3 min-w-[60px] rounded-xl",
                     isSameDay(day, new Date()) && !isSameDay(day, selectedDate) && "ring-2 ring-primary/30"
                   )}
                   onClick={() => setSelectedDate(day)}
@@ -93,15 +89,15 @@ const LogisticsPlanning: React.FC = () => {
               ))}
             </div>
 
-            <Button variant="outline" size="icon" onClick={() => navigateWeek('next')}>
+            <Button variant="outline" size="icon" onClick={() => navigateWeek('next')} className="rounded-xl">
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </PremiumCard>
 
       {/* Vehicle Columns */}
-      <div className="grid gap-4" style={{ 
+      <div className="grid gap-4 mb-6" style={{ 
         gridTemplateColumns: `repeat(${Math.min(activeVehicles.length || 1, 4)}, minmax(280px, 1fr))` 
       }}>
         {isLoading ? (
@@ -109,17 +105,16 @@ const LogisticsPlanning: React.FC = () => {
             Laddar...
           </div>
         ) : activeVehicles.length === 0 ? (
-          <Card className="col-span-full">
-            <CardContent className="py-8 text-center">
-              <Truck className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">
+          <PremiumCard icon={Truck} title="Inga fordon" className="col-span-full">
+            <div className="text-center py-8">
+              <p className="text-muted-foreground mb-4">
                 Inga fordon registrerade ännu.
               </p>
-              <Button className="mt-4" onClick={() => window.location.href = '/logistics/vehicles'}>
+              <Button onClick={() => window.location.href = '/logistics/vehicles'}>
                 Lägg till fordon
               </Button>
-            </CardContent>
-          </Card>
+            </div>
+          </PremiumCard>
         ) : (
           activeVehicles.map(vehicle => {
             const vehicleAssignments = getAssignmentsByVehicle(vehicle.id);
@@ -129,128 +124,118 @@ const LogisticsPlanning: React.FC = () => {
             const gpsStatus = getGpsStatus(vehicle.last_gps_update);
 
             return (
-              <Card key={vehicle.id} className="flex flex-col">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold">
-                      {vehicle.name}
-                    </CardTitle>
-                    <Badge variant="outline" className="flex items-center gap-1">
-                      <div className={cn("w-2 h-2 rounded-full", gpsStatus.color)} />
-                      {gpsStatus.label}
-                    </Badge>
-                  </div>
-                  {vehicle.registration_number && (
-                    <p className="text-xs text-muted-foreground">{vehicle.registration_number}</p>
-                  )}
-                </CardHeader>
-
-                <CardContent className="flex-1 space-y-3">
-                  {/* Assignments */}
-                  <div className="space-y-2 min-h-[120px]">
-                    {vehicleAssignments.length === 0 ? (
-                      <div className="text-center py-4 text-sm text-muted-foreground border-2 border-dashed rounded-lg">
-                        Inga bokningar
-                      </div>
-                    ) : (
-                      vehicleAssignments.map((assignment, idx) => (
-                        <div
-                          key={assignment.id}
-                          className="p-2 bg-muted/50 rounded-lg border text-sm"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-medium">
-                              {assignment.stop_order || idx + 1}
-                            </span>
-                            <span className="font-medium truncate flex-1">
-                              {assignment.booking?.client || 'Okänd kund'}
-                            </span>
-                            <Badge 
-                              variant={assignment.status === 'delivered' ? 'default' : 'secondary'}
-                              className="text-[10px] px-1"
-                            >
-                              {assignment.status === 'delivered' ? '✓' : 
-                               assignment.status === 'in_transit' ? '→' : '○'}
-                            </Badge>
-                          </div>
-                          {assignment.booking?.deliveryaddress && (
-                            <p className="text-xs text-muted-foreground mt-1 pl-7 truncate">
-                              <MapPin className="inline h-3 w-3 mr-1" />
-                              {assignment.booking.deliveryaddress}
-                            </p>
-                          )}
-                        </div>
-                      ))
+              <PremiumCard key={vehicle.id}>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-semibold text-foreground">{vehicle.name}</h3>
+                    {vehicle.registration_number && (
+                      <p className="text-xs text-muted-foreground">{vehicle.registration_number}</p>
                     )}
                   </div>
+                  <Badge variant="outline" className="flex items-center gap-1">
+                    <div className={cn("w-2 h-2 rounded-full", gpsStatus.color)} />
+                    {gpsStatus.label}
+                  </Badge>
+                </div>
 
-                  {/* Capacity Bars */}
-                  <div className="space-y-2 pt-2 border-t">
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">Vikt</span>
-                        <span className={cn(
-                          weightPercent > 100 && "text-destructive font-medium"
-                        )}>
-                          {Math.round(totalWeight)} / {vehicle.max_weight_kg} kg
-                        </span>
-                      </div>
-                      <Progress 
-                        value={Math.min(weightPercent, 100)} 
-                        className="h-2"
-                        indicatorClassName={getCapacityColor(weightPercent)}
-                      />
+                {/* Assignments */}
+                <div className="space-y-2 min-h-[120px] mb-4">
+                  {vehicleAssignments.length === 0 ? (
+                    <div className="text-center py-4 text-sm text-muted-foreground border-2 border-dashed rounded-xl">
+                      Inga bokningar
                     </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">Volym</span>
-                        <span className={cn(
-                          volumePercent > 100 && "text-destructive font-medium"
-                        )}>
-                          {totalVolume.toFixed(1)} / {vehicle.max_volume_m3} m³
-                        </span>
-                      </div>
-                      <Progress 
-                        value={Math.min(volumePercent, 100)} 
-                        className="h-2"
-                        indicatorClassName={getCapacityColor(volumePercent)}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  {vehicleAssignments.length > 1 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => optimizeRoute(vehicle.id, format(selectedDate, 'yyyy-MM-dd'))}
-                    >
-                      ⚡ Optimera rutt
-                    </Button>
+                  ) : (
+                    vehicleAssignments.map((assignment, idx) => (
+                      <SimpleCard key={assignment.id} className="p-3">
+                        <div className="flex items-center gap-2">
+                          <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-medium">
+                            {assignment.stop_order || idx + 1}
+                          </span>
+                          <span className="font-medium truncate flex-1 text-sm">
+                            {assignment.booking?.client || 'Okänd kund'}
+                          </span>
+                          <Badge 
+                            variant={assignment.status === 'delivered' ? 'default' : 'secondary'}
+                            className="text-[10px] px-1"
+                          >
+                            {assignment.status === 'delivered' ? '✓' : 
+                             assignment.status === 'in_transit' ? '→' : '○'}
+                          </Badge>
+                        </div>
+                        {assignment.booking?.deliveryaddress && (
+                          <p className="text-xs text-muted-foreground mt-1 pl-7 truncate">
+                            <MapPin className="inline h-3 w-3 mr-1" />
+                            {assignment.booking.deliveryaddress}
+                          </p>
+                        )}
+                      </SimpleCard>
+                    ))
                   )}
-                </CardContent>
-              </Card>
+                </div>
+
+                {/* Capacity Bars */}
+                <div className="space-y-2 pt-3 border-t">
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Vikt</span>
+                      <span className={cn(
+                        weightPercent > 100 && "text-destructive font-medium"
+                      )}>
+                        {Math.round(totalWeight)} / {vehicle.max_weight_kg} kg
+                      </span>
+                    </div>
+                    <Progress 
+                      value={Math.min(weightPercent, 100)} 
+                      className="h-2"
+                      indicatorClassName={getCapacityColor(weightPercent)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Volym</span>
+                      <span className={cn(
+                        volumePercent > 100 && "text-destructive font-medium"
+                      )}>
+                        {totalVolume.toFixed(1)} / {vehicle.max_volume_m3} m³
+                      </span>
+                    </div>
+                    <Progress 
+                      value={Math.min(volumePercent, 100)} 
+                      className="h-2"
+                      indicatorClassName={getCapacityColor(volumePercent)}
+                    />
+                  </div>
+                </div>
+
+                {/* Actions */}
+                {vehicleAssignments.length > 1 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-3 rounded-xl"
+                    onClick={() => optimizeRoute(vehicle.id, format(selectedDate, 'yyyy-MM-dd'))}
+                  >
+                    ⚡ Optimera rutt
+                  </Button>
+                )}
+              </PremiumCard>
             );
           })
         )}
       </div>
 
-      {/* Unassigned Bookings Section - Placeholder */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            Otilldelade bokningar ({format(selectedDate, 'd MMM', { locale: sv })})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-4 text-sm text-muted-foreground">
-            <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            Dra bekräftade bokningar hit för att tilldela till fordon
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+      {/* Unassigned Bookings Section */}
+      <PremiumCard
+        icon={Package}
+        title={`Otilldelade bokningar (${format(selectedDate, 'd MMM', { locale: sv })})`}
+        accentColor="amber"
+      >
+        <div className="text-center py-6 text-sm text-muted-foreground">
+          <Package className="h-10 w-10 mx-auto mb-3 opacity-40" />
+          Dra bekräftade bokningar hit för att tilldela till fordon
+        </div>
+      </PremiumCard>
+    </PageContainer>
   );
 };
 
