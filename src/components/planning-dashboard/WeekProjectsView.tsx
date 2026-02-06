@@ -291,7 +291,7 @@ const WeekProjectsView = ({
               variant="ghost"
               size="icon"
               onClick={onNextWeek}
-              className="text-primary-foreground hover:bg-primary-foreground/10"
+              className="text-primary-foreground hover:bg-primary-foreground/10 border border-primary-foreground/30 rounded-lg"
             >
               <ChevronRight className="w-5 h-5" />
             </Button>
