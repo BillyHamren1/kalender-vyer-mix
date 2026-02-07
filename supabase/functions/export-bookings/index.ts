@@ -219,7 +219,18 @@ async function fetchBookingProducts(supabase, bookingId) {
   return data.map(product => ({
     name: product.name,
     quantity: product.quantity,
-    notes: product.notes || undefined
+    notes: product.notes || undefined,
+    unit_price: product.unit_price || undefined,
+    total_price: product.total_price || undefined,
+    is_package_component: product.is_package_component || false,
+    parent_package_id: product.parent_package_id || undefined,
+    parent_product_id: product.parent_product_id || undefined,
+    sku: product.sku || undefined,
+    setup_hours: product.setup_hours || undefined,
+    labor_cost: product.labor_cost || undefined,
+    material_cost: product.material_cost || undefined,
+    external_cost: product.external_cost || undefined,
+    cost_notes: product.cost_notes || undefined
   }))
 }
 
