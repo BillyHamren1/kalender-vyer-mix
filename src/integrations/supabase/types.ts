@@ -109,64 +109,91 @@ export type Database = {
       }
       booking_products: {
         Row: {
+          assembly_cost: number | null
           booking_id: string
           cost_notes: string | null
+          discount: number | null
           estimated_volume_m3: number | null
           estimated_weight_kg: number | null
           external_cost: number | null
+          handling_cost: number | null
           id: string
+          inventory_item_type_id: string | null
+          inventory_package_id: string | null
           is_package_component: boolean | null
           labor_cost: number | null
           material_cost: number | null
           name: string
           notes: string | null
+          package_components: Json | null
           parent_package_id: string | null
           parent_product_id: string | null
+          purchase_cost: number | null
           quantity: number
           setup_hours: number | null
           sku: string | null
+          sort_index: number | null
           total_price: number | null
           unit_price: number | null
+          vat_rate: number | null
         }
         Insert: {
+          assembly_cost?: number | null
           booking_id: string
           cost_notes?: string | null
+          discount?: number | null
           estimated_volume_m3?: number | null
           estimated_weight_kg?: number | null
           external_cost?: number | null
+          handling_cost?: number | null
           id?: string
+          inventory_item_type_id?: string | null
+          inventory_package_id?: string | null
           is_package_component?: boolean | null
           labor_cost?: number | null
           material_cost?: number | null
           name: string
           notes?: string | null
+          package_components?: Json | null
           parent_package_id?: string | null
           parent_product_id?: string | null
+          purchase_cost?: number | null
           quantity?: number
           setup_hours?: number | null
           sku?: string | null
+          sort_index?: number | null
           total_price?: number | null
           unit_price?: number | null
+          vat_rate?: number | null
         }
         Update: {
+          assembly_cost?: number | null
           booking_id?: string
           cost_notes?: string | null
+          discount?: number | null
           estimated_volume_m3?: number | null
           estimated_weight_kg?: number | null
           external_cost?: number | null
+          handling_cost?: number | null
           id?: string
+          inventory_item_type_id?: string | null
+          inventory_package_id?: string | null
           is_package_component?: boolean | null
           labor_cost?: number | null
           material_cost?: number | null
           name?: string
           notes?: string | null
+          package_components?: Json | null
           parent_package_id?: string | null
           parent_product_id?: string | null
+          purchase_cost?: number | null
           quantity?: number
           setup_hours?: number | null
           sku?: string | null
+          sort_index?: number | null
           total_price?: number | null
           unit_price?: number | null
+          vat_rate?: number | null
         }
         Relationships: [
           {

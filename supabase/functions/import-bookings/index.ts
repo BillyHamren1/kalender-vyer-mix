@@ -363,6 +363,16 @@ interface ProductData {
   setup_hours?: number;
   external_cost?: number;
   cost_notes?: string;
+  // New fields for package component support
+  sort_index?: number;
+  inventory_item_type_id?: string;
+  inventory_package_id?: string;
+  assembly_cost?: number;
+  handling_cost?: number;
+  purchase_cost?: number;
+  package_components?: any;
+  discount?: number;
+  vat_rate?: number;
 }
 
 /**
@@ -1094,10 +1104,10 @@ serve(async (req) => {
               }
             }
             
-            // Check if products need recovery (accessories missing parent_product_id)
+            // Check if products need recovery (accessories missing parent_product_id or missing new metadata columns)
             const { data: existingProducts, error: productCheckError } = await supabase
               .from('booking_products')
-              .select('id, parent_product_id, parent_package_id, is_package_component, name')
+              .select('id, parent_product_id, parent_package_id, is_package_component, name, vat_rate, inventory_package_id')
               .eq('booking_id', existingBooking.id);
             
             if (!productCheckError && existingProducts) {
@@ -1121,10 +1131,25 @@ serve(async (req) => {
                 console.log(`Booking ${bookingData.id} has ${pkgComponentsWithoutParent.length} package components without parent_product_id - will recover`);
               }
               
-              // Also recover if booking has no products but external data has products
-              if (existingProducts.length === 0 && externalBooking.products && externalBooking.products.length > 0) {
-                needsProductRecovery = true;
-                console.log(`Booking ${bookingData.id} has NO products but external has ${externalBooking.products.length} - will recover`);
+              // Also recover if external has more products than what's stored (missing package components)
+              if (externalBooking.products && externalBooking.products.length > 0) {
+                if (existingProducts.length === 0) {
+                  needsProductRecovery = true;
+                  console.log(`Booking ${bookingData.id} has NO products but external has ${externalBooking.products.length} - will recover`);
+                } else if (externalBooking.products.length > existingProducts.length) {
+                  needsProductRecovery = true;
+                  console.log(`Booking ${bookingData.id} has ${existingProducts.length} products but external has ${externalBooking.products.length} (missing components) - will recover`);
+                }
+              }
+              
+              // Recover if products are missing new metadata columns (inventory_package_id is null but external has it)
+              if (!needsProductRecovery && existingProducts.length > 0 && externalBooking.products) {
+                const externalHasPackageIds = externalBooking.products.some((p: any) => p.inventory_package_id);
+                const localHasPackageIds = existingProducts.some((p: any) => p.inventory_package_id);
+                if (externalHasPackageIds && !localHasPackageIds) {
+                  needsProductRecovery = true;
+                  console.log(`Booking ${bookingData.id} products missing inventory_package_id metadata - will recover`);
+                }
               }
             }
           }
@@ -1184,8 +1209,9 @@ serve(async (req) => {
               
               for (const rawProduct of externalBooking.products) {
                 const name = (rawProduct.name || rawProduct.product_name || '').trim();
-                const parentId = rawProduct.parent_product_id || rawProduct.parent_package_id || 'root';
-                const key = `${name}::${parentId}`;
+                const parentId = rawProduct.parent_product_id || rawProduct.parent_package_id || rawProduct.inventory_package_id || 'root';
+                const isPkg = rawProduct.is_package_component === true;
+                const key = `${name}::${parentId}::${isPkg}`;
                 
                 if (productKeyMap.has(key)) {
                   const existingIdx = productKeyMap.get(key)!;
@@ -1239,19 +1265,28 @@ serve(async (req) => {
                     name: productName,
                     quantity: quantity,
                     notes: product.notes || product.description || null,
-                    unit_price: unitPrice,
-                    total_price: totalPrice,
+                    unit_price: product.unit_price ?? unitPrice,
+                    total_price: product.total ?? totalPrice,
                     parent_product_id: resolvedParentId || undefined,
                     is_package_component: isPkgComponent || false,
-                    // parent_package_id is stored as text (no FK constraint) so it's safe to store external IDs
-                    parent_package_id: isPkgComponent ? (product.parent_package_id || null) : null,
-                    sku: product.sku || product.inventory_item_type_id || product.article_number || null,
+                    parent_package_id: isPkgComponent ? (product.parent_package_id || product.inventory_package_id || null) : null,
+                    sku: product.sku || product.article_number || null,
                     // Cost fields for budget calculation
                     labor_cost: laborCost,
                     material_cost: materialCost,
                     setup_hours: setupHours,
                     external_cost: externalCost,
-                    cost_notes: costNotes
+                    cost_notes: costNotes,
+                    // Package component metadata
+                    sort_index: product.sort_index ?? undefined,
+                    inventory_item_type_id: product.inventory_item_type_id || null,
+                    inventory_package_id: product.inventory_package_id || null,
+                    assembly_cost: product.assembly_cost ?? 0,
+                    handling_cost: product.handling_cost ?? 0,
+                    purchase_cost: product.purchase_cost ?? 0,
+                    package_components: product.package_components || null,
+                    discount: product.discount ?? 0,
+                    vat_rate: product.vat_rate ?? 25,
                   }
 
                   const { data: insertedProduct, error: productError } = await supabase
@@ -1611,8 +1646,9 @@ serve(async (req) => {
           
           for (const product of externalBooking.products) {
             const name = (product.name || product.product_name || '').trim();
-            const parentId = product.parent_product_id || product.parent_package_id || 'root';
-            const key = `${name}::${parentId}`;
+            const parentId = product.parent_product_id || product.parent_package_id || product.inventory_package_id || 'root';
+            const isPkg = product.is_package_component === true;
+            const key = `${name}::${parentId}::${isPkg}`;
             
             if (productKeyMap.has(key)) {
               // Merge: add quantities
@@ -1679,19 +1715,28 @@ serve(async (req) => {
                 name: productName,
                 quantity: quantity,
                 notes: product.notes || product.description || null,
-                unit_price: unitPrice,
-                total_price: totalPrice,
+                unit_price: product.unit_price ?? unitPrice,
+                total_price: product.total ?? totalPrice,
                 parent_product_id: resolvedParentId || undefined,
                 is_package_component: isPkgComponent || false,
-                // parent_package_id is stored as text (no FK constraint) so it's safe to store external IDs
-                parent_package_id: isPkgComponent ? (product.parent_package_id || null) : null,
-                sku: product.sku || product.inventory_item_type_id || product.article_number || null,
+                parent_package_id: isPkgComponent ? (product.parent_package_id || product.inventory_package_id || null) : null,
+                sku: product.sku || product.article_number || null,
                 // Cost fields for budget calculation
                 labor_cost: laborCost,
                 material_cost: materialCost,
                 setup_hours: setupHours,
                 external_cost: externalCost,
-                cost_notes: costNotes
+                cost_notes: costNotes,
+                // Package component metadata
+                sort_index: product.sort_index ?? undefined,
+                inventory_item_type_id: product.inventory_item_type_id || null,
+                inventory_package_id: product.inventory_package_id || null,
+                assembly_cost: product.assembly_cost ?? 0,
+                handling_cost: product.handling_cost ?? 0,
+                purchase_cost: product.purchase_cost ?? 0,
+                package_components: product.package_components || null,
+                discount: product.discount ?? 0,
+                vat_rate: product.vat_rate ?? 25,
               }
 
               const { data: insertedProduct, error: productError } = await supabase
@@ -1757,8 +1802,90 @@ serve(async (req) => {
             } catch (productErr) {
               console.error(`Error processing product for booking ${bookingData.id}:`, productErr)
             }
+            }
           }
-        }
+          
+          // EXPAND package_components JSONB into individual rows if not already present as separate products
+          // This handles the case where the external API sends package_components on the parent but doesn't expand them
+          if (externalBooking.products && Array.isArray(externalBooking.products)) {
+            // Find parent products that have package_components JSONB
+            const parentsWithComponents = externalBooking.products.filter(
+              (p: any) => p.package_components && Array.isArray(p.package_components) && p.package_components.length > 0
+            );
+            
+            // Check if expanded component products already exist in the payload
+            const existingComponentNames = new Set(
+              externalBooking.products
+                .filter((p: any) => p.is_package_component === true)
+                .map((p: any) => (p.name || p.product_name || '').trim().toLowerCase())
+            );
+            
+            for (const parent of parentsWithComponents) {
+              const parentExternalId = getExternalProductId(parent);
+              const parentInternalId = parentExternalId ? externalIdToInternalId.get(parentExternalId) : null;
+              const parentInventoryPackageId = parent.inventory_package_id || null;
+              
+              if (!parentInternalId) {
+                console.log(`[Package Expand] Skipping expansion for parent "${parent.name || parent.product_name}" - no internal ID found`);
+                continue;
+              }
+              
+              // Check which components from package_components are NOT already in the payload as separate products
+              const componentsToExpand = parent.package_components.filter((comp: any) => {
+                const compName = (comp.name || '').trim().toLowerCase();
+                return !existingComponentNames.has(compName);
+              });
+              
+              if (componentsToExpand.length === 0) {
+                console.log(`[Package Expand] All components for "${parent.name || parent.product_name}" already exist as separate products`);
+                continue;
+              }
+              
+              console.log(`[Package Expand] Expanding ${componentsToExpand.length} components for parent "${parent.name || parent.product_name}" (internal ID: ${parentInternalId})`);
+              
+              const parentSortIndex = parent.sort_index ?? 0;
+              
+              for (let i = 0; i < componentsToExpand.length; i++) {
+                const comp = componentsToExpand[i];
+                const componentSortIndex = parentSortIndex + (i + 1) * 0.001;
+                
+                const componentData: ProductData = {
+                  booking_id: bookingData.id,
+                  name: `  -- ${comp.name || 'Okänd komponent'}`,
+                  quantity: comp.quantity || 1,
+                  unit_price: 0,
+                  total_price: 0,
+                  parent_product_id: parentInternalId,
+                  is_package_component: true,
+                  parent_package_id: parentInventoryPackageId,
+                  sku: comp.sku || null,
+                  labor_cost: 0,
+                  material_cost: 0,
+                  setup_hours: 0,
+                  external_cost: 0,
+                  sort_index: componentSortIndex,
+                  inventory_item_type_id: comp.item_type_id || null,
+                  inventory_package_id: parentInventoryPackageId,
+                  assembly_cost: 0,
+                  handling_cost: 0,
+                  purchase_cost: 0,
+                  discount: 0,
+                  vat_rate: 0,
+                };
+                
+                const { error: compError } = await supabase
+                  .from('booking_products')
+                  .insert(componentData);
+                
+                if (compError) {
+                  console.error(`[Package Expand] Error inserting component "${comp.name}":`, compError);
+                } else {
+                  results.products_imported++;
+                  console.log(`[Package Expand] Inserted component "${comp.name}" (qty: ${comp.quantity}) for parent "${parent.name || parent.product_name}"`);
+                }
+              }
+            }
+          }
         
         // RECONNECT PACKING LIST ITEMS after products have been created
         if (needsPackingReconnection && packingIdForReconnection) {
