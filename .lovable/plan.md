@@ -1,80 +1,54 @@
 
-
-# Fix: Inkludera alla paketmedlemmar i export och visa hierarki korrekt
+# Nya bokningar direkt pa dashboarden
 
 ## Problem
-Paketmedlemmar (package components) och hierarki-information saknas pa grund av tva problem:
-
-1. **export-bookings** skickar bara `name`, `quantity` och `notes` for produkter -- all information om priser, kostnader, hierarki (`is_package_component`, `parent_package_id`, `parent_product_id`) kastas bort. Om det externa systemet anvander var export for att synka data tillbaka sa forsvinner all hierarki-information.
-
-2. **Projektdetalj-vyn** (`establishmentPlanningService.ts`) hamtar inte `parent_product_id` fran databasen, vilket gor att produkter inte grupperas korrekt under sina foraldrar.
-
-3. **Flera andra vyer** saknar ocksa hierarki-falt, t.ex. `BookingProductsDialog.tsx` och `packingService.ts`.
+Dashboarden visar bara en siffra ("Ooppnade bokningar") som en klickbar widget. Det finns ingen lista med nya bokningar och inga atgardsknappar -- man tvingas navigera bort fran dashboarden for att gora nagonting.
 
 ## Losning
+Lagg till en fullstandig lista med nya bokningar direkt pa dashboarden, med samma triage-knappar (Litet, Medel, Stort) som redan finns pa projekthanteringssidan. Listan placeras mellan KPI-widgetarna och kalendervyn.
 
-### 1. Fixa export-bookings -- inkludera alla produktfalt
+## Andringar
 
-**Fil:** `supabase/functions/export-bookings/index.ts`
+### 1. Ny komponent: `DashboardNewBookings`
+Skapar en ny komponent `src/components/dashboard/DashboardNewBookings.tsx` som:
+- Hamtar alla bekraftade bokningar utan projekt (samma fraga som `IncomingBookingsList`)
+- Visar en scrollbar lista med bokningar (klientnamn, bokningsnummer, eventdatum, leveransadress)
+- Har tre atgardsknappar per bokning:
+  - **Litet** -- skapar ett litet projekt (jobb) direkt
+  - **Medel** -- oppnar CreateProjectWizard
+  - **Stort** -- oppnar AddToLargeProjectDialog
+- Klick pa bokningsraden navigerar till bokningsdetaljen
+- Visar "Inga nya bokningar" om listan ar tom
 
-Uppdatera `fetchBookingProducts` (rad 219-223) fran:
+### 2. Uppdatera `PlanningDashboard.tsx`
+- Importera `DashboardNewBookings`, `CreateProjectWizard`, och `AddToLargeProjectDialog`
+- Lagg till state for wizard-dialogen och storprojekt-dialogen
+- Placera `DashboardNewBookings` mellan KPI-widgetarna och filtrerings/kalendersektion
+- Invalidera relevanta queries vid framgangsrik projektskaping
+
+## Teknisk detalj
+
 ```text
-return data.map(product => ({
-  name: product.name,
-  quantity: product.quantity,
-  notes: product.notes || undefined
-}))
-```
-Till att inkludera alla relevanta falt:
-```text
-return data.map(product => ({
-  name: product.name,
-  quantity: product.quantity,
-  notes: product.notes || undefined,
-  unit_price: product.unit_price || undefined,
-  total_price: product.total_price || undefined,
-  is_package_component: product.is_package_component || false,
-  parent_package_id: product.parent_package_id || undefined,
-  parent_product_id: product.parent_product_id || undefined,
-  sku: product.sku || undefined,
-  setup_hours: product.setup_hours || undefined,
-  labor_cost: product.labor_cost || undefined,
-  material_cost: product.material_cost || undefined,
-  external_cost: product.external_cost || undefined,
-  cost_notes: product.cost_notes || undefined
-}))
++-------------------------------+
+|  KPI Widgets (som idag)       |
++-------------------------------+
+|  NYA BOKNINGAR (ny sektion)   |
+|  [#123 Kund A  12/3  Litet Medel Stort] |
+|  [#124 Kund B  15/3  Litet Medel Stort] |
++-------------------------------+
+|  Filters + Kalendervy         |
++-------------------------------+
 ```
 
-### 2. Fixa establishmentPlanningService -- lagg till parent_product_id
-
-**Fil:** `src/services/establishmentPlanningService.ts`
-
-Lagg till `parent_product_id` i `.select()`-fragan (rad 127-140) sa att produktgrupperingen fungerar i projektdetaljvyn.
-
-### 3. Fixa BookingProductsDialog -- lagg till hierarki-falt
-
-**Fil:** `src/components/Calendar/BookingProductsDialog.tsx`
-
-Lagg till `parent_product_id`, `parent_package_id` och `is_package_component` i fragan (rad 87-88).
-
-### 4. Fixa packingService -- lagg till saknade falt
-
-**Fil:** `src/services/packingService.ts`
-
-Lagg till `parent_package_id` och `is_package_component` i fragan (rad 231-232).
-
-## Filer som andras
+### Filer som andras
 
 | Fil | Andring |
 |-----|---------|
-| `supabase/functions/export-bookings/index.ts` | Inkludera alla produktfalt i export-payloaden |
-| `src/services/establishmentPlanningService.ts` | Lagg till `parent_product_id` i select |
-| `src/components/Calendar/BookingProductsDialog.tsx` | Lagg till hierarki-falt i select |
-| `src/services/packingService.ts` | Lagg till `parent_package_id`, `is_package_component` i select |
+| `src/components/dashboard/DashboardNewBookings.tsx` | Ny fil -- bokningslista med triage-knappar |
+| `src/pages/PlanningDashboard.tsx` | Importera och visa nya komponenten + dialoger |
 
-## Resultat
-- Export-funktionen skickar komplett produktdata inklusive paketmedlemmar och hierarki
-- Projektdetaljvyn visar produkter korrekt grupperade under sina foraldrar
-- Kalender-dialogen visar hierarki korrekt
-- Packningsvyn visar komplett hierarki
-
+### Ateranvandning
+- Ateranvander `createJobFromBooking` fran `jobService` for "Litet"-knappen
+- Ateranvander `CreateProjectWizard` for "Medel"-knappen  
+- Ateranvander `AddToLargeProjectDialog` for "Stort"-knappen
+- Samma datahamtningslogik som `IncomingBookingsList` (bekraftade bokningar utan projekt)
