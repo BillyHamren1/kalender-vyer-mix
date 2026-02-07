@@ -145,9 +145,67 @@ export const fetchJobById = async (jobId: string): Promise<Job | null> => {
   return job;
 };
 
-// Create job from booking
+// Create job from booking (with duplicate prevention)
 export const createJobFromBooking = async (bookingId: string): Promise<Job> => {
-  // Get booking info
+  // 1. Check if a job already exists for this booking
+  const { data: existingJobs } = await supabase
+    .from('jobs')
+    .select('*')
+    .eq('booking_id', bookingId);
+
+  if (existingJobs && existingJobs.length > 0) {
+    const existingJob = existingJobs[0];
+    
+    // If the job was completed (e.g. after cancellation), reactivate it
+    if (existingJob.status === 'completed') {
+      const { data: reactivated, error: reactivateError } = await supabase
+        .from('jobs')
+        .update({ status: 'planned', updated_at: new Date().toISOString() })
+        .eq('id', existingJob.id)
+        .select()
+        .single();
+      
+      if (reactivateError) throw reactivateError;
+      
+      // Re-mark booking as assigned
+      await supabase
+        .from('bookings')
+        .update({
+          assigned_to_project: true,
+          assigned_project_id: reactivated.id,
+          assigned_project_name: `Jobb: ${reactivated.name}`
+        })
+        .eq('id', bookingId);
+      
+      return transformJob(reactivated);
+    }
+    
+    // Job exists and is active - return it without creating a new one
+    // Also ensure booking flags are correct
+    await supabase
+      .from('bookings')
+      .update({
+        assigned_to_project: true,
+        assigned_project_id: existingJob.id,
+        assigned_project_name: `Jobb: ${existingJob.name}`
+      })
+      .eq('id', bookingId);
+    
+    return transformJob(existingJob);
+  }
+
+  // 2. Check if booking already has an active project (medium/large)
+  const { data: existingProjects } = await supabase
+    .from('projects')
+    .select('id, name, status')
+    .eq('booking_id', bookingId)
+    .neq('status', 'cancelled');
+
+  if (existingProjects && existingProjects.length > 0) {
+    throw new Error('Bokningen har redan ett projekt. Använd det befintliga projektet istället.');
+  }
+
+  // 3. No existing job or project - create new job
   const { data: booking, error: bookingError } = await supabase
     .from('bookings')
     .select('client, booking_number')
@@ -160,7 +218,6 @@ export const createJobFromBooking = async (bookingId: string): Promise<Job> => {
     ? `${booking.client} #${booking.booking_number}`
     : booking.client;
 
-  // Create job
   const { data, error } = await supabase
     .from('jobs')
     .insert({

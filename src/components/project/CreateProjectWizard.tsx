@@ -227,12 +227,36 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
   // Create project mutation
   const createMutation = useMutation({
     mutationFn: async () => {
+      const bookingId = selectedBookingId && selectedBookingId !== "none" ? selectedBookingId : null;
+      
+      // Duplicate guard: check if booking already has a project or job
+      if (bookingId) {
+        const { data: existingProjects } = await supabase
+          .from('projects')
+          .select('id')
+          .eq('booking_id', bookingId)
+          .neq('status', 'cancelled');
+        
+        if (existingProjects && existingProjects.length > 0) {
+          throw new Error('Bokningen har redan ett projekt. Använd det befintliga projektet istället.');
+        }
+        
+        const { data: existingJobs } = await supabase
+          .from('jobs')
+          .select('id')
+          .eq('booking_id', bookingId);
+        
+        if (existingJobs && existingJobs.length > 0) {
+          throw new Error('Bokningen har redan ett jobb (litet projekt). Använd det befintliga istället.');
+        }
+      }
+      
       // Create project
       const { data: project, error: projectError } = await supabase
         .from('projects')
         .insert({
           name: name.trim(),
-          booking_id: selectedBookingId && selectedBookingId !== "none" ? selectedBookingId : null,
+          booking_id: bookingId,
           project_leader: selectedLeaderId && selectedLeaderId !== "none" ? selectedLeaderId : null
         })
         .select()
