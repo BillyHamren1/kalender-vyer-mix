@@ -1,4 +1,4 @@
-import { Calendar, Package, ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import { Calendar, Package, ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format, addDays, isSameDay } from "date-fns";
@@ -93,7 +93,7 @@ const getEventTypeStyles = (eventType: string) => {
   }
 };
 
-const PackingCard = ({ packing }: { packing: WeekPacking }) => {
+const EventCard = ({ packing }: { packing: WeekPacking }) => {
   const navigate = useNavigate();
   const styles = getEventTypeStyles(packing.eventType);
 
@@ -109,7 +109,7 @@ const PackingCard = ({ packing }: { packing: WeekPacking }) => {
     <div
       onClick={handleClick}
       className={cn(
-        "group relative rounded-lg border transition-all duration-200 overflow-hidden cursor-pointer",
+        "group relative rounded-xl border transition-all duration-200 overflow-hidden cursor-pointer",
         styles.cardBgClass,
         styles.cardBorderClass,
         "hover:shadow-md hover:scale-[1.02]"
@@ -164,7 +164,7 @@ const DayColumn = ({
         onClick={() => onDayClick(date)}
         className={cn(
           "relative rounded-t-xl px-3 py-2.5 text-center border-x border-t cursor-pointer transition-all hover:opacity-80",
-          isToday ? "bg-warehouse/15 border-warehouse/30" : "bg-muted border-border hover:bg-muted/80"
+          isToday ? "bg-warehouse/15 border-warehouse/30" : "bg-background/60 border-border/30 hover:bg-background/80"
         )}
       >
         {isToday && (
@@ -180,8 +180,8 @@ const DayColumn = ({
 
         <div className="flex items-baseline justify-center gap-0.5 mt-0.5">
           <span className={cn(
-            "text-2xl font-bold tabular-nums",
-            isToday ? "text-warehouse" : "text-foreground"
+            "text-2xl font-bold tabular-nums tracking-tight",
+            isToday ? "text-warehouse" : "text-[hsl(var(--heading))]"
           )}>{dayNumber}</span>
           <span className="text-xs text-muted-foreground">{monthName}.</span>
         </div>
@@ -190,13 +190,13 @@ const DayColumn = ({
       {/* Separator line */}
       <div className={cn(
         "h-px",
-        isToday ? "bg-warehouse/40" : "bg-border"
+        isToday ? "bg-warehouse/40" : "bg-border/40"
       )} />
       
       {/* Packings container */}
       <div className={cn(
         "flex-1 p-2 space-y-2 min-h-[280px] border-x border-b rounded-b-xl",
-        isToday ? "bg-warehouse/5 border-warehouse/30" : "bg-card border-border"
+        isToday ? "bg-warehouse/5 border-warehouse/30" : "bg-card border-border/30"
       )}>
         {dayPackings.length === 0 ? (
           <div className="flex items-center justify-center h-full">
@@ -209,7 +209,7 @@ const DayColumn = ({
           </div>
         ) : (
           dayPackings.map(packing => (
-            <PackingCard 
+            <EventCard 
               key={`${packing.bookingId}-${packing.eventType}`}
               packing={packing}
             />
@@ -239,20 +239,23 @@ const WeekPackingsView = ({
   };
 
   return (
-    <div className="bg-card rounded-2xl shadow-xl border overflow-hidden">
+    <div className="rounded-2xl shadow-2xl border border-border/40 bg-card overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-warehouse to-warehouse/80 px-6 py-4">
+      <div
+        className="px-6 py-4"
+        style={{ background: 'linear-gradient(135deg, hsl(38 92% 50%) 0%, hsl(32 95% 40%) 100%)' }}
+      >
         <div className="flex items-center justify-center">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="icon"
               onClick={onPreviousWeek}
-              className="text-warehouse-foreground hover:bg-white/10 border border-white/30 rounded-lg"
+              className="text-white hover:bg-white/10 border border-white/30 rounded-lg"
             >
               <ChevronLeft className="w-5 h-5" />
             </Button>
-            <span className="text-white font-medium min-w-[80px] text-center">
+            <span className="text-white font-semibold min-w-[80px] text-center tracking-tight">
               Vecka {weekNumber}
             </span>
             <Button

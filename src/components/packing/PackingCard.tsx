@@ -1,5 +1,4 @@
 import { Calendar, Trash2, CheckSquare } from "lucide-react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PackingWithBooking, PACKING_STATUS_LABELS, PACKING_STATUS_COLORS } from "@/types/packing";
@@ -19,16 +18,16 @@ const PackingCard = ({ packing, onClick, onDelete }: PackingCardProps) => {
   };
 
   return (
-    <Card 
-      className="cursor-pointer hover:shadow-md transition-shadow group"
+    <div 
+      className="rounded-2xl border border-border/40 shadow-2xl bg-card overflow-hidden cursor-pointer group hover:-translate-y-0.5 hover:shadow-xl transition-all duration-200"
       onClick={onClick}
     >
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
+      <div className="p-7">
+        <div className="flex items-start justify-between mb-4">
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-lg truncate">{packing.name}</h3>
+            <h3 className="font-semibold text-lg text-[hsl(var(--heading))] truncate tracking-tight">{packing.name}</h3>
             {packing.booking && (
-              <p className="text-sm text-muted-foreground truncate">
+              <p className="text-sm text-muted-foreground truncate mt-0.5">
                 {packing.booking.client}
               </p>
             )}
@@ -42,9 +41,8 @@ const PackingCard = ({ packing, onClick, onDelete }: PackingCardProps) => {
             <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-2 mb-3">
           <Badge className={PACKING_STATUS_COLORS[packing.status]}>
             {PACKING_STATUS_LABELS[packing.status]}
           </Badge>
@@ -59,12 +57,12 @@ const PackingCard = ({ packing, onClick, onDelete }: PackingCardProps) => {
           )}
         </div>
 
-        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+        <div className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
           <CheckSquare className="h-4 w-4" />
           <span>Skapad {format(new Date(packing.created_at), 'd MMM yyyy', { locale: sv })}</span>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 

@@ -15,25 +15,18 @@ interface PremiumCardProps {
   noPadding?: boolean;
 }
 
-const accentColors = {
-  primary: 'from-primary/40 via-primary/80 to-primary/40',
-  amber: 'from-amber-400/60 via-amber-500 to-amber-400/60',
-  emerald: 'from-emerald-400/60 via-emerald-500 to-emerald-400/60',
-  blue: 'from-blue-400/60 via-blue-500 to-blue-400/60',
+const iconGradients = {
+  primary: 'var(--gradient-icon)',
+  amber: 'linear-gradient(135deg, hsl(38 92% 55%) 0%, hsl(32 95% 40%) 100%)',
+  emerald: 'linear-gradient(135deg, hsl(152 60% 45%) 0%, hsl(152 65% 35%) 100%)',
+  blue: 'linear-gradient(135deg, hsl(217 70% 50%) 0%, hsl(217 75% 40%) 100%)',
 };
 
-const iconBgColors = {
-  primary: 'from-primary/15 to-primary/5 ring-primary/20',
-  amber: 'from-amber-500/15 to-amber-500/5 ring-amber-500/20',
-  emerald: 'from-emerald-500/15 to-emerald-500/5 ring-emerald-500/20',
-  blue: 'from-blue-500/15 to-blue-500/5 ring-blue-500/20',
-};
-
-const iconColors = {
-  primary: 'text-primary',
-  amber: 'text-amber-600',
-  emerald: 'text-emerald-600',
-  blue: 'text-blue-600',
+const iconShadows = {
+  primary: 'shadow-primary/15',
+  amber: 'shadow-amber-500/15',
+  emerald: 'shadow-emerald-500/15',
+  blue: 'shadow-blue-500/15',
 };
 
 export const PremiumCard: React.FC<PremiumCardProps> = ({
@@ -49,28 +42,22 @@ export const PremiumCard: React.FC<PremiumCardProps> = ({
 }) => {
   return (
     <div className={cn("relative", className)}>
-      <div 
-        className="relative rounded-2xl overflow-hidden"
-        style={{
-          background: 'linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--card) / 0.95) 100%)',
-          boxShadow: '0 4px 24px -4px rgba(0, 0, 0, 0.08), 0 0 0 1px hsl(var(--border) / 0.5)',
-        }}
-      >
-        {/* Gradient accent bar */}
-        <div className={cn("h-1.5 bg-gradient-to-r", accentColors[accentColor])} />
-        
+      <div className="rounded-2xl border border-border/40 shadow-2xl bg-card overflow-hidden">
         {/* Header - only if title is provided */}
         {title && (
-          <div className="p-5 pb-4">
+          <div className="p-7 pb-4">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 {Icon && (
-                  <div className={cn("p-2.5 rounded-xl bg-gradient-to-br ring-1", iconBgColors[accentColor])}>
-                    <Icon className={cn("h-5 w-5", iconColors[accentColor])} />
+                  <div
+                    className={cn("w-11 h-11 rounded-xl flex items-center justify-center shadow-lg", iconShadows[accentColor])}
+                    style={{ background: iconGradients[accentColor] }}
+                  >
+                    <Icon className="h-5 w-5 text-white" />
                   </div>
                 )}
                 <div>
-                  <h3 className="font-semibold text-lg text-foreground">{title}</h3>
+                  <h3 className="font-semibold text-lg text-[hsl(var(--heading))]">{title}</h3>
                   {subtitle && (
                     <p className="text-xs text-muted-foreground">{subtitle}</p>
                   )}
@@ -78,8 +65,8 @@ export const PremiumCard: React.FC<PremiumCardProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 {count !== undefined && (
-                  <Badge 
-                    variant="secondary" 
+                  <Badge
+                    variant="secondary"
                     className="h-7 px-3 text-sm font-medium bg-muted/80 hover:bg-muted"
                   >
                     {count}
@@ -92,7 +79,7 @@ export const PremiumCard: React.FC<PremiumCardProps> = ({
         )}
 
         {/* Content */}
-        <div className={cn(noPadding ? "" : "px-5 pb-5", !title && "pt-5")}>
+        <div className={cn(noPadding ? "" : "px-7 pb-7", !title && "pt-7")}>
           {children}
         </div>
       </div>
@@ -100,7 +87,7 @@ export const PremiumCard: React.FC<PremiumCardProps> = ({
   );
 };
 
-// Simple variant without the accent bar for nested cards
+// Simple variant without icon header for nested cards
 export const SimpleCard: React.FC<{
   children: React.ReactNode;
   className?: string;
@@ -108,10 +95,10 @@ export const SimpleCard: React.FC<{
   hoverable?: boolean;
 }> = ({ children, className, onClick, hoverable = false }) => {
   return (
-    <div 
+    <div
       onClick={onClick}
       className={cn(
-        "p-4 rounded-xl border border-border bg-card shadow-sm transition-all duration-200",
+        "p-5 rounded-xl border border-border/30 bg-background/60 backdrop-blur-sm transition-all duration-200",
         hoverable && "cursor-pointer hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md",
         className
       )}
