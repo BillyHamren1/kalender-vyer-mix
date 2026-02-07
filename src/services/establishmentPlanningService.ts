@@ -13,6 +13,7 @@ export interface BookingProduct {
   externalCost: number | null;
   isPackageComponent: boolean;
   parentPackageId: string | null;
+  parentProductId: string | null;
 }
 
 export interface BookingDateInfo {
@@ -136,7 +137,8 @@ export const fetchEstablishmentBookingData = async (bookingId: string): Promise<
       material_cost,
       external_cost,
       is_package_component,
-      parent_package_id
+      parent_package_id,
+      parent_product_id
     `)
     .eq('booking_id', bookingId);
 
@@ -285,7 +287,8 @@ export const fetchEstablishmentBookingData = async (bookingId: string): Promise<
       materialCost: p.material_cost,
       externalCost: p.external_cost,
       isPackageComponent: p.is_package_component || false,
-      parentPackageId: p.parent_package_id
+      parentPackageId: p.parent_package_id,
+      parentProductId: p.parent_product_id
     })),
     dates: {
       rigdaydate: booking.rigdaydate,

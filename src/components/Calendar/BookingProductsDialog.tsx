@@ -31,6 +31,9 @@ interface BookingProduct {
   notes: string | null;
   unit_price: number | null;
   total_price: number | null;
+  parent_product_id: string | null;
+  parent_package_id: string | null;
+  is_package_component: boolean | null;
 }
 
 interface BookingData {
@@ -85,7 +88,7 @@ const BookingProductsDialog = ({
       // Fetch products
       const { data: productsData, error: productsError } = await supabase
         .from("booking_products")
-        .select("id, name, quantity, notes, unit_price, total_price")
+        .select("id, name, quantity, notes, unit_price, total_price, parent_product_id, parent_package_id, is_package_component")
         .eq("booking_id", id);
 
       if (productsError) throw productsError;
