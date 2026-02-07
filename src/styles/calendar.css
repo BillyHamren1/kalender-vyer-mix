@@ -657,3 +657,25 @@
   position: relative !important;
   z-index: auto !important;
 }
+
+/* === WHITE BACKGROUND FOR CALENDAR TIME GRID === */
+.fc-timegrid-slot-lane,
+.fc-timegrid-col,
+.fc-timegrid-body,
+.fc-timegrid-slots,
+.fc-timegrid-cols,
+.fc-scrollgrid-section-liquid > td {
+  background-color: white !important;
+}
+
+.fc-scrollgrid {
+  background-color: white !important;
+}
+
+.fc-timegrid-slot-label {
+  background-color: white !important;
+}
+
+.fc-timegrid-axis {
+  background-color: white !important;
+}
