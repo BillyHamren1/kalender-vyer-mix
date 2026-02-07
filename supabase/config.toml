@@ -96,3 +96,6 @@ verify_jwt = false
 
 [functions.receive-user-sync]
 verify_jwt = false
+
+[functions.receive-invoice]
+verify_jwt = false
