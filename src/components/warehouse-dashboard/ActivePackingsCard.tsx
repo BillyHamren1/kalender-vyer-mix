@@ -1,5 +1,4 @@
 import { Package, Clock, User } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
@@ -40,54 +39,49 @@ const statusLabels: Record<string, string> = {
 const ActivePackingsCard = ({ packings, isLoading }: ActivePackingsCardProps) => {
   const navigate = useNavigate();
 
-  if (isLoading) {
-    return (
-      <Card className="h-full">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base font-medium">
-            <Package className="w-4 h-4 text-warehouse" />
-            Pågående packningar
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-20 w-full" />
-          ))}
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
-    <Card className="h-full">
-      <CardHeader className="pb-3">
+    <div className="h-full rounded-2xl border border-border/40 shadow-2xl bg-card overflow-hidden">
+      <div className="p-5 pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-base font-medium">
-            <Package className="w-4 h-4 text-warehouse" />
-            Pågående packningar ({packings.length})
-          </CardTitle>
+          <div className="flex items-center gap-3">
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center shadow-md shadow-warehouse/15"
+              style={{ background: 'linear-gradient(135deg, hsl(38 92% 55%) 0%, hsl(32 95% 40%) 100%)' }}
+            >
+              <Package className="w-4.5 h-4.5 text-white" />
+            </div>
+            <h3 className="font-semibold text-lg text-[hsl(var(--heading))]">
+              Pågående packningar ({packings.length})
+            </h3>
+          </div>
           <Button 
             variant="ghost" 
             size="sm"
             onClick={() => navigate('/warehouse/packing')}
-            className="text-warehouse"
+            className="text-warehouse font-medium"
           >
             Alla packningar →
           </Button>
         </div>
-      </CardHeader>
-      <CardContent className="p-0">
-        {packings.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-6 px-4">
+      </div>
+      <div className="px-0">
+        {isLoading ? (
+          <div className="px-5 pb-5 space-y-2">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-20 w-full rounded-xl" />
+            ))}
+          </div>
+        ) : packings.length === 0 ? (
+          <p className="text-[0.925rem] text-muted-foreground text-center py-6 px-4">
             Inga pågående packningar
           </p>
         ) : (
           <ScrollArea className="h-[280px]">
-            <div className="px-4 pb-4 space-y-2">
+            <div className="px-5 pb-5 space-y-2">
               {packings.map((packing) => (
                 <div
                   key={packing.id}
-                  className="p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors cursor-pointer"
+                  className="p-4 rounded-xl border border-border/30 bg-background/60 backdrop-blur-sm cursor-pointer hover:-translate-y-0.5 hover:border-warehouse/40 hover:shadow-md transition-all duration-200"
                   onClick={() => navigate(`/warehouse/packing/${packing.id}`)}
                 >
                   <div className="flex items-start justify-between gap-2 mb-2">
@@ -123,8 +117,8 @@ const ActivePackingsCard = ({ packings, isLoading }: ActivePackingsCardProps) =>
             </div>
           </ScrollArea>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 

@@ -7,7 +7,7 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
+    --background: 200 20% 94%;
     
     /* === PRIMARY TEAL (EventFlow Design System) === */
     --primary: 184 60% 38%;
@@ -30,7 +30,7 @@
     --card: 0 0% 100%;
     --card-foreground: 184 30% 20%;
     --muted: 210 40% 96.1%;
-    --muted-foreground: 184 20% 40%;
+    --muted-foreground: 184 10% 45%;
     --ring: 184 55% 48%;
 
     --popover: 0 0% 100%;
@@ -39,10 +39,17 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --border: 200 15% 85%;
+    --input: 200 15% 85%;
 
     --radius: 0.5rem;
+
+    /* === GRADIENTS === */
+    --gradient-icon: linear-gradient(135deg, hsl(184 55% 45%) 0%, hsl(184 60% 35%) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(184 20% 98%) 100%);
+    --gradient-teal: linear-gradient(135deg, hsl(184 60% 42%) 0%, hsl(184 65% 36%) 100%);
+    --gradient-teal-bg: linear-gradient(180deg, hsl(184 25% 96%) 0%, hsl(184 20% 92%) 50%, hsl(184 25% 94%) 100%);
+    --gradient-page: linear-gradient(165deg, hsl(200 20% 96%) 0%, hsl(184 18% 93%) 50%, hsl(200 18% 95%) 100%);
 
     /* === SIDEBAR === */
     --sidebar-background: 0 0% 98%;

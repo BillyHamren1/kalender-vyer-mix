@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { RefreshCw, Plus } from "lucide-react";
+import { RefreshCw, Plus, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, isSameDay, parseISO } from "date-fns";
@@ -27,7 +27,7 @@ interface WeekPacking {
 
 const WarehouseDashboard = () => {
   const navigate = useNavigate();
-  const [currentWeekStart, setCurrentWeekStart] = useState(() => 
+  const [currentWeekStart, setCurrentWeekStart] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
   );
   const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
@@ -41,7 +41,7 @@ const WarehouseDashboard = () => {
   const goToNextWeek = () => setCurrentWeekStart(prev => addWeeks(prev, 1));
   const goToCurrentWeek = () => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
 
-  // Fetch week packings/events from warehouse calendar
+  // Query hooks
   const weekPackingsQuery = useQuery({
     queryKey: ['warehouse-week-packings', format(currentWeekStart, 'yyyy-MM-dd')],
     queryFn: async () => {
@@ -57,7 +57,6 @@ const WarehouseDashboard = () => {
 
       if (error) throw error;
 
-      // Map events to WeekPacking format
       const packings: WeekPacking[] = (data || []).map(event => ({
         id: event.id,
         bookingId: event.booking_id || '',
@@ -72,13 +71,11 @@ const WarehouseDashboard = () => {
     }
   });
 
-  // Fetch new jobs without packing
   const newJobsQuery = useQuery({
     queryKey: ['warehouse-new-jobs'],
     queryFn: async () => {
       const today = format(new Date(), 'yyyy-MM-dd');
       
-      // Get confirmed bookings with upcoming rig dates
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
         .select('id, client, booking_number, rigdaydate, eventdate, created_at')
@@ -89,7 +86,6 @@ const WarehouseDashboard = () => {
 
       if (bookingsError) throw bookingsError;
 
-      // Get packing projects to check which bookings have packings
       const { data: packings } = await supabase
         .from('packing_projects')
         .select('booking_id');
@@ -108,26 +104,17 @@ const WarehouseDashboard = () => {
     }
   });
 
-  // Fetch active packings
   const activePackingsQuery = useQuery({
     queryKey: ['warehouse-active-packings'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('packing_projects')
-        .select(`
-          id, 
-          name, 
-          status, 
-          project_leader, 
-          updated_at,
-          booking_id
-        `)
+        .select(`id, name, status, project_leader, updated_at, booking_id`)
         .in('status', ['planning', 'in_progress'])
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
 
-      // Get packing list items count for progress
       const packingIds = (data || []).map(p => p.id);
       const { data: listItems } = await supabase
         .from('packing_list_items')
@@ -161,7 +148,6 @@ const WarehouseDashboard = () => {
     }
   });
 
-  // Fetch completed packings for selected week
   const completedPackingsQuery = useQuery({
     queryKey: ['warehouse-completed-packings', format(currentWeekStart, 'yyyy-MM-dd')],
     queryFn: async () => {
@@ -186,39 +172,33 @@ const WarehouseDashboard = () => {
     }
   });
 
-  // Fetch staff utilization for the week
   const staffUtilizationQuery = useQuery({
     queryKey: ['warehouse-staff-utilization', format(currentWeekStart, 'yyyy-MM-dd')],
     queryFn: async () => {
       const startStr = format(currentWeekStart, 'yyyy-MM-dd');
       const endStr = format(weekEnd, 'yyyy-MM-dd');
 
-      // Get staff members with department 'Lager' or similar
       const { data: staffMembers } = await supabase
         .from('staff_members')
         .select('id, name')
         .eq('is_active', true);
 
-      // Get labor costs for the week
       const { data: laborCosts } = await supabase
         .from('packing_labor_costs')
         .select('staff_id, hours')
         .gte('work_date', startStr)
         .lte('work_date', endStr);
 
-      // Get active packings assigned to each staff
       const { data: packingTasks } = await supabase
         .from('packing_tasks')
         .select('assigned_to, packing_id')
         .eq('completed', false);
 
-      // Aggregate hours by staff
       const hoursMap = (laborCosts || []).reduce((acc, row) => {
         acc[row.staff_id] = (acc[row.staff_id] || 0) + (row.hours || 0);
         return acc;
       }, {} as Record<string, number>);
 
-      // Count active packings per staff
       const activePackingsMap = (packingTasks || []).reduce((acc, task) => {
         if (task.assigned_to) {
           if (!acc[task.assigned_to]) acc[task.assigned_to] = new Set();
@@ -227,7 +207,6 @@ const WarehouseDashboard = () => {
         return acc;
       }, {} as Record<string, Set<string>>);
 
-      // Target hours per week (40h default)
       const TARGET_HOURS = 40;
 
       return (staffMembers || []).map(staff => ({
@@ -252,7 +231,6 @@ const WarehouseDashboard = () => {
     staffUtilizationQuery.refetch();
   };
 
-  // Handle create packing
   const handleCreatePacking = async (bookingId: string, bookingClient: string) => {
     try {
       const { data, error } = await supabase
@@ -283,82 +261,94 @@ const WarehouseDashboard = () => {
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-muted/30 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Lagerdashboard</h1>
-          <p className="text-muted-foreground">
-            {format(new Date(), "EEEE d MMMM yyyy", { locale: sv })}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            onClick={() => setShowCreateWizard(true)}
-            className="bg-warehouse hover:bg-warehouse/90"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Ny packning
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={refetchAll}
-            disabled={isLoading}
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Uppdatera
-          </Button>
-        </div>
-      </div>
+    <div className="h-full overflow-y-auto" style={{ background: 'var(--gradient-page)' }}>
+      {/* Subtle radial overlay */}
+      <div className="relative">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,hsl(184_60%_38%/0.04),transparent)]" />
+        
+        <div className="relative p-6 max-w-[1600px] mx-auto">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6 p-7 rounded-2xl bg-card border border-border/40 shadow-2xl">
+            <div className="flex items-center gap-4">
+              <div
+                className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg shadow-warehouse/15"
+                style={{ background: 'linear-gradient(135deg, hsl(38 92% 55%) 0%, hsl(32 95% 40%) 100%)' }}
+              >
+                <Package className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight text-[hsl(var(--heading))]">Lagerdashboard</h1>
+                <p className="text-muted-foreground text-[0.925rem]">
+                  {format(new Date(), "EEEE d MMMM yyyy", { locale: sv })}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => setShowCreateWizard(true)}
+                className="bg-warehouse hover:bg-warehouse-hover shadow-xl shadow-warehouse/25 font-semibold"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Ny packning
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={refetchAll}
+                disabled={isLoading}
+                className="border-border/60"
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                Uppdatera
+              </Button>
+            </div>
+          </div>
 
-      {/* Week Planning - Packings View */}
-      <div className="mb-6">
-        <WeekPackingsView 
-          packings={weekPackingsQuery.data || []}
-          weekStart={currentWeekStart}
-          onPreviousWeek={goToPreviousWeek}
-          onNextWeek={goToNextWeek}
-          onCurrentWeek={goToCurrentWeek}
-          isLoading={weekPackingsQuery.isLoading}
-        />
-      </div>
+          {/* Week Planning - Packings View */}
+          <div className="mb-6">
+            <WeekPackingsView 
+              packings={weekPackingsQuery.data || []}
+              weekStart={currentWeekStart}
+              onPreviousWeek={goToPreviousWeek}
+              onNextWeek={goToNextWeek}
+              onCurrentWeek={goToCurrentWeek}
+              isLoading={weekPackingsQuery.isLoading}
+            />
+          </div>
 
-      {/* Main Grid - 5 columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* New Packing Jobs */}
-        <div className="lg:col-span-1">
-          <NewPackingJobsCard 
-            jobs={newJobsQuery.data || []}
-            isLoading={newJobsQuery.isLoading}
-            onCreatePacking={handleCreatePacking}
-          />
-        </div>
+          {/* Main Grid - 5 columns */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            <div className="lg:col-span-1">
+              <NewPackingJobsCard 
+                jobs={newJobsQuery.data || []}
+                isLoading={newJobsQuery.isLoading}
+                onCreatePacking={handleCreatePacking}
+              />
+            </div>
 
-        {/* Active Packings */}
-        <div className="lg:col-span-2">
-          <ActivePackingsCard 
-            packings={activePackingsQuery.data || []}
-            isLoading={activePackingsQuery.isLoading}
-          />
-        </div>
+            <div className="lg:col-span-2">
+              <ActivePackingsCard 
+                packings={activePackingsQuery.data || []}
+                isLoading={activePackingsQuery.isLoading}
+              />
+            </div>
 
-        {/* Staff Utilization */}
-        <div className="lg:col-span-1">
-          <WarehouseStaffUtilizationCard 
-            staff={staffUtilizationQuery.data || []}
-            isLoading={staffUtilizationQuery.isLoading}
-            weekNumber={format(currentWeekStart, 'w')}
-          />
-        </div>
+            <div className="lg:col-span-1">
+              <WarehouseStaffUtilizationCard 
+                staff={staffUtilizationQuery.data || []}
+                isLoading={staffUtilizationQuery.isLoading}
+                weekNumber={format(currentWeekStart, 'w')}
+              />
+            </div>
 
-        {/* Completed Packings */}
-        <div className="lg:col-span-1">
-          <CompletedPackingsCard 
-            packings={completedPackingsQuery.data || []}
-            isLoading={completedPackingsQuery.isLoading}
-            weekNumber={format(currentWeekStart, 'w')}
-          />
+            <div className="lg:col-span-1">
+              <CompletedPackingsCard 
+                packings={completedPackingsQuery.data || []}
+                isLoading={completedPackingsQuery.isLoading}
+                weekNumber={format(currentWeekStart, 'w')}
+              />
+            </div>
+          </div>
         </div>
       </div>
 

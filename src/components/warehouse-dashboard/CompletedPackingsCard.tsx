@@ -1,5 +1,4 @@
 import { CheckCircle2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -22,49 +21,46 @@ interface CompletedPackingsCardProps {
 const CompletedPackingsCard = ({ packings, isLoading, weekNumber }: CompletedPackingsCardProps) => {
   const navigate = useNavigate();
 
-  if (isLoading) {
-    return (
-      <Card className="h-full">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base font-medium">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            Slutförda vecka {weekNumber}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-12 w-full" />
-          ))}
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
-    <Card className="h-full">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base font-medium">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-          Slutförda vecka {weekNumber}
+    <div className="h-full rounded-2xl border border-border/40 shadow-2xl bg-card overflow-hidden">
+      <div className="p-5 pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center shadow-md shadow-emerald-500/15"
+              style={{ background: 'linear-gradient(135deg, hsl(152 60% 45%) 0%, hsl(152 65% 35%) 100%)' }}
+            >
+              <CheckCircle2 className="w-4.5 h-4.5 text-white" />
+            </div>
+            <h3 className="font-semibold text-lg text-[hsl(var(--heading))]">
+              Slutförda v.{weekNumber}
+            </h3>
+          </div>
           {packings.length > 0 && (
-            <Badge variant="secondary" className="ml-auto bg-emerald-100 text-emerald-800">
+            <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
               {packings.length} st
             </Badge>
           )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        {packings.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-6 px-4">
+        </div>
+      </div>
+      <div className="px-0">
+        {isLoading ? (
+          <div className="px-5 pb-5 space-y-2">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-12 w-full rounded-xl" />
+            ))}
+          </div>
+        ) : packings.length === 0 ? (
+          <p className="text-[0.925rem] text-muted-foreground text-center py-6 px-4">
             Inga slutförda denna vecka
           </p>
         ) : (
           <ScrollArea className="h-[280px]">
-            <div className="px-4 pb-4 space-y-2">
+            <div className="px-5 pb-5 space-y-2">
               {packings.map((packing) => (
                 <div
                   key={packing.id}
-                  className="p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors cursor-pointer"
+                  className="p-4 rounded-xl border border-border/30 bg-background/60 backdrop-blur-sm cursor-pointer hover:-translate-y-0.5 hover:border-emerald-400/40 hover:shadow-md transition-all duration-200"
                   onClick={() => navigate(`/warehouse/packing/${packing.id}`)}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -78,8 +74,8 @@ const CompletedPackingsCard = ({ packings, isLoading, weekNumber }: CompletedPac
             </div>
           </ScrollArea>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 

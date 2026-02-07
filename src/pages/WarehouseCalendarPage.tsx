@@ -393,7 +393,7 @@ const WarehouseCalendarPage = () => {
 
   return (
     <TooltipProvider>
-      <div className="h-screen flex flex-col bg-muted/30 overflow-hidden">
+      <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--gradient-page)' }}>
         {/* Navigation with view toggle */}
         {viewMode === 'day' ? (
           <WarehouseDayNavigationHeader

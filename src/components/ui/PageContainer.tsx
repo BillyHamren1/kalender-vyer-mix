@@ -8,8 +8,10 @@ interface PageContainerProps {
 
 export const PageContainer: React.FC<PageContainerProps> = ({ children, className }) => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      <div className={cn("container mx-auto px-4 py-8 max-w-[1600px]", className)}>
+    <div className="min-h-screen relative" style={{ background: 'var(--gradient-page)' }}>
+      {/* Subtle radial overlay */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,hsl(184_60%_38%/0.06),transparent)]" />
+      <div className={cn("relative container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-[1600px]", className)}>
         {children}
       </div>
     </div>
