@@ -667,6 +667,162 @@ const hasBookingChanged = (externalBooking: any, existingBooking: any): boolean 
   return false;
 };
 
+/**
+ * Expand package_components JSONB into individual booking_product rows.
+ * Reads parents with package_components from the DB and creates component rows
+ * for any components not already expanded.
+ */
+const expandPackageComponents = async (
+  supabase: any,
+  bookingId: string
+): Promise<number> => {
+  // Fetch all products for this booking
+  const { data: products, error } = await supabase
+    .from('booking_products')
+    .select('id, name, package_components, sort_index, inventory_package_id, is_package_component')
+    .eq('booking_id', bookingId);
+
+  if (error || !products || products.length === 0) return 0;
+
+  // Find parents that have package_components JSONB
+  const parentsWithComponents = products.filter(
+    (p: any) => p.package_components && Array.isArray(p.package_components) && p.package_components.length > 0 && p.is_package_component !== true
+  );
+
+  if (parentsWithComponents.length === 0) return 0;
+
+  // Collect names of already-expanded components (strip leading "  -- " prefix)
+  const existingComponentNames = new Set(
+    products
+      .filter((p: any) => p.is_package_component === true)
+      .map((c: any) => (c.name || '').replace(/^\s*--\s*/, '').trim().toLowerCase())
+  );
+
+  let totalExpanded = 0;
+
+  for (const parent of parentsWithComponents) {
+    const parentId = parent.id;
+    const parentInventoryPackageId = parent.inventory_package_id || null;
+    const parentSortIndex = parent.sort_index ?? 0;
+
+    const componentsToExpand = parent.package_components.filter((comp: any) => {
+      const compName = (comp.name || '').trim().toLowerCase();
+      return !existingComponentNames.has(compName);
+    });
+
+    if (componentsToExpand.length === 0) {
+      console.log(`[Package Expand] All components for "${parent.name}" already exist as rows`);
+      continue;
+    }
+
+    console.log(`[Package Expand] Expanding ${componentsToExpand.length} components for parent "${parent.name}" (ID: ${parentId})`);
+
+    for (let i = 0; i < componentsToExpand.length; i++) {
+      const comp = componentsToExpand[i];
+      const componentSortIndex = parentSortIndex + (i + 1) * 0.001;
+
+      const componentData: ProductData = {
+        booking_id: bookingId,
+        name: `  -- ${comp.name || 'Okänd komponent'}`,
+        quantity: comp.quantity || 1,
+        unit_price: 0,
+        total_price: 0,
+        parent_product_id: parentId,
+        is_package_component: true,
+        parent_package_id: parentInventoryPackageId,
+        sku: comp.sku || null,
+        labor_cost: 0,
+        material_cost: 0,
+        setup_hours: 0,
+        external_cost: 0,
+        sort_index: componentSortIndex,
+        inventory_item_type_id: comp.item_type_id || null,
+        inventory_package_id: parentInventoryPackageId,
+        assembly_cost: 0,
+        handling_cost: 0,
+        purchase_cost: 0,
+        discount: 0,
+        vat_rate: 0,
+      };
+
+      const { error: compError } = await supabase
+        .from('booking_products')
+        .insert(componentData);
+
+      if (compError) {
+        console.error(`[Package Expand] Error inserting component "${comp.name}":`, compError);
+      } else {
+        totalExpanded++;
+        existingComponentNames.add((comp.name || '').trim().toLowerCase());
+        console.log(`[Package Expand] Inserted component "${comp.name}" (qty: ${comp.quantity}) for parent "${parent.name}"`);
+      }
+    }
+  }
+
+  return totalExpanded;
+};
+
+/**
+ * Sync packing list items after package component expansion.
+ * Creates packing_list_items for any booking_products that don't have a corresponding item yet.
+ */
+const syncPackingListAfterExpansion = async (
+  supabase: any,
+  bookingId: string
+): Promise<number> => {
+  const { data: packingProject } = await supabase
+    .from('packing_projects')
+    .select('id')
+    .eq('booking_id', bookingId)
+    .maybeSingle();
+
+  if (!packingProject) {
+    console.log(`[Packing Sync] No packing project found for booking ${bookingId}`);
+    return 0;
+  }
+
+  const { data: allProducts } = await supabase
+    .from('booking_products')
+    .select('id, name, quantity')
+    .eq('booking_id', bookingId);
+
+  if (!allProducts || allProducts.length === 0) return 0;
+
+  const { data: existingItems } = await supabase
+    .from('packing_list_items')
+    .select('booking_product_id')
+    .eq('packing_id', packingProject.id);
+
+  const existingProductIds = new Set((existingItems || []).map((i: any) => i.booking_product_id));
+  const missingProducts = allProducts.filter((p: any) => !existingProductIds.has(p.id));
+
+  if (missingProducts.length === 0) {
+    console.log(`[Packing Sync] All products already have packing list items for booking ${bookingId}`);
+    return 0;
+  }
+
+  console.log(`[Packing Sync] Creating ${missingProducts.length} new packing list items for booking ${bookingId}`);
+
+  const newItems = missingProducts.map((p: any) => ({
+    packing_id: packingProject.id,
+    booking_product_id: p.id,
+    quantity_to_pack: p.quantity || 1,
+    quantity_packed: 0
+  }));
+
+  const { error: insertError } = await supabase
+    .from('packing_list_items')
+    .insert(newItems);
+
+  if (insertError) {
+    console.error(`[Packing Sync] Error creating packing list items:`, insertError);
+    return 0;
+  }
+
+  console.log(`[Packing Sync] Successfully created ${missingProducts.length} packing list items`);
+  return missingProducts.length;
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -1107,7 +1263,7 @@ serve(async (req) => {
             // Check if products need recovery (accessories missing parent_product_id or missing new metadata columns)
             const { data: existingProducts, error: productCheckError } = await supabase
               .from('booking_products')
-              .select('id, parent_product_id, parent_package_id, is_package_component, name, vat_rate, inventory_package_id')
+              .select('id, parent_product_id, parent_package_id, is_package_component, name, vat_rate, inventory_package_id, package_components')
               .eq('booking_id', existingBooking.id);
             
             if (!productCheckError && existingProducts) {
@@ -1149,6 +1305,22 @@ serve(async (req) => {
                 if (externalHasPackageIds && !localHasPackageIds) {
                   needsProductRecovery = true;
                   console.log(`Booking ${bookingData.id} products missing inventory_package_id metadata - will recover`);
+                }
+              }
+              
+              // NEW: Check if package_components JSONB exists but hasn't been expanded into rows
+              if (!needsProductRecovery && existingProducts.length > 0) {
+                const productsWithComponents = existingProducts.filter(
+                  (p: any) => p.package_components !== null && p.package_components !== undefined
+                );
+                if (productsWithComponents.length > 0) {
+                  const expandedComponents = existingProducts.filter(
+                    (p: any) => p.is_package_component === true
+                  );
+                  if (expandedComponents.length === 0) {
+                    needsProductRecovery = true;
+                    console.log(`Booking ${bookingData.id} has ${productsWithComponents.length} products with package_components JSONB but 0 expanded component rows - will recover`);
+                  }
                 }
               }
             }
@@ -1197,6 +1369,19 @@ serve(async (req) => {
           // If only product recovery is needed, clear products and reimport
           if (!hasChanged && !statusChanged && !needsCalendarRecovery && !needsWarehouseRecovery && needsProductRecovery) {
             console.log(`Only product recovery needed for ${bookingData.id} - clearing and reimporting products`);
+            
+            // Delete packing list items BEFORE products to avoid FK constraint violations
+            const { data: packingForRecovery } = await supabase
+              .from('packing_projects')
+              .select('id')
+              .eq('booking_id', existingBooking.id)
+              .maybeSingle();
+            
+            if (packingForRecovery) {
+              await supabase.from('packing_list_items').delete().eq('packing_id', packingForRecovery.id);
+              console.log(`[Product Recovery] Cleared packing list items for packing ${packingForRecovery.id}`);
+            }
+            
             await supabase.from('booking_products').delete().eq('booking_id', existingBooking.id);
             
             // Process products with parent-child relationship tracking
@@ -1352,6 +1537,19 @@ serve(async (req) => {
                   console.error(`[Product Recovery] Error processing product:`, productErr)
                 }
               }
+            }
+            
+            // EXPAND package_components JSONB into individual rows
+            const recoveryExpanded = await expandPackageComponents(supabase, existingBooking.id);
+            if (recoveryExpanded > 0) {
+              results.products_imported += recoveryExpanded;
+              console.log(`[Product Recovery] Expanded ${recoveryExpanded} package components for booking ${bookingData.id}`);
+            }
+            
+            // SYNC packing list items for all products (including expanded components)
+            const recoveryPackingSynced = await syncPackingListAfterExpansion(supabase, existingBooking.id);
+            if (recoveryPackingSynced > 0) {
+              console.log(`[Product Recovery] Synced ${recoveryPackingSynced} packing list items for booking ${bookingData.id}`);
             }
             
             results.imported++;
@@ -1805,86 +2003,17 @@ serve(async (req) => {
             }
           }
           
-          // EXPAND package_components JSONB into individual rows if not already present as separate products
-          // This handles the case where the external API sends package_components on the parent but doesn't expand them
-          if (externalBooking.products && Array.isArray(externalBooking.products)) {
-            // Find parent products that have package_components JSONB
-            const parentsWithComponents = externalBooking.products.filter(
-              (p: any) => p.package_components && Array.isArray(p.package_components) && p.package_components.length > 0
-            );
-            
-            // Check if expanded component products already exist in the payload
-            const existingComponentNames = new Set(
-              externalBooking.products
-                .filter((p: any) => p.is_package_component === true)
-                .map((p: any) => (p.name || p.product_name || '').trim().toLowerCase())
-            );
-            
-            for (const parent of parentsWithComponents) {
-              const parentExternalId = getExternalProductId(parent);
-              const parentInternalId = parentExternalId ? externalIdToInternalId.get(parentExternalId) : null;
-              const parentInventoryPackageId = parent.inventory_package_id || null;
-              
-              if (!parentInternalId) {
-                console.log(`[Package Expand] Skipping expansion for parent "${parent.name || parent.product_name}" - no internal ID found`);
-                continue;
-              }
-              
-              // Check which components from package_components are NOT already in the payload as separate products
-              const componentsToExpand = parent.package_components.filter((comp: any) => {
-                const compName = (comp.name || '').trim().toLowerCase();
-                return !existingComponentNames.has(compName);
-              });
-              
-              if (componentsToExpand.length === 0) {
-                console.log(`[Package Expand] All components for "${parent.name || parent.product_name}" already exist as separate products`);
-                continue;
-              }
-              
-              console.log(`[Package Expand] Expanding ${componentsToExpand.length} components for parent "${parent.name || parent.product_name}" (internal ID: ${parentInternalId})`);
-              
-              const parentSortIndex = parent.sort_index ?? 0;
-              
-              for (let i = 0; i < componentsToExpand.length; i++) {
-                const comp = componentsToExpand[i];
-                const componentSortIndex = parentSortIndex + (i + 1) * 0.001;
-                
-                const componentData: ProductData = {
-                  booking_id: bookingData.id,
-                  name: `  -- ${comp.name || 'Okänd komponent'}`,
-                  quantity: comp.quantity || 1,
-                  unit_price: 0,
-                  total_price: 0,
-                  parent_product_id: parentInternalId,
-                  is_package_component: true,
-                  parent_package_id: parentInventoryPackageId,
-                  sku: comp.sku || null,
-                  labor_cost: 0,
-                  material_cost: 0,
-                  setup_hours: 0,
-                  external_cost: 0,
-                  sort_index: componentSortIndex,
-                  inventory_item_type_id: comp.item_type_id || null,
-                  inventory_package_id: parentInventoryPackageId,
-                  assembly_cost: 0,
-                  handling_cost: 0,
-                  purchase_cost: 0,
-                  discount: 0,
-                  vat_rate: 0,
-                };
-                
-                const { error: compError } = await supabase
-                  .from('booking_products')
-                  .insert(componentData);
-                
-                if (compError) {
-                  console.error(`[Package Expand] Error inserting component "${comp.name}":`, compError);
-                } else {
-                  results.products_imported++;
-                  console.log(`[Package Expand] Inserted component "${comp.name}" (qty: ${comp.quantity}) for parent "${parent.name || parent.product_name}"`);
-                }
-              }
-            }
+          // EXPAND package_components JSONB into individual rows (shared function)
+          const mainExpanded = await expandPackageComponents(supabase, bookingData.id);
+          if (mainExpanded > 0) {
+            results.products_imported += mainExpanded;
+            console.log(`[Main Flow] Expanded ${mainExpanded} package components for booking ${bookingData.id}`);
+          }
+          
+          // SYNC packing list items for expanded components
+          const mainPackingSynced = await syncPackingListAfterExpansion(supabase, bookingData.id);
+          if (mainPackingSynced > 0) {
+            console.log(`[Main Flow] Synced ${mainPackingSynced} packing list items for booking ${bookingData.id}`);
           }
         
         // RECONNECT PACKING LIST ITEMS after products have been created
