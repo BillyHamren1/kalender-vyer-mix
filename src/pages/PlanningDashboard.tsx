@@ -5,6 +5,7 @@ import { PageContainer } from "@/components/ui/PageContainer";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { format, startOfWeek, addWeeks, subWeeks, addDays, subDays, addMonths, subMonths } from "date-fns";
 import { sv } from "date-fns/locale";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { useDashboardEvents, useDashboardStats, EventCategory, DashboardViewMode } from "@/hooks/useDashboardEvents";
 import DashboardAlertWidgets from "@/components/dashboard/DashboardAlertWidgets";
@@ -12,11 +13,20 @@ import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import DashboardWeekView from "@/components/dashboard/DashboardWeekView";
 import DashboardDayView from "@/components/dashboard/DashboardDayView";
 import DashboardMonthView from "@/components/dashboard/DashboardMonthView";
+import DashboardNewBookings from "@/components/dashboard/DashboardNewBookings";
+import CreateProjectWizard from "@/components/project/CreateProjectWizard";
+import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
 
 const PlanningDashboard = () => {
+  const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState<DashboardViewMode>('week');
   const [activeCategories, setActiveCategories] = useState<EventCategory[]>(['planning', 'warehouse', 'logistics']);
   const [currentDate, setCurrentDate] = useState(new Date());
+
+  // Wizard / dialog state for triage
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+  const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
 
@@ -34,6 +44,15 @@ const PlanningDashboard = () => {
   const handleDayClickFromMonth = (date: Date) => {
     setCurrentDate(date);
     setViewMode('day');
+  };
+
+  const handleCreateProject = (bookingId: string) => {
+    setSelectedBookingId(bookingId);
+    setIsCreateOpen(true);
+  };
+
+  const handleCreateLargeProject = (bookingId: string) => {
+    setLargeProjectBookingId(bookingId);
   };
 
   return (
@@ -58,6 +77,14 @@ const PlanningDashboard = () => {
       {/* Alert Widgets */}
       <div className="mb-4">
         <DashboardAlertWidgets stats={stats} isLoading={statsLoading} />
+      </div>
+
+      {/* New Bookings – triage directly from dashboard */}
+      <div className="mb-4">
+        <DashboardNewBookings
+          onCreateProject={handleCreateProject}
+          onCreateLargeProject={handleCreateLargeProject}
+        />
       </div>
 
       {/* Filters */}
@@ -101,6 +128,26 @@ const PlanningDashboard = () => {
           />
         )}
       </div>
+
+      {/* Dialogs */}
+      <CreateProjectWizard
+        open={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
+        preselectedBookingId={selectedBookingId}
+        onSuccess={() => {
+          setIsCreateOpen(false);
+          setSelectedBookingId(null);
+          queryClient.invalidateQueries({ queryKey: ['projects'] });
+          queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+          queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+        }}
+      />
+
+      <AddToLargeProjectDialog
+        open={!!largeProjectBookingId}
+        onOpenChange={(open) => !open && setLargeProjectBookingId(null)}
+        bookingId={largeProjectBookingId || ''}
+      />
     </PageContainer>
   );
 };
