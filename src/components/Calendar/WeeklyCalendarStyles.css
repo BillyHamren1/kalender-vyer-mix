@@ -29,7 +29,7 @@
 .weekly-grid-day {
   display: flex;
   flex-direction: column;
-  background: hsl(var(--background));
+  background: hsl(var(--card));
   border: 1px solid hsl(var(--border));
   border-radius: 12px;
   overflow: hidden;
@@ -132,7 +132,7 @@
 /* Day card - individual styled cards */
 .day-card {
   flex: 0 0 auto;
-  background: hsl(var(--background));
+  background: hsl(var(--card));
   border-radius: 20px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
   border: 1px solid hsl(var(--border));
@@ -147,7 +147,7 @@
   overflow: visible !important;
   position: relative;
   z-index: 0;
-  background: hsl(var(--background));
+  background: hsl(var(--card));
 }
 
 .monthly-day-wrapper {
@@ -156,7 +156,7 @@
   border-radius: 20px;
   overflow: visible !important;
   min-height: 200px;
-  background: hsl(var(--background));
+  background: hsl(var(--card));
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
 }
 
