@@ -8,7 +8,7 @@ export interface Vehicle {
   registration_number: string | null;
   max_weight_kg: number;
   max_volume_m3: number;
-  vehicle_type: 'van' | 'light_truck' | 'pickup_crane' | 'crane_15m' | 'crane_jib_20m' | 'body_truck' | 'truck' | 'trailer' | 'other';
+  vehicle_type: 'van' | 'light_truck' | 'pickup_crane' | 'crane_15m' | 'crane_jib_20m' | 'body_truck' | 'truck' | 'trailer' | 'trailer_13m' | 'truck_trailer' | 'crane_trailer' | 'other';
   is_active: boolean;
   is_external: boolean;
   company_name: string | null;
@@ -29,7 +29,7 @@ export interface VehicleFormData {
   registration_number?: string;
   max_weight_kg: number;
   max_volume_m3: number;
-  vehicle_type: 'van' | 'light_truck' | 'pickup_crane' | 'crane_15m' | 'crane_jib_20m' | 'body_truck' | 'truck' | 'trailer' | 'other';
+  vehicle_type: 'van' | 'light_truck' | 'pickup_crane' | 'crane_15m' | 'crane_jib_20m' | 'body_truck' | 'truck' | 'trailer' | 'trailer_13m' | 'truck_trailer' | 'crane_trailer' | 'other';
   is_active: boolean;
   is_external: boolean;
   company_name?: string;
