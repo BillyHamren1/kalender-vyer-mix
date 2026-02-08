@@ -51,6 +51,9 @@ const LogisticsVehicles: React.FC = () => {
     is_active: true,
     is_external: false,
     company_name: '',
+    contact_person: '',
+    contact_email: '',
+    contact_phone: '',
   });
 
   const internalVehicles = vehicles.filter(v => !v.is_external);
@@ -66,6 +69,9 @@ const LogisticsVehicles: React.FC = () => {
       is_active: true,
       is_external: activeTab === 'external',
       company_name: '',
+      contact_person: '',
+      contact_email: '',
+      contact_phone: '',
     });
     setEditingVehicle(null);
   };
@@ -87,6 +93,9 @@ const LogisticsVehicles: React.FC = () => {
       is_active: vehicle.is_active,
       is_external: vehicle.is_external,
       company_name: vehicle.company_name || '',
+      contact_person: vehicle.contact_person || '',
+      contact_email: vehicle.contact_email || '',
+      contact_phone: vehicle.contact_phone || '',
     });
     setIsFormOpen(true);
   };
@@ -328,6 +337,40 @@ const LogisticsVehicles: React.FC = () => {
                 />
               </div>
             )}
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="contact_person">Kontaktperson</Label>
+                <Input
+                  id="contact_person"
+                  value={formData.contact_person}
+                  onChange={e => setFormData(prev => ({ ...prev, contact_person: e.target.value }))}
+                  placeholder="Namn"
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="contact_email">E-post</Label>
+                <Input
+                  id="contact_email"
+                  type="email"
+                  value={formData.contact_email}
+                  onChange={e => setFormData(prev => ({ ...prev, contact_email: e.target.value }))}
+                  placeholder="email@exempel.se"
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="contact_phone">Telefon</Label>
+                <Input
+                  id="contact_phone"
+                  value={formData.contact_phone}
+                  onChange={e => setFormData(prev => ({ ...prev, contact_phone: e.target.value }))}
+                  placeholder="070-123 45 67"
+                  className="rounded-xl"
+                />
+              </div>
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="type">Fordonstyp</Label>

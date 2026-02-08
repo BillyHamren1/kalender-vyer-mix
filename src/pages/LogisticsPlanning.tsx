@@ -27,13 +27,14 @@ import { useVehicles } from '@/hooks/useVehicles';
 import { useTransportAssignments } from '@/hooks/useTransportAssignments';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
+import VehiclePartnerList from '@/components/logistics/VehiclePartnerList';
 
 const LogisticsPlanning: React.FC = () => {
   const navigate = useNavigate();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   
-  const { vehicles, activeVehicles, isLoading: vehiclesLoading } = useVehicles();
+  const { vehicles, activeVehicles, isLoading: vehiclesLoading, createVehicle, updateVehicle, deleteVehicle } = useVehicles();
   const { 
     assignments, 
     getAssignmentsByVehicle, 
@@ -229,6 +230,15 @@ const LogisticsPlanning: React.FC = () => {
         </div>
       </PremiumCard>
 
+      {/* Vehicle & Partner List */}
+      <VehiclePartnerList
+        vehicles={vehicles}
+        isLoading={vehiclesLoading}
+        createVehicle={createVehicle}
+        updateVehicle={updateVehicle}
+        deleteVehicle={deleteVehicle}
+      />
+
       {/* Main Content Grid */}
       <div className="grid lg:grid-cols-4 gap-6">
         {/* Vehicle Columns - takes 3 cols */}
@@ -240,27 +250,7 @@ const LogisticsPlanning: React.FC = () => {
               ))}
             </div>
           ) : activeVehicles.length === 0 ? (
-            <PremiumCard icon={Truck} title="Inga fordon">
-              <div className="text-center py-12">
-                <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-muted/50 flex items-center justify-center">
-                  <Truck className="h-10 w-10 text-muted-foreground/40" />
-                </div>
-                <h3 className="text-lg font-medium mb-2">Inga fordon registrerade</h3>
-                <p className="text-muted-foreground mb-6">
-                  Lägg till ditt första fordon eller transportpartner för att börja planera transporter
-                </p>
-                <div className="flex flex-wrap gap-3 justify-center">
-                  <Button onClick={() => navigate('/logistics/vehicles')} className="rounded-xl">
-                    <Truck className="h-4 w-4 mr-2" />
-                    Lägg till fordon
-                  </Button>
-                  <Button onClick={() => navigate('/logistics/vehicles?tab=partners')} variant="outline" className="rounded-xl">
-                    <Building2 className="h-4 w-4 mr-2" />
-                    Lägg till transportpartner
-                  </Button>
-                </div>
-              </div>
-            </PremiumCard>
+            <div /> 
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {activeVehicles.map(vehicle => {
