@@ -2463,6 +2463,9 @@ export type Database = {
         Row: {
           assigned_driver_id: string | null
           company_name: string | null
+          contact_email: string | null
+          contact_person: string | null
+          contact_phone: string | null
           created_at: string
           current_heading: number | null
           current_lat: number | null
@@ -2481,6 +2484,9 @@ export type Database = {
         Insert: {
           assigned_driver_id?: string | null
           company_name?: string | null
+          contact_email?: string | null
+          contact_person?: string | null
+          contact_phone?: string | null
           created_at?: string
           current_heading?: number | null
           current_lat?: number | null
@@ -2499,6 +2505,9 @@ export type Database = {
         Update: {
           assigned_driver_id?: string | null
           company_name?: string | null
+          contact_email?: string | null
+          contact_person?: string | null
+          contact_phone?: string | null
           created_at?: string
           current_heading?: number | null
           current_lat?: number | null

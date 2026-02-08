@@ -12,6 +12,9 @@ export interface Vehicle {
   is_active: boolean;
   is_external: boolean;
   company_name: string | null;
+  contact_person: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
   current_lat: number | null;
   current_lng: number | null;
   current_heading: number | null;
@@ -30,6 +33,9 @@ export interface VehicleFormData {
   is_active: boolean;
   is_external: boolean;
   company_name?: string;
+  contact_person?: string;
+  contact_email?: string;
+  contact_phone?: string;
 }
 
 export const useVehicles = () => {
