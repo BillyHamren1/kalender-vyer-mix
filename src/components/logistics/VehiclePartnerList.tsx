@@ -40,6 +40,11 @@ import { cn } from '@/lib/utils';
 
 const vehicleTypes = [
   { value: 'van', label: 'Skåpbil' },
+  { value: 'light_truck', label: 'Lätt lastbil' },
+  { value: 'pickup_crane', label: 'C-pickis med kran' },
+  { value: 'crane_15m', label: 'Kranbil, stor 15m kran' },
+  { value: 'crane_jib_20m', label: 'Kranbil, stor m kran m jibb 20m' },
+  { value: 'body_truck', label: 'Bodbil' },
   { value: 'truck', label: 'Lastbil' },
   { value: 'trailer', label: 'Släp' },
   { value: 'other', label: 'Övrigt' },
