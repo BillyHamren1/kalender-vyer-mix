@@ -32,9 +32,9 @@ const ProjectComments = ({ comments, onAddComment }: ProjectCommentsProps) => {
   };
 
   return (
-    <Card>
+    <Card className="border-border/40 shadow-2xl rounded-2xl">
       <CardHeader>
-        <CardTitle>Kommentarer</CardTitle>
+        <CardTitle className="tracking-tight">Kommentarer</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Comments list */}
@@ -48,7 +48,7 @@ const ProjectComments = ({ comments, onAddComment }: ProjectCommentsProps) => {
         ) : (
           <div className="space-y-4 max-h-96 overflow-y-auto">
             {comments.map(comment => (
-              <div key={comment.id} className="p-3 rounded-lg bg-muted/50">
+              <div key={comment.id} className="p-3 rounded-xl bg-muted/30 border border-border/30">
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-medium text-sm">{comment.author_name}</span>
                   <span className="text-xs text-muted-foreground">
@@ -62,7 +62,7 @@ const ProjectComments = ({ comments, onAddComment }: ProjectCommentsProps) => {
         )}
 
         {/* Add comment form */}
-        <form onSubmit={handleSubmit} className="space-y-3 pt-4 border-t">
+        <form onSubmit={handleSubmit} className="space-y-3 pt-4 border-t border-border/40">
           <div className="flex gap-2">
             <Input
               placeholder="Ditt namn"

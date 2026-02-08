@@ -43,16 +43,21 @@ const BookingInfoExpanded = ({ booking, projectLeader }: BookingInfoExpandedProp
   const hasAddress = booking.deliveryaddress || booking.delivery_city || booking.delivery_postal_code;
 
   return (
-    <Card className="mb-6 border-border">
+    <Card className="mb-4 border-border/40 shadow-2xl rounded-2xl">
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
         {/* Always visible summary */}
-        <div className="p-4">
+        <div className="p-5">
           {/* Row 1: Key info + actions */}
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center gap-6 flex-wrap">
-              <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-muted-foreground" />
-                <span className="font-semibold text-foreground">{booking.client}</span>
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center"
+                  style={{ background: 'var(--gradient-icon)', boxShadow: 'var(--shadow-icon)' }}
+                >
+                  <User className="h-4 w-4 text-primary-foreground" />
+                </div>
+                <span className="font-semibold text-foreground tracking-tight">{booking.client}</span>
               </div>
               {booking.booking_number && (
                 <div className="text-sm text-muted-foreground">
@@ -61,8 +66,11 @@ const BookingInfoExpanded = ({ booking, projectLeader }: BookingInfoExpandedProp
               )}
               {projectLeader && (
                 <div className="flex items-center gap-1.5 text-sm">
-                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-xs font-bold text-primary">
+                  <div
+                    className="w-6 h-6 rounded-full flex items-center justify-center"
+                    style={{ background: 'var(--gradient-icon)' }}
+                  >
+                    <span className="text-xs font-bold text-primary-foreground">
                       {projectLeader.charAt(0).toUpperCase()}
                     </span>
                   </div>
@@ -73,7 +81,7 @@ const BookingInfoExpanded = ({ booking, projectLeader }: BookingInfoExpandedProp
             </div>
             <div className="flex items-center gap-2">
               <Link to={`/booking/${booking.id}`}>
-                <Button variant="outline" size="sm" className="gap-1.5">
+                <Button variant="outline" size="sm" className="gap-1.5 border-border/60">
                   <ExternalLink className="h-3.5 w-3.5" />
                   Visa bokning
                 </Button>
@@ -97,14 +105,14 @@ const BookingInfoExpanded = ({ booking, projectLeader }: BookingInfoExpandedProp
 
         {/* Expandable content */}
         <CollapsibleContent>
-          <div className="px-4 pb-4 pt-2 border-t border-border">
+          <div className="px-5 pb-5 pt-2 border-t border-border/40">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
               {/* Address section */}
               {hasAddress && (
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Leveransadress</span>
+                    <MapPin className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Leveransadress</span>
                   </div>
                   {booking.deliveryaddress && (
                     <p className="text-sm text-foreground">{booking.deliveryaddress}</p>
@@ -119,8 +127,8 @@ const BookingInfoExpanded = ({ booking, projectLeader }: BookingInfoExpandedProp
               {booking.contact_name && (
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Kontaktperson</span>
+                    <Phone className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Kontaktperson</span>
                   </div>
                   <p className="text-sm font-medium text-foreground">{booking.contact_name}</p>
                   {booking.contact_phone && (
@@ -142,8 +150,8 @@ const BookingInfoExpanded = ({ booking, projectLeader }: BookingInfoExpandedProp
               {hasLogistics && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 mb-2">
-                    <Truck className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Logistik</span>
+                    <Truck className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Logistik</span>
                   </div>
                   <div className="space-y-1.5">
                     {booking.carry_more_than_10m && (
@@ -175,12 +183,12 @@ const BookingInfoExpanded = ({ booking, projectLeader }: BookingInfoExpandedProp
 
             {/* Internal notes */}
             {booking.internalnotes && (
-              <div className="mt-4 pt-4 border-t border-border">
+              <div className="mt-4 pt-4 border-t border-border/40">
                 <div className="flex items-center gap-2 mb-2">
-                  <StickyNote className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Interna anteckningar</span>
+                  <StickyNote className="h-4 w-4 text-primary" />
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Interna anteckningar</span>
                 </div>
-                <p className="text-sm text-foreground whitespace-pre-wrap bg-muted/50 rounded-lg p-3">
+                <p className="text-sm text-foreground whitespace-pre-wrap bg-muted/50 rounded-xl p-3">
                   {booking.internalnotes}
                 </p>
               </div>
