@@ -343,14 +343,6 @@ const VehiclePartnerList: React.FC<VehiclePartnerListProps> = ({
                   <Label>Fordonsbredd (m)</Label>
                   <Input type="number" step="0.1" value={formData.vehicle_width_m ?? ''} onChange={e => setFormData(p => ({ ...p, vehicle_width_m: e.target.value ? parseFloat(e.target.value) : null }))} placeholder="T.ex. 2.5" className="rounded-xl" />
                 </div>
-                <div className="space-y-2">
-                  <Label>Timpris (kr)</Label>
-                  <Input type="number" value={formData.hourly_rate ?? ''} onChange={e => setFormData(p => ({ ...p, hourly_rate: e.target.value ? parseFloat(e.target.value) : null }))} placeholder="T.ex. 1200" className="rounded-xl" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Dagspris (kr)</Label>
-                  <Input type="number" value={formData.daily_rate ?? ''} onChange={e => setFormData(p => ({ ...p, daily_rate: e.target.value ? parseFloat(e.target.value) : null }))} placeholder="T.ex. 8000" className="rounded-xl" />
-                </div>
               </div>
             </div>
 
