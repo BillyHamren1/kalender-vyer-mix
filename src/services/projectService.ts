@@ -37,10 +37,17 @@ export const fetchProject = async (id: string): Promise<ProjectWithBooking | nul
         rigdaydate,
         rigdowndate,
         deliveryaddress,
+        delivery_city,
+        delivery_postal_code,
         contact_name,
         contact_phone,
         contact_email,
-        booking_number
+        booking_number,
+        carry_more_than_10m,
+        ground_nails_allowed,
+        exact_time_needed,
+        exact_time_info,
+        internalnotes
       )
     `)
     .eq('id', id)
