@@ -23,6 +23,7 @@ export interface Vehicle {
   hourly_rate: number | null;
   daily_rate: number | null;
   notes: string | null;
+  provided_vehicle_types: string[] | null;
   current_lat: number | null;
   current_lng: number | null;
   current_heading: number | null;
@@ -52,6 +53,7 @@ export interface VehicleFormData {
   hourly_rate?: number | null;
   daily_rate?: number | null;
   notes?: string;
+  provided_vehicle_types?: string[];
 }
 
 export const useVehicles = () => {

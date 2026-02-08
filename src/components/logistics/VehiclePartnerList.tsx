@@ -14,6 +14,7 @@ import {
   ChevronUp,
   X,
 } from 'lucide-react';
+import PartnerWizard from './PartnerWizard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -73,6 +74,7 @@ const emptyFormData = (isExternal: boolean): VehicleFormData => ({
   hourly_rate: null,
   daily_rate: null,
   notes: '',
+  provided_vehicle_types: [],
 });
 
 interface VehiclePartnerListProps {
@@ -133,16 +135,25 @@ const VehiclePartnerList: React.FC<VehiclePartnerListProps> = ({
       hourly_rate: vehicle.hourly_rate,
       daily_rate: vehicle.daily_rate,
       notes: vehicle.notes || '',
+      provided_vehicle_types: vehicle.provided_vehicle_types || [],
     });
     setShowForm(vehicle.is_external ? 'partner' : 'vehicle');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    await handleSaveFormData(formData);
+  };
+
+  const handlePartnerWizardSubmit = async (data: VehicleFormData) => {
+    await handleSaveFormData(data);
+  };
+
+  const handleSaveFormData = async (data: VehicleFormData) => {
     if (editingVehicle) {
-      await updateVehicle(editingVehicle.id, formData);
+      await updateVehicle(editingVehicle.id, data);
     } else {
-      await createVehicle(formData);
+      await createVehicle(data);
     }
     setShowForm(null);
     setEditingVehicle(null);
@@ -199,14 +210,21 @@ const VehiclePartnerList: React.FC<VehiclePartnerListProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Inline form */}
-      {showForm && (
+      {/* Partner wizard (2-step) */}
+      {showForm === 'partner' && (
+        <PartnerWizard
+          initialData={formData}
+          isEditing={!!editingVehicle}
+          onSubmit={handlePartnerWizardSubmit}
+          onCancel={cancelForm}
+        />
+      )}
+
+      {/* Vehicle inline form (single step — internal vehicles only) */}
+      {showForm === 'vehicle' && (
         <PremiumCard
-          icon={showForm === 'partner' ? Building2 : Truck}
-          title={editingVehicle
-            ? (showForm === 'partner' ? 'Redigera transportpartner' : 'Redigera fordon')
-            : (showForm === 'partner' ? 'Ny transportpartner' : 'Nytt fordon')
-          }
+          icon={Truck}
+          title={editingVehicle ? 'Redigera fordon' : 'Nytt fordon'}
           headerAction={
             <Button variant="ghost" size="icon" onClick={cancelForm} className="rounded-lg h-8 w-8">
               <X className="h-4 w-4" />
@@ -216,38 +234,24 @@ const VehiclePartnerList: React.FC<VehiclePartnerListProps> = ({
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>{showForm === 'partner' ? 'Benämning' : 'Fordonsnamn'} *</Label>
+                <Label>Fordonsnamn *</Label>
                 <Input
                   value={formData.name}
                   onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
-                  placeholder={showForm === 'partner' ? 'T.ex. DHL Expressleverans' : 'T.ex. Bil 1'}
+                  placeholder="T.ex. Bil 1"
                   required
                   className="rounded-xl"
                 />
               </div>
-
-              {showForm === 'partner' ? (
-                <div className="space-y-2">
-                  <Label>Företagsnamn</Label>
-                  <Input
-                    value={formData.company_name}
-                    onChange={e => setFormData(p => ({ ...p, company_name: e.target.value }))}
-                    placeholder="T.ex. DHL, Schenker"
-                    className="rounded-xl"
-                  />
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Label>Registreringsnummer</Label>
-                  <Input
-                    value={formData.registration_number}
-                    onChange={e => setFormData(p => ({ ...p, registration_number: e.target.value }))}
-                    placeholder="ABC 123"
-                    className="rounded-xl"
-                  />
-                </div>
-              )}
-
+              <div className="space-y-2">
+                <Label>Registreringsnummer</Label>
+                <Input
+                  value={formData.registration_number}
+                  onChange={e => setFormData(p => ({ ...p, registration_number: e.target.value }))}
+                  placeholder="ABC 123"
+                  className="rounded-xl"
+                />
+              </div>
               <div className="space-y-2">
                 <Label>Kontaktperson</Label>
                 <Input
@@ -257,7 +261,6 @@ const VehiclePartnerList: React.FC<VehiclePartnerListProps> = ({
                   className="rounded-xl"
                 />
               </div>
-
               <div className="space-y-2">
                 <Label>E-post</Label>
                 <Input
@@ -268,7 +271,6 @@ const VehiclePartnerList: React.FC<VehiclePartnerListProps> = ({
                   className="rounded-xl"
                 />
               </div>
-
               <div className="space-y-2">
                 <Label>Telefon</Label>
                 <Input
@@ -278,7 +280,6 @@ const VehiclePartnerList: React.FC<VehiclePartnerListProps> = ({
                   className="rounded-xl"
                 />
               </div>
-
               <div className="space-y-2">
                 <Label>Fordonstyp</Label>
                 <Select
@@ -295,7 +296,6 @@ const VehiclePartnerList: React.FC<VehiclePartnerListProps> = ({
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
                 <Label>Max vikt (kg)</Label>
                 <Input
@@ -306,7 +306,6 @@ const VehiclePartnerList: React.FC<VehiclePartnerListProps> = ({
                   className="rounded-xl"
                 />
               </div>
-
               <div className="space-y-2">
                 <Label>Max volym (m³)</Label>
                 <Input
@@ -326,78 +325,31 @@ const VehiclePartnerList: React.FC<VehiclePartnerListProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label>Krankapacitet (ton)</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={formData.crane_capacity_ton ?? ''}
-                    onChange={e => setFormData(p => ({ ...p, crane_capacity_ton: e.target.value ? parseFloat(e.target.value) : null }))}
-                    placeholder="T.ex. 25"
-                    className="rounded-xl"
-                  />
+                  <Input type="number" step="0.1" value={formData.crane_capacity_ton ?? ''} onChange={e => setFormData(p => ({ ...p, crane_capacity_ton: e.target.value ? parseFloat(e.target.value) : null }))} placeholder="T.ex. 25" className="rounded-xl" />
                 </div>
                 <div className="space-y-2">
                   <Label>Kranräckvidd (m)</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={formData.crane_reach_m ?? ''}
-                    onChange={e => setFormData(p => ({ ...p, crane_reach_m: e.target.value ? parseFloat(e.target.value) : null }))}
-                    placeholder="T.ex. 15"
-                    className="rounded-xl"
-                  />
+                  <Input type="number" step="0.1" value={formData.crane_reach_m ?? ''} onChange={e => setFormData(p => ({ ...p, crane_reach_m: e.target.value ? parseFloat(e.target.value) : null }))} placeholder="T.ex. 15" className="rounded-xl" />
                 </div>
                 <div className="space-y-2">
                   <Label>Fordonslängd (m)</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={formData.vehicle_length_m ?? ''}
-                    onChange={e => setFormData(p => ({ ...p, vehicle_length_m: e.target.value ? parseFloat(e.target.value) : null }))}
-                    placeholder="T.ex. 12"
-                    className="rounded-xl"
-                  />
+                  <Input type="number" step="0.1" value={formData.vehicle_length_m ?? ''} onChange={e => setFormData(p => ({ ...p, vehicle_length_m: e.target.value ? parseFloat(e.target.value) : null }))} placeholder="T.ex. 12" className="rounded-xl" />
                 </div>
                 <div className="space-y-2">
                   <Label>Fordonshöjd (m)</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={formData.vehicle_height_m ?? ''}
-                    onChange={e => setFormData(p => ({ ...p, vehicle_height_m: e.target.value ? parseFloat(e.target.value) : null }))}
-                    placeholder="T.ex. 4"
-                    className="rounded-xl"
-                  />
+                  <Input type="number" step="0.1" value={formData.vehicle_height_m ?? ''} onChange={e => setFormData(p => ({ ...p, vehicle_height_m: e.target.value ? parseFloat(e.target.value) : null }))} placeholder="T.ex. 4" className="rounded-xl" />
                 </div>
                 <div className="space-y-2">
                   <Label>Fordonsbredd (m)</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={formData.vehicle_width_m ?? ''}
-                    onChange={e => setFormData(p => ({ ...p, vehicle_width_m: e.target.value ? parseFloat(e.target.value) : null }))}
-                    placeholder="T.ex. 2.5"
-                    className="rounded-xl"
-                  />
+                  <Input type="number" step="0.1" value={formData.vehicle_width_m ?? ''} onChange={e => setFormData(p => ({ ...p, vehicle_width_m: e.target.value ? parseFloat(e.target.value) : null }))} placeholder="T.ex. 2.5" className="rounded-xl" />
                 </div>
                 <div className="space-y-2">
                   <Label>Timpris (kr)</Label>
-                  <Input
-                    type="number"
-                    value={formData.hourly_rate ?? ''}
-                    onChange={e => setFormData(p => ({ ...p, hourly_rate: e.target.value ? parseFloat(e.target.value) : null }))}
-                    placeholder="T.ex. 1200"
-                    className="rounded-xl"
-                  />
+                  <Input type="number" value={formData.hourly_rate ?? ''} onChange={e => setFormData(p => ({ ...p, hourly_rate: e.target.value ? parseFloat(e.target.value) : null }))} placeholder="T.ex. 1200" className="rounded-xl" />
                 </div>
                 <div className="space-y-2">
                   <Label>Dagspris (kr)</Label>
-                  <Input
-                    type="number"
-                    value={formData.daily_rate ?? ''}
-                    onChange={e => setFormData(p => ({ ...p, daily_rate: e.target.value ? parseFloat(e.target.value) : null }))}
-                    placeholder="T.ex. 8000"
-                    className="rounded-xl"
-                  />
+                  <Input type="number" value={formData.daily_rate ?? ''} onChange={e => setFormData(p => ({ ...p, daily_rate: e.target.value ? parseFloat(e.target.value) : null }))} placeholder="T.ex. 8000" className="rounded-xl" />
                 </div>
               </div>
             </div>
@@ -405,29 +357,17 @@ const VehiclePartnerList: React.FC<VehiclePartnerListProps> = ({
             {/* Notes */}
             <div className="space-y-2">
               <Label>Anteckningar</Label>
-              <Input
-                value={formData.notes || ''}
-                onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))}
-                placeholder="T.ex. kräver markplattor, max 30 ton axeltryck..."
-                className="rounded-xl"
-              />
+              <Input value={formData.notes || ''} onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))} placeholder="T.ex. kräver markplattor..." className="rounded-xl" />
             </div>
 
             <div className="flex items-center justify-between pt-2">
               <div className="flex items-center gap-3">
-                <Switch
-                  checked={formData.is_active}
-                  onCheckedChange={c => setFormData(p => ({ ...p, is_active: c }))}
-                />
-                <Label className="text-sm">{showForm === 'partner' ? 'Aktiv partner' : 'Aktivt fordon'}</Label>
+                <Switch checked={formData.is_active} onCheckedChange={c => setFormData(p => ({ ...p, is_active: c }))} />
+                <Label className="text-sm">Aktivt fordon</Label>
               </div>
               <div className="flex gap-2">
-                <Button type="button" variant="outline" onClick={cancelForm} className="rounded-xl">
-                  Avbryt
-                </Button>
-                <Button type="submit" className="rounded-xl">
-                  {editingVehicle ? 'Spara ändringar' : (showForm === 'partner' ? 'Skapa partner' : 'Skapa fordon')}
-                </Button>
+                <Button type="button" variant="outline" onClick={cancelForm} className="rounded-xl">Avbryt</Button>
+                <Button type="submit" className="rounded-xl">{editingVehicle ? 'Spara ändringar' : 'Skapa fordon'}</Button>
               </div>
             </div>
           </form>
@@ -591,6 +531,20 @@ const VehicleRow: React.FC<{
             {vehicle.max_volume_m3}m³
           </span>
         </div>
+        {/* Show provided vehicle types for partners */}
+        {vehicle.is_external && vehicle.provided_vehicle_types && vehicle.provided_vehicle_types.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1.5">
+            {vehicle.provided_vehicle_types.map(type => {
+              const typeInfo = vehicleTypes.find(t => t.value === type);
+              return (
+                <Badge key={type} variant="outline" className="text-[10px] h-5 px-1.5 bg-primary/5 border-primary/20">
+                  <Truck className="h-2.5 w-2.5 mr-1" />
+                  {typeInfo?.label || type}
+                </Badge>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Actions */}
