@@ -13,14 +13,16 @@ interface WarehouseEventFilterProps {
 }
 
 const EVENT_TYPES: { id: WarehouseEventTypeFilter; label: string; icon: React.ElementType; color: string }[] = [
+  // Planning events (shown read-only in warehouse)
   { id: 'rig', label: 'Rigg', icon: Wrench, color: 'text-green-600' },
   { id: 'event', label: 'Event', icon: PartyPopper, color: 'text-yellow-600' },
   { id: 'rigDown', label: 'Riv', icon: PackageMinus, color: 'text-red-600' },
+  // Warehouse-specific events (NO green/yellow/red)
   { id: 'packing', label: 'Packning', icon: Package, color: 'text-purple-600' },
   { id: 'delivery', label: 'Utleverans', icon: Truck, color: 'text-blue-600' },
-  { id: 'return', label: 'Retur', icon: RotateCcw, color: 'text-orange-600' },
+  { id: 'return', label: 'Retur', icon: RotateCcw, color: 'text-violet-600' },
   { id: 'inventory', label: 'Inventering', icon: ClipboardList, color: 'text-cyan-600' },
-  { id: 'unpacking', label: 'Uppackning', icon: PackageOpen, color: 'text-gray-600' },
+  { id: 'unpacking', label: 'Uppackning', icon: PackageOpen, color: 'text-slate-500' },
 ];
 
 const WarehouseEventFilter: React.FC<WarehouseEventFilterProps> = ({

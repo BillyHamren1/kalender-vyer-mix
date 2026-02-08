@@ -33,22 +33,24 @@ export interface CalendarEvent extends EventInput {
 
 export const getEventColor = (eventType: string | undefined): string => {
   switch (eventType) {
+    // --- Planning colors (green / yellow / red) ---
     case 'rig':
       return '#F2FCE2'; // Light green
     case 'event':
       return '#FEF7CD'; // Yellow
     case 'rigDown':
       return '#FEE2E2'; // Light red
+    // --- Warehouse colors (NO green/yellow/red overlap) ---
     case 'packing':
-      return '#E9D5FF'; // Purple (Packning)
+      return '#E9D5FF'; // Lavender/purple
     case 'delivery':
-      return '#BFDBFE'; // Blue (Utleverans)
+      return '#BFDBFE'; // Blue
     case 'return':
-      return '#FED7AA'; // Orange (Återleverans)
+      return '#C4B5FD'; // Violet
     case 'inventory':
-      return '#A5F3FC'; // Cyan (Inventering)
+      return '#A5F3FC'; // Cyan
     case 'unpacking':
-      return '#E5E7EB'; // Gray (Upppackning)
+      return '#F1F5F9'; // Slate gray
     default:
       return '#6b7280'; // gray-500
   }
