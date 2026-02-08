@@ -11,15 +11,26 @@ interface MobileWarehouseEventsListProps {
   weekStart: Date;
 }
 
-// Helper to get event color based on type
+// Helper to get event color based on type — warehouse uses cool tones (NO green/yellow/red)
 const getEventColor = (eventType?: string): string => {
   switch (eventType) {
-    case 'rig':
+    case 'packing':
+      return 'bg-purple-500/20 border-purple-500';
+    case 'delivery':
       return 'bg-blue-500/20 border-blue-500';
+    case 'return':
+      return 'bg-violet-500/20 border-violet-500';
+    case 'inventory':
+      return 'bg-cyan-500/20 border-cyan-500';
+    case 'unpacking':
+      return 'bg-slate-400/20 border-slate-400';
+    case 'rig':
+      return 'bg-purple-400/20 border-purple-400';
     case 'event':
-      return 'bg-green-500/20 border-green-500';
+      return 'bg-indigo-500/20 border-indigo-500';
     case 'rigdown':
-      return 'bg-orange-500/20 border-orange-500';
+    case 'rigDown':
+      return 'bg-pink-500/20 border-pink-500';
     default:
       return 'bg-primary/20 border-primary';
   }

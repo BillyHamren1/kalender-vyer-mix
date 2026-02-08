@@ -67,14 +67,14 @@ export const WAREHOUSE_EVENT_LABELS: Record<WarehouseEventType, string> = {
   unpacking: 'Upppackning'
 };
 
-// Event type colors
+// Event type colors — must NOT overlap with planning colors (green/yellow/red)
 export const WAREHOUSE_EVENT_COLORS: Record<WarehouseEventType, string> = {
-  packing: '#E9D5FF',    // Purple
+  packing: '#E9D5FF',    // Lavender/purple
   delivery: '#DBEAFE',   // Blue
-  event: '#FEF7CD',      // Yellow
-  return: '#FFEDD5',     // Orange
+  event: '#E0E7FF',      // Indigo (NOT yellow — yellow is planning)
+  return: '#C4B5FD',     // Violet (NOT orange — too close to yellow/red)
   inventory: '#CFFAFE',  // Cyan
-  unpacking: '#F3F4F6'   // Gray
+  unpacking: '#F1F5F9'   // Slate gray
 };
 
 interface BookingData {
