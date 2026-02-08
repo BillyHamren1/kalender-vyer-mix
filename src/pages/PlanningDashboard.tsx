@@ -14,6 +14,7 @@ import DashboardWeekView from "@/components/dashboard/DashboardWeekView";
 import DashboardDayView from "@/components/dashboard/DashboardDayView";
 import DashboardMonthView from "@/components/dashboard/DashboardMonthView";
 import DashboardNewBookings from "@/components/dashboard/DashboardNewBookings";
+import DashboardMiniCalendar from "@/components/dashboard/DashboardMiniCalendar";
 import CreateProjectWizard from "@/components/project/CreateProjectWizard";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
 
@@ -79,12 +80,20 @@ const PlanningDashboard = () => {
         <DashboardAlertWidgets stats={stats} isLoading={statsLoading} />
       </div>
 
-      {/* New Bookings – triage directly from dashboard */}
-      <div className="mb-4">
-        <DashboardNewBookings
-          onCreateProject={handleCreateProject}
-          onCreateLargeProject={handleCreateLargeProject}
-        />
+      {/* New Bookings + Mini Calendar row */}
+      <div className="mb-4 flex gap-4 items-start">
+        <div className="flex-1 min-w-0">
+          <DashboardNewBookings
+            onCreateProject={handleCreateProject}
+            onCreateLargeProject={handleCreateLargeProject}
+          />
+        </div>
+        <div className="w-1/3 shrink-0">
+          <DashboardMiniCalendar
+            currentDate={currentDate}
+            onDateChange={(date) => setCurrentDate(date)}
+          />
+        </div>
       </div>
 
       {/* Filters */}
