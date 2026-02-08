@@ -153,12 +153,12 @@ const LargeProjectsListPanel = ({ completedOnly = false }: LargeProjectsListPane
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-border/30">
+          <div className="p-2 space-y-1.5">
               {filteredProjects.map(project => (
                 <div
                   key={project.id}
                   onClick={() => navigate(`/large-project/${project.id}`)}
-                  className="group/card flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors"
+                  className="group/card flex items-center gap-3 px-3 py-2.5 cursor-pointer rounded-lg border border-border/40 bg-muted/15 hover:bg-muted/40 hover:border-primary/30 transition-all border-l-[3px] border-l-primary/40"
                 >
                   <div className="flex-1 min-w-0">
                     <h4 className="text-sm font-medium text-foreground truncate group-hover/card:text-primary transition-colors">
