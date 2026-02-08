@@ -47,6 +47,9 @@ const vehicleTypes = [
   { value: 'body_truck', label: 'Bodbil' },
   { value: 'truck', label: 'Lastbil' },
   { value: 'trailer', label: 'Släp' },
+  { value: 'trailer_13m', label: 'Trailer (13m)' },
+  { value: 'truck_trailer', label: 'Lastbil med släp' },
+  { value: 'crane_trailer', label: 'Kranbil med släp' },
   { value: 'other', label: 'Övrigt' },
 ];
 
