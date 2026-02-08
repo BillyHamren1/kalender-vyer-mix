@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus, FolderKanban, Sparkles, Archive } from "lucide-react";
+import { Plus, FolderKanban, Archive } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import ProjectCard from "@/components/project/ProjectCard";
 import CreateProjectWizard from "@/components/project/CreateProjectWizard";
 import { IncomingBookingsList } from "@/components/project/IncomingBookingsList";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
@@ -40,66 +39,49 @@ const ProjectManagement = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      <div className="container mx-auto px-4 py-8 max-w-[1600px]">
-        {/* Premium Header */}
-        <div className="relative mb-10">
-          {/* Decorative background */}
-          <div className="absolute inset-0 -z-10 overflow-hidden rounded-3xl">
-            <div className="absolute -top-20 -right-20 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
-            <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-primary/3 rounded-full blur-2xl" />
+      <div className="container mx-auto px-4 py-6 max-w-[1600px]">
+        {/* Compact Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary to-primary/80 shadow-md">
+              <FolderKanban className="h-5 w-5 text-primary-foreground" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Projekthantering</h1>
+              <p className="text-sm text-muted-foreground">Hantera små, medelstora och stora projekt</p>
+            </div>
           </div>
-          
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 p-6 rounded-2xl bg-gradient-to-r from-card/80 via-card to-card/80 backdrop-blur-sm border border-border/50 shadow-lg">
-            <div className="flex items-center gap-4">
-              <div 
-                className="relative p-3.5 rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-lg"
-                style={{ boxShadow: '0 8px 32px hsl(var(--primary) / 0.3)' }}
-              >
-                <FolderKanban className="h-7 w-7 text-primary-foreground" />
-                <Sparkles className="absolute -top-1 -right-1 h-4 w-4 text-primary-foreground/80" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-                  Projekthantering
-                </h1>
-                <p className="text-muted-foreground mt-0.5">
-                  Hantera små, medelstora och stora projekt
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button 
-                onClick={() => navigate('/projects/archive')}
-                variant="outline"
-                size="lg"
-                className="rounded-xl px-5"
-              >
-                <Archive className="h-5 w-5 mr-2" />
-                Arkiv
-              </Button>
-              <Button 
-                onClick={() => { setSelectedBookingId(null); setIsCreateOpen(true); }}
-                size="lg"
-                className="shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5 rounded-xl px-6"
-                style={{ boxShadow: '0 4px 20px hsl(var(--primary) / 0.25)' }}
-              >
-                <Plus className="h-5 w-5 mr-2" />
-                Nytt projekt
-              </Button>
-            </div>
+          <div className="flex items-center gap-2">
+            <Button 
+              onClick={() => navigate('/projects/archive')}
+              variant="outline"
+              size="sm"
+              className="rounded-lg h-9"
+            >
+              <Archive className="h-4 w-4 mr-1.5" />
+              Arkiv
+            </Button>
+            <Button 
+              onClick={() => { setSelectedBookingId(null); setIsCreateOpen(true); }}
+              size="sm"
+              className="rounded-lg h-9 shadow-sm"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              Nytt projekt
+            </Button>
           </div>
         </div>
 
-        {/* Incoming Bookings Section */}
-        <div className="mb-10">
+        {/* Incoming Bookings - compact */}
+        <div className="mb-6">
           <IncomingBookingsList 
             onCreateProject={handleCreateProject}
             onCreateLargeProject={handleCreateLargeProject}
           />
         </div>
 
-        {/* Three Column Layout: Litet, Medel, Stort */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Three Column Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <JobsListPanel />
           <MediumProjectsListPanel />
           <LargeProjectsListPanel />
