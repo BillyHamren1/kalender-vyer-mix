@@ -7,8 +7,7 @@ import { format, startOfWeek, addWeeks, subWeeks, addDays, subDays, addMonths, s
 import { sv } from "date-fns/locale";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { useDashboardEvents, useDashboardStats, EventCategory, DashboardViewMode } from "@/hooks/useDashboardEvents";
-import DashboardAlertWidgets from "@/components/dashboard/DashboardAlertWidgets";
+import { useDashboardEvents, EventCategory, DashboardViewMode } from "@/hooks/useDashboardEvents";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import DashboardWeekView from "@/components/dashboard/DashboardWeekView";
 import DashboardDayView from "@/components/dashboard/DashboardDayView";
@@ -31,7 +30,7 @@ const PlanningDashboard = () => {
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
 
   const { events, isLoading, refetchAll } = useDashboardEvents(viewMode, currentDate, activeCategories);
-  const { data: stats, isLoading: statsLoading } = useDashboardStats();
+  
 
   // Navigation handlers
   const goToPreviousWeek = () => setCurrentDate(prev => subWeeks(prev, 1));
@@ -73,11 +72,6 @@ const PlanningDashboard = () => {
           Uppdatera
         </Button>
       </PageHeader>
-
-      {/* Alert Widgets */}
-      <div className="mb-4">
-        <DashboardAlertWidgets stats={stats} isLoading={statsLoading} />
-      </div>
 
       {/* Filters */}
       <div className="mb-4">
