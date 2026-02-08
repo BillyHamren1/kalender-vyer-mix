@@ -6,11 +6,7 @@
   --calendar-primary-foreground: var(--primary-foreground);
   --calendar-accent: var(--primary);
   
-  background: linear-gradient(
-    180deg, 
-    hsl(var(--background)) 0%, 
-    hsl(var(--muted) / 0.3) 100%
-  );
+  background: #ffffff;
   border-radius: 0;
   box-shadow: none;
   border: none;
@@ -59,15 +55,10 @@
   background: hsl(var(--muted-foreground) / 0.5);
 }
 
-/* Day card - Glass morphism with depth */
+/* Day card - Clean white */
 .day-card {
-  background: linear-gradient(
-    145deg,
-    hsl(var(--background)) 0%,
-    hsl(var(--background) / 0.95) 50%,
-    hsl(var(--muted) / 0.2) 100%
-  );
-  backdrop-filter: blur(20px);
+  background: #ffffff;
+  backdrop-filter: none;
   -webkit-backdrop-filter: blur(20px);
   border-radius: 24px;
   box-shadow: 
@@ -174,11 +165,7 @@
 .time-empty-cell,
 .staff-row-time-cell {
   grid-column: 1;
-  background: linear-gradient(
-    180deg,
-    hsl(var(--muted)) 0%,
-    hsl(var(--muted) / 0.8) 100%
-  );
+  background: #ffffff;
 }
 
 .time-empty-cell {
@@ -274,11 +261,7 @@
 
 /* Staff Assignment Header Row - Dynamic height for all staff visible */
 .staff-assignment-header-row {
-  background: linear-gradient(
-    145deg,
-    hsl(var(--background)) 0%,
-    hsl(var(--muted) / 0.4) 100%
-  );
+  background: #ffffff;
   min-height: 88px;
   height: auto;
   display: flex;
@@ -292,11 +275,7 @@
 }
 
 .staff-assignment-header-row:hover {
-  background: linear-gradient(
-    145deg,
-    hsl(var(--background)) 0%,
-    hsl(var(--muted) / 0.6) 100%
-  );
+  background: #fafafa;
 }
 
 .staff-assignment-header-row:last-of-type {
@@ -332,13 +311,9 @@
   align-content: flex-start;
 }
 
-/* Time Labels Column - Modern gradient */
+/* Time Labels Column */
 .time-labels-column {
-  background: linear-gradient(
-    90deg,
-    hsl(var(--muted)) 0%,
-    hsl(var(--muted) / 0.6) 100%
-  );
+  background: #ffffff;
   grid-column: 1;
   display: flex;
   flex-direction: column;
@@ -377,7 +352,7 @@
 
 /* Time Slot Columns - with full-height border */
 .time-slots-column {
-  background: hsl(var(--background));
+  background: #ffffff;
   position: relative;
   overflow: visible;
   height: 100%;
@@ -404,7 +379,7 @@
 }
 
 .time-slot-cell:nth-child(even) {
-  background: hsl(var(--muted) / 0.15);
+  background: rgba(0, 0, 0, 0.01);
 }
 
 .time-slot-cell:hover {
