@@ -1,71 +1,101 @@
 
-## Fix: Stoppa gamla bokningar fran att aterimporteras
 
-### Grundorsak
+## Uppgradering av Projektsidan till ett riktigt projektledningssystem
 
-Datumfiltret i `import-bookings` fungerar inte. Funktionen `hasFutureDates()` kollar faltnamnen `rigdaydate`, `eventdate`, `rigdowndate` -- men det externa API:et skickar datum som:
-- `rig_up_dates` (array)
-- `event_dates` (array)  
-- `rig_down_dates` (array)
+Projektsidan behover en ordentlig uppgradering for att visa alla relevanta bokningsuppgifter, spara projekthistorik och ge en professionell projektledningsupplevelse.
 
-Alla tre falten blir `undefined`, datumslistan blir tom, och funktionen returnerar `true` (tillat import). Resultatet: **alla bokningar fran API:et importeras oavsett datum**, inklusive bokningar fran 2019, 2022, 2024 etc. Varje gang synken kor ateruppstar alla raderade bokningar och deras packningsprojekt.
+### Vad som saknas idag
 
-### Losning (2 steg)
+1. **Begransad bokningsinformation** -- Bara kund, eventdatum, adress och kontaktperson visas. Riggdatum, nedrivningsdatum, interna anteckningar, logistikdata (barningsavstand, markspett etc.) och produktlista saknas helt.
+2. **Ingen projekthistorik/aktivitetslogg** -- Det finns ingen mojlighet att folja vad som hant i projektet, vem som gjort vad och nar.
+3. **Projektledare visas inte** -- Trots att `project_leader` sparas i databasen visas den inte pa sidan.
+4. **Oversiktsvy saknas** -- Ingen snabb sammanfattning av projektets framdrift (antal klarade uppgifter, senaste aktivitet, tid kvar etc.).
+5. **Schema-oversikt saknas** -- Rig/Event/Rigdown-datum syns inte samlat som en tydlig tidslinje.
 
-#### Steg 1: Fixa datumfiltret i `import-bookings`
+---
 
-Uppdatera `hasFutureDates()` sa den laser ratt faltnamn fran det externa API:et:
+### Plan: 5 forbattringar
 
-```typescript
-const hasFutureDates = (booking: any): boolean => {
-  // External API sends dates as arrays: rig_up_dates, event_dates, rig_down_dates
-  // Also check legacy field names for safety
-  const allDates: string[] = [];
-  
-  // Array format from external API
-  if (Array.isArray(booking.rig_up_dates)) allDates.push(...booking.rig_up_dates);
-  if (Array.isArray(booking.event_dates)) allDates.push(...booking.event_dates);
-  if (Array.isArray(booking.rig_down_dates)) allDates.push(...booking.rig_down_dates);
-  
-  // Legacy field names (fallback)
-  if (booking.rigdaydate) allDates.push(booking.rigdaydate);
-  if (booking.eventdate) allDates.push(booking.eventdate);
-  if (booking.rigdowndate) allDates.push(booking.rigdowndate);
-  
-  const validDates = allDates.filter(Boolean);
-  if (validDates.length === 0) return true; // No dates = allow
-  
-  return validDates.some(dateStr => new Date(dateStr) >= CUTOFF_DATE);
-};
-```
+#### 1. Ny databas-tabell: `project_activity_log`
 
-#### Steg 2: Rensa databasen
+Skapar en aktivitetslogg som automatiskt spelar in alla forandringar i projektet.
 
-Radera alla bokningar och deras kopplad data utom 2602-2 och 2602-4. Skillnaden fran tidigare forsok:
+| Kolumn | Typ | Beskrivning |
+|--------|-----|-------------|
+| id | uuid | Primar-nyckel |
+| project_id | uuid | FK till projects |
+| action | text | Typ av handling (t.ex. `task_completed`, `status_changed`, `comment_added`, `file_uploaded`, `staff_assigned`) |
+| description | text | Mänskligt lasbar beskrivning |
+| performed_by | text | Namn pa personen som utforde handlingen |
+| metadata | jsonb | Extra data (t.ex. gammal/ny status, uppgiftsnamn) |
+| created_at | timestamptz | Tidsstampel |
 
-1. Disabla ALLA triggers pa bookings-tabellen (inte bara en specifik)
-2. Radera i ratt ordning med alla beroenden
-3. Deployen av den fixade edge-funktionen FORE rensningen, sa att synken inte aterimporterar gamla bokningar vid nasta korning
+#### 2. Utokad bokningsinformation-sektion
 
-Raderingordning:
-```text
-packing_task_comments -> packing_tasks -> packing_list_items -> packing_parcels
--> packing_comments -> packing_files -> packing_labor_costs -> packing_purchases 
--> packing_invoices -> packing_quotes -> packing_budget -> packing_projects
--> calendar_events -> warehouse_calendar_events -> transport_assignments -> time_reports
--> booking_products -> booking_changes -> projects -> bookings (triggers disabled)
-```
+Visar ALLA bokningsuppgifter i en expanderbar layout:
 
-### Filer som andras
+- **Rad 1**: Kund, Bokningsnummer, Status, Projektledare
+- **Rad 2**: Riggdatum, Eventdatum, Nedrivningsdatum (med visuell tidslinje)
+- **Rad 3**: Leveransadress, Stad, Postnummer
+- **Rad 4**: Kontaktperson med telefon och e-post (klickbar)
+- **Rad 5**: Logistikdata (barningsavstand >10m, markspett tillatet, exakt tid)
+- **Interna anteckningar**: Expanderbar sektion med bokningens anteckningar
 
+#### 3. Ny komponent: Projektovversikt (Dashboard-kort)
+
+En sammanfattningssektion overst med:
+
+- **Framdrift**: Cirkeldiagram/progressbar med andel klarade uppgifter
+- **Schema**: Visuell tidslinje Rigg -> Event -> Rigdown med nedrakning (t.ex. "3 dagar till rigg")
+- **Projektledare**: Namn och avatar
+- **Senaste aktivitet**: De 3 senaste handlingarna fran aktivitetsloggen
+- **Snabbstatistik**: Antal uppgifter, filer, kommentarer, personalstyrka
+
+#### 4. Ny flik: "Aktivitetslogg" (Historik)
+
+En kronologisk lista over alla forandringar i projektet:
+
+- Ikon + fargkod baserat pa typ (gron for uppgift klar, bla for kommentar, gul for statusandring etc.)
+- Filtrerbar pa typ (uppgifter, kommentarer, filer, statusandringar)
+- Visar vem som utforde handlingen och nar
+- Grupperad per dag med datum-rubriker
+
+#### 5. Automatisk loggning av handlingar
+
+Alla befintliga mutationer (i `useProjectDetail`) utvidgas for att automatiskt skriva till aktivitetsloggen:
+
+- Statusandring (gammal -> ny status)
+- Uppgift tillagd/avslutad/borttagen
+- Kommentar tillagd
+- Fil uppladdad/borttagen
+- Tidrapport inlagd
+- Inkop registrerat
+
+---
+
+### Teknisk specifikation
+
+**Nya filer:**
+| Fil | Beskrivning |
+|-----|-------------|
+| `src/components/project/ProjectOverviewHeader.tsx` | Dashboard-kort med framdrift, schema, projektledare |
+| `src/components/project/ProjectActivityLog.tsx` | Aktivitetslogg-flik med filtrering |
+| `src/components/project/ProjectScheduleTimeline.tsx` | Visuell tidslinje Rigg/Event/Rigdown |
+| `src/components/project/BookingInfoExpanded.tsx` | Utokad bokningsinformations-sektion |
+| `src/services/projectActivityService.ts` | CRUD for aktivitetsloggen |
+| Databasmigrering | Skapar `project_activity_log`-tabellen |
+
+**Andrade filer:**
 | Fil | Andring |
 |-----|---------|
-| `supabase/functions/import-bookings/index.ts` | Fixa `hasFutureDates()` att lasa ratt API-faltnamn |
-| Databasmigrering | Radera alla bokningar/packningar utom 2602-2 och 2602-4 |
+| `src/pages/ProjectDetail.tsx` | Ny layout med oversikt, utokad bokningsinfo, ny Aktivitetslogg-flik |
+| `src/hooks/useProjectDetail.tsx` | Loggar alla handlingar till aktivitetsloggen |
+| `src/services/projectService.ts` | Hamtar utokad bokningsdata (fler falt) |
+| `src/types/project.ts` | Nya typer for `ProjectActivity` och utokad `ProjectWithBooking` |
 
-### Forväntat resultat
+**Layout-andring pa ProjectDetail:**
 
-- Bara 2 bokningar kvar i systemet (2602-2 och 2602-4)
-- Bara 2 packningsprojekt (kopplade till dessa bokningar)  
-- Nasta sync importerar INTE gamla bokningar (datumfiltret fungerar)
-- Nya bokningar med datum >= 2026-01-01 importeras som vanligt
+Nuvarande ordning: Header -> Bokningsinfo (liten) -> Tabs
+
+Ny ordning: Header (med projektledare) -> Oversikt-dashboard -> Bokningsinfo (expanderbar, komplett) -> Tabs (+ ny Aktivitetslogg-flik)
+
