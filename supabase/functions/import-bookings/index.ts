@@ -992,10 +992,27 @@ serve(async (req) => {
     CUTOFF_DATE.setHours(0, 0, 0, 0);
     
     const hasFutureDates = (booking: any): boolean => {
-      const dates = [booking.rigdaydate, booking.eventdate, booking.rigdowndate].filter(Boolean);
-      if (dates.length === 0) return true; // No dates = allow import (edge case)
+      // External API sends dates as arrays: rig_up_dates, event_dates, rig_down_dates
+      // Also check legacy field names (rigdaydate, eventdate, rigdowndate) for safety
+      const allDates: string[] = [];
       
-      return dates.some(dateStr => {
+      // Array format from external API
+      if (Array.isArray(booking.rig_up_dates)) allDates.push(...booking.rig_up_dates);
+      if (Array.isArray(booking.event_dates)) allDates.push(...booking.event_dates);
+      if (Array.isArray(booking.rig_down_dates)) allDates.push(...booking.rig_down_dates);
+      
+      // Legacy single-value field names (fallback)
+      if (booking.rigdaydate) allDates.push(booking.rigdaydate);
+      if (booking.eventdate) allDates.push(booking.eventdate);
+      if (booking.rigdowndate) allDates.push(booking.rigdowndate);
+      
+      const validDates = allDates.filter(Boolean);
+      if (validDates.length === 0) {
+        console.log(`[DateFilter] Booking has NO dates at all - blocking import`);
+        return false; // No dates = block import (old bookings without dates)
+      }
+      
+      return validDates.some(dateStr => {
         const date = new Date(dateStr);
         return date >= CUTOFF_DATE;
       });
@@ -1004,10 +1021,14 @@ serve(async (req) => {
     for (const externalBooking of externalData.data) {
       // Skip bookings with only past dates (unless historical mode)
       if (!isHistoricalImport && !hasFutureDates(externalBooking)) {
-        const latestDate = [externalBooking.rigdaydate, externalBooking.eventdate, externalBooking.rigdowndate]
-          .filter(Boolean)
-          .sort()
-          .pop() || 'no dates';
+        const allBookingDates: string[] = [];
+        if (Array.isArray(externalBooking.rig_up_dates)) allBookingDates.push(...externalBooking.rig_up_dates);
+        if (Array.isArray(externalBooking.event_dates)) allBookingDates.push(...externalBooking.event_dates);
+        if (Array.isArray(externalBooking.rig_down_dates)) allBookingDates.push(...externalBooking.rig_down_dates);
+        if (externalBooking.rigdaydate) allBookingDates.push(externalBooking.rigdaydate);
+        if (externalBooking.eventdate) allBookingDates.push(externalBooking.eventdate);
+        if (externalBooking.rigdowndate) allBookingDates.push(externalBooking.rigdowndate);
+        const latestDate = allBookingDates.filter(Boolean).sort().pop() || 'no dates';
         console.log(`SKIPPING OLD BOOKING ${externalBooking.id} (${externalBooking.client}) - latest date: ${latestDate}`);
         continue;
       }
