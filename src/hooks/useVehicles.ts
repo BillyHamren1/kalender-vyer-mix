@@ -2,6 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+export interface VehicleTypeRate {
+  hourly_rate?: number | null;
+  daily_rate?: number | null;
+}
+
 export interface Vehicle {
   id: string;
   name: string;
@@ -24,6 +29,7 @@ export interface Vehicle {
   daily_rate: number | null;
   notes: string | null;
   provided_vehicle_types: string[] | null;
+  vehicle_type_rates: Record<string, VehicleTypeRate> | null;
   current_lat: number | null;
   current_lng: number | null;
   current_heading: number | null;
@@ -54,6 +60,7 @@ export interface VehicleFormData {
   daily_rate?: number | null;
   notes?: string;
   provided_vehicle_types?: string[];
+  vehicle_type_rates?: Record<string, VehicleTypeRate>;
 }
 
 export const useVehicles = () => {
@@ -81,9 +88,13 @@ export const useVehicles = () => {
 
   const createVehicle = async (vehicleData: VehicleFormData): Promise<Vehicle | null> => {
     try {
+      const dbData = {
+        ...vehicleData,
+        vehicle_type_rates: vehicleData.vehicle_type_rates ? JSON.parse(JSON.stringify(vehicleData.vehicle_type_rates)) : {},
+      };
       const { data, error } = await supabase
         .from('vehicles')
-        .insert(vehicleData)
+        .insert(dbData)
         .select()
         .single();
 
@@ -100,9 +111,15 @@ export const useVehicles = () => {
 
   const updateVehicle = async (id: string, vehicleData: Partial<VehicleFormData>): Promise<boolean> => {
     try {
+      const dbData = {
+        ...vehicleData,
+        ...(vehicleData.vehicle_type_rates !== undefined && {
+          vehicle_type_rates: JSON.parse(JSON.stringify(vehicleData.vehicle_type_rates)),
+        }),
+      };
       const { error } = await supabase
         .from('vehicles')
-        .update(vehicleData)
+        .update(dbData)
         .eq('id', id);
 
       if (error) throw error;

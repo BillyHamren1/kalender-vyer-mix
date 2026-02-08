@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PremiumCard } from '@/components/ui/PremiumCard';
-import { VehicleFormData } from '@/hooks/useVehicles';
+import { VehicleFormData, VehicleTypeRate } from '@/hooks/useVehicles';
 import { cn } from '@/lib/utils';
 
 const VEHICLE_TYPES = [
@@ -49,6 +49,9 @@ const PartnerWizard: React.FC<PartnerWizardProps> = ({
   const [selectedTypes, setSelectedTypes] = useState<string[]>(
     initialData.provided_vehicle_types || []
   );
+  const [typeRates, setTypeRates] = useState<Record<string, VehicleTypeRate>>(
+    initialData.vehicle_type_rates || {}
+  );
 
   const canProceed = formData.name.trim().length > 0;
 
@@ -68,16 +71,34 @@ const PartnerWizard: React.FC<PartnerWizardProps> = ({
     }
   };
 
+  const updateTypeRate = (typeValue: string, field: 'hourly_rate' | 'daily_rate', value: string) => {
+    setTypeRates(prev => ({
+      ...prev,
+      [typeValue]: {
+        ...prev[typeValue],
+        [field]: value ? parseFloat(value) : null,
+      },
+    }));
+  };
+
   const handleFinalSubmit = () => {
-    // Set primary vehicle_type to first selected, or keep existing
     const primaryType = selectedTypes.length > 0
       ? selectedTypes[0] as VehicleFormData['vehicle_type']
       : formData.vehicle_type;
+
+    // Only keep rates for selected types
+    const filteredRates: Record<string, VehicleTypeRate> = {};
+    selectedTypes.forEach(t => {
+      if (typeRates[t]) {
+        filteredRates[t] = typeRates[t];
+      }
+    });
 
     onSubmit({
       ...formData,
       vehicle_type: primaryType,
       provided_vehicle_types: selectedTypes,
+      vehicle_type_rates: filteredRates,
     });
   };
 
@@ -103,7 +124,7 @@ const PartnerWizard: React.FC<PartnerWizardProps> = ({
             )}>
               2
             </span>
-            <span className="hidden sm:inline">Fordon</span>
+            <span className="hidden sm:inline">Fordon & Priser</span>
           </div>
           <Button variant="ghost" size="icon" onClick={onCancel} className="rounded-lg h-8 w-8">
             <X className="h-4 w-4" />
@@ -194,7 +215,7 @@ const PartnerWizard: React.FC<PartnerWizardProps> = ({
                 disabled={!canProceed}
                 className="rounded-xl gap-2"
               >
-                Nästa: Välj fordon
+                Nästa: Välj fordon & priser
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -202,7 +223,7 @@ const PartnerWizard: React.FC<PartnerWizardProps> = ({
         </div>
       )}
 
-      {/* Step 2: Select vehicle types */}
+      {/* Step 2: Select vehicle types + per-type pricing */}
       {step === 2 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -211,7 +232,7 @@ const PartnerWizard: React.FC<PartnerWizardProps> = ({
                 Vilka fordonstyper tillhandahåller {formData.name || 'denna partner'}?
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Klicka i alla fordonstyper som partnern kan erbjuda
+                Välj fordonstyper och ange pris per typ
               </p>
             </div>
             <Button
@@ -224,37 +245,74 @@ const PartnerWizard: React.FC<PartnerWizardProps> = ({
             </Button>
           </div>
 
-          {/* Vehicle type grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          {/* Vehicle type list with inline pricing */}
+          <div className="space-y-2">
             {VEHICLE_TYPES.map(type => {
               const isSelected = selectedTypes.includes(type.value);
+              const rates = typeRates[type.value] || {};
               return (
-                <label
+                <div
                   key={type.value}
                   className={cn(
-                    "flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all",
+                    "rounded-xl border-2 transition-all overflow-hidden",
                     isSelected
                       ? "border-primary bg-primary/5 shadow-sm"
                       : "border-border/40 bg-background/60 hover:border-border"
                   )}
                 >
-                  <Checkbox
-                    checked={isSelected}
-                    onCheckedChange={() => handleToggleType(type.value)}
-                    className="mt-0.5 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <Truck className={cn("h-4 w-4 shrink-0", isSelected ? "text-primary" : "text-muted-foreground")} />
+                  {/* Checkbox row */}
+                  <label className="flex items-center gap-3 p-3 cursor-pointer">
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={() => handleToggleType(type.value)}
+                      className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                    />
+                    <Truck className={cn("h-4 w-4 shrink-0", isSelected ? "text-primary" : "text-muted-foreground")} />
+                    <div className="flex-1 min-w-0">
                       <span className={cn("text-sm font-medium", isSelected ? "text-foreground" : "text-muted-foreground")}>
                         {type.label}
                       </span>
+                      <span className="text-xs text-muted-foreground ml-2 hidden sm:inline">
+                        {type.description}
+                      </span>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                      {type.description}
-                    </p>
-                  </div>
-                </label>
+                    {isSelected && rates.hourly_rate && (
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {rates.hourly_rate} kr/h
+                      </span>
+                    )}
+                  </label>
+
+                  {/* Pricing fields – shown when selected */}
+                  {isSelected && (
+                    <div className="px-3 pb-3 pt-0">
+                      <div className="grid grid-cols-2 gap-3 pl-9">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Timpris (kr)</Label>
+                          <Input
+                            type="number"
+                            value={rates.hourly_rate ?? ''}
+                            onChange={e => updateTypeRate(type.value, 'hourly_rate', e.target.value)}
+                            placeholder="T.ex. 1200"
+                            className="rounded-lg h-8 text-sm"
+                            onClick={e => e.stopPropagation()}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Dagspris (kr)</Label>
+                          <Input
+                            type="number"
+                            value={rates.daily_rate ?? ''}
+                            onChange={e => updateTypeRate(type.value, 'daily_rate', e.target.value)}
+                            placeholder="T.ex. 8000"
+                            className="rounded-lg h-8 text-sm"
+                            onClick={e => e.stopPropagation()}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -265,33 +323,6 @@ const PartnerWizard: React.FC<PartnerWizardProps> = ({
               {selectedTypes.length} fordonstyp{selectedTypes.length !== 1 ? 'er' : ''} vald{selectedTypes.length !== 1 ? 'a' : ''}
             </p>
           )}
-
-          {/* Pricing */}
-          <div className="border-t border-border/30 pt-4 mt-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Priser</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Timpris (kr)</Label>
-                <Input
-                  type="number"
-                  value={formData.hourly_rate ?? ''}
-                  onChange={e => setFormData(p => ({ ...p, hourly_rate: e.target.value ? parseFloat(e.target.value) : null }))}
-                  placeholder="T.ex. 1200"
-                  className="rounded-xl"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Dagspris (kr)</Label>
-                <Input
-                  type="number"
-                  value={formData.daily_rate ?? ''}
-                  onChange={e => setFormData(p => ({ ...p, daily_rate: e.target.value ? parseFloat(e.target.value) : null }))}
-                  placeholder="T.ex. 8000"
-                  className="rounded-xl"
-                />
-              </div>
-            </div>
-          </div>
 
           {/* Back + Submit */}
           <div className="flex items-center justify-between pt-2">

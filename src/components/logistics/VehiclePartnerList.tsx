@@ -75,6 +75,7 @@ const emptyFormData = (isExternal: boolean): VehicleFormData => ({
   daily_rate: null,
   notes: '',
   provided_vehicle_types: [],
+  vehicle_type_rates: {},
 });
 
 interface VehiclePartnerListProps {
@@ -136,6 +137,7 @@ const VehiclePartnerList: React.FC<VehiclePartnerListProps> = ({
       daily_rate: vehicle.daily_rate,
       notes: vehicle.notes || '',
       provided_vehicle_types: vehicle.provided_vehicle_types || [],
+      vehicle_type_rates: (vehicle.vehicle_type_rates as Record<string, { hourly_rate?: number | null; daily_rate?: number | null }>) || {},
     });
     setShowForm(vehicle.is_external ? 'partner' : 'vehicle');
   };
