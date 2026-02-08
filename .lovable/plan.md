@@ -1,126 +1,71 @@
 
+## Fix: Stoppa gamla bokningar fran att aterimporteras
 
-## Buggfix: Paketkomponenter sparas inte och synkas inte till packlistan
+### Grundorsak
 
-### Problemanalys
+Datumfiltret i `import-bookings` fungerar inte. Funktionen `hasFutureDates()` kollar faltnamnen `rigdaydate`, `eventdate`, `rigdowndate` -- men det externa API:et skickar datum som:
+- `rig_up_dates` (array)
+- `event_dates` (array)  
+- `rig_down_dates` (array)
 
-Jag har gjort en grundlig undersökning och hittat **tre separata buggar** som samverkar:
+Alla tre falten blir `undefined`, datumslistan blir tom, och funktionen returnerar `true` (tillat import). Resultatet: **alla bokningar fran API:et importeras oavsett datum**, inklusive bokningar fran 2019, 2022, 2024 etc. Varje gang synken kor ateruppstar alla raderade bokningar och deras packningsprojekt.
 
-#### Bugg 1: Recovery-logiken missar oexpanderade paketkomponenter
-Booking 2602-4 importerades *innan* expansionslogiken lades till. Vid efterfoljande synkar kontrollerar recovery-koden:
-- "Har externa fler produkter an lokala?" -- Nej, bada har 3 (Multiflex + 2 tillbehor)
-- "Saknas inventory_package_id?" -- Nej, den finns redan
+### Losning (2 steg)
 
-**Men den kontrollerar aldrig**: "Har en produkt `package_components` JSONB med 10 komponenter som inte ar expanderade till egna rader?"
+#### Steg 1: Fixa datumfiltret i `import-bookings`
 
-Darfor skippas bokningen som "unchanged" varje gang.
+Uppdatera `hasFutureDates()` sa den laser ratt faltnamn fran det externa API:et:
 
-#### Bugg 2: Recovery-pathen saknar expansionslogik
-Aven om recovery triggas (rader 1198-1361) innehaller den INTE koden for att expandera `package_components` JSONB till egna rader (rader 1808-1888). Den koden finns bara i huvudflödet.
+```typescript
+const hasFutureDates = (booking: any): boolean => {
+  // External API sends dates as arrays: rig_up_dates, event_dates, rig_down_dates
+  // Also check legacy field names for safety
+  const allDates: string[] = [];
+  
+  // Array format from external API
+  if (Array.isArray(booking.rig_up_dates)) allDates.push(...booking.rig_up_dates);
+  if (Array.isArray(booking.event_dates)) allDates.push(...booking.event_dates);
+  if (Array.isArray(booking.rig_down_dates)) allDates.push(...booking.rig_down_dates);
+  
+  // Legacy field names (fallback)
+  if (booking.rigdaydate) allDates.push(booking.rigdaydate);
+  if (booking.eventdate) allDates.push(booking.eventdate);
+  if (booking.rigdowndate) allDates.push(booking.rigdowndate);
+  
+  const validDates = allDates.filter(Boolean);
+  if (validDates.length === 0) return true; // No dates = allow
+  
+  return validDates.some(dateStr => new Date(dateStr) >= CUTOFF_DATE);
+};
+```
 
-#### Bugg 3: Packlistan synkas inte efter expansion
-Nar nya `booking_products`-rader skapas via expansion, skapas inga motsvarande `packing_list_items`. Packlistan visar bara de 3 ursprungliga produkterna.
+#### Steg 2: Rensa databasen
 
-### Aktuellt tillstand i databasen (2602-4)
+Radera alla bokningar och deras kopplad data utom 2602-2 och 2602-4. Skillnaden fran tidigare forsok:
 
+1. Disabla ALLA triggers pa bookings-tabellen (inte bara en specifik)
+2. Radera i ratt ordning med alla beroenden
+3. Deployen av den fixade edge-funktionen FORE rensningen, sa att synken inte aterimporterar gamla bokningar vid nasta korning
+
+Raderingordning:
 ```text
-booking_products (3 rader):
-  - Multiflex 6x15        (package_components JSONB med 10 komponenter)
-  - ↳ Kassetgolv 6x15     (tillbehor)
-  - ↳ Nalfiltsmatta        (tillbehor)
-
-packing_list_items (3 rader):
-  - Matchar ovanstaende 3 produkter
-
-Forväntat (13 rader):
-  - Multiflex 6x15
-  - -- M Ben (x12)
-  - -- M Takbalk ROD (x6)
-  - -- M Gavelror ROD (x4)
-  - -- M Mittstolpe ROD (x2)
-  - -- M Sidoror (x10)
-  - -- M Krysstag (x2)
-  - -- M Knoppstag (x10)
-  - -- M Mellanstag (x5)
-  - -- M Snabblas (x18)
-  - -- M Takbalk med nock ROD (x6)
-  - ↳ Kassetgolv 6x15
-  - ↳ Nalfiltsmatta - Antracit, 6x15
-```
-
-### Losning
-
-#### Steg 1: Ny recovery-villkor i `import-bookings`
-Lagga till en kontroll i recovery-logiken (runt rad 1107-1154): "Om nagon `booking_product` har `package_components` JSONB men inga rader med `is_package_component: true` finns, trigga recovery."
-
-#### Steg 2: Flytta expansionslogiken till en delad funktion
-Extrahera koden pa rader 1808-1888 (package_components JSONB-expansion) till en egen funktion `expandPackageComponents()` som kan anropas fran bade:
-- Huvudflödet (nuvarande plats)
-- Recovery-pathen (rader 1198-1361)
-
-#### Steg 3: Synka packlistan efter expansion
-Efter att nya `booking_products`-rader skapats via expansion, kontrollera om det finns en `packing_project` for bokningen och skapa `packing_list_items` for de nya komponenterna.
-
-#### Steg 4: Testa med en forcerad re-import
-Trigga en sync som tvingar 2602-4 att ga igenom recovery-pathen sa att de 10 komponenterna expanderas och synkas till packlistan.
-
-### Teknisk implementation
-
-**Fil: `supabase/functions/import-bookings/index.ts`**
-
-1. **Ny funktion** `expandPackageComponents(supabase, bookingId, externalProducts, externalIdToInternalId)` som kapslar in rader 1808-1888
-
-2. **Nytt recovery-villkor** (efter rad 1153):
-```typescript
-// Check if package_components JSONB exists but hasn't been expanded
-if (!needsProductRecovery && existingProducts.length > 0) {
-  const productsWithComponents = existingProducts.filter(
-    (p: any) => p.package_components !== null
-  );
-  if (productsWithComponents.length > 0) {
-    const expandedComponents = existingProducts.filter(
-      (p: any) => p.is_package_component === true
-    );
-    if (expandedComponents.length === 0) {
-      needsProductRecovery = true;
-      console.log(`Booking has ${productsWithComponents.length} products with package_components JSONB but 0 expanded component rows - will recover`);
-    }
-  }
-}
-```
-
-3. **Recovery-pathen** (rader 1198-1361): Lagga till anrop till `expandPackageComponents()` efter product-inserten
-
-4. **Packing sync efter expansion**: I bade recovery- och huvudflödet, efter expansion:
-```typescript
-// Sync packing list items for newly expanded components
-const { data: packingProject } = await supabase
-  .from('packing_projects')
-  .select('id')
-  .eq('booking_id', bookingId)
-  .maybeSingle();
-
-if (packingProject) {
-  // Fetch all booking products and existing packing items
-  // Add missing items for expanded components
-}
-```
-
-5. **Select-fraltet i recovery** (rad 1110) maste utökas for att inkludera `package_components`:
-```typescript
-.select('id, parent_product_id, parent_package_id, is_package_component, name, vat_rate, inventory_package_id, package_components')
+packing_task_comments -> packing_tasks -> packing_list_items -> packing_parcels
+-> packing_comments -> packing_files -> packing_labor_costs -> packing_purchases 
+-> packing_invoices -> packing_quotes -> packing_budget -> packing_projects
+-> calendar_events -> warehouse_calendar_events -> transport_assignments -> time_reports
+-> booking_products -> booking_changes -> projects -> bookings (triggers disabled)
 ```
 
 ### Filer som andras
 
-| Fil | Typ av andring |
-|-----|----------------|
-| `supabase/functions/import-bookings/index.ts` | Ny funktion, ny recovery-villkor, packing-sync |
+| Fil | Andring |
+|-----|---------|
+| `supabase/functions/import-bookings/index.ts` | Fixa `hasFutureDates()` att lasa ratt API-faltnamn |
+| Databasmigrering | Radera alla bokningar/packningar utom 2602-2 och 2602-4 |
 
-### Efter deployment
+### Forväntat resultat
 
-Jag trigger en forcerad sync av bokning 2602-4 for att verifiera att:
-- 10 paketkomponenter expanderas till `booking_products`
-- Motsvarande `packing_list_items` skapas
-- Packlistan visar alla 13 rader korrekt
-
+- Bara 2 bokningar kvar i systemet (2602-2 och 2602-4)
+- Bara 2 packningsprojekt (kopplade till dessa bokningar)  
+- Nasta sync importerar INTE gamla bokningar (datumfiltret fungerar)
+- Nya bokningar med datum >= 2026-01-01 importeras som vanligt
