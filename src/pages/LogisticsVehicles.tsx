@@ -62,6 +62,14 @@ const LogisticsVehicles: React.FC = () => {
     contact_person: '',
     contact_email: '',
     contact_phone: '',
+    crane_capacity_ton: null,
+    crane_reach_m: null,
+    vehicle_length_m: null,
+    vehicle_height_m: null,
+    vehicle_width_m: null,
+    hourly_rate: null,
+    daily_rate: null,
+    notes: '',
   });
 
   const internalVehicles = vehicles.filter(v => !v.is_external);
@@ -80,6 +88,14 @@ const LogisticsVehicles: React.FC = () => {
       contact_person: '',
       contact_email: '',
       contact_phone: '',
+      crane_capacity_ton: null,
+      crane_reach_m: null,
+      vehicle_length_m: null,
+      vehicle_height_m: null,
+      vehicle_width_m: null,
+      hourly_rate: null,
+      daily_rate: null,
+      notes: '',
     });
     setEditingVehicle(null);
   };
@@ -104,6 +120,14 @@ const LogisticsVehicles: React.FC = () => {
       contact_person: vehicle.contact_person || '',
       contact_email: vehicle.contact_email || '',
       contact_phone: vehicle.contact_phone || '',
+      crane_capacity_ton: vehicle.crane_capacity_ton,
+      crane_reach_m: vehicle.crane_reach_m,
+      vehicle_length_m: vehicle.vehicle_length_m,
+      vehicle_height_m: vehicle.vehicle_height_m,
+      vehicle_width_m: vehicle.vehicle_width_m,
+      hourly_rate: vehicle.hourly_rate,
+      daily_rate: vehicle.daily_rate,
+      notes: vehicle.notes || '',
     });
     setIsFormOpen(true);
   };

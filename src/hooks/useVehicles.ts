@@ -15,6 +15,14 @@ export interface Vehicle {
   contact_person: string | null;
   contact_email: string | null;
   contact_phone: string | null;
+  crane_capacity_ton: number | null;
+  crane_reach_m: number | null;
+  vehicle_length_m: number | null;
+  vehicle_height_m: number | null;
+  vehicle_width_m: number | null;
+  hourly_rate: number | null;
+  daily_rate: number | null;
+  notes: string | null;
   current_lat: number | null;
   current_lng: number | null;
   current_heading: number | null;
@@ -36,6 +44,14 @@ export interface VehicleFormData {
   contact_person?: string;
   contact_email?: string;
   contact_phone?: string;
+  crane_capacity_ton?: number | null;
+  crane_reach_m?: number | null;
+  vehicle_length_m?: number | null;
+  vehicle_height_m?: number | null;
+  vehicle_width_m?: number | null;
+  hourly_rate?: number | null;
+  daily_rate?: number | null;
+  notes?: string;
 }
 
 export const useVehicles = () => {

@@ -2466,10 +2466,14 @@ export type Database = {
           contact_email: string | null
           contact_person: string | null
           contact_phone: string | null
+          crane_capacity_ton: number | null
+          crane_reach_m: number | null
           created_at: string
           current_heading: number | null
           current_lat: number | null
           current_lng: number | null
+          daily_rate: number | null
+          hourly_rate: number | null
           id: string
           is_active: boolean | null
           is_external: boolean
@@ -2477,9 +2481,13 @@ export type Database = {
           max_volume_m3: number | null
           max_weight_kg: number | null
           name: string
+          notes: string | null
           registration_number: string | null
           updated_at: string
+          vehicle_height_m: number | null
+          vehicle_length_m: number | null
           vehicle_type: string | null
+          vehicle_width_m: number | null
         }
         Insert: {
           assigned_driver_id?: string | null
@@ -2487,10 +2495,14 @@ export type Database = {
           contact_email?: string | null
           contact_person?: string | null
           contact_phone?: string | null
+          crane_capacity_ton?: number | null
+          crane_reach_m?: number | null
           created_at?: string
           current_heading?: number | null
           current_lat?: number | null
           current_lng?: number | null
+          daily_rate?: number | null
+          hourly_rate?: number | null
           id?: string
           is_active?: boolean | null
           is_external?: boolean
@@ -2498,9 +2510,13 @@ export type Database = {
           max_volume_m3?: number | null
           max_weight_kg?: number | null
           name: string
+          notes?: string | null
           registration_number?: string | null
           updated_at?: string
+          vehicle_height_m?: number | null
+          vehicle_length_m?: number | null
           vehicle_type?: string | null
+          vehicle_width_m?: number | null
         }
         Update: {
           assigned_driver_id?: string | null
@@ -2508,10 +2524,14 @@ export type Database = {
           contact_email?: string | null
           contact_person?: string | null
           contact_phone?: string | null
+          crane_capacity_ton?: number | null
+          crane_reach_m?: number | null
           created_at?: string
           current_heading?: number | null
           current_lat?: number | null
           current_lng?: number | null
+          daily_rate?: number | null
+          hourly_rate?: number | null
           id?: string
           is_active?: boolean | null
           is_external?: boolean
@@ -2519,9 +2539,13 @@ export type Database = {
           max_volume_m3?: number | null
           max_weight_kg?: number | null
           name?: string
+          notes?: string | null
           registration_number?: string | null
           updated_at?: string
+          vehicle_height_m?: number | null
+          vehicle_length_m?: number | null
           vehicle_type?: string | null
+          vehicle_width_m?: number | null
         }
         Relationships: []
       }
