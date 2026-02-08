@@ -71,12 +71,12 @@ const PartnerWizard: React.FC<PartnerWizardProps> = ({
     }
   };
 
-  const updateTypeRate = (typeValue: string, field: 'hourly_rate' | 'daily_rate', value: string) => {
+  const updateTypeRate = (typeValue: string, field: keyof VehicleTypeRate, value: string) => {
     setTypeRates(prev => ({
       ...prev,
       [typeValue]: {
         ...prev[typeValue],
-        [field]: value ? parseFloat(value) : null,
+        [field]: field === 'notes' ? (value || null) : (value ? parseFloat(value) : null),
       },
     }));
   };
@@ -285,8 +285,8 @@ const PartnerWizard: React.FC<PartnerWizardProps> = ({
 
                   {/* Pricing fields – shown when selected */}
                   {isSelected && (
-                    <div className="px-3 pb-3 pt-0">
-                      <div className="grid grid-cols-2 gap-3 pl-9">
+                    <div className="px-3 pb-3 pt-0 space-y-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pl-9">
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Timpris (kr)</Label>
                           <Input
@@ -305,6 +305,64 @@ const PartnerWizard: React.FC<PartnerWizardProps> = ({
                             value={rates.daily_rate ?? ''}
                             onChange={e => updateTypeRate(type.value, 'daily_rate', e.target.value)}
                             placeholder="T.ex. 8000"
+                            className="rounded-lg h-8 text-sm"
+                            onClick={e => e.stopPropagation()}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">OB kväll/natt (kr/h)</Label>
+                          <Input
+                            type="number"
+                            value={rates.ob_rate ?? ''}
+                            onChange={e => updateTypeRate(type.value, 'ob_rate', e.target.value)}
+                            placeholder="T.ex. 200"
+                            className="rounded-lg h-8 text-sm"
+                            onClick={e => e.stopPropagation()}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Helg-OB (kr/h)</Label>
+                          <Input
+                            type="number"
+                            value={rates.weekend_ob_rate ?? ''}
+                            onChange={e => updateTypeRate(type.value, 'weekend_ob_rate', e.target.value)}
+                            placeholder="T.ex. 350"
+                            className="rounded-lg h-8 text-sm"
+                            onClick={e => e.stopPropagation()}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Storhelgs-OB (kr/h)</Label>
+                          <Input
+                            type="number"
+                            value={rates.holiday_ob_rate ?? ''}
+                            onChange={e => updateTypeRate(type.value, 'holiday_ob_rate', e.target.value)}
+                            placeholder="T.ex. 500"
+                            className="rounded-lg h-8 text-sm"
+                            onClick={e => e.stopPropagation()}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Km-ersättning (kr/km)</Label>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            value={rates.km_rate ?? ''}
+                            onChange={e => updateTypeRate(type.value, 'km_rate', e.target.value)}
+                            placeholder="T.ex. 18.50"
+                            className="rounded-lg h-8 text-sm"
+                            onClick={e => e.stopPropagation()}
+                          />
+                        </div>
+                      </div>
+                      {/* Notes per vehicle type */}
+                      <div className="pl-9">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Övriga villkor / regler</Label>
+                          <Input
+                            value={rates.notes ?? ''}
+                            onChange={e => updateTypeRate(type.value, 'notes', e.target.value)}
+                            placeholder="T.ex. Minst 4h debitering, tilläggsavgift vid bom..."
                             className="rounded-lg h-8 text-sm"
                             onClick={e => e.stopPropagation()}
                           />

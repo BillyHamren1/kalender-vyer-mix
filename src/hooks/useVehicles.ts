@@ -5,6 +5,11 @@ import { toast } from 'sonner';
 export interface VehicleTypeRate {
   hourly_rate?: number | null;
   daily_rate?: number | null;
+  ob_rate?: number | null;
+  weekend_ob_rate?: number | null;
+  holiday_ob_rate?: number | null;
+  km_rate?: number | null;
+  notes?: string | null;
 }
 
 export interface Vehicle {
