@@ -126,7 +126,7 @@ const MediumProjectsListPanel = ({ completedOnly = false }: MediumProjectsListPa
               <div
                 key={project.id}
                 onClick={() => navigate(`/project/${project.id}`)}
-                className="group/card flex items-center gap-3 px-3 py-2.5 cursor-pointer rounded-lg border border-border/40 bg-muted/15 hover:bg-muted/40 hover:border-primary/30 transition-all border-l-[3px] border-l-primary/40"
+                className="group/card flex items-center gap-3 px-3 py-2.5 cursor-pointer rounded-lg border border-border bg-card shadow-sm hover:shadow-md hover:border-primary/50 transition-all border-l-[3px] border-l-primary"
               >
                 <div className="flex-1 min-w-0">
                   <h4 className="text-sm font-medium text-foreground truncate group-hover/card:text-primary transition-colors">
