@@ -323,13 +323,55 @@ export async function createLargeProjectFile(file: {
   return data;
 }
 
-export async function deleteLargeProjectFile(id: string): Promise<void> {
+export async function deleteLargeProjectFile(id: string, url?: string): Promise<void> {
+  // Try to remove from storage if URL provided
+  if (url) {
+    const urlParts = url.split('/project-files/');
+    if (urlParts.length > 1) {
+      const filePath = urlParts[1];
+      await supabase.storage.from('project-files').remove([filePath]);
+    }
+  }
+
   const { error } = await supabase
     .from('large_project_files')
     .delete()
     .eq('id', id);
 
   if (error) throw error;
+}
+
+export async function uploadLargeProjectFile(
+  largeProjectId: string,
+  file: File,
+  uploadedBy?: string
+): Promise<LargeProjectFile> {
+  const fileName = `large-${largeProjectId}/${Date.now()}-${file.name}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('project-files')
+    .upload(fileName, file);
+
+  if (uploadError) throw uploadError;
+
+  const { data: urlData } = supabase.storage
+    .from('project-files')
+    .getPublicUrl(fileName);
+
+  const { data, error } = await supabase
+    .from('large_project_files')
+    .insert({
+      large_project_id: largeProjectId,
+      file_name: file.name,
+      file_type: file.type,
+      url: urlData.publicUrl,
+      uploaded_by: uploadedBy || null
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
 // ============================================
