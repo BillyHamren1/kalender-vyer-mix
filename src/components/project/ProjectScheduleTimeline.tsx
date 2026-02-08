@@ -12,9 +12,9 @@ const ProjectScheduleTimeline = ({ rigDate, eventDate, rigdownDate }: ProjectSch
   if (!rigDate && !eventDate && !rigdownDate) return null;
 
   const dates = [
-    { key: 'rig', label: 'Rigg', date: rigDate, icon: Truck, color: 'bg-emerald-500' },
-    { key: 'event', label: 'Event', date: eventDate, icon: PartyPopper, color: 'bg-amber-500' },
-    { key: 'rigdown', label: 'Nedrivning', date: rigdownDate, icon: ArrowDownToLine, color: 'bg-rose-500' },
+    { key: 'rig', label: 'Rigg', date: rigDate, icon: Truck },
+    { key: 'event', label: 'Event', date: eventDate, icon: PartyPopper },
+    { key: 'rigdown', label: 'Nedrivning', date: rigdownDate, icon: ArrowDownToLine },
   ].filter(d => d.date);
 
   const getCountdownText = (dateStr: string) => {
@@ -40,20 +40,25 @@ const ProjectScheduleTimeline = ({ rigDate, eventDate, rigdownDate }: ProjectSch
         
         return (
           <div key={item.key} className="flex items-center flex-1">
-            <div className={`flex-1 rounded-lg p-3 border transition-all ${
+            <div className={`flex-1 rounded-xl p-3 border transition-all ${
               today 
-                ? 'border-primary bg-accent shadow-sm' 
+                ? 'border-primary/40 bg-accent shadow-sm' 
                 : past 
-                  ? 'border-border bg-muted/50 opacity-70' 
-                  : 'border-border bg-card'
+                  ? 'border-border/30 bg-muted/50 opacity-70' 
+                  : 'border-border/40 bg-card'
             }`}>
               <div className="flex items-center gap-2 mb-1">
-                <div className={`w-2 h-2 rounded-full ${item.color}`} />
+                <div
+                  className="w-5 h-5 rounded-md flex items-center justify-center"
+                  style={{ background: today ? 'var(--gradient-icon)' : undefined, backgroundColor: today ? undefined : 'hsl(var(--muted))' }}
+                >
+                  <Icon className={`h-3 w-3 ${today ? 'text-primary-foreground' : 'text-muted-foreground'}`} />
+                </div>
                 <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {item.label}
                 </span>
               </div>
-              <p className="font-semibold text-sm text-foreground">
+              <p className="font-semibold text-sm text-foreground tracking-tight">
                 {format(date, 'd MMM yyyy', { locale: sv })}
               </p>
               <p className={`text-xs mt-0.5 ${
@@ -63,7 +68,7 @@ const ProjectScheduleTimeline = ({ rigDate, eventDate, rigdownDate }: ProjectSch
               </p>
             </div>
             {index < dates.length - 1 && (
-              <div className="w-6 h-px bg-border flex-shrink-0 mx-1" />
+              <div className="w-6 h-px bg-border/40 flex-shrink-0 mx-1" />
             )}
           </div>
         );

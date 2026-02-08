@@ -37,9 +37,9 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading }: ProjectFilesPr
   };
 
   return (
-    <Card>
+    <Card className="border-border/40 shadow-2xl rounded-2xl">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-        <CardTitle>Filer</CardTitle>
+        <CardTitle className="tracking-tight">Filer</CardTitle>
         <div>
           <input
             ref={inputRef}
@@ -64,7 +64,7 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading }: ProjectFilesPr
       </CardHeader>
       <CardContent>
         {files.length === 0 ? (
-          <div className="text-center py-8 border-2 border-dashed rounded-lg">
+          <div className="text-center py-8 border-2 border-dashed border-border/40 rounded-xl">
             <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
             <p className="text-muted-foreground">
               Inga filer uppladdade ännu
@@ -82,7 +82,7 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading }: ProjectFilesPr
               return (
                 <div
                   key={file.id}
-                  className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors group"
+                  className="flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-card hover:bg-muted/30 transition-colors group"
                 >
                   {isImage ? (
                     <img 
@@ -91,8 +91,11 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading }: ProjectFilesPr
                       className="h-10 w-10 object-cover rounded"
                     />
                   ) : (
-                    <div className="h-10 w-10 flex items-center justify-center bg-muted rounded">
-                      <FileIcon className="h-5 w-5 text-muted-foreground" />
+                    <div
+                      className="h-10 w-10 flex items-center justify-center rounded-xl"
+                      style={{ background: 'var(--gradient-icon)', boxShadow: 'var(--shadow-icon)' }}
+                    >
+                      <FileIcon className="h-5 w-5 text-primary-foreground" />
                     </div>
                   )}
 

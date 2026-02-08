@@ -33,16 +33,19 @@ const ProjectOverviewHeader = ({ tasks, filesCount, commentsCount, activities }:
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
       {/* Task Progress */}
-      <Card className="border-border">
-        <CardContent className="p-4">
+      <Card className="border-border/40 shadow-2xl rounded-2xl">
+        <CardContent className="p-5">
           <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <ListTodo className="h-4 w-4 text-primary" />
+            <div className="flex items-center gap-3">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{ background: 'var(--gradient-icon)', boxShadow: 'var(--shadow-icon)' }}
+              >
+                <ListTodo className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="text-sm font-semibold text-foreground">Uppgifter</span>
+              <span className="text-sm font-semibold text-foreground tracking-tight">Uppgifter</span>
             </div>
-            <span className="text-2xl font-bold text-foreground">{progressPercent}%</span>
+            <span className="text-2xl font-bold text-foreground tracking-tight">{progressPercent}%</span>
           </div>
           <Progress value={progressPercent} className="h-2 mb-2" />
           <p className="text-xs text-muted-foreground">
@@ -52,34 +55,37 @@ const ProjectOverviewHeader = ({ tasks, filesCount, commentsCount, activities }:
       </Card>
 
       {/* Quick Stats */}
-      <Card className="border-border">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Activity className="h-4 w-4 text-primary" />
+      <Card className="border-border/40 shadow-2xl rounded-2xl">
+        <CardContent className="p-5">
+          <div className="flex items-center gap-3 mb-3">
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{ background: 'var(--gradient-icon)', boxShadow: 'var(--shadow-icon)' }}
+            >
+              <Activity className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="text-sm font-semibold text-foreground">Snabbstatistik</span>
+            <span className="text-sm font-semibold text-foreground tracking-tight">Snabbstatistik</span>
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div className="text-center">
               <div className="flex items-center justify-center gap-1 mb-0.5">
                 <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
               </div>
-              <p className="text-lg font-bold text-foreground">{completedTasks}</p>
+              <p className="text-lg font-bold text-foreground tracking-tight">{completedTasks}</p>
               <p className="text-xs text-muted-foreground">Klara</p>
             </div>
             <div className="text-center">
               <div className="flex items-center justify-center gap-1 mb-0.5">
                 <FileText className="h-3.5 w-3.5 text-primary" />
               </div>
-              <p className="text-lg font-bold text-foreground">{filesCount}</p>
+              <p className="text-lg font-bold text-foreground tracking-tight">{filesCount}</p>
               <p className="text-xs text-muted-foreground">Filer</p>
             </div>
             <div className="text-center">
               <div className="flex items-center justify-center gap-1 mb-0.5">
                 <MessageSquare className="h-3.5 w-3.5 text-primary" />
               </div>
-              <p className="text-lg font-bold text-foreground">{commentsCount}</p>
+              <p className="text-lg font-bold text-foreground tracking-tight">{commentsCount}</p>
               <p className="text-xs text-muted-foreground">Kommentarer</p>
             </div>
           </div>
@@ -87,13 +93,16 @@ const ProjectOverviewHeader = ({ tasks, filesCount, commentsCount, activities }:
       </Card>
 
       {/* Recent Activity */}
-      <Card className="border-border">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Activity className="h-4 w-4 text-primary" />
+      <Card className="border-border/40 shadow-2xl rounded-2xl">
+        <CardContent className="p-5">
+          <div className="flex items-center gap-3 mb-3">
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{ background: 'var(--gradient-icon)', boxShadow: 'var(--shadow-icon)' }}
+            >
+              <Activity className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="text-sm font-semibold text-foreground">Senaste aktivitet</span>
+            <span className="text-sm font-semibold text-foreground tracking-tight">Senaste aktivitet</span>
           </div>
           {recentActivities.length > 0 ? (
             <div className="space-y-2">

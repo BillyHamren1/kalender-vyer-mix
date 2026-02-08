@@ -114,17 +114,17 @@ const LargeProjectDetail = () => {
   const firstBooking = bookings[0]?.booking;
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="container mx-auto px-4 py-6">
+    <div className="h-full overflow-y-auto" style={{ background: 'var(--gradient-page)' }}>
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 max-w-6xl">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+            <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-xl">
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold text-foreground">{project.name}</h1>
+                <h1 className="text-2xl font-bold tracking-tight" style={{ color: 'hsl(var(--heading))' }}>{project.name}</h1>
                 <Badge variant="outline" className="text-xs">
                   Stort projekt
                 </Badge>
@@ -233,12 +233,12 @@ const LargeProjectDetail = () => {
 
         {/* Tabs */}
         <Tabs defaultValue="tasks" className="space-y-6">
-          <div className="border-b overflow-x-auto">
+          <div className="border-b border-border/40 overflow-x-auto">
             <TabsList className="h-auto p-0 bg-transparent gap-0">
               <TabsTrigger value="tasks" className={tabTriggerClass}>
                 Uppgifter
                 {tasks.length > 0 && (
-                  <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-muted text-muted-foreground">
+                  <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
                     {tasks.length}
                   </span>
                 )}
@@ -255,7 +255,7 @@ const LargeProjectDetail = () => {
               <TabsTrigger value="files" className={tabTriggerClass}>
                 Filer
                 {files.length > 0 && (
-                  <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-muted text-muted-foreground">
+                  <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
                     {files.length}
                   </span>
                 )}
@@ -263,7 +263,7 @@ const LargeProjectDetail = () => {
               <TabsTrigger value="comments" className={tabTriggerClass}>
                 Kommentarer
                 {comments.length > 0 && (
-                  <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-muted text-muted-foreground">
+                  <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
                     {comments.length}
                   </span>
                 )}
@@ -300,7 +300,7 @@ const LargeProjectDetail = () => {
           </TabsContent>
 
           <TabsContent value="economy">
-            <Card>
+            <Card className="border-border/40 shadow-2xl rounded-2xl">
               <CardContent className="py-12 text-center text-muted-foreground">
                 <p className="text-sm">
                   Ekonomiöversikt för storprojekt – aggregerar data från alla {bookings.length} kopplade bokningar.
@@ -311,7 +311,7 @@ const LargeProjectDetail = () => {
           </TabsContent>
 
           <TabsContent value="staff">
-            <Card>
+            <Card className="border-border/40 shadow-2xl rounded-2xl">
               <CardContent className="py-12 text-center text-muted-foreground">
                 <p className="text-sm">
                   Personalöversikt för storprojekt – visar personal från alla {bookings.length} kopplade bokningar.

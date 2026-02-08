@@ -17,7 +17,6 @@ interface ProjectTaskItemProps {
 const ProjectTaskItem = ({ task, onToggle, onClick, commentCount = 0 }: ProjectTaskItemProps) => {
   const isOverdue = task.deadline && !task.completed && new Date(task.deadline) < new Date();
 
-  // Fetch staff name for display
   const { data: assignedStaff } = useQuery({
     queryKey: ['staff-member', task.assigned_to],
     queryFn: async () => {
@@ -32,7 +31,6 @@ const ProjectTaskItem = ({ task, onToggle, onClick, commentCount = 0 }: ProjectT
     enabled: !!task.assigned_to
   });
 
-  // Fetch comment count
   const { data: taskComments } = useQuery({
     queryKey: ['task-comments-count', task.id],
     queryFn: async () => {
@@ -49,7 +47,7 @@ const ProjectTaskItem = ({ task, onToggle, onClick, commentCount = 0 }: ProjectT
   return (
     <div 
       className={cn(
-        "flex items-start gap-3 p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors cursor-pointer group",
+        "flex items-start gap-3 p-4 rounded-xl border border-border/40 bg-card hover:bg-muted/30 transition-colors cursor-pointer group",
         task.completed && "opacity-60"
       )}
       onClick={onClick}
@@ -63,7 +61,7 @@ const ProjectTaskItem = ({ task, onToggle, onClick, commentCount = 0 }: ProjectT
       
       <div className="flex-1 min-w-0">
         <p className={cn(
-          "font-medium",
+          "font-medium tracking-tight",
           task.completed && "line-through text-muted-foreground"
         )}>
           {task.title}

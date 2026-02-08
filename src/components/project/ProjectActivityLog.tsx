@@ -16,10 +16,10 @@ interface ProjectActivityLogProps {
 const ACTION_CONFIG: Record<string, { icon: React.ElementType; color: string; label: string }> = {
   status_changed: { icon: ArrowRightLeft, color: 'text-amber-500', label: 'Status' },
   task_added: { icon: PlusCircle, color: 'text-primary', label: 'Uppgift' },
-  task_completed: { icon: CheckCircle2, color: 'text-emerald-500', label: 'Uppgift' },
+  task_completed: { icon: CheckCircle2, color: 'text-primary', label: 'Uppgift' },
   task_deleted: { icon: Trash2, color: 'text-destructive', label: 'Uppgift' },
-  comment_added: { icon: MessageSquare, color: 'text-blue-500', label: 'Kommentar' },
-  file_uploaded: { icon: FileUp, color: 'text-violet-500', label: 'Fil' },
+  comment_added: { icon: MessageSquare, color: 'text-primary', label: 'Kommentar' },
+  file_uploaded: { icon: FileUp, color: 'text-primary', label: 'Fil' },
   file_deleted: { icon: Trash2, color: 'text-destructive', label: 'Fil' },
 };
 
@@ -41,7 +41,6 @@ const ProjectActivityLog = ({ activities }: ProjectActivityLogProps) => {
     return activities.filter(a => a.action === filter);
   }, [activities, filter]);
 
-  // Group by date
   const groupedActivities = useMemo(() => {
     const groups: Record<string, ProjectActivity[]> = {};
     filteredActivities.forEach(activity => {
@@ -53,11 +52,16 @@ const ProjectActivityLog = ({ activities }: ProjectActivityLogProps) => {
   }, [filteredActivities]);
 
   return (
-    <Card className="border-border">
+    <Card className="border-border/40 shadow-2xl rounded-2xl">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Clock className="h-5 w-5 text-primary" />
+          <CardTitle className="text-lg flex items-center gap-3 tracking-tight">
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{ background: 'var(--gradient-icon)', boxShadow: 'var(--shadow-icon)' }}
+            >
+              <Clock className="h-4 w-4 text-primary-foreground" />
+            </div>
             Aktivitetslogg
           </CardTitle>
           <div className="flex items-center gap-1">
@@ -104,7 +108,7 @@ const ProjectActivityLog = ({ activities }: ProjectActivityLogProps) => {
                     return (
                       <div
                         key={activity.id}
-                        className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors group"
+                        className="flex items-start gap-3 p-2 rounded-xl hover:bg-muted/50 transition-colors group"
                       >
                         <div className={`mt-0.5 flex-shrink-0 ${config.color}`}>
                           <Icon className="h-4 w-4" />
