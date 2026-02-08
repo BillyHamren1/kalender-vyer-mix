@@ -13,6 +13,7 @@ import DashboardWeekView from "@/components/dashboard/DashboardWeekView";
 import DashboardDayView from "@/components/dashboard/DashboardDayView";
 import DashboardMonthView from "@/components/dashboard/DashboardMonthView";
 import DashboardNewBookings from "@/components/dashboard/DashboardNewBookings";
+import DashboardJobMap from "@/components/dashboard/DashboardJobMap";
 import CreateProjectWizard from "@/components/project/CreateProjectWizard";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
 
@@ -115,12 +116,17 @@ const PlanningDashboard = () => {
         )}
       </div>
 
-      {/* New Bookings – compact, below calendar */}
-      <div className="mb-6 max-w-2xl">
-        <DashboardNewBookings
-          onCreateProject={handleCreateProject}
-          onCreateLargeProject={handleCreateLargeProject}
-        />
+      {/* Job Map + New Bookings */}
+      <div className="mb-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2">
+          <DashboardJobMap />
+        </div>
+        <div>
+          <DashboardNewBookings
+            onCreateProject={handleCreateProject}
+            onCreateLargeProject={handleCreateLargeProject}
+          />
+        </div>
       </div>
 
       {/* Dialogs */}
