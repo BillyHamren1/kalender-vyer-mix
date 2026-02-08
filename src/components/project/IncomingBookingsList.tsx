@@ -77,13 +77,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
   }
 
   if (bookings.length === 0) {
-    return (
-      <div className="rounded-xl border-2 border-dashed border-border/40 bg-muted/10 py-8 text-center">
-        <Inbox className="w-7 h-7 text-muted-foreground/30 mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground">Inga nya bokningar att hantera</p>
-        <p className="text-xs text-muted-foreground/60 mt-0.5">Bokningar visas här när de bekräftas</p>
-      </div>
-    );
+    return null;
   }
 
   const formatDate = (dateStr: string) => {
