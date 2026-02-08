@@ -213,6 +213,7 @@ const VehiclePartnerList: React.FC<VehiclePartnerListProps> = ({
       {/* Partner wizard (2-step) */}
       {showForm === 'partner' && (
         <PartnerWizard
+          key={editingVehicle?.id || 'new'}
           initialData={formData}
           isEditing={!!editingVehicle}
           onSubmit={handlePartnerWizardSubmit}
