@@ -95,22 +95,7 @@ const DashboardNewBookings: React.FC<DashboardNewBookingsProps> = ({
   }
 
   if (bookings.length === 0) {
-    return (
-      <div
-        className="relative rounded-2xl overflow-hidden border-2 border-dashed border-border/60"
-        style={{
-          background: 'linear-gradient(135deg, hsl(var(--muted) / 0.3) 0%, hsl(var(--muted) / 0.1) 100%)',
-        }}
-      >
-        <div className="py-8 text-center">
-          <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-muted/50 flex items-center justify-center">
-            <Inbox className="w-7 h-7 text-muted-foreground/40" />
-          </div>
-          <p className="text-muted-foreground font-medium">Inga nya bokningar att hantera</p>
-          <p className="text-sm text-muted-foreground/60 mt-1">Bokningar visas här när de bekräftas</p>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
