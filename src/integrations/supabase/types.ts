@@ -2488,6 +2488,7 @@ export type Database = {
           vehicle_height_m: number | null
           vehicle_length_m: number | null
           vehicle_type: string | null
+          vehicle_type_rates: Json | null
           vehicle_width_m: number | null
         }
         Insert: {
@@ -2518,6 +2519,7 @@ export type Database = {
           vehicle_height_m?: number | null
           vehicle_length_m?: number | null
           vehicle_type?: string | null
+          vehicle_type_rates?: Json | null
           vehicle_width_m?: number | null
         }
         Update: {
@@ -2548,6 +2550,7 @@ export type Database = {
           vehicle_height_m?: number | null
           vehicle_length_m?: number | null
           vehicle_type?: string | null
+          vehicle_type_rates?: Json | null
           vehicle_width_m?: number | null
         }
         Relationships: []
