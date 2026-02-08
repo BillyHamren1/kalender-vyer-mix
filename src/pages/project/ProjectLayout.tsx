@@ -116,8 +116,8 @@ const ProjectLayout = () => {
           </div>
         </nav>
 
-        {/* Booking info – always visible but compact */}
-        {booking && activeKey === "overview" && (
+        {/* Booking info – always visible, collapsible */}
+        {booking && (
           <BookingInfoExpanded booking={booking} projectLeader={project.project_leader} />
         )}
 
