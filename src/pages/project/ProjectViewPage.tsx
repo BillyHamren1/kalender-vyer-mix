@@ -6,7 +6,7 @@ import ProjectTaskList from "@/components/project/ProjectTaskList";
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectComments from "@/components/project/ProjectComments";
 import ProjectActivityLog from "@/components/project/ProjectActivityLog";
-import ProjectScheduleTimeline from "@/components/project/ProjectScheduleTimeline";
+
 import TaskDetailSheet from "@/components/project/TaskDetailSheet";
 import { ProjectTask } from "@/types/project";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
@@ -19,21 +19,11 @@ const ProjectViewPage = () => {
   const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
 
   const { project, tasks, files, comments, activities } = detail;
-  const booking = project?.booking;
 
   if (!project) return null;
 
   return (
     <div className="space-y-6">
-      {/* Schedule timeline */}
-      {booking && (
-        <ProjectScheduleTimeline
-          rigDate={booking.rigdaydate}
-          eventDate={booking.eventdate}
-          rigdownDate={booking.rigdowndate}
-        />
-      )}
-
       {/* Overview dashboard */}
       <ProjectOverviewHeader
         tasks={tasks}
