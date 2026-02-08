@@ -2482,6 +2482,7 @@ export type Database = {
           max_weight_kg: number | null
           name: string
           notes: string | null
+          provided_vehicle_types: string[] | null
           registration_number: string | null
           updated_at: string
           vehicle_height_m: number | null
@@ -2511,6 +2512,7 @@ export type Database = {
           max_weight_kg?: number | null
           name: string
           notes?: string | null
+          provided_vehicle_types?: string[] | null
           registration_number?: string | null
           updated_at?: string
           vehicle_height_m?: number | null
@@ -2540,6 +2542,7 @@ export type Database = {
           max_weight_kg?: number | null
           name?: string
           notes?: string | null
+          provided_vehicle_types?: string[] | null
           registration_number?: string | null
           updated_at?: string
           vehicle_height_m?: number | null
