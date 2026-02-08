@@ -1,0 +1,123 @@
+import { useMemo } from "react";
+import { CheckCircle2, ListTodo, FileText, MessageSquare, Activity } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { ProjectTask } from "@/types/project";
+import { ProjectActivity } from "@/services/projectActivityService";
+import { formatDistanceToNow } from "date-fns";
+import { sv } from "date-fns/locale";
+
+interface ProjectOverviewHeaderProps {
+  tasks: ProjectTask[];
+  filesCount: number;
+  commentsCount: number;
+  activities: ProjectActivity[];
+}
+
+const ACTION_ICONS: Record<string, string> = {
+  status_changed: '🔄',
+  task_added: '➕',
+  task_completed: '✅',
+  task_deleted: '🗑️',
+  comment_added: '💬',
+  file_uploaded: '📎',
+  file_deleted: '📁',
+};
+
+const ProjectOverviewHeader = ({ tasks, filesCount, commentsCount, activities }: ProjectOverviewHeaderProps) => {
+  const completedTasks = useMemo(() => tasks.filter(t => t.completed).length, [tasks]);
+  const totalTasks = tasks.length;
+  const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const recentActivities = activities.slice(0, 3);
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+      {/* Task Progress */}
+      <Card className="border-border">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <ListTodo className="h-4 w-4 text-primary" />
+              </div>
+              <span className="text-sm font-semibold text-foreground">Uppgifter</span>
+            </div>
+            <span className="text-2xl font-bold text-foreground">{progressPercent}%</span>
+          </div>
+          <Progress value={progressPercent} className="h-2 mb-2" />
+          <p className="text-xs text-muted-foreground">
+            {completedTasks} av {totalTasks} klara
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Quick Stats */}
+      <Card className="border-border">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Activity className="h-4 w-4 text-primary" />
+            </div>
+            <span className="text-sm font-semibold text-foreground">Snabbstatistik</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-1 mb-0.5">
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <p className="text-lg font-bold text-foreground">{completedTasks}</p>
+              <p className="text-xs text-muted-foreground">Klara</p>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-1 mb-0.5">
+                <FileText className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <p className="text-lg font-bold text-foreground">{filesCount}</p>
+              <p className="text-xs text-muted-foreground">Filer</p>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-1 mb-0.5">
+                <MessageSquare className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <p className="text-lg font-bold text-foreground">{commentsCount}</p>
+              <p className="text-xs text-muted-foreground">Kommentarer</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Recent Activity */}
+      <Card className="border-border">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Activity className="h-4 w-4 text-primary" />
+            </div>
+            <span className="text-sm font-semibold text-foreground">Senaste aktivitet</span>
+          </div>
+          {recentActivities.length > 0 ? (
+            <div className="space-y-2">
+              {recentActivities.map((activity) => (
+                <div key={activity.id} className="flex items-start gap-2">
+                  <span className="text-sm flex-shrink-0 mt-0.5">
+                    {ACTION_ICONS[activity.action] || '📌'}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-foreground truncate">{activity.description}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(activity.created_at), { addSuffix: true, locale: sv })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground italic">Ingen aktivitet ännu</p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+export default ProjectOverviewHeader;

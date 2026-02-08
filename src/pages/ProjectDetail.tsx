@@ -1,23 +1,24 @@
 import { useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Calendar, MapPin, Phone, Mail, User } from "lucide-react";
+import { useParams, useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProjectStatusDropdown from "@/components/project/ProjectStatusDropdown";
 import ProjectTaskList from "@/components/project/ProjectTaskList";
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectComments from "@/components/project/ProjectComments";
-import ProjectGanttChart from "@/components/project/ProjectGanttChart";
 import EstablishmentGanttChart from "@/components/project/EstablishmentGanttChart";
 import DeestablishmentGanttChart from "@/components/project/DeestablishmentGanttChart";
 import TaskDetailSheet from "@/components/project/TaskDetailSheet";
 import { ProjectEconomyTab } from "@/components/project/ProjectEconomyTab";
 import { ProjectStaffTab } from "@/components/project/ProjectStaffTab";
+import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
+import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
+import ProjectActivityLog from "@/components/project/ProjectActivityLog";
 import { useProjectDetail } from "@/hooks/useProjectDetail";
 import { ProjectTask } from "@/types/project";
-import { format } from "date-fns";
-import { sv } from "date-fns/locale";
+
+const tabTriggerClass = "relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground";
 
 const ProjectDetail = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -29,6 +30,7 @@ const ProjectDetail = () => {
     tasks,
     comments,
     files,
+    activities,
     isLoading,
     updateStatus,
     addTask,
@@ -46,6 +48,7 @@ const ProjectDetail = () => {
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-muted rounded w-1/3" />
           <div className="h-32 bg-muted rounded" />
+          <div className="h-24 bg-muted rounded" />
         </div>
       </div>
     );
@@ -77,8 +80,8 @@ const ProjectDetail = () => {
             <div>
               <h1 className="text-2xl font-bold text-foreground">{project.name}</h1>
               {booking && (
-                <p className="text-muted-foreground">
-                  Kopplat till bokning: {booking.booking_number || booking.id}
+                <p className="text-sm text-muted-foreground">
+                  {booking.client} • {booking.booking_number || booking.id}
                 </p>
               )}
             </div>
@@ -89,83 +92,33 @@ const ProjectDetail = () => {
           />
         </div>
 
-        {/* Booking Info Card */}
+        {/* Overview Dashboard */}
+        <ProjectOverviewHeader
+          tasks={tasks}
+          filesCount={files.length}
+          commentsCount={comments.length}
+          activities={activities}
+        />
+
+        {/* Expanded Booking Info */}
         {booking && (
-          <Card className="mb-6">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center justify-between">
-                Bokningsinformation
-                <Link to={`/booking/${booking.id}`}>
-                  <Button variant="outline" size="sm">Visa bokning</Button>
-                </Link>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="flex items-start gap-2">
-                  <User className="h-4 w-4 text-muted-foreground mt-0.5" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Kund</p>
-                    <p className="font-medium">{booking.client}</p>
-                  </div>
-                </div>
-                {booking.eventdate && (
-                  <div className="flex items-start gap-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Eventdatum</p>
-                      <p className="font-medium">
-                        {format(new Date(booking.eventdate), 'd MMMM yyyy', { locale: sv })}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {booking.deliveryaddress && (
-                  <div className="flex items-start gap-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Adress</p>
-                      <p className="font-medium">{booking.deliveryaddress}</p>
-                    </div>
-                  </div>
-                )}
-                {booking.contact_name && (
-                  <div className="flex items-start gap-2">
-                    <Phone className="h-4 w-4 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Kontakt</p>
-                      <p className="font-medium">{booking.contact_name}</p>
-                      {booking.contact_phone && (
-                        <p className="text-sm text-muted-foreground">{booking.contact_phone}</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <BookingInfoExpanded 
+            booking={booking} 
+            projectLeader={project.project_leader}
+          />
         )}
 
         {/* Tabs Content */}
         <Tabs defaultValue="establishment" className="space-y-6">
-          <div className="border-b">
+          <div className="border-b overflow-x-auto">
             <TabsList className="h-auto p-0 bg-transparent gap-0">
-              <TabsTrigger 
-                value="establishment"
-                className="relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground"
-              >
+              <TabsTrigger value="establishment" className={tabTriggerClass}>
                 Etablering
               </TabsTrigger>
-              <TabsTrigger 
-                value="deestablishment"
-                className="relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground"
-              >
+              <TabsTrigger value="deestablishment" className={tabTriggerClass}>
                 Avetablering
               </TabsTrigger>
-              <TabsTrigger 
-                value="tasks"
-                className="relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground"
-              >
+              <TabsTrigger value="tasks" className={tabTriggerClass}>
                 Uppgifter
                 {tasks.length > 0 && (
                   <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-muted text-muted-foreground">
@@ -173,22 +126,13 @@ const ProjectDetail = () => {
                   </span>
                 )}
               </TabsTrigger>
-              <TabsTrigger 
-                value="staff"
-                className="relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground"
-              >
+              <TabsTrigger value="staff" className={tabTriggerClass}>
                 Personal
               </TabsTrigger>
-              <TabsTrigger 
-                value="economy"
-                className="relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground"
-              >
+              <TabsTrigger value="economy" className={tabTriggerClass}>
                 Ekonomi
               </TabsTrigger>
-              <TabsTrigger 
-                value="files"
-                className="relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground"
-              >
+              <TabsTrigger value="files" className={tabTriggerClass}>
                 Filer
                 {files.length > 0 && (
                   <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-muted text-muted-foreground">
@@ -196,14 +140,19 @@ const ProjectDetail = () => {
                   </span>
                 )}
               </TabsTrigger>
-              <TabsTrigger 
-                value="comments"
-                className="relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground"
-              >
+              <TabsTrigger value="comments" className={tabTriggerClass}>
                 Kommentarer
                 {comments.length > 0 && (
                   <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-muted text-muted-foreground">
                     {comments.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="activity" className={tabTriggerClass}>
+                Historik
+                {activities.length > 0 && (
+                  <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-muted text-muted-foreground">
+                    {activities.length}
                   </span>
                 )}
               </TabsTrigger>
@@ -265,6 +214,10 @@ const ProjectDetail = () => {
               comments={comments}
               onAddComment={addComment}
             />
+          </TabsContent>
+
+          <TabsContent value="activity">
+            <ProjectActivityLog activities={activities} />
           </TabsContent>
         </Tabs>
 
