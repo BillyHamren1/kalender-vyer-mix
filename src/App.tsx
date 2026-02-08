@@ -25,13 +25,19 @@ import BookingDetail from "./pages/BookingDetail";
 import BookingList from "./pages/BookingList";
 import ProjectManagement from "./pages/ProjectManagement";
 import ProjectArchive from "./pages/ProjectArchive";
-import ProjectDetail from "./pages/ProjectDetail";
+import ProjectLayout from "./pages/project/ProjectLayout";
+import ProjectViewPage from "./pages/project/ProjectViewPage";
+import EstablishmentPage from "./pages/project/EstablishmentPage";
+import ProjectEconomyPage from "./pages/project/ProjectEconomyPage";
+import LargeProjectLayout from "./pages/project/LargeProjectLayout";
+import LargeProjectViewPage from "./pages/project/LargeProjectViewPage";
+import LargeEstablishmentPage from "./pages/project/LargeEstablishmentPage";
+import LargeProjectEconomyPage from "./pages/project/LargeProjectEconomyPage";
 import EconomyOverview from "./pages/EconomyOverview";
 import ProjectEconomyDetail from "./pages/ProjectEconomyDetail";
 import PlanningDashboard from "./pages/PlanningDashboard";
 import StaffRevenueOverview from "./pages/StaffRevenueOverview";
 import JobDetail from "./pages/JobDetail";
-import LargeProjectDetail from "./pages/LargeProjectDetail";
 import APIDocumentation from "./pages/APIDocumentation";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
@@ -129,14 +135,22 @@ const AppContent = () => {
                       <Route path="/booking-list" element={<ProtectedRoute><MainSystemLayout><BookingList /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/projects" element={<ProtectedRoute><MainSystemLayout><ProjectManagement /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/projects/archive" element={<ProtectedRoute><MainSystemLayout><ProjectArchive /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/project/:projectId" element={<ProtectedRoute><MainSystemLayout><ProjectDetail /></MainSystemLayout></ProtectedRoute>} />
+                      <Route path="/project/:projectId" element={<ProtectedRoute><MainSystemLayout><ProjectLayout /></MainSystemLayout></ProtectedRoute>}>
+                        <Route index element={<ProjectViewPage />} />
+                        <Route path="establishment" element={<EstablishmentPage />} />
+                        <Route path="economy" element={<ProjectEconomyPage />} />
+                      </Route>
                       <Route path="/economy" element={<ProtectedRoute><MainSystemLayout><EconomyOverview /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/economy/projects" element={<ProtectedRoute><MainSystemLayout><EconomyOverview view="projects" /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/economy/staff" element={<ProtectedRoute><MainSystemLayout><EconomyOverview view="staff" /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/economy/staff-revenue" element={<ProtectedRoute><MainSystemLayout><StaffRevenueOverview /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/economy/:id" element={<ProtectedRoute><MainSystemLayout><ProjectEconomyDetail /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/jobs/:id" element={<ProtectedRoute><JobDetail /></ProtectedRoute>} />
-                      <Route path="/large-project/:id" element={<ProtectedRoute><LargeProjectDetail /></ProtectedRoute>} />
+                      <Route path="/large-project/:id" element={<ProtectedRoute><MainSystemLayout><LargeProjectLayout /></MainSystemLayout></ProtectedRoute>}>
+                        <Route index element={<LargeProjectViewPage />} />
+                        <Route path="establishment" element={<LargeEstablishmentPage />} />
+                        <Route path="economy" element={<LargeProjectEconomyPage />} />
+                      </Route>
                       <Route path="/api-docs" element={<ProtectedRoute><MainSystemLayout><APIDocumentation /></MainSystemLayout></ProtectedRoute>} />
 
                       {/* Logistics Routes */}
