@@ -65,6 +65,14 @@ const emptyFormData = (isExternal: boolean): VehicleFormData => ({
   contact_person: '',
   contact_email: '',
   contact_phone: '',
+  crane_capacity_ton: null,
+  crane_reach_m: null,
+  vehicle_length_m: null,
+  vehicle_height_m: null,
+  vehicle_width_m: null,
+  hourly_rate: null,
+  daily_rate: null,
+  notes: '',
 });
 
 interface VehiclePartnerListProps {
@@ -117,6 +125,14 @@ const VehiclePartnerList: React.FC<VehiclePartnerListProps> = ({
       contact_person: vehicle.contact_person || '',
       contact_email: vehicle.contact_email || '',
       contact_phone: vehicle.contact_phone || '',
+      crane_capacity_ton: vehicle.crane_capacity_ton,
+      crane_reach_m: vehicle.crane_reach_m,
+      vehicle_length_m: vehicle.vehicle_length_m,
+      vehicle_height_m: vehicle.vehicle_height_m,
+      vehicle_width_m: vehicle.vehicle_width_m,
+      hourly_rate: vehicle.hourly_rate,
+      daily_rate: vehicle.daily_rate,
+      notes: vehicle.notes || '',
     });
     setShowForm(vehicle.is_external ? 'partner' : 'vehicle');
   };
@@ -302,6 +318,99 @@ const VehiclePartnerList: React.FC<VehiclePartnerListProps> = ({
                   className="rounded-xl"
                 />
               </div>
+            </div>
+
+            {/* Crane & dimension fields */}
+            <div className="border-t border-border/30 pt-4 mt-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Kran & Mått</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label>Krankapacitet (ton)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={formData.crane_capacity_ton ?? ''}
+                    onChange={e => setFormData(p => ({ ...p, crane_capacity_ton: e.target.value ? parseFloat(e.target.value) : null }))}
+                    placeholder="T.ex. 25"
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Kranräckvidd (m)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={formData.crane_reach_m ?? ''}
+                    onChange={e => setFormData(p => ({ ...p, crane_reach_m: e.target.value ? parseFloat(e.target.value) : null }))}
+                    placeholder="T.ex. 15"
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Fordonslängd (m)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={formData.vehicle_length_m ?? ''}
+                    onChange={e => setFormData(p => ({ ...p, vehicle_length_m: e.target.value ? parseFloat(e.target.value) : null }))}
+                    placeholder="T.ex. 12"
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Fordonshöjd (m)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={formData.vehicle_height_m ?? ''}
+                    onChange={e => setFormData(p => ({ ...p, vehicle_height_m: e.target.value ? parseFloat(e.target.value) : null }))}
+                    placeholder="T.ex. 4"
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Fordonsbredd (m)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={formData.vehicle_width_m ?? ''}
+                    onChange={e => setFormData(p => ({ ...p, vehicle_width_m: e.target.value ? parseFloat(e.target.value) : null }))}
+                    placeholder="T.ex. 2.5"
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Timpris (kr)</Label>
+                  <Input
+                    type="number"
+                    value={formData.hourly_rate ?? ''}
+                    onChange={e => setFormData(p => ({ ...p, hourly_rate: e.target.value ? parseFloat(e.target.value) : null }))}
+                    placeholder="T.ex. 1200"
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Dagspris (kr)</Label>
+                  <Input
+                    type="number"
+                    value={formData.daily_rate ?? ''}
+                    onChange={e => setFormData(p => ({ ...p, daily_rate: e.target.value ? parseFloat(e.target.value) : null }))}
+                    placeholder="T.ex. 8000"
+                    className="rounded-xl"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-2">
+              <Label>Anteckningar</Label>
+              <Input
+                value={formData.notes || ''}
+                onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))}
+                placeholder="T.ex. kräver markplattor, max 30 ton axeltryck..."
+                className="rounded-xl"
+              />
             </div>
 
             <div className="flex items-center justify-between pt-2">
