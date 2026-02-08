@@ -14,7 +14,6 @@ import DashboardWeekView from "@/components/dashboard/DashboardWeekView";
 import DashboardDayView from "@/components/dashboard/DashboardDayView";
 import DashboardMonthView from "@/components/dashboard/DashboardMonthView";
 import DashboardNewBookings from "@/components/dashboard/DashboardNewBookings";
-import DashboardMiniCalendar from "@/components/dashboard/DashboardMiniCalendar";
 import CreateProjectWizard from "@/components/project/CreateProjectWizard";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
 
@@ -80,22 +79,6 @@ const PlanningDashboard = () => {
         <DashboardAlertWidgets stats={stats} isLoading={statsLoading} />
       </div>
 
-      {/* New Bookings + Mini Calendar row */}
-      <div className="mb-4 flex gap-4 items-start">
-        <div className="flex-1 min-w-0">
-          <DashboardNewBookings
-            onCreateProject={handleCreateProject}
-            onCreateLargeProject={handleCreateLargeProject}
-          />
-        </div>
-        <div className="w-1/3 shrink-0">
-          <DashboardMiniCalendar
-            currentDate={currentDate}
-            onDateChange={(date) => setCurrentDate(date)}
-          />
-        </div>
-      </div>
-
       {/* Filters */}
       <div className="mb-4">
         <DashboardFilters
@@ -107,7 +90,7 @@ const PlanningDashboard = () => {
       </div>
 
       {/* Calendar View */}
-      <div className="mb-6">
+      <div className="mb-4">
         {viewMode === 'week' && (
           <DashboardWeekView
             events={events}
@@ -136,6 +119,14 @@ const PlanningDashboard = () => {
             isLoading={isLoading}
           />
         )}
+      </div>
+
+      {/* New Bookings – compact, below calendar */}
+      <div className="mb-6 max-w-2xl">
+        <DashboardNewBookings
+          onCreateProject={handleCreateProject}
+          onCreateLargeProject={handleCreateLargeProject}
+        />
       </div>
 
       {/* Dialogs */}
