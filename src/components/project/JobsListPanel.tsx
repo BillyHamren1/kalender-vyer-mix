@@ -142,20 +142,10 @@ const JobsListPanel = ({ completedOnly = false }: JobsListPanelProps) => {
                 className="group/card flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors"
               >
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-sm font-medium text-foreground truncate group-hover/card:text-primary transition-colors">
-                      {job.name}
-                    </h4>
-                    {job.booking?.bookingNumber && (
-                      <span className="text-[10px] text-muted-foreground/60 shrink-0">
-                        #{job.booking.bookingNumber}
-                      </span>
-                    )}
-                  </div>
+                  <h4 className="text-sm font-medium text-foreground truncate group-hover/card:text-primary transition-colors">
+                    {job.name}
+                  </h4>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <Badge className={cn("text-[10px] px-1.5 py-0 h-4 font-medium", statusColors[job.status])}>
-                      {JOB_STATUS_LABELS[job.status]}
-                    </Badge>
                     {job.booking?.eventDate && (
                       <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
                         <Calendar className="w-3 h-3" />

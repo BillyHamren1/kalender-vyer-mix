@@ -161,18 +161,13 @@ const LargeProjectsListPanel = ({ completedOnly = false }: LargeProjectsListPane
                   className="group/card flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors"
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-medium text-foreground truncate group-hover/card:text-primary transition-colors">
-                        {project.name}
-                      </h4>
-                    </div>
+                    <h4 className="text-sm font-medium text-foreground truncate group-hover/card:text-primary transition-colors">
+                      {project.name}
+                    </h4>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                      <Badge className={cn("text-[10px] px-1.5 py-0 h-4 font-medium", LARGE_PROJECT_STATUS_COLORS[project.status])}>
-                        {LARGE_PROJECT_STATUS_LABELS[project.status]}
-                      </Badge>
                       <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground">
                         <Users className="w-3 h-3" />
-                        {project.bookingCount || 0}
+                        {project.bookingCount || 0} bokningar
                       </span>
                       {project.location && (
                         <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground truncate max-w-[100px]">
