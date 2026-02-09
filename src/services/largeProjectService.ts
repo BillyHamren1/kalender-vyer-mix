@@ -73,7 +73,7 @@ export async function fetchLargeProject(id: string): Promise<LargeProjectWithBoo
   if (bookingIds.length > 0) {
     const { data: bookings, error: bookingsError } = await supabase
       .from('bookings')
-      .select('id, client, booking_number, deliveryaddress, eventdate, rigdaydate, rigdowndate, contact_name')
+      .select('id, client, booking_number, deliveryaddress, eventdate, rigdaydate, rigdowndate, contact_name, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, status')
       .in('id', bookingIds);
     
     if (!bookingsError && bookings) {
