@@ -2361,9 +2361,11 @@ export type Database = {
           driver_notes: string | null
           estimated_arrival: string | null
           id: string
+          pickup_address: string | null
           status: string | null
           stop_order: number | null
           transport_date: string
+          transport_time: string | null
           vehicle_id: string
         }
         Insert: {
@@ -2373,9 +2375,11 @@ export type Database = {
           driver_notes?: string | null
           estimated_arrival?: string | null
           id?: string
+          pickup_address?: string | null
           status?: string | null
           stop_order?: number | null
           transport_date: string
+          transport_time?: string | null
           vehicle_id: string
         }
         Update: {
@@ -2385,9 +2389,11 @@ export type Database = {
           driver_notes?: string | null
           estimated_arrival?: string | null
           id?: string
+          pickup_address?: string | null
           status?: string | null
           stop_order?: number | null
           transport_date?: string
+          transport_time?: string | null
           vehicle_id?: string
         }
         Relationships: [
