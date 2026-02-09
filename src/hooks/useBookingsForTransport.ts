@@ -22,9 +22,13 @@ export interface BookingForTransport {
     id: string;
     vehicle_id: string;
     transport_date: string;
+    transport_time: string | null;
+    pickup_address: string | null;
     stop_order: number | null;
     status: string | null;
+    partner_response: string | null;
     vehicle_name?: string;
+    is_external?: boolean;
   }[];
 }
 
@@ -69,9 +73,12 @@ export const useBookingsForTransport = () => {
           vehicle_id,
           booking_id,
           transport_date,
+          transport_time,
+          pickup_address,
           stop_order,
           status,
-          vehicles!vehicle_id (name)
+          partner_response,
+          vehicles!vehicle_id (name, is_external)
         `);
 
       if (assignmentError) throw assignmentError;
@@ -86,9 +93,13 @@ export const useBookingsForTransport = () => {
           id: a.id,
           vehicle_id: a.vehicle_id,
           transport_date: a.transport_date,
+          transport_time: a.transport_time,
+          pickup_address: a.pickup_address,
           stop_order: a.stop_order,
           status: a.status,
+          partner_response: a.partner_response,
           vehicle_name: a.vehicles?.name || 'Okänt fordon',
+          is_external: a.vehicles?.is_external || false,
         });
       });
 

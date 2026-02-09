@@ -17,6 +17,8 @@ import {
   Clock,
   Building2,
   RotateCcw,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -67,10 +69,11 @@ interface WizardData {
 
 const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) => {
   const { withoutTransport, withTransport, isLoading, refetch } = useBookingsForTransport();
-  const { assignBookingToVehicle } = useTransportAssignments();
+  const { assignBookingToVehicle, removeAssignment } = useTransportAssignments();
   const [wizardBooking, setWizardBooking] = useState<BookingForTransport | null>(null);
   const [wizardStep, setWizardStep] = useState(1);
   const [wizardData, setWizardData] = useState<Partial<WizardData>>({});
+  const [editingAssignmentId, setEditingAssignmentId] = useState<string | null>(null);
 
   const activeVehicles = vehicles.filter(v => v.is_active);
 
@@ -110,6 +113,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
   const startWizard = (booking: BookingForTransport) => {
     setWizardBooking(booking);
     setWizardStep(1);
+    setEditingAssignmentId(null);
     setWizardData({
       booking,
       transportDate: booking.rigdaydate || booking.eventdate || format(new Date(), 'yyyy-MM-dd'),
@@ -118,14 +122,48 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
     });
   };
 
+  const startEditWizard = (booking: BookingForTransport, assignment: BookingForTransport['transport_assignments'][0]) => {
+    const vehicle = activeVehicles.find(v => v.id === assignment.vehicle_id);
+    const isPartner = vehicle?.is_external || assignment.is_external;
+    
+    setWizardBooking(booking);
+    setEditingAssignmentId(assignment.id);
+    setWizardData({
+      booking,
+      transportMode: isPartner ? 'partner' : 'own',
+      vehicleId: assignment.vehicle_id,
+      vehicleType: vehicle?.vehicle_type || '',
+      transportDate: assignment.transport_date,
+      transportTime: assignment.transport_time || '',
+      pickupAddress: assignment.pickup_address || DEFAULT_PICKUP_ADDRESS,
+      stopOrder: assignment.stop_order || 0,
+    });
+    // Jump to date & details step
+    setWizardStep(isPartner ? 3 : 2);
+  };
+
   const cancelWizard = () => {
     setWizardBooking(null);
     setWizardStep(1);
     setWizardData({});
+    setEditingAssignmentId(null);
+  };
+
+  const handleDeleteAssignment = async (assignmentId: string) => {
+    const success = await removeAssignment(assignmentId);
+    if (success) {
+      refetch();
+    }
   };
 
   const handleSubmitWizard = async (includeReturn?: boolean) => {
     if (!wizardData.vehicleId || !wizardData.transportDate || !wizardBooking) return;
+
+    // If editing, delete the old assignment first
+    if (editingAssignmentId) {
+      const deleted = await removeAssignment(editingAssignmentId);
+      if (!deleted) return;
+    }
 
     const result = await assignBookingToVehicle({
       vehicle_id: wizardData.vehicleId,
@@ -149,8 +187,8 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
     }
 
     if (result) {
-      // Send email to partner if partner mode
-      if (wizardData.transportMode === 'partner' && result.id) {
+      // Send email to partner if partner mode and NOT editing
+      if (wizardData.transportMode === 'partner' && result.id && !editingAssignmentId) {
         try {
           const { data, error } = await supabase.functions.invoke('send-transport-request', {
             body: { assignment_id: result.id },
@@ -165,6 +203,10 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
           console.error('Email invoke error:', e);
           toast.error('Transport bokad, men mejlutskick misslyckades');
         }
+      }
+
+      if (editingAssignmentId) {
+        toast.success('Transportbokning uppdaterad');
       }
 
       cancelWizard();
@@ -193,7 +235,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
       {wizardBooking && (
         <PremiumCard
           icon={Truck}
-          title={`Boka transport — ${wizardBooking.client}`}
+          title={`${editingAssignmentId ? 'Redigera' : 'Boka'} transport — ${wizardBooking.client}`}
           headerAction={
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -688,18 +730,20 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                   Tillbaka
                 </Button>
                 <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => handleSubmitWizard(true)}
-                    className="rounded-xl gap-2"
-                    title={wizardBooking?.rigdowndate ? `Retur bokas på ${formatDate(wizardBooking.rigdowndate)}` : 'Retur bokas på samma datum'}
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                    Boka + retur
-                  </Button>
+                  {!editingAssignmentId && (
+                    <Button
+                      variant="outline"
+                      onClick={() => handleSubmitWizard(true)}
+                      className="rounded-xl gap-2"
+                      title={wizardBooking?.rigdowndate ? `Retur bokas på ${formatDate(wizardBooking.rigdowndate)}` : 'Retur bokas på samma datum'}
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Boka + retur
+                    </Button>
+                  )}
                   <Button onClick={() => handleSubmitWizard(false)} className="rounded-xl gap-2">
                     <Check className="h-4 w-4" />
-                    Boka transport
+                    {editingAssignmentId ? 'Uppdatera transport' : 'Boka transport'}
                   </Button>
                 </div>
               </div>
@@ -794,34 +838,67 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
               withTransport.map(booking => (
                 <div
                   key={booking.id}
-                  className="p-3 rounded-xl border border-emerald-200/50 bg-emerald-50/30 transition-all"
+                  className="p-3 rounded-xl border border-border/40 bg-background/60 transition-all space-y-2"
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm truncate">{booking.client}</span>
-                      {booking.booking_number && (
-                        <Badge variant="outline" className="text-[10px] h-5 shrink-0">
-                          #{booking.booking_number}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm truncate">{booking.client}</span>
+                        {booking.booking_number && (
+                          <Badge variant="outline" className="text-[10px] h-5 shrink-0">
+                            #{booking.booking_number}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                        {booking.deliveryaddress && (
+                          <span className="flex items-center gap-1 truncate">
+                            <MapPin className="h-3 w-3 shrink-0" />
+                            {booking.deliveryaddress}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  {/* Show assigned vehicles with edit/delete */}
+                  <div className="space-y-1.5">
+                    {booking.transport_assignments.map(a => (
+                      <div key={a.id} className="flex items-center gap-2 group">
+                        <Badge variant="secondary" className="text-[10px] h-6 gap-1 flex-1 justify-start">
+                          <Truck className="h-2.5 w-2.5 shrink-0" />
+                          <span className="truncate">{a.vehicle_name} — {formatDate(a.transport_date)}</span>
+                          {a.transport_time && (
+                            <span className="text-muted-foreground ml-1">kl {a.transport_time}</span>
+                          )}
+                          {a.partner_response && a.partner_response !== 'pending' && (
+                            <span className={cn(
+                              "ml-1 px-1 rounded text-[9px] font-semibold",
+                              a.partner_response === 'accepted' ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                            )}>
+                              {a.partner_response === 'accepted' ? '✓ Accepterad' : '✗ Nekad'}
+                            </span>
+                          )}
                         </Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                      {booking.deliveryaddress && (
-                        <span className="flex items-center gap-1 truncate">
-                          <MapPin className="h-3 w-3 shrink-0" />
-                          {booking.deliveryaddress}
-                        </span>
-                      )}
-                    </div>
-                    {/* Show assigned vehicles */}
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {booking.transport_assignments.map(a => (
-                        <Badge key={a.id} variant="secondary" className="text-[10px] h-5 gap-1">
-                          <Truck className="h-2.5 w-2.5" />
-                          {a.vehicle_name} — {formatDate(a.transport_date)}
-                        </Badge>
-                      ))}
-                    </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => startEditWizard(booking, a)}
+                          title="Redigera"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                          onClick={() => handleDeleteAssignment(a.id)}
+                          title="Ta bort"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))
