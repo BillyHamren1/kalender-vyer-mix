@@ -1,63 +1,19 @@
 
 
-# Fix: "Visa rutt" and "Fullvy" buttons
+## Fix: TRANSPORT Badge Colors Inverted
 
-## Problem
+### Problem
+The "TRANSPORT" badge shows a **solid teal background with white text** (wrong) instead of a **light/transparent teal background with teal text** (correct, as in Image 1). The CSS class `bg-primary/10` doesn't work correctly with HSL custom property values -- the opacity modifier fails, resulting in a fully opaque primary background.
 
-The buttons DO fire correctly (state is updated), but nothing visible happens because:
-
-1. **Race condition**: Route layers are loaded asynchronously via Mapbox Directions API. The highlight effect runs before layers exist, and the 6-second retry often isn't enough.
-2. **Same-click ignored**: Clicking "Visa rutt" on the same booking twice doesn't re-trigger the `useEffect` because `highlightedAssignmentId` hasn't changed.
-3. **Filter switch delay**: When `mapFilter` is "projects", it switches to "all" and returns early. This triggers a full route reload (async), creating another race.
-4. **"Fullvy" opens dialog instead of navigating**: The "Fullvy" button calls `onClick()` which expands the transport widget in a dialog -- likely not what the user expects.
-
-## Solution
-
-Stop relying on finding/restyling async-loaded route layers. Instead, draw a dedicated highlight route directly when "Visa rutt" is clicked.
+### Solution
+Replace `bg-primary/10` and similar opacity-based background classes with explicit Tailwind color classes that guarantee a light, transparent appearance.
 
 ### Changes
 
-**1. `src/components/logistics/widgets/LogisticsMapWidget.tsx`**
+**File: `src/components/logistics/widgets/LogisticsTransportWidget.tsx`**
 
-Replace the entire highlight `useEffect` (lines 277-348) with a self-contained approach:
-- When `highlightedAssignmentId` changes, fetch the route geometry directly (from cache or Mapbox Directions API)
-- Add a dedicated `highlight-route` source/layer with a thick bright red line
-- Zoom to fit the route bounds
-- Clean up the highlight layer when deselected
-- Use a callback-based approach instead of `useEffect` to avoid same-value issues
+1. **TRANSPORT badge (line 82):** Change from `bg-primary/10 text-primary border-primary/30` to use `bg-teal-50 text-teal-700 border-teal-200` (explicit light teal that won't fail).
 
-Expose a `highlightRoute(assignmentId)` method via a ref or convert `highlightedAssignmentId` to use a counter/timestamp to force re-triggers.
+2. **Status badges in `getStatusBadge` (lines 41-44):** Same fix -- replace `bg-primary/15` with `bg-teal-50` and `bg-destructive/15` with `bg-red-50`, `bg-amber-500/15` with `bg-amber-50` to ensure light backgrounds render correctly.
 
-**2. `src/pages/LogisticsPlanning.tsx`**
-
-- Change `highlightedAssignmentId` state to include a timestamp so re-clicking the same route re-triggers the effect:
-  ```
-  const [highlightTarget, setHighlightTarget] = useState<{id: string, ts: number} | null>(null);
-  ```
-- Pass `highlightTarget` to the map widget
-
-**3. `src/components/logistics/widgets/LogisticsTransportWidget.tsx`** (minor)
-
-- No changes needed to the button itself, the `onShowRoute` callback is correct.
-
-### Technical details for the highlight approach
-
-```text
-User clicks "Visa rutt"
-  --> onShowRoute(assignmentId) called
-  --> setHighlightTarget({ id: assignmentId, ts: Date.now() })
-  --> MapWidget useEffect detects change (ts always different)
-  --> Remove any existing "highlight-route" layer/source
-  --> Find assignment in assignments array
-  --> Get pickup/delivery coordinates
-  --> Fetch route from cache or Directions API
-  --> Add "highlight-route" source with bright red thick line
-  --> fitBounds to route
-```
-
-This eliminates all race conditions because:
-- We don't depend on other async layers existing
-- The timestamp ensures every click re-triggers
-- We fetch the route geometry ourselves if needed
-- The highlight is a separate, dedicated layer
-
+This ensures the cards match Image 1: white card background, light-teal TRANSPORT badge with teal text.
