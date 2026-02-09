@@ -2365,6 +2365,8 @@ export type Database = {
           partner_response: string | null
           partner_response_token: string | null
           pickup_address: string | null
+          pickup_latitude: number | null
+          pickup_longitude: number | null
           status: string | null
           stop_order: number | null
           transport_date: string
@@ -2382,6 +2384,8 @@ export type Database = {
           partner_response?: string | null
           partner_response_token?: string | null
           pickup_address?: string | null
+          pickup_latitude?: number | null
+          pickup_longitude?: number | null
           status?: string | null
           stop_order?: number | null
           transport_date: string
@@ -2399,6 +2403,8 @@ export type Database = {
           partner_response?: string | null
           partner_response_token?: string | null
           pickup_address?: string | null
+          pickup_latitude?: number | null
+          pickup_longitude?: number | null
           status?: string | null
           stop_order?: number | null
           transport_date?: string
