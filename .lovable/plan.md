@@ -1,21 +1,35 @@
 
+# Projekt syns inte pa kartan - Fixplan
 
-## Visa bokning internt
+## Problem
+Projektmarkorer renderas pa kartan men ar for sma (12px) for att synas tydligt mot satellitbakgrunden. Datan finns - 2 bekraftade bokningar med koordinater inom aktuell vecka - men punkterna ar nastan osynliga.
 
-Ändra "Visa bokning"-knappen i bokningskortet (BookingInfoExpanded) så att den expanderar bokningens detaljer direkt på sidan istället för att navigera bort till en separat bokningssida.
+## Losning
 
-### Vad ändras
+### 1. Gora markorerna storre och mer synliga
+- Oka markorstorlek fran 12px till 20px
+- Lagga till en pulserande animationsring runt varje markor for att dra uppmarksamhet
+- Anvanda tydligare fargkontrast och tjockare border
 
-- **Knappen "Visa bokning"** kommer att toggla den expanderbara sektionen (samma som "Mer info") istället för att öppna en ny sida
-- Ikonen ändras från `ExternalLink` till `ChevronDown/ChevronUp` eller `Eye`-ikon för att signalera att innehållet visas på plats
-- Knappen och "Mer info"-knappen slås ihop till en enda toggle-knapp, eller så styr "Visa bokning" expansionen direkt
+### 2. Lagga till labels pa markorerna
+- Visa klientnamnet som en liten etikett bredvid varje markor sa att det ar tydligt vad som visas
 
-### Tekniska detaljer
+### 3. Fixa eventuell filtreringsbugg
+- Sakerstaalla att bokningar som INTE har status CONFIRMED ocksa kan visas om de har koordinater (t.ex. OFFER-status)
+- Overvaag att ta bort status-filtret och visa alla bokningar med koordinater
 
-**Fil:** `src/components/project/BookingInfoExpanded.tsx`
+## Tekniska detaljer
 
-- Ta bort `<Link to={/booking/${booking.id}}>` runt "Visa bokning"-knappen
-- Ändra onClick till att toggla `isExpanded` (samma som CollapsibleTrigger)
-- Byt ikon från `ExternalLink` till `Eye`/`EyeOff` eller liknande
-- Behåll "Mer info"-knappen som alternativ trigger, eller slå ihop dem till en knapp
+### Fil: `src/components/logistics/widgets/LogisticsMapWidget.tsx`
 
+**Markorstorleksandring (rad 101-102):**
+- Andra `width:12px;height:12px` till `width:22px;height:22px` 
+- Lagga till animation/pulseffekt via en extra DOM-ring
+
+**Bredda datahämtning (rad 70):**
+- Overvaag att anvanda `fetchBookings()` istallet for `fetchConfirmedBookings()` for att inkludera alla bokningar, eller lagg till ytterligare statusar
+
+**Transportmarkorer (rad 126):**
+- Samma storleksforandring fran 12px till 22px
+
+Inga nya filer behovs - enbart andringar i `LogisticsMapWidget.tsx`.
