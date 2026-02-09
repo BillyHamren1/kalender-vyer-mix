@@ -10,6 +10,9 @@ export interface BookingForTransport {
   delivery_postal_code: string | null;
   delivery_latitude: number | null;
   delivery_longitude: number | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
   rigdaydate: string | null;
   eventdate: string | null;
   rigdowndate: string | null;
@@ -45,6 +48,9 @@ export const useBookingsForTransport = () => {
           delivery_postal_code,
           delivery_latitude,
           delivery_longitude,
+          contact_name,
+          contact_phone,
+          contact_email,
           rigdaydate,
           eventdate,
           rigdowndate,
