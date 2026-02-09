@@ -21,6 +21,7 @@ const LogisticsPlanning: React.FC = () => {
   const navigate = useNavigate();
   const { vehicles } = useVehicles();
   const [expanded, setExpanded] = useState<ExpandedWidget>(null);
+  const [highlightedAssignmentId, setHighlightedAssignmentId] = useState<string | null>(null);
 
   return (
     <PageContainer>
@@ -49,12 +50,16 @@ const LogisticsPlanning: React.FC = () => {
 
       {/* Widget grid: Map left, calendar + transport right */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-4 mb-6">
-        <LogisticsMapWidget onClick={() => setExpanded('map')} />
+        <LogisticsMapWidget onClick={() => setExpanded('map')} highlightedAssignmentId={highlightedAssignmentId} />
         
         <div className="flex flex-col gap-4">
           <LogisticsCalendarWidget onClick={() => setExpanded('calendar')} />
           <div className="flex-1 min-h-0">
-            <LogisticsTransportWidget onClick={() => setExpanded('transport')} vehicles={vehicles} />
+            <LogisticsTransportWidget
+              onClick={() => setExpanded('transport')}
+              vehicles={vehicles}
+              onShowRoute={(assignmentId) => setHighlightedAssignmentId(assignmentId)}
+            />
           </div>
         </div>
       </div>
