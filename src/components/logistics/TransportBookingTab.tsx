@@ -14,6 +14,7 @@ import {
   ArrowRight,
   Clock,
   Building2,
+  RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -121,7 +122,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
     setWizardData({});
   };
 
-  const handleSubmitWizard = async () => {
+  const handleSubmitWizard = async (includeReturn?: boolean) => {
     if (!wizardData.vehicleId || !wizardData.transportDate || !wizardBooking) return;
 
     const result = await assignBookingToVehicle({
@@ -132,6 +133,19 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
       pickup_address: wizardData.pickupAddress || undefined,
       stop_order: wizardData.stopOrder || 0,
     });
+
+    if (result && includeReturn) {
+      // Book return: swap pickup/delivery, use rigdowndate
+      const returnDate = wizardBooking.rigdowndate || wizardData.transportDate;
+      await assignBookingToVehicle({
+        vehicle_id: wizardData.vehicleId,
+        booking_id: wizardBooking.id,
+        transport_date: returnDate,
+        transport_time: wizardData.transportTime || undefined,
+        pickup_address: wizardBooking.deliveryaddress || wizardData.pickupAddress || undefined,
+        stop_order: (wizardData.stopOrder || 0) + 1,
+      });
+    }
 
     if (result) {
       cancelWizard();
@@ -518,15 +532,15 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
           {/* Confirm step (step 3 for own, step 4 for partner) */}
           {((wizardStep === 3 && wizardData.transportMode === 'own') ||
             (wizardStep === 4 && wizardData.transportMode === 'partner')) && (
-            <div className="space-y-4">
+             <div className="space-y-4">
               <div className="space-y-3">
                 <div className="p-4 rounded-xl bg-muted/30 border border-border/30 space-y-3">
                   <h4 className="text-sm font-semibold text-foreground">Sammanfattning</h4>
                   <div className="grid grid-cols-2 gap-y-2 text-sm">
                     <span className="text-muted-foreground">Kund:</span>
-                    <span className="font-medium">{wizardBooking.client}</span>
+                    <span className="font-medium">{wizardBooking?.client || '—'}</span>
                     <span className="text-muted-foreground">Leveransadress:</span>
-                    <span className="font-medium">{wizardBooking.deliveryaddress || '—'}</span>
+                    <span className="font-medium">{wizardBooking?.deliveryaddress || '—'}</span>
                     {wizardData.transportMode === 'partner' && (
                       <>
                         <span className="text-muted-foreground">Partner:</span>
@@ -544,11 +558,29 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                       </>
                     )}
                     <span className="text-muted-foreground">Upphämtning:</span>
-                    <span className="font-medium">{wizardData.pickupAddress || '—'}</span>
+                    <span className="font-medium">{wizardData.pickupAddress || DEFAULT_PICKUP_ADDRESS}</span>
                     <span className="text-muted-foreground">Datum:</span>
-                    <span className="font-medium">{wizardData.transportDate}</span>
+                    <span className="font-medium">{wizardData.transportDate || '—'}</span>
                     <span className="text-muted-foreground">Tid:</span>
                     <span className="font-medium">{wizardData.transportTime || '—'}</span>
+                    {wizardBooking?.rigdaydate && (
+                      <>
+                        <span className="text-muted-foreground">Riggdag:</span>
+                        <span className="font-medium">{formatDate(wizardBooking.rigdaydate)}</span>
+                      </>
+                    )}
+                    {wizardBooking?.eventdate && (
+                      <>
+                        <span className="text-muted-foreground">Eventdag:</span>
+                        <span className="font-medium">{formatDate(wizardBooking.eventdate)}</span>
+                      </>
+                    )}
+                    {wizardBooking?.rigdowndate && (
+                      <>
+                        <span className="text-muted-foreground">Nedrigg:</span>
+                        <span className="font-medium">{formatDate(wizardBooking.rigdowndate)}</span>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -571,10 +603,21 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                   <ChevronLeft className="h-4 w-4" />
                   Tillbaka
                 </Button>
-                <Button onClick={handleSubmitWizard} className="rounded-xl gap-2">
-                  <Check className="h-4 w-4" />
-                  Boka transport
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => handleSubmitWizard(true)}
+                    className="rounded-xl gap-2"
+                    title={wizardBooking?.rigdowndate ? `Retur bokas på ${formatDate(wizardBooking.rigdowndate)}` : 'Retur bokas på samma datum'}
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Boka + retur
+                  </Button>
+                  <Button onClick={() => handleSubmitWizard(false)} className="rounded-xl gap-2">
+                    <Check className="h-4 w-4" />
+                    Boka transport
+                  </Button>
+                </div>
               </div>
             </div>
           )}
