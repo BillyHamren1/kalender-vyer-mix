@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -102,6 +103,7 @@ interface WizardData {
 }
 
 const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) => {
+  const navigate = useNavigate();
   const { withoutTransport, withTransport, isLoading, refetch } = useBookingsForTransport();
   const { assignBookingToVehicle, removeAssignment, updateAssignment } = useTransportAssignments();
   const [wizardBooking, setWizardBooking] = useState<BookingForTransport | null>(null);
@@ -1155,7 +1157,8 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
         const renderBookingCard = (booking: typeof withTransport[0], showActions: 'boka' | 'status') => (
           <div
             key={booking.id}
-            className="p-3 rounded-xl border border-border/40 bg-background/60 transition-all"
+            className="p-3 rounded-xl border border-border/40 bg-background/60 transition-all cursor-pointer hover:bg-background/80 hover:shadow-sm"
+            onClick={() => navigate(`/booking/${booking.id}`)}
           >
             <div className="flex items-center justify-between gap-3">
               <div className="flex-1 min-w-0">
@@ -1193,7 +1196,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
               {showActions === 'boka' ? (
                 <Button
                   size="sm"
-                  onClick={() => startWizard(booking)}
+                  onClick={(e) => { e.stopPropagation(); startWizard(booking); }}
                   className="rounded-lg h-8 text-xs shrink-0 gap-1 bg-[hsl(38,92%,50%)] hover:bg-[hsl(38,92%,45%)] text-white"
                 >
                   <Truck className="h-3.5 w-3.5" />
@@ -1225,7 +1228,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
               })()}
             </div>
             {showActions === 'status' && (
-              <div className="space-y-1.5 mt-2 pt-2 border-t border-border/20">
+              <div className="space-y-1.5 mt-2 pt-2 border-t border-border/20" onClick={(e) => e.stopPropagation()}>
                 {booking.transport_assignments.map(a => (
                   <div key={a.id} className="flex items-center gap-2 group">
                     <Badge
