@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { 
   CheckCircle2, MessageSquare, FileUp, ArrowRightLeft, 
-  Trash2, PlusCircle, Filter, Clock
+  Trash2, PlusCircle, Filter, Clock, Truck, Mail, Send
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,11 @@ const ACTION_CONFIG: Record<string, { icon: React.ElementType; color: string; la
   comment_added: { icon: MessageSquare, color: 'text-primary', label: 'Kommentar' },
   file_uploaded: { icon: FileUp, color: 'text-primary', label: 'Fil' },
   file_deleted: { icon: Trash2, color: 'text-destructive', label: 'Fil' },
+  transport_added: { icon: Truck, color: 'text-primary', label: 'Transport' },
+  transport_updated: { icon: Truck, color: 'text-amber-500', label: 'Transport' },
+  transport_response: { icon: CheckCircle2, color: 'text-primary', label: 'Transport' },
+  transport_declined: { icon: Truck, color: 'text-destructive', label: 'Transport' },
+  email_sent: { icon: Send, color: 'text-primary', label: 'Mejl' },
 };
 
 const FILTER_OPTIONS = [
@@ -29,6 +34,7 @@ const FILTER_OPTIONS = [
   { value: 'task', label: 'Uppgifter' },
   { value: 'comment_added', label: 'Kommentarer' },
   { value: 'file', label: 'Filer' },
+  { value: 'transport', label: 'Transport' },
 ];
 
 const ProjectActivityLog = ({ activities }: ProjectActivityLogProps) => {
@@ -38,6 +44,7 @@ const ProjectActivityLog = ({ activities }: ProjectActivityLogProps) => {
     if (filter === 'all') return activities;
     if (filter === 'task') return activities.filter(a => a.action.startsWith('task_'));
     if (filter === 'file') return activities.filter(a => a.action.startsWith('file_'));
+    if (filter === 'transport') return activities.filter(a => a.action.startsWith('transport_') || a.action === 'email_sent');
     return activities.filter(a => a.action === filter);
   }, [activities, filter]);
 

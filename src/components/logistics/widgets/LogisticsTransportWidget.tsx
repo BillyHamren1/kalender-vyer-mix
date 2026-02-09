@@ -19,7 +19,7 @@ interface Props {
   onShowRoute?: (assignmentId: string) => void;
 }
 
-const TransportCard = ({ a, vehicles, expandedId, setExpandedId, cardBg, cardBorder }: { 
+export const TransportCard = ({ a, vehicles, expandedId, setExpandedId, cardBg, cardBorder }: { 
   a: TransportAssignment; 
   vehicles: any[]; 
   expandedId: string | null;

@@ -5,11 +5,14 @@ import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
 import ProjectTaskList from "@/components/project/ProjectTaskList";
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectComments from "@/components/project/ProjectComments";
+import ProjectActivityLog from "@/components/project/ProjectActivityLog";
+import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import TaskDetailSheet from "@/components/project/TaskDetailSheet";
 import { LargeProjectGanttSetup } from "@/components/project/LargeProjectGanttSetup";
 import { LargeProjectGanttChart } from "@/components/project/LargeProjectGanttChart";
 import { ProjectTask } from "@/types/project";
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
+import { useProjectTransport } from "@/hooks/useProjectTransport";
 
 const tabTriggerClass =
   "relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground";
@@ -20,6 +23,10 @@ const LargeProjectViewPage = () => {
   const [isGanttSetupOpen, setIsGanttSetupOpen] = useState(false);
 
   const { project, tasks, files, comments, ganttSteps } = detail;
+
+  // Get first booking ID for transport (large projects may have multiple)
+  const bookingId = (project as any)?.bookings?.[0]?.booking_id || null;
+  const { assignments: transportAssignments } = useProjectTransport(bookingId);
 
   if (!project) return null;
 
@@ -64,6 +71,17 @@ const LargeProjectViewPage = () => {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="transport" className={tabTriggerClass}>
+              Transport
+              {transportAssignments.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                  {transportAssignments.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="activity" className={tabTriggerClass}>
+              Historik
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -106,6 +124,14 @@ const LargeProjectViewPage = () => {
 
         <TabsContent value="comments">
           <ProjectComments comments={comments} onAddComment={detail.addComment} />
+        </TabsContent>
+
+        <TabsContent value="transport">
+          <ProjectTransportWidget bookingId={bookingId} />
+        </TabsContent>
+
+        <TabsContent value="activity">
+          <ProjectActivityLog activities={[]} />
         </TabsContent>
       </Tabs>
 

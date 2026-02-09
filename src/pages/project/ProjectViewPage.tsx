@@ -6,7 +6,7 @@ import ProjectTaskList from "@/components/project/ProjectTaskList";
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectComments from "@/components/project/ProjectComments";
 import ProjectActivityLog from "@/components/project/ProjectActivityLog";
-import ProjectTransportSection from "@/components/project/ProjectTransportSection";
+import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 
 import TaskDetailSheet from "@/components/project/TaskDetailSheet";
 import { ProjectTask } from "@/types/project";
@@ -110,7 +110,7 @@ const ProjectViewPage = () => {
         </TabsContent>
 
         <TabsContent value="transport">
-          <ProjectTransportSection bookingId={bookingId} />
+          <ProjectTransportWidget bookingId={bookingId} />
         </TabsContent>
       </Tabs>
 
