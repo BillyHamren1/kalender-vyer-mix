@@ -42,6 +42,7 @@ import APIDocumentation from "./pages/APIDocumentation";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import AuthResetPassword from "./pages/AuthResetPassword";
+import TransportResponse from "./pages/TransportResponse";
 
 // Logistics pages
 import LogisticsPlanning from "./pages/LogisticsPlanning";
@@ -112,6 +113,9 @@ const AppContent = () => {
                 {/* Auth Routes - Not Protected */}
                 <Route path="/auth" element={<AuthProvider><Auth /></AuthProvider>} />
                 <Route path="/auth/reset" element={<AuthProvider><AuthResetPassword /></AuthProvider>} />
+
+                {/* Public transport partner response page - no auth */}
+                <Route path="/transport-svar" element={<TransportResponse />} />
 
                 {/* Mobile Staff App - Completely isolated system (own auth) */}
                 <Route path="/m/login" element={<MobileAuthProvider><MobileLogin /></MobileAuthProvider>} />
