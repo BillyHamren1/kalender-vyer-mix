@@ -51,11 +51,18 @@ function buildEmailHtml(params: {
   partnerName: string;
   acceptUrl: string;
   declineUrl: string;
+  customMessage: string | null;
 }): string {
   const vt = params.vehicleType ? (vehicleTypeLabels[params.vehicleType] || params.vehicleType) : "—";
   const deliveryFull = [params.deliveryAddress, params.deliveryPostalCode, params.deliveryCity]
     .filter(Boolean)
     .join(", ");
+
+  const customMessageHtml = params.customMessage ? `
+              <div style="margin:16px 0 0;padding:16px 20px;background-color:#fffbeb;border-radius:8px;border:1px solid #fde68a;">
+                <p style="margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#92400e;font-weight:700;">Meddelande</p>
+                <p style="margin:0;font-size:14px;color:#1a3a3c;line-height:1.6;white-space:pre-line;">${params.customMessage}</p>
+              </div>` : '';
 
   return `
 <!DOCTYPE html>
@@ -74,18 +81,19 @@ function buildEmailHtml(params: {
           <!-- Header -->
           <tr>
             <td style="background:linear-gradient(135deg,#1a6b6e,#279B9E);padding:32px 40px;">
-              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:-0.5px;">🚛 Transportförfrågan</h1>
-              <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Ny körning att granska från EventFlow</p>
+              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:-0.5px;">Transportförfrågan</h1>
+              <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Ny körning att granska från Frans August Logistik</p>
             </td>
           </tr>
 
-          <!-- Partner greeting -->
+          <!-- Partner greeting + custom message -->
           <tr>
             <td style="padding:32px 40px 0;">
               <p style="margin:0;font-size:16px;color:#1a3a3c;font-weight:600;">Hej ${params.partnerName},</p>
               <p style="margin:12px 0 0;font-size:14px;color:#5a6b6d;line-height:1.6;">
                 Vi har en ny transportförfrågan som vi gärna vill att ni utför. Se detaljer nedan och svara genom att klicka på knapparna.
               </p>
+              ${customMessageHtml}
             </td>
           </tr>
 
@@ -165,23 +173,41 @@ function buildEmailHtml(params: {
             </td>
           </tr>
 
-          <!-- Action buttons -->
+          <!-- Action buttons - stacked vertically for better email client compatibility -->
           <tr>
             <td style="padding:0 40px 32px;">
               <p style="margin:0 0 16px;font-size:14px;color:#5a6b6d;text-align:center;">Vänligen svara på denna förfrågan:</p>
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
-                  <td align="center" style="padding:0 8px;">
+                  <td align="center" style="padding:0 0 12px;">
+                    <!--[if mso]>
+                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${params.acceptUrl}" style="height:48px;v-text-anchor:middle;width:300px;" arcsize="25%" strokecolor="#1a6b6e" fillcolor="#1a6b6e">
+                    <w:anchorlock/>
+                    <center style="color:#ffffff;font-family:sans-serif;font-size:14px;font-weight:bold;">Acceptera körning</center>
+                    </v:roundrect>
+                    <![endif]-->
+                    <!--[if !mso]><!-->
                     <a href="${params.acceptUrl}" 
-                       style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#1a6b6e,#279B9E);color:#ffffff;text-decoration:none;border-radius:12px;font-size:14px;font-weight:700;letter-spacing:0.3px;min-width:140px;text-align:center;">
-                      ✅ Acceptera körning
+                       style="display:block;width:100%;max-width:340px;padding:14px 32px;background-color:#1a6b6e;color:#ffffff;text-decoration:none;border-radius:12px;font-size:15px;font-weight:700;letter-spacing:0.3px;text-align:center;mso-padding-alt:14px 32px;box-sizing:border-box;">
+                      Acceptera körning
                     </a>
+                    <!--<![endif]-->
                   </td>
-                  <td align="center" style="padding:0 8px;">
+                </tr>
+                <tr>
+                  <td align="center" style="padding:0;">
+                    <!--[if mso]>
+                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${params.declineUrl}" style="height:48px;v-text-anchor:middle;width:300px;" arcsize="25%" strokecolor="#dc3545" fillcolor="#dc3545">
+                    <w:anchorlock/>
+                    <center style="color:#ffffff;font-family:sans-serif;font-size:14px;font-weight:bold;">Neka körning</center>
+                    </v:roundrect>
+                    <![endif]-->
+                    <!--[if !mso]><!-->
                     <a href="${params.declineUrl}" 
-                       style="display:inline-block;padding:14px 32px;background:#dc3545;color:#ffffff;text-decoration:none;border-radius:12px;font-size:14px;font-weight:700;letter-spacing:0.3px;min-width:140px;text-align:center;">
-                      ❌ Neka körning
+                       style="display:block;width:100%;max-width:340px;padding:14px 32px;background-color:#dc3545;color:#ffffff;text-decoration:none;border-radius:12px;font-size:15px;font-weight:700;letter-spacing:0.3px;text-align:center;mso-padding-alt:14px 32px;box-sizing:border-box;">
+                      Neka körning
                     </a>
+                    <!--<![endif]-->
                   </td>
                 </tr>
               </table>
@@ -192,7 +218,7 @@ function buildEmailHtml(params: {
           <tr>
             <td style="padding:24px 40px;background-color:#f7fafa;border-top:1px solid #e0ecee;">
               <p style="margin:0;font-size:12px;color:#7a8b8d;text-align:center;line-height:1.5;">
-                Detta mejl skickades automatiskt från EventFlow Logistik.<br>
+                Detta mejl skickades automatiskt från Frans August Logistik.<br>
                 Svara inte på detta mejl — använd knapparna ovan.
               </p>
             </td>
@@ -220,7 +246,7 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { assignment_id } = await req.json();
+    const { assignment_id, custom_subject, custom_message } = await req.json();
     if (!assignment_id) throw new Error("assignment_id is required");
 
     console.log(`[send-transport-request] Processing assignment: ${assignment_id}`);
@@ -287,14 +313,17 @@ Deno.serve(async (req) => {
       partnerName: vehicle.contact_person || vehicle.name,
       acceptUrl,
       declineUrl,
+      customMessage: custom_message || null,
     });
 
-    console.log(`[send-transport-request] Sending email to: ${vehicle.contact_email}`);
+    const emailSubject = custom_subject || `Transportförfrågan: ${booking?.client || 'Bokning'} — ${formatDate(assignment.transport_date)}`;
+
+    console.log(`[send-transport-request] Sending email to: ${vehicle.contact_email}, subject: ${emailSubject}`);
 
     const { error: emailError } = await resend.emails.send({
-      from: "EventFlow Logistik <noreply@fransaugust.se>",
+      from: "Frans August Logistik <noreply@fransaugust.se>",
       to: [vehicle.contact_email],
-      subject: `Transportförfrågan: ${booking?.client || 'Bokning'} — ${formatDate(assignment.transport_date)}`,
+      subject: emailSubject,
       html,
     });
 

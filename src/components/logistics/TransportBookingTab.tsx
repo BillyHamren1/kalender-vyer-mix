@@ -19,12 +19,23 @@ import {
   RotateCcw,
   Pencil,
   Trash2,
+  Mail,
+  Send,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { PremiumCard } from '@/components/ui/PremiumCard';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -77,6 +88,13 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
   const [wizardStep, setWizardStep] = useState(1);
   const [wizardData, setWizardData] = useState<Partial<WizardData>>({});
   const [editingAssignmentId, setEditingAssignmentId] = useState<string | null>(null);
+
+  // Email preview dialog state
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailMessage, setEmailMessage] = useState('');
+  const [pendingAssignmentId, setPendingAssignmentId] = useState<string | null>(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   const activeVehicles = vehicles.filter(v => v.is_active);
 
@@ -204,22 +222,19 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
     }
 
     if (result) {
-      // Send email to partner if partner mode and NOT editing
+      // Open email preview dialog for partner mode (not editing)
       if (wizardData.transportMode === 'partner' && result.id && !editingAssignmentId) {
-        try {
-          const { data, error } = await supabase.functions.invoke('send-transport-request', {
-            body: { assignment_id: result.id },
-          });
-          if (error) {
-            console.error('Email send error:', error);
-            toast.error('Transport bokad, men mejl kunde inte skickas till partnern');
-          } else {
-            toast.success(`Transportförfrågan skickad till ${data?.sent_to || 'partnern'}`);
-          }
-        } catch (e) {
-          console.error('Email invoke error:', e);
-          toast.error('Transport bokad, men mejlutskick misslyckades');
-        }
+        const defaultSubject = `Transportförfrågan: ${wizardBooking.client} — ${wizardData.transportDate}`;
+        const partnerName = selectedPartner?.contact_person || selectedPartner?.name || 'partner';
+        const defaultMessage = `Hej ${partnerName},\n\nVi har en ny transportförfrågan som vi gärna vill att ni utför. Se detaljer i mejlet.\n\nMed vänliga hälsningar,\nFrans August Logistik`;
+        
+        setPendingAssignmentId(result.id);
+        setEmailSubject(defaultSubject);
+        setEmailMessage(defaultMessage);
+        setEmailDialogOpen(true);
+        // Don't cancel wizard yet — dialog handles it
+        refetch();
+        return;
       }
 
       if (editingAssignmentId) {
@@ -234,6 +249,41 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
   const formatDate = (d: string | null) => {
     if (!d) return '—';
     try { return format(new Date(d), 'd MMM', { locale: sv }); } catch { return d; }
+  };
+
+  const handleSendEmail = async () => {
+    if (!pendingAssignmentId) return;
+    setSendingEmail(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-transport-request', {
+        body: {
+          assignment_id: pendingAssignmentId,
+          custom_subject: emailSubject || undefined,
+          custom_message: emailMessage || undefined,
+        },
+      });
+      if (error) {
+        console.error('Email send error:', error);
+        toast.error('Mejl kunde inte skickas till partnern');
+      } else {
+        toast.success(`Transportförfrågan skickad till ${data?.sent_to || 'partnern'}`);
+      }
+    } catch (e) {
+      console.error('Email invoke error:', e);
+      toast.error('Mejlutskick misslyckades');
+    } finally {
+      setSendingEmail(false);
+      setEmailDialogOpen(false);
+      setPendingAssignmentId(null);
+      cancelWizard();
+    }
+  };
+
+  const handleCancelEmail = () => {
+    setEmailDialogOpen(false);
+    setPendingAssignmentId(null);
+    cancelWizard();
+    toast.info('Transport bokad — inget mejl skickades');
   };
 
   if (isLoading) {
@@ -950,6 +1000,88 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
           </div>
         </PremiumCard>
       </div>
+
+      {/* Email preview dialog */}
+      <Dialog open={emailDialogOpen} onOpenChange={(open) => { if (!open) handleCancelEmail(); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-primary" />
+              Förhandsgranska mejl
+            </DialogTitle>
+            <DialogDescription>
+              Granska och redigera mejlet innan det skickas till partnern.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Recipient (read-only) */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Mottagare</Label>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-xs">
+                  {selectedPartner?.contact_email || 'Ingen mejladress'}
+                </Badge>
+                {selectedPartner?.contact_person && (
+                  <span className="text-xs text-muted-foreground">({selectedPartner.contact_person})</span>
+                )}
+              </div>
+            </div>
+
+            {/* Subject (editable) */}
+            <div className="space-y-1.5">
+              <Label htmlFor="email-subject" className="text-xs text-muted-foreground">Ämnesrad</Label>
+              <Input
+                id="email-subject"
+                value={emailSubject}
+                onChange={e => setEmailSubject(e.target.value)}
+                className="rounded-xl"
+              />
+            </div>
+
+            {/* Message (editable) */}
+            <div className="space-y-1.5">
+              <Label htmlFor="email-message" className="text-xs text-muted-foreground">Meddelande till partnern</Label>
+              <Textarea
+                id="email-message"
+                value={emailMessage}
+                onChange={e => setEmailMessage(e.target.value)}
+                rows={4}
+                className="rounded-xl resize-none"
+              />
+            </div>
+
+            {/* Booking summary (read-only) */}
+            <div className="p-3 rounded-xl bg-muted/30 border border-border/30 space-y-1.5">
+              <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">Bokningsdetaljer (visas i mejlet)</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                <span className="text-muted-foreground">Kund</span>
+                <span className="font-medium">{wizardBooking?.client || '—'}</span>
+                <span className="text-muted-foreground">Leverans</span>
+                <span className="font-medium">{wizardBooking?.deliveryaddress || '—'}</span>
+                <span className="text-muted-foreground">Upphämtning</span>
+                <span className="font-medium">{wizardData.pickupAddress || '—'}</span>
+                <span className="text-muted-foreground">Fordonstyp</span>
+                <span className="font-medium">{vehicleTypeLabels[wizardData.vehicleType || ''] || '—'}</span>
+                <span className="text-muted-foreground">Datum</span>
+                <span className="font-medium">{wizardData.transportDate || '—'}</span>
+                <span className="text-muted-foreground">Tid</span>
+                <span className="font-medium">{wizardData.transportTime || '—'}</span>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={handleCancelEmail} disabled={sendingEmail} className="rounded-xl">
+              Avbryt
+            </Button>
+            <Button onClick={handleSendEmail} disabled={sendingEmail} className="rounded-xl gap-2">
+              <Send className="h-4 w-4" />
+              {sendingEmail ? 'Skickar...' : 'Skicka mejl'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
