@@ -59,34 +59,50 @@ const TransportCard = ({ a, vehicles, expandedId, setExpandedId }: {
   const partner = getVehiclePartner(a.vehicle_id);
   const assignmentAny = a as any;
 
+  const statusLabel = a.status === 'delivered' ? 'Levererad' :
+    a.partner_response === 'accepted' ? 'Accepterad' :
+    a.partner_response === 'declined' ? 'Nekad' : 'Väntar';
+
+  const statusDot = a.status === 'delivered' ? 'bg-primary' :
+    a.partner_response === 'accepted' ? 'bg-primary' :
+    a.partner_response === 'declined' ? 'bg-destructive' :
+    'bg-muted-foreground';
+
   return (
     <div
       className={cn(
-        "rounded-xl bg-card border border-border/40 shadow-sm hover:shadow-md transition-all cursor-pointer",
+        "rounded-lg bg-card border border-border/40 shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden",
         isExpanded && "ring-1 ring-primary/30"
       )}
       onClick={() => setExpandedId(isExpanded ? null : a.id)}
     >
-      <div className="flex items-center gap-3 p-3">
-        <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-          <Truck className="w-4.5 h-4.5 text-primary" />
+      <div className="p-2.5">
+        {/* Header: badge + truck icon */}
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="px-2 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-primary/10 text-primary border-primary/30">
+            TRANSPORT
+          </span>
+          <Truck className="w-3.5 h-3.5 ml-auto text-primary/60" />
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold truncate">{a.booking?.client || 'Okänd kund'}</span>
-            {getStatusBadge(a)}
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-            <span>{formatTransportDate(a.transport_date)}</span>
-            <span>·</span>
-            <span className="truncate flex items-center gap-0.5">
-              <MapPin className="w-3 h-3 inline" />
-              {(a.booking as any)?.deliveryaddress || '–'}
-            </span>
-          </div>
-          <p className="text-xs text-muted-foreground truncate">{partner || getVehicleName(a.vehicle_id)}</p>
+
+        {/* Client name */}
+        <h4 className="font-semibold text-sm text-foreground line-clamp-2 mb-1">
+          {a.booking?.client || 'Okänd kund'}
+        </h4>
+
+        {/* Address */}
+        <div className="flex items-start gap-1.5 mb-1">
+          <MapPin className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
+          <span className="text-xs text-muted-foreground line-clamp-1">
+            {(a.booking as any)?.deliveryaddress || '–'}
+          </span>
         </div>
-        <ChevronDown className={cn("w-4 h-4 text-muted-foreground shrink-0 transition-transform", isExpanded && "rotate-180")} />
+
+        {/* Status dot + label */}
+        <div className="flex items-center gap-1.5">
+          <div className={cn("w-2 h-2 rounded-full", statusDot)} />
+          <span className="text-xs text-muted-foreground">{statusLabel}</span>
+        </div>
       </div>
 
       {/* Expanded transport details */}
