@@ -4,16 +4,11 @@ import { MapPin, Check, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 
-interface MapboxFeature {
-  properties: {
-    full_address?: string;
-    name?: string;
-    place_formatted?: string;
-    coordinates?: { latitude: number; longitude: number };
-  };
-  geometry?: {
-    coordinates: [number, number];
-  };
+interface Suggestion {
+  mapbox_id: string;
+  name: string;
+  full_address?: string;
+  place_formatted?: string;
 }
 
 interface AddressAutocompleteProps {
@@ -32,11 +27,12 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   disabled,
 }) => {
   const [query, setQuery] = useState(value);
-  const [suggestions, setSuggestions] = useState<MapboxFeature[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGeocoded, setIsGeocoded] = useState(false);
   const [mapboxToken, setMapboxToken] = useState<string | null>(null);
+  const [sessionToken, setSessionToken] = useState(() => crypto.randomUUID());
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -72,31 +68,32 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   }, []);
 
   const searchAddress = useCallback(async (text: string) => {
-    if (!mapboxToken || text.length < 3) {
+    if (!mapboxToken || text.length < 2) {
       setSuggestions([]);
       return;
     }
 
     setIsLoading(true);
     try {
-      const url = `https://api.mapbox.com/search/geocode/v6/forward?q=${encodeURIComponent(text)}&access_token=${mapboxToken}&country=se&language=sv&limit=5&types=address,place,locality,neighborhood,postcode`;
+      // Use Mapbox Search Box API - suggest endpoint (designed for autocomplete)
+      const url = `https://api.mapbox.com/search/searchbox/v1/suggest?q=${encodeURIComponent(text)}&access_token=${mapboxToken}&session_token=${sessionToken}&country=se&language=sv&limit=5&types=address,street,place`;
       const res = await fetch(url);
       const data = await res.json();
 
-      if (data.features?.length) {
-        setSuggestions(data.features);
+      if (data.suggestions?.length) {
+        setSuggestions(data.suggestions);
         setIsOpen(true);
       } else {
         setSuggestions([]);
         setIsOpen(false);
       }
     } catch (err) {
-      console.error('Mapbox geocode error:', err);
+      console.error('Mapbox suggest error:', err);
       setSuggestions([]);
     } finally {
       setIsLoading(false);
     }
-  }, [mapboxToken]);
+  }, [mapboxToken, sessionToken]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -107,20 +104,48 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       searchAddress(val);
-    }, 300);
+    }, 250);
   };
 
-  const handleSelect = (feature: MapboxFeature) => {
-    const address = feature.properties.full_address || feature.properties.name || '';
-    const coords = feature.geometry?.coordinates;
-    const lat = coords?.[1];
-    const lng = coords?.[0];
+  const handleSelect = async (suggestion: Suggestion) => {
+    // Use retrieve endpoint to get full details with coordinates
+    if (!mapboxToken) return;
 
-    setQuery(address);
-    setIsGeocoded(!!lat && !!lng);
+    setIsLoading(true);
     setSuggestions([]);
     setIsOpen(false);
-    onChange(address, lat, lng);
+
+    try {
+      const url = `https://api.mapbox.com/search/searchbox/v1/retrieve/${suggestion.mapbox_id}?access_token=${mapboxToken}&session_token=${sessionToken}`;
+      const res = await fetch(url);
+      const data = await res.json();
+
+      const feature = data.features?.[0];
+      if (feature) {
+        const address = feature.properties?.full_address || feature.properties?.name || suggestion.full_address || suggestion.name;
+        const coords = feature.geometry?.coordinates;
+        const lat = coords?.[1];
+        const lng = coords?.[0];
+
+        setQuery(address);
+        setIsGeocoded(!!lat && !!lng);
+        onChange(address, lat, lng);
+      } else {
+        // Fallback: use suggestion name without coordinates
+        const address = suggestion.full_address || suggestion.name;
+        setQuery(address);
+        onChange(address);
+      }
+    } catch (err) {
+      console.error('Mapbox retrieve error:', err);
+      const address = suggestion.full_address || suggestion.name;
+      setQuery(address);
+      onChange(address);
+    } finally {
+      setIsLoading(false);
+      // Reset session token for next search session
+      setSessionToken(crypto.randomUUID());
+    }
   };
 
   return (
@@ -147,25 +172,23 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       </div>
 
       {isOpen && suggestions.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-xl shadow-lg overflow-hidden">
-          {suggestions.map((feature, idx) => {
-            const name = feature.properties.name || '';
-            const detail = feature.properties.place_formatted || '';
-            return (
-              <button
-                key={idx}
-                type="button"
-                className="w-full text-left px-3 py-2.5 hover:bg-accent/50 transition-colors border-b border-border/30 last:border-0 flex items-start gap-2"
-                onClick={() => handleSelect(feature)}
-              >
-                <MapPin className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{name}</p>
-                  {detail && <p className="text-xs text-muted-foreground truncate">{detail}</p>}
-                </div>
-              </button>
-            );
-          })}
+        <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-xl shadow-lg overflow-hidden max-h-[240px] overflow-y-auto">
+          {suggestions.map((suggestion) => (
+            <button
+              key={suggestion.mapbox_id}
+              type="button"
+              className="w-full text-left px-3 py-2.5 hover:bg-accent/50 transition-colors border-b border-border/30 last:border-0 flex items-start gap-2"
+              onClick={() => handleSelect(suggestion)}
+            >
+              <MapPin className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">{suggestion.name}</p>
+                {suggestion.place_formatted && (
+                  <p className="text-xs text-muted-foreground truncate">{suggestion.place_formatted}</p>
+                )}
+              </div>
+            </button>
+          ))}
         </div>
       )}
     </div>
