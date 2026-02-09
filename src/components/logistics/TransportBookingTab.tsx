@@ -18,7 +18,7 @@ import {
   Building2,
   RotateCcw,
   Pencil,
-  Trash2,
+  
   Mail,
   Send,
 } from 'lucide-react';
@@ -36,6 +36,16 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Select,
   SelectContent,
@@ -88,6 +98,9 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
   const [wizardStep, setWizardStep] = useState(1);
   const [wizardData, setWizardData] = useState<Partial<WizardData>>({});
   const [editingAssignmentId, setEditingAssignmentId] = useState<string | null>(null);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancellingAssignment, setCancellingAssignment] = useState<{ id: string; vehicleName: string; bookingClient: string; transportDate: string } | null>(null);
+  const [cancellingInProgress, setCancellingInProgress] = useState(false);
 
   // Email preview dialog state
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
@@ -185,6 +198,32 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
     const success = await removeAssignment(assignmentId);
     if (success) {
       refetch();
+    }
+  };
+
+  const handleOpenCancelDialog = (assignment: { id: string; vehicle_name?: string; transport_date: string }, bookingClient: string) => {
+    setCancellingAssignment({
+      id: assignment.id,
+      vehicleName: assignment.vehicle_name || 'Okänt fordon',
+      bookingClient,
+      transportDate: assignment.transport_date,
+    });
+    setCancelDialogOpen(true);
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!cancellingAssignment) return;
+    setCancellingInProgress(true);
+    try {
+      const success = await removeAssignment(cancellingAssignment.id);
+      if (success) {
+        toast.success('Transport avbokad');
+        refetch();
+      }
+    } finally {
+      setCancellingInProgress(false);
+      setCancelDialogOpen(false);
+      setCancellingAssignment(null);
     }
   };
 
@@ -1072,10 +1111,10 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
-                          onClick={() => handleDeleteAssignment(a.id)}
-                          title="Ta bort"
+                          onClick={() => handleOpenCancelDialog(a, booking.client)}
+                          title="Avboka transport"
                         >
-                          <Trash2 className="h-3 w-3" />
+                          <X className="h-3 w-3" />
                         </Button>
                       </div>
                     ))}
@@ -1247,6 +1286,47 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Cancel transport confirmation dialog */}
+      <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <X className="h-5 w-5 text-destructive" />
+              Avboka transport
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <span className="block">
+                Är du säker på att du vill avboka transporten?
+              </span>
+              {cancellingAssignment && (
+                <span className="block p-3 rounded-lg bg-muted/50 border border-border/40 text-sm text-foreground">
+                  <span className="font-semibold">{cancellingAssignment.vehicleName}</span>
+                  {' — '}
+                  {cancellingAssignment.bookingClient}
+                  {' — '}
+                  {cancellingAssignment.transportDate}
+                </span>
+              )}
+              <span className="block text-xs">
+                Transporten tas bort permanent. Om partnern redan fått en förfrågan rekommenderar vi att du kontaktar dem separat.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancellingInProgress} className="rounded-xl">
+              Behåll
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmCancel}
+              disabled={cancellingInProgress}
+              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {cancellingInProgress ? 'Avbokar...' : 'Avboka transport'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
