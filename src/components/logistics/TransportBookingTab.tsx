@@ -23,6 +23,7 @@ import {
   Mail,
   Send,
   Weight,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -115,6 +116,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancellingAssignment, setCancellingAssignment] = useState<{ id: string; vehicleName: string; bookingClient: string; transportDate: string; is_external?: boolean } | null>(null);
   const [cancellingInProgress, setCancellingInProgress] = useState(false);
+  const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
 
   // Email preview dialog state
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
@@ -1237,8 +1239,14 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
         const renderBookingCard = (booking: typeof withTransport[0], showActions: 'boka' | 'status') => (
           <div
             key={booking.id}
-            className="p-3 rounded-xl border border-border/40 bg-background/60 transition-all cursor-pointer hover:bg-background/80 hover:shadow-sm"
-            onClick={() => navigate(`/booking/${booking.id}`)}
+            className="group/card p-3 rounded-xl border border-border/40 bg-background/60 transition-all cursor-pointer hover:bg-background/80 hover:shadow-sm"
+            onClick={() => {
+              if (showActions === 'status') {
+                setExpandedCardId(prev => prev === booking.id ? null : booking.id);
+              } else {
+                startWizard(booking);
+              }
+            }}
           >
             <div className="flex items-center justify-between gap-3">
               <div className="flex-1 min-w-0">
@@ -1273,41 +1281,61 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                   )}
                 </div>
               </div>
-              {showActions === 'boka' ? (
-                <Button
-                  size="sm"
-                  onClick={(e) => { e.stopPropagation(); startWizard(booking); }}
-                  className="rounded-lg h-8 text-xs shrink-0 gap-1 bg-[hsl(38,92%,50%)] hover:bg-[hsl(38,92%,45%)] text-white"
-                >
-                  <Truck className="h-3.5 w-3.5" />
-                  Boka
-                </Button>
-              ) : (() => {
-                const hasDeclined = booking.transport_assignments.some(
-                  a => a.is_external && a.partner_response === 'declined'
-                );
-                const hasPending = booking.transport_assignments.some(
-                  a => a.is_external && (!a.partner_response || a.partner_response === 'pending')
-                );
-                return hasDeclined ? (
-                  <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-destructive text-white border-destructive">
-                    <X className="h-3.5 w-3.5" />
-                    Nekad
-                  </Badge>
-                ) : hasPending ? (
-                  <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-[hsl(38,92%,50%)] text-white border-[hsl(38,92%,45%)]">
-                    <Clock className="h-3.5 w-3.5" />
-                    Väntar
-                  </Badge>
-                ) : (
-                  <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-primary text-white border-primary">
-                    <Check className="h-3.5 w-3.5" />
-                    Bekräftad
-                  </Badge>
-                );
-              })()}
+              <div className="flex items-center gap-1.5">
+                {showActions === 'status' && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 opacity-0 group-hover/card:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Cancel all assignments for this booking
+                      const firstAssignment = booking.transport_assignments[0];
+                      if (firstAssignment) {
+                        handleOpenCancelDialog(firstAssignment, booking.client);
+                      }
+                    }}
+                    title="Ta bort transport"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+                {showActions === 'boka' ? (
+                  <Button
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); startWizard(booking); }}
+                    className="rounded-lg h-8 text-xs shrink-0 gap-1 bg-[hsl(38,92%,50%)] hover:bg-[hsl(38,92%,45%)] text-white"
+                  >
+                    <Truck className="h-3.5 w-3.5" />
+                    Boka
+                  </Button>
+                ) : (() => {
+                  const hasDeclined = booking.transport_assignments.some(
+                    a => a.is_external && a.partner_response === 'declined'
+                  );
+                  const hasPending = booking.transport_assignments.some(
+                    a => a.is_external && (!a.partner_response || a.partner_response === 'pending')
+                  );
+                  return hasDeclined ? (
+                    <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-destructive text-white border-destructive">
+                      <X className="h-3.5 w-3.5" />
+                      Nekad
+                    </Badge>
+                  ) : hasPending ? (
+                    <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-[hsl(38,92%,50%)] text-white border-[hsl(38,92%,45%)]">
+                      <Clock className="h-3.5 w-3.5" />
+                      Väntar
+                    </Badge>
+                  ) : (
+                    <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-primary text-white border-primary">
+                      <Check className="h-3.5 w-3.5" />
+                      Bekräftad
+                    </Badge>
+                  );
+                })()}
+              </div>
             </div>
-            {showActions === 'status' && (
+            {showActions === 'status' && expandedCardId === booking.id && (
               <div className="space-y-1.5 mt-2 pt-2 border-t border-border/20" onClick={(e) => e.stopPropagation()}>
                 {booking.transport_assignments.map(a => (
                   <div key={a.id} className="flex items-center gap-2 group">
