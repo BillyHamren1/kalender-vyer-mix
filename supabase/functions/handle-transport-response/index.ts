@@ -6,15 +6,11 @@ const corsHeaders = {
 };
 
 function htmlResponse(body: string, status = 200): Response {
-  return new Response(body, {
-    status,
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-      "Cache-Control": "no-cache, no-store, must-revalidate",
-    },
-  });
+  const headers = new Headers();
+  headers.set("Content-Type", "text/html; charset=utf-8");
+  headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+  headers.set("X-Content-Type-Options", "nosniff");
+  return new Response(body, { status, headers });
 }
 
 function buildResponsePage(action: "accepted" | "declined", partnerName: string, clientName: string, transportDate: string): string {
