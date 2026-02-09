@@ -2435,6 +2435,53 @@ export type Database = {
           },
         ]
       }
+      transport_email_log: {
+        Row: {
+          assignment_id: string
+          booking_id: string
+          custom_message: string | null
+          email_type: string
+          id: string
+          recipient_email: string
+          recipient_name: string | null
+          sent_at: string
+          sent_by: string | null
+          subject: string
+        }
+        Insert: {
+          assignment_id: string
+          booking_id: string
+          custom_message?: string | null
+          email_type?: string
+          id?: string
+          recipient_email: string
+          recipient_name?: string | null
+          sent_at?: string
+          sent_by?: string | null
+          subject: string
+        }
+        Update: {
+          assignment_id?: string
+          booking_id?: string
+          custom_message?: string | null
+          email_type?: string
+          id?: string
+          recipient_email?: string
+          recipient_name?: string | null
+          sent_at?: string
+          sent_by?: string | null
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transport_email_log_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "transport_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null
