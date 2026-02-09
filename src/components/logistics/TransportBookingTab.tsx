@@ -13,6 +13,7 @@ import {
   X,
   ArrowRight,
   Clock,
+  Building2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -52,6 +53,7 @@ interface TransportBookingTabProps {
 
 interface WizardData {
   booking: BookingForTransport;
+  transportMode: 'own' | 'partner';
   vehicleType: string;
   transportDate: string;
   transportTime: string;
@@ -69,9 +71,18 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
 
   const activeVehicles = vehicles.filter(v => v.is_active);
 
-  // Get vehicles matching selected type
+  // Internal vehicles (own fleet)
+  const internalVehicles = activeVehicles.filter(v => !v.is_external);
+  // External partners
+  const externalPartners = activeVehicles.filter(v => v.is_external);
+
+  // Get vehicles matching selected type + mode
   const matchingVehicles = wizardData.vehicleType
     ? activeVehicles.filter(v => {
+        // Filter by mode
+        if (wizardData.transportMode === 'own' && v.is_external) return false;
+        if (wizardData.transportMode === 'partner' && !v.is_external) return false;
+        // Filter by type
         if (v.vehicle_type === wizardData.vehicleType) return true;
         if (v.is_external && v.provided_vehicle_types?.includes(wizardData.vehicleType!)) return true;
         return false;
@@ -162,7 +173,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                       {wizardStep > s ? <Check className="h-3.5 w-3.5" /> : s}
                     </span>
                     <span className="hidden sm:inline text-xs">
-                      {s === 1 ? 'Fordonstyp' : s === 2 ? 'Datum & Detaljer' : 'Bekräfta'}
+                      {s === 1 ? 'Fordon' : s === 2 ? 'Datum & Detaljer' : 'Bekräfta'}
                     </span>
                   </React.Fragment>
                 ))}
@@ -173,7 +184,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
             </div>
           }
         >
-          {/* Step 1: Vehicle Type + Select Vehicle/Partner */}
+          {/* Step 1: Choose Own Vehicle or Partner */}
           {wizardStep === 1 && (
             <div className="space-y-4">
               <div className="p-3 rounded-xl bg-muted/30 border border-border/30">
@@ -189,76 +200,167 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Fordonstyp *</Label>
-                <Select
-                  value={wizardData.vehicleType || ''}
-                  onValueChange={v => setWizardData(p => ({ ...p, vehicleType: v, vehicleId: '' }))}
+              {/* Two big mode buttons */}
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  className={cn(
+                    "flex flex-col items-center gap-2 p-6 rounded-2xl border-2 transition-all text-center",
+                    wizardData.transportMode === 'own'
+                      ? "border-primary bg-primary/5 shadow-lg"
+                      : "border-border/40 bg-card hover:border-primary/30 hover:shadow-md"
+                  )}
+                  onClick={() => setWizardData(p => ({ ...p, transportMode: 'own', vehicleId: '', vehicleType: '' }))}
                 >
-                  <SelectTrigger className="rounded-xl">
-                    <SelectValue placeholder="Välj fordonstyp..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(vehicleTypeLabels).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <div className="p-3 rounded-xl bg-primary/10">
+                    <Truck className="h-6 w-6 text-primary" />
+                  </div>
+                  <span className="font-semibold text-foreground">Egen bil</span>
+                  <span className="text-xs text-muted-foreground">{internalVehicles.length} fordon</span>
+                </button>
+                <button
+                  type="button"
+                  className={cn(
+                    "flex flex-col items-center gap-2 p-6 rounded-2xl border-2 transition-all text-center",
+                    wizardData.transportMode === 'partner'
+                      ? "border-primary bg-primary/5 shadow-lg"
+                      : "border-border/40 bg-card hover:border-primary/30 hover:shadow-md"
+                  )}
+                  onClick={() => setWizardData(p => ({ ...p, transportMode: 'partner', vehicleId: '', vehicleType: '' }))}
+                >
+                  <div className="p-3 rounded-xl bg-primary/10">
+                    <Building2 className="h-6 w-6 text-primary" />
+                  </div>
+                  <span className="font-semibold text-foreground">Välj partner</span>
+                  <span className="text-xs text-muted-foreground">{externalPartners.length} partners</span>
+                </button>
               </div>
 
-              {wizardData.vehicleType && (
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    Tillgängliga fordon av typen <span className="font-medium text-foreground">{vehicleTypeLabels[wizardData.vehicleType] || wizardData.vehicleType}</span>:
-                  </p>
-
-                  {matchingVehicles.length === 0 ? (
-                    <div className="text-center py-8 text-sm text-muted-foreground border-2 border-dashed rounded-xl">
-                      <Truck className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                      Inga fordon matchar vald typ
+              {/* Show vehicle type + list when mode is selected */}
+              {wizardData.transportMode && (
+                <>
+                  {wizardData.transportMode === 'partner' ? (
+                    // Partner mode: show partner list directly
+                    <div className="space-y-2">
+                      <Label>Välj partner *</Label>
+                      {externalPartners.length === 0 ? (
+                        <div className="text-center py-6 text-sm text-muted-foreground border-2 border-dashed rounded-xl">
+                          <Building2 className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                          Inga partners tillagda
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {externalPartners.map(v => (
+                            <label
+                              key={v.id}
+                              className={cn(
+                                "flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all",
+                                wizardData.vehicleId === v.id
+                                  ? "border-primary bg-primary/5 shadow-sm"
+                                  : "border-border/40 bg-background/60 hover:border-border"
+                              )}
+                              onClick={() => setWizardData(p => ({ ...p, vehicleId: v.id, vehicleType: v.vehicle_type || v.provided_vehicle_types?.[0] || 'other' }))}
+                            >
+                              <div className={cn(
+                                "w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0",
+                                wizardData.vehicleId === v.id ? "border-primary" : "border-muted-foreground/40"
+                              )}>
+                                {wizardData.vehicleId === v.id && <div className="w-2 h-2 rounded-full bg-primary" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm font-medium">{v.name}</span>
+                                <Badge variant="outline" className="ml-2 text-[10px] h-4">Partner</Badge>
+                                {v.provided_vehicle_types && v.provided_vehicle_types.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {v.provided_vehicle_types.map(t => (
+                                      <span key={t} className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                                        {vehicleTypeLabels[t] || t}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {v.max_weight_kg}kg / {v.max_volume_m3}m³
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      {matchingVehicles.map(v => (
-                        <label
-                          key={v.id}
-                          className={cn(
-                            "flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all",
-                            wizardData.vehicleId === v.id
-                              ? "border-primary bg-primary/5 shadow-sm"
-                              : "border-border/40 bg-background/60 hover:border-border"
-                          )}
-                          onClick={() => setWizardData(p => ({ ...p, vehicleId: v.id }))}
+                    // Own vehicle mode: show type selector then vehicle list
+                    <>
+                      <div className="space-y-2">
+                        <Label>Fordonstyp *</Label>
+                        <Select
+                          value={wizardData.vehicleType || ''}
+                          onValueChange={v => setWizardData(p => ({ ...p, vehicleType: v, vehicleId: '' }))}
                         >
-                          <div className={cn(
-                            "w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0",
-                            wizardData.vehicleId === v.id ? "border-primary" : "border-muted-foreground/40"
-                          )}>
-                            {wizardData.vehicleId === v.id && <div className="w-2 h-2 rounded-full bg-primary" />}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <span className="text-sm font-medium">{v.name}</span>
-                            {v.registration_number && (
-                              <span className="text-xs text-muted-foreground ml-2">{v.registration_number}</span>
-                            )}
-                            {v.is_external && (
-                              <Badge variant="outline" className="ml-2 text-[10px] h-4">Partner</Badge>
-                            )}
-                          </div>
-                          <span className="text-xs text-muted-foreground">
-                            {v.max_weight_kg}kg / {v.max_volume_m3}m³
-                          </span>
-                        </label>
-                      ))}
-                    </div>
+                          <SelectTrigger className="rounded-xl">
+                            <SelectValue placeholder="Välj fordonstyp..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(vehicleTypeLabels).map(([value, label]) => (
+                              <SelectItem key={value} value={value}>{label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {wizardData.vehicleType && (
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">
+                            Tillgängliga egna fordon av typen <span className="font-medium text-foreground">{vehicleTypeLabels[wizardData.vehicleType] || wizardData.vehicleType}</span>:
+                          </p>
+                          {matchingVehicles.length === 0 ? (
+                            <div className="text-center py-6 text-sm text-muted-foreground border-2 border-dashed rounded-xl">
+                              <Truck className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                              Inga egna fordon matchar vald typ
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {matchingVehicles.map(v => (
+                                <label
+                                  key={v.id}
+                                  className={cn(
+                                    "flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all",
+                                    wizardData.vehicleId === v.id
+                                      ? "border-primary bg-primary/5 shadow-sm"
+                                      : "border-border/40 bg-background/60 hover:border-border"
+                                  )}
+                                  onClick={() => setWizardData(p => ({ ...p, vehicleId: v.id }))}
+                                >
+                                  <div className={cn(
+                                    "w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0",
+                                    wizardData.vehicleId === v.id ? "border-primary" : "border-muted-foreground/40"
+                                  )}>
+                                    {wizardData.vehicleId === v.id && <div className="w-2 h-2 rounded-full bg-primary" />}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-sm font-medium">{v.name}</span>
+                                    {v.registration_number && (
+                                      <span className="text-xs text-muted-foreground ml-2">{v.registration_number}</span>
+                                    )}
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">
+                                    {v.max_weight_kg}kg / {v.max_volume_m3}m³
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
                   )}
-                </div>
+                </>
               )}
 
               <div className="flex justify-end pt-2">
                 <Button
                   onClick={() => setWizardStep(2)}
-                  disabled={!wizardData.vehicleType || !wizardData.vehicleId}
+                  disabled={!wizardData.vehicleId}
                   className="rounded-xl gap-2"
                 >
                   Nästa: Datum & detaljer
