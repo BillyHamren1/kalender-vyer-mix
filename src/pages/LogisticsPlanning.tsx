@@ -9,6 +9,7 @@ import { useVehicles } from '@/hooks/useVehicles';
 import { useNavigate } from 'react-router-dom';
 import TransportBookingTab from '@/components/logistics/TransportBookingTab';
 import LogisticsWeekView from '@/components/logistics/LogisticsWeekView';
+import DashboardJobMap from '@/components/dashboard/DashboardJobMap';
 
 const LogisticsPlanning: React.FC = () => {
   const navigate = useNavigate();
@@ -40,7 +41,12 @@ const LogisticsPlanning: React.FC = () => {
         </Button>
       </PageHeader>
 
-      {/* Weekly calendar — identical to DashboardWeekView */}
+      {/* Job Map - full width */}
+      <div className="mb-4">
+        <DashboardJobMap />
+      </div>
+
+      {/* Weekly calendar */}
       <LogisticsWeekView />
 
       {/* Transport Booking - 3 columns */}

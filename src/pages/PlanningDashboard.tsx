@@ -13,7 +13,7 @@ import DashboardWeekView from "@/components/dashboard/DashboardWeekView";
 import DashboardDayView from "@/components/dashboard/DashboardDayView";
 import DashboardMonthView from "@/components/dashboard/DashboardMonthView";
 import DashboardNewBookings from "@/components/dashboard/DashboardNewBookings";
-import DashboardJobMap from "@/components/dashboard/DashboardJobMap";
+
 import CreateProjectWizard from "@/components/project/CreateProjectWizard";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
 
@@ -84,10 +84,6 @@ const PlanningDashboard = () => {
         />
       </div>
 
-      {/* Job Map - full width */}
-      <div className="mb-4">
-        <DashboardJobMap />
-      </div>
 
       {/* Calendar View + New Bookings side by side */}
       <div className="mb-6 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
