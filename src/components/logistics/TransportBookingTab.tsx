@@ -550,8 +550,26 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                     </div>
                     <div>
                       <p className="text-[11px] text-muted-foreground">Leveransadress</p>
-                      <p className="text-sm font-medium text-foreground">{wizardBooking?.deliveryaddress || '—'}</p>
+                      <p className="text-sm font-medium text-foreground">
+                        {wizardBooking?.deliveryaddress || '—'}
+                        {(wizardBooking?.delivery_postal_code || wizardBooking?.delivery_city) && (
+                          <span className="text-muted-foreground">
+                            {', '}{wizardBooking?.delivery_postal_code}{wizardBooking?.delivery_postal_code && wizardBooking?.delivery_city ? ' ' : ''}{wizardBooking?.delivery_city}
+                          </span>
+                        )}
+                      </p>
                     </div>
+                    {wizardBooking?.contact_name && (
+                      <div>
+                        <p className="text-[11px] text-muted-foreground">Kontaktperson (leverans)</p>
+                        <p className="text-sm font-medium text-foreground">
+                          {wizardBooking.contact_name}
+                          {wizardBooking.contact_phone && (
+                            <span className="text-muted-foreground ml-2 text-xs">{wizardBooking.contact_phone}</span>
+                          )}
+                        </p>
+                      </div>
+                    )}
                     <div className="flex gap-4">
                       {wizardBooking?.rigdaydate && (
                         <div>
@@ -588,6 +606,12 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                       <div>
                         <p className="text-[11px] text-muted-foreground">Partner</p>
                         <p className="text-sm font-semibold text-foreground">{selectedPartner?.name || '—'}</p>
+                        {selectedPartner?.contact_person && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {selectedPartner.contact_person}
+                            {selectedPartner.contact_phone && <span className="ml-2">{selectedPartner.contact_phone}</span>}
+                          </p>
+                        )}
                       </div>
                     )}
                     <div>
