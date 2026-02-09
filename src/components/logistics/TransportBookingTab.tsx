@@ -59,6 +59,8 @@ import { useTransportAssignments } from '@/hooks/useTransportAssignments';
 import { cn } from '@/lib/utils';
 import { AddressAutocomplete } from './AddressAutocomplete';
 import { AddressFavorites } from './AddressFavorites';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const vehicleTypeLabels: Record<string, string> = {
   van: 'Skåpbil',
@@ -90,6 +92,13 @@ interface WizardData {
   pickupLongitude?: number;
   vehicleId: string;
   stopOrder: number;
+  includeReturn: boolean;
+  returnDate: string;
+  returnTime: string;
+  returnPickupAddress: string;
+  returnContactName: string;
+  returnContactPhone: string;
+  returnContactEmail: string;
 }
 
 const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) => {
@@ -165,6 +174,13 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
       transportDate: booking.rigdaydate || booking.eventdate || format(new Date(), 'yyyy-MM-dd'),
       transportTime: '',
       pickupAddress: DEFAULT_PICKUP_ADDRESS,
+      includeReturn: false,
+      returnDate: booking.rigdowndate || '',
+      returnTime: '',
+      returnPickupAddress: booking.deliveryaddress || '',
+      returnContactName: '',
+      returnContactPhone: '',
+      returnContactEmail: '',
     });
   };
 
@@ -248,7 +264,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
     }
   };
 
-  const handleSubmitWizard = async (includeReturn?: boolean) => {
+  const handleSubmitWizard = async () => {
     if (!wizardData.vehicleId || !wizardData.transportDate || !wizardBooking) return;
 
     // If editing, delete the old assignment first
@@ -268,16 +284,16 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
       stop_order: wizardData.stopOrder || 0,
     });
 
-    if (result && includeReturn) {
-      const returnDate = wizardBooking.rigdowndate;
+    if (result && wizardData.includeReturn) {
+      const returnDate = wizardData.returnDate;
       if (!returnDate) {
-        toast.error('Kan inte boka retur: bokningen saknar rivningsdatum');
+        toast.error('Kan inte boka retur: returdatum saknas');
         cancelWizard();
         refetch();
         return;
       }
-      if (!wizardData.transportTime) {
-        toast.error('Kan inte boka retur: ingen tid vald');
+      if (!wizardData.returnTime) {
+        toast.error('Kan inte boka retur: ingen returtid vald');
         cancelWizard();
         refetch();
         return;
@@ -286,9 +302,12 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
         vehicle_id: wizardData.vehicleId,
         booking_id: wizardBooking.id,
         transport_date: returnDate,
-        transport_time: wizardData.transportTime,
-        pickup_address: wizardBooking.deliveryaddress || wizardData.pickupAddress || undefined,
+        transport_time: wizardData.returnTime,
+        pickup_address: wizardData.returnPickupAddress || wizardBooking.deliveryaddress || wizardData.pickupAddress || undefined,
         stop_order: (wizardData.stopOrder || 0) + 1,
+        driver_notes: wizardData.returnContactName
+          ? `Returkontakt: ${wizardData.returnContactName}, Tel: ${wizardData.returnContactPhone}${wizardData.returnContactEmail ? ', E-post: ' + wizardData.returnContactEmail : ''}`
+          : undefined,
       });
     }
 
@@ -791,6 +810,121 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                 />
               </div>
 
+              {/* Return transport checkbox section */}
+              <div className="space-y-3 pt-2 border-t border-border/30">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="includeReturn"
+                          checked={wizardData.includeReturn || false}
+                          onCheckedChange={(checked) => {
+                            setWizardData(p => ({
+                              ...p,
+                              includeReturn: !!checked,
+                              returnDate: p.returnDate || wizardBooking?.rigdowndate || '',
+                              returnTime: p.returnTime || p.transportTime || '',
+                              returnPickupAddress: p.returnPickupAddress || wizardBooking?.deliveryaddress || '',
+                            }));
+                          }}
+                          disabled={!wizardBooking?.rigdowndate}
+                        />
+                        <Label
+                          htmlFor="includeReturn"
+                          className={cn(
+                            "text-sm font-medium cursor-pointer flex items-center gap-2",
+                            !wizardBooking?.rigdowndate && "text-muted-foreground cursor-not-allowed"
+                          )}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          Återtransport (retur)
+                        </Label>
+                      </div>
+                    </TooltipTrigger>
+                    {!wizardBooking?.rigdowndate && (
+                      <TooltipContent>
+                        <p>Bokningen saknar rivningsdatum — kan ej boka retur</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
+
+                {wizardData.includeReturn && (
+                  <div className="ml-6 space-y-4 p-4 rounded-xl bg-muted/30 border border-border/30">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Returdatum *</Label>
+                        <Input
+                          type="date"
+                          value={wizardData.returnDate || ''}
+                          onChange={e => setWizardData(p => ({ ...p, returnDate: e.target.value }))}
+                          className="rounded-xl"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Returtid *</Label>
+                        <Select
+                          value={wizardData.returnTime || ''}
+                          onValueChange={v => setWizardData(p => ({ ...p, returnTime: v }))}
+                        >
+                          <SelectTrigger className="rounded-xl">
+                            <SelectValue placeholder="Välj tid..." />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[240px]">
+                            {timeSlots.map(time => (
+                              <SelectItem key={time} value={time}>{time}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Returadress (upphämtning)</Label>
+                      <Input
+                        value={wizardData.returnPickupAddress || ''}
+                        onChange={e => setWizardData(p => ({ ...p, returnPickupAddress: e.target.value }))}
+                        placeholder="Leveransadressen (förifylld)"
+                        className="rounded-xl"
+                      />
+                      <p className="text-xs text-muted-foreground">Förifylld med leveransadressen</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Kontaktperson (retur) *</Label>
+                      <Input
+                        value={wizardData.returnContactName || ''}
+                        onChange={e => setWizardData(p => ({ ...p, returnContactName: e.target.value }))}
+                        placeholder="Namn på kontaktperson vid upphämtning"
+                        className="rounded-xl"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Telefon (retur) *</Label>
+                        <Input
+                          value={wizardData.returnContactPhone || ''}
+                          onChange={e => setWizardData(p => ({ ...p, returnContactPhone: e.target.value }))}
+                          placeholder="Telefonnummer"
+                          className="rounded-xl"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>E-post (retur)</Label>
+                        <Input
+                          value={wizardData.returnContactEmail || ''}
+                          onChange={e => setWizardData(p => ({ ...p, returnContactEmail: e.target.value }))}
+                          placeholder="E-postadress (valfritt)"
+                          className="rounded-xl"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center justify-between pt-2">
                 <Button variant="ghost" onClick={() => setWizardStep(wizardData.transportMode === 'partner' ? 2 : 1)} className="rounded-xl gap-2">
                   <ChevronLeft className="h-4 w-4" />
@@ -798,7 +932,10 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                 </Button>
                 <Button
                   onClick={() => setWizardStep(wizardData.transportMode === 'partner' ? 4 : 3)}
-                  disabled={!wizardData.transportDate || !wizardData.transportTime || !wizardData.pickupAddress}
+                  disabled={
+                    !wizardData.transportDate || !wizardData.transportTime || !wizardData.pickupAddress ||
+                    (wizardData.includeReturn && (!wizardData.returnDate || !wizardData.returnTime || !wizardData.returnContactName?.trim() || !wizardData.returnContactPhone?.trim()))
+                  }
                   className="rounded-xl gap-2"
                 >
                   Nästa: Bekräfta
@@ -942,40 +1079,58 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                 <p className="text-xs text-muted-foreground mt-1.5">Anger i vilken ordning detta stopp ska köras</p>
               </div>
 
+              {/* Return transport summary */}
+              {wizardData.includeReturn && (
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-card to-muted/20 border border-primary/20 shadow-sm space-y-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="p-1.5 rounded-lg bg-primary/10">
+                      <RotateCcw className="h-3.5 w-3.5 text-primary" />
+                    </div>
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Återtransport (retur)</h4>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex gap-4">
+                      <div>
+                        <p className="text-[11px] text-muted-foreground">Returdatum</p>
+                        <p className="text-sm font-semibold text-foreground">{wizardData.returnDate || '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] text-muted-foreground">Returtid</p>
+                        <p className="text-sm font-semibold text-foreground">{wizardData.returnTime || '—'}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-muted-foreground">Returadress (upphämtning)</p>
+                      <p className="text-sm font-medium text-foreground">{wizardData.returnPickupAddress || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-muted-foreground">Kontaktperson (retur)</p>
+                      <p className="text-sm font-medium text-foreground">
+                        {wizardData.returnContactName || '—'}
+                        {wizardData.returnContactPhone && (
+                          <span className="text-muted-foreground ml-2 text-xs">{wizardData.returnContactPhone}</span>
+                        )}
+                      </p>
+                    </div>
+                    {wizardData.returnContactEmail && (
+                      <div>
+                        <p className="text-[11px] text-muted-foreground">E-post (retur)</p>
+                        <p className="text-sm font-medium text-foreground">{wizardData.returnContactEmail}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center justify-between pt-2">
                 <Button variant="ghost" onClick={() => setWizardStep(wizardData.transportMode === 'partner' ? 3 : 2)} className="rounded-xl gap-2">
                   <ChevronLeft className="h-4 w-4" />
                   Tillbaka
                 </Button>
-                <div className="flex gap-2">
-                  {!editingAssignmentId && (
-                    <Button
-                      variant="outline"
-                      onClick={() => handleSubmitWizard(true)}
-                      className="rounded-xl gap-2"
-                      disabled={!wizardBooking?.rigdowndate || !wizardData.transportTime}
-                      title={
-                        !wizardBooking?.rigdowndate 
-                          ? 'Bokningen saknar rivningsdatum – kan ej boka retur' 
-                          : !wizardData.transportTime
-                          ? 'Välj en tid först'
-                          : `Retur: ${formatDate(wizardBooking.rigdowndate)} kl ${wizardData.transportTime}`
-                      }
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                      Boka + retur
-                      {wizardBooking?.rigdowndate && wizardData.transportTime && (
-                        <span className="text-xs opacity-70">
-                          ({formatDate(wizardBooking.rigdowndate)} {wizardData.transportTime})
-                        </span>
-                      )}
-                    </Button>
-                  )}
-                  <Button onClick={() => handleSubmitWizard(false)} className="rounded-xl gap-2">
-                    <Check className="h-4 w-4" />
-                    {editingAssignmentId ? 'Uppdatera transport' : 'Boka transport'}
-                  </Button>
-                </div>
+                <Button onClick={() => handleSubmitWizard()} className="rounded-xl gap-2">
+                  <Check className="h-4 w-4" />
+                  {editingAssignmentId ? 'Uppdatera transport' : wizardData.includeReturn ? 'Boka transport + retur' : 'Boka transport'}
+                </Button>
               </div>
             </div>
           )}
