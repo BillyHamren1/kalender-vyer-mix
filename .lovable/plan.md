@@ -1,44 +1,66 @@
 
-# Fix: Svarsidan visar rå HTML istället för renderad sida
+# Fix: Logga saknas och vitt mellanrum i mejlhuvudet
 
 ## Problem
-När en transportpartner klickar "Acceptera" eller "Neka" i mejlet visas rå HTML-källkod istället för en snygg renderad sida. Svenska tecken (ö, ä, å) visas dessutom som skräptecken (t.ex. "KÃ¶rning" istället för "Körning").
+1. **Loggan visas inte** -- Mejlet laddar loggan fran `https://kalender-vyer-mix.lovable.app/images/fransaugust-logo.png`. Denna URL fungerar bara om appen ar publicerad med den senaste koden. Loggan laddades aldrig upp till `email-assets`-bucketen i Supabase Storage, sa den ar beroende av att hela webbappen publiceras forst.
+2. **Stort vitt mellanrum** -- Mellan referensraden (overst) och halsningstexten ("Hej ...") finns det for mycket padding. Teal-headern har `padding:20px 40px` och halsningstexten har `padding:16px 40px 0`, men sammanlagt med border och spacing blir det ovantat mycket tom yta.
 
-## Orsak
-Edge-funktionen `handle-transport-response` skapar headers med `new Headers()` och `.set()`, men alla andra edge-funktioner i projektet skickar headers som vanliga JavaScript-objekt. Supabase Edge Functions-proxyn verkar inte korrekt vidarebefordra `Content-Type: text/html` när den sätts via `Headers`-API:et, vilket gör att webbläsaren tolkar svaret som ren text.
+## Losning
 
-## Lösning
-Ändra `htmlResponse`-funktionen så att den använder samma headermönster som alla andra edge-funktioner i projektet — ett vanligt objekt istället för `new Headers()`.
+### 1. Ladda upp loggan till Supabase Storage
+Ladda upp `public/images/fransaugust-logo.png` till `email-assets`-bucketen i Supabase Storage. Detta ger en permanent publik URL som alltid fungerar, oberoende av om appen publiceras eller ej.
+
+Ny URL-format:
+```
+https://<project-ref>.supabase.co/storage/v1/object/public/email-assets/fransaugust-logo.png?v=1
+```
+
+### 2. Uppdatera bada mejlmallar med ny logo-URL
+Byt logo-URL:en i bade `send-transport-request` och `send-transport-cancellation` fran den publika app-URL:en till Supabase Storage-URL:en.
+
+### 3. Minska vitt utrymme
+- Minska padding pa teal-headern fran `20px 40px` till `16px 40px`
+- Minska padding pa halsningsraden fran `16px 40px 0` till `12px 40px 0`
+- Minska margin pa halsningsradstexten
 
 ## Tekniska detaljer
 
-### Fil: `supabase/functions/handle-transport-response/index.ts`
+### Filer som andras
+- `supabase/functions/send-transport-request/index.ts` -- ny logo-URL + padding-justeringar
+- `supabase/functions/send-transport-cancellation/index.ts` -- ny logo-URL + padding-justeringar
 
-Nuvarande (problematisk) kod:
-```typescript
-function htmlResponse(body: string, status = 200): Response {
-  const headers = new Headers();
-  headers.set("Content-Type", "text/html; charset=utf-8");
-  headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
-  headers.set("X-Content-Type-Options", "nosniff");
-  return new Response(body, { status, headers });
-}
+### Logo-upload
+Anvander storage-upload-verktyget for att ladda upp `public/images/fransaugust-logo.png` till bucketen `email-assets`.
+
+### HTML-andringar (bada mallar)
+
+**Logo-rad (rad ~335 i request, ~81 i cancellation):**
+```html
+<!-- Fran -->
+<img src="https://kalender-vyer-mix.lovable.app/images/fransaugust-logo.png" ... />
+
+<!-- Till -->
+<img src="https://<project-ref>.supabase.co/storage/v1/object/public/email-assets/fransaugust-logo.png?v=1" ... />
 ```
 
-Ny (fixad) kod:
-```typescript
-function htmlResponse(body: string, status = 200): Response {
-  return new Response(body, {
-    status,
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-cache, no-store, must-revalidate",
-    },
-  });
-}
+**Header-padding:**
+```html
+<!-- Fran -->
+<td style="background:...;padding:20px 40px;">
+
+<!-- Till -->
+<td style="background:...;padding:16px 40px;">
 ```
 
-Ändringarna:
-- Byter från `new Headers()` till ett vanligt JavaScript-objekt (samma mönster som alla andra edge-funktioner)
-- Tar bort `X-Content-Type-Options: nosniff` som kan orsaka problem om proxyn ändrar content-type
-- Säkerställer att `charset=utf-8` skickas korrekt så svenska tecken visas rätt
+**Halsnings-padding:**
+```html
+<!-- Fran -->
+<td style="padding:16px 40px 0;">
+
+<!-- Till -->
+<td style="padding:12px 40px 0;">
+```
+
+### Edge Functions som deployas
+- `send-transport-request`
+- `send-transport-cancellation`
