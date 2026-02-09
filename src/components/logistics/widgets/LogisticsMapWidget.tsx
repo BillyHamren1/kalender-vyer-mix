@@ -127,33 +127,82 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
       });
     }
 
-    // Transport assignments
+    // Transport assignments — draw route lines from pickup to delivery
     if (mapFilter === 'all' || mapFilter === 'transports') {
-      assignments.forEach(a => {
+      // Clean up previous route layers/sources
+      const m = map.current!;
+      const existingSources = Object.keys((m.getStyle()?.sources) || {}).filter(s => s.startsWith('route-'));
+      existingSources.forEach(s => {
+        if (m.getLayer(s + '-line')) m.removeLayer(s + '-line');
+        if (m.getLayer(s + '-outline')) m.removeLayer(s + '-outline');
+        if (m.getSource(s)) m.removeSource(s);
+      });
+
+      assignments.forEach((a, idx) => {
         const b = a.booking;
         if (!b) return;
-        const lat = (b as any).delivery_latitude;
-        const lng = (b as any).delivery_longitude;
-        if (!lat || !lng) return;
+        const destLat = (b as any).delivery_latitude;
+        const destLng = (b as any).delivery_longitude;
+        if (!destLat || !destLng) return;
 
-        const el = document.createElement('div');
-        el.style.cssText = 'position:relative;width:22px;height:22px;border-radius:4px;background:hsl(38 92% 50%);border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);cursor:pointer';
+        const pickupLat = a.pickup_latitude ?? 59.3293; // Default: Stockholm
+        const pickupLng = a.pickup_longitude ?? 18.0686;
 
-        // Label
+        const sourceId = `route-${a.id}`;
+
+        // Add route line
+        m.addSource(sourceId, {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: [[pickupLng, pickupLat], [destLng, destLat]]
+            }
+          }
+        });
+
+        // Outline (wider, darker)
+        m.addLayer({
+          id: sourceId + '-outline',
+          type: 'line',
+          source: sourceId,
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': 'hsl(25, 80%, 30%)', 'line-width': 5, 'line-opacity': 0.5 }
+        });
+
+        // Main line
+        m.addLayer({
+          id: sourceId + '-line',
+          type: 'line',
+          source: sourceId,
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': 'hsl(38, 92%, 50%)', 'line-width': 3, 'line-opacity': 0.9, 'line-dasharray': [2, 1] }
+        });
+
+        // Delivery marker (destination)
+        const destEl = document.createElement('div');
+        destEl.style.cssText = 'position:relative;width:22px;height:22px;border-radius:4px;background:hsl(38 92% 50%);border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);cursor:pointer';
         const lbl = document.createElement('div');
         lbl.textContent = b.client || 'Transport';
         lbl.style.cssText = 'position:absolute;left:28px;top:50%;transform:translateY(-50%);white-space:nowrap;font-size:11px;font-weight:600;color:white;text-shadow:0 1px 4px rgba(0,0,0,0.8),0 0 2px rgba(0,0,0,0.6);pointer-events:none';
-        el.appendChild(lbl);
+        destEl.appendChild(lbl);
 
         const popup = new mapboxgl.Popup({ offset: 14, closeButton: false, maxWidth: '220px' })
-          .setHTML(`<div style="font-size:12px"><strong>🚚 ${b.client || 'Transport'}</strong><br/>${b.deliveryaddress || ''}</div>`);
+          .setHTML(`<div style="font-size:12px"><strong>🚚 ${b.client || 'Transport'}</strong><br/>${(b as any).deliveryaddress || ''}</div>`);
 
-        const marker = new mapboxgl.Marker(el)
-          .setLngLat([lng, lat])
-          .setPopup(popup)
-          .addTo(map.current!);
-        markersRef.current.push(marker);
-        bounds.extend([lng, lat]);
+        const destMarker = new mapboxgl.Marker(destEl).setLngLat([destLng, destLat]).setPopup(popup).addTo(m);
+        markersRef.current.push(destMarker);
+
+        // Pickup marker (small circle)
+        const pickEl = document.createElement('div');
+        pickEl.style.cssText = 'width:12px;height:12px;border-radius:50%;background:hsl(38 92% 70%);border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3)';
+        const pickMarker = new mapboxgl.Marker(pickEl).setLngLat([pickupLng, pickupLat]).addTo(m);
+        markersRef.current.push(pickMarker);
+
+        bounds.extend([destLng, destLat]);
+        bounds.extend([pickupLng, pickupLat]);
       });
     }
 
