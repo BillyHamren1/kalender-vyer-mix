@@ -1,12 +1,21 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Card, CardContent } from '@/components/ui/card';
-import { MapPin, Maximize2, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { MapPin, Maximize2, Loader2, Truck, Briefcase } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchConfirmedBookings } from '@/services/bookingService';
 import { Booking } from '@/types/booking';
-import { startOfWeek, endOfWeek, isWithinInterval, parseISO } from 'date-fns';
+import { useTransportAssignments } from '@/hooks/useTransportAssignments';
+import {
+  startOfWeek, endOfWeek, startOfMonth, endOfMonth,
+  isWithinInterval, parseISO
+} from 'date-fns';
+import { cn } from '@/lib/utils';
+
+type MapFilter = 'all' | 'projects' | 'transports';
+type TimeFilter = 'week' | 'month';
 
 interface Props {
   onClick: () => void;
@@ -15,17 +24,26 @@ interface Props {
 const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  const [count, setCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const markersRef = useRef<mapboxgl.Marker[]>([]);
 
+  const [mapFilter, setMapFilter] = useState<MapFilter>('all');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('week');
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [mapReady, setMapReady] = useState(false);
+
+  const now = new Date();
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+  const { assignments } = useTransportAssignments(weekStart, weekEnd);
+
+  // Init map
   useEffect(() => {
     let cancelled = false;
-
     const init = async () => {
       try {
         const { data, error } = await supabase.functions.invoke('mapbox-token');
         if (error || !data?.token || cancelled) return;
-
         mapboxgl.accessToken = data.token;
         if (!mapContainer.current || map.current) return;
 
@@ -34,80 +52,181 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
           style: 'mapbox://styles/mapbox/satellite-streets-v12',
           center: [15.5, 58.5],
           zoom: 5,
-          interactive: false,
           attributionControl: false,
         });
-
-        const bookings = await fetchConfirmedBookings();
-        const now = new Date();
-        const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-        const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
-
-        const filtered = bookings.filter(b => {
-          if (!b.deliveryLatitude || !b.deliveryLongitude) return false;
-          const dates = [b.rigDayDate, b.eventDate, b.rigDownDate].filter(Boolean);
-          return dates.some(d => {
-            try { return isWithinInterval(parseISO(d), { start: weekStart, end: weekEnd }); }
-            catch { return false; }
-          });
-        });
-
-        if (!cancelled) {
-          setCount(filtered.length);
-          setIsLoading(false);
-        }
-
-        map.current.on('load', () => {
-          if (cancelled || !map.current) return;
-          const bounds = new mapboxgl.LngLatBounds();
-          filtered.forEach(b => {
-            if (!b.deliveryLatitude || !b.deliveryLongitude) return;
-            const el = document.createElement('div');
-            el.style.cssText = 'width:10px;height:10px;border-radius:50%;background:hsl(184 60% 38%);border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3)';
-            new mapboxgl.Marker(el).setLngLat([b.deliveryLongitude, b.deliveryLatitude]).addTo(map.current!);
-            bounds.extend([b.deliveryLongitude, b.deliveryLatitude]);
-          });
-          if (!bounds.isEmpty()) {
-            map.current.fitBounds(bounds, { padding: 30, maxZoom: 10, duration: 0 });
-          }
-        });
-      } catch { setIsLoading(false); }
+        map.current.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
+        map.current.on('load', () => { if (!cancelled) setMapReady(true); });
+      } catch { /* silent */ }
     };
-
     init();
     return () => { cancelled = true; map.current?.remove(); map.current = null; };
   }, []);
 
+  // Fetch bookings
+  useEffect(() => {
+    const load = async () => {
+      setIsLoading(true);
+      try {
+        const data = await fetchConfirmedBookings();
+        setBookings(data.filter(b => b.deliveryLatitude != null && b.deliveryLongitude != null));
+      } catch { /* silent */ }
+      finally { setIsLoading(false); }
+    };
+    load();
+  }, []);
+
+  // Update markers
+  useEffect(() => {
+    if (!map.current || !mapReady) return;
+
+    markersRef.current.forEach(m => m.remove());
+    markersRef.current = [];
+
+    const range = timeFilter === 'week'
+      ? { start: weekStart, end: weekEnd }
+      : { start: startOfMonth(now), end: endOfMonth(now) };
+
+    const bounds = new mapboxgl.LngLatBounds();
+
+    // Project bookings
+    if (mapFilter === 'all' || mapFilter === 'projects') {
+      bookings.forEach(b => {
+        if (!b.deliveryLatitude || !b.deliveryLongitude) return;
+        const dates = [b.rigDayDate, b.eventDate, b.rigDownDate].filter(Boolean);
+        const inRange = dates.some(d => {
+          try { return isWithinInterval(parseISO(d), range); } catch { return false; }
+        });
+        if (!inRange) return;
+
+        const el = document.createElement('div');
+        el.style.cssText = 'width:12px;height:12px;border-radius:50%;background:hsl(184 60% 38%);border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);cursor:pointer';
+
+        const popup = new mapboxgl.Popup({ offset: 12, closeButton: false, maxWidth: '200px' })
+          .setHTML(`<div style="font-size:12px"><strong>${b.client}</strong><br/>${b.deliveryAddress || ''}</div>`);
+
+        const marker = new mapboxgl.Marker(el)
+          .setLngLat([b.deliveryLongitude, b.deliveryLatitude])
+          .setPopup(popup)
+          .addTo(map.current!);
+        markersRef.current.push(marker);
+        bounds.extend([b.deliveryLongitude, b.deliveryLatitude]);
+      });
+    }
+
+    // Transport assignments
+    if (mapFilter === 'all' || mapFilter === 'transports') {
+      assignments.forEach(a => {
+        const b = a.booking;
+        if (!b) return;
+        const lat = (b as any).delivery_latitude;
+        const lng = (b as any).delivery_longitude;
+        if (!lat || !lng) return;
+
+        const el = document.createElement('div');
+        el.style.cssText = 'width:12px;height:12px;border-radius:3px;background:hsl(38 92% 50%);border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);cursor:pointer';
+
+        const popup = new mapboxgl.Popup({ offset: 12, closeButton: false, maxWidth: '200px' })
+          .setHTML(`<div style="font-size:12px"><strong>🚚 ${b.client || 'Transport'}</strong><br/>${b.deliveryaddress || ''}</div>`);
+
+        const marker = new mapboxgl.Marker(el)
+          .setLngLat([lng, lat])
+          .setPopup(popup)
+          .addTo(map.current!);
+        markersRef.current.push(marker);
+        bounds.extend([lng, lat]);
+      });
+    }
+
+    if (!bounds.isEmpty()) {
+      map.current.fitBounds(bounds, { padding: 40, maxZoom: 12, duration: 600 });
+    }
+  }, [bookings, assignments, mapFilter, timeFilter, mapReady]);
+
+  const projectCount = bookings.filter(b => {
+    const range = timeFilter === 'week'
+      ? { start: weekStart, end: weekEnd }
+      : { start: startOfMonth(now), end: endOfMonth(now) };
+    const dates = [b.rigDayDate, b.eventDate, b.rigDownDate].filter(Boolean);
+    return dates.some(d => { try { return isWithinInterval(parseISO(d), range); } catch { return false; } });
+  }).length;
+
   return (
-    <Card 
-      className="group cursor-pointer border-border/40 shadow-2xl rounded-2xl overflow-hidden hover:shadow-3xl transition-all duration-300 hover:scale-[1.02]"
-      onClick={onClick}
+    <Card
+      className="border-border/40 shadow-2xl rounded-2xl overflow-hidden h-full"
     >
-      <CardContent className="p-0 relative">
-        {/* Mini map */}
-        <div className="relative h-[280px]">
+      <CardContent className="p-0 relative h-full flex flex-col">
+        {/* Filter bar */}
+        <div className="absolute top-3 left-3 z-20 flex gap-1.5">
+          {([
+            { key: 'all' as MapFilter, label: 'Alla', icon: MapPin },
+            { key: 'projects' as MapFilter, label: 'Projekt', icon: Briefcase },
+            { key: 'transports' as MapFilter, label: 'Transport', icon: Truck },
+          ]).map(f => (
+            <Button
+              key={f.key}
+              variant={mapFilter === f.key ? 'default' : 'secondary'}
+              size="sm"
+              className={cn("h-7 text-xs gap-1 rounded-lg shadow-md", mapFilter !== f.key && "bg-card/90 backdrop-blur-sm")}
+              onClick={(e) => { e.stopPropagation(); setMapFilter(f.key); }}
+            >
+              <f.icon className="w-3 h-3" />
+              {f.label}
+            </Button>
+          ))}
+        </div>
+
+        {/* Time filter */}
+        <div className="absolute top-3 right-12 z-20 flex gap-1">
+          {([
+            { key: 'week' as TimeFilter, label: 'Vecka' },
+            { key: 'month' as TimeFilter, label: 'Månad' },
+          ]).map(f => (
+            <Button
+              key={f.key}
+              variant={timeFilter === f.key ? 'default' : 'secondary'}
+              size="sm"
+              className={cn("h-7 text-xs rounded-lg shadow-md", timeFilter !== f.key && "bg-card/90 backdrop-blur-sm")}
+              onClick={(e) => { e.stopPropagation(); setTimeFilter(f.key); }}
+            >
+              {f.label}
+            </Button>
+          ))}
+        </div>
+
+        {/* Expand button */}
+        <button
+          onClick={onClick}
+          className="absolute top-3 right-3 z-20 w-7 h-7 rounded-lg bg-card/90 backdrop-blur-sm shadow-md flex items-center justify-center hover:bg-card transition-colors"
+        >
+          <Maximize2 className="w-3.5 h-3.5 text-muted-foreground" />
+        </button>
+
+        {/* Map */}
+        <div className="relative flex-1 min-h-[400px]">
           {isLoading && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-muted/50">
-              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
             </div>
           )}
           <div ref={mapContainer} className="w-full h-full" />
-          {/* Overlay gradient */}
-          <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent pointer-events-none" />
         </div>
 
-        {/* Label */}
-        <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 flex items-end justify-between">
+        {/* Bottom label */}
+        <div className="px-4 py-3 border-t border-border/40 flex items-center justify-between bg-card">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center">
-              <MapPin className="w-4 h-4 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground">Jobbkarta</p>
-              <p className="text-xs text-muted-foreground">{count} jobb denna vecka</p>
-            </div>
+            <MapPin className="w-4 h-4 text-primary" />
+            <span className="text-sm font-medium">Jobbkarta</span>
           </div>
-          <Maximize2 className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-primary inline-block" />
+              {projectCount} projekt
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: 'hsl(38 92% 50%)' }} />
+              {assignments.length} transporter
+            </span>
+          </div>
         </div>
       </CardContent>
     </Card>
