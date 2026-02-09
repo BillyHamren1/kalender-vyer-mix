@@ -19,11 +19,13 @@ interface Props {
   onShowRoute?: (assignmentId: string) => void;
 }
 
-const TransportCard = ({ a, vehicles, expandedId, setExpandedId }: { 
+const TransportCard = ({ a, vehicles, expandedId, setExpandedId, cardBg, cardBorder }: { 
   a: TransportAssignment; 
   vehicles: any[]; 
   expandedId: string | null;
   setExpandedId: (id: string | null) => void;
+  cardBg: string;
+  cardBorder: string;
 }) => {
   const isExpanded = expandedId === a.id;
   
@@ -71,7 +73,7 @@ const TransportCard = ({ a, vehicles, expandedId, setExpandedId }: {
   return (
     <div
       className={cn(
-        "rounded-lg bg-card border border-border/40 shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden",
+        `rounded-lg ${cardBg} border ${cardBorder} shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden`,
         isExpanded && "ring-1 ring-primary/30"
       )}
       onClick={() => setExpandedId(isExpanded ? null : a.id)}
@@ -245,24 +247,30 @@ const LogisticsTransportWidget: React.FC<Props> = ({ onClick, vehicles }) => {
       icon: AlertTriangle,
       items: actionRequired,
       color: 'text-destructive',
-      bgColor: 'bg-destructive/5',
-      borderColor: 'border-destructive/20',
+      bgColor: 'bg-white',
+      borderColor: 'border-border/40',
+      cardBg: 'bg-red-50',
+      cardBorder: 'border-red-200',
     },
     {
       title: 'Väntar svar',
       icon: Clock,
       items: waitingResponse,
       color: 'text-amber-500',
-      bgColor: 'bg-amber-500/5',
-      borderColor: 'border-amber-500/20',
+      bgColor: 'bg-white',
+      borderColor: 'border-border/40',
+      cardBg: 'bg-amber-50',
+      cardBorder: 'border-amber-200',
     },
     {
       title: 'Bekräftat',
       icon: CheckCircle2,
       items: confirmed,
       color: 'text-primary',
-      bgColor: 'bg-primary/5',
-      borderColor: 'border-primary/20',
+      bgColor: 'bg-white',
+      borderColor: 'border-border/40',
+      cardBg: 'bg-teal-50',
+      cardBorder: 'border-teal-200',
     },
   ];
 
@@ -346,7 +354,7 @@ const LogisticsTransportWidget: React.FC<Props> = ({ onClick, vehicles }) => {
                     <p className="text-[10px] text-muted-foreground text-center py-6">Inga transporter</p>
                   ) : (
                     col.items.map(a => (
-                      <TransportCard key={a.id} a={a} vehicles={vehicles} expandedId={expandedId} setExpandedId={setExpandedId} />
+                      <TransportCard key={a.id} a={a} vehicles={vehicles} expandedId={expandedId} setExpandedId={setExpandedId} cardBg={col.cardBg} cardBorder={col.cardBorder} />
                     ))
                   )}
                 </div>
