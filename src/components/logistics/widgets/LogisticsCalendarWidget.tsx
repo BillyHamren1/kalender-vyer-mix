@@ -34,10 +34,10 @@ const LogisticsCalendarWidget: React.FC<Props> = ({ onClick }) => {
     >
       <CardContent className="p-0">
         {/* Header */}
-        <div className="bg-gradient-to-r from-primary to-primary/80 px-3 py-2.5 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-primary to-primary/80 px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Calendar className="w-3.5 h-3.5 text-primary-foreground" />
-            <span className="text-xs font-medium text-primary-foreground">
+            <Calendar className="w-4 h-4 text-primary-foreground" />
+            <span className="text-sm font-medium text-primary-foreground">
               Vecka {format(now, 'w', { locale: sv })}
             </span>
           </div>
@@ -45,31 +45,31 @@ const LogisticsCalendarWidget: React.FC<Props> = ({ onClick }) => {
         </div>
 
         {/* Stats */}
-        <div className="px-3 pt-3 pb-1 flex items-baseline gap-1.5">
-          <span className="text-2xl font-bold">{todayCount}</span>
-          <span className="text-xs text-muted-foreground">transporter idag</span>
+        <div className="px-4 pt-4 pb-1 flex items-baseline gap-2">
+          <span className="text-3xl font-bold">{todayCount}</span>
+          <span className="text-sm text-muted-foreground">transporter idag</span>
         </div>
 
         {/* Upcoming list */}
-        <div className="px-3 pb-3 space-y-1.5">
+        <div className="px-4 pb-4 space-y-2">
           {isLoading ? (
-            <div className="py-4 text-center text-xs text-muted-foreground">Laddar...</div>
+            <div className="py-6 text-center text-sm text-muted-foreground">Laddar...</div>
           ) : upcoming.length === 0 ? (
-            <div className="py-4 text-center text-xs text-muted-foreground">Inga kommande transporter</div>
+            <div className="py-6 text-center text-sm text-muted-foreground">Inga kommande transporter</div>
           ) : (
             upcoming.map(a => (
-              <div key={a.id} className="flex items-center gap-2 py-1 border-b border-border/20 last:border-0">
-                <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
+              <div key={a.id} className="flex items-center gap-2.5 py-1.5 border-b border-border/20 last:border-0">
+                <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium truncate">
+                  <p className="text-sm font-medium truncate">
                     {a.booking?.client || 'Okänd'}
                   </p>
-                  <p className="text-[10px] text-muted-foreground truncate flex items-center gap-0.5">
-                    <MapPin className="w-2.5 h-2.5" />
+                  <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                    <MapPin className="w-3 h-3" />
                     {a.booking?.deliveryaddress || '–'}
                   </p>
                 </div>
-                <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                <span className="text-xs text-muted-foreground flex-shrink-0">
                   {isSameDay(new Date(a.transport_date), now) ? 'Idag' : format(new Date(a.transport_date), 'd MMM', { locale: sv })}
                 </span>
               </div>

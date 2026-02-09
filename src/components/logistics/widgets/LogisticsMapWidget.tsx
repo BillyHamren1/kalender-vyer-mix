@@ -85,7 +85,7 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
     >
       <CardContent className="p-0 relative">
         {/* Mini map */}
-        <div className="relative h-[180px]">
+        <div className="relative h-[280px]">
           {isLoading && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-muted/50">
               <Loader2 className="w-4 h-4 animate-spin text-primary" />
@@ -97,17 +97,17 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
         </div>
 
         {/* Label */}
-        <div className="absolute bottom-0 left-0 right-0 px-3 pb-3 flex items-end justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center">
-              <MapPin className="w-3.5 h-3.5 text-primary" />
+        <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 flex items-end justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center">
+              <MapPin className="w-4 h-4 text-primary" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-foreground">Jobbkarta</p>
-              <p className="text-[10px] text-muted-foreground">{count} jobb denna vecka</p>
+              <p className="text-sm font-semibold text-foreground">Jobbkarta</p>
+              <p className="text-xs text-muted-foreground">{count} jobb denna vecka</p>
             </div>
           </div>
-          <Maximize2 className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+          <Maximize2 className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
         </div>
       </CardContent>
     </Card>
