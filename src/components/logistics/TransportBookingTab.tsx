@@ -1143,225 +1143,214 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
         </PremiumCard>
       )}
 
-      {/* Two-column layout: Without / With transport */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Bookings without transport */}
-        <PremiumCard
-          icon={Package}
-          title="Ej bokad transport"
-          count={withoutTransport.length}
-          accentColor="amber"
-        >
-          <div className="space-y-2 max-h-[600px] overflow-y-auto">
-            {withoutTransport.length === 0 ? (
-              <div className="text-center py-8 text-sm text-muted-foreground">
-                <Check className="h-8 w-8 mx-auto mb-2 text-primary/50" />
-                Alla bokningar har transport
-              </div>
-            ) : (
-              withoutTransport.map(booking => (
-                <div
-                  key={booking.id}
-                  className="p-3 rounded-xl border border-border/40 bg-background/60 hover:bg-muted/30 transition-all"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm truncate">{booking.client}</span>
-                        {booking.booking_number && (
-                          <Badge variant="outline" className="text-[10px] h-5 shrink-0">
-                            #{booking.booking_number}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                        {booking.deliveryaddress && (
-                          <span className="flex items-center gap-1 truncate">
-                            <MapPin className="h-3 w-3 shrink-0" />
-                            {booking.deliveryaddress}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                        {booking.rigdaydate && (
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            Rigg: {formatDate(booking.rigdaydate)}
-                          </span>
-                        )}
-                        {booking.eventdate && (
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            Event: {formatDate(booking.eventdate)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={() => startWizard(booking)}
-                      className="rounded-lg h-8 text-xs shrink-0 gap-1 bg-[hsl(38,92%,50%)] hover:bg-[hsl(38,92%,45%)] text-white"
-                    >
-                      <Truck className="h-3.5 w-3.5" />
-                      Boka
-                    </Button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </PremiumCard>
+      {/* Three-column layout: Ej bokad / Väntar bekräftelse / Bekräftad */}
+      {(() => {
+        const pendingTransport = withTransport.filter(b =>
+          b.transport_assignments.some(a => a.is_external && (!a.partner_response || a.partner_response === 'pending'))
+        );
+        const confirmedTransport = withTransport.filter(b =>
+          !b.transport_assignments.some(a => a.is_external && (!a.partner_response || a.partner_response === 'pending'))
+        );
 
-        {/* Bookings with transport */}
-        <PremiumCard
-          icon={ClipboardList}
-          title="Bokad transport"
-          count={withTransport.length}
-          accentColor="primary"
-        >
-          <div className="space-y-2 max-h-[600px] overflow-y-auto">
-            {withTransport.length === 0 ? (
-              <div className="text-center py-8 text-sm text-muted-foreground">
-                <Package className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                Inga bokade transporter ännu
+        const renderBookingCard = (booking: typeof withTransport[0], showActions: 'boka' | 'status') => (
+          <div
+            key={booking.id}
+            className="p-3 rounded-xl border border-border/40 bg-background/60 transition-all"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-sm truncate">{booking.client}</span>
+                  {booking.booking_number && (
+                    <Badge variant="outline" className="text-[10px] h-5 shrink-0">
+                      #{booking.booking_number}
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                  {booking.deliveryaddress && (
+                    <span className="flex items-center gap-1 truncate">
+                      <MapPin className="h-3 w-3 shrink-0" />
+                      {booking.deliveryaddress}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                  {booking.rigdaydate && (
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      Rigg: {formatDate(booking.rigdaydate)}
+                    </span>
+                  )}
+                  {booking.eventdate && (
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      Event: {formatDate(booking.eventdate)}
+                    </span>
+                  )}
+                </div>
               </div>
-            ) : (
-              withTransport.map(booking => {
-                // Check if any external assignment is still pending confirmation
-                const hasPendingExternal = booking.transport_assignments.some(
-                  a => a.is_external && (!a.partner_response || a.partner_response === 'pending')
-                );
+              {showActions === 'boka' ? (
+                <Button
+                  size="sm"
+                  onClick={() => startWizard(booking)}
+                  className="rounded-lg h-8 text-xs shrink-0 gap-1 bg-[hsl(38,92%,50%)] hover:bg-[hsl(38,92%,45%)] text-white"
+                >
+                  <Truck className="h-3.5 w-3.5" />
+                  Boka
+                </Button>
+              ) : (() => {
                 const hasDeclined = booking.transport_assignments.some(
                   a => a.is_external && a.partner_response === 'declined'
                 );
-
-                return (
-                <div
-                  key={booking.id}
-                  className="p-3 rounded-xl border border-border/40 bg-background/60 transition-all"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm truncate">{booking.client}</span>
-                        {booking.booking_number && (
-                          <Badge variant="outline" className="text-[10px] h-5 shrink-0">
-                            #{booking.booking_number}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                        {booking.deliveryaddress && (
-                          <span className="flex items-center gap-1 truncate">
-                            <MapPin className="h-3 w-3 shrink-0" />
-                            {booking.deliveryaddress}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                        {booking.rigdaydate && (
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            Rigg: {formatDate(booking.rigdaydate)}
-                          </span>
-                        )}
-                        {booking.eventdate && (
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            Event: {formatDate(booking.eventdate)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {hasDeclined ? (
-                      <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-destructive text-white border-destructive">
-                        <X className="h-3.5 w-3.5" />
-                        Nekad
-                      </Badge>
-                    ) : hasPendingExternal ? (
-                      <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-[hsl(38,92%,50%)] text-white border-[hsl(38,92%,45%)]">
-                        <Clock className="h-3.5 w-3.5" />
-                        Väntar bekräftelse
-                      </Badge>
-                    ) : (
-                      <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-primary text-white border-primary">
-                        <Check className="h-3.5 w-3.5" />
-                        Bekräftad
-                      </Badge>
-                    )}
-                  </div>
-                  {/* Transport assignments */}
-                  <div className="space-y-1.5 mt-2 pt-2 border-t border-border/20">
-                    {booking.transport_assignments.map(a => (
-                      <div key={a.id} className="flex items-center gap-2 group">
-                        <Badge
-                          variant="secondary"
-                          className={cn(
-                            "text-[10px] h-6 gap-1 flex-1 justify-start",
-                            a.is_external && "cursor-pointer hover:bg-secondary/80",
-                            a.partner_response === 'accepted' && "bg-primary/15 text-primary border-primary/20 hover:bg-primary/20",
-                            a.partner_response === 'declined' && "bg-destructive/15 text-destructive border-destructive/20"
-                          )}
-                          onClick={() => {
-                            if (a.is_external) {
-                              handleOpenResendDialog(booking, a);
-                            }
-                          }}
-                          title={a.is_external ? 'Klicka för att skicka/uppdatera mejl' : undefined}
-                        >
-                          <Truck className="h-2.5 w-2.5 shrink-0" />
-                          <span className="truncate">{a.vehicle_name} — {formatDate(a.transport_date)}</span>
-                          {a.transport_time && (
-                            <span className={cn("ml-1", a.partner_response === 'accepted' ? "text-primary/70" : "text-muted-foreground")}>kl {a.transport_time}</span>
-                          )}
-                          {a.partner_response && a.partner_response !== 'pending' && (
-                            <span className={cn(
-                              "ml-1 px-1.5 rounded text-[9px] font-semibold",
-                              a.partner_response === 'accepted' ? "text-primary" : "text-destructive"
-                            )}>
-                              {a.partner_response === 'accepted' ? '✓ Accepterad' : '✗ Nekad'}
-                            </span>
-                          )}
-                        </Badge>
-                        {a.is_external && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-primary hover:text-primary"
-                            onClick={() => handleOpenResendDialog(booking, a)}
-                            title="Skicka mejl till partner"
-                          >
-                            <Mail className="h-3 w-3" />
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => startEditWizard(booking, a)}
-                          title="Redigera"
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
-                          onClick={() => handleOpenCancelDialog(a, booking.client)}
-                          title="Avboka transport"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                const hasPending = booking.transport_assignments.some(
+                  a => a.is_external && (!a.partner_response || a.partner_response === 'pending')
                 );
-              })
+                return hasDeclined ? (
+                  <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-destructive text-white border-destructive">
+                    <X className="h-3.5 w-3.5" />
+                    Nekad
+                  </Badge>
+                ) : hasPending ? (
+                  <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-[hsl(38,92%,50%)] text-white border-[hsl(38,92%,45%)]">
+                    <Clock className="h-3.5 w-3.5" />
+                    Väntar
+                  </Badge>
+                ) : (
+                  <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-primary text-white border-primary">
+                    <Check className="h-3.5 w-3.5" />
+                    Bekräftad
+                  </Badge>
+                );
+              })()}
+            </div>
+            {showActions === 'status' && (
+              <div className="space-y-1.5 mt-2 pt-2 border-t border-border/20">
+                {booking.transport_assignments.map(a => (
+                  <div key={a.id} className="flex items-center gap-2 group">
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        "text-[10px] h-6 gap-1 flex-1 justify-start",
+                        a.is_external && "cursor-pointer hover:bg-secondary/80",
+                        a.partner_response === 'accepted' && "bg-primary/15 text-primary border-primary/20 hover:bg-primary/20",
+                        a.partner_response === 'declined' && "bg-destructive/15 text-destructive border-destructive/20"
+                      )}
+                      onClick={() => {
+                        if (a.is_external) {
+                          handleOpenResendDialog(booking, a);
+                        }
+                      }}
+                      title={a.is_external ? 'Klicka för att skicka/uppdatera mejl' : undefined}
+                    >
+                      <Truck className="h-2.5 w-2.5 shrink-0" />
+                      <span className="truncate">{a.vehicle_name} — {formatDate(a.transport_date)}</span>
+                      {a.transport_time && (
+                        <span className={cn("ml-1", a.partner_response === 'accepted' ? "text-primary/70" : "text-muted-foreground")}>kl {a.transport_time}</span>
+                      )}
+                      {a.partner_response && a.partner_response !== 'pending' && (
+                        <span className={cn(
+                          "ml-1 px-1.5 rounded text-[9px] font-semibold",
+                          a.partner_response === 'accepted' ? "text-primary" : "text-destructive"
+                        )}>
+                          {a.partner_response === 'accepted' ? '✓ Accepterad' : '✗ Nekad'}
+                        </span>
+                      )}
+                    </Badge>
+                    {a.is_external && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-primary hover:text-primary"
+                        onClick={() => handleOpenResendDialog(booking, a)}
+                        title="Skicka mejl till partner"
+                      >
+                        <Mail className="h-3 w-3" />
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => startEditWizard(booking, a)}
+                      title="Redigera"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                      onClick={() => handleOpenCancelDialog(a, booking.client)}
+                      title="Avboka transport"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
-        </PremiumCard>
-      </div>
+        );
+
+        return (
+          <div className="grid gap-6 lg:grid-cols-3">
+            <PremiumCard
+              icon={Package}
+              title="Ej bokad transport"
+              count={withoutTransport.length}
+              accentColor="amber"
+            >
+              <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                {withoutTransport.length === 0 ? (
+                  <div className="text-center py-8 text-sm text-muted-foreground">
+                    <Check className="h-8 w-8 mx-auto mb-2 text-primary/50" />
+                    Alla bokningar har transport
+                  </div>
+                ) : (
+                  withoutTransport.map(b => renderBookingCard(b, 'boka'))
+                )}
+              </div>
+            </PremiumCard>
+
+            <PremiumCard
+              icon={Clock}
+              title="Väntar bekräftelse"
+              count={pendingTransport.length}
+              accentColor="amber"
+            >
+              <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                {pendingTransport.length === 0 ? (
+                  <div className="text-center py-8 text-sm text-muted-foreground">
+                    <Check className="h-8 w-8 mx-auto mb-2 text-primary/50" />
+                    Inga väntande bekräftelser
+                  </div>
+                ) : (
+                  pendingTransport.map(b => renderBookingCard(b, 'status'))
+                )}
+              </div>
+            </PremiumCard>
+
+            <PremiumCard
+              icon={ClipboardList}
+              title="Bekräftad transport"
+              count={confirmedTransport.length}
+              accentColor="primary"
+            >
+              <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                {confirmedTransport.length === 0 ? (
+                  <div className="text-center py-8 text-sm text-muted-foreground">
+                    <Package className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                    Inga bekräftade transporter ännu
+                  </div>
+                ) : (
+                  confirmedTransport.map(b => renderBookingCard(b, 'status'))
+                )}
+              </div>
+            </PremiumCard>
+          </div>
+        );
+      })()}
 
       {/* Email preview dialog */}
       <Dialog open={emailDialogOpen} onOpenChange={(open) => { if (!open) handleCancelEmail(); }}>
