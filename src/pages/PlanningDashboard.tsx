@@ -84,8 +84,21 @@ const PlanningDashboard = () => {
         />
       </div>
 
+      {/* Job Map + New Bookings */}
+      <div className="mb-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2">
+          <DashboardJobMap />
+        </div>
+        <div>
+          <DashboardNewBookings
+            onCreateProject={handleCreateProject}
+            onCreateLargeProject={handleCreateLargeProject}
+          />
+        </div>
+      </div>
+
       {/* Calendar View */}
-      <div className="mb-4">
+      <div className="mb-6">
         {viewMode === 'week' && (
           <DashboardWeekView
             events={events}
@@ -114,19 +127,6 @@ const PlanningDashboard = () => {
             isLoading={isLoading}
           />
         )}
-      </div>
-
-      {/* Job Map + New Bookings */}
-      <div className="mb-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2">
-          <DashboardJobMap />
-        </div>
-        <div>
-          <DashboardNewBookings
-            onCreateProject={handleCreateProject}
-            onCreateLargeProject={handleCreateLargeProject}
-          />
-        </div>
       </div>
 
       {/* Dialogs */}
