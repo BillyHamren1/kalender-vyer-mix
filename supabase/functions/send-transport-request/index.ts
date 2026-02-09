@@ -328,16 +328,16 @@ function buildEmailHtml(params: EmailParams): string {
           
           <!-- Logo + Reference bar -->
           <tr>
-            <td style="padding:24px 40px;border-bottom:1px solid #e0ecee;">
+            <td style="padding:16px 40px;border-bottom:1px solid #e0ecee;">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   <td style="vertical-align:middle;width:50%;">
-                    <img src="https://kalender-vyer-mix.lovable.app/images/fransaugust-logo.png" alt="FransAugust" height="40" style="height:40px;width:auto;display:block;" />
+                    <img src="https://kalender-vyer-mix.lovable.app/images/fransaugust-logo.png" alt="Frans August" width="150" height="36" style="height:36px;width:150px;display:block;border:0;" />
                   </td>
                   <td style="vertical-align:middle;text-align:right;width:50%;">
                     ${params.bookingNumber ? `<p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7a8b8d;font-weight:600;">Referensnummer</p>
                     <p style="margin:2px 0 0;font-size:16px;color:#1a3a3c;font-weight:700;">${params.bookingNumber}</p>` : ''}
-                    ${params.referencePerson ? `<p style="margin:${params.bookingNumber ? '6' : '0'}px 0 0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7a8b8d;font-weight:600;">Referensperson</p>
+                    ${params.referencePerson ? `<p style="margin:${params.bookingNumber ? '4' : '0'}px 0 0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7a8b8d;font-weight:600;">Referensperson</p>
                     <p style="margin:2px 0 0;font-size:14px;color:#1a3a3c;font-weight:600;">${params.referencePerson}</p>` : ''}
                   </td>
                 </tr>
@@ -347,9 +347,9 @@ function buildEmailHtml(params: EmailParams): string {
 
           <!-- Header -->
           <tr>
-            <td style="background:linear-gradient(135deg,#1a6b6e,#279B9E);padding:28px 40px;">
-              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:-0.5px;">Transportförfrågan</h1>
-              <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">
+            <td style="background:linear-gradient(135deg,#1a6b6e,#279B9E);padding:20px 40px;">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">Transportförfrågan</h1>
+              <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">
                 ${isMulti ? `${params.assignments.length} körningar att granska` : 'Ny körning att granska'} från Frans August Logistik
               </p>
             </td>
@@ -357,9 +357,9 @@ function buildEmailHtml(params: EmailParams): string {
 
           <!-- Partner greeting + custom message -->
           <tr>
-            <td style="padding:24px 40px 0;">
-              <p style="margin:0;font-size:16px;color:#1a3a3c;font-weight:600;">Hej ${params.partnerName},</p>
-              <p style="margin:12px 0 0;font-size:14px;color:#5a6b6d;line-height:1.6;">
+            <td style="padding:16px 40px 0;">
+              <p style="margin:0;font-size:15px;color:#1a3a3c;font-weight:600;">Hej ${params.partnerName},</p>
+              <p style="margin:8px 0 0;font-size:14px;color:#5a6b6d;line-height:1.6;">
                 ${isMulti 
                   ? 'Vi har nya transportförfrågningar som vi gärna vill att ni utför. Se detaljer nedan och svara genom att klicka på knapparna.'
                   : 'Vi har en ny transportförfrågan som vi gärna vill att ni utför. Se detaljer nedan och svara genom att klicka på knapparna.'}
