@@ -66,7 +66,7 @@ function buildConfirmationEmail(params: {
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   <td style="vertical-align:middle;width:50%;">
-                    <img src="${LOGO_URL}" alt="Frans August" width="150" height="36" style="height:36px;width:150px;display:block;border:0;" />
+                    <img src="${LOGO_URL}" alt="Frans August" width="150" style="max-width:150px;height:auto;display:block;border:0;font-size:20px;font-weight:bold;color:#1a3a3c;" />
                   </td>
                   <td style="vertical-align:middle;text-align:right;width:50%;">
                     ${params.bookingNumber ? `<p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7a8b8d;font-weight:600;">Referensnummer</p>
@@ -157,7 +157,7 @@ function buildBatchConfirmationEmail(params: {
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   <td style="vertical-align:middle;width:50%;">
-                    <img src="${LOGO_URL}" alt="Frans August" width="150" height="36" style="height:36px;width:150px;display:block;border:0;" />
+                    <img src="${LOGO_URL}" alt="Frans August" width="150" style="max-width:150px;height:auto;display:block;border:0;font-size:20px;font-weight:bold;color:#1a3a3c;" />
                   </td>
                   <td style="vertical-align:middle;text-align:right;width:50%;">
                     ${params.bookingNumber ? `<p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7a8b8d;font-weight:600;">Referensnummer</p>
