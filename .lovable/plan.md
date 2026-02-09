@@ -1,72 +1,62 @@
 
 
-## Flytta returtransport till "Datum & Detaljer"-steget med checkbox
+## Transportkalendern - Veckovy med samma design som Dashboard
 
-### Vad som ska andras
-Idag ligger "Boka + retur" som en separat knapp pa bekraftelsesteget. Anvandaren vill istallet ha en checkbox i "Datum & Detaljer"-steget dar man kan kryssa i att det ska bokas en returtransport. Nar checkboxen ar ikryssad ska man fylla i kontaktperson, telefon och valfri e-post for returtransporten (dvs. kontaktinformation for upphantningen vid rivningsdatumet).
+### Problem
+1. Kalendern visar idag en **dag-valjare** (klicka pa en dag, se korningar nedan) istallet for en riktig veckovy med 7 kolumner
+2. Transportkorningar visas inte korrekt - `useTransportAssignments` filterar pa en enskild dag, men behover hamta hela veckan
+3. Designen matchar inte dashboard-kalendern som har teal-header, dag-kolumner med event-kort, och "Inga handelser" for tomma dagar
 
-### Anvandargranssnittet
+### Losning
 
-I steget "Datum & Detaljer" (steg 2 for egen, steg 3 for partner), efter upphantningsadress-faltet, laggs till:
+Byta ut den nuvarande kalendersektionen i `LogisticsPlanning.tsx` mot en layout som exakt foljer `DashboardWeekView`-designen:
 
+**1. Hamta hela veckans data**
+- Andra anropet till `useTransportAssignments` sa att det hamtar hela veckan (startOfWeek till endOfWeek), inte bara en dag
+- Alternativt anvanda `useDashboardEvents` med kategorin `logistics` for att fa samma data som dashboard-kalendern visar
+
+**2. Ny kalenderdesign (identisk med DashboardWeekView)**
+- Teal gradient-header med "Vecka X" och navigationpilar
+- 7 dag-kolumner sida vid sida med scrollbar (`overflow-x-auto`)
+- Varje dag-kolumn har:
+  - Header med dagnamn (MANDAG, TISDAG...), datum och manad
+  - Idag markerad med teal-bakgrund och prickindikator
+  - Event-kort for varje transportuppdrag
+  - "Inga handelser" med kalenderikon for tomma dagar
+
+**3. Event-kort i transportstil**
+- Anvanda `DashboardEventCard`-komponentens stil med TRANSPORT-badge
+- Visa bokningsnummer, kundnamn och status (Vantar/Levererad/Pa vag)
+
+### Tekniska detaljer
+
+**Filer som andras:**
+
+| Fil | Andring |
+|-----|---------|
+| `src/pages/LogisticsPlanning.tsx` | Ersatt PremiumCard-kalender med DashboardWeekView-liknande layout. Ta bort `selectedDate` state (behovs ej langre). Hamta veckodata istallet for dagsdata |
+| `src/hooks/useTransportAssignments.ts` | Laga sa att hooken kan ta emot ett datumintervall (start + slut) istallet for bara en dag, sa att hela veckans korningar hamtas |
+
+**Datahanterings-approach:**
+- Modifiera `useTransportAssignments` att acceptera en optional `endDate` parameter
+- Nar `endDate` ges, filtrera med `.gte()` och `.lte()` istallet for `.eq()`
+- Gruppera sedan assignments per dag i UI:t med `isSameDay()` fran date-fns
+
+**Kalender-struktur (JSX):**
 ```text
-+----------------------------------------------------+
-| [x] Ateratransport (retur)                         |
-|                                                     |
-| Returdatum: [2026-02-15] (forifyllt med rigdowndate)|
-| Returtid:   [09:00 v]                              |
-| Returadress (upphantning): [Leveransadressen]       |
-|                                                     |
-| Kontaktperson (retur) *                             |
-| [___________________________]                       |
-| Telefon (retur) *                                   |
-| [___________________________]                       |
-| E-post (retur)                                      |
-| [___________________________]                       |
-+----------------------------------------------------+
++--------------------------------------------------+
+| [<]       Vecka 7        [>]    (teal gradient)   |
++--------------------------------------------------+
+| MAN  | TIS  | ONS  | TORS | FRE  | LOR  | SON  |
+|  9   | 10   | 11   |  12  | 13   | 14   | 15   |
+| feb. | feb. | feb. | feb. | feb. | feb. | feb. |
+|------|------|------|------|------|------|------|
+|      |      |      |[TRAN]|      |      |      |
+| Inga | Inga | Inga |11-TE-|      |      |      |
+| hand.| hand.| hand.|  !!  |      |      |      |
+|      |      |      |Vantar|      |      |      |
++--------------------------------------------------+
 ```
 
-### Teknisk plan
+Transport-korten atervander samma `DashboardEventCard`-komponent som redan anvands pa dashboard, sa att styling ar identisk.
 
-**Fil: `src/components/logistics/TransportBookingTab.tsx`**
-
-1. **Utoka `WizardData`-interfacet** med nya falt:
-   - `includeReturn: boolean` -- om returtransport ska bokas
-   - `returnDate: string` -- returdatum (forifyllt fran `rigdowndate`)
-   - `returnTime: string` -- returtid (forifyllt fran `transportTime`)
-   - `returnPickupAddress: string` -- var returtransporten hamtar (forifyllt fran leveransadressen)
-   - `returnContactName: string` -- kontaktperson for returen
-   - `returnContactPhone: string` -- telefon for returen
-   - `returnContactEmail: string` -- e-post for returen (valfritt)
-
-2. **Lagg till checkbox-sektion i "Datum & Detaljer"-steget** (efter upphantningsadress/favoriter):
-   - En Checkbox-komponent med label "Atertransport (retur)"
-   - Nar ikryssad visas falt for:
-     - Returdatum (forifyllt med `wizardBooking.rigdowndate`, redigerbart)
-     - Returtid (dropdown, samma tidsluckor som huvudtransporten)
-     - Returadress (forifyllt med leveransadressen fran bokningen)
-     - Kontaktperson (retur) -- obligatoriskt
-     - Telefon (retur) -- obligatoriskt
-     - E-post (retur) -- valfritt
-   - Checkbox ar disabled om bokningen saknar `rigdowndate` (med tooltip-forklaring)
-   - Validering: "Nasta"-knappen kraver att returnContactName och returnContactPhone ar ifyllda om `includeReturn` ar true
-
-3. **Uppdatera bekraftelsesteget** (steg 3/4):
-   - Visa en extra sammanfattnings-ruta for returtransporten om `includeReturn` ar true
-   - Visar returdatum, tid, adress och kontaktperson
-   - Ta bort "Boka + retur"-knappen fran bekraftelsesteget (ersatts av checkbox-flodet)
-
-4. **Uppdatera `handleSubmitWizard`**:
-   - Istallet for att ta `includeReturn` som parameter, las av `wizardData.includeReturn`
-   - Anvand `wizardData.returnDate`, `wizardData.returnTime`, `wizardData.returnPickupAddress` for returen
-   - Skicka med kontaktinformation for returtransporten (lagras i assignment-metadata eller som kommentar)
-
-5. **Importera Checkbox-komponenten** fran `@/components/ui/checkbox`
-
-### Filer som andras
-- **`src/components/logistics/TransportBookingTab.tsx`** -- enda filen som behovs andras
-
-### Valideringslogik
-- Om `includeReturn` ar true men `rigdowndate` saknas: visa varning, avaktivera retursektionen
-- Om `includeReturn` ar true: "Nasta"-knappen kraver att returnContactName och returnContactPhone ar ifyllda, samt att returnDate och returnTime ar valda
-- Om `includeReturn` ar false: allt fungerar som vanligt (befintligt flode for "Boka transport")
