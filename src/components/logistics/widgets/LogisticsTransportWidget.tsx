@@ -108,7 +108,7 @@ const LogisticsTransportWidget: React.FC<Props> = ({ onClick, vehicles }) => {
   };
 
   return (
-    <Card className="border-border/40 shadow-2xl rounded-2xl overflow-hidden">
+    <Card className="border-border/40 shadow-2xl rounded-2xl overflow-hidden flex flex-col h-full">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -174,7 +174,7 @@ const LogisticsTransportWidget: React.FC<Props> = ({ onClick, vehicles }) => {
         <p className="text-[11px] text-muted-foreground mt-1 capitalize">{formatDateLabel()}</p>
       </CardHeader>
 
-      <CardContent className="pt-0">
+      <CardContent className="pt-0 flex-1 flex flex-col min-h-0">
         {/* Stats row */}
         <div className="grid grid-cols-4 gap-2 mb-3">
           {[
@@ -198,7 +198,7 @@ const LogisticsTransportWidget: React.FC<Props> = ({ onClick, vehicles }) => {
         </div>
 
         {/* Booking list */}
-        <div className="space-y-1.5 max-h-[280px] overflow-y-auto">
+        <div className="space-y-1.5 flex-1 overflow-y-auto">
           {isLoading ? (
             <p className="text-xs text-muted-foreground text-center py-4">Laddar...</p>
           ) : filtered.length === 0 ? (

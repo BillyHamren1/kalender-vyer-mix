@@ -10,8 +10,6 @@ import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import LogisticsMapWidget from '@/components/logistics/widgets/LogisticsMapWidget';
 import LogisticsCalendarWidget from '@/components/logistics/widgets/LogisticsCalendarWidget';
-import LogisticsTrafficWidget from '@/components/logistics/widgets/LogisticsTrafficWidget';
-import LogisticsWeatherWidget from '@/components/logistics/widgets/LogisticsWeatherWidget';
 import LogisticsTransportWidget from '@/components/logistics/widgets/LogisticsTransportWidget';
 import DashboardJobMap from '@/components/dashboard/DashboardJobMap';
 import LogisticsWeekView from '@/components/logistics/LogisticsWeekView';
@@ -49,21 +47,17 @@ const LogisticsPlanning: React.FC = () => {
         </Button>
       </PageHeader>
 
-      {/* Widget grid: Map left, 3 widgets stacked right */}
+      {/* Widget grid: Map left, calendar + transport right */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-4 mb-6">
-        {/* Map - spans full height of right column */}
         <LogisticsMapWidget onClick={() => setExpanded('map')} />
         
-        {/* Right column: Calendar + Weather + Traffic stacked */}
         <div className="flex flex-col gap-4">
           <LogisticsCalendarWidget onClick={() => setExpanded('calendar')} />
-          <LogisticsWeatherWidget />
-          <LogisticsTrafficWidget />
+          <div className="flex-1 min-h-0">
+            <LogisticsTransportWidget onClick={() => setExpanded('transport')} vehicles={vehicles} />
+          </div>
         </div>
       </div>
-
-      {/* Transport booking widget - full width */}
-      <LogisticsTransportWidget onClick={() => setExpanded('transport')} vehicles={vehicles} />
 
       {/* Expanded map dialog */}
       <Dialog open={expanded === 'map'} onOpenChange={open => !open && setExpanded(null)}>
