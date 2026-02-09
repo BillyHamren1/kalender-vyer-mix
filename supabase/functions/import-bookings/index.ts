@@ -910,8 +910,26 @@ serve(async (req) => {
       }
     }
 
-    // Fetch bookings from export-bookings function
-    const externalResponse = await fetch(apiUrl, {
+    // Fetch bookings from export-bookings function with timeout and retry
+    const fetchWithRetry = async (url: string, options: RequestInit, retries = 2): Promise<Response> => {
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout per attempt
+          const resp = await fetch(url, { ...options, signal: controller.signal });
+          clearTimeout(timeoutId);
+          return resp;
+        } catch (err) {
+          console.error(`Fetch attempt ${attempt + 1} failed:`, err);
+          if (attempt === retries) throw err;
+          // Wait 2s before retry
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
+      throw new Error('All fetch attempts failed');
+    };
+
+    const externalResponse = await fetchWithRetry(apiUrl, {
       headers: {
         'Authorization': `Bearer ${importApiKey}`,
         'x-api-key': importApiKey,
