@@ -155,7 +155,9 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
     ? ['Välj partner', 'Välj fordon', 'Datum & Detaljer', 'Bekräfta']
     : ['Fordon', 'Datum & Detaljer', 'Bekräfta'];
 
-  const DEFAULT_PICKUP_ADDRESS = 'David Adrians väg 1';
+  const DEFAULT_PICKUP_ADDRESS = 'David Adrians Väg, 194 91 Upplands Väsby, Sweden';
+  const DEFAULT_PICKUP_LATITUDE = 59.4891;
+  const DEFAULT_PICKUP_LONGITUDE = 17.8549;
 
   // Generate time slots: 06:00–23:30 in 30-min increments
   const timeSlots = React.useMemo(() => {
@@ -176,10 +178,12 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
       transportDate: booking.rigdaydate || booking.eventdate || format(new Date(), 'yyyy-MM-dd'),
       transportTime: '',
       pickupAddress: DEFAULT_PICKUP_ADDRESS,
+      pickupLatitude: DEFAULT_PICKUP_LATITUDE,
+      pickupLongitude: DEFAULT_PICKUP_LONGITUDE,
       includeReturn: false,
       returnDate: booking.rigdowndate || '',
       returnTime: '',
-      returnPickupAddress: booking.deliveryaddress || '',
+      returnPickupAddress: DEFAULT_PICKUP_ADDRESS,
       returnContactName: '',
       returnContactPhone: '',
       returnContactEmail: '',
@@ -305,7 +309,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
         booking_id: wizardBooking.id,
         transport_date: returnDate,
         transport_time: wizardData.returnTime,
-        pickup_address: wizardData.returnPickupAddress || wizardBooking.deliveryaddress || wizardData.pickupAddress || undefined,
+        pickup_address: wizardData.returnPickupAddress || DEFAULT_PICKUP_ADDRESS,
         stop_order: (wizardData.stopOrder || 0) + 1,
         driver_notes: wizardData.returnContactName
           ? `Returkontakt: ${wizardData.returnContactName}, Tel: ${wizardData.returnContactPhone}${wizardData.returnContactEmail ? ', E-post: ' + wizardData.returnContactEmail : ''}`
