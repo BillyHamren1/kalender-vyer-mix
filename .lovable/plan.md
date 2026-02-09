@@ -1,19 +1,49 @@
 
 
-## Fix: TRANSPORT Badge Colors Inverted
+## Fix: Byt plats på färgerna — vit bakgrund på kolumner, färgade kort
 
-### Problem
-The "TRANSPORT" badge shows a **solid teal background with white text** (wrong) instead of a **light/transparent teal background with teal text** (correct, as in Image 1). The CSS class `bg-primary/10` doesn't work correctly with HSL custom property values -- the opacity modifier fails, resulting in a fully opaque primary background.
+### Problemet
+Just nu är färgerna på FEL ställe:
+- Kolumnerna har färgad bakgrund (gul, röd, grön) -- ska vara VITA
+- Korten har vit bakgrund -- ska vara FÄRGADE
 
-### Solution
-Replace `bg-primary/10` and similar opacity-based background classes with explicit Tailwind color classes that guarantee a light, transparent appearance.
+Det ska vara TVÄRTOM, precis som i referensbilden.
 
-### Changes
+### Ändringar
 
-**File: `src/components/logistics/widgets/LogisticsTransportWidget.tsx`**
+**Fil: `src/components/logistics/widgets/LogisticsTransportWidget.tsx`**
 
-1. **TRANSPORT badge (line 82):** Change from `bg-primary/10 text-primary border-primary/30` to use `bg-teal-50 text-teal-700 border-teal-200` (explicit light teal that won't fail).
+**1. Kolumnbakgrunder (rad 242-267) -- gör VITA:**
+- "Atgard kravs": `bgColor` andras fran `bg-destructive/5` till `bg-white`
+- "Vantar svar": `bgColor` andras fran `bg-amber-500/5` till `bg-white`
+- "Bekraftat": `bgColor` andras fran `bg-primary/5` till `bg-white`
+- Alla `borderColor` andras till `border-border/40` (neutral tunn kant)
 
-2. **Status badges in `getStatusBadge` (lines 41-44):** Same fix -- replace `bg-primary/15` with `bg-teal-50` and `bg-destructive/15` with `bg-red-50`, `bg-amber-500/15` with `bg-amber-50` to ensure light backgrounds render correctly.
+**2. Kort-bakgrund (rad 73-74) -- gor FARGADE baserat pa status:**
 
-This ensures the cards match Image 1: white card background, light-teal TRANSPORT badge with teal text.
+Kortet (TransportCard) far en fargad bakgrund beroende pa vilken kolumn det tillhor. For att gora detta skickas en extra prop (`cardColor`) fran kolumnen till TransportCard:
+
+- "Atgard kravs"-kort: `bg-red-50 border-red-200`
+- "Vantar svar"-kort: `bg-amber-50 border-amber-200`
+- "Bekraftat"-kort: `bg-teal-50 border-teal-200`
+
+### Teknisk implementering
+
+1. Lagg till `cardBg` och `cardBorder` i kolumn-arrayen:
+```text
+columns = [
+  { title: 'Atgard kravs',  bgColor: 'bg-white', borderColor: 'border-border/40', cardBg: 'bg-red-50',   cardBorder: 'border-red-200'   },
+  { title: 'Vantar svar',   bgColor: 'bg-white', borderColor: 'border-border/40', cardBg: 'bg-amber-50', cardBorder: 'border-amber-200' },
+  { title: 'Bekraftat',     bgColor: 'bg-white', borderColor: 'border-border/40', cardBg: 'bg-teal-50',  cardBorder: 'border-teal-200'  },
+]
+```
+
+2. Skicka `cardBg` och `cardBorder` som props till TransportCard-komponenten.
+
+3. I TransportCard, byt `bg-card border-border/40` pa rad 74 till de motagna props-vardena.
+
+### Resultat
+- Kolumner: vita med tunn neutral kant
+- Kort: fargade (gult for "Vantar", rott for "Atgard kravs", gront for "Bekraftat")
+- Exakt som referensbilden
+
