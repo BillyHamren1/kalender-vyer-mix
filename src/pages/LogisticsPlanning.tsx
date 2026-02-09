@@ -27,6 +27,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { PremiumCard, SimpleCard } from '@/components/ui/PremiumCard';
 import { useVehicles } from '@/hooks/useVehicles';
 import { useTransportAssignments } from '@/hooks/useTransportAssignments';
+import { useBookingsForTransport } from '@/hooks/useBookingsForTransport';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import VehiclePartnerList from '@/components/logistics/VehiclePartnerList';
@@ -45,6 +46,7 @@ const LogisticsPlanning: React.FC = () => {
     optimizeRoute,
     isLoading: assignmentsLoading 
   } = useTransportAssignments(selectedDate);
+  const { withoutTransport } = useBookingsForTransport();
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -113,14 +115,47 @@ const LogisticsPlanning: React.FC = () => {
 
       {/* Tabs */}
       <Tabs defaultValue="dashboard" className="space-y-6">
-        <TabsList className="rounded-xl h-11 bg-muted/50 p-1">
-          <TabsTrigger value="dashboard" className="rounded-lg gap-2 data-[state=active]:shadow-sm">
-            <Truck className="h-4 w-4" />
-            Dashboard
+        <TabsList className="w-full h-auto bg-transparent p-0 grid grid-cols-2 gap-4">
+          <TabsTrigger 
+            value="dashboard" 
+            className={cn(
+              "flex flex-col items-start gap-1.5 p-5 rounded-2xl border-2 transition-all h-auto",
+              "data-[state=active]:border-primary data-[state=active]:bg-primary/5 data-[state=active]:shadow-lg",
+              "data-[state=inactive]:border-border/40 data-[state=inactive]:bg-card data-[state=inactive]:hover:border-primary/30 data-[state=inactive]:hover:shadow-md"
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-primary/10">
+                <Truck className="h-5 w-5 text-primary" />
+              </div>
+              <div className="text-left">
+                <h3 className="text-base font-semibold text-foreground">Dashboard</h3>
+                <p className="text-xs text-muted-foreground font-normal">Översikt av leveranser och fordon</p>
+              </div>
+            </div>
           </TabsTrigger>
-          <TabsTrigger value="booking" className="rounded-lg gap-2 data-[state=active]:shadow-sm">
-            <ClipboardList className="h-4 w-4" />
-            Boka transport
+          <TabsTrigger 
+            value="booking" 
+            className={cn(
+              "flex flex-col items-start gap-1.5 p-5 rounded-2xl border-2 transition-all h-auto",
+              "data-[state=active]:border-primary data-[state=active]:bg-primary/5 data-[state=active]:shadow-lg",
+              "data-[state=inactive]:border-border/40 data-[state=inactive]:bg-card data-[state=inactive]:hover:border-primary/30 data-[state=inactive]:hover:shadow-md"
+            )}
+          >
+            <div className="flex items-center gap-3 w-full">
+              <div className="p-2.5 rounded-xl bg-primary/10">
+                <ClipboardList className="h-5 w-5 text-primary" />
+              </div>
+              <div className="text-left flex-1">
+                <h3 className="text-base font-semibold text-foreground">Boka transport</h3>
+                <p className="text-xs text-muted-foreground font-normal">Tilldela fordon till bekräftade bokningar</p>
+              </div>
+              {withoutTransport.length > 0 && (
+                <Badge className="ml-auto shrink-0">
+                  {withoutTransport.length} väntar
+                </Badge>
+              )}
+            </div>
           </TabsTrigger>
         </TabsList>
 
