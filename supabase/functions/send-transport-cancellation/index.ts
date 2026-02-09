@@ -78,7 +78,10 @@ function buildCancellationEmailHtml(params: {
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   <td style="vertical-align:middle;width:50%;">
-                    <img src="https://pihrhltinhewhoxefjxv.supabase.co/storage/v1/object/public/email-assets/fransaugust-logo.png?t=1" alt="Frans August" width="150" height="36" style="height:36px;width:150px;display:block;border:0;" />
+                    <img src="https://pihrhltinhewhoxefjxv.supabase.co/storage/v1/object/public/email-assets/fransaugust-logo.png" alt="Frans August" width="150" height="36" style="height:36px;width:150px;display:block;border:0;" />
+                    <!--[if !mso]><!-->
+                    <div style="font-size:0;line-height:0;display:none;max-height:0;overflow:hidden;">Frans August Logistik</div>
+                    <!--<![endif]-->
                   </td>
                   <td style="vertical-align:middle;text-align:right;width:50%;">
                     ${params.bookingNumber ? `<p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7a7a7a;font-weight:600;">Referensnummer</p>
