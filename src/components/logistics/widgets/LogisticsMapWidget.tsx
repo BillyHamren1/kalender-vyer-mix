@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { MapPin, Maximize2, Loader2, Truck, Briefcase } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { fetchConfirmedBookings } from '@/services/bookingService';
+import { fetchConfirmedBookings, fetchBookings } from '@/services/bookingService';
 import { Booking } from '@/types/booking';
 import { useTransportAssignments } from '@/hooks/useTransportAssignments';
 import {
@@ -67,7 +67,7 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
     const load = async () => {
       setIsLoading(true);
       try {
-        const data = await fetchConfirmedBookings();
+        const data = await fetchBookings();
         setBookings(data.filter(b => b.deliveryLatitude != null && b.deliveryLongitude != null));
       } catch { /* silent */ }
       finally { setIsLoading(false); }
@@ -99,9 +99,20 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
         if (!inRange) return;
 
         const el = document.createElement('div');
-        el.style.cssText = 'width:12px;height:12px;border-radius:50%;background:hsl(184 60% 38%);border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);cursor:pointer';
+        el.style.cssText = 'position:relative;width:22px;height:22px;border-radius:50%;background:hsl(184 60% 38%);border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);cursor:pointer';
 
-        const popup = new mapboxgl.Popup({ offset: 12, closeButton: false, maxWidth: '200px' })
+        // Pulse ring
+        const ring = document.createElement('div');
+        ring.style.cssText = 'position:absolute;inset:-6px;border-radius:50%;border:2px solid hsl(184 60% 38%);opacity:0.5;animation:ping 2s cubic-bezier(0,0,0.2,1) infinite';
+        el.appendChild(ring);
+
+        // Label
+        const label = document.createElement('div');
+        label.textContent = b.client;
+        label.style.cssText = 'position:absolute;left:28px;top:50%;transform:translateY(-50%);white-space:nowrap;font-size:11px;font-weight:600;color:white;text-shadow:0 1px 4px rgba(0,0,0,0.8),0 0 2px rgba(0,0,0,0.6);pointer-events:none';
+        el.appendChild(label);
+
+        const popup = new mapboxgl.Popup({ offset: 14, closeButton: false, maxWidth: '220px' })
           .setHTML(`<div style="font-size:12px"><strong>${b.client}</strong><br/>${b.deliveryAddress || ''}</div>`);
 
         const marker = new mapboxgl.Marker(el)
@@ -123,9 +134,15 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
         if (!lat || !lng) return;
 
         const el = document.createElement('div');
-        el.style.cssText = 'width:12px;height:12px;border-radius:3px;background:hsl(38 92% 50%);border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);cursor:pointer';
+        el.style.cssText = 'position:relative;width:22px;height:22px;border-radius:4px;background:hsl(38 92% 50%);border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);cursor:pointer';
 
-        const popup = new mapboxgl.Popup({ offset: 12, closeButton: false, maxWidth: '200px' })
+        // Label
+        const lbl = document.createElement('div');
+        lbl.textContent = b.client || 'Transport';
+        lbl.style.cssText = 'position:absolute;left:28px;top:50%;transform:translateY(-50%);white-space:nowrap;font-size:11px;font-weight:600;color:white;text-shadow:0 1px 4px rgba(0,0,0,0.8),0 0 2px rgba(0,0,0,0.6);pointer-events:none';
+        el.appendChild(lbl);
+
+        const popup = new mapboxgl.Popup({ offset: 14, closeButton: false, maxWidth: '220px' })
           .setHTML(`<div style="font-size:12px"><strong>🚚 ${b.client || 'Transport'}</strong><br/>${b.deliveryaddress || ''}</div>`);
 
         const marker = new mapboxgl.Marker(el)
