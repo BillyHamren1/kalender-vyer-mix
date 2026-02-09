@@ -1,49 +1,66 @@
 
 
-## Fix: Byt plats på färgerna — vit bakgrund på kolumner, färgade kort
+## Transportwidget i projektvyn + komplett historikspårning
 
-### Problemet
-Just nu är färgerna på FEL ställe:
-- Kolumnerna har färgad bakgrund (gul, röd, grön) -- ska vara VITA
-- Korten har vit bakgrund -- ska vara FÄRGADE
+### Vad ska göras
 
-Det ska vara TVÄRTOM, precis som i referensbilden.
+**1. Byt ut den nuvarande transportsektionen i projektvyn mot samma 3-kolumns-widget som logistikvyn använder**
 
-### Ändringar
+Just nu visar "Transport"-fliken i projektet en enklare lista med collapsible-kort (`ProjectTransportSection`). Den ska ersättas med samma widget som finns i `/logistics/planning` — den med tre kolumner: "Åtgärd krävs", "Väntar svar" och "Bekräftat", med färgkodade kort (röda, gula, gröna).
 
-**Fil: `src/components/logistics/widgets/LogisticsTransportWidget.tsx`**
+**2. Skapa en projektanpassad version av transport-widgeten**
 
-**1. Kolumnbakgrunder (rad 242-267) -- gör VITA:**
-- "Atgard kravs": `bgColor` andras fran `bg-destructive/5` till `bg-white`
-- "Vantar svar": `bgColor` andras fran `bg-amber-500/5` till `bg-white`
-- "Bekraftat": `bgColor` andras fran `bg-primary/5` till `bg-white`
-- Alla `borderColor` andras till `border-border/40` (neutral tunn kant)
+Widgeten i logistikvyn (`LogisticsTransportWidget`) visar ALLA transporter med datumfilter. I projektvyn behövs bara transporterna kopplade till just det projektets bokning. En ny komponent `ProjectTransportWidget` skapas som:
+- Använder `useProjectTransport(bookingId)` för att hämta data (filtrerat på boknings-ID)
+- Visar samma 3-kolumns-layout med samma `TransportCard`-komponent
+- Tar bort datumväljaren (irrelevant i projektkontext — alla transporter för bokningen visas)
+- Behåller mejlhistorik och partnersvars-timeline från nuvarande `ProjectTransportSection`
 
-**2. Kort-bakgrund (rad 73-74) -- gor FARGADE baserat pa status:**
+**3. Utöka aktivitetsloggen med transportändringar och bokningsändringar**
 
-Kortet (TransportCard) far en fargad bakgrund beroende pa vilken kolumn det tillhor. For att gora detta skickas en extra prop (`cardColor`) fran kolumnen till TransportCard:
+Alla förändringar ska loggas automatiskt i `project_activity_log` så att man kan följa hela flödet:
+- Transportbokning skapad/uppdaterad/borttagen
+- Partnersvar (accepterad/nekad)
+- Mejl skickat till partner
+- Bokningsändringar (datum, adress, status etc.)
 
-- "Atgard kravs"-kort: `bg-red-50 border-red-200`
-- "Vantar svar"-kort: `bg-amber-50 border-amber-200`
-- "Bekraftat"-kort: `bg-teal-50 border-teal-200`
+Detta görs genom att lyssna på realtidsändringar i `useProjectDetail`-hooken och automatiskt logga dem.
 
-### Teknisk implementering
+**4. Lägg till transport + historik i stora projekt (LargeProjectViewPage)**
 
-1. Lagg till `cardBg` och `cardBorder` i kolumn-arrayen:
-```text
-columns = [
-  { title: 'Atgard kravs',  bgColor: 'bg-white', borderColor: 'border-border/40', cardBg: 'bg-red-50',   cardBorder: 'border-red-200'   },
-  { title: 'Vantar svar',   bgColor: 'bg-white', borderColor: 'border-border/40', cardBg: 'bg-amber-50', cardBorder: 'border-amber-200' },
-  { title: 'Bekraftat',     bgColor: 'bg-white', borderColor: 'border-border/40', cardBg: 'bg-teal-50',  cardBorder: 'border-teal-200'  },
-]
-```
+Stora projekt saknar idag både "Transport"- och "Historik"-flikar. Dessa läggs till.
 
-2. Skicka `cardBg` och `cardBorder` som props till TransportCard-komponenten.
+### Tekniska ändringar
 
-3. I TransportCard, byt `bg-card border-border/40` pa rad 74 till de motagna props-vardena.
+**Nya filer:**
+- `src/components/project/ProjectTransportWidget.tsx` — ny komponent som återanvänder `TransportCard` från `LogisticsTransportWidget` men filtrerar på bokningens transport-assignments. Visar 3 kolumner med samma färgkodning. Inkluderar mejlhistorik-sektion.
+
+**Ändrade filer:**
+
+1. **`src/components/logistics/widgets/LogisticsTransportWidget.tsx`**
+   - Exportera `TransportCard` som named export så den kan återanvändas i projektvyn
+
+2. **`src/pages/project/ProjectViewPage.tsx`**
+   - Byt `ProjectTransportSection` mot `ProjectTransportWidget`
+   - Skicka `bookingId` som prop
+
+3. **`src/pages/project/LargeProjectViewPage.tsx`**
+   - Lägg till "Transport"- och "Historik"-flikar
+   - Aggregera transport-data från alla kopplade bokningar
+
+4. **`src/hooks/useProjectDetail.tsx`**
+   - Lägg till realtids-prenumeration på `transport_assignments` och `transport_email_log` för projektets bokning
+   - Logga transport-relaterade ändringar automatiskt till `project_activity_log`:
+     - `transport_added`: "Transport bokad: [fordonsnamn] [datum]"
+     - `transport_updated`: "Transport uppdaterad: [fordonsnamn]"
+     - `transport_response`: "Partnersvar: Accepterad/Nekad — [fordonsnamn]"
+     - `email_sent`: "Mejl skickat till [partner] angående transport"
+
+5. **`src/components/project/ProjectActivityLog.tsx`**
+   - Lägg till ikoner och filter för de nya transport-aktivitetstyperna (Truck-ikon, "Transport"-filter)
 
 ### Resultat
-- Kolumner: vita med tunn neutral kant
-- Kort: fargade (gult for "Vantar", rott for "Atgard kravs", gront for "Bekraftat")
-- Exakt som referensbilden
+- Projektvyn visar samma visuella transport-widget som logistikvyn (3 kolumner, färgade kort)
+- Alla ändringar — status, uppgifter, filer, kommentarer, transport, bokningsändringar — loggas i historikfliken
+- Man kan följa hela projektets flöde från start till slut på ett ställe
 
