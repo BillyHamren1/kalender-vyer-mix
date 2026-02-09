@@ -25,10 +25,10 @@ interface RouteCache {
 
 interface Props {
   onClick: () => void;
-  highlightedAssignmentId?: string | null;
+  highlightTarget?: { id: string; ts: number } | null;
 }
 
-const LogisticsMapWidget: React.FC<Props> = ({ onClick, highlightedAssignmentId }) => {
+const LogisticsMapWidget: React.FC<Props> = ({ onClick, highlightTarget }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
@@ -275,77 +275,117 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick, highlightedAssignmentId 
 
   // Highlight a specific assignment's route when selected from the list
   useEffect(() => {
-    if (!map.current || !mapReady || !highlightedAssignmentId) return;
     const m = map.current;
+    if (!m || !mapReady) return;
+
+    // Clean up any existing highlight layer
+    if (m.getLayer('highlight-route-line')) m.removeLayer('highlight-route-line');
+    if (m.getLayer('highlight-route-outline')) m.removeLayer('highlight-route-outline');
+    if (m.getSource('highlight-route')) m.removeSource('highlight-route');
+
+    if (!highlightTarget) return;
+
+    const assignmentId = highlightTarget.id;
 
     // Ensure transport routes are visible
     if (mapFilter === 'projects') {
       setMapFilter('all');
+      // The mapFilter change will re-trigger the markers useEffect,
+      // and this effect will re-run because mapFilter changed
       return;
     }
 
-    const applyHighlight = () => {
-      if (!map.current) return false;
-      const m2 = map.current;
+    const assignment = assignments.find(a => a.id === assignmentId);
+    if (!assignment?.booking) return;
 
-      // Reset all route line widths
-      const allSources = Object.keys((m2.getStyle()?.sources) || {}).filter(s => s.startsWith('route-'));
-      allSources.forEach(s => {
-        const lineId = s + '-line';
-        const outlineId = s + '-outline';
-        if (m2.getLayer(lineId)) {
-          m2.setPaintProperty(lineId, 'line-width', 4);
-          m2.setPaintProperty(lineId, 'line-opacity', 0.3);
-        }
-        if (m2.getLayer(outlineId)) {
-          m2.setPaintProperty(outlineId, 'line-opacity', 0.1);
-        }
+    const b = assignment.booking as any;
+    const destLat = b.delivery_latitude;
+    const destLng = b.delivery_longitude;
+    const pickupLat = assignment.pickup_latitude ?? 59.3293;
+    const pickupLng = assignment.pickup_longitude ?? 18.0686;
+
+    if (!destLat || !destLng) return;
+
+    // Zoom to the route bounds immediately
+    const bounds = new mapboxgl.LngLatBounds();
+    bounds.extend([pickupLng, pickupLat]);
+    bounds.extend([destLng, destLat]);
+    m.fitBounds(bounds, { padding: 80, maxZoom: 13, duration: 800 });
+
+    // Fetch route geometry directly (from cache or API)
+    const cacheKey = `${pickupLng.toFixed(4)},${pickupLat.toFixed(4)}-${destLng.toFixed(4)},${destLat.toFixed(4)}`;
+    const cached = routeCache.current.get(cacheKey);
+
+    const addHighlightLayer = (geometry: GeoJSON.Geometry) => {
+      if (!map.current) return;
+      const mc = map.current;
+      // Clean up again in case of async race
+      if (mc.getLayer('highlight-route-line')) mc.removeLayer('highlight-route-line');
+      if (mc.getLayer('highlight-route-outline')) mc.removeLayer('highlight-route-outline');
+      if (mc.getSource('highlight-route')) mc.removeSource('highlight-route');
+
+      mc.addSource('highlight-route', {
+        type: 'geojson',
+        data: { type: 'Feature', properties: {}, geometry }
       });
-
-      // Highlight selected route
-      const selectedSource = `route-${highlightedAssignmentId}`;
-      const hasLayer = m2.getLayer(selectedSource + '-line');
-      if (hasLayer) {
-        m2.setPaintProperty(selectedSource + '-line', 'line-width', 7);
-        m2.setPaintProperty(selectedSource + '-line', 'line-opacity', 1);
-        m2.setPaintProperty(selectedSource + '-line', 'line-color', 'hsl(0, 100%, 45%)');
-      }
-      if (m2.getLayer(selectedSource + '-outline')) {
-        m2.setPaintProperty(selectedSource + '-outline', 'line-opacity', 0.8);
-        m2.setPaintProperty(selectedSource + '-outline', 'line-width', 10);
-      }
-      return !!hasLayer;
+      mc.addLayer({
+        id: 'highlight-route-outline',
+        type: 'line',
+        source: 'highlight-route',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': 'hsl(0, 80%, 30%)', 'line-width': 10, 'line-opacity': 0.4 }
+      });
+      mc.addLayer({
+        id: 'highlight-route-line',
+        type: 'line',
+        source: 'highlight-route',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': 'hsl(0, 100%, 45%)', 'line-width': 6, 'line-opacity': 1 }
+      });
     };
 
-    // Zoom immediately using assignment data (doesn't need layers)
-    const assignment = assignments.find(a => a.id === highlightedAssignmentId);
-    if (assignment?.booking) {
-      const b = assignment.booking as any;
-      const destLat = b.delivery_latitude;
-      const destLng = b.delivery_longitude;
-      const pickupLat = assignment.pickup_latitude ?? 59.3293;
-      const pickupLng = assignment.pickup_longitude ?? 18.0686;
+    if (cached) {
+      addHighlightLayer(cached.geometry);
+    } else {
+      // Fetch from Mapbox Directions API
+      const token = mapboxgl.accessToken;
+      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${pickupLng},${pickupLat};${destLng},${destLat}?geometries=geojson&overview=full&access_token=${token}`;
+      fetch(url)
+        .then(r => r.json())
+        .then(data => {
+          if (data.routes?.[0]) {
+            const route = data.routes[0];
+            routeCache.current.set(cacheKey, {
+              geometry: route.geometry,
+              distance_km: Math.round(route.distance / 100) / 10,
+              duration_min: Math.round(route.duration / 60),
+            });
+            addHighlightLayer(route.geometry);
+          } else {
+            // Fallback: straight line
+            addHighlightLayer({
+              type: 'LineString',
+              coordinates: [[pickupLng, pickupLat], [destLng, destLat]]
+            });
+          }
+        })
+        .catch(() => {
+          addHighlightLayer({
+            type: 'LineString',
+            coordinates: [[pickupLng, pickupLat], [destLng, destLat]]
+          });
+        });
+    }
 
-      if (destLat && destLng) {
-        const bounds = new mapboxgl.LngLatBounds();
-        bounds.extend([pickupLng, pickupLat]);
-        bounds.extend([destLng, destLat]);
-        m.fitBounds(bounds, { padding: 80, maxZoom: 13, duration: 800 });
+    return () => {
+      // Cleanup on unmount or re-trigger
+      if (map.current) {
+        if (map.current.getLayer('highlight-route-line')) map.current.removeLayer('highlight-route-line');
+        if (map.current.getLayer('highlight-route-outline')) map.current.removeLayer('highlight-route-outline');
+        if (map.current.getSource('highlight-route')) map.current.removeSource('highlight-route');
       }
-    }
-
-    // Try to apply highlight immediately, retry if layers aren't ready yet
-    if (!applyHighlight()) {
-      let attempts = 0;
-      const interval = setInterval(() => {
-        attempts++;
-        if (applyHighlight() || attempts > 20) {
-          clearInterval(interval);
-        }
-      }, 300);
-      return () => clearInterval(interval);
-    }
-  }, [highlightedAssignmentId, mapReady, assignments, mapFilter]);
+    };
+  }, [highlightTarget, mapReady, assignments, mapFilter]);
 
   const projectCount = bookings.filter(b => {
     const range = timeFilter === 'week'
