@@ -166,7 +166,7 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
               key={f.key}
               variant={mapFilter === f.key ? 'default' : 'secondary'}
               size="sm"
-              className={cn("h-7 text-xs gap-1 rounded-lg shadow-md", mapFilter !== f.key && "bg-card/90 backdrop-blur-sm")}
+              className={cn("h-7 text-xs gap-1 rounded-lg shadow-md", mapFilter !== f.key && "bg-background text-foreground border border-border")}
               onClick={(e) => { e.stopPropagation(); setMapFilter(f.key); }}
             >
               <f.icon className="w-3 h-3" />
@@ -185,7 +185,7 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
               key={f.key}
               variant={timeFilter === f.key ? 'default' : 'secondary'}
               size="sm"
-              className={cn("h-7 text-xs rounded-lg shadow-md", timeFilter !== f.key && "bg-card/90 backdrop-blur-sm")}
+              className={cn("h-7 text-xs rounded-lg shadow-md", timeFilter !== f.key && "bg-background text-foreground border border-border")}
               onClick={(e) => { e.stopPropagation(); setTimeFilter(f.key); }}
             >
               {f.label}
