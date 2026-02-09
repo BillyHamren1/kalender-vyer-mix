@@ -119,6 +119,23 @@ export const useBookingsForTransport = () => {
 
   useEffect(() => {
     fetchBookings();
+
+    // Subscribe to real-time changes on transport_assignments (e.g. partner_response updates)
+    const channel = supabase
+      .channel('transport-assignments-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'transport_assignments' },
+        () => {
+          console.log('[useBookingsForTransport] Real-time update detected, refetching...');
+          fetchBookings();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [fetchBookings]);
 
   const withoutTransport = bookings.filter(b => !b.has_transport);
