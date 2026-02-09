@@ -217,8 +217,14 @@ export const useTransportAssignments = (date?: Date | null, endDate?: Date | nul
     return { totalWeight, totalVolume };
   }, [getAssignmentsByVehicle]);
 
+  // Stabilize date dependencies to avoid infinite re-render loops
+  const dateStr = date ? format(date, 'yyyy-MM-dd') : '';
+  const endDateStr = endDate ? format(endDate, 'yyyy-MM-dd') : '';
+
   useEffect(() => {
-    fetchAssignments(date || undefined, endDate || undefined);
+    const startDate = dateStr ? new Date(dateStr + 'T00:00:00') : undefined;
+    const end = endDateStr ? new Date(endDateStr + 'T00:00:00') : undefined;
+    fetchAssignments(startDate, end);
 
     // Real-time subscription
     const channel = supabase
@@ -229,14 +235,14 @@ export const useTransportAssignments = (date?: Date | null, endDate?: Date | nul
         table: 'transport_assignments'
       }, () => {
         // Refresh on any change
-        fetchAssignments(date || undefined, endDate || undefined);
+        fetchAssignments(startDate, end);
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [date, endDate, fetchAssignments]);
+  }, [dateStr, endDateStr, fetchAssignments]);
 
   return {
     assignments,
