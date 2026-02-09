@@ -180,12 +180,24 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
     });
 
     if (result && includeReturn) {
-      const returnDate = wizardBooking.rigdowndate || wizardData.transportDate;
+      const returnDate = wizardBooking.rigdowndate;
+      if (!returnDate) {
+        toast.error('Kan inte boka retur: bokningen saknar rivningsdatum');
+        cancelWizard();
+        refetch();
+        return;
+      }
+      if (!wizardData.transportTime) {
+        toast.error('Kan inte boka retur: ingen tid vald');
+        cancelWizard();
+        refetch();
+        return;
+      }
       await assignBookingToVehicle({
         vehicle_id: wizardData.vehicleId,
         booking_id: wizardBooking.id,
         transport_date: returnDate,
-        transport_time: wizardData.transportTime || undefined,
+        transport_time: wizardData.transportTime,
         pickup_address: wizardBooking.deliveryaddress || wizardData.pickupAddress || undefined,
         stop_order: (wizardData.stopOrder || 0) + 1,
       });
@@ -755,10 +767,22 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                       variant="outline"
                       onClick={() => handleSubmitWizard(true)}
                       className="rounded-xl gap-2"
-                      title={wizardBooking?.rigdowndate ? `Retur bokas på ${formatDate(wizardBooking.rigdowndate)}` : 'Retur bokas på samma datum'}
+                      disabled={!wizardBooking?.rigdowndate || !wizardData.transportTime}
+                      title={
+                        !wizardBooking?.rigdowndate 
+                          ? 'Bokningen saknar rivningsdatum – kan ej boka retur' 
+                          : !wizardData.transportTime
+                          ? 'Välj en tid först'
+                          : `Retur: ${formatDate(wizardBooking.rigdowndate)} kl ${wizardData.transportTime}`
+                      }
                     >
                       <RotateCcw className="h-4 w-4" />
                       Boka + retur
+                      {wizardBooking?.rigdowndate && wizardData.transportTime && (
+                        <span className="text-xs opacity-70">
+                          ({formatDate(wizardBooking.rigdowndate)} {wizardData.transportTime})
+                        </span>
+                      )}
                     </Button>
                   )}
                   <Button onClick={() => handleSubmitWizard(false)} className="rounded-xl gap-2">
