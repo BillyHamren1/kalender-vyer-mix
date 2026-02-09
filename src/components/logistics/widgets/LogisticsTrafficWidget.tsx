@@ -42,24 +42,24 @@ const LogisticsTrafficWidget: React.FC = () => {
     <Card className="border-border/40 shadow-2xl rounded-2xl overflow-hidden">
       <CardContent className="p-0">
         {/* Colored header strip */}
-        <div className={cn("px-3 py-2.5 flex items-center gap-2", bgColor)}>
-          <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", bgColor)}>
-            <Icon className={cn("w-4 h-4", color)} />
+        <div className={cn("px-4 py-4 flex items-center gap-3", bgColor)}>
+          <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", bgColor)}>
+            <Icon className={cn("w-5 h-5", color)} />
           </div>
           <div>
-            <p className="text-xs font-semibold">Trafikläge</p>
-            <p className={cn("text-[10px] font-medium", color)}>{status.label}</p>
+            <p className="text-sm font-semibold">Trafikläge</p>
+            <p className={cn("text-xs font-medium", color)}>{status.label}</p>
           </div>
         </div>
 
         {/* Traffic meter */}
-        <div className="px-3 pt-3 pb-2">
-          <div className="flex gap-1 mb-2">
+        <div className="px-4 pt-4 pb-3">
+          <div className="flex gap-1.5 mb-3">
             {[1, 2, 3, 4, 5].map(i => (
               <div
                 key={i}
                 className={cn(
-                  "h-2 flex-1 rounded-full transition-colors",
+                  "h-3 flex-1 rounded-full transition-colors",
                   i <= (status.level === 'heavy' ? 5 : status.level === 'moderate' ? 3 : 1)
                     ? (status.level === 'heavy' ? 'bg-destructive' : status.level === 'moderate' ? 'bg-amber-500' : 'bg-green-500')
                     : 'bg-muted'
@@ -70,19 +70,19 @@ const LogisticsTrafficWidget: React.FC = () => {
         </div>
 
         {/* Incidents */}
-        <div className="px-3 pb-3">
+        <div className="px-4 pb-4">
           {status.incidents > 0 ? (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Construction className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Construction className="w-4 h-4" />
               <span>{status.incidents} störning{status.incidents > 1 ? 'ar' : ''} rapporterad{status.incidents > 1 ? 'e' : ''}</span>
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <CheckCircle2 className="w-4 h-4 text-green-500" />
               <span>Inga rapporterade störningar</span>
             </div>
           )}
-          <p className="text-[10px] text-muted-foreground/60 mt-1">
+          <p className="text-xs text-muted-foreground/60 mt-2">
             Senast uppdaterad {new Date().toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
           </p>
         </div>

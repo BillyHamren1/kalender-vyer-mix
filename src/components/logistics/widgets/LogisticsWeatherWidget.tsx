@@ -89,38 +89,38 @@ const LogisticsWeatherWidget: React.FC = () => {
     <Card className="border-border/40 shadow-2xl rounded-2xl overflow-hidden">
       <CardContent className="p-0">
         {/* Temperature hero */}
-        <div className="px-3 py-3 flex items-center justify-between">
+        <div className="px-4 py-4 flex items-center justify-between">
           <div>
             <div className="flex items-baseline gap-1">
-              <span className="text-3xl font-bold">{weather.temperature}°</span>
+              <span className="text-4xl font-bold">{weather.temperature}°</span>
             </div>
-            <p className="text-xs text-muted-foreground">{label}</p>
+            <p className="text-sm text-muted-foreground">{label}</p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-            <WeatherIcon className="w-6 h-6 text-primary" />
+          <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center">
+            <WeatherIcon className="w-7 h-7 text-primary" />
           </div>
         </div>
 
         {/* Details */}
-        <div className="px-3 pb-2 grid grid-cols-2 gap-2">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Wind className="w-3 h-3" />
+        <div className="px-4 pb-3 grid grid-cols-2 gap-3">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Wind className="w-3.5 h-3.5" />
             <span>{weather.windSpeed} m/s</span>
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Droplets className="w-3 h-3" />
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Droplets className="w-3.5 h-3.5" />
             <span>{weather.precipitation} mm</span>
           </div>
         </div>
 
         {/* Road warning */}
-        <div className="px-3 pb-3">
+        <div className="px-4 pb-4">
           {warning ? (
-            <div className="rounded-lg bg-destructive/10 px-2.5 py-1.5 text-[11px] text-destructive font-medium">
+            <div className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive font-medium">
               {warning}
             </div>
           ) : (
-            <div className="rounded-lg bg-green-500/10 px-2.5 py-1.5 text-[11px] text-green-700 font-medium">
+            <div className="rounded-lg bg-green-500/10 px-3 py-2 text-xs text-green-700 font-medium">
               ✓ Inga vädervarninngar för trafik
             </div>
           )}
