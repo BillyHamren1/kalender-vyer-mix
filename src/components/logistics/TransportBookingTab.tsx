@@ -83,7 +83,7 @@ interface WizardData {
 
 const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) => {
   const { withoutTransport, withTransport, isLoading, refetch } = useBookingsForTransport();
-  const { assignBookingToVehicle, removeAssignment } = useTransportAssignments();
+  const { assignBookingToVehicle, removeAssignment, updateAssignment } = useTransportAssignments();
   const [wizardBooking, setWizardBooking] = useState<BookingForTransport | null>(null);
   const [wizardStep, setWizardStep] = useState(1);
   const [wizardData, setWizardData] = useState<Partial<WizardData>>({});
@@ -95,6 +95,15 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
   const [emailMessage, setEmailMessage] = useState('');
   const [pendingAssignmentId, setPendingAssignmentId] = useState<string | null>(null);
   const [sendingEmail, setSendingEmail] = useState(false);
+
+  // Resend email state (for editing existing assignments)
+  const [resendTransportDate, setResendTransportDate] = useState('');
+  const [resendTransportTime, setResendTransportTime] = useState('');
+  const [resendPickupAddress, setResendPickupAddress] = useState('');
+  const [resendPartnerEmail, setResendPartnerEmail] = useState('');
+  const [resendPartnerName, setResendPartnerName] = useState('');
+  const [resendBookingClient, setResendBookingClient] = useState('');
+  const [isResendMode, setIsResendMode] = useState(false);
 
   const activeVehicles = vehicles.filter(v => v.is_active);
 
@@ -255,6 +264,22 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
     if (!pendingAssignmentId) return;
     setSendingEmail(true);
     try {
+      // If resend mode, update assignment details first
+      if (isResendMode) {
+        const updates: Record<string, any> = {};
+        if (resendTransportDate) updates.transport_date = resendTransportDate;
+        if (resendTransportTime) updates.transport_time = resendTransportTime;
+        if (resendPickupAddress) updates.pickup_address = resendPickupAddress;
+        
+        if (Object.keys(updates).length > 0) {
+          const updated = await updateAssignment(pendingAssignmentId, updates);
+          if (!updated) {
+            toast.error('Kunde inte uppdatera transportdetaljer');
+            return;
+          }
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke('send-transport-request', {
         body: {
           assignment_id: pendingAssignmentId,
@@ -275,15 +300,47 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
       setSendingEmail(false);
       setEmailDialogOpen(false);
       setPendingAssignmentId(null);
-      cancelWizard();
+      setIsResendMode(false);
+      if (!isResendMode) {
+        cancelWizard();
+      }
+      refetch();
     }
   };
 
   const handleCancelEmail = () => {
     setEmailDialogOpen(false);
     setPendingAssignmentId(null);
-    cancelWizard();
-    toast.info('Transport bokad — inget mejl skickades');
+    setIsResendMode(false);
+    if (!isResendMode) {
+      cancelWizard();
+      toast.info('Transport bokad — inget mejl skickades');
+    }
+  };
+
+  // Open email dialog for an existing assignment (resend/update)
+  const handleOpenResendDialog = (booking: BookingForTransport, assignment: BookingForTransport['transport_assignments'][0]) => {
+    const vehicle = activeVehicles.find(v => v.id === assignment.vehicle_id);
+    if (!vehicle || !vehicle.is_external) {
+      toast.error('Kan bara skicka mejl till externa partners');
+      return;
+    }
+
+    const partnerName = vehicle.contact_person || vehicle.name;
+    const defaultSubject = `Uppdaterad transportförfrågan: ${booking.client} — ${assignment.transport_date}`;
+    const defaultMessage = `Hej ${partnerName},\n\nHär kommer uppdaterad information om er transportförfrågan. Se detaljer i mejlet.\n\nMed vänliga hälsningar,\nFrans August Logistik`;
+
+    setPendingAssignmentId(assignment.id);
+    setEmailSubject(defaultSubject);
+    setEmailMessage(defaultMessage);
+    setResendTransportDate(assignment.transport_date);
+    setResendTransportTime(assignment.transport_time || '');
+    setResendPickupAddress(assignment.pickup_address || DEFAULT_PICKUP_ADDRESS);
+    setResendPartnerEmail(vehicle.contact_email || '');
+    setResendPartnerName(partnerName);
+    setResendBookingClient(booking.client);
+    setIsResendMode(true);
+    setEmailDialogOpen(true);
   };
 
   if (isLoading) {
@@ -958,7 +1015,19 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                   <div className="space-y-1.5">
                     {booking.transport_assignments.map(a => (
                       <div key={a.id} className="flex items-center gap-2 group">
-                        <Badge variant="secondary" className="text-[10px] h-6 gap-1 flex-1 justify-start">
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "text-[10px] h-6 gap-1 flex-1 justify-start",
+                            a.is_external && "cursor-pointer hover:bg-secondary/80"
+                          )}
+                          onClick={() => {
+                            if (a.is_external) {
+                              handleOpenResendDialog(booking, a);
+                            }
+                          }}
+                          title={a.is_external ? 'Klicka för att skicka/uppdatera mejl' : undefined}
+                        >
                           <Truck className="h-2.5 w-2.5 shrink-0" />
                           <span className="truncate">{a.vehicle_name} — {formatDate(a.transport_date)}</span>
                           {a.transport_time && (
@@ -973,6 +1042,17 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                             </span>
                           )}
                         </Badge>
+                        {a.is_external && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-primary hover:text-primary"
+                            onClick={() => handleOpenResendDialog(booking, a)}
+                            title="Skicka mejl till partner"
+                          >
+                            <Mail className="h-3 w-3" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -1003,14 +1083,17 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
 
       {/* Email preview dialog */}
       <Dialog open={emailDialogOpen} onOpenChange={(open) => { if (!open) handleCancelEmail(); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Mail className="h-5 w-5 text-primary" />
-              Förhandsgranska mejl
+              {isResendMode ? 'Skicka uppdaterad information' : 'Förhandsgranska mejl'}
             </DialogTitle>
             <DialogDescription>
-              Granska och redigera mejlet innan det skickas till partnern.
+              {isResendMode
+                ? 'Uppdatera transportdetaljer och skicka nytt mejl till partnern.'
+                : 'Granska och redigera mejlet innan det skickas till partnern.'
+              }
             </DialogDescription>
           </DialogHeader>
 
@@ -1020,13 +1103,56 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
               <Label className="text-xs text-muted-foreground">Mottagare</Label>
               <div className="flex items-center gap-2">
                 <Badge variant="secondary" className="text-xs">
-                  {selectedPartner?.contact_email || 'Ingen mejladress'}
+                  {isResendMode ? resendPartnerEmail : (selectedPartner?.contact_email || 'Ingen mejladress')}
                 </Badge>
-                {selectedPartner?.contact_person && (
-                  <span className="text-xs text-muted-foreground">({selectedPartner.contact_person})</span>
-                )}
+                <span className="text-xs text-muted-foreground">
+                  ({isResendMode ? resendPartnerName : (selectedPartner?.contact_person || '')})
+                </span>
               </div>
             </div>
+
+            {/* Editable transport details (resend mode) */}
+            {isResendMode && (
+              <div className="p-3 rounded-xl border border-primary/20 bg-primary/5 space-y-3">
+                <p className="text-[10px] uppercase tracking-widest font-semibold text-primary">Transportdetaljer (redigerbara)</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Transportdatum</Label>
+                    <Input
+                      type="date"
+                      value={resendTransportDate}
+                      onChange={e => setResendTransportDate(e.target.value)}
+                      className="rounded-xl h-9 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Tid</Label>
+                    <Select
+                      value={resendTransportTime}
+                      onValueChange={v => setResendTransportTime(v)}
+                    >
+                      <SelectTrigger className="rounded-xl h-9 text-sm">
+                        <SelectValue placeholder="Välj tid..." />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[240px]">
+                        {timeSlots.map(time => (
+                          <SelectItem key={time} value={time}>{time}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Upphämtningsplats</Label>
+                  <Input
+                    value={resendPickupAddress}
+                    onChange={e => setResendPickupAddress(e.target.value)}
+                    className="rounded-xl h-9 text-sm"
+                    placeholder="Adress..."
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Subject (editable) */}
             <div className="space-y-1.5">
@@ -1051,24 +1177,33 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
               />
             </div>
 
-            {/* Booking summary (read-only) */}
-            <div className="p-3 rounded-xl bg-muted/30 border border-border/30 space-y-1.5">
-              <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">Bokningsdetaljer (visas i mejlet)</p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                <span className="text-muted-foreground">Kund</span>
-                <span className="font-medium">{wizardBooking?.client || '—'}</span>
-                <span className="text-muted-foreground">Leverans</span>
-                <span className="font-medium">{wizardBooking?.deliveryaddress || '—'}</span>
-                <span className="text-muted-foreground">Upphämtning</span>
-                <span className="font-medium">{wizardData.pickupAddress || '—'}</span>
-                <span className="text-muted-foreground">Fordonstyp</span>
-                <span className="font-medium">{vehicleTypeLabels[wizardData.vehicleType || ''] || '—'}</span>
-                <span className="text-muted-foreground">Datum</span>
-                <span className="font-medium">{wizardData.transportDate || '—'}</span>
-                <span className="text-muted-foreground">Tid</span>
-                <span className="font-medium">{wizardData.transportTime || '—'}</span>
+            {/* Booking summary */}
+            {!isResendMode && (
+              <div className="p-3 rounded-xl bg-muted/30 border border-border/30 space-y-1.5">
+                <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">Bokningsdetaljer (visas i mejlet)</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  <span className="text-muted-foreground">Kund</span>
+                  <span className="font-medium">{wizardBooking?.client || '—'}</span>
+                  <span className="text-muted-foreground">Leverans</span>
+                  <span className="font-medium">{wizardBooking?.deliveryaddress || '—'}</span>
+                  <span className="text-muted-foreground">Upphämtning</span>
+                  <span className="font-medium">{wizardData.pickupAddress || '—'}</span>
+                  <span className="text-muted-foreground">Fordonstyp</span>
+                  <span className="font-medium">{vehicleTypeLabels[wizardData.vehicleType || ''] || '—'}</span>
+                  <span className="text-muted-foreground">Datum</span>
+                  <span className="font-medium">{wizardData.transportDate || '—'}</span>
+                  <span className="text-muted-foreground">Tid</span>
+                  <span className="font-medium">{wizardData.transportTime || '—'}</span>
+                </div>
               </div>
-            </div>
+            )}
+
+            {isResendMode && (
+              <div className="p-3 rounded-xl bg-muted/30 border border-border/30 space-y-1.5">
+                <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">Kund</p>
+                <p className="text-sm font-medium">{resendBookingClient}</p>
+              </div>
+            )}
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">
@@ -1077,7 +1212,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
             </Button>
             <Button onClick={handleSendEmail} disabled={sendingEmail} className="rounded-xl gap-2">
               <Send className="h-4 w-4" />
-              {sendingEmail ? 'Skickar...' : 'Skicka mejl'}
+              {sendingEmail ? 'Skickar...' : (isResendMode ? 'Uppdatera & skicka mejl' : 'Skicka mejl')}
             </Button>
           </DialogFooter>
         </DialogContent>
