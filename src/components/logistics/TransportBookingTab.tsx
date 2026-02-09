@@ -1226,7 +1226,16 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                 Inga bokade transporter ännu
               </div>
             ) : (
-              withTransport.map(booking => (
+              withTransport.map(booking => {
+                // Check if any external assignment is still pending confirmation
+                const hasPendingExternal = booking.transport_assignments.some(
+                  a => a.is_external && (!a.partner_response || a.partner_response === 'pending')
+                );
+                const hasDeclined = booking.transport_assignments.some(
+                  a => a.is_external && a.partner_response === 'declined'
+                );
+
+                return (
                 <div
                   key={booking.id}
                   className="p-3 rounded-xl border border-border/40 bg-background/60 transition-all"
@@ -1264,10 +1273,22 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                         )}
                       </div>
                     </div>
-                    <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-[hsl(38,92%,50%)]/10 text-[hsl(38,92%,45%)] border-[hsl(38,92%,50%)]/20">
-                      <Check className="h-3.5 w-3.5" />
-                      Bokad
-                    </Badge>
+                    {hasDeclined ? (
+                      <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-destructive/10 text-destructive border-destructive/20">
+                        <X className="h-3.5 w-3.5" />
+                        Nekad
+                      </Badge>
+                    ) : hasPendingExternal ? (
+                      <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-[hsl(38,92%,50%)]/10 text-[hsl(38,92%,45%)] border-[hsl(38,92%,50%)]/20">
+                        <Clock className="h-3.5 w-3.5" />
+                        Väntar bekräftelse
+                      </Badge>
+                    ) : (
+                      <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-primary/10 text-primary border-primary/20">
+                        <Check className="h-3.5 w-3.5" />
+                        Bekräftad
+                      </Badge>
+                    )}
                   </div>
                   {/* Transport assignments */}
                   <div className="space-y-1.5 mt-2 pt-2 border-t border-border/20">
@@ -1333,7 +1354,8 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                     ))}
                   </div>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         </PremiumCard>
