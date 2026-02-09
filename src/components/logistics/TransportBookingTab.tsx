@@ -787,12 +787,12 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-muted-foreground">Standard: David Adrians väg 1</p>
                   {wizardData.pickupLatitude && wizardData.pickupLongitude ? (
-                    <p className="text-xs text-green-600 flex items-center gap-1">
+                    <p className="text-xs text-primary flex items-center gap-1">
                       <Check className="h-3 w-3" />
                       {wizardData.pickupLatitude.toFixed(4)}, {wizardData.pickupLongitude.toFixed(4)}
                     </p>
                   ) : (
-                    <p className="text-xs text-orange-500">Ej geocodad</p>
+                    <p className="text-xs text-destructive">Ej geocodad</p>
                   )}
                 </div>
                 <AddressFavorites
@@ -811,11 +811,11 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
               </div>
 
               {/* Return transport checkbox section */}
-              <div className="space-y-3 pt-2 border-t border-border/30">
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-card to-muted/20 border border-border/40 shadow-sm space-y-3">
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         <Checkbox
                           id="includeReturn"
                           checked={wizardData.includeReturn || false}
@@ -829,17 +829,23 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                             }));
                           }}
                           disabled={!wizardBooking?.rigdowndate}
+                          className="h-5 w-5"
                         />
                         <Label
                           htmlFor="includeReturn"
                           className={cn(
-                            "text-sm font-medium cursor-pointer flex items-center gap-2",
+                            "text-sm font-semibold cursor-pointer flex items-center gap-2",
                             !wizardBooking?.rigdowndate && "text-muted-foreground cursor-not-allowed"
                           )}
                         >
-                          <RotateCcw className="h-3.5 w-3.5" />
+                          <div className="p-1 rounded-lg bg-primary/10">
+                            <RotateCcw className="h-3.5 w-3.5 text-primary" />
+                          </div>
                           Återtransport (retur)
                         </Label>
+                        {!wizardBooking?.rigdowndate && (
+                          <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">Saknar rivningsdatum</span>
+                        )}
                       </div>
                     </TooltipTrigger>
                     {!wizardBooking?.rigdowndate && (
@@ -851,10 +857,10 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                 </TooltipProvider>
 
                 {wizardData.includeReturn && (
-                  <div className="ml-6 space-y-4 p-4 rounded-xl bg-muted/30 border border-border/30">
+                  <div className="space-y-4 pt-3 border-t border-border/30">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Returdatum *</Label>
+                        <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Returdatum *</Label>
                         <Input
                           type="date"
                           value={wizardData.returnDate || ''}
@@ -863,7 +869,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Returtid *</Label>
+                        <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Returtid *</Label>
                         <Select
                           value={wizardData.returnTime || ''}
                           onValueChange={v => setWizardData(p => ({ ...p, returnTime: v }))}
@@ -881,7 +887,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Returadress (upphämtning)</Label>
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Returadress (upphämtning)</Label>
                       <Input
                         value={wizardData.returnPickupAddress || ''}
                         onChange={e => setWizardData(p => ({ ...p, returnPickupAddress: e.target.value }))}
@@ -892,7 +898,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Kontaktperson (retur) *</Label>
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Kontaktperson (retur) *</Label>
                       <Input
                         value={wizardData.returnContactName || ''}
                         onChange={e => setWizardData(p => ({ ...p, returnContactName: e.target.value }))}
@@ -903,7 +909,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Telefon (retur) *</Label>
+                        <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Telefon (retur) *</Label>
                         <Input
                           value={wizardData.returnContactPhone || ''}
                           onChange={e => setWizardData(p => ({ ...p, returnContactPhone: e.target.value }))}
@@ -912,7 +918,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>E-post (retur)</Label>
+                        <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">E-post (retur)</Label>
                         <Input
                           value={wizardData.returnContactEmail || ''}
                           onChange={e => setWizardData(p => ({ ...p, returnContactEmail: e.target.value }))}
@@ -1149,7 +1155,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
           <div className="space-y-2 max-h-[600px] overflow-y-auto">
             {withoutTransport.length === 0 ? (
               <div className="text-center py-8 text-sm text-muted-foreground">
-                <Check className="h-8 w-8 mx-auto mb-2 text-emerald-500/50" />
+                <Check className="h-8 w-8 mx-auto mb-2 text-primary/50" />
                 Alla bokningar har transport
               </div>
             ) : (
@@ -1270,7 +1276,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                           {a.partner_response && a.partner_response !== 'pending' && (
                             <span className={cn(
                               "ml-1 px-1 rounded text-[9px] font-semibold",
-                              a.partner_response === 'accepted' ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                              a.partner_response === 'accepted' ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"
                             )}>
                               {a.partner_response === 'accepted' ? '✓ Accepterad' : '✗ Nekad'}
                             </span>
