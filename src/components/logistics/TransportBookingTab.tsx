@@ -99,7 +99,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
   const [wizardData, setWizardData] = useState<Partial<WizardData>>({});
   const [editingAssignmentId, setEditingAssignmentId] = useState<string | null>(null);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
-  const [cancellingAssignment, setCancellingAssignment] = useState<{ id: string; vehicleName: string; bookingClient: string; transportDate: string } | null>(null);
+  const [cancellingAssignment, setCancellingAssignment] = useState<{ id: string; vehicleName: string; bookingClient: string; transportDate: string; is_external?: boolean } | null>(null);
   const [cancellingInProgress, setCancellingInProgress] = useState(false);
 
   // Email preview dialog state
@@ -201,12 +201,13 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
     }
   };
 
-  const handleOpenCancelDialog = (assignment: { id: string; vehicle_name?: string; transport_date: string }, bookingClient: string) => {
+  const handleOpenCancelDialog = (assignment: { id: string; vehicle_name?: string; transport_date: string; is_external?: boolean }, bookingClient: string) => {
     setCancellingAssignment({
       id: assignment.id,
       vehicleName: assignment.vehicle_name || 'Okänt fordon',
       bookingClient,
       transportDate: assignment.transport_date,
+      is_external: assignment.is_external || false,
     });
     setCancelDialogOpen(true);
   };
@@ -215,9 +216,28 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
     if (!cancellingAssignment) return;
     setCancellingInProgress(true);
     try {
+      // Send cancellation email to external partner before removing
+      if (cancellingAssignment.is_external) {
+        try {
+          const { error: emailError } = await supabase.functions.invoke('send-transport-cancellation', {
+            body: { assignment_id: cancellingAssignment.id },
+          });
+          if (emailError) {
+            console.error('Cancellation email error:', emailError);
+            toast.warning('Transport avbokas men mejl till partnern kunde inte skickas');
+          }
+        } catch (e) {
+          console.error('Cancellation email invoke error:', e);
+          // Continue with removal even if email fails
+        }
+      }
+
       const success = await removeAssignment(cancellingAssignment.id);
       if (success) {
-        toast.success('Transport avbokad');
+        const msg = cancellingAssignment.is_external
+          ? 'Transport avbokad och partner notifierad'
+          : 'Transport avbokad';
+        toast.success(msg);
         refetch();
       }
     } finally {
@@ -1309,7 +1329,9 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                 </span>
               )}
               <span className="block text-xs">
-                Transporten tas bort permanent. Om partnern redan fått en förfrågan rekommenderar vi att du kontaktar dem separat.
+                {cancellingAssignment?.is_external
+                  ? 'Transporten tas bort och ett avbokningsmail skickas till partnern.'
+                  : 'Transporten tas bort permanent.'}
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>

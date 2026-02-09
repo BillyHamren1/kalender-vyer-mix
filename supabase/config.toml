@@ -108,3 +108,6 @@ verify_jwt = false
 
 [functions.geocode-address]
 verify_jwt = false
+
+[functions.send-transport-cancellation]
+verify_jwt = false
