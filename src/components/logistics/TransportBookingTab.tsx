@@ -1274,17 +1274,17 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                       </div>
                     </div>
                     {hasDeclined ? (
-                      <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-destructive/10 text-destructive border-destructive/20">
+                      <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-destructive text-white border-destructive">
                         <X className="h-3.5 w-3.5" />
                         Nekad
                       </Badge>
                     ) : hasPendingExternal ? (
-                      <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-[hsl(38,92%,50%)]/10 text-[hsl(38,92%,45%)] border-[hsl(38,92%,50%)]/20">
+                      <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-[hsl(38,92%,50%)] text-white border-[hsl(38,92%,45%)]">
                         <Clock className="h-3.5 w-3.5" />
                         Väntar bekräftelse
                       </Badge>
                     ) : (
-                      <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-primary/10 text-primary border-primary/20">
+                      <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-primary text-white border-primary">
                         <Check className="h-3.5 w-3.5" />
                         Bekräftad
                       </Badge>
