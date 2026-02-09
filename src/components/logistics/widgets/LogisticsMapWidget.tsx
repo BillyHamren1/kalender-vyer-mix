@@ -17,6 +17,12 @@ import { cn } from '@/lib/utils';
 type MapFilter = 'all' | 'projects' | 'transports';
 type TimeFilter = 'week' | 'month';
 
+interface RouteCache {
+  geometry: GeoJSON.Geometry;
+  distance_km: number;
+  duration_min: number;
+}
+
 interface Props {
   onClick: () => void;
 }
@@ -25,6 +31,7 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const routeCache = useRef<Map<string, RouteCache>>(new Map());
 
   const [mapFilter, setMapFilter] = useState<MapFilter>('all');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('week');
@@ -127,10 +134,10 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
       });
     }
 
-    // Transport assignments — draw route lines from pickup to delivery
+    // Transport assignments — draw real road routes
     if (mapFilter === 'all' || mapFilter === 'transports') {
-      // Clean up previous route layers/sources
       const m = map.current!;
+      // Clean up previous route layers/sources
       const existingSources = Object.keys((m.getStyle()?.sources) || {}).filter(s => s.startsWith('route-'));
       existingSources.forEach(s => {
         if (m.getLayer(s + '-line')) m.removeLayer(s + '-line');
@@ -138,71 +145,117 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
         if (m.getSource(s)) m.removeSource(s);
       });
 
-      assignments.forEach((a, idx) => {
+      const token = mapboxgl.accessToken;
+      const validAssignments = assignments.filter(a => {
         const b = a.booking;
-        if (!b) return;
+        if (!b) return false;
         const destLat = (b as any).delivery_latitude;
         const destLng = (b as any).delivery_longitude;
-        if (!destLat || !destLng) return;
+        return destLat && destLng;
+      });
 
-        const pickupLat = a.pickup_latitude ?? 59.3293; // Default: Stockholm
+      // Fetch real routes in parallel (max 10)
+      const routePromises = validAssignments.slice(0, 10).map(async (a) => {
+        const b = a.booking!;
+        const destLat = (b as any).delivery_latitude;
+        const destLng = (b as any).delivery_longitude;
+        const pickupLat = a.pickup_latitude ?? 59.3293;
         const pickupLng = a.pickup_longitude ?? 18.0686;
+        const cacheKey = `${pickupLng.toFixed(4)},${pickupLat.toFixed(4)}-${destLng.toFixed(4)},${destLat.toFixed(4)}`;
 
-        const sourceId = `route-${a.id}`;
+        if (routeCache.current.has(cacheKey)) {
+          return { assignment: a, route: routeCache.current.get(cacheKey)!, pickupLat, pickupLng, destLat, destLng };
+        }
 
-        // Add route line
-        m.addSource(sourceId, {
-          type: 'geojson',
-          data: {
-            type: 'Feature',
-            properties: {},
-            geometry: {
-              type: 'LineString',
-              coordinates: [[pickupLng, pickupLat], [destLng, destLat]]
-            }
+        try {
+          const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${pickupLng},${pickupLat};${destLng},${destLat}?geometries=geojson&overview=full&access_token=${token}`;
+          const resp = await fetch(url);
+          const data = await resp.json();
+          if (data.routes?.[0]) {
+            const r = data.routes[0];
+            const cached: RouteCache = {
+              geometry: r.geometry,
+              distance_km: Math.round(r.distance / 100) / 10,
+              duration_min: Math.round(r.duration / 60),
+            };
+            routeCache.current.set(cacheKey, cached);
+            return { assignment: a, route: cached, pickupLat, pickupLng, destLat, destLng };
           }
+        } catch (err) {
+          console.warn('Directions API failed for', a.id, err);
+        }
+        // Fallback: straight line
+        return { assignment: a, route: null, pickupLat, pickupLng, destLat, destLng };
+      });
+
+      Promise.allSettled(routePromises).then(results => {
+        if (!map.current) return;
+        const m2 = map.current;
+        results.forEach(result => {
+          if (result.status !== 'fulfilled') return;
+          const { assignment: a, route, pickupLat, pickupLng, destLat, destLng } = result.value;
+          const b = a.booking!;
+          const sourceId = `route-${a.id}`;
+
+          // Remove if already exists (from previous render)
+          if (m2.getLayer(sourceId + '-line')) m2.removeLayer(sourceId + '-line');
+          if (m2.getLayer(sourceId + '-outline')) m2.removeLayer(sourceId + '-outline');
+          if (m2.getSource(sourceId)) m2.removeSource(sourceId);
+
+          const geometry = route?.geometry || {
+            type: 'LineString' as const,
+            coordinates: [[pickupLng, pickupLat], [destLng, destLat]]
+          };
+
+          m2.addSource(sourceId, {
+            type: 'geojson',
+            data: { type: 'Feature', properties: {}, geometry }
+          });
+
+          m2.addLayer({
+            id: sourceId + '-outline',
+            type: 'line',
+            source: sourceId,
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: { 'line-color': 'hsl(25, 80%, 30%)', 'line-width': 6, 'line-opacity': 0.4 }
+          });
+
+          m2.addLayer({
+            id: sourceId + '-line',
+            type: 'line',
+            source: sourceId,
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: { 'line-color': 'hsl(38, 92%, 50%)', 'line-width': 3.5, 'line-opacity': 0.95 }
+          });
+
+          // Delivery marker
+          const destEl = document.createElement('div');
+          destEl.style.cssText = 'position:relative;width:22px;height:22px;border-radius:4px;background:hsl(38 92% 50%);border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);cursor:pointer';
+          const lbl = document.createElement('div');
+          lbl.textContent = b.client || 'Transport';
+          lbl.style.cssText = 'position:absolute;left:28px;top:50%;transform:translateY(-50%);white-space:nowrap;font-size:11px;font-weight:600;color:white;text-shadow:0 1px 4px rgba(0,0,0,0.8),0 0 2px rgba(0,0,0,0.6);pointer-events:none';
+          destEl.appendChild(lbl);
+
+          const distInfo = route ? `<br/><span style="color:hsl(38,92%,50%)">📍 ${route.distance_km} km · ~${route.duration_min} min</span>` : '';
+          const popup = new mapboxgl.Popup({ offset: 14, closeButton: false, maxWidth: '240px' })
+            .setHTML(`<div style="font-size:12px"><strong>🚚 ${b.client || 'Transport'}</strong><br/>${(b as any).deliveryaddress || ''}${distInfo}</div>`);
+
+          const destMarker = new mapboxgl.Marker(destEl).setLngLat([destLng, destLat]).setPopup(popup).addTo(m2);
+          markersRef.current.push(destMarker);
+
+          // Pickup marker
+          const pickEl = document.createElement('div');
+          pickEl.style.cssText = 'width:12px;height:12px;border-radius:50%;background:hsl(38 92% 70%);border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3)';
+          const pickMarker = new mapboxgl.Marker(pickEl).setLngLat([pickupLng, pickupLat]).addTo(m2);
+          markersRef.current.push(pickMarker);
+
+          bounds.extend([destLng, destLat]);
+          bounds.extend([pickupLng, pickupLat]);
         });
 
-        // Outline (wider, darker)
-        m.addLayer({
-          id: sourceId + '-outline',
-          type: 'line',
-          source: sourceId,
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': 'hsl(25, 80%, 30%)', 'line-width': 5, 'line-opacity': 0.5 }
-        });
-
-        // Main line
-        m.addLayer({
-          id: sourceId + '-line',
-          type: 'line',
-          source: sourceId,
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': 'hsl(38, 92%, 50%)', 'line-width': 3, 'line-opacity': 0.9, 'line-dasharray': [2, 1] }
-        });
-
-        // Delivery marker (destination)
-        const destEl = document.createElement('div');
-        destEl.style.cssText = 'position:relative;width:22px;height:22px;border-radius:4px;background:hsl(38 92% 50%);border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);cursor:pointer';
-        const lbl = document.createElement('div');
-        lbl.textContent = b.client || 'Transport';
-        lbl.style.cssText = 'position:absolute;left:28px;top:50%;transform:translateY(-50%);white-space:nowrap;font-size:11px;font-weight:600;color:white;text-shadow:0 1px 4px rgba(0,0,0,0.8),0 0 2px rgba(0,0,0,0.6);pointer-events:none';
-        destEl.appendChild(lbl);
-
-        const popup = new mapboxgl.Popup({ offset: 14, closeButton: false, maxWidth: '220px' })
-          .setHTML(`<div style="font-size:12px"><strong>🚚 ${b.client || 'Transport'}</strong><br/>${(b as any).deliveryaddress || ''}</div>`);
-
-        const destMarker = new mapboxgl.Marker(destEl).setLngLat([destLng, destLat]).setPopup(popup).addTo(m);
-        markersRef.current.push(destMarker);
-
-        // Pickup marker (small circle)
-        const pickEl = document.createElement('div');
-        pickEl.style.cssText = 'width:12px;height:12px;border-radius:50%;background:hsl(38 92% 70%);border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3)';
-        const pickMarker = new mapboxgl.Marker(pickEl).setLngLat([pickupLng, pickupLat]).addTo(m);
-        markersRef.current.push(pickMarker);
-
-        bounds.extend([destLng, destLat]);
-        bounds.extend([pickupLng, pickupLat]);
+        if (!bounds.isEmpty() && map.current) {
+          map.current.fitBounds(bounds, { padding: 40, maxZoom: 12, duration: 600 });
+        }
       });
     }
 
