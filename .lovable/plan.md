@@ -1,62 +1,61 @@
 
 
-## Avbokningsmail till transportpartner
+## Spara adress som favorit
 
-### Vad som ska goeras
-Naer en transport avbokas som aer tilldelad en extern partner ska ett avbokningmejl automatiskt skickas till partnern. Mejlet informerar att transporten aer avbokad och loggas i historiken.
+### Vad som ska byggas
+En "Spara som favorit"-funktion for adressfaltet (Upphamtningsplats) i transportbokningsguiden. Sparade favoriter visas direkt under adressfaltet som klickbara knappar for snabbval.
 
-### Oeversikt av floede
+### Anvandargranssnittet
 
-1. Anvaendaren klickar "Avboka transport" och bekraeftar i dialogen
-2. Systemet kontrollerar om det aer en extern partner (med mejladress)
-3. Om ja: skickar ett avbokningsmail via en ny edge function
-4. Mejlet loggas i `transport_email_log` med typen `transport_cancellation`
-5. Tilldelningen tas bort fran databasen
+Under adressinmatningen (AddressAutocomplete) visas:
+1. En "Spara som favorit"-knapp (stjarn-ikon) -- synlig nar en geocodad adress ar ifylld
+2. En lista med sparade favoritadresser som klickbara chips/knappar
+3. Varje favorit har en liten X-knapp for att kunna ta bort den
 
-### Aendringar
-
-**1. Ny Edge Function: `supabase/functions/send-transport-cancellation/index.ts`**
-
-- Tar emot `assignment_id` som parameter
-- Haemtar assignment med bokning och fordon/partner-data fran databasen
-- Bygger ett HTML-mejl med avbokningsinformation:
-  - Tydlig rubrik: "Transport avbokad"
-  - Referensnummer (bokningsnummer)
-  - Kund, leveransadress, datum och tid
-  - Valfritt meddelande fran avsaendaren
-- Skickar mejlet via Resend till partnerns kontaktmejl
-- Loggar utskicket i `transport_email_log` med `email_type: "transport_cancellation"`
-
-**2. Uppdatering: `supabase/config.toml`**
-
-- Laegg till `[functions.send-transport-cancellation]` med `verify_jwt = false`
-
-**3. Uppdatering: `src/components/logistics/TransportBookingTab.tsx`**
-
-- Utoka `cancellingAssignment`-state med `is_external` och `vehicle_id`
-- I `handleOpenCancelDialog`: skicka med `is_external` och `vehicle_id` fran assignment-datan
-- I `handleConfirmCancel`:
-  - Foere `removeAssignment` anropas: om `cancellingAssignment.is_external`, anropa `supabase.functions.invoke('send-transport-cancellation', { body: { assignment_id } })`
-  - Visa laemplig feedback (toast) beroende pa om mejlet lyckades eller inte
-  - Oavsett mejlresultat: fortsaett med att ta bort tilldelningen
-
-### Tekniska detaljer
-
-**Edge Function - Mejlinnehall:**
-- Roett/orange faergschema foer att tydligt skilja fran vanliga foerfragningar (som aer groen/teal)
-- Samma layout och stil som `send-transport-request` foer konsistens
-- Inga acceptera/neka-knappar -- bara information
-- Texten gor klart att transporten aer avbokad och att partnern kan ignorera tidigare foerfragningar
-
-**Avbokningslogik i frontend:**
-```
-handleConfirmCancel:
-  1. Om is_external -> invoke 'send-transport-cancellation'
-  2. removeAssignment(id)
-  3. Toast: "Transport avbokad" (+ "och partner notifierad" om extern)
-  4. refetch()
+```text
++--------------------------------------------+
+| Upphamtningsplats *                        |
+| [David Adrians Vag, 194 91 Upplands... v ] |
+| Standard: David Adrians vag 1    v 59,17   |
+|                                            |
+| [star] Spara som favorit                   |
+|                                            |
+| Favoriter:                                 |
+| [David Adrians Vag 1 x] [Lagret Solna x]  |
++--------------------------------------------+
 ```
 
-**Email-logg:**
-Loggas med `email_type: "transport_cancellation"` saa att det syns i projektets transporthistorik.
+### Teknisk plan
+
+**1. Ny komponent: `src/components/logistics/AddressFavorites.tsx`**
+
+Ansvarar for att visa och hantera favoriter:
+- Props: `onSelect(address, lat, lng)`, `currentAddress`, `currentLat`, `currentLng`
+- Laddning/sparande av favoriter fran `localStorage` (nyckel: `transport-address-favorites`)
+- Datastruktur per favorit:
+  ```typescript
+  interface AddressFavorite {
+    id: string;          // crypto.randomUUID()
+    label: string;       // Kort visningsnamn (t.ex. "David Adrians Vag 1")
+    fullAddress: string; // Fullstandig adress
+    latitude?: number;
+    longitude?: number;
+  }
+  ```
+- "Spara som favorit"-knapp: visas nar det finns en giltig adress, klick oppnar en liten inline-input for att valja ett kort namn (label) for favoriten
+- Favoritlista: renderas som knappar/chips med adressnamn och en liten X for att ta bort
+- Klick pa en favorit anropar `onSelect` med adress + koordinater
+
+**2. Uppdatering: `src/components/logistics/TransportBookingTab.tsx`**
+
+- Importera och rendera `AddressFavorites` direkt under `AddressAutocomplete`-faltet och koordinat-raden (rad ~753-777)
+- Koppla `onSelect` till att uppdatera `wizardData` med adress, lat, lng (samma logik som `onChange` pa AddressAutocomplete)
+- Skicka med nuvarande `pickupAddress`, `pickupLatitude`, `pickupLongitude` sa att komponenten vet vad som kan sparas
+
+### Lagring
+Favoriter sparas i `localStorage` under nyckeln `transport-address-favorites` som JSON-array. Detta foljer samma monster som redan anvands i projektet (t.ex. `calendarResources`, `warehouseEventTypeFilters`).
+
+### Filer som andras/skapas
+- **Ny fil:** `src/components/logistics/AddressFavorites.tsx`
+- **Andras:** `src/components/logistics/TransportBookingTab.tsx` (lagg till favoritkomponenten under adressfaltet)
 
