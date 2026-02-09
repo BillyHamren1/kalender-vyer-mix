@@ -35,6 +35,8 @@ export interface AssignmentFormData {
   vehicle_id: string;
   booking_id: string;
   transport_date: string;
+  transport_time?: string;
+  pickup_address?: string;
   stop_order?: number;
 }
 

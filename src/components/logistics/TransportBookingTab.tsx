@@ -12,6 +12,7 @@ import {
   ClipboardList,
   X,
   ArrowRight,
+  Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -53,6 +54,8 @@ interface WizardData {
   booking: BookingForTransport;
   vehicleType: string;
   transportDate: string;
+  transportTime: string;
+  pickupAddress: string;
   vehicleId: string;
   stopOrder: number;
 }
@@ -75,12 +78,16 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
       })
     : [];
 
+  const DEFAULT_PICKUP_ADDRESS = 'David Adrians väg 1';
+
   const startWizard = (booking: BookingForTransport) => {
     setWizardBooking(booking);
     setWizardStep(1);
     setWizardData({
       booking,
       transportDate: booking.rigdaydate || booking.eventdate || format(new Date(), 'yyyy-MM-dd'),
+      transportTime: '',
+      pickupAddress: DEFAULT_PICKUP_ADDRESS,
     });
   };
 
@@ -97,6 +104,8 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
       vehicle_id: wizardData.vehicleId,
       booking_id: wizardBooking.id,
       transport_date: wizardData.transportDate,
+      transport_time: wizardData.transportTime || undefined,
+      pickup_address: wizardData.pickupAddress || undefined,
       stop_order: wizardData.stopOrder || 0,
     });
 
@@ -143,7 +152,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                       {wizardStep > s ? <Check className="h-3.5 w-3.5" /> : s}
                     </span>
                     <span className="hidden sm:inline text-xs">
-                      {s === 1 ? 'Datum & Typ' : s === 2 ? 'Fordon' : 'Bekräfta'}
+                      {s === 1 ? 'Datum & Detaljer' : s === 2 ? 'Fordon' : 'Bekräfta'}
                     </span>
                   </React.Fragment>
                 ))}
@@ -154,13 +163,14 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
             </div>
           }
         >
-          {/* Step 1: Date + Vehicle Type */}
+          {/* Step 1: Date, Time, Pickup & Vehicle Type */}
           {wizardStep === 1 && (
             <div className="space-y-4">
               <div className="p-3 rounded-xl bg-muted/30 border border-border/30">
                 <div className="flex items-center gap-3">
                   <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
                   <div className="text-sm">
+                    <span className="text-muted-foreground">Leveransadress: </span>
                     <span className="font-medium">{wizardBooking.deliveryaddress || 'Ingen adress'}</span>
                     {wizardBooking.delivery_city && (
                       <span className="text-muted-foreground ml-1">({wizardBooking.delivery_city})</span>
@@ -178,6 +188,30 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                     onChange={e => setWizardData(p => ({ ...p, transportDate: e.target.value }))}
                     className="rounded-xl"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label>Tid *</Label>
+                  <Input
+                    type="time"
+                    value={wizardData.transportTime || ''}
+                    onChange={e => setWizardData(p => ({ ...p, transportTime: e.target.value }))}
+                    className="rounded-xl"
+                    placeholder="HH:MM"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Upphämtningsplats *</Label>
+                  <Input
+                    type="text"
+                    value={wizardData.pickupAddress || ''}
+                    onChange={e => setWizardData(p => ({ ...p, pickupAddress: e.target.value }))}
+                    className="rounded-xl"
+                    placeholder="David Adrians väg 1"
+                  />
+                  <p className="text-xs text-muted-foreground">Standard: David Adrians väg 1</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Fordonstyp *</Label>
@@ -200,7 +234,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
               <div className="flex justify-end pt-2">
                 <Button
                   onClick={() => setWizardStep(2)}
-                  disabled={!wizardData.transportDate || !wizardData.vehicleType}
+                  disabled={!wizardData.transportDate || !wizardData.transportTime || !wizardData.pickupAddress || !wizardData.vehicleType}
                   className="rounded-xl gap-2"
                 >
                   Nästa: Välj fordon
@@ -284,10 +318,14 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                   <div className="grid grid-cols-2 gap-y-2 text-sm">
                     <span className="text-muted-foreground">Kund:</span>
                     <span className="font-medium">{wizardBooking.client}</span>
-                    <span className="text-muted-foreground">Adress:</span>
+                    <span className="text-muted-foreground">Leveransadress:</span>
                     <span className="font-medium">{wizardBooking.deliveryaddress || '—'}</span>
+                    <span className="text-muted-foreground">Upphämtning:</span>
+                    <span className="font-medium">{wizardData.pickupAddress || '—'}</span>
                     <span className="text-muted-foreground">Datum:</span>
                     <span className="font-medium">{wizardData.transportDate}</span>
+                    <span className="text-muted-foreground">Tid:</span>
+                    <span className="font-medium">{wizardData.transportTime || '—'}</span>
                     <span className="text-muted-foreground">Fordonstyp:</span>
                     <span className="font-medium">{vehicleTypeLabels[wizardData.vehicleType || ''] || '—'}</span>
                     <span className="text-muted-foreground">Fordon:</span>
