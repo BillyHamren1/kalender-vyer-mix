@@ -2392,6 +2392,20 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "transport_assignments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transport_assignments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "confirmed_bookings"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "transport_assignments_vehicle_id_fkey"
             columns: ["vehicle_id"]
             isOneToOne: false
