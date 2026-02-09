@@ -2360,6 +2360,7 @@ export type Database = {
           created_at: string
           driver_notes: string | null
           estimated_arrival: string | null
+          estimated_duration: number | null
           id: string
           partner_responded_at: string | null
           partner_response: string | null
@@ -2379,6 +2380,7 @@ export type Database = {
           created_at?: string
           driver_notes?: string | null
           estimated_arrival?: string | null
+          estimated_duration?: number | null
           id?: string
           partner_responded_at?: string | null
           partner_response?: string | null
@@ -2398,6 +2400,7 @@ export type Database = {
           created_at?: string
           driver_notes?: string | null
           estimated_arrival?: string | null
+          estimated_duration?: number | null
           id?: string
           partner_responded_at?: string | null
           partner_response?: string | null
