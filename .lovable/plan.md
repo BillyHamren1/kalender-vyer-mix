@@ -1,101 +1,72 @@
 
 
-## Uppgradering av Projektsidan till ett riktigt projektledningssystem
+# Tydligare navigering till "Boka transport"
 
-Projektsidan behover en ordentlig uppgradering for att visa alla relevanta bokningsuppgifter, spara projekthistorik och ge en professionell projektledningsupplevelse.
+## Problem
+Tabbar ("Dashboard" / "Boka transport") ar for sma, diskreta och smaler in i bakgrunden. Det ar nast intill omojligt att se att det finns en "Boka transport"-funktion.
 
-### Vad som saknas idag
+## Losning
+Gora om navigeringen till stora, tydliga knappar med visuella indikatorer istallet for subtila tabbar.
 
-1. **Begransad bokningsinformation** -- Bara kund, eventdatum, adress och kontaktperson visas. Riggdatum, nedrivningsdatum, interna anteckningar, logistikdata (barningsavstand, markspett etc.) och produktlista saknas helt.
-2. **Ingen projekthistorik/aktivitetslogg** -- Det finns ingen mojlighet att folja vad som hant i projektet, vem som gjort vad och nar.
-3. **Projektledare visas inte** -- Trots att `project_leader` sparas i databasen visas den inte pa sidan.
-4. **Oversiktsvy saknas** -- Ingen snabb sammanfattning av projektets framdrift (antal klarade uppgifter, senaste aktivitet, tid kvar etc.).
-5. **Schema-oversikt saknas** -- Rig/Event/Rigdown-datum syns inte samlat som en tydlig tidslinje.
+### Vad som andras
 
----
+**1. Stora, visuella navigationskort istallet for sma tabbar**
+- Ersatter de sma TabsTrigger-elementen med tva tydliga, klickbara kort som tar upp hela bredden
+- Varje kort far en ikon, tydlig rubrik, och en kort beskrivning
+- "Boka transport"-kortet far dessutom en badge som visar antal obokadetransporter (t.ex. "3 väntar")
 
-### Plan: 5 forbattringar
+**2. Visuell design**
+- Aktiv tab far en tydlig primary-fargad ram och bakgrund
+- Inaktiv tab far en diskret stil men med tydlig hover-effekt
+- Bada korten ar stora nog att de inte kan missas
 
-#### 1. Ny databas-tabell: `project_activity_log`
+### Visuellt resultat (ungefar)
 
-Skapar en aktivitetslogg som automatiskt spelar in alla forandringar i projektet.
+```text
++---------------------------------------+---------------------------------------+
+|  [truck-ikon]                         |  [clipboard-ikon]          [3 vantar] |
+|  Dashboard                            |  Boka transport                       |
+|  Oversikt av dagens leveranser        |  Tilldela fordon till bokningar       |
++---------------------------------------+---------------------------------------+
+```
 
-| Kolumn | Typ | Beskrivning |
-|--------|-----|-------------|
-| id | uuid | Primar-nyckel |
-| project_id | uuid | FK till projects |
-| action | text | Typ av handling (t.ex. `task_completed`, `status_changed`, `comment_added`, `file_uploaded`, `staff_assigned`) |
-| description | text | Mänskligt lasbar beskrivning |
-| performed_by | text | Namn pa personen som utforde handlingen |
-| metadata | jsonb | Extra data (t.ex. gammal/ny status, uppgiftsnamn) |
-| created_at | timestamptz | Tidsstampel |
+### Tekniska detaljer
 
-#### 2. Utokad bokningsinformation-sektion
+**Fil: `src/pages/LogisticsPlanning.tsx`**
 
-Visar ALLA bokningsuppgifter i en expanderbar layout:
+Andringen sker pa raderna 115-125 dar TabsList och TabsTrigger renderas. Istallet for den nuvarande kompakta TabsList:
 
-- **Rad 1**: Kund, Bokningsnummer, Status, Projektledare
-- **Rad 2**: Riggdatum, Eventdatum, Nedrivningsdatum (med visuell tidslinje)
-- **Rad 3**: Leveransadress, Stad, Postnummer
-- **Rad 4**: Kontaktperson med telefon och e-post (klickbar)
-- **Rad 5**: Logistikdata (barningsavstand >10m, markspett tillatet, exakt tid)
-- **Interna anteckningar**: Expanderbar sektion med bokningens anteckningar
+```tsx
+// Nuvarande (liten, diskret)
+<TabsList className="rounded-xl h-11 bg-muted/50 p-1">
+  <TabsTrigger ...>Dashboard</TabsTrigger>
+  <TabsTrigger ...>Boka transport</TabsTrigger>
+</TabsList>
+```
 
-#### 3. Ny komponent: Projektovversikt (Dashboard-kort)
+Ersatts med:
 
-En sammanfattningssektion overst med:
+```tsx
+// Ny (stor, tydlig)
+<TabsList className="w-full h-auto bg-transparent p-0 grid grid-cols-2 gap-4">
+  <TabsTrigger value="dashboard" className="...large card styles...">
+    <Truck icon />
+    <h3>Dashboard</h3>
+    <p>Oversikt av leveranser och fordon</p>
+  </TabsTrigger>
+  <TabsTrigger value="booking" className="...large card styles...">
+    <ClipboardList icon />
+    <h3>Boka transport</h3>
+    <p>Tilldela fordon till bekraftade bokningar</p>
+    <Badge>{antal} vantar</Badge>  <!-- visar antal utan transport -->
+  </TabsTrigger>
+</TabsList>
+```
 
-- **Framdrift**: Cirkeldiagram/progressbar med andel klarade uppgifter
-- **Schema**: Visuell tidslinje Rigg -> Event -> Rigdown med nedrakning (t.ex. "3 dagar till rigg")
-- **Projektledare**: Namn och avatar
-- **Senaste aktivitet**: De 3 senaste handlingarna fran aktivitetsloggen
-- **Snabbstatistik**: Antal uppgifter, filer, kommentarer, personalstyrka
+- Aktiv tab far: `border-primary bg-primary/5 shadow-lg`
+- Inaktiv tab far: `border-border/40 bg-card hover:border-primary/30 hover:shadow-md`
+- Badge pa "Boka transport" visar antal bokningar utan transport (kraver att `useBookingsForTransport` anropas i `LogisticsPlanning.tsx`)
 
-#### 4. Ny flik: "Aktivitetslogg" (Historik)
-
-En kronologisk lista over alla forandringar i projektet:
-
-- Ikon + fargkod baserat pa typ (gron for uppgift klar, bla for kommentar, gul for statusandring etc.)
-- Filtrerbar pa typ (uppgifter, kommentarer, filer, statusandringar)
-- Visar vem som utforde handlingen och nar
-- Grupperad per dag med datum-rubriker
-
-#### 5. Automatisk loggning av handlingar
-
-Alla befintliga mutationer (i `useProjectDetail`) utvidgas for att automatiskt skriva till aktivitetsloggen:
-
-- Statusandring (gammal -> ny status)
-- Uppgift tillagd/avslutad/borttagen
-- Kommentar tillagd
-- Fil uppladdad/borttagen
-- Tidrapport inlagd
-- Inkop registrerat
-
----
-
-### Teknisk specifikation
-
-**Nya filer:**
-| Fil | Beskrivning |
-|-----|-------------|
-| `src/components/project/ProjectOverviewHeader.tsx` | Dashboard-kort med framdrift, schema, projektledare |
-| `src/components/project/ProjectActivityLog.tsx` | Aktivitetslogg-flik med filtrering |
-| `src/components/project/ProjectScheduleTimeline.tsx` | Visuell tidslinje Rigg/Event/Rigdown |
-| `src/components/project/BookingInfoExpanded.tsx` | Utokad bokningsinformations-sektion |
-| `src/services/projectActivityService.ts` | CRUD for aktivitetsloggen |
-| Databasmigrering | Skapar `project_activity_log`-tabellen |
-
-**Andrade filer:**
-| Fil | Andring |
-|-----|---------|
-| `src/pages/ProjectDetail.tsx` | Ny layout med oversikt, utokad bokningsinfo, ny Aktivitetslogg-flik |
-| `src/hooks/useProjectDetail.tsx` | Loggar alla handlingar till aktivitetsloggen |
-| `src/services/projectService.ts` | Hamtar utokad bokningsdata (fler falt) |
-| `src/types/project.ts` | Nya typer for `ProjectActivity` och utokad `ProjectWithBooking` |
-
-**Layout-andring pa ProjectDetail:**
-
-Nuvarande ordning: Header -> Bokningsinfo (liten) -> Tabs
-
-Ny ordning: Header (med projektledare) -> Oversikt-dashboard -> Bokningsinfo (expanderbar, komplett) -> Tabs (+ ny Aktivitetslogg-flik)
+**Fil: `src/hooks/useBookingsForTransport.ts`** (mindre andring)
+- Exportera antal `withoutTransport` sa det kan anvandas i foraldern for badge-raknaren
 
