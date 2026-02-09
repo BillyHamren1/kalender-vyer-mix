@@ -1,6 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
+export interface BookingProduct {
+  id: string;
+  name: string;
+  quantity: number;
+  estimated_weight_kg: number | null;
+  estimated_volume_m3: number | null;
+}
+
 export interface BookingForTransport {
   id: string;
   client: string;
@@ -18,6 +26,7 @@ export interface BookingForTransport {
   rigdowndate: string | null;
   status: string | null;
   has_transport: boolean;
+  products: BookingProduct[];
   transport_assignments: {
     id: string;
     vehicle_id: string;
@@ -65,6 +74,31 @@ export const useBookingsForTransport = () => {
 
       if (bookingError) throw bookingError;
 
+      // Fetch booking products for all confirmed bookings
+      const bookingIds = (bookingData || []).map(b => b.id);
+      const { data: productData } = bookingIds.length > 0
+        ? await supabase
+            .from('booking_products')
+            .select('id, booking_id, name, quantity, estimated_weight_kg, estimated_volume_m3')
+            .in('booking_id', bookingIds)
+            .is('parent_product_id', null)
+        : { data: [] };
+
+      // Map products by booking_id
+      const productsByBooking: Record<string, BookingProduct[]> = {};
+      (productData || []).forEach((p: any) => {
+        if (!productsByBooking[p.booking_id]) {
+          productsByBooking[p.booking_id] = [];
+        }
+        productsByBooking[p.booking_id].push({
+          id: p.id,
+          name: p.name,
+          quantity: p.quantity,
+          estimated_weight_kg: p.estimated_weight_kg,
+          estimated_volume_m3: p.estimated_volume_m3,
+        });
+      });
+
       // Fetch all transport assignments with vehicle names
       const { data: assignmentData, error: assignmentError } = await supabase
         .from('transport_assignments')
@@ -107,6 +141,7 @@ export const useBookingsForTransport = () => {
         ...b,
         has_transport: !!assignmentsByBooking[b.id]?.length,
         transport_assignments: assignmentsByBooking[b.id] || [],
+        products: productsByBooking[b.id] || [],
       }));
 
       setBookings(mapped);

@@ -19,9 +19,10 @@ import {
   Building2,
   RotateCcw,
   Pencil,
-  
+  MessageSquare,
   Mail,
   Send,
+  Weight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -100,6 +101,7 @@ interface WizardData {
   returnContactName: string;
   returnContactPhone: string;
   returnContactEmail: string;
+  driverNotes: string;
 }
 
 const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) => {
@@ -187,6 +189,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
       returnContactName: '',
       returnContactPhone: '',
       returnContactEmail: '',
+      driverNotes: '',
     });
   };
 
@@ -288,6 +291,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
       pickup_latitude: wizardData.pickupLatitude,
       pickup_longitude: wizardData.pickupLongitude,
       stop_order: wizardData.stopOrder || 0,
+      driver_notes: wizardData.driverNotes || undefined,
     });
 
     if (result && wizardData.includeReturn) {
@@ -1072,6 +1076,64 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Cargo / Last information */}
+              {wizardBooking && wizardBooking.products.length > 0 && (
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-card to-muted/20 border border-border/40 shadow-sm">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="p-1.5 rounded-lg bg-primary/10">
+                      <Package className="h-3.5 w-3.5 text-primary" />
+                    </div>
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Last (från bokning)</h4>
+                  </div>
+                  <div className="space-y-1.5">
+                    {wizardBooking.products.map(product => (
+                      <div key={product.id} className="flex items-center justify-between text-sm py-1 px-2 rounded-lg bg-muted/30">
+                        <span className="font-medium text-foreground">{product.quantity}× {product.name}</span>
+                        <span className="text-xs text-muted-foreground flex items-center gap-2">
+                          {product.estimated_weight_kg != null && (
+                            <span className="flex items-center gap-0.5">
+                              <Weight className="h-3 w-3" />
+                              {product.estimated_weight_kg} kg
+                            </span>
+                          )}
+                          {product.estimated_volume_m3 != null && (
+                            <span>{product.estimated_volume_m3} m³</span>
+                          )}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  {(() => {
+                    const totalWeight = wizardBooking.products.reduce((sum, p) => sum + ((p.estimated_weight_kg || 0) * p.quantity), 0);
+                    const totalVolume = wizardBooking.products.reduce((sum, p) => sum + ((p.estimated_volume_m3 || 0) * p.quantity), 0);
+                    return (totalWeight > 0 || totalVolume > 0) ? (
+                      <div className="mt-2 pt-2 border-t border-border/40 flex gap-4 text-xs text-muted-foreground">
+                        {totalWeight > 0 && <span>Totalvikt: <strong className="text-foreground">{totalWeight} kg</strong></span>}
+                        {totalVolume > 0 && <span>Totalvolym: <strong className="text-foreground">{totalVolume.toFixed(2)} m³</strong></span>}
+                      </div>
+                    ) : null;
+                  })()}
+                </div>
+              )}
+
+              {/* Driver notes / comment */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-card to-muted/20 border border-border/40 shadow-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-1.5 rounded-lg bg-primary/10">
+                    <MessageSquare className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Kommentar till förare (valfritt)</h4>
+                </div>
+                <Textarea
+                  value={wizardData.driverNotes || ''}
+                  onChange={e => setWizardData(p => ({ ...p, driverNotes: e.target.value }))}
+                  placeholder="T.ex. ring 30 min innan ankomst, portkod 1234, kör till bakre lastkaj..."
+                  className="rounded-xl min-h-[80px] resize-none"
+                  maxLength={500}
+                />
+                <p className="text-xs text-muted-foreground mt-1.5">Synlig information för föraren vid leverans</p>
               </div>
 
               {/* Stop order */}
