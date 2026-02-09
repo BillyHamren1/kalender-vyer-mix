@@ -1,5 +1,21 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+function htmlHeaders(): Headers {
+  return new Headers({
+    ...corsHeaders,
+    "Content-Type": "text/html; charset=utf-8",
+  });
+}
+
+function htmlResponse(body: string, status = 200): Response {
+  return new Response(body, { status, headers: htmlHeaders() });
+}
+
 function buildResponsePage(action: "accepted" | "declined", partnerName: string, clientName: string, transportDate: string): string {
   const isAccepted = action === "accepted";
   const emoji = isAccepted ? "✅" : "❌";
@@ -52,9 +68,14 @@ function buildErrorPage(message: string): string {
 }
 
 Deno.serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   // This is a GET endpoint - links from email
   if (req.method !== "GET") {
-    return new Response("Method not allowed", { status: 405 });
+    return htmlResponse("Method not allowed", 405);
   }
 
   try {
@@ -65,17 +86,11 @@ Deno.serve(async (req) => {
     console.log(`[handle-transport-response] Token: ${token}, Action: ${action}`);
 
     if (!token || !action) {
-      return new Response(buildErrorPage("Ogiltig länk. Token eller åtgärd saknas."), {
-        status: 400,
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      });
+      return htmlResponse(buildErrorPage("Ogiltig länk. Token eller åtgärd saknas."), 400);
     }
 
     if (action !== "accepted" && action !== "declined") {
-      return new Response(buildErrorPage("Ogiltig åtgärd. Använd länkarna i mejlet."), {
-        status: 400,
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      });
+      return htmlResponse(buildErrorPage("Ogiltig åtgärd. Använd länkarna i mejlet."), 400);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -95,18 +110,14 @@ Deno.serve(async (req) => {
 
     if (fetchError || !assignment) {
       console.error("[handle-transport-response] Assignment not found:", fetchError?.message);
-      return new Response(buildErrorPage("Transportförfrågan hittades inte. Länken kan ha upphört att gälla."), {
-        status: 404,
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      });
+      return htmlResponse(buildErrorPage("Transportförfrågan hittades inte. Länken kan ha upphört att gälla."), 404);
     }
 
     // Check if already responded
     if (assignment.partner_response === "accepted" || assignment.partner_response === "declined") {
       const alreadyAction = assignment.partner_response === "accepted" ? "accepterat" : "nekat";
-      return new Response(
-        buildErrorPage(`Denna förfrågan har redan besvarats (${alreadyAction}). Kontakta oss om du vill ändra ditt svar.`),
-        { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } }
+      return htmlResponse(
+        buildErrorPage(`Denna förfrågan har redan besvarats (${alreadyAction}). Kontakta oss om du vill ändra ditt svar.`)
       );
     }
 
@@ -121,10 +132,7 @@ Deno.serve(async (req) => {
 
     if (updateError) {
       console.error("[handle-transport-response] Update error:", updateError.message);
-      return new Response(buildErrorPage("Kunde inte registrera ditt svar. Försök igen."), {
-        status: 500,
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      });
+      return htmlResponse(buildErrorPage("Kunde inte registrera ditt svar. Försök igen."), 500);
     }
 
     const partnerName = (assignment.vehicle as any)?.contact_person || (assignment.vehicle as any)?.name || "Partner";
@@ -132,15 +140,11 @@ Deno.serve(async (req) => {
 
     console.log(`[handle-transport-response] Assignment ${assignment.id} marked as ${action}`);
 
-    return new Response(
-      buildResponsePage(action, partnerName, clientName, assignment.transport_date),
-      { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } }
+    return htmlResponse(
+      buildResponsePage(action, partnerName, clientName, assignment.transport_date)
     );
   } catch (error: any) {
     console.error("[handle-transport-response] Error:", error.message);
-    return new Response(buildErrorPage("Ett oväntat fel uppstod. Försök igen senare."), {
-      status: 500,
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    });
+    return htmlResponse(buildErrorPage("Ett oväntat fel uppstod. Försök igen senare."), 500);
   }
 });
