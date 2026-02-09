@@ -292,7 +292,7 @@ Deno.serve(async (req) => {
     console.log(`[send-transport-request] Sending email to: ${vehicle.contact_email}`);
 
     const { error: emailError } = await resend.emails.send({
-      from: "EventFlow Logistik <onboarding@resend.dev>",
+      from: "EventFlow Logistik <noreply@fransaugust.se>",
       to: [vehicle.contact_email],
       subject: `Transportförfrågan: ${booking?.client || 'Bokning'} — ${formatDate(assignment.transport_date)}`,
       html,
