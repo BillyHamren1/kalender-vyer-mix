@@ -533,69 +533,110 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
           {((wizardStep === 3 && wizardData.transportMode === 'own') ||
             (wizardStep === 4 && wizardData.transportMode === 'partner')) && (
              <div className="space-y-4">
-              <div className="space-y-3">
-                <div className="p-4 rounded-xl bg-muted/30 border border-border/30 space-y-3">
-                  <h4 className="text-sm font-semibold text-foreground">Sammanfattning</h4>
-                  <div className="grid grid-cols-2 gap-y-2 text-sm">
-                    <span className="text-muted-foreground">Kund:</span>
-                    <span className="font-medium">{wizardBooking?.client || '—'}</span>
-                    <span className="text-muted-foreground">Leveransadress:</span>
-                    <span className="font-medium">{wizardBooking?.deliveryaddress || '—'}</span>
-                    {wizardData.transportMode === 'partner' && (
-                      <>
-                        <span className="text-muted-foreground">Partner:</span>
-                        <span className="font-medium">{selectedPartner?.name || '—'}</span>
-                      </>
-                    )}
-                    <span className="text-muted-foreground">Fordonstyp:</span>
-                    <span className="font-medium">{vehicleTypeLabels[wizardData.vehicleType || ''] || '—'}</span>
-                    {wizardData.transportMode === 'own' && (
-                      <>
-                        <span className="text-muted-foreground">Fordon:</span>
-                        <span className="font-medium">
-                          {activeVehicles.find(v => v.id === wizardData.vehicleId)?.name || '—'}
-                        </span>
-                      </>
-                    )}
-                    <span className="text-muted-foreground">Upphämtning:</span>
-                    <span className="font-medium">{wizardData.pickupAddress || DEFAULT_PICKUP_ADDRESS}</span>
-                    <span className="text-muted-foreground">Datum:</span>
-                    <span className="font-medium">{wizardData.transportDate || '—'}</span>
-                    <span className="text-muted-foreground">Tid:</span>
-                    <span className="font-medium">{wizardData.transportTime || '—'}</span>
-                    {wizardBooking?.rigdaydate && (
-                      <>
-                        <span className="text-muted-foreground">Riggdag:</span>
-                        <span className="font-medium">{formatDate(wizardBooking.rigdaydate)}</span>
-                      </>
-                    )}
-                    {wizardBooking?.eventdate && (
-                      <>
-                        <span className="text-muted-foreground">Eventdag:</span>
-                        <span className="font-medium">{formatDate(wizardBooking.eventdate)}</span>
-                      </>
-                    )}
-                    {wizardBooking?.rigdowndate && (
-                      <>
-                        <span className="text-muted-foreground">Nedrigg:</span>
-                        <span className="font-medium">{formatDate(wizardBooking.rigdowndate)}</span>
-                      </>
-                    )}
+              {/* Summary cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Booking info card */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-card to-muted/20 border border-border/40 shadow-sm space-y-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="p-1.5 rounded-lg bg-primary/10">
+                      <Package className="h-3.5 w-3.5 text-primary" />
+                    </div>
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Bokning</h4>
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-[11px] text-muted-foreground">Kund</p>
+                      <p className="text-sm font-semibold text-foreground">{wizardBooking?.client || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-muted-foreground">Leveransadress</p>
+                      <p className="text-sm font-medium text-foreground">{wizardBooking?.deliveryaddress || '—'}</p>
+                    </div>
+                    <div className="flex gap-4">
+                      {wizardBooking?.rigdaydate && (
+                        <div>
+                          <p className="text-[11px] text-muted-foreground">Riggdag</p>
+                          <p className="text-sm font-medium text-foreground">{formatDate(wizardBooking.rigdaydate)}</p>
+                        </div>
+                      )}
+                      {wizardBooking?.eventdate && (
+                        <div>
+                          <p className="text-[11px] text-muted-foreground">Eventdag</p>
+                          <p className="text-sm font-medium text-foreground">{formatDate(wizardBooking.eventdate)}</p>
+                        </div>
+                      )}
+                      {wizardBooking?.rigdowndate && (
+                        <div>
+                          <p className="text-[11px] text-muted-foreground">Nedrigg</p>
+                          <p className="text-sm font-medium text-foreground">{formatDate(wizardBooking.rigdowndate)}</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Stopordning (valfritt)</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={wizardData.stopOrder ?? ''}
-                    onChange={e => setWizardData(p => ({ ...p, stopOrder: e.target.value ? parseInt(e.target.value) : 0 }))}
-                    placeholder="T.ex. 1, 2, 3..."
-                    className="rounded-xl"
-                  />
-                  <p className="text-xs text-muted-foreground">Anger i vilken ordning detta stopp ska köras</p>
+                {/* Transport info card */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-card to-muted/20 border border-border/40 shadow-sm space-y-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="p-1.5 rounded-lg bg-primary/10">
+                      <Truck className="h-3.5 w-3.5 text-primary" />
+                    </div>
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Transport</h4>
+                  </div>
+                  <div className="space-y-2">
+                    {wizardData.transportMode === 'partner' && (
+                      <div>
+                        <p className="text-[11px] text-muted-foreground">Partner</p>
+                        <p className="text-sm font-semibold text-foreground">{selectedPartner?.name || '—'}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-[11px] text-muted-foreground">Fordonstyp</p>
+                      <p className="text-sm font-medium text-foreground">{vehicleTypeLabels[wizardData.vehicleType || ''] || '—'}</p>
+                    </div>
+                    {wizardData.transportMode === 'own' && (
+                      <div>
+                        <p className="text-[11px] text-muted-foreground">Fordon</p>
+                        <p className="text-sm font-medium text-foreground">
+                          {activeVehicles.find(v => v.id === wizardData.vehicleId)?.name || '—'}
+                        </p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-[11px] text-muted-foreground">Upphämtning</p>
+                      <p className="text-sm font-medium text-foreground">{wizardData.pickupAddress || DEFAULT_PICKUP_ADDRESS}</p>
+                    </div>
+                    <div className="flex gap-4">
+                      <div>
+                        <p className="text-[11px] text-muted-foreground">Datum</p>
+                        <p className="text-sm font-semibold text-foreground">{wizardData.transportDate || '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] text-muted-foreground">Tid</p>
+                        <p className="text-sm font-semibold text-foreground">{wizardData.transportTime || '—'}</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
+              </div>
+
+              {/* Stop order */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-card to-muted/20 border border-border/40 shadow-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-1.5 rounded-lg bg-primary/10">
+                    <ClipboardList className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Stopordning (valfritt)</h4>
+                </div>
+                <Input
+                  type="number"
+                  min={0}
+                  value={wizardData.stopOrder ?? ''}
+                  onChange={e => setWizardData(p => ({ ...p, stopOrder: e.target.value ? parseInt(e.target.value) : 0 }))}
+                  placeholder="T.ex. 1, 2, 3..."
+                  className="rounded-xl"
+                />
+                <p className="text-xs text-muted-foreground mt-1.5">Anger i vilken ordning detta stopp ska köras</p>
               </div>
 
               <div className="flex items-center justify-between pt-2">
