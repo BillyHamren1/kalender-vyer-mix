@@ -80,6 +80,16 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
 
   const DEFAULT_PICKUP_ADDRESS = 'David Adrians väg 1';
 
+  // Generate time slots: 06:00–23:30 in 30-min increments
+  const timeSlots = React.useMemo(() => {
+    const slots: string[] = [];
+    for (let h = 6; h <= 23; h++) {
+      slots.push(`${String(h).padStart(2, '0')}:00`);
+      if (h < 23 || true) slots.push(`${String(h).padStart(2, '0')}:30`);
+    }
+    return slots;
+  }, []);
+
   const startWizard = (booking: BookingForTransport) => {
     setWizardBooking(booking);
     setWizardStep(1);
@@ -191,13 +201,19 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                 </div>
                 <div className="space-y-2">
                   <Label>Tid *</Label>
-                  <Input
-                    type="time"
+                  <Select
                     value={wizardData.transportTime || ''}
-                    onChange={e => setWizardData(p => ({ ...p, transportTime: e.target.value }))}
-                    className="rounded-xl"
-                    placeholder="HH:MM"
-                  />
+                    onValueChange={v => setWizardData(p => ({ ...p, transportTime: v }))}
+                  >
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder="Välj tid..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[240px]">
+                      {timeSlots.map(time => (
+                        <SelectItem key={time} value={time}>{time}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
