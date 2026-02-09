@@ -2361,6 +2361,9 @@ export type Database = {
           driver_notes: string | null
           estimated_arrival: string | null
           id: string
+          partner_responded_at: string | null
+          partner_response: string | null
+          partner_response_token: string | null
           pickup_address: string | null
           status: string | null
           stop_order: number | null
@@ -2375,6 +2378,9 @@ export type Database = {
           driver_notes?: string | null
           estimated_arrival?: string | null
           id?: string
+          partner_responded_at?: string | null
+          partner_response?: string | null
+          partner_response_token?: string | null
           pickup_address?: string | null
           status?: string | null
           stop_order?: number | null
@@ -2389,6 +2395,9 @@ export type Database = {
           driver_notes?: string | null
           estimated_arrival?: string | null
           id?: string
+          partner_responded_at?: string | null
+          partner_response?: string | null
+          partner_response_token?: string | null
           pickup_address?: string | null
           status?: string | null
           stop_order?: number | null

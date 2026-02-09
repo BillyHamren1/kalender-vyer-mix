@@ -99,3 +99,9 @@ verify_jwt = false
 
 [functions.receive-invoice]
 verify_jwt = false
+
+[functions.send-transport-request]
+verify_jwt = false
+
+[functions.handle-transport-response]
+verify_jwt = false

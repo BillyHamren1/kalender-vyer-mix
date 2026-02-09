@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import {
@@ -135,7 +137,6 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
     });
 
     if (result && includeReturn) {
-      // Book return: swap pickup/delivery, use rigdowndate
       const returnDate = wizardBooking.rigdowndate || wizardData.transportDate;
       await assignBookingToVehicle({
         vehicle_id: wizardData.vehicleId,
@@ -148,6 +149,24 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
     }
 
     if (result) {
+      // Send email to partner if partner mode
+      if (wizardData.transportMode === 'partner' && result.id) {
+        try {
+          const { data, error } = await supabase.functions.invoke('send-transport-request', {
+            body: { assignment_id: result.id },
+          });
+          if (error) {
+            console.error('Email send error:', error);
+            toast.error('Transport bokad, men mejl kunde inte skickas till partnern');
+          } else {
+            toast.success(`Transportförfrågan skickad till ${data?.sent_to || 'partnern'}`);
+          }
+        } catch (e) {
+          console.error('Email invoke error:', e);
+          toast.error('Transport bokad, men mejlutskick misslyckades');
+        }
+      }
+
       cancelWizard();
       refetch();
     }
