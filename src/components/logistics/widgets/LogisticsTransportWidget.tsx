@@ -38,10 +38,10 @@ const TransportCard = ({ a, vehicles, expandedId, setExpandedId }: {
   };
 
   const getStatusBadge = (a: TransportAssignment) => {
-    if (a.status === 'delivered') return <Badge variant="outline" className="bg-primary/15 text-primary border-primary/30 text-[10px]">Levererad</Badge>;
-    if (a.partner_response === 'accepted') return <Badge variant="outline" className="bg-primary/15 text-primary border-primary/30 text-[10px]">Bekräftad</Badge>;
-    if (a.partner_response === 'declined') return <Badge variant="outline" className="bg-destructive/15 text-destructive border-destructive/30 text-[10px]">Nekad</Badge>;
-    return <Badge variant="outline" className="bg-amber-500/15 text-amber-600 border-amber-500/30 text-[10px]">Väntar</Badge>;
+    if (a.status === 'delivered') return <Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal-200 text-[10px]">Levererad</Badge>;
+    if (a.partner_response === 'accepted') return <Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal-200 text-[10px]">Bekräftad</Badge>;
+    if (a.partner_response === 'declined') return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-[10px]">Nekad</Badge>;
+    return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px]">Väntar</Badge>;
   };
 
   const formatTransportDate = (dateStr: string) => {
@@ -79,7 +79,7 @@ const TransportCard = ({ a, vehicles, expandedId, setExpandedId }: {
       <div className="p-2.5">
         {/* Header: badge + truck icon */}
         <div className="flex items-center gap-2 mb-1.5">
-          <span className="px-2 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-primary/10 text-primary border-primary/30">
+          <span className="px-2 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-teal-50 text-teal-700 border-teal-200">
             TRANSPORT
           </span>
           <Truck className="w-3.5 h-3.5 ml-auto text-primary/60" />
