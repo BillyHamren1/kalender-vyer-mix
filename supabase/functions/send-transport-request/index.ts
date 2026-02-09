@@ -38,6 +38,7 @@ interface AssignmentData {
   transport_time: string | null;
   pickup_address: string | null;
   vehicle_type: string | null;
+  estimated_duration: number | null;
   token: string;
   acceptUrl: string;
   declineUrl: string;
@@ -225,6 +226,11 @@ function buildEmailHtml(params: EmailParams): string {
                         <td style="padding:6px 0;font-size:13px;color:#7a8b8d;">Tid</td>
                         <td style="padding:6px 0;font-size:14px;color:#1a3a3c;font-weight:700;">${a.transport_time || '—'}</td>
                       </tr>
+                      ${a.estimated_duration ? `
+                      <tr>
+                        <td style="padding:6px 0;font-size:13px;color:#7a8b8d;">Uppskattad tid</td>
+                        <td style="padding:6px 0;font-size:14px;color:#1a3a3c;font-weight:700;">${a.estimated_duration >= 60 ? `${Math.round(a.estimated_duration / 60 * 10) / 10} ${a.estimated_duration === 60 ? 'timme' : 'timmar'}` : `${a.estimated_duration} min`}</td>
+                      </tr>` : ''}
                       ${params.rigDate ? `
                       <tr>
                         <td style="padding:6px 0;font-size:13px;color:#7a8b8d;">Riggdag</td>
@@ -454,6 +460,7 @@ Deno.serve(async (req) => {
         transport_time: a.transport_time,
         pickup_address: a.pickup_address,
         vehicle_type: vehicleType,
+        estimated_duration: a.estimated_duration,
         token,
         acceptUrl: `${responseBaseUrl}?token=${token}&action=accepted`,
         declineUrl: `${responseBaseUrl}?token=${token}&action=declined`,
