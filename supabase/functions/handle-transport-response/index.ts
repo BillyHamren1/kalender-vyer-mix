@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { Resend } from "npm:resend@4.0.0";
 
+const APP_URL = "https://kalender-vyer-mix.lovable.app";
 const LOGO_URL = "https://pihrhltinhewhoxefjxv.supabase.co/storage/v1/object/public/email-assets/fransaugust-logo.png";
 
 function formatDate(d: string | null): string {
@@ -13,6 +14,14 @@ function formatDate(d: string | null): string {
   }
 }
 
+function redirect(status: string): Response {
+  const url = `${APP_URL}/transport-svar?status=${encodeURIComponent(status)}`;
+  return new Response(null, {
+    status: 302,
+    headers: { Location: url },
+  });
+}
+
 function buildConfirmationEmail(params: {
   action: "accepted" | "declined";
   partnerName: string;
@@ -23,11 +32,11 @@ function buildConfirmationEmail(params: {
   transportTime: string | null;
 }): string {
   const isAccepted = params.action === "accepted";
-  const title = isAccepted ? "K\u00f6rning bokad!" : "K\u00f6rning nekad";
+  const title = isAccepted ? "Körning bokad!" : "Körning nekad";
   const titleColor = isAccepted ? "#279B9E" : "#dc2626";
   const message = isAccepted
-    ? `Tack ${params.partnerName}! Ni har accepterat transporten f\u00f6r ${params.clientName} den ${formatDate(params.transportDate)}. Vi \u00e5terkommer med ytterligare detaljer vid behov.`
-    : `Tack f\u00f6r ert svar ${params.partnerName}. K\u00f6rningen f\u00f6r ${params.clientName} den ${formatDate(params.transportDate)} har registrerats som nekad.`;
+    ? `Tack ${params.partnerName}! Ni har accepterat transporten för ${params.clientName} den ${formatDate(params.transportDate)}. Vi återkommer med ytterligare detaljer vid behov.`
+    : `Tack för ert svar ${params.partnerName}. Körningen för ${params.clientName} den ${formatDate(params.transportDate)} har registrerats som nekad.`;
 
   const detailsHtml = isAccepted ? `
           <tr>
@@ -59,8 +68,6 @@ function buildConfirmationEmail(params: {
     <tr>
       <td align="center">
         <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-          
-          <!-- Logo + Reference bar -->
           <tr>
             <td style="padding:16px 40px;border-bottom:1px solid #e0ecee;">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
@@ -76,18 +83,13 @@ function buildConfirmationEmail(params: {
               </table>
             </td>
           </tr>
-
-          <!-- Title + Message -->
           <tr>
             <td style="padding:20px 40px 8px;">
               <h1 style="margin:0;font-size:22px;font-weight:700;color:${titleColor};letter-spacing:-0.5px;">${title}</h1>
               <p style="margin:12px 0 0;font-size:15px;color:#1a3a3c;line-height:1.7;">${message}</p>
             </td>
           </tr>
-
           ${detailsHtml}
-
-          <!-- Footer -->
           <tr>
             <td style="padding:24px 40px;background-color:#f7fafa;border-top:1px solid #e0ecee;">
               <p style="margin:0;font-size:12px;color:#7a8b8d;text-align:center;line-height:1.5;">
@@ -120,21 +122,21 @@ function buildBatchConfirmationEmail(params: {
   let message: string;
 
   if (allAccepted) {
-    title = `${params.results.length} k\u00f6rningar bokade!`;
+    title = `${params.results.length} körningar bokade!`;
     titleColor = "#279B9E";
-    message = `Tack ${params.partnerName}! Ni har accepterat ${params.results.length} k\u00f6rningar f\u00f6r ${params.clientName}. Vi \u00e5terkommer med ytterligare detaljer vid behov.`;
+    message = `Tack ${params.partnerName}! Ni har accepterat ${params.results.length} körningar för ${params.clientName}. Vi återkommer med ytterligare detaljer vid behov.`;
   } else if (allDeclined) {
-    title = `${params.results.length} k\u00f6rningar nekade`;
+    title = `${params.results.length} körningar nekade`;
     titleColor = "#dc2626";
-    message = `Tack f\u00f6r ert svar ${params.partnerName}. ${params.results.length} k\u00f6rningar f\u00f6r ${params.clientName} har registrerats som nekade.`;
+    message = `Tack för ert svar ${params.partnerName}. ${params.results.length} körningar för ${params.clientName} har registrerats som nekade.`;
   } else {
     title = "Svar registrerat";
     titleColor = "#279B9E";
-    message = `Tack ${params.partnerName}! ${accepted} k\u00f6rning(ar) accepterade och ${declined} nekade f\u00f6r ${params.clientName}.`;
+    message = `Tack ${params.partnerName}! ${accepted} körning(ar) accepterade och ${declined} nekade för ${params.clientName}.`;
   }
 
   const detailsRows = params.results.map(r => {
-    const icon = r.action === "accepted" ? "\u2705" : "\u274c";
+    const icon = r.action === "accepted" ? "✅" : "❌";
     const label = r.action === "accepted" ? "Accepterad" : "Nekad";
     return `<tr><td style="padding:6px 12px;font-size:13px;color:#1a3a3c;border-bottom:1px solid #e0ecee;">${icon} <strong>${formatDate(r.transportDate)}</strong> &mdash; ${label}</td></tr>`;
   }).join('');
@@ -196,50 +198,13 @@ function buildBatchConfirmationEmail(params: {
 </html>`;
 }
 
-// Ultra-minimal thank-you page using HTML entities to avoid encoding issues
-function buildThankYouPage(): string {
-  return `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Tack</title></head>
-<body style="margin:0;padding:0;background:#f0f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;">
-<div style="background:#fff;border-radius:20px;padding:48px;max-width:420px;margin:32px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.1);">
-<div style="width:64px;height:64px;border-radius:50%;background:#279B9E;display:inline-flex;align-items:center;justify-content:center;margin-bottom:20px;"><span style="font-size:28px;">&#9989;</span></div>
-<h1 style="margin:0 0 12px;font-size:22px;color:#1a3a3c;font-weight:700;">Tack f&ouml;r ert svar!</h1>
-<p style="margin:0;font-size:14px;color:#5a6b6d;line-height:1.6;">Ett bekr&auml;ftelsemejl har skickats till er.<br>Ni kan st&auml;nga detta f&ouml;nster.</p>
-</div>
-</body>
-</html>`;
-}
-
-function buildErrorPage(msg: string): string {
-  return `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Fel</title></head>
-<body style="margin:0;padding:0;background:#f0f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;">
-<div style="background:#fff;border-radius:20px;padding:48px;max-width:420px;margin:32px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.1);">
-<div style="width:64px;height:64px;border-radius:50%;background:#f59e0b;display:inline-flex;align-items:center;justify-content:center;margin-bottom:20px;"><span style="font-size:28px;">&#9888;&#65039;</span></div>
-<h1 style="margin:0 0 12px;font-size:20px;color:#1a3a3c;font-weight:700;">N&aring;got gick fel</h1>
-<p style="margin:0;font-size:14px;color:#5a6b6d;line-height:1.6;">${msg}</p>
-</div>
-</body>
-</html>`;
-}
-
-function htmlResponse(body: string, status = 200): Response {
-  const headers = new Headers();
-  headers.set("Content-Type", "text/html; charset=utf-8");
-  headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
-  headers.set("X-Content-Type-Options", "nosniff");
-  return new Response(body, { status, headers });
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" } });
   }
 
   if (req.method !== "GET") {
-    return htmlResponse(buildErrorPage("Method not allowed"), 405);
+    return redirect("error");
   }
 
   try {
@@ -258,11 +223,11 @@ Deno.serve(async (req) => {
     console.log(`[handle-transport-response] Tokens: ${tokens.join(', ')}, Action: ${action}`);
 
     if (tokens.length === 0 || !action) {
-      return htmlResponse(buildErrorPage("Ogiltig l&auml;nk. Token eller &aring;tg&auml;rd saknas."), 400);
+      return redirect("error");
     }
 
     if (action !== "accepted" && action !== "declined") {
-      return htmlResponse(buildErrorPage("Ogiltig &aring;tg&auml;rd. Anv&auml;nd l&auml;nkarna i mejlet."), 400);
+      return redirect("error");
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -345,16 +310,12 @@ Deno.serve(async (req) => {
     // If all were already responded
     if (results.length === 0) {
       if (alreadyResponded > 0) {
-        return htmlResponse(buildErrorPage(
-          alreadyResponded > 1
-            ? "Dessa f&ouml;rfr&aring;gningar har redan besvarats. Kontakta oss om ni vill &auml;ndra ert svar."
-            : "Denna f&ouml;rfr&aring;gan har redan besvarats. Kontakta oss om ni vill &auml;ndra ert svar."
-        ));
+        return redirect("already");
       }
-      return htmlResponse(buildErrorPage("Transportf&ouml;rfr&aring;gan hittades inte. L&auml;nken kan ha upph&ouml;rt att g&auml;lla."), 404);
+      return redirect("error");
     }
 
-    // Send confirmation email
+    // Send confirmation email (fire and forget - don't let email failure affect the redirect)
     const partnerEmail = results[0].partnerEmail;
     if (resend && partnerEmail) {
       try {
@@ -373,8 +334,8 @@ Deno.serve(async (req) => {
             transportTime: r.transportTime,
           });
           subject = r.action === "accepted"
-            ? `Bekr\u00e4ftelse: K\u00f6rning bokad ${formatDate(r.transportDate)}`
-            : `Bekr\u00e4ftelse: K\u00f6rning nekad ${formatDate(r.transportDate)}`;
+            ? `Bekräftelse: Körning bokad ${formatDate(r.transportDate)}`
+            : `Bekräftelse: Körning nekad ${formatDate(r.transportDate)}`;
         } else {
           emailHtml = buildBatchConfirmationEmail({
             results: results.map(r => ({ action: r.action, transportDate: r.transportDate })),
@@ -385,10 +346,10 @@ Deno.serve(async (req) => {
           const allAccepted = results.every(r => r.action === "accepted");
           const allDeclined = results.every(r => r.action === "declined");
           subject = allAccepted
-            ? `Bekr\u00e4ftelse: ${results.length} k\u00f6rningar bokade`
+            ? `Bekräftelse: ${results.length} körningar bokade`
             : allDeclined
-            ? `Bekr\u00e4ftelse: ${results.length} k\u00f6rningar nekade`
-            : `Bekr\u00e4ftelse: Svar registrerat f\u00f6r ${results.length} k\u00f6rningar`;
+            ? `Bekräftelse: ${results.length} körningar nekade`
+            : `Bekräftelse: Svar registrerat för ${results.length} körningar`;
         }
 
         const { error: emailError } = await resend.emails.send({
@@ -423,10 +384,10 @@ Deno.serve(async (req) => {
       console.warn(`[handle-transport-response] No email sent - resend: ${!!resend}, partnerEmail: ${partnerEmail}`);
     }
 
-    // Return minimal thank-you page
-    return htmlResponse(buildThankYouPage());
+    // Redirect to the app's thank-you page
+    return redirect(action);
   } catch (error: any) {
     console.error("[handle-transport-response] Error:", error.message);
-    return htmlResponse(buildErrorPage("Ett ov&auml;ntat fel uppstod. F&ouml;rs&ouml;k igen senare."), 500);
+    return redirect("error");
   }
 });
