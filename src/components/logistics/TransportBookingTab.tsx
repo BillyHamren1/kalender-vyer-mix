@@ -1217,7 +1217,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
           icon={ClipboardList}
           title="Bokad transport"
           count={withTransport.length}
-          accentColor="emerald"
+          accentColor="primary"
         >
           <div className="space-y-2 max-h-[600px] overflow-y-auto">
             {withTransport.length === 0 ? (
@@ -1229,9 +1229,9 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
               withTransport.map(booking => (
                 <div
                   key={booking.id}
-                  className="p-3 rounded-xl border border-border/40 bg-background/60 transition-all space-y-2"
+                  className="p-3 rounded-xl border border-border/40 bg-background/60 transition-all"
                 >
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-sm truncate">{booking.client}</span>
@@ -1249,10 +1249,28 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                           </span>
                         )}
                       </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                        {booking.rigdaydate && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            Rigg: {formatDate(booking.rigdaydate)}
+                          </span>
+                        )}
+                        {booking.eventdate && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            Event: {formatDate(booking.eventdate)}
+                          </span>
+                        )}
+                      </div>
                     </div>
+                    <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-primary/10 text-primary border-primary/20 hover:bg-primary/15">
+                      <Check className="h-3.5 w-3.5" />
+                      Bokad
+                    </Badge>
                   </div>
-                  {/* Show assigned vehicles with edit/delete */}
-                  <div className="space-y-1.5">
+                  {/* Transport assignments */}
+                  <div className="space-y-1.5 mt-2 pt-2 border-t border-border/20">
                     {booking.transport_assignments.map(a => (
                       <div key={a.id} className="flex items-center gap-2 group">
                         <Badge
