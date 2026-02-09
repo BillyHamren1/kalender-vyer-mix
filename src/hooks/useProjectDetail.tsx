@@ -1,4 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   fetchProject, 
   fetchProjectTasks, 
@@ -49,6 +51,8 @@ export const useProjectDetail = (projectId: string) => {
     enabled: !!projectId
   });
 
+  const bookingId = projectQuery.data?.booking_id || (projectQuery.data as any)?.booking?.id || null;
+
   const logActivity = (action: string, description: string, metadata?: Record<string, unknown>) => {
     logProjectActivity({
       project_id: projectId,
@@ -59,6 +63,85 @@ export const useProjectDetail = (projectId: string) => {
       queryClient.invalidateQueries({ queryKey: ['project-activities', projectId] });
     });
   };
+
+  // Subscribe to transport changes and log them automatically
+  useEffect(() => {
+    if (!bookingId) return;
+
+    const channel = supabase
+      .channel(`project-transport-activity-${bookingId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'transport_assignments',
+          filter: `booking_id=eq.${bookingId}`,
+        },
+        async (payload) => {
+          const newRow = payload.new as any;
+          // Fetch vehicle name
+          const { data: vehicle } = await supabase
+            .from('vehicles')
+            .select('name')
+            .eq('id', newRow.vehicle_id)
+            .single();
+          const vehicleName = vehicle?.name || 'Okänt fordon';
+          logActivity('transport_added', `Transport bokad: ${vehicleName} (${newRow.transport_date})`);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'transport_assignments',
+          filter: `booking_id=eq.${bookingId}`,
+        },
+        async (payload) => {
+          const newRow = payload.new as any;
+          const oldRow = payload.old as any;
+          
+          // Fetch vehicle name
+          const { data: vehicle } = await supabase
+            .from('vehicles')
+            .select('name')
+            .eq('id', newRow.vehicle_id)
+            .single();
+          const vehicleName = vehicle?.name || 'Okänt fordon';
+
+          // Check if partner response changed
+          if (oldRow.partner_response !== newRow.partner_response && newRow.partner_response) {
+            if (newRow.partner_response === 'accepted') {
+              logActivity('transport_response', `Partnersvar: Accepterad — ${vehicleName}`);
+            } else if (newRow.partner_response === 'declined') {
+              logActivity('transport_declined', `Partnersvar: Nekad — ${vehicleName}`);
+            }
+          } else {
+            logActivity('transport_updated', `Transport uppdaterad: ${vehicleName}`);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'transport_email_log',
+          filter: `booking_id=eq.${bookingId}`,
+        },
+        (payload) => {
+          const newRow = payload.new as any;
+          const recipientName = newRow.recipient_name || newRow.recipient_email || 'partner';
+          logActivity('email_sent', `Mejl skickat till ${recipientName}`);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [bookingId, projectId]);
 
   const updateStatusMutation = useMutation({
     mutationFn: (status: ProjectStatus) => updateProjectStatus(projectId, status),
