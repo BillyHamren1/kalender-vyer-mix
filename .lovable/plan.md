@@ -1,35 +1,35 @@
 
-# Projekt syns inte pa kartan - Fixplan
+# Riktiga vägbaserade rutter pa kartan
 
-## Problem
-Projektmarkorer renderas pa kartan men ar for sma (12px) for att synas tydligt mot satellitbakgrunden. Datan finns - 2 bekraftade bokningar med koordinater inom aktuell vecka - men punkterna ar nastan osynliga.
+## Vad andras
+Istallet for raka "helikopterlinjer" mellan pickup och leverans kommer kartan visa **faktiska vagbaserade rutter** - med kurvor, motorvagar och rondeller precis som i Google Maps.
 
-## Losning
+## Hur det fungerar
 
-### 1. Gora markorerna storre och mer synliga
-- Oka markorstorlek fran 12px till 20px
-- Lagga till en pulserande animationsring runt varje markor for att dra uppmarksamhet
-- Anvanda tydligare fargkontrast och tjockare border
-
-### 2. Lagga till labels pa markorerna
-- Visa klientnamnet som en liten etikett bredvid varje markor sa att det ar tydligt vad som visas
-
-### 3. Fixa eventuell filtreringsbugg
-- Sakerstaalla att bokningar som INTE har status CONFIRMED ocksa kan visas om de har koordinater (t.ex. OFFER-status)
-- Overvaag att ta bort status-filtret och visa alla bokningar med koordinater
+1. **Mapbox Directions API** anropas for varje transport-tilldelning med pickup- och leveranskoordinater
+2. API:t returnerar en **encoded polyline** med den faktiska vagrutten
+3. Polyline-geometrin ritas ut pa kartan som en snygg, foljsam rutt langs vagarna
 
 ## Tekniska detaljer
 
 ### Fil: `src/components/logistics/widgets/LogisticsMapWidget.tsx`
 
-**Markorstorleksandring (rad 101-102):**
-- Andra `width:12px;height:12px` till `width:22px;height:22px` 
-- Lagga till animation/pulseffekt via en extra DOM-ring
+**Ersatt logik (rad 141-206):**
+- Ta bort den manuella `LineString` med bara tva punkter (rak linje)
+- For varje transport-tilldelning med giltiga koordinater:
+  1. Anropa Mapbox Directions API: `https://api.mapbox.com/directions/v5/mapbox/driving/{pickup};{delivery}?geometries=geojson&overview=full&access_token=...`
+  2. Anvanda det returnerade `geometry`-objektet (som innehaller alla vagpunkter) som GeoJSON-kalla
+  3. Rita rutten med samma styling (orange streckad linje med outline)
+- Behalla pickup- och leveransmarkorerna som de ar
+- Lagga till felhantering: om Directions API misslyckas, falla tillbaka pa rak linje
 
-**Bredda datahämtning (rad 70):**
-- Overvaag att anvanda `fetchBookings()` istallet for `fetchConfirmedBookings()` for att inkludera alla bokningar, eller lagg till ytterligare statusar
+**Cachning och prestanda:**
+- Ruttdata cachas i en `useRef`-map (`routeCache`) sa att samma rutt inte hamtas om igen vid filter-byten
+- API-anrop gors parallellt med `Promise.allSettled` for att inte blocka renderingen
+- Max 10 rutter hamtas at gangen for att undvika rate-limiting
 
-**Transportmarkorer (rad 126):**
-- Samma storleksforandring fran 12px till 22px
+**Uppdatering av popup-info:**
+- Visa kopavstand och beraknad tid i popupen (t.ex. "32 km, ~28 min")
 
-Inga nya filer behovs - enbart andringar i `LogisticsMapWidget.tsx`.
+### Ingen ny edge function behovs
+Mapbox Directions API anropas direkt fran klienten med den publika Mapbox-token som redan hamtas via `mapbox-token`-funktionen. Ingen server-side-proxy kravs for detta.
