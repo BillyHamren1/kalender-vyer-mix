@@ -121,7 +121,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
   const [emailSubject, setEmailSubject] = useState('');
   const [emailMessage, setEmailMessage] = useState('');
   const [emailReferencePerson, setEmailReferencePerson] = useState('');
-  const [pendingAssignmentId, setPendingAssignmentId] = useState<string | null>(null);
+  const [pendingAssignmentIds, setPendingAssignmentIds] = useState<string[]>([]);
   const [sendingEmail, setSendingEmail] = useState(false);
 
   // Resend email state (for editing existing assignments)
@@ -294,6 +294,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
       driver_notes: wizardData.driverNotes || undefined,
     });
 
+    let returnResult: any = null;
     if (result && wizardData.includeReturn) {
       const returnDate = wizardData.returnDate;
       if (!returnDate) {
@@ -308,7 +309,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
         refetch();
         return;
       }
-      await assignBookingToVehicle({
+      returnResult = await assignBookingToVehicle({
         vehicle_id: wizardData.vehicleId,
         booking_id: wizardBooking.id,
         transport_date: returnDate,
@@ -324,11 +325,19 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
     if (result) {
       // Open email preview dialog for partner mode (not editing)
       if (wizardData.transportMode === 'partner' && result.id && !editingAssignmentId) {
-        const defaultSubject = `Transportförfrågan: ${wizardBooking.client} — ${wizardData.transportDate}`;
+        // Collect all assignment IDs (primary + return if exists)
+        const allIds = [result.id];
+        if (returnResult?.id) allIds.push(returnResult.id);
+
+        const defaultSubject = allIds.length > 1
+          ? `Transportförfrågan: ${wizardBooking.client} — ${allIds.length} körningar`
+          : `Transportförfrågan: ${wizardBooking.client} — ${wizardData.transportDate}`;
         const partnerName = selectedPartner?.contact_person || selectedPartner?.name || 'partner';
-        const defaultMessage = `Hej ${partnerName},\n\nVi har en ny transportförfrågan som vi gärna vill att ni utför. Se detaljer i mejlet.\n\nMed vänliga hälsningar,\nFrans August Logistik`;
+        const defaultMessage = allIds.length > 1
+          ? `Hej ${partnerName},\n\nVi har ${allIds.length} nya transportförfrågningar som vi gärna vill att ni utför. Se detaljer i mejlet.\n\nMed vänliga hälsningar,\nFrans August Logistik`
+          : `Hej ${partnerName},\n\nVi har en ny transportförfrågan som vi gärna vill att ni utför. Se detaljer i mejlet.\n\nMed vänliga hälsningar,\nFrans August Logistik`;
         
-        setPendingAssignmentId(result.id);
+        setPendingAssignmentIds(allIds);
         setEmailSubject(defaultSubject);
         setEmailMessage(defaultMessage);
         setEmailReferencePerson('');
@@ -353,18 +362,18 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
   };
 
   const handleSendEmail = async () => {
-    if (!pendingAssignmentId) return;
+    if (pendingAssignmentIds.length === 0) return;
     setSendingEmail(true);
     try {
       // If resend mode, update assignment details first
-      if (isResendMode) {
+      if (isResendMode && pendingAssignmentIds.length === 1) {
         const updates: Record<string, any> = {};
         if (resendTransportDate) updates.transport_date = resendTransportDate;
         if (resendTransportTime) updates.transport_time = resendTransportTime;
         if (resendPickupAddress) updates.pickup_address = resendPickupAddress;
         
         if (Object.keys(updates).length > 0) {
-          const updated = await updateAssignment(pendingAssignmentId, updates);
+          const updated = await updateAssignment(pendingAssignmentIds[0], updates);
           if (!updated) {
             toast.error('Kunde inte uppdatera transportdetaljer');
             return;
@@ -374,7 +383,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
 
       const { data, error } = await supabase.functions.invoke('send-transport-request', {
         body: {
-          assignment_id: pendingAssignmentId,
+          assignment_ids: pendingAssignmentIds,
           custom_subject: emailSubject || undefined,
           custom_message: emailMessage || undefined,
           reference_person: emailReferencePerson || undefined,
@@ -384,7 +393,8 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
         console.error('Email send error:', error);
         toast.error('Mejl kunde inte skickas till partnern');
       } else {
-        toast.success(`Transportförfrågan skickad till ${data?.sent_to || 'partnern'}`);
+        const countText = pendingAssignmentIds.length > 1 ? ` (${pendingAssignmentIds.length} körningar)` : '';
+        toast.success(`Transportförfrågan skickad till ${data?.sent_to || 'partnern'}${countText}`);
       }
     } catch (e) {
       console.error('Email invoke error:', e);
@@ -392,7 +402,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
     } finally {
       setSendingEmail(false);
       setEmailDialogOpen(false);
-      setPendingAssignmentId(null);
+      setPendingAssignmentIds([]);
       setIsResendMode(false);
       if (!isResendMode) {
         cancelWizard();
@@ -403,7 +413,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
 
   const handleCancelEmail = () => {
     setEmailDialogOpen(false);
-    setPendingAssignmentId(null);
+    setPendingAssignmentIds([]);
     setIsResendMode(false);
     if (!isResendMode) {
       cancelWizard();
@@ -423,7 +433,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
     const defaultSubject = `Uppdaterad transportförfrågan: ${booking.client} — ${assignment.transport_date}`;
     const defaultMessage = `Hej ${partnerName},\n\nHär kommer uppdaterad information om er transportförfrågan. Se detaljer i mejlet.\n\nMed vänliga hälsningar,\nFrans August Logistik`;
 
-    setPendingAssignmentId(assignment.id);
+    setPendingAssignmentIds([assignment.id]);
     setEmailSubject(defaultSubject);
     setEmailMessage(defaultMessage);
     setEmailReferencePerson('');
