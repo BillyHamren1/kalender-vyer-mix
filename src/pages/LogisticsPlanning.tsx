@@ -41,8 +41,8 @@ const LogisticsPlanning: React.FC = () => {
         </Button>
       </PageHeader>
 
-      {/* Job Map - full width */}
-      <div className="mb-4">
+      {/* Job Map - break out of container for true full width */}
+      <div className="mb-4 -mx-4 sm:-mx-6 lg:-mx-8">
         <DashboardJobMap />
       </div>
 
