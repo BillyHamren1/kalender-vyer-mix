@@ -76,18 +76,21 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
   // External partners
   const externalPartners = activeVehicles.filter(v => v.is_external);
 
-  // Get vehicles matching selected type + mode
-  const matchingVehicles = wizardData.vehicleType
-    ? activeVehicles.filter(v => {
-        // Filter by mode
-        if (wizardData.transportMode === 'own' && v.is_external) return false;
-        if (wizardData.transportMode === 'partner' && !v.is_external) return false;
-        // Filter by type
-        if (v.vehicle_type === wizardData.vehicleType) return true;
-        if (v.is_external && v.provided_vehicle_types?.includes(wizardData.vehicleType!)) return true;
-        return false;
-      })
+  // Selected partner object
+  const selectedPartner = wizardData.vehicleId
+    ? externalPartners.find(v => v.id === wizardData.vehicleId)
+    : null;
+
+  // Get internal vehicles matching selected type
+  const matchingOwnVehicles = wizardData.vehicleType
+    ? internalVehicles.filter(v => v.vehicle_type === wizardData.vehicleType)
     : [];
+
+  // Dynamic step count based on mode
+  const totalSteps = wizardData.transportMode === 'partner' ? 4 : 3;
+  const stepLabels = wizardData.transportMode === 'partner'
+    ? ['Välj partner', 'Välj fordon', 'Datum & Detaljer', 'Bekräfta']
+    : ['Fordon', 'Datum & Detaljer', 'Bekräfta'];
 
   const DEFAULT_PICKUP_ADDRESS = 'David Adrians väg 1';
 
@@ -161,7 +164,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
           headerAction={
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                {[1, 2, 3].map(s => (
+                {Array.from({ length: totalSteps }, (_, i) => i + 1).map(s => (
                   <React.Fragment key={s}>
                     {s > 1 && <ChevronRight className="h-3 w-3 text-muted-foreground/50" />}
                     <span className={cn(
@@ -173,7 +176,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                       {wizardStep > s ? <Check className="h-3.5 w-3.5" /> : s}
                     </span>
                     <span className="hidden sm:inline text-xs">
-                      {s === 1 ? 'Fordon' : s === 2 ? 'Datum & Detaljer' : 'Bekräfta'}
+                      {stepLabels[s - 1]}
                     </span>
                   </React.Fragment>
                 ))}
@@ -184,7 +187,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
             </div>
           }
         >
-          {/* Step 1: Choose Own Vehicle or Partner */}
+          {/* Step 1: Choose Own Vehicle or Partner (+ select partner/vehicle) */}
           {wizardStep === 1 && (
             <div className="space-y-4">
               <div className="p-3 rounded-xl bg-muted/30 border border-border/30">
@@ -236,21 +239,90 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                 </button>
               </div>
 
-              {/* Show vehicle type + list when mode is selected */}
-              {wizardData.transportMode && (
-                <>
-                  {wizardData.transportMode === 'partner' ? (
-                    // Partner mode: show partner list directly
+              {/* Partner mode: show partner list */}
+              {wizardData.transportMode === 'partner' && (
+                <div className="space-y-2">
+                  <Label>Välj partner *</Label>
+                  {externalPartners.length === 0 ? (
+                    <div className="text-center py-6 text-sm text-muted-foreground border-2 border-dashed rounded-xl">
+                      <Building2 className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                      Inga partners tillagda
+                    </div>
+                  ) : (
                     <div className="space-y-2">
-                      <Label>Välj partner *</Label>
-                      {externalPartners.length === 0 ? (
+                      {externalPartners.map(v => (
+                        <label
+                          key={v.id}
+                          className={cn(
+                            "flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all",
+                            wizardData.vehicleId === v.id
+                              ? "border-primary bg-primary/5 shadow-sm"
+                              : "border-border/40 bg-background/60 hover:border-border"
+                          )}
+                          onClick={() => setWizardData(p => ({ ...p, vehicleId: v.id, vehicleType: '' }))}
+                        >
+                          <div className={cn(
+                            "w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0",
+                            wizardData.vehicleId === v.id ? "border-primary" : "border-muted-foreground/40"
+                          )}>
+                            {wizardData.vehicleId === v.id && <div className="w-2 h-2 rounded-full bg-primary" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-medium">{v.name}</span>
+                            <Badge variant="outline" className="ml-2 text-[10px] h-4">Partner</Badge>
+                            {v.provided_vehicle_types && v.provided_vehicle_types.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {v.provided_vehicle_types.map(t => (
+                                  <span key={t} className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                                    {vehicleTypeLabels[t] || t}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {v.max_weight_kg}kg / {v.max_volume_m3}m³
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Own vehicle mode: show type selector then vehicle list */}
+              {wizardData.transportMode === 'own' && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Fordonstyp *</Label>
+                    <Select
+                      value={wizardData.vehicleType || ''}
+                      onValueChange={v => setWizardData(p => ({ ...p, vehicleType: v, vehicleId: '' }))}
+                    >
+                      <SelectTrigger className="rounded-xl">
+                        <SelectValue placeholder="Välj fordonstyp..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(vehicleTypeLabels).map(([value, label]) => (
+                          <SelectItem key={value} value={value}>{label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {wizardData.vehicleType && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        Tillgängliga egna fordon av typen <span className="font-medium text-foreground">{vehicleTypeLabels[wizardData.vehicleType] || wizardData.vehicleType}</span>:
+                      </p>
+                      {matchingOwnVehicles.length === 0 ? (
                         <div className="text-center py-6 text-sm text-muted-foreground border-2 border-dashed rounded-xl">
-                          <Building2 className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                          Inga partners tillagda
+                          <Truck className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                          Inga egna fordon matchar vald typ
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          {externalPartners.map(v => (
+                          {matchingOwnVehicles.map(v => (
                             <label
                               key={v.id}
                               className={cn(
@@ -259,7 +331,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                                   ? "border-primary bg-primary/5 shadow-sm"
                                   : "border-border/40 bg-background/60 hover:border-border"
                               )}
-                              onClick={() => setWizardData(p => ({ ...p, vehicleId: v.id, vehicleType: v.vehicle_type || v.provided_vehicle_types?.[0] || 'other' }))}
+                              onClick={() => setWizardData(p => ({ ...p, vehicleId: v.id }))}
                             >
                               <div className={cn(
                                 "w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0",
@@ -269,15 +341,8 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                               </div>
                               <div className="flex-1 min-w-0">
                                 <span className="text-sm font-medium">{v.name}</span>
-                                <Badge variant="outline" className="ml-2 text-[10px] h-4">Partner</Badge>
-                                {v.provided_vehicle_types && v.provided_vehicle_types.length > 0 && (
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    {v.provided_vehicle_types.map(t => (
-                                      <span key={t} className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                                        {vehicleTypeLabels[t] || t}
-                                      </span>
-                                    ))}
-                                  </div>
+                                {v.registration_number && (
+                                  <span className="text-xs text-muted-foreground ml-2">{v.registration_number}</span>
                                 )}
                               </div>
                               <span className="text-xs text-muted-foreground">
@@ -288,71 +353,6 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                         </div>
                       )}
                     </div>
-                  ) : (
-                    // Own vehicle mode: show type selector then vehicle list
-                    <>
-                      <div className="space-y-2">
-                        <Label>Fordonstyp *</Label>
-                        <Select
-                          value={wizardData.vehicleType || ''}
-                          onValueChange={v => setWizardData(p => ({ ...p, vehicleType: v, vehicleId: '' }))}
-                        >
-                          <SelectTrigger className="rounded-xl">
-                            <SelectValue placeholder="Välj fordonstyp..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Object.entries(vehicleTypeLabels).map(([value, label]) => (
-                              <SelectItem key={value} value={value}>{label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {wizardData.vehicleType && (
-                        <div className="space-y-2">
-                          <p className="text-sm text-muted-foreground">
-                            Tillgängliga egna fordon av typen <span className="font-medium text-foreground">{vehicleTypeLabels[wizardData.vehicleType] || wizardData.vehicleType}</span>:
-                          </p>
-                          {matchingVehicles.length === 0 ? (
-                            <div className="text-center py-6 text-sm text-muted-foreground border-2 border-dashed rounded-xl">
-                              <Truck className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                              Inga egna fordon matchar vald typ
-                            </div>
-                          ) : (
-                            <div className="space-y-2">
-                              {matchingVehicles.map(v => (
-                                <label
-                                  key={v.id}
-                                  className={cn(
-                                    "flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all",
-                                    wizardData.vehicleId === v.id
-                                      ? "border-primary bg-primary/5 shadow-sm"
-                                      : "border-border/40 bg-background/60 hover:border-border"
-                                  )}
-                                  onClick={() => setWizardData(p => ({ ...p, vehicleId: v.id }))}
-                                >
-                                  <div className={cn(
-                                    "w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0",
-                                    wizardData.vehicleId === v.id ? "border-primary" : "border-muted-foreground/40"
-                                  )}>
-                                    {wizardData.vehicleId === v.id && <div className="w-2 h-2 rounded-full bg-primary" />}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <span className="text-sm font-medium">{v.name}</span>
-                                    {v.registration_number && (
-                                      <span className="text-xs text-muted-foreground ml-2">{v.registration_number}</span>
-                                    )}
-                                  </div>
-                                  <span className="text-xs text-muted-foreground">
-                                    {v.max_weight_kg}kg / {v.max_volume_m3}m³
-                                  </span>
-                                </label>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </>
                   )}
                 </>
               )}
@@ -360,7 +360,91 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
               <div className="flex justify-end pt-2">
                 <Button
                   onClick={() => setWizardStep(2)}
-                  disabled={!wizardData.vehicleId}
+                  disabled={
+                    wizardData.transportMode === 'partner'
+                      ? !wizardData.vehicleId
+                      : !wizardData.vehicleId
+                  }
+                  className="rounded-xl gap-2"
+                >
+                  Nästa: {wizardData.transportMode === 'partner' ? 'Välj fordon' : 'Datum & detaljer'}
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2 (partner): Select vehicle type from partner's fleet */}
+          {wizardStep === 2 && wizardData.transportMode === 'partner' && (
+            <div className="space-y-4">
+              <div className="p-3 rounded-xl bg-muted/30 border border-border/30">
+                <div className="flex items-center gap-2 text-sm">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Partner:</span>
+                  <span className="font-medium">{selectedPartner?.name || '—'}</span>
+                </div>
+              </div>
+
+              <Label>Välj fordonstyp från {selectedPartner?.name} *</Label>
+              {selectedPartner?.provided_vehicle_types && selectedPartner.provided_vehicle_types.length > 0 ? (
+                <div className="space-y-2">
+                  {selectedPartner.provided_vehicle_types.map(type => {
+                    const rates = selectedPartner.vehicle_type_rates?.[type];
+                    return (
+                      <label
+                        key={type}
+                        className={cn(
+                          "flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all",
+                          wizardData.vehicleType === type
+                            ? "border-primary bg-primary/5 shadow-sm"
+                            : "border-border/40 bg-background/60 hover:border-border"
+                        )}
+                        onClick={() => setWizardData(p => ({ ...p, vehicleType: type }))}
+                      >
+                        <div className={cn(
+                          "w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0",
+                          wizardData.vehicleType === type ? "border-primary" : "border-muted-foreground/40"
+                        )}>
+                          {wizardData.vehicleType === type && <div className="w-2 h-2 rounded-full bg-primary" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <Truck className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm font-semibold">{vehicleTypeLabels[type] || type}</span>
+                          </div>
+                          {rates && (
+                            <div className="flex flex-wrap gap-2 mt-1.5 text-[11px] text-muted-foreground">
+                              {rates.hourly_rate != null && (
+                                <span className="bg-muted px-1.5 py-0.5 rounded">{rates.hourly_rate} kr/h</span>
+                              )}
+                              {rates.daily_rate != null && (
+                                <span className="bg-muted px-1.5 py-0.5 rounded">{rates.daily_rate} kr/dag</span>
+                              )}
+                              {rates.km_rate != null && (
+                                <span className="bg-muted px-1.5 py-0.5 rounded">{rates.km_rate} kr/km</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-6 text-sm text-muted-foreground border-2 border-dashed rounded-xl">
+                  <Truck className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                  Denna partner har inga fordonstyper registrerade
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-2">
+                <Button variant="ghost" onClick={() => setWizardStep(1)} className="rounded-xl gap-2">
+                  <ChevronLeft className="h-4 w-4" />
+                  Tillbaka
+                </Button>
+                <Button
+                  onClick={() => setWizardStep(3)}
+                  disabled={!wizardData.vehicleType}
                   className="rounded-xl gap-2"
                 >
                   Nästa: Datum & detaljer
@@ -370,8 +454,9 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
             </div>
           )}
 
-          {/* Step 2: Date, Time, Pickup */}
-          {wizardStep === 2 && (
+          {/* Date & details step (step 2 for own, step 3 for partner) */}
+          {((wizardStep === 2 && wizardData.transportMode === 'own') ||
+            (wizardStep === 3 && wizardData.transportMode === 'partner')) && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -414,12 +499,12 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
               </div>
 
               <div className="flex items-center justify-between pt-2">
-                <Button variant="ghost" onClick={() => setWizardStep(1)} className="rounded-xl gap-2">
+                <Button variant="ghost" onClick={() => setWizardStep(wizardData.transportMode === 'partner' ? 2 : 1)} className="rounded-xl gap-2">
                   <ChevronLeft className="h-4 w-4" />
                   Tillbaka
                 </Button>
                 <Button
-                  onClick={() => setWizardStep(3)}
+                  onClick={() => setWizardStep(wizardData.transportMode === 'partner' ? 4 : 3)}
                   disabled={!wizardData.transportDate || !wizardData.transportTime || !wizardData.pickupAddress}
                   className="rounded-xl gap-2"
                 >
@@ -430,8 +515,9 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
             </div>
           )}
 
-          {/* Step 3: Confirm + Stop Order */}
-          {wizardStep === 3 && (
+          {/* Confirm step (step 3 for own, step 4 for partner) */}
+          {((wizardStep === 3 && wizardData.transportMode === 'own') ||
+            (wizardStep === 4 && wizardData.transportMode === 'partner')) && (
             <div className="space-y-4">
               <div className="space-y-3">
                 <div className="p-4 rounded-xl bg-muted/30 border border-border/30 space-y-3">
@@ -441,12 +527,22 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                     <span className="font-medium">{wizardBooking.client}</span>
                     <span className="text-muted-foreground">Leveransadress:</span>
                     <span className="font-medium">{wizardBooking.deliveryaddress || '—'}</span>
+                    {wizardData.transportMode === 'partner' && (
+                      <>
+                        <span className="text-muted-foreground">Partner:</span>
+                        <span className="font-medium">{selectedPartner?.name || '—'}</span>
+                      </>
+                    )}
                     <span className="text-muted-foreground">Fordonstyp:</span>
                     <span className="font-medium">{vehicleTypeLabels[wizardData.vehicleType || ''] || '—'}</span>
-                    <span className="text-muted-foreground">Fordon:</span>
-                    <span className="font-medium">
-                      {activeVehicles.find(v => v.id === wizardData.vehicleId)?.name || '—'}
-                    </span>
+                    {wizardData.transportMode === 'own' && (
+                      <>
+                        <span className="text-muted-foreground">Fordon:</span>
+                        <span className="font-medium">
+                          {activeVehicles.find(v => v.id === wizardData.vehicleId)?.name || '—'}
+                        </span>
+                      </>
+                    )}
                     <span className="text-muted-foreground">Upphämtning:</span>
                     <span className="font-medium">{wizardData.pickupAddress || '—'}</span>
                     <span className="text-muted-foreground">Datum:</span>
@@ -471,7 +567,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
               </div>
 
               <div className="flex items-center justify-between pt-2">
-                <Button variant="ghost" onClick={() => setWizardStep(2)} className="rounded-xl gap-2">
+                <Button variant="ghost" onClick={() => setWizardStep(wizardData.transportMode === 'partner' ? 3 : 2)} className="rounded-xl gap-2">
                   <ChevronLeft className="h-4 w-4" />
                   Tillbaka
                 </Button>
