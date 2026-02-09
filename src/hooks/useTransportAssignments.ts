@@ -42,6 +42,7 @@ export interface AssignmentFormData {
   pickup_longitude?: number;
   stop_order?: number;
   driver_notes?: string;
+  estimated_duration?: number;
 }
 
 export const useTransportAssignments = (date?: Date | null, endDate?: Date | null) => {

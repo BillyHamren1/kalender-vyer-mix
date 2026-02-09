@@ -95,6 +95,7 @@ interface WizardData {
   pickupLongitude?: number;
   vehicleId: string;
   stopOrder: number;
+  estimatedDuration: string;
   includeReturn: boolean;
   returnDate: string;
   returnTime: string;
@@ -294,6 +295,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
       pickup_longitude: wizardData.pickupLongitude,
       stop_order: wizardData.stopOrder || 0,
       driver_notes: wizardData.driverNotes || undefined,
+      estimated_duration: wizardData.estimatedDuration ? Math.round(Number(wizardData.estimatedDuration) * 60) : undefined,
     });
 
     let returnResult: any = null;
@@ -792,6 +794,22 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label>Uppskattad tid (timmar)</Label>
+                  <Select
+                    value={wizardData.estimatedDuration || ''}
+                    onValueChange={v => setWizardData(p => ({ ...p, estimatedDuration: v }))}
+                  >
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder="Välj antal timmar..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[240px]">
+                      {[0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 7, 8, 10, 12].map(h => (
+                        <SelectItem key={h} value={String(h)}>{h} {h === 1 ? 'timme' : 'timmar'}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -1085,6 +1103,12 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                         <p className="text-[11px] text-muted-foreground">Tid</p>
                         <p className="text-sm font-semibold text-foreground">{wizardData.transportTime || '—'}</p>
                       </div>
+                      {wizardData.estimatedDuration && (
+                        <div>
+                          <p className="text-[11px] text-muted-foreground">Uppskattad tid</p>
+                          <p className="text-sm font-semibold text-foreground">{wizardData.estimatedDuration} {Number(wizardData.estimatedDuration) === 1 ? 'timme' : 'timmar'}</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
