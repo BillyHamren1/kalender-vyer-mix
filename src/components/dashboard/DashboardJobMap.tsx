@@ -74,7 +74,7 @@ const DashboardJobMap: React.FC = () => {
 
         map.current = new mapboxgl.Map({
           container: mapContainer.current,
-          style: 'mapbox://styles/mapbox/light-v11',
+          style: 'mapbox://styles/mapbox/satellite-streets-v12',
           center: [15.5, 58.5], // Sweden center
           zoom: 5,
           attributionControl: false,
@@ -197,7 +197,7 @@ const DashboardJobMap: React.FC = () => {
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="relative w-full h-[300px]">
+        <div className="relative w-full h-[500px]">
           {isLoading && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-muted/50">
               <Loader2 className="w-5 h-5 animate-spin text-primary" />
