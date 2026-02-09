@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { 
   User, Calendar, MapPin, Phone, Mail, ChevronDown, ChevronUp, 
-  AlertTriangle, StickyNote, ExternalLink, Truck, Hammer, Clock
+  AlertTriangle, StickyNote, Eye, EyeOff, Truck, Hammer, Clock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -79,20 +78,12 @@ const BookingInfoExpanded = ({ booking, projectLeader }: BookingInfoExpandedProp
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <Link to={`/booking/${booking.id}`}>
-                <Button variant="outline" size="sm" className="gap-1.5 border-border/60">
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  Visa bokning
-                </Button>
-              </Link>
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="sm">
-                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  {isExpanded ? 'Mindre' : 'Mer info'}
-                </Button>
-              </CollapsibleTrigger>
-            </div>
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 border-border/60">
+                {isExpanded ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                {isExpanded ? 'Dölj detaljer' : 'Visa bokning'}
+              </Button>
+            </CollapsibleTrigger>
           </div>
 
           {/* Row 2: Schedule timeline */}
