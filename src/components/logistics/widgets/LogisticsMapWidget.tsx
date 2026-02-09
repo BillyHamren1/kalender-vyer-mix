@@ -3,7 +3,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { MapPin, Maximize2, Loader2, Truck, Briefcase } from 'lucide-react';
+import { MapPin, Maximize2, Loader2, Truck, Briefcase, Map as MapIcon, Satellite } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchConfirmedBookings } from '@/services/bookingService';
 import { Booking } from '@/types/booking';
@@ -38,6 +38,12 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [mapReady, setMapReady] = useState(false);
+  const [mapStyle, setMapStyle] = useState<'satellite' | 'streets'>('satellite');
+
+  const MAP_STYLES = {
+    satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
+    streets: 'mapbox://styles/mapbox/streets-v12',
+  };
 
   const now = new Date();
   const weekStart = startOfWeek(now, { weekStartsOn: 1 });
@@ -217,7 +223,7 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
             type: 'line',
             source: sourceId,
             layout: { 'line-cap': 'round', 'line-join': 'round' },
-            paint: { 'line-color': 'hsl(25, 80%, 30%)', 'line-width': 6, 'line-opacity': 0.4 }
+            paint: { 'line-color': 'hsl(184, 60%, 20%)', 'line-width': 6, 'line-opacity': 0.4 }
           });
 
           m2.addLayer({
@@ -225,18 +231,18 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
             type: 'line',
             source: sourceId,
             layout: { 'line-cap': 'round', 'line-join': 'round' },
-            paint: { 'line-color': 'hsl(38, 92%, 50%)', 'line-width': 3.5, 'line-opacity': 0.95 }
+            paint: { 'line-color': 'hsl(184, 60%, 38%)', 'line-width': 3.5, 'line-opacity': 0.95 }
           });
 
           // Delivery marker
           const destEl = document.createElement('div');
-          destEl.style.cssText = 'position:relative;width:22px;height:22px;border-radius:4px;background:hsl(38 92% 50%);border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);cursor:pointer';
+          destEl.style.cssText = 'position:relative;width:22px;height:22px;border-radius:4px;background:hsl(184 60% 38%);border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);cursor:pointer';
           const lbl = document.createElement('div');
           lbl.textContent = b.client || 'Transport';
           lbl.style.cssText = 'position:absolute;left:28px;top:50%;transform:translateY(-50%);white-space:nowrap;font-size:11px;font-weight:600;color:white;text-shadow:0 1px 4px rgba(0,0,0,0.8),0 0 2px rgba(0,0,0,0.6);pointer-events:none';
           destEl.appendChild(lbl);
 
-          const distInfo = route ? `<br/><span style="color:hsl(38,92%,50%)">📍 ${route.distance_km} km · ~${route.duration_min} min</span>` : '';
+          const distInfo = route ? `<br/><span style="color:hsl(184,60%,38%)">📍 ${route.distance_km} km · ~${route.duration_min} min</span>` : '';
           const popup = new mapboxgl.Popup({ offset: 14, closeButton: false, maxWidth: '240px' })
             .setHTML(`<div style="font-size:12px"><strong>🚚 ${b.client || 'Transport'}</strong><br/>${(b as any).deliveryaddress || ''}${distInfo}</div>`);
 
@@ -245,7 +251,7 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
 
           // Pickup marker
           const pickEl = document.createElement('div');
-          pickEl.style.cssText = 'width:12px;height:12px;border-radius:50%;background:hsl(38 92% 70%);border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3)';
+          pickEl.style.cssText = 'width:12px;height:12px;border-radius:50%;background:hsl(184 60% 55%);border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3)';
           const pickMarker = new mapboxgl.Marker(pickEl).setLngLat([pickupLng, pickupLat]).addTo(m2);
           markersRef.current.push(pickMarker);
 
@@ -325,6 +331,29 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
           <Maximize2 className="w-3.5 h-3.5 text-muted-foreground" />
         </button>
 
+        {/* Map style toggle */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            const newStyle = mapStyle === 'satellite' ? 'streets' : 'satellite';
+            setMapStyle(newStyle);
+            if (map.current) {
+              map.current.setStyle(MAP_STYLES[newStyle]);
+              map.current.once('style.load', () => setMapReady(prev => !prev));
+              // Toggle mapReady to re-trigger marker rendering after style load
+              setMapReady(false);
+            }
+          }}
+          className="absolute top-12 right-3 z-20 w-7 h-7 rounded-lg bg-card/90 backdrop-blur-sm shadow-md flex items-center justify-center hover:bg-card transition-colors"
+          title={mapStyle === 'satellite' ? 'Byt till karta' : 'Byt till satellit'}
+        >
+          {mapStyle === 'satellite' ? (
+            <MapIcon className="w-3.5 h-3.5 text-muted-foreground" />
+          ) : (
+            <Satellite className="w-3.5 h-3.5 text-muted-foreground" />
+          )}
+        </button>
+
         {/* Map */}
         <div className="relative flex-1 min-h-[400px]">
           {isLoading && (
@@ -347,7 +376,7 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
               {projectCount} projekt
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: 'hsl(38 92% 50%)' }} />
+              <span className="w-2.5 h-2.5 rounded-sm inline-block bg-primary" />
               {assignments.length} transporter
             </span>
           </div>
