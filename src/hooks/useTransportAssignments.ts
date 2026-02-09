@@ -14,6 +14,9 @@ export interface TransportAssignment {
   estimated_arrival: string | null;
   actual_arrival: string | null;
   driver_notes: string | null;
+  pickup_address: string | null;
+  pickup_latitude: number | null;
+  pickup_longitude: number | null;
   created_at: string;
   // Joined data
   booking?: {
