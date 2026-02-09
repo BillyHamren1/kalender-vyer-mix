@@ -1298,7 +1298,9 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                           variant="secondary"
                           className={cn(
                             "text-[10px] h-6 gap-1 flex-1 justify-start",
-                            a.is_external && "cursor-pointer hover:bg-secondary/80"
+                            a.is_external && "cursor-pointer hover:bg-secondary/80",
+                            a.partner_response === 'accepted' && "bg-primary/15 text-primary border-primary/20 hover:bg-primary/20",
+                            a.partner_response === 'declined' && "bg-destructive/15 text-destructive border-destructive/20"
                           )}
                           onClick={() => {
                             if (a.is_external) {
@@ -1310,12 +1312,12 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                           <Truck className="h-2.5 w-2.5 shrink-0" />
                           <span className="truncate">{a.vehicle_name} — {formatDate(a.transport_date)}</span>
                           {a.transport_time && (
-                            <span className="text-muted-foreground ml-1">kl {a.transport_time}</span>
+                            <span className={cn("ml-1", a.partner_response === 'accepted' ? "text-primary/70" : "text-muted-foreground")}>kl {a.transport_time}</span>
                           )}
                           {a.partner_response && a.partner_response !== 'pending' && (
                             <span className={cn(
-                              "ml-1 px-1 rounded text-[9px] font-semibold",
-                              a.partner_response === 'accepted' ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"
+                              "ml-1 px-1.5 rounded text-[9px] font-semibold",
+                              a.partner_response === 'accepted' ? "text-primary" : "text-destructive"
                             )}>
                               {a.partner_response === 'accepted' ? '✓ Accepterad' : '✗ Nekad'}
                             </span>
