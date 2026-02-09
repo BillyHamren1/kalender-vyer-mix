@@ -8,12 +8,11 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { useVehicles } from '@/hooks/useVehicles';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import LogisticsCalendarWidget from '@/components/logistics/widgets/LogisticsCalendarWidget';
 import LogisticsTransportWidget from '@/components/logistics/widgets/LogisticsTransportWidget';
 import LogisticsWeekView from '@/components/logistics/LogisticsWeekView';
 import TransportBookingTab from '@/components/logistics/TransportBookingTab';
 
-type ExpandedWidget = 'calendar' | 'transport' | null;
+type ExpandedWidget = 'transport' | null;
 
 const LogisticsPlanning: React.FC = () => {
   const navigate = useNavigate();
@@ -45,21 +44,18 @@ const LogisticsPlanning: React.FC = () => {
         </Button>
       </PageHeader>
 
-      {/* Widget grid: calendar + transport side by side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-        <LogisticsCalendarWidget onClick={() => setExpanded('calendar')} />
+      {/* Week calendar view */}
+      <div className="mb-6">
+        <LogisticsWeekView />
+      </div>
+
+      {/* Transport booking widget */}
+      <div className="mb-6">
         <LogisticsTransportWidget
           onClick={() => setExpanded('transport')}
           vehicles={vehicles}
         />
       </div>
-
-      {/* Expanded calendar dialog */}
-      <Dialog open={expanded === 'calendar'} onOpenChange={open => !open && setExpanded(null)}>
-        <DialogContent className="max-w-[95vw] w-[95vw] h-[85vh] p-4 bg-card overflow-auto">
-          <LogisticsWeekView />
-        </DialogContent>
-      </Dialog>
 
       {/* Expanded transport dialog */}
       <Dialog open={expanded === 'transport'} onOpenChange={open => !open && setExpanded(null)}>
