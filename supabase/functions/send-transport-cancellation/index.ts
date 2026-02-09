@@ -78,7 +78,7 @@ function buildCancellationEmailHtml(params: {
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   <td style="vertical-align:middle;width:50%;">
-                    <img src="https://pihrhltinhewhoxefjxv.supabase.co/storage/v1/object/public/email-assets/fransaugust-logo.png" alt="Frans August" width="150" height="36" style="height:36px;width:150px;display:block;border:0;" />
+                    <img src="https://pihrhltinhewhoxefjxv.supabase.co/storage/v1/object/public/email-assets/fransaugust-logo.png?t=1" alt="Frans August" width="150" height="36" style="height:36px;width:150px;display:block;border:0;" />
                   </td>
                   <td style="vertical-align:middle;text-align:right;width:50%;">
                     ${params.bookingNumber ? `<p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7a7a7a;font-weight:600;">Referensnummer</p>
@@ -89,17 +89,12 @@ function buildCancellationEmailHtml(params: {
             </td>
           </tr>
 
-          <!-- Header -->
+          <!-- Title + Greeting -->
           <tr>
-            <td style="background-color:#ea580c;background:linear-gradient(135deg,#c2410c,#ea580c);padding:16px 40px;">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">Transport avbokad</h1>
-              <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">Denna transport har avbokats av Frans August Logistik</p>
-            </td>
-          </tr>
-
-          <!-- Partner greeting + custom message -->
-          <tr>
-            <td style="padding:12px 40px 0;">
+            <td style="padding:20px 40px 0;">
+              <h1 style="margin:0;font-size:22px;font-weight:700;color:#dc2626;letter-spacing:-0.5px;">Transport avbokad</h1>
+              <p style="margin:4px 0 0;font-size:13px;color:#7a8b8d;">Denna transport har avbokats av Frans August Logistik</p>
+              <hr style="border:none;border-top:1px solid #fecaca;margin:16px 0;" />
               <p style="margin:0;font-size:15px;color:#1a1a1a;font-weight:600;">Hej ${params.partnerName},</p>
               <p style="margin:6px 0 0;font-size:14px;color:#5a5a5a;line-height:1.6;">
                 Vi vill informera om att nedanstående transport har avbokats. Om ni fått en tidigare förfrågan för denna transport kan ni bortse från den.
