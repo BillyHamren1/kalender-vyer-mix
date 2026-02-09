@@ -1200,7 +1200,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                     <Button
                       size="sm"
                       onClick={() => startWizard(booking)}
-                      className="rounded-lg h-8 text-xs shrink-0 gap-1"
+                      className="rounded-lg h-8 text-xs shrink-0 gap-1 bg-[hsl(38,92%,50%)] hover:bg-[hsl(38,92%,45%)] text-white"
                     >
                       <Truck className="h-3.5 w-3.5" />
                       Boka
