@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, Maximize2, Clock, Check, Truck, CalendarIcon, ChevronRight, MapPin } from 'lucide-react';
+import { Package, Maximize2, Clock, Check, Truck, CalendarIcon, ChevronDown, ChevronRight, MapPin, Navigation } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useTransportAssignments, TransportAssignment } from '@/hooks/useTransportAssignments';
@@ -9,6 +9,7 @@ import { sv } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useNavigate } from 'react-router-dom';
 
 type DateMode = 'week' | 'month' | 'custom';
 type StatusFilter = 'all' | 'pending' | 'confirmed' | 'delivered';
@@ -19,11 +20,13 @@ interface Props {
 }
 
 const LogisticsTransportWidget: React.FC<Props> = ({ onClick, vehicles }) => {
+  const navigate = useNavigate();
   const [dateMode, setDateMode] = useState<DateMode>('week');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
   const [customRange, setCustomRange] = useState<{ from: Date; to: Date } | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const now = new Date();
 
@@ -207,27 +210,85 @@ const LogisticsTransportWidget: React.FC<Props> = ({ onClick, vehicles }) => {
             filtered.map(a => (
               <div
                 key={a.id}
-                className="flex items-center gap-3 p-2.5 rounded-xl bg-muted/20 hover:bg-muted/40 transition-colors group"
+                className={cn(
+                  "rounded-xl bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer",
+                  expandedId === a.id && "bg-muted/40 ring-1 ring-primary/20"
+                )}
+                onClick={() => setExpandedId(expandedId === a.id ? null : a.id)}
               >
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <Truck className="w-4 h-4 text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold truncate">{a.booking?.client || 'Okänd kund'}</span>
-                    {getStatusBadge(a)}
+                <div className="flex items-center gap-3 p-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <Truck className="w-4 h-4 text-primary" />
                   </div>
-                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
-                    <span>{formatTransportDate(a.transport_date)}</span>
-                    <span>·</span>
-                    <span className="truncate flex items-center gap-0.5">
-                      <MapPin className="w-2.5 h-2.5 inline" />
-                      {(a.booking as any)?.deliveryaddress || (a.booking as any)?.delivery_city || '–'}
-                    </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold truncate">{a.booking?.client || 'Okänd kund'}</span>
+                      {getStatusBadge(a)}
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
+                      <span>{formatTransportDate(a.transport_date)}</span>
+                      <span>·</span>
+                      <span className="truncate flex items-center gap-0.5">
+                        <MapPin className="w-2.5 h-2.5 inline" />
+                        {(a.booking as any)?.deliveryaddress || (a.booking as any)?.delivery_city || '–'}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground truncate">{getVehicleName(a.vehicle_id)}</p>
                   </div>
-                  <p className="text-[10px] text-muted-foreground truncate">{getVehicleName(a.vehicle_id)}</p>
+                  {expandedId === a.id ? (
+                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  ) : (
+                    <ChevronRight className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                  )}
                 </div>
-                <ChevronRight className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+
+                {/* Expanded details */}
+                {expandedId === a.id && (
+                  <div className="px-2.5 pb-2.5 pt-0 border-t border-border/30 mt-1">
+                    <div className="grid grid-cols-2 gap-2 mt-2 text-[10px]">
+                      <div>
+                        <p className="text-muted-foreground">Hämtadress</p>
+                        <p className="font-medium">{a.pickup_address || 'Ej angiven'}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Leveransadress</p>
+                        <p className="font-medium">{(a.booking as any)?.deliveryaddress || '–'}</p>
+                      </div>
+                      {a.driver_notes && (
+                        <div className="col-span-2">
+                          <p className="text-muted-foreground">Förarkommentar</p>
+                          <p className="font-medium">{a.driver_notes}</p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[10px] gap-1 rounded-lg flex-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/logistics/routes?highlight=${a.booking_id}`);
+                        }}
+                      >
+                        <Navigation className="w-3 h-3" />
+                        Visa rutt
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[10px] gap-1 rounded-lg flex-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onClick();
+                        }}
+                      >
+                        <Maximize2 className="w-3 h-3" />
+                        Fullvy
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))
           )}
