@@ -278,44 +278,55 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick, highlightedAssignmentId 
     if (!map.current || !mapReady || !highlightedAssignmentId) return;
     const m = map.current;
 
+    // Ensure transport routes are visible
+    if (mapFilter === 'projects') {
+      setMapFilter('all');
+      return; // Will re-trigger after filter change re-renders routes
+    }
+
     // Reset all route line widths
     const allSources = Object.keys((m.getStyle()?.sources) || {}).filter(s => s.startsWith('route-'));
     allSources.forEach(s => {
       const lineId = s + '-line';
       const outlineId = s + '-outline';
       if (m.getLayer(lineId)) {
-        m.setPaintProperty(lineId, 'line-width', 3.5);
-        m.setPaintProperty(lineId, 'line-opacity', 0.4);
+        m.setPaintProperty(lineId, 'line-width', 4);
+        m.setPaintProperty(lineId, 'line-opacity', 0.3);
       }
       if (m.getLayer(outlineId)) {
-        m.setPaintProperty(outlineId, 'line-opacity', 0.15);
+        m.setPaintProperty(outlineId, 'line-opacity', 0.1);
       }
     });
 
     // Highlight selected route
     const selectedSource = `route-${highlightedAssignmentId}`;
     if (m.getLayer(selectedSource + '-line')) {
-      m.setPaintProperty(selectedSource + '-line', 'line-width', 6);
+      m.setPaintProperty(selectedSource + '-line', 'line-width', 7);
       m.setPaintProperty(selectedSource + '-line', 'line-opacity', 1);
+      m.setPaintProperty(selectedSource + '-line', 'line-color', 'hsl(0, 100%, 45%)');
     }
     if (m.getLayer(selectedSource + '-outline')) {
-      m.setPaintProperty(selectedSource + '-outline', 'line-opacity', 0.6);
+      m.setPaintProperty(selectedSource + '-outline', 'line-opacity', 0.8);
+      m.setPaintProperty(selectedSource + '-outline', 'line-width', 10);
     }
 
-    // Zoom to the selected route bounds
-    const source = m.getSource(selectedSource) as mapboxgl.GeoJSONSource;
-    if (source) {
-      const data = (source as any)._data;
-      if (data?.geometry?.coordinates) {
-        const coords = data.geometry.coordinates as [number, number][];
-        if (coords.length > 0) {
-          const bounds = new mapboxgl.LngLatBounds();
-          coords.forEach(c => bounds.extend(c));
-          m.fitBounds(bounds, { padding: 80, maxZoom: 13, duration: 800 });
-        }
+    // Zoom to the assignment's coordinates from data
+    const assignment = assignments.find(a => a.id === highlightedAssignmentId);
+    if (assignment?.booking) {
+      const b = assignment.booking as any;
+      const destLat = b.delivery_latitude;
+      const destLng = b.delivery_longitude;
+      const pickupLat = assignment.pickup_latitude ?? 59.3293;
+      const pickupLng = assignment.pickup_longitude ?? 18.0686;
+
+      if (destLat && destLng) {
+        const bounds = new mapboxgl.LngLatBounds();
+        bounds.extend([pickupLng, pickupLat]);
+        bounds.extend([destLng, destLat]);
+        m.fitBounds(bounds, { padding: 80, maxZoom: 13, duration: 800 });
       }
     }
-  }, [highlightedAssignmentId, mapReady]);
+  }, [highlightedAssignmentId, mapReady, assignments, mapFilter]);
 
   const projectCount = bookings.filter(b => {
     const range = timeFilter === 'week'
