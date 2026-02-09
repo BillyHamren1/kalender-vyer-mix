@@ -25,9 +25,10 @@ interface RouteCache {
 
 interface Props {
   onClick: () => void;
+  highlightedAssignmentId?: string | null;
 }
 
-const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
+const LogisticsMapWidget: React.FC<Props> = ({ onClick, highlightedAssignmentId }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
@@ -271,6 +272,50 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
       map.current.fitBounds(bounds, { padding: 40, maxZoom: 12, duration: 600 });
     }
   }, [bookings, assignments, mapFilter, timeFilter, mapReady]);
+
+  // Highlight a specific assignment's route when selected from the list
+  useEffect(() => {
+    if (!map.current || !mapReady || !highlightedAssignmentId) return;
+    const m = map.current;
+
+    // Reset all route line widths
+    const allSources = Object.keys((m.getStyle()?.sources) || {}).filter(s => s.startsWith('route-'));
+    allSources.forEach(s => {
+      const lineId = s + '-line';
+      const outlineId = s + '-outline';
+      if (m.getLayer(lineId)) {
+        m.setPaintProperty(lineId, 'line-width', 3.5);
+        m.setPaintProperty(lineId, 'line-opacity', 0.4);
+      }
+      if (m.getLayer(outlineId)) {
+        m.setPaintProperty(outlineId, 'line-opacity', 0.15);
+      }
+    });
+
+    // Highlight selected route
+    const selectedSource = `route-${highlightedAssignmentId}`;
+    if (m.getLayer(selectedSource + '-line')) {
+      m.setPaintProperty(selectedSource + '-line', 'line-width', 6);
+      m.setPaintProperty(selectedSource + '-line', 'line-opacity', 1);
+    }
+    if (m.getLayer(selectedSource + '-outline')) {
+      m.setPaintProperty(selectedSource + '-outline', 'line-opacity', 0.6);
+    }
+
+    // Zoom to the selected route bounds
+    const source = m.getSource(selectedSource) as mapboxgl.GeoJSONSource;
+    if (source) {
+      const data = (source as any)._data;
+      if (data?.geometry?.coordinates) {
+        const coords = data.geometry.coordinates as [number, number][];
+        if (coords.length > 0) {
+          const bounds = new mapboxgl.LngLatBounds();
+          coords.forEach(c => bounds.extend(c));
+          m.fitBounds(bounds, { padding: 80, maxZoom: 13, duration: 800 });
+        }
+      }
+    }
+  }, [highlightedAssignmentId, mapReady]);
 
   const projectCount = bookings.filter(b => {
     const range = timeFilter === 'week'

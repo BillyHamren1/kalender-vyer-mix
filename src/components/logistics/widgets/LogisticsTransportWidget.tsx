@@ -17,9 +17,10 @@ type StatusFilter = 'all' | 'pending' | 'confirmed' | 'delivered';
 interface Props {
   onClick: () => void;
   vehicles: any[];
+  onShowRoute?: (assignmentId: string) => void;
 }
 
-const LogisticsTransportWidget: React.FC<Props> = ({ onClick, vehicles }) => {
+const LogisticsTransportWidget: React.FC<Props> = ({ onClick, vehicles, onShowRoute }) => {
   const navigate = useNavigate();
   const [dateMode, setDateMode] = useState<DateMode>('week');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -268,7 +269,7 @@ const LogisticsTransportWidget: React.FC<Props> = ({ onClick, vehicles }) => {
                         className="h-7 text-[10px] gap-1 rounded-lg flex-1"
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/logistics/routes?highlight=${a.booking_id}`);
+                          onShowRoute?.(a.id);
                         }}
                       >
                         <Navigation className="w-3 h-3" />
