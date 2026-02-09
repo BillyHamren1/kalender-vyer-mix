@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface ProjectTransportAssignment {
@@ -38,6 +39,8 @@ export interface TransportEmailLogEntry {
 }
 
 export const useProjectTransport = (bookingId: string | null | undefined) => {
+  const queryClient = useQueryClient();
+
   const assignmentsQuery = useQuery({
     queryKey: ["project-transport-assignments", bookingId],
     queryFn: async (): Promise<ProjectTransportAssignment[]> => {
@@ -76,6 +79,33 @@ export const useProjectTransport = (bookingId: string | null | undefined) => {
     },
     enabled: !!bookingId,
   });
+
+  // Subscribe to real-time changes on transport_assignments for this booking
+  useEffect(() => {
+    if (!bookingId) return;
+
+    const channel = supabase
+      .channel(`project-transport-${bookingId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'transport_assignments',
+          filter: `booking_id=eq.${bookingId}`,
+        },
+        () => {
+          console.log('[useProjectTransport] Real-time update detected, invalidating...');
+          queryClient.invalidateQueries({ queryKey: ["project-transport-assignments", bookingId] });
+          queryClient.invalidateQueries({ queryKey: ["project-transport-email-logs", bookingId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [bookingId, queryClient]);
 
   return {
     assignments: assignmentsQuery.data || [],
