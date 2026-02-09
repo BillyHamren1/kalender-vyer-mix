@@ -338,7 +338,24 @@ Deno.serve(async (req) => {
       .update({ partner_response: "pending" })
       .eq("id", assignment_id);
 
-    console.log(`[send-transport-request] Email sent successfully to ${vehicle.contact_email}`);
+    // Log the email send to transport_email_log
+    const { error: logError } = await supabase
+      .from("transport_email_log")
+      .insert({
+        assignment_id: assignment_id,
+        booking_id: booking?.id || assignment.booking_id,
+        recipient_email: vehicle.contact_email,
+        recipient_name: vehicle.contact_person || vehicle.name,
+        subject: emailSubject,
+        custom_message: custom_message || null,
+        email_type: "transport_request",
+      });
+
+    if (logError) {
+      console.warn("[send-transport-request] Failed to log email:", logError.message);
+    }
+
+    console.log(`[send-transport-request] Email sent and logged successfully to ${vehicle.contact_email}`);
 
     return new Response(
       JSON.stringify({ success: true, sent_to: vehicle.contact_email }),

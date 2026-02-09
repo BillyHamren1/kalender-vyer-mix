@@ -6,10 +6,12 @@ import ProjectTaskList from "@/components/project/ProjectTaskList";
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectComments from "@/components/project/ProjectComments";
 import ProjectActivityLog from "@/components/project/ProjectActivityLog";
+import ProjectTransportSection from "@/components/project/ProjectTransportSection";
 
 import TaskDetailSheet from "@/components/project/TaskDetailSheet";
 import { ProjectTask } from "@/types/project";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
+import { useProjectTransport } from "@/hooks/useProjectTransport";
 
 const tabTriggerClass =
   "relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground";
@@ -19,6 +21,8 @@ const ProjectViewPage = () => {
   const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
 
   const { project, tasks, files, comments, activities } = detail;
+  const bookingId = project?.booking_id || project?.booking?.id || null;
+  const { assignments: transportAssignments } = useProjectTransport(bookingId);
 
   if (!project) return null;
 
@@ -68,6 +72,14 @@ const ProjectViewPage = () => {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="transport" className={tabTriggerClass}>
+              Transport
+              {transportAssignments.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                  {transportAssignments.length}
+                </span>
+              )}
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -95,6 +107,10 @@ const ProjectViewPage = () => {
 
         <TabsContent value="activity">
           <ProjectActivityLog activities={activities} />
+        </TabsContent>
+
+        <TabsContent value="transport">
+          <ProjectTransportSection bookingId={bookingId} />
         </TabsContent>
       </Tabs>
 
