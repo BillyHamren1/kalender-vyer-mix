@@ -31,6 +31,7 @@ const MediumProjectsListPanel = ({ completedOnly = false }: MediumProjectsListPa
     mutationFn: deleteProject,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
       toast.success('Projekt borttaget');
     },
     onError: () => toast.error('Kunde inte ta bort projekt')

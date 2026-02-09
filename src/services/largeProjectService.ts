@@ -141,6 +141,36 @@ export async function updateLargeProject(id: string, updates: Partial<LargeProje
 }
 
 export async function deleteLargeProject(id: string): Promise<void> {
+  // Reset booking flags for all bookings linked to this large project
+  const { data: linkedBookings } = await supabase
+    .from('large_project_bookings')
+    .select('booking_id')
+    .eq('large_project_id', id);
+
+  if (linkedBookings && linkedBookings.length > 0) {
+    const bookingIds = linkedBookings.map(b => b.booking_id);
+    await supabase
+      .from('bookings')
+      .update({
+        assigned_to_project: false,
+        assigned_project_id: null,
+        assigned_project_name: null,
+        large_project_id: null
+      })
+      .in('id', bookingIds);
+  }
+
+  // Also reset any bookings that reference this large_project_id directly
+  await supabase
+    .from('bookings')
+    .update({
+      assigned_to_project: false,
+      assigned_project_id: null,
+      assigned_project_name: null,
+      large_project_id: null
+    })
+    .eq('large_project_id', id);
+
   const { error } = await supabase
     .from('large_projects')
     .delete()

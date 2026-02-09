@@ -53,6 +53,7 @@ const LargeProjectsListPanel = ({ completedOnly = false }: LargeProjectsListPane
     mutationFn: deleteLargeProject,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['large-projects'] });
+      queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
       toast.success('Projekt borttaget');
     },
     onError: () => toast.error('Kunde inte ta bort projekt')
