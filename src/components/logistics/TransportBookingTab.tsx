@@ -36,6 +36,7 @@ import { Vehicle } from '@/hooks/useVehicles';
 import { useBookingsForTransport, BookingForTransport } from '@/hooks/useBookingsForTransport';
 import { useTransportAssignments } from '@/hooks/useTransportAssignments';
 import { cn } from '@/lib/utils';
+import { AddressAutocomplete } from './AddressAutocomplete';
 
 const vehicleTypeLabels: Record<string, string> = {
   van: 'Skåpbil',
@@ -76,7 +77,6 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
   const [wizardStep, setWizardStep] = useState(1);
   const [wizardData, setWizardData] = useState<Partial<WizardData>>({});
   const [editingAssignmentId, setEditingAssignmentId] = useState<string | null>(null);
-  const [geocodingPickup, setGeocodingPickup] = useState(false);
 
   const activeVehicles = vehicles.filter(v => v.is_active);
 
@@ -568,51 +568,18 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
 
               <div className="space-y-2">
                 <Label>Upphämtningsplats *</Label>
-                <div className="flex gap-2">
-                  <Input
-                    type="text"
-                    value={wizardData.pickupAddress || ''}
-                    onChange={e => setWizardData(p => ({ ...p, pickupAddress: e.target.value, pickupLatitude: undefined, pickupLongitude: undefined }))}
-                    className="rounded-xl flex-1"
-                    placeholder="David Adrians väg 1"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="rounded-xl shrink-0"
-                    disabled={!wizardData.pickupAddress || geocodingPickup}
-                    onClick={async () => {
-                      if (!wizardData.pickupAddress) return;
-                      setGeocodingPickup(true);
-                      try {
-                        const { data, error } = await supabase.functions.invoke('geocode-address', {
-                          body: { address: wizardData.pickupAddress },
-                        });
-                        if (error) throw error;
-                        if (data?.latitude && data?.longitude) {
-                          setWizardData(p => ({
-                            ...p,
-                            pickupLatitude: data.latitude,
-                            pickupLongitude: data.longitude,
-                          }));
-                          toast.success(`Geocodad: ${data.formatted_address}`);
-                        }
-                      } catch (err: any) {
-                        console.error('Geocode error:', err);
-                        toast.error('Kunde inte geocoda adressen');
-                      } finally {
-                        setGeocodingPickup(false);
-                      }
-                    }}
-                  >
-                    {geocodingPickup ? (
-                      <RotateCcw className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <MapPin className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
+                <AddressAutocomplete
+                  value={wizardData.pickupAddress || ''}
+                  onChange={(address, lat, lng) => {
+                    setWizardData(p => ({
+                      ...p,
+                      pickupAddress: address,
+                      pickupLatitude: lat,
+                      pickupLongitude: lng,
+                    }));
+                  }}
+                  placeholder="Sök adress..."
+                />
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-muted-foreground">Standard: David Adrians väg 1</p>
                   {wizardData.pickupLatitude && wizardData.pickupLongitude ? (
