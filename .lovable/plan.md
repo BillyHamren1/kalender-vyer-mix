@@ -1,72 +1,63 @@
 
+## Fixa mejlknappar, lagg till mejlforhandsgranskning och byt avsandarnamn
 
-# Tydligare navigering till "Boka transport"
+### Problem 1: Mejlknapparna syns inte korrekt
+Knappen "Acceptera korning" visas som bara en gron emoji-checkbox i vissa mejlklienter. Problemet ar att emoji-tecken (checkmark/kryss) i kombination med `<a>`-taggar renderas inkonsekvent. Losningen ar att:
+- Ta bort emoji-tecken fran knapparna och anvanda ren text istallet
+- Anvanda VML-knappar (Outlook-kompatibla) som fallback
+- Lagga till `display:block` och explicit `width` for battre kompatibilitet
+- Gora knapparna till separata rader istallet for tabellceller bredvid varandra (stapla vertikalt for mobilkompatibilitet)
 
-## Problem
-Tabbar ("Dashboard" / "Boka transport") ar for sma, diskreta och smaler in i bakgrunden. Det ar nast intill omojligt att se att det finns en "Boka transport"-funktion.
+### Problem 2: Mejlforhandsgranskning fore utskick
+Lagg till en dialog som oppnas nar man klickar "Boka transport" for en extern partner. I dialogen visas:
+- Mottagarens mejladress (ej redigerbar)
+- Amnesrad (redigerbar)
+- Fritt textfalt med ett meddelande till partnern (redigerbart, med default-text)
+- Forhandsvisning av bokningsdetaljerna (ej redigerbara -- samma som i mejlet)
+- Knapparna "Avbryt" och "Skicka mejl"
 
-## Losning
-Gora om navigeringen till stora, tydliga knappar med visuella indikatorer istallet for subtila tabbar.
+Flode:
+1. Anvandaren klickar "Boka transport" i wizarden
+2. Transporten skapas i databasen
+3. Om det ar en extern partner: en mejldialog oppnas
+4. Anvandaren kan redigera amnesrad och meddelandetext
+5. Anvandaren klickar "Skicka" -- da anropas edge-funktionen med extra parametrar
+6. Om anvandaren klickar "Avbryt" -- transporten ar redan bokad men inget mejl skickas
 
-### Vad som andras
+### Problem 3: Byt avsandarnamn
+Andra fran "EventFlow Logistik" till "Frans August Logistik" i edge-funktionen, bade i `from`-faltet och i footer-texten i mejlet.
 
-**1. Stora, visuella navigationskort istallet for sma tabbar**
-- Ersatter de sma TabsTrigger-elementen med tva tydliga, klickbara kort som tar upp hela bredden
-- Varje kort far en ikon, tydlig rubrik, och en kort beskrivning
-- "Boka transport"-kortet far dessutom en badge som visar antal obokadetransporter (t.ex. "3 väntar")
-
-**2. Visuell design**
-- Aktiv tab far en tydlig primary-fargad ram och bakgrund
-- Inaktiv tab far en diskret stil men med tydlig hover-effekt
-- Bada korten ar stora nog att de inte kan missas
-
-### Visuellt resultat (ungefar)
-
-```text
-+---------------------------------------+---------------------------------------+
-|  [truck-ikon]                         |  [clipboard-ikon]          [3 vantar] |
-|  Dashboard                            |  Boka transport                       |
-|  Oversikt av dagens leveranser        |  Tilldela fordon till bokningar       |
-+---------------------------------------+---------------------------------------+
-```
+---
 
 ### Tekniska detaljer
 
-**Fil: `src/pages/LogisticsPlanning.tsx`**
+**1. Uppdatera `supabase/functions/send-transport-request/index.ts`**
 
-Andringen sker pa raderna 115-125 dar TabsList och TabsTrigger renderas. Istallet for den nuvarande kompakta TabsList:
+- Acceptera nya parametrar i request body: `custom_subject` (valfri amnesrad), `custom_message` (valfri meddelandetext)
+- Byt `from: "EventFlow Logistik <noreply@fransaugust.se>"` till `from: "Frans August Logistik <noreply@fransaugust.se>"`
+- Uppdatera footer-texten fran "EventFlow Logistik" till "Frans August Logistik"
+- Fixa knapparna i HTML:
+  - Ta bort emoji-tecken fran knapptexterna
+  - Anvanda `display:block` och `width:100%` for full bredd
+  - Separera knapparna i egna rader (varsin `<tr>`) for battre mejlklient-kompatibilitet
+  - Lagga till `mso-padding-alt` for Outlook
+- Om `custom_message` skickas: visa den som en extra sektion i mejlet, efter partner-halsningen
 
-```tsx
-// Nuvarande (liten, diskret)
-<TabsList className="rounded-xl h-11 bg-muted/50 p-1">
-  <TabsTrigger ...>Dashboard</TabsTrigger>
-  <TabsTrigger ...>Boka transport</TabsTrigger>
-</TabsList>
-```
+**2. Uppdatera `src/components/logistics/TransportBookingTab.tsx`**
 
-Ersatts med:
+- Lagg till ny state: `emailDialogOpen`, `emailSubject`, `emailMessage`, `pendingAssignmentId`
+- Nar en extern partner-bokning skapas: spara assignment-ID, oppna mejldialogen istallet for att direkt skicka mejl
+- Mejldialogen innehaller:
+  - Mottagare (read-only, visas med Badge)
+  - Amnesrad (`Input`, forifylld med default-subject)
+  - Meddelande (`Textarea`, forifylld med default-text t.ex. "Hej [partner], vi har en ny transportforfragan...")
+  - En sammanfattning av bokningsdetaljerna
+  - "Avbryt"-knapp (stanger dialogen, inget mejl skickas)
+  - "Skicka mejl"-knapp (anropar edge-funktionen med `custom_subject` och `custom_message`)
 
-```tsx
-// Ny (stor, tydlig)
-<TabsList className="w-full h-auto bg-transparent p-0 grid grid-cols-2 gap-4">
-  <TabsTrigger value="dashboard" className="...large card styles...">
-    <Truck icon />
-    <h3>Dashboard</h3>
-    <p>Oversikt av leveranser och fordon</p>
-  </TabsTrigger>
-  <TabsTrigger value="booking" className="...large card styles...">
-    <ClipboardList icon />
-    <h3>Boka transport</h3>
-    <p>Tilldela fordon till bekraftade bokningar</p>
-    <Badge>{antal} vantar</Badge>  <!-- visar antal utan transport -->
-  </TabsTrigger>
-</TabsList>
-```
+**3. Filer som andras**
 
-- Aktiv tab far: `border-primary bg-primary/5 shadow-lg`
-- Inaktiv tab far: `border-border/40 bg-card hover:border-primary/30 hover:shadow-md`
-- Badge pa "Boka transport" visar antal bokningar utan transport (kraver att `useBookingsForTransport` anropas i `LogisticsPlanning.tsx`)
-
-**Fil: `src/hooks/useBookingsForTransport.ts`** (mindre andring)
-- Exportera antal `withoutTransport` sa det kan anvandas i foraldern for badge-raknaren
-
+| Fil | Andring |
+|-----|---------|
+| `supabase/functions/send-transport-request/index.ts` | Fixa knappar, byt avsandare, stod for custom subject/message |
+| `src/components/logistics/TransportBookingTab.tsx` | Lagg till mejldialog med redigerbara falt |
