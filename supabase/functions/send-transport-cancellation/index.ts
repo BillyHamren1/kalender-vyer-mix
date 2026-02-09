@@ -72,12 +72,28 @@ function buildCancellationEmailHtml(params: {
       <td align="center">
         <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
           
+          <!-- Logo + Reference bar -->
+          <tr>
+            <td style="padding:24px 40px;border-bottom:1px solid #fecaca;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="vertical-align:middle;width:50%;">
+                    <img src="https://kalender-vyer-mix.lovable.app/images/fransaugust-logo.png" alt="FransAugust" height="40" style="height:40px;width:auto;display:block;" />
+                  </td>
+                  <td style="vertical-align:middle;text-align:right;width:50%;">
+                    ${params.bookingNumber ? `<p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7a7a7a;font-weight:600;">Referensnummer</p>
+                    <p style="margin:2px 0 0;font-size:16px;color:#1a1a1a;font-weight:700;">${params.bookingNumber}</p>` : ''}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
           <!-- Header -->
           <tr>
-            <td style="background:linear-gradient(135deg,#c2410c,#ea580c);padding:32px 40px;">
+            <td style="background:linear-gradient(135deg,#c2410c,#ea580c);padding:28px 40px;">
               <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:-0.5px;">Transport avbokad</h1>
               <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Denna transport har avbokats av Frans August Logistik</p>
-              ${params.bookingNumber ? `<p style="margin:8px 0 0;color:rgba(255,255,255,0.95);font-size:16px;font-weight:700;">Referensnummer: ${params.bookingNumber}</p>` : ''}
             </td>
           </tr>
 

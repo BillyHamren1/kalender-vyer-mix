@@ -79,40 +79,32 @@ function buildEmailHtml(params: {
       <td align="center">
         <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
           
-          <!-- Header -->
+          <!-- Logo + Reference bar -->
           <tr>
-            <td style="background:linear-gradient(135deg,#1a6b6e,#279B9E);padding:32px 40px;">
-              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:-0.5px;">Transportförfrågan</h1>
-              <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Ny körning att granska från Frans August Logistik</p>
-              ${params.bookingNumber ? `<p style="margin:8px 0 0;color:rgba(255,255,255,0.95);font-size:16px;font-weight:700;">Referensnummer: ${params.bookingNumber}</p>` : ''}
-            </td>
-          </tr>
-
-          <!-- Reference info -->
-          ${(params.referencePerson || params.bookingNumber) ? `
-          <tr>
-            <td style="padding:24px 40px 0;">
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#e0f2fe;border-radius:12px;border:1px solid #7dd3fc;">
+            <td style="padding:24px 40px;border-bottom:1px solid #e0ecee;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
-                  <td style="padding:16px 20px;">
-                    <p style="margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#0369a1;font-weight:700;">Referensinformation</p>
-                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
-                      ${params.bookingNumber ? `
-                      <tr>
-                        <td style="padding:4px 0;font-size:14px;color:#0c4a6e;width:140px;font-weight:600;">Referensnummer</td>
-                        <td style="padding:4px 0;font-size:14px;color:#0c4a6e;font-weight:700;">${params.bookingNumber}</td>
-                      </tr>` : ''}
-                      ${params.referencePerson ? `
-                      <tr>
-                        <td style="padding:4px 0;font-size:14px;color:#0c4a6e;width:140px;font-weight:600;">Referensperson</td>
-                        <td style="padding:4px 0;font-size:14px;color:#0c4a6e;font-weight:700;">${params.referencePerson}</td>
-                      </tr>` : ''}
-                    </table>
+                  <td style="vertical-align:middle;width:50%;">
+                    <img src="https://kalender-vyer-mix.lovable.app/images/fransaugust-logo.png" alt="FransAugust" height="40" style="height:40px;width:auto;display:block;" />
+                  </td>
+                  <td style="vertical-align:middle;text-align:right;width:50%;">
+                    ${params.bookingNumber ? `<p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7a8b8d;font-weight:600;">Referensnummer</p>
+                    <p style="margin:2px 0 0;font-size:16px;color:#1a3a3c;font-weight:700;">${params.bookingNumber}</p>` : ''}
+                    ${params.referencePerson ? `<p style="margin:${params.bookingNumber ? '6' : '0'}px 0 0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7a8b8d;font-weight:600;">Referensperson</p>
+                    <p style="margin:2px 0 0;font-size:14px;color:#1a3a3c;font-weight:600;">${params.referencePerson}</p>` : ''}
                   </td>
                 </tr>
               </table>
             </td>
-          </tr>` : ''}
+          </tr>
+
+          <!-- Header -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#1a6b6e,#279B9E);padding:28px 40px;">
+              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:-0.5px;">Transportförfrågan</h1>
+              <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Ny körning att granska från Frans August Logistik</p>
+            </td>
+          </tr>
 
           <!-- Partner greeting + custom message -->
           <tr>
