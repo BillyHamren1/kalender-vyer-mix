@@ -347,7 +347,7 @@ function buildEmailHtml(params: EmailParams): string {
 
           <!-- Header -->
           <tr>
-            <td style="background:linear-gradient(135deg,#1a6b6e,#279B9E);padding:16px 40px;">
+            <td style="background-color:#279B9E;background:linear-gradient(135deg,#1a6b6e,#279B9E);padding:16px 40px;">
               <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">Transportförfrågan</h1>
               <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">
                 ${isMulti ? `${params.assignments.length} körningar att granska` : 'Ny körning att granska'} från Frans August Logistik
