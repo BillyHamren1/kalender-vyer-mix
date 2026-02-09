@@ -32,6 +32,13 @@ export interface LargeProjectBooking {
     rigdaydate: string | null;
     rigdowndate: string | null;
     contact_name: string | null;
+    rig_start_time: string | null;
+    rig_end_time: string | null;
+    event_start_time: string | null;
+    event_end_time: string | null;
+    rigdown_start_time: string | null;
+    rigdown_end_time: string | null;
+    status: string | null;
   };
 }
 
