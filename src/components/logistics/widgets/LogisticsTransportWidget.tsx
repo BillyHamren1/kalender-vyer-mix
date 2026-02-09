@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, Maximize2, Truck, CalendarIcon, MapPin, AlertTriangle, Clock, CheckCircle2 } from 'lucide-react';
+import { Package, Maximize2, Truck, CalendarIcon, MapPin, AlertTriangle, Clock, CheckCircle2, ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useTransportAssignments, TransportAssignment } from '@/hooks/useTransportAssignments';
@@ -9,7 +9,7 @@ import { sv } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { useNavigate } from 'react-router-dom';
+
 
 type DateMode = 'week' | 'month' | 'custom';
 
@@ -19,10 +19,22 @@ interface Props {
   onShowRoute?: (assignmentId: string) => void;
 }
 
-const TransportCard = ({ a, vehicles, navigate }: { a: TransportAssignment; vehicles: any[]; navigate: (path: string) => void }) => {
+const TransportCard = ({ a, vehicles, expandedId, setExpandedId }: { 
+  a: TransportAssignment; 
+  vehicles: any[]; 
+  expandedId: string | null;
+  setExpandedId: (id: string | null) => void;
+}) => {
+  const isExpanded = expandedId === a.id;
+  
   const getVehicleName = (vehicleId: string) => {
     const v = vehicles.find(v => v.id === vehicleId);
     return v?.name || v?.registration_number || 'Okänt fordon';
+  };
+
+  const getVehiclePartner = (vehicleId: string) => {
+    const v = vehicles.find(v => v.id === vehicleId);
+    return v?.partner_name || v?.owner || null;
   };
 
   const getStatusBadge = (a: TransportAssignment) => {
@@ -41,38 +53,114 @@ const TransportCard = ({ a, vehicles, navigate }: { a: TransportAssignment; vehi
     } catch { return dateStr; }
   };
 
+  const products = a.booking?.booking_products || [];
+  const totalWeight = products.reduce((sum, p) => sum + (p.estimated_weight_kg || 0) * p.quantity, 0);
+  const totalVolume = products.reduce((sum, p) => sum + (p.estimated_volume_m3 || 0) * p.quantity, 0);
+  const partner = getVehiclePartner(a.vehicle_id);
+  const assignmentAny = a as any;
+
   return (
     <div
-      className="rounded-xl bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer p-2.5"
-      onClick={() => a.booking_id && navigate(`/booking/${a.booking_id}`)}
+      className={cn(
+        "rounded-xl bg-card border border-border/40 shadow-sm hover:shadow-md transition-all cursor-pointer",
+        isExpanded && "ring-1 ring-primary/30"
+      )}
+      onClick={() => setExpandedId(isExpanded ? null : a.id)}
     >
-      <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-          <Truck className="w-4 h-4 text-primary" />
+      <div className="flex items-center gap-3 p-3">
+        <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+          <Truck className="w-4.5 h-4.5 text-primary" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold truncate">{a.booking?.client || 'Okänd kund'}</span>
+            <span className="text-sm font-semibold truncate">{a.booking?.client || 'Okänd kund'}</span>
             {getStatusBadge(a)}
           </div>
-          <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
             <span>{formatTransportDate(a.transport_date)}</span>
             <span>·</span>
             <span className="truncate flex items-center gap-0.5">
-              <MapPin className="w-2.5 h-2.5 inline" />
+              <MapPin className="w-3 h-3 inline" />
               {(a.booking as any)?.deliveryaddress || '–'}
             </span>
           </div>
-          <p className="text-[10px] text-muted-foreground truncate">{getVehicleName(a.vehicle_id)}</p>
+          <p className="text-xs text-muted-foreground truncate">{partner || getVehicleName(a.vehicle_id)}</p>
         </div>
+        <ChevronDown className={cn("w-4 h-4 text-muted-foreground shrink-0 transition-transform", isExpanded && "rotate-180")} />
       </div>
+
+      {/* Expanded transport details */}
+      {isExpanded && (
+        <div className="px-3 pb-3 pt-0 border-t border-border/30 space-y-2">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-2 text-xs">
+            <div>
+              <p className="text-muted-foreground text-[10px]">Fordon</p>
+              <p className="font-medium">{getVehicleName(a.vehicle_id)}</p>
+            </div>
+            {partner && (
+              <div>
+                <p className="text-muted-foreground text-[10px]">Transportbolag</p>
+                <p className="font-medium">{partner}</p>
+              </div>
+            )}
+            <div>
+              <p className="text-muted-foreground text-[10px]">Hämtadress</p>
+              <p className="font-medium">{a.pickup_address || 'Ej angiven'}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-[10px]">Leveransadress</p>
+              <p className="font-medium">{(a.booking as any)?.deliveryaddress || '–'}</p>
+            </div>
+            {assignmentAny.transport_time && (
+              <div>
+                <p className="text-muted-foreground text-[10px]">Tid</p>
+                <p className="font-medium">{assignmentAny.transport_time}</p>
+              </div>
+            )}
+            {assignmentAny.estimated_duration && (
+              <div>
+                <p className="text-muted-foreground text-[10px]">Uppskattad tid</p>
+                <p className="font-medium">{assignmentAny.estimated_duration} min</p>
+              </div>
+            )}
+            {totalWeight > 0 && (
+              <div>
+                <p className="text-muted-foreground text-[10px]">Totalvikt</p>
+                <p className="font-medium">{totalWeight.toLocaleString('sv')} kg</p>
+              </div>
+            )}
+            {totalVolume > 0 && (
+              <div>
+                <p className="text-muted-foreground text-[10px]">Totalvolym</p>
+                <p className="font-medium">{totalVolume.toFixed(1)} m³</p>
+              </div>
+            )}
+          </div>
+          {a.driver_notes && (
+            <div className="text-xs">
+              <p className="text-muted-foreground text-[10px]">Förarkommentar</p>
+              <p className="font-medium">{a.driver_notes}</p>
+            </div>
+          )}
+          {products.length > 0 && (
+            <div className="text-xs">
+              <p className="text-muted-foreground text-[10px] mb-1">Produkter</p>
+              <div className="space-y-0.5">
+                {products.map((p, i) => (
+                  <p key={i} className="font-medium">{p.quantity}x {p.name}</p>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
 
 const LogisticsTransportWidget: React.FC<Props> = ({ onClick, vehicles }) => {
-  const navigate = useNavigate();
   const [dateMode, setDateMode] = useState<DateMode>('week');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
   const [customRange, setCustomRange] = useState<{ from: Date; to: Date } | null>(null);
@@ -242,7 +330,7 @@ const LogisticsTransportWidget: React.FC<Props> = ({ onClick, vehicles }) => {
                     <p className="text-[10px] text-muted-foreground text-center py-6">Inga transporter</p>
                   ) : (
                     col.items.map(a => (
-                      <TransportCard key={a.id} a={a} vehicles={vehicles} navigate={navigate} />
+                      <TransportCard key={a.id} a={a} vehicles={vehicles} expandedId={expandedId} setExpandedId={setExpandedId} />
                     ))
                   )}
                 </div>
