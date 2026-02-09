@@ -93,6 +93,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [emailSubject, setEmailSubject] = useState('');
   const [emailMessage, setEmailMessage] = useState('');
+  const [emailReferencePerson, setEmailReferencePerson] = useState('');
   const [pendingAssignmentId, setPendingAssignmentId] = useState<string | null>(null);
   const [sendingEmail, setSendingEmail] = useState(false);
 
@@ -103,6 +104,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
   const [resendPartnerEmail, setResendPartnerEmail] = useState('');
   const [resendPartnerName, setResendPartnerName] = useState('');
   const [resendBookingClient, setResendBookingClient] = useState('');
+  const [resendBookingNumber, setResendBookingNumber] = useState('');
   const [isResendMode, setIsResendMode] = useState(false);
 
   const activeVehicles = vehicles.filter(v => v.is_active);
@@ -240,6 +242,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
         setPendingAssignmentId(result.id);
         setEmailSubject(defaultSubject);
         setEmailMessage(defaultMessage);
+        setEmailReferencePerson('');
         setEmailDialogOpen(true);
         // Don't cancel wizard yet — dialog handles it
         refetch();
@@ -285,6 +288,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
           assignment_id: pendingAssignmentId,
           custom_subject: emailSubject || undefined,
           custom_message: emailMessage || undefined,
+          reference_person: emailReferencePerson || undefined,
         },
       });
       if (error) {
@@ -333,12 +337,14 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
     setPendingAssignmentId(assignment.id);
     setEmailSubject(defaultSubject);
     setEmailMessage(defaultMessage);
+    setEmailReferencePerson('');
     setResendTransportDate(assignment.transport_date);
     setResendTransportTime(assignment.transport_time || '');
     setResendPickupAddress(assignment.pickup_address || DEFAULT_PICKUP_ADDRESS);
     setResendPartnerEmail(vehicle.contact_email || '');
     setResendPartnerName(partnerName);
     setResendBookingClient(booking.client);
+    setResendBookingNumber(booking.booking_number || '');
     setIsResendMode(true);
     setEmailDialogOpen(true);
   };
@@ -1154,6 +1160,28 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
               </div>
             )}
 
+            {/* Reference person & number */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="email-ref-person" className="text-xs text-muted-foreground">Referensperson (vår kontakt)</Label>
+                <Input
+                  id="email-ref-person"
+                  value={emailReferencePerson}
+                  onChange={e => setEmailReferencePerson(e.target.value)}
+                  className="rounded-xl"
+                  placeholder="Namn på er kontaktperson..."
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Referensnummer</Label>
+                <Input
+                  value={isResendMode ? resendBookingNumber : (wizardBooking?.booking_number || '')}
+                  readOnly
+                  className="rounded-xl bg-muted/50"
+                />
+              </div>
+            </div>
+
             {/* Subject (editable) */}
             <div className="space-y-1.5">
               <Label htmlFor="email-subject" className="text-xs text-muted-foreground">Ämnesrad</Label>
@@ -1184,6 +1212,8 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                   <span className="text-muted-foreground">Kund</span>
                   <span className="font-medium">{wizardBooking?.client || '—'}</span>
+                  <span className="text-muted-foreground">Bokningsnummer</span>
+                  <span className="font-medium">{wizardBooking?.booking_number || '—'}</span>
                   <span className="text-muted-foreground">Leverans</span>
                   <span className="font-medium">{wizardBooking?.deliveryaddress || '—'}</span>
                   <span className="text-muted-foreground">Upphämtning</span>
@@ -1201,7 +1231,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
             {isResendMode && (
               <div className="p-3 rounded-xl bg-muted/30 border border-border/30 space-y-1.5">
                 <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">Kund</p>
-                <p className="text-sm font-medium">{resendBookingClient}</p>
+                <p className="text-sm font-medium">{resendBookingClient} {resendBookingNumber && `(#${resendBookingNumber})`}</p>
               </div>
             )}
           </div>
