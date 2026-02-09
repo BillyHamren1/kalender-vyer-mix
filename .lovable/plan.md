@@ -1,62 +1,44 @@
 
+# Fix: Svarsidan visar rå HTML istället för renderad sida
 
-## Transportkalendern - Veckovy med samma design som Dashboard
+## Problem
+När en transportpartner klickar "Acceptera" eller "Neka" i mejlet visas rå HTML-källkod istället för en snygg renderad sida. Svenska tecken (ö, ä, å) visas dessutom som skräptecken (t.ex. "KÃ¶rning" istället för "Körning").
 
-### Problem
-1. Kalendern visar idag en **dag-valjare** (klicka pa en dag, se korningar nedan) istallet for en riktig veckovy med 7 kolumner
-2. Transportkorningar visas inte korrekt - `useTransportAssignments` filterar pa en enskild dag, men behover hamta hela veckan
-3. Designen matchar inte dashboard-kalendern som har teal-header, dag-kolumner med event-kort, och "Inga handelser" for tomma dagar
+## Orsak
+Edge-funktionen `handle-transport-response` skapar headers med `new Headers()` och `.set()`, men alla andra edge-funktioner i projektet skickar headers som vanliga JavaScript-objekt. Supabase Edge Functions-proxyn verkar inte korrekt vidarebefordra `Content-Type: text/html` när den sätts via `Headers`-API:et, vilket gör att webbläsaren tolkar svaret som ren text.
 
-### Losning
+## Lösning
+Ändra `htmlResponse`-funktionen så att den använder samma headermönster som alla andra edge-funktioner i projektet — ett vanligt objekt istället för `new Headers()`.
 
-Byta ut den nuvarande kalendersektionen i `LogisticsPlanning.tsx` mot en layout som exakt foljer `DashboardWeekView`-designen:
+## Tekniska detaljer
 
-**1. Hamta hela veckans data**
-- Andra anropet till `useTransportAssignments` sa att det hamtar hela veckan (startOfWeek till endOfWeek), inte bara en dag
-- Alternativt anvanda `useDashboardEvents` med kategorin `logistics` for att fa samma data som dashboard-kalendern visar
+### Fil: `supabase/functions/handle-transport-response/index.ts`
 
-**2. Ny kalenderdesign (identisk med DashboardWeekView)**
-- Teal gradient-header med "Vecka X" och navigationpilar
-- 7 dag-kolumner sida vid sida med scrollbar (`overflow-x-auto`)
-- Varje dag-kolumn har:
-  - Header med dagnamn (MANDAG, TISDAG...), datum och manad
-  - Idag markerad med teal-bakgrund och prickindikator
-  - Event-kort for varje transportuppdrag
-  - "Inga handelser" med kalenderikon for tomma dagar
-
-**3. Event-kort i transportstil**
-- Anvanda `DashboardEventCard`-komponentens stil med TRANSPORT-badge
-- Visa bokningsnummer, kundnamn och status (Vantar/Levererad/Pa vag)
-
-### Tekniska detaljer
-
-**Filer som andras:**
-
-| Fil | Andring |
-|-----|---------|
-| `src/pages/LogisticsPlanning.tsx` | Ersatt PremiumCard-kalender med DashboardWeekView-liknande layout. Ta bort `selectedDate` state (behovs ej langre). Hamta veckodata istallet for dagsdata |
-| `src/hooks/useTransportAssignments.ts` | Laga sa att hooken kan ta emot ett datumintervall (start + slut) istallet for bara en dag, sa att hela veckans korningar hamtas |
-
-**Datahanterings-approach:**
-- Modifiera `useTransportAssignments` att acceptera en optional `endDate` parameter
-- Nar `endDate` ges, filtrera med `.gte()` och `.lte()` istallet for `.eq()`
-- Gruppera sedan assignments per dag i UI:t med `isSameDay()` fran date-fns
-
-**Kalender-struktur (JSX):**
-```text
-+--------------------------------------------------+
-| [<]       Vecka 7        [>]    (teal gradient)   |
-+--------------------------------------------------+
-| MAN  | TIS  | ONS  | TORS | FRE  | LOR  | SON  |
-|  9   | 10   | 11   |  12  | 13   | 14   | 15   |
-| feb. | feb. | feb. | feb. | feb. | feb. | feb. |
-|------|------|------|------|------|------|------|
-|      |      |      |[TRAN]|      |      |      |
-| Inga | Inga | Inga |11-TE-|      |      |      |
-| hand.| hand.| hand.|  !!  |      |      |      |
-|      |      |      |Vantar|      |      |      |
-+--------------------------------------------------+
+Nuvarande (problematisk) kod:
+```typescript
+function htmlResponse(body: string, status = 200): Response {
+  const headers = new Headers();
+  headers.set("Content-Type", "text/html; charset=utf-8");
+  headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+  headers.set("X-Content-Type-Options", "nosniff");
+  return new Response(body, { status, headers });
+}
 ```
 
-Transport-korten atervander samma `DashboardEventCard`-komponent som redan anvands pa dashboard, sa att styling ar identisk.
+Ny (fixad) kod:
+```typescript
+function htmlResponse(body: string, status = 200): Response {
+  return new Response(body, {
+    status,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-cache, no-store, must-revalidate",
+    },
+  });
+}
+```
 
+Ändringarna:
+- Byter från `new Headers()` till ett vanligt JavaScript-objekt (samma mönster som alla andra edge-funktioner)
+- Tar bort `X-Content-Type-Options: nosniff` som kan orsaka problem om proxyn ändrar content-type
+- Säkerställer att `charset=utf-8` skickas korrekt så svenska tecken visas rätt
