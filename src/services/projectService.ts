@@ -96,12 +96,32 @@ export const updateProjectStatus = async (id: string, status: ProjectStatus): Pr
 };
 
 export const deleteProject = async (id: string): Promise<void> => {
+  // First, fetch the project to get the booking_id
+  const { data: project } = await supabase
+    .from('projects')
+    .select('booking_id')
+    .eq('id', id)
+    .single();
+
+  // Delete the project
   const { error } = await supabase
     .from('projects')
     .delete()
     .eq('id', id);
 
   if (error) throw error;
+
+  // Reset booking assignment flags so it reappears in the unassigned list
+  if (project?.booking_id) {
+    await supabase
+      .from('bookings')
+      .update({
+        assigned_to_project: false,
+        assigned_project_id: null,
+        assigned_project_name: null
+      })
+      .eq('id', project.booking_id);
+  }
 };
 
 // Tasks
