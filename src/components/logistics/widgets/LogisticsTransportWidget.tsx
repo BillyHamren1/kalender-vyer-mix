@@ -38,10 +38,10 @@ const TransportCard = ({ a, vehicles, expandedId, setExpandedId }: {
   };
 
   const getStatusBadge = (a: TransportAssignment) => {
-    if (a.status === 'delivered') return <Badge className="bg-primary/15 text-primary border-0 text-[10px]">Levererad</Badge>;
-    if (a.partner_response === 'accepted') return <Badge className="bg-primary/15 text-primary border-0 text-[10px]">Bekräftad</Badge>;
-    if (a.partner_response === 'declined') return <Badge className="bg-destructive/15 text-destructive border-0 text-[10px]">Nekad</Badge>;
-    return <Badge className="bg-amber-500/15 text-amber-600 border-0 text-[10px]">Väntar</Badge>;
+    if (a.status === 'delivered') return <Badge variant="outline" className="bg-primary/15 text-primary border-primary/30 text-[10px]">Levererad</Badge>;
+    if (a.partner_response === 'accepted') return <Badge variant="outline" className="bg-primary/15 text-primary border-primary/30 text-[10px]">Bekräftad</Badge>;
+    if (a.partner_response === 'declined') return <Badge variant="outline" className="bg-destructive/15 text-destructive border-destructive/30 text-[10px]">Nekad</Badge>;
+    return <Badge variant="outline" className="bg-amber-500/15 text-amber-600 border-amber-500/30 text-[10px]">Väntar</Badge>;
   };
 
   const formatTransportDate = (dateStr: string) => {
