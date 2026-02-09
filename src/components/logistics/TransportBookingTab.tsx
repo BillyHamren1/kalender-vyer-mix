@@ -450,7 +450,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
       <Dialog open={!!wizardBooking} onOpenChange={(open) => { if (!open) cancelWizard(); }}>
         <DialogContent className="max-w-none w-screen h-screen m-0 p-0 rounded-none border-none bg-card flex flex-col [&>button]:hidden overflow-y-auto">
           <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-4xl mx-auto w-full">
-        <PremiumCard
+        {wizardBooking && <PremiumCard
           icon={Truck}
           title={`${editingAssignmentId ? 'Redigera' : 'Boka'} transport — ${wizardBooking.client}`}
           headerAction={
@@ -1148,7 +1148,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
               </div>
             </div>
           )}
-        </PremiumCard>
+        </PremiumCard>}
           </div>
         </DialogContent>
       </Dialog>
