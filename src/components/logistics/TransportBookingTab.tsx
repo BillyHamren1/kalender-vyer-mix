@@ -1264,7 +1264,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                         )}
                       </div>
                     </div>
-                    <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-primary/10 text-primary border-primary/20 hover:bg-primary/15">
+                    <Badge className="rounded-lg h-8 px-3 text-xs shrink-0 gap-1 bg-[hsl(38,92%,50%)]/10 text-[hsl(38,92%,45%)] border-[hsl(38,92%,50%)]/20">
                       <Check className="h-3.5 w-3.5" />
                       Bokad
                     </Badge>
