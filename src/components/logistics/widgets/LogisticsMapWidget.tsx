@@ -224,7 +224,7 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick, highlightedAssignmentId 
             type: 'line',
             source: sourceId,
             layout: { 'line-cap': 'round', 'line-join': 'round' },
-            paint: { 'line-color': 'hsl(184, 60%, 20%)', 'line-width': 6, 'line-opacity': 0.4 }
+            paint: { 'line-color': 'hsl(0, 80%, 30%)', 'line-width': 7, 'line-opacity': 0.5 }
           });
 
           m2.addLayer({
@@ -232,7 +232,7 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick, highlightedAssignmentId 
             type: 'line',
             source: sourceId,
             layout: { 'line-cap': 'round', 'line-join': 'round' },
-            paint: { 'line-color': 'hsl(184, 60%, 38%)', 'line-width': 3.5, 'line-opacity': 0.95 }
+            paint: { 'line-color': 'hsl(0, 85%, 50%)', 'line-width': 4, 'line-opacity': 1 }
           });
 
           // Delivery marker
