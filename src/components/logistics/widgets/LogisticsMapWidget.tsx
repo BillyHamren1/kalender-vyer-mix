@@ -281,36 +281,43 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick, highlightedAssignmentId 
     // Ensure transport routes are visible
     if (mapFilter === 'projects') {
       setMapFilter('all');
-      return; // Will re-trigger after filter change re-renders routes
+      return;
     }
 
-    // Reset all route line widths
-    const allSources = Object.keys((m.getStyle()?.sources) || {}).filter(s => s.startsWith('route-'));
-    allSources.forEach(s => {
-      const lineId = s + '-line';
-      const outlineId = s + '-outline';
-      if (m.getLayer(lineId)) {
-        m.setPaintProperty(lineId, 'line-width', 4);
-        m.setPaintProperty(lineId, 'line-opacity', 0.3);
+    const applyHighlight = () => {
+      if (!map.current) return false;
+      const m2 = map.current;
+
+      // Reset all route line widths
+      const allSources = Object.keys((m2.getStyle()?.sources) || {}).filter(s => s.startsWith('route-'));
+      allSources.forEach(s => {
+        const lineId = s + '-line';
+        const outlineId = s + '-outline';
+        if (m2.getLayer(lineId)) {
+          m2.setPaintProperty(lineId, 'line-width', 4);
+          m2.setPaintProperty(lineId, 'line-opacity', 0.3);
+        }
+        if (m2.getLayer(outlineId)) {
+          m2.setPaintProperty(outlineId, 'line-opacity', 0.1);
+        }
+      });
+
+      // Highlight selected route
+      const selectedSource = `route-${highlightedAssignmentId}`;
+      const hasLayer = m2.getLayer(selectedSource + '-line');
+      if (hasLayer) {
+        m2.setPaintProperty(selectedSource + '-line', 'line-width', 7);
+        m2.setPaintProperty(selectedSource + '-line', 'line-opacity', 1);
+        m2.setPaintProperty(selectedSource + '-line', 'line-color', 'hsl(0, 100%, 45%)');
       }
-      if (m.getLayer(outlineId)) {
-        m.setPaintProperty(outlineId, 'line-opacity', 0.1);
+      if (m2.getLayer(selectedSource + '-outline')) {
+        m2.setPaintProperty(selectedSource + '-outline', 'line-opacity', 0.8);
+        m2.setPaintProperty(selectedSource + '-outline', 'line-width', 10);
       }
-    });
+      return !!hasLayer;
+    };
 
-    // Highlight selected route
-    const selectedSource = `route-${highlightedAssignmentId}`;
-    if (m.getLayer(selectedSource + '-line')) {
-      m.setPaintProperty(selectedSource + '-line', 'line-width', 7);
-      m.setPaintProperty(selectedSource + '-line', 'line-opacity', 1);
-      m.setPaintProperty(selectedSource + '-line', 'line-color', 'hsl(0, 100%, 45%)');
-    }
-    if (m.getLayer(selectedSource + '-outline')) {
-      m.setPaintProperty(selectedSource + '-outline', 'line-opacity', 0.8);
-      m.setPaintProperty(selectedSource + '-outline', 'line-width', 10);
-    }
-
-    // Zoom to the assignment's coordinates from data
+    // Zoom immediately using assignment data (doesn't need layers)
     const assignment = assignments.find(a => a.id === highlightedAssignmentId);
     if (assignment?.booking) {
       const b = assignment.booking as any;
@@ -325,6 +332,18 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick, highlightedAssignmentId 
         bounds.extend([destLng, destLat]);
         m.fitBounds(bounds, { padding: 80, maxZoom: 13, duration: 800 });
       }
+    }
+
+    // Try to apply highlight immediately, retry if layers aren't ready yet
+    if (!applyHighlight()) {
+      let attempts = 0;
+      const interval = setInterval(() => {
+        attempts++;
+        if (applyHighlight() || attempts > 20) {
+          clearInterval(interval);
+        }
+      }, 300);
+      return () => clearInterval(interval);
     }
   }, [highlightedAssignmentId, mapReady, assignments, mapFilter]);
 
