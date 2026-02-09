@@ -14,10 +14,14 @@ const TransportEventCard = ({ assignment }: { assignment: TransportAssignment })
 
   const statusLabel = assignment.status === 'delivered' ? 'Levererad' :
     assignment.status === 'in_transit' ? 'På väg' :
-    assignment.status === 'skipped' ? 'Hoppad' : 'Väntar';
+    assignment.status === 'skipped' ? 'Hoppad' :
+    assignment.partner_response === 'accepted' ? 'Accepterad' :
+    assignment.partner_response === 'declined' ? 'Nekad' : 'Väntar';
 
   const statusDot = assignment.status === 'delivered' ? 'bg-primary' :
     assignment.status === 'in_transit' ? 'bg-secondary animate-pulse' :
+    assignment.partner_response === 'accepted' ? 'bg-primary' :
+    assignment.partner_response === 'declined' ? 'bg-destructive' :
     'bg-muted-foreground';
 
   return (
