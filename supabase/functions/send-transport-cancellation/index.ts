@@ -91,7 +91,7 @@ function buildCancellationEmailHtml(params: {
 
           <!-- Header -->
           <tr>
-            <td style="background:linear-gradient(135deg,#c2410c,#ea580c);padding:16px 40px;">
+            <td style="background-color:#ea580c;background:linear-gradient(135deg,#c2410c,#ea580c);padding:16px 40px;">
               <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">Transport avbokad</h1>
               <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">Denna transport har avbokats av Frans August Logistik</p>
             </td>

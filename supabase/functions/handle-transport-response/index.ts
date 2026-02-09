@@ -23,7 +23,8 @@ function buildConfirmationEmail(params: {
   transportTime: string | null;
 }): string {
   const isAccepted = params.action === "accepted";
-  const headerBg = isAccepted
+  const headerBgColor = isAccepted ? "#279B9E" : "#dc2626";
+  const headerBgGradient = isAccepted
     ? "linear-gradient(135deg,#1a6b6e,#279B9E)"
     : "linear-gradient(135deg,#b91c1c,#dc2626)";
   const title = isAccepted ? "K\u00f6rning bokad!" : "K\u00f6rning nekad";
@@ -80,7 +81,7 @@ function buildConfirmationEmail(params: {
 
           <!-- Header -->
           <tr>
-            <td style="background:${headerBg};padding:16px 40px;">
+            <td style="background-color:${headerBgColor};background:${headerBgGradient};padding:16px 40px;">
               <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">${title}</h1>
             </td>
           </tr>
@@ -123,20 +124,24 @@ function buildBatchConfirmationEmail(params: {
   const declined = params.results.filter(r => r.action === "declined").length;
 
   let title: string;
-  let headerBg: string;
+  let headerBgColor: string;
+  let headerBgGradient: string;
   let message: string;
 
   if (allAccepted) {
     title = `${params.results.length} k\u00f6rningar bokade!`;
-    headerBg = "linear-gradient(135deg,#1a6b6e,#279B9E)";
+    headerBgColor = "#279B9E";
+    headerBgGradient = "linear-gradient(135deg,#1a6b6e,#279B9E)";
     message = `Tack ${params.partnerName}! Ni har accepterat ${params.results.length} k\u00f6rningar f\u00f6r ${params.clientName}. Vi \u00e5terkommer med ytterligare detaljer vid behov.`;
   } else if (allDeclined) {
     title = `${params.results.length} k\u00f6rningar nekade`;
-    headerBg = "linear-gradient(135deg,#b91c1c,#dc2626)";
+    headerBgColor = "#dc2626";
+    headerBgGradient = "linear-gradient(135deg,#b91c1c,#dc2626)";
     message = `Tack f\u00f6r ert svar ${params.partnerName}. ${params.results.length} k\u00f6rningar f\u00f6r ${params.clientName} har registrerats som nekade.`;
   } else {
     title = "Svar registrerat";
-    headerBg = "linear-gradient(135deg,#1a6b6e,#279B9E)";
+    headerBgColor = "#279B9E";
+    headerBgGradient = "linear-gradient(135deg,#1a6b6e,#279B9E)";
     message = `Tack ${params.partnerName}! ${accepted} k\u00f6rning(ar) accepterade och ${declined} nekade f\u00f6r ${params.clientName}.`;
   }
 
@@ -174,7 +179,7 @@ function buildBatchConfirmationEmail(params: {
             </td>
           </tr>
           <tr>
-            <td style="background:${headerBg};padding:16px 40px;">
+            <td style="background-color:${headerBgColor};background:${headerBgGradient};padding:16px 40px;">
               <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">${title}</h1>
             </td>
           </tr>
