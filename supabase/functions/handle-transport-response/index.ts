@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { Resend } from "npm:resend@4.0.0";
 
-const LOGO_URL = "https://pihrhltinhewhoxefjxv.supabase.co/storage/v1/object/public/email-assets/fransaugust-logo.png";
+const LOGO_URL = "https://pihrhltinhewhoxefjxv.supabase.co/storage/v1/object/public/email-assets/fransaugust-logo.png?t=1";
 
 function formatDate(d: string | null): string {
   if (!d) return "";
@@ -23,11 +23,8 @@ function buildConfirmationEmail(params: {
   transportTime: string | null;
 }): string {
   const isAccepted = params.action === "accepted";
-  const headerBgColor = isAccepted ? "#279B9E" : "#dc2626";
-  const headerBgGradient = isAccepted
-    ? "linear-gradient(135deg,#1a6b6e,#279B9E)"
-    : "linear-gradient(135deg,#b91c1c,#dc2626)";
   const title = isAccepted ? "K\u00f6rning bokad!" : "K\u00f6rning nekad";
+  const titleColor = isAccepted ? "#279B9E" : "#dc2626";
   const message = isAccepted
     ? `Tack ${params.partnerName}! Ni har accepterat transporten f\u00f6r ${params.clientName} den ${formatDate(params.transportDate)}. Vi \u00e5terkommer med ytterligare detaljer vid behov.`
     : `Tack f\u00f6r ert svar ${params.partnerName}. K\u00f6rningen f\u00f6r ${params.clientName} den ${formatDate(params.transportDate)} har registrerats som nekad.`;
@@ -79,17 +76,11 @@ function buildConfirmationEmail(params: {
             </td>
           </tr>
 
-          <!-- Header -->
-          <tr>
-            <td style="background-color:${headerBgColor};background:${headerBgGradient};padding:16px 40px;">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">${title}</h1>
-            </td>
-          </tr>
-
-          <!-- Message -->
+          <!-- Title + Message -->
           <tr>
             <td style="padding:20px 40px 8px;">
-              <p style="margin:0;font-size:15px;color:#1a3a3c;line-height:1.7;">${message}</p>
+              <h1 style="margin:0;font-size:22px;font-weight:700;color:${titleColor};letter-spacing:-0.5px;">${title}</h1>
+              <p style="margin:12px 0 0;font-size:15px;color:#1a3a3c;line-height:1.7;">${message}</p>
             </td>
           </tr>
 
@@ -124,24 +115,20 @@ function buildBatchConfirmationEmail(params: {
   const declined = params.results.filter(r => r.action === "declined").length;
 
   let title: string;
-  let headerBgColor: string;
-  let headerBgGradient: string;
+  let titleColor: string;
   let message: string;
 
   if (allAccepted) {
     title = `${params.results.length} k\u00f6rningar bokade!`;
-    headerBgColor = "#279B9E";
-    headerBgGradient = "linear-gradient(135deg,#1a6b6e,#279B9E)";
+    titleColor = "#279B9E";
     message = `Tack ${params.partnerName}! Ni har accepterat ${params.results.length} k\u00f6rningar f\u00f6r ${params.clientName}. Vi \u00e5terkommer med ytterligare detaljer vid behov.`;
   } else if (allDeclined) {
     title = `${params.results.length} k\u00f6rningar nekade`;
-    headerBgColor = "#dc2626";
-    headerBgGradient = "linear-gradient(135deg,#b91c1c,#dc2626)";
+    titleColor = "#dc2626";
     message = `Tack f\u00f6r ert svar ${params.partnerName}. ${params.results.length} k\u00f6rningar f\u00f6r ${params.clientName} har registrerats som nekade.`;
   } else {
     title = "Svar registrerat";
-    headerBgColor = "#279B9E";
-    headerBgGradient = "linear-gradient(135deg,#1a6b6e,#279B9E)";
+    titleColor = "#279B9E";
     message = `Tack ${params.partnerName}! ${accepted} k\u00f6rning(ar) accepterade och ${declined} nekade f\u00f6r ${params.clientName}.`;
   }
 
@@ -179,13 +166,9 @@ function buildBatchConfirmationEmail(params: {
             </td>
           </tr>
           <tr>
-            <td style="background-color:${headerBgColor};background:${headerBgGradient};padding:16px 40px;">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">${title}</h1>
-            </td>
-          </tr>
-          <tr>
             <td style="padding:20px 40px 8px;">
-              <p style="margin:0;font-size:15px;color:#1a3a3c;line-height:1.7;">${message}</p>
+              <h1 style="margin:0;font-size:22px;font-weight:700;color:${titleColor};letter-spacing:-0.5px;">${title}</h1>
+              <p style="margin:12px 0 0;font-size:15px;color:#1a3a3c;line-height:1.7;">${message}</p>
             </td>
           </tr>
           <tr>

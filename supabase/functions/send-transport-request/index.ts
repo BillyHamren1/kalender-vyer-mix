@@ -332,7 +332,7 @@ function buildEmailHtml(params: EmailParams): string {
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   <td style="vertical-align:middle;width:50%;">
-                    <img src="https://pihrhltinhewhoxefjxv.supabase.co/storage/v1/object/public/email-assets/fransaugust-logo.png" alt="Frans August" width="150" height="36" style="height:36px;width:150px;display:block;border:0;" />
+                    <img src="https://pihrhltinhewhoxefjxv.supabase.co/storage/v1/object/public/email-assets/fransaugust-logo.png?t=1" alt="Frans August" width="150" height="36" style="height:36px;width:150px;display:block;border:0;" />
                   </td>
                   <td style="vertical-align:middle;text-align:right;width:50%;">
                     ${params.bookingNumber ? `<p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7a8b8d;font-weight:600;">Referensnummer</p>
@@ -345,19 +345,14 @@ function buildEmailHtml(params: EmailParams): string {
             </td>
           </tr>
 
-          <!-- Header -->
+          <!-- Title + Greeting -->
           <tr>
-            <td style="background-color:#279B9E;background:linear-gradient(135deg,#1a6b6e,#279B9E);padding:16px 40px;">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">Transportförfrågan</h1>
-              <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">
+            <td style="padding:20px 40px 0;">
+              <h1 style="margin:0;font-size:22px;font-weight:700;color:#1a3a3c;letter-spacing:-0.5px;">Transportförfrågan</h1>
+              <p style="margin:4px 0 0;font-size:13px;color:#7a8b8d;">
                 ${isMulti ? `${params.assignments.length} körningar att granska` : 'Ny körning att granska'} från Frans August Logistik
               </p>
-            </td>
-          </tr>
-
-          <!-- Partner greeting + custom message -->
-          <tr>
-            <td style="padding:12px 40px 0;">
+              <hr style="border:none;border-top:1px solid #e0ecee;margin:16px 0;" />
               <p style="margin:0;font-size:15px;color:#1a3a3c;font-weight:600;">Hej ${params.partnerName},</p>
               <p style="margin:6px 0 0;font-size:14px;color:#5a6b6d;line-height:1.6;">
                 ${isMulti 
