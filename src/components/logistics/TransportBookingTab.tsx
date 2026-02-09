@@ -58,6 +58,7 @@ import { useBookingsForTransport, BookingForTransport } from '@/hooks/useBooking
 import { useTransportAssignments } from '@/hooks/useTransportAssignments';
 import { cn } from '@/lib/utils';
 import { AddressAutocomplete } from './AddressAutocomplete';
+import { AddressFavorites } from './AddressFavorites';
 
 const vehicleTypeLabels: Record<string, string> = {
   van: 'Skåpbil',
@@ -775,6 +776,19 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                     <p className="text-xs text-orange-500">Ej geocodad</p>
                   )}
                 </div>
+                <AddressFavorites
+                  currentAddress={wizardData.pickupAddress}
+                  currentLat={wizardData.pickupLatitude}
+                  currentLng={wizardData.pickupLongitude}
+                  onSelect={(address, lat, lng) => {
+                    setWizardData(p => ({
+                      ...p,
+                      pickupAddress: address,
+                      pickupLatitude: lat,
+                      pickupLongitude: lng,
+                    }));
+                  }}
+                />
               </div>
 
               <div className="flex items-center justify-between pt-2">
