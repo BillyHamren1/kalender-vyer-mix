@@ -37,6 +37,8 @@ export interface AssignmentFormData {
   transport_date: string;
   transport_time?: string;
   pickup_address?: string;
+  pickup_latitude?: number;
+  pickup_longitude?: number;
   stop_order?: number;
 }
 

@@ -105,3 +105,6 @@ verify_jwt = false
 
 [functions.handle-transport-response]
 verify_jwt = false
+
+[functions.geocode-address]
+verify_jwt = false
