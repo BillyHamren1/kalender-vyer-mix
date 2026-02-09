@@ -43,11 +43,11 @@ export interface AssignmentFormData {
   driver_notes?: string;
 }
 
-export const useTransportAssignments = (date?: Date | null) => {
+export const useTransportAssignments = (date?: Date | null, endDate?: Date | null) => {
   const [assignments, setAssignments] = useState<TransportAssignment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchAssignments = useCallback(async (filterDate?: Date) => {
+  const fetchAssignments = useCallback(async (filterDate?: Date, filterEndDate?: Date) => {
     try {
       setIsLoading(true);
       
@@ -72,7 +72,11 @@ export const useTransportAssignments = (date?: Date | null) => {
         `)
         .order('stop_order', { ascending: true });
 
-      if (filterDate) {
+      if (filterDate && filterEndDate) {
+        query = query
+          .gte('transport_date', format(filterDate, 'yyyy-MM-dd'))
+          .lte('transport_date', format(filterEndDate, 'yyyy-MM-dd'));
+      } else if (filterDate) {
         query = query.eq('transport_date', format(filterDate, 'yyyy-MM-dd'));
       }
 
@@ -214,7 +218,7 @@ export const useTransportAssignments = (date?: Date | null) => {
   }, [getAssignmentsByVehicle]);
 
   useEffect(() => {
-    fetchAssignments(date || undefined);
+    fetchAssignments(date || undefined, endDate || undefined);
 
     // Real-time subscription
     const channel = supabase
@@ -225,14 +229,14 @@ export const useTransportAssignments = (date?: Date | null) => {
         table: 'transport_assignments'
       }, () => {
         // Refresh on any change
-        fetchAssignments(date || undefined);
+        fetchAssignments(date || undefined, endDate || undefined);
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [date, fetchAssignments]);
+  }, [date, endDate, fetchAssignments]);
 
   return {
     assignments,
