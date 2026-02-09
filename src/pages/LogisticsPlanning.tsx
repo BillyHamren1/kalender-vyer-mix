@@ -49,12 +49,17 @@ const LogisticsPlanning: React.FC = () => {
         </Button>
       </PageHeader>
 
-      {/* Widget grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      {/* Widget grid: Map left, 3 widgets stacked right */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-4 mb-6">
+        {/* Map - spans full height of right column */}
         <LogisticsMapWidget onClick={() => setExpanded('map')} />
-        <LogisticsCalendarWidget onClick={() => setExpanded('calendar')} />
-        <LogisticsTrafficWidget />
-        <LogisticsWeatherWidget />
+        
+        {/* Right column: Calendar + Weather + Traffic stacked */}
+        <div className="flex flex-col gap-4">
+          <LogisticsCalendarWidget onClick={() => setExpanded('calendar')} />
+          <LogisticsWeatherWidget />
+          <LogisticsTrafficWidget />
+        </div>
       </div>
 
       {/* Transport booking widget - full width */}
