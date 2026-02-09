@@ -1,35 +1,49 @@
 
-# Riktiga vägbaserade rutter pa kartan
 
-## Vad andras
-Istallet for raka "helikopterlinjer" mellan pickup och leverans kommer kartan visa **faktiska vagbaserade rutter** - med kurvor, motorvagar och rondeller precis som i Google Maps.
+# Bokningslista och filter synliga direkt
 
-## Hur det fungerar
+## Problem
+Transportwidgeten med bokningslista och datumfilter hamnar **under kartan** och syns inte utan att scrolla. Hela kartan tar upp skärmen.
 
-1. **Mapbox Directions API** anropas for varje transport-tilldelning med pickup- och leveranskoordinater
-2. API:t returnerar en **encoded polyline** med den faktiska vagrutten
-3. Polyline-geometrin ritas ut pa kartan som en snygg, foljsam rutt langs vagarna
+## Losning
+Flytta bokningslistan och filtren till **hogerkolumnen** sa att de syns direkt bredvid kartan, utan att behova scrolla.
+
+## Layout-forandring
+
+Nuvarande:
+```text
++---------------------------+----------+
+|                           | Kalender |
+|        KARTA              | Vader    |
+|                           | Trafik   |
++---------------------------+----------+
+| Transportbokningar (dolda under fold)|
++--------------------------------------+
+```
+
+Nytt:
+```text
++---------------------------+----------+
+|                           | Kalender |
+|        KARTA              | Transport|
+|                           | boknings-|
+|                           | lista    |
++---------------------------+----------+
+```
 
 ## Tekniska detaljer
 
-### Fil: `src/components/logistics/widgets/LogisticsMapWidget.tsx`
+### Fil: `src/pages/LogisticsPlanning.tsx`
 
-**Ersatt logik (rad 141-206):**
-- Ta bort den manuella `LineString` med bara tva punkter (rak linje)
-- For varje transport-tilldelning med giltiga koordinater:
-  1. Anropa Mapbox Directions API: `https://api.mapbox.com/directions/v5/mapbox/driving/{pickup};{delivery}?geometries=geojson&overview=full&access_token=...`
-  2. Anvanda det returnerade `geometry`-objektet (som innehaller alla vagpunkter) som GeoJSON-kalla
-  3. Rita rutten med samma styling (orange streckad linje med outline)
-- Behalla pickup- och leveransmarkorerna som de ar
-- Lagga till felhantering: om Directions API misslyckas, falla tillbaka pa rak linje
+1. **Flytta `LogisticsTransportWidget`** fran under grid-layouten till hogerkolumnen, efter kalender-widgeten
+2. **Ta bort** vader- och trafikwidgetarna fran hogerkolumnen (de tar plats fran bokningslistan)
+3. **Ge transportwidgeten `flex-1`** sa den fyller resterande hogerkolumn-hoijd
+4. Behall expanded-dialog for transport och karta
 
-**Cachning och prestanda:**
-- Ruttdata cachas i en `useRef`-map (`routeCache`) sa att samma rutt inte hamtas om igen vid filter-byten
-- API-anrop gors parallellt med `Promise.allSettled` for att inte blocka renderingen
-- Max 10 rutter hamtas at gangen for att undvika rate-limiting
+### Fil: `src/components/logistics/widgets/LogisticsTransportWidget.tsx`
 
-**Uppdatering av popup-info:**
-- Visa kopavstand och beraknad tid i popupen (t.ex. "32 km, ~28 min")
+1. **Ta bort `max-h-[280px]`** pa bokningslistan sa den kan vaxa och fylla tillgangligt utrymme
+2. Gor listan `flex-1 overflow-y-auto` istallet for fast hojd
+3. Gora hela kortet till `flex flex-col h-full` sa det fyller sin container
 
-### Ingen ny edge function behovs
-Mapbox Directions API anropas direkt fran klienten med den publika Mapbox-token som redan hamtas via `mapbox-token`-funktionen. Ingen server-side-proxy kravs for detta.
+Vader och trafik kan man lagga tillbaka som expanderbara widgets i framtiden om det behovs.
