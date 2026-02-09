@@ -1,66 +1,59 @@
 
-# Fix: Logga saknas och vitt mellanrum i mejlhuvudet
+# Bekraftelsemail istallet for webbsida vid partnersvar
 
 ## Problem
-1. **Loggan visas inte** -- Mejlet laddar loggan fran `https://kalender-vyer-mix.lovable.app/images/fransaugust-logo.png`. Denna URL fungerar bara om appen ar publicerad med den senaste koden. Loggan laddades aldrig upp till `email-assets`-bucketen i Supabase Storage, sa den ar beroende av att hela webbappen publiceras forst.
-2. **Stort vitt mellanrum** -- Mellan referensraden (overst) och halsningstexten ("Hej ...") finns det for mycket padding. Teal-headern har `padding:20px 40px` och halsningstexten har `padding:16px 40px 0`, men sammanlagt med border och spacing blir det ovantat mycket tom yta.
+1. **Sidan visar ra HTML** -- Trots tidigare fix med headers renderas fortfarande HTML-kallkod i webblasaren nar partnern klickar pa acceptera/neka-lanken. Teckenkodningen ar ocksa trasig (t.ex. "Korning" visas som "KA¶rning").
+2. **Onodigt steg** -- Partnern tvingas till en webbsida som de anda bara stanger direkt.
 
 ## Losning
+Istallet for att visa en HTML-sida nar partnern svarar, skickar vi ett **bekraftelsemejl via Resend** till partnern och gor en enkel **HTTP-redirect** till en minimal tacksida. Tacksidan behover bara vara extremt enkel -- ingen komplex HTML.
 
-### 1. Ladda upp loggan till Supabase Storage
-Ladda upp `public/images/fransaugust-logo.png` till `email-assets`-bucketen i Supabase Storage. Detta ger en permanent publik URL som alltid fungerar, oberoende av om appen publiceras eller ej.
-
-Ny URL-format:
-```
-https://<project-ref>.supabase.co/storage/v1/object/public/email-assets/fransaugust-logo.png?v=1
+Flode idag:
+```text
+Partner klickar lank --> Edge function --> Visar HTML-sida (trasig)
 ```
 
-### 2. Uppdatera bada mejlmallar med ny logo-URL
-Byt logo-URL:en i bade `send-transport-request` och `send-transport-cancellation` fran den publika app-URL:en till Supabase Storage-URL:en.
-
-### 3. Minska vitt utrymme
-- Minska padding pa teal-headern fran `20px 40px` till `16px 40px`
-- Minska padding pa halsningsraden fran `16px 40px 0` till `12px 40px 0`
-- Minska margin pa halsningsradstexten
+Nytt flode:
+```text
+Partner klickar lank --> Edge function --> Uppdaterar DB + Skickar bekraftelsemejl --> Enkel redirect-sida
+```
 
 ## Tekniska detaljer
 
+### Fil: `supabase/functions/handle-transport-response/index.ts`
+
+**Andringar:**
+
+1. **Lagg till Resend-import** for att skicka bekraftelsemejl
+2. **Hamta vehicle.contact_email** fran DB:n (redan tillganglig via join pa `vehicles`)
+3. **Bygg och skicka bekraftelsemejl** med samma visuella stil som ovriga mejl (logo, teal/rod header, etc.)
+4. **Ersatt den komplexa HTML-sidan** med en minimal redirect/tack-respons som anvander `Response.redirect()` eller en extremt enkel sida som bara sager "Tack, kolla din mejl"
+
+**Bekraftelsemejlets innehall (vid accept):**
+- Logo + referensnummer
+- Gron/teal header: "Korning bokad!"
+- Text: "Tack [Partnernamn]! Ni har accepterat transporten for [Kund] den [Datum]. Vi aterkommer med ytterligare detaljer vid behov."
+- Transportdetaljer (datum, tid, adress)
+- Footer
+
+**Bekraftelsemejlets innehall (vid neka):**
+- Logo + referensnummer
+- Rod header: "Korning nekad"
+- Text: "Tack for ert svar [Partnernamn]. Korningen for [Kund] den [Datum] har registrerats som nekad."
+- Footer
+
+**Enkel webbsida (ultra-minimal):**
+- Visar bara: "Tack! Ett bekraftelsemejl har skickats till er." (inga svenska specialtecken-problem med sa lite text, och vi kan anvanda HTML-entities som `&ouml;` istallet)
+
+**DB-query utokad:**
+- Lagga till `contact_email` i vehicle-joinen sa vi har mejladressen
+- Lagga till `booking_number` fran booking-joinen for referens i mejlet
+
+**Mejlloggning:**
+- Logga bekraftelsemejlet i `transport_email_log` med type `transport_confirmation`
+
 ### Filer som andras
-- `supabase/functions/send-transport-request/index.ts` -- ny logo-URL + padding-justeringar
-- `supabase/functions/send-transport-cancellation/index.ts` -- ny logo-URL + padding-justeringar
+- `supabase/functions/handle-transport-response/index.ts` -- Omskriven: skickar bekraftelsemejl via Resend + minimal tacksida
 
-### Logo-upload
-Anvander storage-upload-verktyget for att ladda upp `public/images/fransaugust-logo.png` till bucketen `email-assets`.
-
-### HTML-andringar (bada mallar)
-
-**Logo-rad (rad ~335 i request, ~81 i cancellation):**
-```html
-<!-- Fran -->
-<img src="https://kalender-vyer-mix.lovable.app/images/fransaugust-logo.png" ... />
-
-<!-- Till -->
-<img src="https://<project-ref>.supabase.co/storage/v1/object/public/email-assets/fransaugust-logo.png?v=1" ... />
-```
-
-**Header-padding:**
-```html
-<!-- Fran -->
-<td style="background:...;padding:20px 40px;">
-
-<!-- Till -->
-<td style="background:...;padding:16px 40px;">
-```
-
-**Halsnings-padding:**
-```html
-<!-- Fran -->
-<td style="padding:16px 40px 0;">
-
-<!-- Till -->
-<td style="padding:12px 40px 0;">
-```
-
-### Edge Functions som deployas
-- `send-transport-request`
-- `send-transport-cancellation`
+### Edge Functions att deploya
+- `handle-transport-response`
