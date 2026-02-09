@@ -52,6 +52,7 @@ function buildEmailHtml(params: {
   acceptUrl: string;
   declineUrl: string;
   customMessage: string | null;
+  referencePerson: string | null;
 }): string {
   const vt = params.vehicleType ? (vehicleTypeLabels[params.vehicleType] || params.vehicleType) : "—";
   const deliveryFull = [params.deliveryAddress, params.deliveryPostalCode, params.deliveryCity]
@@ -83,12 +84,39 @@ function buildEmailHtml(params: {
             <td style="background:linear-gradient(135deg,#1a6b6e,#279B9E);padding:32px 40px;">
               <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:-0.5px;">Transportförfrågan</h1>
               <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Ny körning att granska från Frans August Logistik</p>
+              ${params.bookingNumber ? `<p style="margin:8px 0 0;color:rgba(255,255,255,0.95);font-size:16px;font-weight:700;">Referensnummer: ${params.bookingNumber}</p>` : ''}
             </td>
           </tr>
 
+          <!-- Reference info -->
+          ${(params.referencePerson || params.bookingNumber) ? `
+          <tr>
+            <td style="padding:24px 40px 0;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#e0f2fe;border-radius:12px;border:1px solid #7dd3fc;">
+                <tr>
+                  <td style="padding:16px 20px;">
+                    <p style="margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#0369a1;font-weight:700;">Referensinformation</p>
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                      ${params.bookingNumber ? `
+                      <tr>
+                        <td style="padding:4px 0;font-size:14px;color:#0c4a6e;width:140px;font-weight:600;">Referensnummer</td>
+                        <td style="padding:4px 0;font-size:14px;color:#0c4a6e;font-weight:700;">${params.bookingNumber}</td>
+                      </tr>` : ''}
+                      ${params.referencePerson ? `
+                      <tr>
+                        <td style="padding:4px 0;font-size:14px;color:#0c4a6e;width:140px;font-weight:600;">Referensperson</td>
+                        <td style="padding:4px 0;font-size:14px;color:#0c4a6e;font-weight:700;">${params.referencePerson}</td>
+                      </tr>` : ''}
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>` : ''}
+
           <!-- Partner greeting + custom message -->
           <tr>
-            <td style="padding:32px 40px 0;">
+            <td style="padding:24px 40px 0;">
               <p style="margin:0;font-size:16px;color:#1a3a3c;font-weight:600;">Hej ${params.partnerName},</p>
               <p style="margin:12px 0 0;font-size:14px;color:#5a6b6d;line-height:1.6;">
                 Vi har en ny transportförfrågan som vi gärna vill att ni utför. Se detaljer nedan och svara genom att klicka på knapparna.
@@ -246,7 +274,7 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { assignment_id, custom_subject, custom_message } = await req.json();
+    const { assignment_id, custom_subject, custom_message, reference_person } = await req.json();
     if (!assignment_id) throw new Error("assignment_id is required");
 
     console.log(`[send-transport-request] Processing assignment: ${assignment_id}`);
@@ -314,6 +342,7 @@ Deno.serve(async (req) => {
       acceptUrl,
       declineUrl,
       customMessage: custom_message || null,
+      referencePerson: reference_person || null,
     });
 
     const emailSubject = custom_subject || `Transportförfrågan: ${booking?.client || 'Bokning'} — ${formatDate(assignment.transport_date)}`;
