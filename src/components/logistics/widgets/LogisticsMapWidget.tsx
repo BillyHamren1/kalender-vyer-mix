@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { MapPin, Maximize2, Loader2, Truck, Briefcase } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { fetchConfirmedBookings, fetchBookings } from '@/services/bookingService';
+import { fetchConfirmedBookings } from '@/services/bookingService';
 import { Booking } from '@/types/booking';
 import { useTransportAssignments } from '@/hooks/useTransportAssignments';
 import {
@@ -67,9 +67,10 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
     const load = async () => {
       setIsLoading(true);
       try {
-        const data = await fetchBookings();
+        const data = await fetchConfirmedBookings();
+        console.log('Map bookings loaded:', data.length, 'with coords:', data.filter(b => b.deliveryLatitude != null).length);
         setBookings(data.filter(b => b.deliveryLatitude != null && b.deliveryLongitude != null));
-      } catch { /* silent */ }
+      } catch (err) { console.error('Map booking fetch error:', err); }
       finally { setIsLoading(false); }
     };
     load();
@@ -87,6 +88,7 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
       : { start: startOfMonth(now), end: endOfMonth(now) };
 
     const bounds = new mapboxgl.LngLatBounds();
+    let projectMarkerCount = 0;
 
     // Project bookings
     if (mapFilter === 'all' || mapFilter === 'projects') {
@@ -97,6 +99,7 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
           try { return isWithinInterval(parseISO(d), range); } catch { return false; }
         });
         if (!inRange) return;
+        projectMarkerCount++;
 
         const el = document.createElement('div');
         el.style.cssText = 'position:relative;width:22px;height:22px;border-radius:50%;background:hsl(184 60% 38%);border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);cursor:pointer';
@@ -153,6 +156,8 @@ const LogisticsMapWidget: React.FC<Props> = ({ onClick }) => {
         bounds.extend([lng, lat]);
       });
     }
+
+    console.log('Map markers created:', { projectMarkerCount, transportMarkers: markersRef.current.length - projectMarkerCount, timeFilter, mapFilter, totalBookings: bookings.length });
 
     if (!bounds.isEmpty()) {
       map.current.fitBounds(bounds, { padding: 40, maxZoom: 12, duration: 600 });
