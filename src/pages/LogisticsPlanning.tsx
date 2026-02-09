@@ -67,21 +67,18 @@ const LogisticsPlanning: React.FC = () => {
         </Button>
       </PageHeader>
 
-      {/* Transport Booking - 3 columns (primary content) */}
-      <TransportBookingTab vehicles={vehicles} />
-
-      {/* Weekly Schedule */}
+      {/* Weekly Schedule — primary overview */}
       <PremiumCard
         icon={Calendar}
         title="Veckans körningar"
-        subtitle={`${format(weekStart, 'd MMM', { locale: sv })} — ${format(addDays(weekStart, 6), 'd MMM', { locale: sv })}`}
+        subtitle={`${format(weekStart, 'd MMM.', { locale: sv })} — ${format(addDays(weekStart, 6), 'd MMM.', { locale: sv })}`}
         headerAction={
           <div className="flex items-center gap-1">
             <Button 
               variant="ghost" 
               size="icon" 
               onClick={() => navigateWeek('prev')} 
-              className="rounded-xl h-8 w-8"
+              className="rounded-xl h-9 w-9"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -92,7 +89,7 @@ const LogisticsPlanning: React.FC = () => {
                 setCurrentDate(new Date());
                 setSelectedDate(new Date());
               }}
-              className="rounded-xl h-8 text-xs"
+              className="rounded-xl h-9 text-sm font-medium"
             >
               Idag
             </Button>
@@ -100,48 +97,48 @@ const LogisticsPlanning: React.FC = () => {
               variant="ghost" 
               size="icon" 
               onClick={() => navigateWeek('next')} 
-              className="rounded-xl h-8 w-8"
+              className="rounded-xl h-9 w-9"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         }
       >
-        {/* Day selector */}
-        <div className="flex gap-1.5 mb-4">
+        {/* Day selector — dashboard calendar style */}
+        <div className="grid grid-cols-7 gap-2 mb-5">
           {weekDays.map(day => {
             const isSelected = isSameDay(day, selectedDate);
             const isTodayDate = isToday(day);
-            // Count assignments for this day
             const dayStr = format(day, 'yyyy-MM-dd');
             const dayAssignments = assignments.filter(a => a.transport_date === dayStr);
             
             return (
-              <Button
+              <button
                 key={day.toISOString()}
-                variant={isSelected ? 'default' : 'ghost'}
                 className={cn(
-                  "flex-1 flex flex-col h-auto py-2.5 px-1 rounded-xl transition-all min-w-0",
-                  isSelected && "shadow-md",
-                  isTodayDate && !isSelected && "ring-1 ring-primary/30 bg-primary/5"
+                  "flex flex-col items-center py-3 px-2 rounded-2xl transition-all cursor-pointer border-2",
+                  isSelected 
+                    ? "bg-primary text-primary-foreground border-primary shadow-lg" 
+                    : "bg-transparent border-transparent hover:bg-muted/50",
+                  isTodayDate && !isSelected && "border-primary/30 bg-primary/5"
                 )}
                 onClick={() => setSelectedDate(day)}
               >
                 <span className={cn(
-                  "text-[10px] font-medium uppercase tracking-wide",
+                  "text-[11px] font-semibold uppercase tracking-widest",
                   isSelected ? "text-primary-foreground/80" : "text-muted-foreground"
                 )}>
                   {format(day, 'EEE', { locale: sv })}
                 </span>
                 <span className={cn(
-                  "text-lg font-bold",
+                  "text-2xl font-bold mt-1",
                   isSelected ? "text-primary-foreground" : "text-foreground"
                 )}>
                   {format(day, 'd')}
                 </span>
                 {dayAssignments.length > 0 && (
                   <span className={cn(
-                    "text-[9px] font-semibold mt-0.5 px-1.5 py-0.5 rounded-full",
+                    "text-[9px] font-bold mt-1 w-5 h-5 rounded-full flex items-center justify-center",
                     isSelected 
                       ? "bg-primary-foreground/20 text-primary-foreground" 
                       : "bg-primary/10 text-primary"
@@ -149,7 +146,7 @@ const LogisticsPlanning: React.FC = () => {
                     {dayAssignments.length}
                   </span>
                 )}
-              </Button>
+              </button>
             );
           })}
         </div>
@@ -163,13 +160,12 @@ const LogisticsPlanning: React.FC = () => {
               ))}
             </div>
           ) : assignments.length === 0 ? (
-            <div className="text-center py-8 text-sm text-muted-foreground">
-              <Package className="h-8 w-8 mx-auto mb-2 opacity-30" />
+            <div className="text-center py-10 text-sm text-muted-foreground">
+              <Package className="h-10 w-10 mx-auto mb-3 opacity-20" />
               Inga körningar {format(selectedDate, 'EEEE d MMMM', { locale: sv })}
             </div>
           ) : (
             <>
-              {/* Group assignments by vehicle */}
               {activeVehicles
                 .map(vehicle => ({
                   vehicle,
@@ -178,7 +174,6 @@ const LogisticsPlanning: React.FC = () => {
                 .filter(g => g.vehicleAssignments.length > 0)
                 .map(({ vehicle, vehicleAssignments }) => (
                   <div key={vehicle.id} className="rounded-xl border border-border/40 bg-background/60 overflow-hidden">
-                    {/* Vehicle header row */}
                     <div className="flex items-center gap-2 px-3 py-2 bg-muted/30 border-b border-border/20">
                       <div className="p-1 rounded-md bg-primary/10">
                         <Truck className="h-3 w-3 text-primary" />
@@ -191,7 +186,6 @@ const LogisticsPlanning: React.FC = () => {
                         {vehicleAssignments.length} stopp
                       </Badge>
                     </div>
-                    {/* Assignments list */}
                     <div className="divide-y divide-border/20">
                       {vehicleAssignments.map((assignment, idx) => (
                         <div 
@@ -224,6 +218,9 @@ const LogisticsPlanning: React.FC = () => {
           )}
         </div>
       </PremiumCard>
+
+      {/* Transport Booking - 3 columns */}
+      <TransportBookingTab vehicles={vehicles} />
     </PageContainer>
   );
 };
