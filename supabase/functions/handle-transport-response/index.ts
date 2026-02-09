@@ -50,6 +50,7 @@ function buildConfirmationEmail(params: {
 <html lang="sv">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
 </head>
@@ -142,6 +143,7 @@ function buildBatchConfirmationEmail(params: {
 <html lang="sv">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
 </head>
@@ -198,7 +200,7 @@ function buildBatchConfirmationEmail(params: {
 function buildThankYouPage(): string {
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Tack</title></head>
+<head><meta charset="UTF-8"><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Tack</title></head>
 <body style="margin:0;padding:0;background:#f0f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;">
 <div style="background:#fff;border-radius:20px;padding:48px;max-width:420px;margin:32px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.1);">
 <div style="width:64px;height:64px;border-radius:50%;background:#279B9E;display:inline-flex;align-items:center;justify-content:center;margin-bottom:20px;"><span style="font-size:28px;">&#9989;</span></div>
@@ -212,7 +214,7 @@ function buildThankYouPage(): string {
 function buildErrorPage(msg: string): string {
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Fel</title></head>
+<head><meta charset="UTF-8"><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Fel</title></head>
 <body style="margin:0;padding:0;background:#f0f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;">
 <div style="background:#fff;border-radius:20px;padding:48px;max-width:420px;margin:32px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.1);">
 <div style="width:64px;height:64px;border-radius:50%;background:#f59e0b;display:inline-flex;align-items:center;justify-content:center;margin-bottom:20px;"><span style="font-size:28px;">&#9888;&#65039;</span></div>
@@ -224,13 +226,11 @@ function buildErrorPage(msg: string): string {
 }
 
 function htmlResponse(body: string, status = 200): Response {
-  return new Response(body, {
-    status,
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-cache, no-store, must-revalidate",
-    },
-  });
+  const headers = new Headers();
+  headers.set("Content-Type", "text/html; charset=utf-8");
+  headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+  headers.set("X-Content-Type-Options", "nosniff");
+  return new Response(body, { status, headers });
 }
 
 Deno.serve(async (req) => {
