@@ -1,36 +1,62 @@
 
 
-## Fix: Svarsidan visar ra HTML istallet for renderad sida
+## Avbokningsmail till transportpartner
 
-### Problemet
-Nar transportpartnern klickar pa "Acceptera korning" eller "Neka korning" i mejlet visas ratt HTML-kod som klartext istallet for en snygg bekraftelsesida. Svenska tecken (o, a, a) visas ocksa felaktigt (t.ex. "KA¶rning" istallet for "Korning").
+### Vad som ska goeras
+Naer en transport avbokas som aer tilldelad en extern partner ska ett avbokningmejl automatiskt skickas till partnern. Mejlet informerar att transporten aer avbokad och loggas i historiken.
 
-Orsaken ar att webblaasaren inte tolkar svaret som HTML. Content-Type-headern maste sakerstaallas korrekt och det kan finnas en extra wrapping av svaret fran edge function-ramverket.
+### Oeversikt av floede
 
-### Losning
-Uppdatera `supabase/functions/handle-transport-response/index.ts` med foljande andringar:
+1. Anvaendaren klickar "Avboka transport" och bekraeftar i dialogen
+2. Systemet kontrollerar om det aer en extern partner (med mejladress)
+3. Om ja: skickar ett avbokningsmail via en ny edge function
+4. Mejlet loggas i `transport_email_log` med typen `transport_cancellation`
+5. Tilldelningen tas bort fran databasen
 
-1. **Anvand `Headers`-objekt explicit** istallet for vanligt objekt for att sakerstalla att Content-Type skickas korrekt
-2. **Lagg till CORS-headers** -- edge function-plattformen kan krava dessa for att inte wrappa svaret
-3. **Dubbelkolla att alla svar returnerar `text/html; charset=utf-8`** konsekvent
-4. **Hantera OPTIONS-anrop** som en sakerhetsmekanism
+### Aendringar
+
+**1. Ny Edge Function: `supabase/functions/send-transport-cancellation/index.ts`**
+
+- Tar emot `assignment_id` som parameter
+- Haemtar assignment med bokning och fordon/partner-data fran databasen
+- Bygger ett HTML-mejl med avbokningsinformation:
+  - Tydlig rubrik: "Transport avbokad"
+  - Referensnummer (bokningsnummer)
+  - Kund, leveransadress, datum och tid
+  - Valfritt meddelande fran avsaendaren
+- Skickar mejlet via Resend till partnerns kontaktmejl
+- Loggar utskicket i `transport_email_log` med `email_type: "transport_cancellation"`
+
+**2. Uppdatering: `supabase/config.toml`**
+
+- Laegg till `[functions.send-transport-cancellation]` med `verify_jwt = false`
+
+**3. Uppdatering: `src/components/logistics/TransportBookingTab.tsx`**
+
+- Utoka `cancellingAssignment`-state med `is_external` och `vehicle_id`
+- I `handleOpenCancelDialog`: skicka med `is_external` och `vehicle_id` fran assignment-datan
+- I `handleConfirmCancel`:
+  - Foere `removeAssignment` anropas: om `cancellingAssignment.is_external`, anropa `supabase.functions.invoke('send-transport-cancellation', { body: { assignment_id } })`
+  - Visa laemplig feedback (toast) beroende pa om mejlet lyckades eller inte
+  - Oavsett mejlresultat: fortsaett med att ta bort tilldelningen
 
 ### Tekniska detaljer
 
-**Fil: `supabase/functions/handle-transport-response/index.ts`**
+**Edge Function - Mejlinnehall:**
+- Roett/orange faergschema foer att tydligt skilja fran vanliga foerfragningar (som aer groen/teal)
+- Samma layout och stil som `send-transport-request` foer konsistens
+- Inga acceptera/neka-knappar -- bara information
+- Texten gor klart att transporten aer avbokad och att partnern kan ignorera tidigare foerfragningar
 
-- Lagg till en `htmlHeaders`-funktion som returnerar korrekta headers med bade Content-Type och CORS:
-```typescript
-function htmlHeaders(): Headers {
-  return new Headers({
-    "Content-Type": "text/html; charset=utf-8",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  });
-}
+**Avbokningslogik i frontend:**
 ```
-- Uppdatera alla `new Response(...)` att anvanda `htmlHeaders()` istallet for inline-objekt
-- Lagg till OPTIONS-hantering i borjan av serve-funktionen
-- Anvand `TextEncoder` for att sakerstalla UTF-8-kodning av svarskroppen (om plattformen inte gor det automatiskt)
+handleConfirmCancel:
+  1. Om is_external -> invoke 'send-transport-cancellation'
+  2. removeAssignment(id)
+  3. Toast: "Transport avbokad" (+ "och partner notifierad" om extern)
+  4. refetch()
+```
 
-Ingen annan fil behovs andras -- problemet ligger helt i edge-funktionens svar-headers.
+**Email-logg:**
+Loggas med `email_type: "transport_cancellation"` saa att det syns i projektets transporthistorik.
+
