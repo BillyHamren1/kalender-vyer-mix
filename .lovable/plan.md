@@ -1,63 +1,36 @@
 
-## Fixa mejlknappar, lagg till mejlforhandsgranskning och byt avsandarnamn
 
-### Problem 1: Mejlknapparna syns inte korrekt
-Knappen "Acceptera korning" visas som bara en gron emoji-checkbox i vissa mejlklienter. Problemet ar att emoji-tecken (checkmark/kryss) i kombination med `<a>`-taggar renderas inkonsekvent. Losningen ar att:
-- Ta bort emoji-tecken fran knapparna och anvanda ren text istallet
-- Anvanda VML-knappar (Outlook-kompatibla) som fallback
-- Lagga till `display:block` och explicit `width` for battre kompatibilitet
-- Gora knapparna till separata rader istallet for tabellceller bredvid varandra (stapla vertikalt for mobilkompatibilitet)
+## Fix: Svarsidan visar ra HTML istallet for renderad sida
 
-### Problem 2: Mejlforhandsgranskning fore utskick
-Lagg till en dialog som oppnas nar man klickar "Boka transport" for en extern partner. I dialogen visas:
-- Mottagarens mejladress (ej redigerbar)
-- Amnesrad (redigerbar)
-- Fritt textfalt med ett meddelande till partnern (redigerbart, med default-text)
-- Forhandsvisning av bokningsdetaljerna (ej redigerbara -- samma som i mejlet)
-- Knapparna "Avbryt" och "Skicka mejl"
+### Problemet
+Nar transportpartnern klickar pa "Acceptera korning" eller "Neka korning" i mejlet visas ratt HTML-kod som klartext istallet for en snygg bekraftelsesida. Svenska tecken (o, a, a) visas ocksa felaktigt (t.ex. "KA¶rning" istallet for "Korning").
 
-Flode:
-1. Anvandaren klickar "Boka transport" i wizarden
-2. Transporten skapas i databasen
-3. Om det ar en extern partner: en mejldialog oppnas
-4. Anvandaren kan redigera amnesrad och meddelandetext
-5. Anvandaren klickar "Skicka" -- da anropas edge-funktionen med extra parametrar
-6. Om anvandaren klickar "Avbryt" -- transporten ar redan bokad men inget mejl skickas
+Orsaken ar att webblaasaren inte tolkar svaret som HTML. Content-Type-headern maste sakerstaallas korrekt och det kan finnas en extra wrapping av svaret fran edge function-ramverket.
 
-### Problem 3: Byt avsandarnamn
-Andra fran "EventFlow Logistik" till "Frans August Logistik" i edge-funktionen, bade i `from`-faltet och i footer-texten i mejlet.
+### Losning
+Uppdatera `supabase/functions/handle-transport-response/index.ts` med foljande andringar:
 
----
+1. **Anvand `Headers`-objekt explicit** istallet for vanligt objekt for att sakerstalla att Content-Type skickas korrekt
+2. **Lagg till CORS-headers** -- edge function-plattformen kan krava dessa for att inte wrappa svaret
+3. **Dubbelkolla att alla svar returnerar `text/html; charset=utf-8`** konsekvent
+4. **Hantera OPTIONS-anrop** som en sakerhetsmekanism
 
 ### Tekniska detaljer
 
-**1. Uppdatera `supabase/functions/send-transport-request/index.ts`**
+**Fil: `supabase/functions/handle-transport-response/index.ts`**
 
-- Acceptera nya parametrar i request body: `custom_subject` (valfri amnesrad), `custom_message` (valfri meddelandetext)
-- Byt `from: "EventFlow Logistik <noreply@fransaugust.se>"` till `from: "Frans August Logistik <noreply@fransaugust.se>"`
-- Uppdatera footer-texten fran "EventFlow Logistik" till "Frans August Logistik"
-- Fixa knapparna i HTML:
-  - Ta bort emoji-tecken fran knapptexterna
-  - Anvanda `display:block` och `width:100%` for full bredd
-  - Separera knapparna i egna rader (varsin `<tr>`) for battre mejlklient-kompatibilitet
-  - Lagga till `mso-padding-alt` for Outlook
-- Om `custom_message` skickas: visa den som en extra sektion i mejlet, efter partner-halsningen
+- Lagg till en `htmlHeaders`-funktion som returnerar korrekta headers med bade Content-Type och CORS:
+```typescript
+function htmlHeaders(): Headers {
+  return new Headers({
+    "Content-Type": "text/html; charset=utf-8",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  });
+}
+```
+- Uppdatera alla `new Response(...)` att anvanda `htmlHeaders()` istallet for inline-objekt
+- Lagg till OPTIONS-hantering i borjan av serve-funktionen
+- Anvand `TextEncoder` for att sakerstalla UTF-8-kodning av svarskroppen (om plattformen inte gor det automatiskt)
 
-**2. Uppdatera `src/components/logistics/TransportBookingTab.tsx`**
-
-- Lagg till ny state: `emailDialogOpen`, `emailSubject`, `emailMessage`, `pendingAssignmentId`
-- Nar en extern partner-bokning skapas: spara assignment-ID, oppna mejldialogen istallet for att direkt skicka mejl
-- Mejldialogen innehaller:
-  - Mottagare (read-only, visas med Badge)
-  - Amnesrad (`Input`, forifylld med default-subject)
-  - Meddelande (`Textarea`, forifylld med default-text t.ex. "Hej [partner], vi har en ny transportforfragan...")
-  - En sammanfattning av bokningsdetaljerna
-  - "Avbryt"-knapp (stanger dialogen, inget mejl skickas)
-  - "Skicka mejl"-knapp (anropar edge-funktionen med `custom_subject` och `custom_message`)
-
-**3. Filer som andras**
-
-| Fil | Andring |
-|-----|---------|
-| `supabase/functions/send-transport-request/index.ts` | Fixa knappar, byt avsandare, stod for custom subject/message |
-| `src/components/logistics/TransportBookingTab.tsx` | Lagg till mejldialog med redigerbara falt |
+Ingen annan fil behovs andras -- problemet ligger helt i edge-funktionens svar-headers.
