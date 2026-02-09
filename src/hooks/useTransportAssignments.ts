@@ -10,6 +10,7 @@ export interface TransportAssignment {
   transport_date: string;
   stop_order: number;
   status: 'pending' | 'in_transit' | 'delivered' | 'skipped';
+  partner_response: string | null;
   estimated_arrival: string | null;
   actual_arrival: string | null;
   driver_notes: string | null;
