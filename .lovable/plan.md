@@ -1,89 +1,61 @@
 
-# Klickbara Gantt-kort med detaljplanering
+# Ta emot och visa placeringsritning + bilder i bokningar
 
 ## Sammanfattning
-Varje Gantt-stav (t.ex. "Lastning", "Transport till plats", "Montering dag 1") ska kunna klickas for att oppna en detaljerad planeringsvy. I den vyn kan man:
-- Dela upp aktiviteten i delsteg (sub-tasks)
-- Tilldela personal till varje delsteg
-- Ange start-/sluttider mer granulart (klockslag)
-- Markera delsteg som klara
-- Lagga till anteckningar
-
-## Anvandargranssnittet
-
-Nar man klickar pa en Gantt-stav oppnas en **Sheet (sidopanel)** fran hoger med:
-
-1. **Rubrik** - Aktivitetens namn, kategori-ikon och fargkod
-2. **Tidssektion** - Start/slut-datum och tid med redigeringsmojlighet
-3. **Delsteg-lista** - En checklista med sub-tasks som kan laggas till, markeras och tas bort
-4. **Personaltilldelning** - Dropdown for att tilldela personal fran personalregistret
-5. **Anteckningar** - Fritext for instruktioner och noteringar
-6. **Status** - Markera hela aktiviteten som klar
+Webhook-payloaden innehaller nu tva nya falt: `map_drawing_url` (direkt-URL till placeringsritning) och `public_url` pa varje attachment. Vi behover:
+1. Spara `map_drawing_url` i databasen
+2. Uppdatera import-funktionen att anvanda `public_url` for bilagor
+3. Visa placeringsritningen som en forhandsvisning i bokningsdetaljer
+4. Visa bilagor som klickbara bilder/thumbnails istallet for bara lankar
 
 ## Teknisk plan
 
-### 1. Databastabell: `establishment_subtasks`
-
-Ny tabell for delsteg kopplade till etableringsuppgifter:
+### 1. Databasandring: Ny kolumn `map_drawing_url` pa `bookings`
 
 ```text
-establishment_subtasks
-+------------------+------------+
-| id               | uuid (PK)  |
-| booking_id       | uuid (FK)  |
-| parent_task_id   | text       | (t.ex. "est-1", "est-5")
-| title            | text       |
-| description      | text       |
-| start_time       | timestamptz|
-| end_time         | timestamptz|
-| assigned_to      | uuid (FK)  | -> staff_members
-| completed        | boolean    |
-| sort_order       | integer    |
-| created_at       | timestamptz|
-| updated_at       | timestamptz|
-+------------------+------------+
+ALTER TABLE bookings ADD COLUMN map_drawing_url text;
 ```
 
-### 2. Ny komponent: `EstablishmentTaskDetailSheet.tsx`
+### 2. Edge Function: `import-bookings/index.ts`
 
-En Sheet-komponent som oppnas vid klick pa en Gantt-stav. Innehaller:
+**map_drawing_url**: Lagg till i `BookingData`-interfacet och i bookingData-objektet sa att `externalBooking.map_drawing_url` sparas.
 
-- Uppgiftens rubrik med ikon och fargkodad badge
-- Redigerbar start-/sluttid (datum + klockslag)
-- Lista over delsteg med:
-  - Checkbox for klarmarkering
-  - Titel (redigerbar inline)
-  - Tilldela person
-  - Ta bort-knapp
-- "Lagg till delsteg"-knapp
-- Anteckningsfalt (textarea)
-- Personaltilldelning for huvuduppgiften
-- Spara/stang-knappar
+**attachments**: Uppdatera attachment-processingen (rad ~2107-2128) sa att `public_url` anvands som URL-kalla:
+```text
+url: attachment.public_url || attachment.url || attachment.file_url
+```
 
-### 3. Service-fil: `establishmentSubtaskService.ts`
+### 3. Typ-uppdatering: `src/types/booking.ts`
 
-CRUD-funktioner:
-- `fetchSubtasks(bookingId, parentTaskId)` - Hamta alla delsteg
-- `createSubtask(data)` - Skapa nytt delsteg
-- `updateSubtask(id, updates)` - Uppdatera delsteg
-- `deleteSubtask(id)` - Ta bort delsteg
+Lagg till `mapDrawingUrl?: string` pa `Booking`-interfacet.
 
-### 4. Koppling i EstablishmentPage
+### 4. Transform-uppdatering: `src/services/booking/bookingUtils.ts`
 
-Koppla `onTaskClick`-proppen i bade `EstablishmentGanttChart` och `DeestablishmentGanttChart` sa att klick oppnar den nya sheeten med ratt task-data och bookingId.
+Mappa `dbBooking.map_drawing_url` till `mapDrawingUrl` i `transformBookingData`.
 
-### 5. Visuell feedback pa Gantt-stavar
+### 5. Ny komponent: `src/components/booking/MapDrawingCard.tsx`
 
-Stavar som har delsteg visar en liten progress-indikator (t.ex. "3/5" eller en tunn progress-bar langst ner pa staven) sa att man ser hur langt detaljplaneringen kommit utan att behova klicka.
+En ny Card-komponent "Placeringsritning" som:
+- Visar en klickbar thumbnail av ritningen (img-tagg med `map_drawing_url`)
+- Klick oppnar bilden i fullstorlek (ny flik eller lightbox-dialog)
+- Visar "Ingen placeringsritning tillganglig" nar `map_drawing_url` ar null
 
-### Filer som skapas/andras
+### 6. Uppdatera `AttachmentsList.tsx`
+
+For bilagor som ar bilder (jpg, png, jpeg, webp, gif): visa en liten thumbnail-forhandsvisning istallet for bara en filnamn-lank. Klick oppnar bilden i fullstorlek.
+
+### 7. Uppdatera `BookingDetailContent.tsx`
+
+Lagg till `MapDrawingCard` i layouten, placerad efter leveransinformation (logisk plats - ritningen tillhor platsen).
+
+## Filer som andras
 
 | Fil | Aktion |
 |-----|--------|
-| `supabase/migrations/xxx.sql` | Skapa `establishment_subtasks`-tabellen |
-| `src/services/establishmentSubtaskService.ts` | Ny - CRUD for delsteg |
-| `src/components/project/EstablishmentTaskDetailSheet.tsx` | Ny - Detaljplaneringsvy |
-| `src/pages/project/EstablishmentPage.tsx` | Andra - Koppla onTaskClick + rendera sheeten |
-| `src/components/project/EstablishmentGanttChart.tsx` | Andra - Visa progress pa stavar |
-| `src/components/project/DeestablishmentGanttChart.tsx` | Andra - Samma onTaskClick + progress |
-| `src/integrations/supabase/types.ts` | Uppdatera med ny tabell-typ |
+| `supabase/migrations/xxx.sql` | Ny kolumn `map_drawing_url` |
+| `supabase/functions/import-bookings/index.ts` | Hantera `map_drawing_url` + `public_url` |
+| `src/types/booking.ts` | Lagg till `mapDrawingUrl` |
+| `src/services/booking/bookingUtils.ts` | Mappa `map_drawing_url` |
+| `src/components/booking/MapDrawingCard.tsx` | Ny - visa ritning |
+| `src/components/booking/AttachmentsList.tsx` | Bildforhandsvisning for bilagor |
+| `src/components/booking/detail/BookingDetailContent.tsx` | Inkludera MapDrawingCard |
