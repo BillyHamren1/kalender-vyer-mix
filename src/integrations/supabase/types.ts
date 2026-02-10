@@ -276,6 +276,7 @@ export type Database = {
           internalnotes: string | null
           large_project_id: string | null
           last_calendar_sync: string | null
+          map_drawing_url: string | null
           rig_end_time: string | null
           rig_start_time: string | null
           rigdaydate: string | null
@@ -313,6 +314,7 @@ export type Database = {
           internalnotes?: string | null
           large_project_id?: string | null
           last_calendar_sync?: string | null
+          map_drawing_url?: string | null
           rig_end_time?: string | null
           rig_start_time?: string | null
           rigdaydate?: string | null
@@ -350,6 +352,7 @@ export type Database = {
           internalnotes?: string | null
           large_project_id?: string | null
           last_calendar_sync?: string | null
+          map_drawing_url?: string | null
           rig_end_time?: string | null
           rig_start_time?: string | null
           rigdaydate?: string | null

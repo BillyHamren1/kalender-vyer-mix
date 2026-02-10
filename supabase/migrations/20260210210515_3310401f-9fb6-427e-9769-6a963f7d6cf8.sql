@@ -1,0 +1,1 @@
+ALTER TABLE public.bookings ADD COLUMN map_drawing_url text;
