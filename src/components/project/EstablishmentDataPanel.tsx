@@ -141,7 +141,7 @@ const EstablishmentDataPanel = ({
                           </p>
                         )}
                       </div>
-                      <Badge variant="secondary" className="text-xs flex-shrink-0">
+                      <Badge className="text-xs flex-shrink-0 bg-primary text-primary-foreground">
                         {product.quantity}
                       </Badge>
                     </div>
