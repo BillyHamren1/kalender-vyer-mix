@@ -41,7 +41,7 @@ export const InternalNotes = ({ notes, bookingId, isSaving = false, onSave }: In
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-1.5 text-base">
             <FileText className="h-4 w-4" />
-            <span>Internal Notes</span>
+            <span>Interna anteckningar</span>
           </CardTitle>
           {!isEditing && (
             <Button
@@ -61,7 +61,7 @@ export const InternalNotes = ({ notes, bookingId, isSaving = false, onSave }: In
             <Textarea
               value={editValue}
               onChange={(e) => setEditValue(e.target.value)}
-              placeholder="Add internal notes here..."
+              placeholder="Lägg till interna anteckningar här..."
               className="min-h-[100px] text-sm"
               disabled={isSaving}
             />
@@ -73,7 +73,7 @@ export const InternalNotes = ({ notes, bookingId, isSaving = false, onSave }: In
                 className="h-7"
               >
                 <Save className="h-3 w-3 mr-1" />
-                {isSaving ? 'Saving...' : 'Save'}
+                {isSaving ? 'Sparar...' : 'Spara'}
               </Button>
               <Button
                 onClick={handleCancel}
@@ -83,7 +83,7 @@ export const InternalNotes = ({ notes, bookingId, isSaving = false, onSave }: In
                 className="h-7"
               >
                 <X className="h-3 w-3 mr-1" />
-                Cancel
+                Avbryt
               </Button>
             </div>
           </div>
@@ -97,7 +97,7 @@ export const InternalNotes = ({ notes, bookingId, isSaving = false, onSave }: In
             {notes ? (
               <p className="whitespace-pre-wrap">{notes}</p>
             ) : (
-              <p>Click to add internal notes...</p>
+              <p>Klicka för att lägga till anteckningar...</p>
             )}
           </div>
         )}

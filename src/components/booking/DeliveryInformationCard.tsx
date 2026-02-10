@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Truck } from 'lucide-react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { ContactDetailsSection } from './delivery/ContactDetailsSection';
@@ -56,6 +56,26 @@ export const DeliveryInformationCard = ({
   const [contactPhoneValue, setContactPhoneValue] = useState(contactPhone || '');
   const [contactEmailValue, setContactEmailValue] = useState(contactEmail || '');
 
+  // Debounced save for contact fields
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debouncedSave = useCallback((data: Parameters<typeof onSave>[0]) => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      onSave(data);
+    }, 500);
+  }, [onSave]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
   const handleDeliveryDetailsChange = (field: string, value: any) => {
     switch (field) {
       case 'address':
@@ -75,7 +95,7 @@ export const DeliveryInformationCard = ({
         break;
     }
 
-    // Auto-save on change
+    // Auto-save on change (address fields save immediately)
     const updatedData = {
       deliveryAddress: field === 'address' ? value : deliveryAddress,
       deliveryCity: field === 'city' ? value : deliveryCity,
@@ -110,7 +130,7 @@ export const DeliveryInformationCard = ({
         <CardTitle className="flex items-center justify-between gap-1.5 text-base">
           <div className="flex items-center gap-1.5">
             <Truck className="h-4 w-4" />
-            <span>Delivery Information</span>
+            <span>Leveransinformation</span>
           </div>
         </CardTitle>
       </CardHeader>
@@ -122,8 +142,7 @@ export const DeliveryInformationCard = ({
           contactEmail={contactEmailValue}
           onContactNameChange={(value) => {
             setContactNameValue(value);
-            // Auto-save contact changes
-            onSave({
+            debouncedSave({
               deliveryAddress,
               deliveryCity,
               deliveryPostalCode,
@@ -136,8 +155,7 @@ export const DeliveryInformationCard = ({
           }}
           onContactPhoneChange={(value) => {
             setContactPhoneValue(value);
-            // Auto-save contact changes
-            onSave({
+            debouncedSave({
               deliveryAddress,
               deliveryCity,
               deliveryPostalCode,
@@ -150,8 +168,7 @@ export const DeliveryInformationCard = ({
           }}
           onContactEmailChange={(value) => {
             setContactEmailValue(value);
-            // Auto-save contact changes
-            onSave({
+            debouncedSave({
               deliveryAddress,
               deliveryCity,
               deliveryPostalCode,

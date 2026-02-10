@@ -1,6 +1,6 @@
-import React, { useEffect, useContext, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { CalendarContext } from '@/App';
+
 import { useBookingDetail } from '@/hooks/useBookingDetail';
 
 // Import refactored components
@@ -13,12 +13,10 @@ import BookingDetailContent from '@/components/booking/detail/BookingDetailConte
 const BookingDetail = () => {
   const { id, bookingId } = useParams<{ id?: string; bookingId?: string }>();
   const navigate = useNavigate();
-  const { lastViewedDate, lastPath } = useContext(CalendarContext);
+  
   
   // Use either id or bookingId parameter
   const actualBookingId = id || bookingId;
-  
-  console.log('BookingDetail component mounted with params:', { id, bookingId, actualBookingId });
   
   // Use our custom hook for booking details
   const {
@@ -26,16 +24,12 @@ const BookingDetail = () => {
     isLoading,
     error,
     isSaving,
-    isSyncingToCalendar,
     rigDates,
     eventDates,
     rigDownDates,
     loadBookingData,
-    handleDateChange,
-    handleLogisticsChange,
     handleDeliveryDetailsChange,
     handleInternalNotesChange,
-    syncWithCalendar,
     setBooking,
     addDate,
     removeDate,
@@ -43,19 +37,10 @@ const BookingDetail = () => {
   } = useBookingDetail(actualBookingId);
   
   useEffect(() => {
-    console.log('BookingDetail useEffect triggered with actualBookingId:', actualBookingId);
     if (actualBookingId) {
       loadBookingData();
-    } else {
-      console.error('No booking ID found in URL parameters');
     }
   }, [actualBookingId]);
-
-  // Debug logging for booking data
-  useEffect(() => {
-    console.log('Booking data changed:', booking);
-    console.log('Booking products:', booking?.products);
-  }, [booking]);
   
   const handleBack = () => {
     // Check if there's history to go back to, otherwise navigate to bookings list
@@ -131,13 +116,10 @@ const BookingDetail = () => {
         eventDates={eventDates}
         rigDownDates={rigDownDates}
         isSaving={isSaving}
-        lastViewedDate={lastViewedDate}
         onAddDate={handleAddDate}
         onRemoveDate={handleRemoveDate}
         onDeliveryDetailsChange={handleDeliveryDetailsChange}
-        onLogisticsChange={handleLogisticsChange}
         onInternalNotesChange={handleInternalNotesChange}
-        onReloadData={loadBookingData}
         isSavingInternalNotes={isSavingInternalNotes}
         onAttachmentAdded={(attachment) => {
           setBooking(prev => prev ? {

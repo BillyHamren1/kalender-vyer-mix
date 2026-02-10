@@ -18,44 +18,31 @@ const ProjectAssignmentCard: React.FC<ProjectAssignmentCardProps> = ({
   const hasProjectAssignment = assignedToProject && (assignedProjectId || assignedProjectName);
 
   return (
-    <Card className="mb-4">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-lg">
+    <Card className="shadow-sm">
+      <CardHeader className="py-3 px-4">
+        <CardTitle className="flex items-center gap-1.5 text-base">
           {hasProjectAssignment ? (
-            <FolderOpen className="h-5 w-5 text-blue-600" />
+            <FolderOpen className="h-4 w-4 text-primary" />
           ) : (
-            <Folder className="h-5 w-5 text-gray-400" />
+            <Folder className="h-4 w-4 text-muted-foreground" />
           )}
-          Project Assignment
+          <span>Projekttilldelning</span>
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-0 px-4 pb-3">
         {hasProjectAssignment ? (
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                Assigned to Project
-              </Badge>
-            </div>
+            <Badge className="bg-primary text-primary-foreground">
+              Tilldelad till projekt
+            </Badge>
             {assignedProjectName && (
-              <div>
-                <p className="text-sm text-gray-600">Project Name:</p>
-                <p className="font-medium">{assignedProjectName}</p>
-              </div>
-            )}
-            {assignedProjectId && (
-              <div>
-                <p className="text-sm text-gray-600">Project ID:</p>
-                <p className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">
-                  {assignedProjectId}
-                </p>
-              </div>
+              <p className="text-sm font-medium">{assignedProjectName}</p>
             )}
           </div>
         ) : (
-          <div className="text-gray-500">
-            <p>This booking is not assigned to any project.</p>
-          </div>
+          <p className="text-sm text-muted-foreground italic">
+            Inte tilldelad till något projekt.
+          </p>
         )}
       </CardContent>
     </Card>
