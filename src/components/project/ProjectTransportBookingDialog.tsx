@@ -300,7 +300,7 @@ const ProjectTransportBookingDialog: React.FC<ProjectTransportBookingDialogProps
     <>
       {/* Main wizard dialog */}
       <Dialog open={open && !emailDialogOpen} onOpenChange={(o) => { if (!o) closeDialog(); }}>
-        <DialogContent className="max-w-none w-screen h-screen m-0 p-0 rounded-none border-none bg-card flex flex-col [&>button]:hidden overflow-y-auto">
+        <DialogContent className="max-w-3xl w-[95vw] max-h-[90vh] p-0 bg-card flex flex-col [&>button]:hidden overflow-y-auto">
           <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-4xl mx-auto w-full">
             {loading ? (
               <div className="flex items-center justify-center h-64">
