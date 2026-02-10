@@ -190,7 +190,7 @@ export const AttachmentsList = ({ bookingId, attachments, onAttachmentDeleted, o
         <CardTitle className="flex items-center justify-between text-base">
           <div className="flex items-center gap-1.5">
             <Paperclip className="h-4 w-4" />
-            <span>Attachments</span>
+            <span>Bilagor</span>
           </div>
           
           <div className="flex items-center gap-2">
@@ -357,7 +357,7 @@ export const AttachmentsList = ({ bookingId, attachments, onAttachmentDeleted, o
           </ul>
         ) : (
           <div className="text-sm text-gray-400 italic py-2">
-            No attachments available
+            Inga bilagor tillgängliga
           </div>
         )}
       </CardContent>

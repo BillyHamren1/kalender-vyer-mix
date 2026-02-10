@@ -190,7 +190,7 @@ export const ProductsList = ({ products, showPricing = true }: ProductsListProps
       <CardHeader className="py-3 px-4">
         <CardTitle className="flex items-center gap-1.5 text-base">
           <Package className="h-4 w-4" />
-          <span>Products ({hasProducts ? products.length : 0})</span>
+          <span>Produkter ({hasProducts ? products.length : 0})</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0 px-4 pb-3">
@@ -202,7 +202,7 @@ export const ProductsList = ({ products, showPricing = true }: ProductsListProps
           </div>
         ) : (
           <div className="text-center py-4 text-muted-foreground">
-            <p className="text-sm">No products added yet</p>
+            <p className="text-sm">Inga produkter tillagda</p>
           </div>
         )}
       </CardContent>

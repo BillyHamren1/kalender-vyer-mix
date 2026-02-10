@@ -14,7 +14,7 @@ export const ClientInformation = ({ client }: ClientInformationProps) => {
       <CardHeader className="py-2 px-3">
         <CardTitle className="flex items-center gap-1.5 text-sm">
           <User className="h-3.5 w-3.5" />
-          <span>Client: {client}</span>
+          <span>Kund: {client}</span>
         </CardTitle>
       </CardHeader>
     </Card>

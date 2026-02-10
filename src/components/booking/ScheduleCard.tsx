@@ -29,7 +29,7 @@ export const ScheduleCard = ({
       <CardHeader className="py-3 px-4">
         <CardTitle className="flex items-center gap-1.5 text-base">
           <CalendarIcon className="h-4 w-4" />
-          <span>Schedule</span>
+          <span>Schema</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="grid grid-cols-1 gap-3 pt-1 px-4 pb-3">

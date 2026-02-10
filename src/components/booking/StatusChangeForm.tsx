@@ -55,14 +55,14 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
     const current = currentStatus.toUpperCase();
     
     if (current === 'CONFIRMED' && newStatus === 'CANCELLED') {
-      return 'This will remove the booking from the calendar. Are you sure you want to cancel this booking?';
+      return 'Detta tar bort bokningen från kalendern. Är du säker på att du vill avboka?';
     }
     
     if (current !== 'CONFIRMED' && newStatus === 'CONFIRMED') {
-      return 'This will add the booking to the calendar if it has valid dates. Are you sure you want to confirm this booking?';
+      return 'Detta lägger till bokningen i kalendern om den har giltiga datum. Är du säker på att du vill bekräfta bokningen?';
     }
     
-    return `Are you sure you want to change the status to ${newStatus}?`;
+    return `Är du säker på att du vill ändra status till ${newStatus}?`;
   };
 
   const handleStatusSelect = (newStatus: BookingStatus) => {
@@ -88,23 +88,23 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
       
       // Show appropriate toast message
       if (newStatus === 'CONFIRMED') {
-        toast.success('Booking confirmed', {
-          description: 'Booking has been confirmed and synced to calendar'
+        toast.success('Bokning bekräftad', {
+          description: 'Bokningen har bekräftats och synkats till kalendern'
         });
       } else if (newStatus === 'CANCELLED') {
-        toast.success('Booking cancelled', {
-          description: 'Booking has been cancelled and removed from calendar'
+        toast.success('Bokning avbokad', {
+          description: 'Bokningen har avbokats och tagits bort från kalendern'
         });
       } else {
-        toast.success('Status updated', {
-          description: `Booking status changed to ${newStatus}`
+        toast.success('Status uppdaterad', {
+          description: `Bokningsstatus ändrad till ${newStatus}`
         });
       }
       
     } catch (error) {
       console.error('Error updating booking status:', error);
-      toast.error('Failed to update booking status', {
-        description: 'Please try again or contact support'
+      toast.error('Misslyckades att uppdatera status', {
+        description: 'Försök igen eller kontakta support'
       });
       
       // Reset to current status on error
@@ -168,7 +168,7 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Confirm Status Change</DialogTitle>
+            <DialogTitle>Bekräfta statusändring</DialogTitle>
             <DialogDescription className="text-sm pt-2">
               {pendingStatus && getConfirmationMessage(pendingStatus)}
             </DialogDescription>
@@ -180,7 +180,7 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
               disabled={isUpdating}
               size="sm"
             >
-              Cancel
+              Avbryt
             </Button>
             <Button 
               onClick={handleConfirmStatusChange}
@@ -188,7 +188,7 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
               variant={pendingStatus === 'CANCELLED' ? 'destructive' : 'default'}
               size="sm"
             >
-              {isUpdating ? 'Updating...' : 'Confirm'}
+              {isUpdating ? 'Uppdaterar...' : 'Bekräfta'}
             </Button>
           </DialogFooter>
         </DialogContent>

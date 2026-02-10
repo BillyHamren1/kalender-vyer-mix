@@ -16,18 +16,10 @@ interface BookingDetailContentProps {
   eventDates: string[];
   rigDownDates: string[];
   isSaving: boolean;
-  lastViewedDate: Date;
   onAddDate: (date: Date, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
   onRemoveDate: (date: string, eventType: 'rig' | 'event' | 'rigDown', autoSync: boolean) => void;
   onDeliveryDetailsChange: (deliveryData: any) => Promise<void>;
-  onLogisticsChange: (logisticsData: {
-    carryMoreThan10m: boolean;
-    groundNailsAllowed: boolean;
-    exactTimeNeeded: boolean;
-    exactTimeInfo: string;
-  }) => Promise<void>;
   onInternalNotesChange: (notes: string) => Promise<void>;
-  onReloadData: () => void;
   isSavingInternalNotes: boolean;
   onAttachmentAdded?: (attachment: any) => void;
   onAttachmentDeleted?: (attachmentId: string) => void;

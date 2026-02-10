@@ -36,7 +36,7 @@ export const MapDrawingCard: React.FC<MapDrawingCardProps> = ({ mapDrawingUrl })
       </Card>
 
       <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
-        <DialogContent className="max-w-[90vw] max-h-[90vh] p-2">
+        <DialogContent className="max-w-[90vw] max-h-[90vh] p-4 bg-card">
           {mapDrawingUrl && (
             <img
               src={mapDrawingUrl}
