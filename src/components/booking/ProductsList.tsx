@@ -152,7 +152,7 @@ const ProductGroupItem = ({ group, showPricing = true }: { group: ProductGroup; 
           <div className="flex-1 flex justify-between items-center">
             <span className="text-sm font-medium">{cleanProductName(group.parent.name)}</span>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+              <span className="text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded">
                 +{group.accessories.length}
               </span>
               <span className="text-xs text-muted-foreground">Qty: {group.parent.quantity}</span>
