@@ -29,6 +29,7 @@ interface BookingData {
   assigned_project_id?: string;
   assigned_project_name?: string;
   assigned_to_project?: boolean;
+  map_drawing_url?: string;
 }
 
 /**
@@ -1246,7 +1247,8 @@ serve(async (req) => {
           version: 1,
           assigned_project_id: externalBooking.assigned_project_id,
           assigned_project_name: externalBooking.assigned_project_name,
-          assigned_to_project: parseAssignedToProject(externalBooking.assigned_to_project)
+          assigned_to_project: parseAssignedToProject(externalBooking.assigned_to_project),
+          map_drawing_url: externalBooking.map_drawing_url || null
         }
 
         console.log(`Processing booking ${bookingData.id} with status: ${bookingData.status} and project: ${bookingData.assigned_project_name || 'No project'}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
@@ -2108,7 +2110,7 @@ serve(async (req) => {
             try {
               const attachmentData: AttachmentData = {
                 booking_id: bookingData.id,
-                url: attachment.url || attachment.file_url,
+                url: attachment.public_url || attachment.url || attachment.file_url,
                 file_name: attachment.file_name || attachment.name || 'Unknown File',
                 file_type: attachment.file_type || attachment.type || 'unknown'
               }

@@ -19,6 +19,15 @@ interface AttachmentsListProps {
   onAttachmentAdded?: (attachment: BookingAttachment) => void;
 }
 
+const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
+
+const isImageFile = (fileName: string, fileType: string): boolean => {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  if (IMAGE_EXTENSIONS.includes(ext)) return true;
+  if (fileType.startsWith('image/')) return true;
+  return false;
+};
+
 export const AttachmentsList = ({ bookingId, attachments, onAttachmentDeleted, onAttachmentRenamed, onAttachmentAdded }: AttachmentsListProps) => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -274,18 +283,40 @@ export const AttachmentsList = ({ bookingId, attachments, onAttachmentDeleted, o
                       </Button>
                     </div>
                   ) : (
-                    <a 
-                      href={attachment.url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="flex items-center text-blue-600 hover:underline text-sm flex-1 min-w-0"
-                    >
-                      <FileImage className="h-3.5 w-3.5 mr-1.5 flex-shrink-0" />
-                      <span className="truncate">{attachment.fileName}</span>
-                      <span className="text-xs text-gray-500 ml-1.5 flex-shrink-0">
-                        ({attachment.fileType})
-                      </span>
-                    </a>
+                    <>
+                      {isImageFile(attachment.fileName, attachment.fileType) ? (
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <a href={attachment.url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+                            <img
+                              src={attachment.url}
+                              alt={attachment.fileName}
+                              className="h-12 w-12 object-cover rounded border hover:opacity-80 transition-opacity"
+                            />
+                          </a>
+                          <a 
+                            href={attachment.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline text-sm truncate"
+                          >
+                            {attachment.fileName}
+                          </a>
+                        </div>
+                      ) : (
+                        <a 
+                          href={attachment.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center text-blue-600 hover:underline text-sm flex-1 min-w-0"
+                        >
+                          <FileImage className="h-3.5 w-3.5 mr-1.5 flex-shrink-0" />
+                          <span className="truncate">{attachment.fileName}</span>
+                          <span className="text-xs text-gray-500 ml-1.5 flex-shrink-0">
+                            ({attachment.fileType})
+                          </span>
+                        </a>
+                      )}
+                    </>
                   )}
                 </div>
                 

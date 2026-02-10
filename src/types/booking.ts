@@ -53,4 +53,5 @@ export interface Booking {
   assignedProjectName?: string;
   assignedToProject?: boolean;
   largeProjectId?: string;
+  mapDrawingUrl?: string;
 }
