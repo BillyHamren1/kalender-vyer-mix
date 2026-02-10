@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Truck, AlertTriangle, Clock, CheckCircle2, Mail, Send } from 'lucide-react';
+import { Truck, AlertTriangle, Clock, CheckCircle2, Mail, Send, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
@@ -11,6 +12,7 @@ import {
   ProjectTransportAssignment,
   TransportEmailLogEntry,
 } from '@/hooks/useProjectTransport';
+import ProjectTransportBookingDialog from './ProjectTransportBookingDialog';
 
 interface ProjectTransportWidgetProps {
   bookingId: string | null | undefined;
@@ -158,8 +160,9 @@ const ProjectCard = ({
 };
 
 const ProjectTransportWidget: React.FC<ProjectTransportWidgetProps> = ({ bookingId }) => {
-  const { assignments, emailLogs, isLoading } = useProjectTransport(bookingId);
+  const { assignments, emailLogs, isLoading, refetch } = useProjectTransport(bookingId);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
 
   if (!bookingId) {
     return (
@@ -226,66 +229,90 @@ const ProjectTransportWidget: React.FC<ProjectTransportWidgetProps> = ({ booking
   const totalCount = assignments.length;
 
   return (
-    <Card className="border-border/40 shadow-2xl rounded-2xl overflow-hidden">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-lg flex items-center gap-3 tracking-tight">
-          <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{ background: 'var(--gradient-icon)', boxShadow: 'var(--shadow-icon)' }}
-          >
-            <Truck className="h-4 w-4 text-primary-foreground" />
-          </div>
-          Transportbokningar
-          {totalCount > 0 && (
-            <Badge variant="outline" className="ml-auto text-xs">
-              {totalCount} transport{totalCount !== 1 ? 'er' : ''}
-            </Badge>
-          )}
-        </CardTitle>
-      </CardHeader>
+    <>
+      <Card className="border-border/40 shadow-2xl rounded-2xl overflow-hidden">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center gap-3 tracking-tight">
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{ background: 'var(--gradient-icon)', boxShadow: 'var(--shadow-icon)' }}
+            >
+              <Truck className="h-4 w-4 text-primary-foreground" />
+            </div>
+            Transportbokningar
+            <div className="ml-auto flex items-center gap-2">
+              {totalCount > 0 && (
+                <Badge variant="outline" className="text-xs">
+                  {totalCount} transport{totalCount !== 1 ? 'er' : ''}
+                </Badge>
+              )}
+              <Button
+                size="sm"
+                onClick={() => setBookingDialogOpen(true)}
+                className="rounded-xl gap-1.5 h-8 text-xs"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Boka transport
+              </Button>
+            </div>
+          </CardTitle>
+        </CardHeader>
 
-      <CardContent className="pt-0">
-        {assignments.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <Truck className="h-10 w-10 mx-auto mb-3 opacity-40" />
-            <p className="font-medium">Inga transporter bokade</p>
-            <p className="text-sm mt-1">
-              Boka transporter via{' '}
-              <span className="text-primary font-medium">Transport Dashboard → Boka transport</span>
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {columns.map(col => (
-              <div key={col.title} className={cn('rounded-xl border p-3', col.bgColor, col.borderColor)}>
-                <div className="flex items-center gap-2 mb-3">
-                  <col.icon className={cn('w-4 h-4', col.color)} />
-                  <h3 className={cn('text-xs font-semibold', col.color)}>{col.title}</h3>
-                  <span className={cn('ml-auto text-sm font-bold', col.color)}>{col.items.length}</span>
+        <CardContent className="pt-0">
+          {assignments.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Truck className="h-10 w-10 mx-auto mb-3 opacity-40" />
+              <p className="font-medium">Inga transporter bokade</p>
+              <p className="text-sm mt-1">Klicka på "Boka transport" för att komma igång</p>
+              <Button
+                size="sm"
+                onClick={() => setBookingDialogOpen(true)}
+                className="mt-4 rounded-xl gap-1.5"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Boka transport
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {columns.map(col => (
+                <div key={col.title} className={cn('rounded-xl border p-3', col.bgColor, col.borderColor)}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <col.icon className={cn('w-4 h-4', col.color)} />
+                    <h3 className={cn('text-xs font-semibold', col.color)}>{col.title}</h3>
+                    <span className={cn('ml-auto text-sm font-bold', col.color)}>{col.items.length}</span>
+                  </div>
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                    {col.items.length === 0 ? (
+                      <p className="text-[10px] text-muted-foreground text-center py-6">Inga transporter</p>
+                    ) : (
+                      col.items.map(a => (
+                        <ProjectCard
+                          key={a.id}
+                          assignment={a}
+                          expanded={expandedId === a.id}
+                          onToggle={() => setExpandedId(expandedId === a.id ? null : a.id)}
+                          cardBg={col.cardBg}
+                          cardBorder={col.cardBorder}
+                          emailLogs={emailLogs}
+                        />
+                      ))
+                    )}
+                  </div>
                 </div>
-                <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                  {col.items.length === 0 ? (
-                    <p className="text-[10px] text-muted-foreground text-center py-6">Inga transporter</p>
-                  ) : (
-                    col.items.map(a => (
-                      <ProjectCard
-                        key={a.id}
-                        assignment={a}
-                        expanded={expandedId === a.id}
-                        onToggle={() => setExpandedId(expandedId === a.id ? null : a.id)}
-                        cardBg={col.cardBg}
-                        cardBorder={col.cardBorder}
-                        emailLogs={emailLogs}
-                      />
-                    ))
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <ProjectTransportBookingDialog
+        bookingId={bookingId}
+        open={bookingDialogOpen}
+        onOpenChange={setBookingDialogOpen}
+        onComplete={refetch}
+      />
+    </>
   );
 };
 
