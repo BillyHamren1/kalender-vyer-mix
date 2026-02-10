@@ -428,6 +428,62 @@ export type Database = {
           },
         ]
       }
+      establishment_subtasks: {
+        Row: {
+          assigned_to: string | null
+          booking_id: string
+          completed: boolean
+          created_at: string
+          description: string | null
+          end_time: string | null
+          id: string
+          notes: string | null
+          parent_task_id: string
+          sort_order: number
+          start_time: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          booking_id: string
+          completed?: boolean
+          created_at?: string
+          description?: string | null
+          end_time?: string | null
+          id?: string
+          notes?: string | null
+          parent_task_id: string
+          sort_order?: number
+          start_time?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          booking_id?: string
+          completed?: boolean
+          created_at?: string
+          description?: string | null
+          end_time?: string | null
+          id?: string
+          notes?: string | null
+          parent_task_id?: string
+          sort_order?: number
+          start_time?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "establishment_subtasks_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_completion_analytics: {
         Row: {
           booking_id: string

@@ -1,10 +1,12 @@
 import { useMemo, useRef, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { format, differenceInDays, addDays, subDays, startOfDay, min, max } from "date-fns";
 import { sv } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CheckCircle2, Plus, Truck, Package, Users, Wrench, ClipboardCheck, PackageX } from "lucide-react";
+import { fetchAllSubtasksForBooking } from "@/services/establishmentSubtaskService";
 
 interface DeestablishmentTask {
   id: string;
@@ -18,6 +20,7 @@ interface DeestablishmentTask {
 interface DeestablishmentGanttChartProps {
   eventDate?: string | null;
   rigdownDate?: string | null;
+  bookingId?: string | null;
   onTaskClick?: (task: DeestablishmentTask) => void;
 }
 
@@ -123,9 +126,26 @@ function generateDefaultTasks(eventDate: Date, rigdownDate: Date): Deestablishme
   ];
 }
 
-const DeestablishmentGanttChart = ({ eventDate, rigdownDate, onTaskClick }: DeestablishmentGanttChartProps) => {
+const DeestablishmentGanttChart = ({ eventDate, rigdownDate, bookingId, onTaskClick }: DeestablishmentGanttChartProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [todayPosition, setTodayPosition] = useState(0);
+
+  // Fetch all subtasks for progress indicators
+  const { data: allSubtasks = [] } = useQuery({
+    queryKey: ['establishment-all-subtasks', bookingId],
+    queryFn: () => fetchAllSubtasksForBooking(bookingId!),
+    enabled: !!bookingId
+  });
+
+  const subtasksByTask = useMemo(() => {
+    const map: Record<string, { total: number; completed: number }> = {};
+    for (const st of allSubtasks) {
+      if (!map[st.parent_task_id]) map[st.parent_task_id] = { total: 0, completed: 0 };
+      map[st.parent_task_id].total++;
+      if (st.completed) map[st.parent_task_id].completed++;
+    }
+    return map;
+  }, [allSubtasks]);
 
   const ganttData = useMemo(() => {
     if (!eventDate || !rigdownDate) return null;
@@ -352,10 +372,21 @@ const DeestablishmentGanttChart = ({ eventDate, rigdownDate, onTaskClick }: Dees
                       onClick={() => onTaskClick?.(task)}
                       title={`${task.title}\n${format(task.startDate, 'd MMM', { locale: sv })}`}
                     >
-                      {duration > 0 && (
-                        <span className="absolute inset-0 flex items-center px-2 text-xs text-white font-medium truncate">
-                          {task.title}
-                        </span>
+                      <span className="absolute inset-0 flex items-center px-2 text-xs text-white font-medium truncate">
+                        {task.title}
+                        {subtasksByTask[task.id] && (
+                          <span className="ml-1 opacity-80">
+                            ({subtasksByTask[task.id].completed}/{subtasksByTask[task.id].total})
+                          </span>
+                        )}
+                      </span>
+                      {subtasksByTask[task.id] && subtasksByTask[task.id].total > 0 && (
+                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/20 rounded-b-md overflow-hidden">
+                          <div
+                            className="h-full bg-white/60 transition-all"
+                            style={{ width: `${(subtasksByTask[task.id].completed / subtasksByTask[task.id].total) * 100}%` }}
+                          />
+                        </div>
                       )}
                     </div>
                   </div>

@@ -9,6 +9,7 @@ import { CheckCircle2, Plus, Truck, Package, Users, Wrench, ClipboardCheck, Pane
 import EstablishmentDataPanel from "./EstablishmentDataPanel";
 import EstablishmentAIAssistant from "./EstablishmentAIAssistant";
 import { fetchEstablishmentBookingData } from "@/services/establishmentPlanningService";
+import { fetchAllSubtasksForBooking } from "@/services/establishmentSubtaskService";
 
 interface EstablishmentTask {
   id: string;
@@ -139,6 +140,24 @@ const EstablishmentGanttChart = ({
     queryFn: () => fetchEstablishmentBookingData(bookingId!),
     enabled: !!bookingId
   });
+
+  // Fetch all subtasks for progress indicators
+  const { data: allSubtasks = [] } = useQuery({
+    queryKey: ['establishment-all-subtasks', bookingId],
+    queryFn: () => fetchAllSubtasksForBooking(bookingId!),
+    enabled: !!bookingId
+  });
+
+  // Group subtasks by parent_task_id
+  const subtasksByTask = useMemo(() => {
+    const map: Record<string, { total: number; completed: number }> = {};
+    for (const st of allSubtasks) {
+      if (!map[st.parent_task_id]) map[st.parent_task_id] = { total: 0, completed: 0 };
+      map[st.parent_task_id].total++;
+      if (st.completed) map[st.parent_task_id].completed++;
+    }
+    return map;
+  }, [allSubtasks]);
 
   const ganttData = useMemo(() => {
     if (!rigDate || !eventDate) return null;
@@ -385,10 +404,22 @@ const EstablishmentGanttChart = ({
                         onClick={() => onTaskClick?.(task)}
                         title={`${task.title}\n${format(task.startDate, 'd MMM', { locale: sv })}`}
                       >
-                        {duration > 0 && (
-                          <span className="absolute inset-0 flex items-center px-2 text-xs text-white font-medium truncate">
-                            {task.title}
-                          </span>
+                        <span className="absolute inset-0 flex items-center px-2 text-xs text-white font-medium truncate">
+                          {task.title}
+                          {subtasksByTask[task.id] && (
+                            <span className="ml-1 opacity-80">
+                              ({subtasksByTask[task.id].completed}/{subtasksByTask[task.id].total})
+                            </span>
+                          )}
+                        </span>
+                        {/* Progress bar at bottom */}
+                        {subtasksByTask[task.id] && subtasksByTask[task.id].total > 0 && (
+                          <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/20 rounded-b-md overflow-hidden">
+                            <div
+                              className="h-full bg-white/60 transition-all"
+                              style={{ width: `${(subtasksByTask[task.id].completed / subtasksByTask[task.id].total) * 100}%` }}
+                            />
+                          </div>
                         )}
                       </div>
                     </div>
