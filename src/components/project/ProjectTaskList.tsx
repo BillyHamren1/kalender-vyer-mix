@@ -12,9 +12,10 @@ interface ProjectTaskListProps {
   onAddTask: (task: { title: string; description?: string; assigned_to?: string | null; deadline?: string | null }) => void;
   onUpdateTask: (data: { id: string; updates: Partial<ProjectTask> }) => void;
   onDeleteTask: (id: string) => void;
+  onTaskAction?: (task: ProjectTask) => boolean;
 }
 
-const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask }: ProjectTaskListProps) => {
+const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskAction }: ProjectTaskListProps) => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
 
@@ -52,7 +53,10 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask }: Proje
                   key={task.id}
                   task={task}
                   onToggle={() => handleToggleComplete(task)}
-                  onClick={() => setSelectedTask(task)}
+                  onClick={() => {
+                    if (onTaskAction?.(task)) return;
+                    setSelectedTask(task);
+                  }}
                 />
               ))}
               
@@ -67,7 +71,10 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask }: Proje
                       key={task.id}
                       task={task}
                       onToggle={() => handleToggleComplete(task)}
-                      onClick={() => setSelectedTask(task)}
+                      onClick={() => {
+                        if (onTaskAction?.(task)) return;
+                        setSelectedTask(task);
+                      }}
                     />
                   ))}
                 </div>
@@ -84,7 +91,10 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask }: Proje
                       key={task.id}
                       task={task}
                       onToggle={() => handleToggleComplete(task)}
-                      onClick={() => setSelectedTask(task)}
+                      onClick={() => {
+                        if (onTaskAction?.(task)) return;
+                        setSelectedTask(task);
+                      }}
                     />
                   ))}
                 </div>
