@@ -26,6 +26,7 @@ const ACTION_CONFIG: Record<string, { icon: React.ElementType; color: string; la
   transport_response: { icon: CheckCircle2, color: 'text-primary', label: 'Transport' },
   transport_declined: { icon: Truck, color: 'text-destructive', label: 'Transport' },
   email_sent: { icon: Send, color: 'text-primary', label: 'Mejl' },
+  email_snapshot: { icon: Mail, color: 'text-primary', label: 'Mejl' },
 };
 
 const FILTER_OPTIONS = [
@@ -44,7 +45,7 @@ const ProjectActivityLog = ({ activities }: ProjectActivityLogProps) => {
     if (filter === 'all') return activities;
     if (filter === 'task') return activities.filter(a => a.action.startsWith('task_'));
     if (filter === 'file') return activities.filter(a => a.action.startsWith('file_'));
-    if (filter === 'transport') return activities.filter(a => a.action.startsWith('transport_') || a.action === 'email_sent');
+    if (filter === 'transport') return activities.filter(a => a.action.startsWith('transport_') || a.action === 'email_sent' || a.action === 'email_snapshot');
     return activities.filter(a => a.action === filter);
   }, [activities, filter]);
 
@@ -122,6 +123,20 @@ const ProjectActivityLog = ({ activities }: ProjectActivityLogProps) => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-foreground">{activity.description}</p>
+                          {activity.action === 'email_snapshot' && (activity.metadata as any)?.image_url && (
+                            <a
+                              href={(activity.metadata as any).image_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-2 block"
+                            >
+                              <img
+                                src={(activity.metadata as any).image_url}
+                                alt="Mejlförhandsgranskning"
+                                className="max-w-xs rounded-lg border border-border/40 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                              />
+                            </a>
+                          )}
                           <div className="flex items-center gap-2 mt-0.5">
                             {activity.performed_by && (
                               <span className="text-xs text-muted-foreground font-medium">

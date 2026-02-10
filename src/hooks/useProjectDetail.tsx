@@ -64,6 +64,31 @@ export const useProjectDetail = (projectId: string) => {
     });
   };
 
+  // Subscribe to activity log changes for real-time updates
+  useEffect(() => {
+    if (!projectId) return;
+
+    const activityChannel = supabase
+      .channel(`project-activity-log-${projectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'project_activity_log',
+          filter: `project_id=eq.${projectId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['project-activities', projectId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(activityChannel);
+    };
+  }, [projectId, queryClient]);
+
   // Subscribe to transport changes and log them automatically
   useEffect(() => {
     if (!bookingId) return;
@@ -80,7 +105,6 @@ export const useProjectDetail = (projectId: string) => {
         },
         async (payload) => {
           const newRow = payload.new as any;
-          // Fetch vehicle name
           const { data: vehicle } = await supabase
             .from('vehicles')
             .select('name')
@@ -102,7 +126,6 @@ export const useProjectDetail = (projectId: string) => {
           const newRow = payload.new as any;
           const oldRow = payload.old as any;
           
-          // Fetch vehicle name
           const { data: vehicle } = await supabase
             .from('vehicles')
             .select('name')
@@ -110,7 +133,6 @@ export const useProjectDetail = (projectId: string) => {
             .single();
           const vehicleName = vehicle?.name || 'Okänt fordon';
 
-          // Check if partner response changed
           if (oldRow.partner_response !== newRow.partner_response && newRow.partner_response) {
             if (newRow.partner_response === 'accepted') {
               logActivity('transport_response', `Partnersvar: Accepterad — ${vehicleName}`);
