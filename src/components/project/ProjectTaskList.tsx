@@ -6,6 +6,11 @@ import { ProjectTask } from "@/types/project";
 import ProjectTaskItem from "./ProjectTaskItem";
 import AddTaskDialog from "./AddTaskDialog";
 import TaskDetailSheet from "./TaskDetailSheet";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface ProjectTaskListProps {
   tasks: ProjectTask[];
@@ -18,6 +23,7 @@ interface ProjectTaskListProps {
 const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskAction }: ProjectTaskListProps) => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ProjectTask | null>(null);
 
   // Separate regular tasks from info-only tasks
   const regularTasks = tasks.filter(t => !t.is_info_only);
@@ -29,6 +35,44 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
   const handleToggleComplete = (task: ProjectTask) => {
     onUpdateTask({ id: task.id, updates: { completed: !task.completed } });
   };
+
+  const handleClick = (task: ProjectTask) => {
+    if (onTaskAction?.(task)) return;
+    setSelectedTask(task);
+  };
+
+  const handleMove = (taskList: ProjectTask[], index: number, direction: 'up' | 'down') => {
+    const swapIndex = direction === 'up' ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= taskList.length) return;
+
+    const currentTask = taskList[index];
+    const swapTask = taskList[swapIndex];
+
+    // Swap sort_order values
+    onUpdateTask({ id: currentTask.id, updates: { sort_order: swapTask.sort_order } });
+    onUpdateTask({ id: swapTask.id, updates: { sort_order: currentTask.sort_order } });
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteTarget) {
+      onDeleteTask(deleteTarget.id);
+      setDeleteTarget(null);
+    }
+  };
+
+  const renderTaskItem = (task: ProjectTask, index: number, list: ProjectTask[]) => (
+    <ProjectTaskItem
+      key={task.id}
+      task={task}
+      onToggle={() => handleToggleComplete(task)}
+      onClick={() => handleClick(task)}
+      onDelete={() => setDeleteTarget(task)}
+      onMoveUp={() => handleMove(list, index, 'up')}
+      onMoveDown={() => handleMove(list, index, 'down')}
+      isFirst={index === 0}
+      isLast={index === list.length - 1}
+    />
+  );
 
   return (
     <>
@@ -48,17 +92,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
           ) : (
             <>
               {/* Incomplete tasks */}
-              {incompleteTasks.map(task => (
-                <ProjectTaskItem
-                  key={task.id}
-                  task={task}
-                  onToggle={() => handleToggleComplete(task)}
-                  onClick={() => {
-                    if (onTaskAction?.(task)) return;
-                    setSelectedTask(task);
-                  }}
-                />
-              ))}
+              {incompleteTasks.map((task, i) => renderTaskItem(task, i, incompleteTasks))}
               
               {/* Info tasks (milestones) */}
               {infoTasks.length > 0 && (
@@ -66,17 +100,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
                   <p className="text-sm text-muted-foreground mb-2">
                     Milstolpar
                   </p>
-                  {infoTasks.map(task => (
-                    <ProjectTaskItem
-                      key={task.id}
-                      task={task}
-                      onToggle={() => handleToggleComplete(task)}
-                      onClick={() => {
-                        if (onTaskAction?.(task)) return;
-                        setSelectedTask(task);
-                      }}
-                    />
-                  ))}
+                  {infoTasks.map((task, i) => renderTaskItem(task, i, infoTasks))}
                 </div>
               )}
               
@@ -86,17 +110,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
                   <p className="text-sm text-muted-foreground mb-2">
                     Klara ({completedTasks.length})
                   </p>
-                  {completedTasks.map(task => (
-                    <ProjectTaskItem
-                      key={task.id}
-                      task={task}
-                      onToggle={() => handleToggleComplete(task)}
-                      onClick={() => {
-                        if (onTaskAction?.(task)) return;
-                        setSelectedTask(task);
-                      }}
-                    />
-                  ))}
+                  {completedTasks.map((task, i) => renderTaskItem(task, i, completedTasks))}
                 </div>
               )}
             </>
@@ -120,6 +134,24 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
         onUpdateTask={onUpdateTask}
         onDeleteTask={onDeleteTask}
       />
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ta bort uppgift</AlertDialogTitle>
+            <AlertDialogDescription>
+              Är du säker på att du vill ta bort "{deleteTarget?.title}"? Detta kan inte ångras.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Avbryt</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Ta bort
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };

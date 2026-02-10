@@ -1,4 +1,4 @@
-import { Calendar, User, MessageSquare } from "lucide-react";
+import { Calendar, User, MessageSquare, Trash2, GripVertical, ChevronUp, ChevronDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ProjectTask } from "@/types/project";
 import { format } from "date-fns";
@@ -6,15 +6,21 @@ import { sv } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
 
 interface ProjectTaskItemProps {
   task: ProjectTask;
   onToggle: () => void;
   onClick: () => void;
+  onDelete?: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
   commentCount?: number;
+  isFirst?: boolean;
+  isLast?: boolean;
 }
 
-const ProjectTaskItem = ({ task, onToggle, onClick, commentCount = 0 }: ProjectTaskItemProps) => {
+const ProjectTaskItem = ({ task, onToggle, onClick, onDelete, onMoveUp, onMoveDown, commentCount = 0, isFirst, isLast }: ProjectTaskItemProps) => {
   const isOverdue = task.deadline && !task.completed && new Date(task.deadline) < new Date();
 
   const { data: assignedStaff } = useQuery({
@@ -47,11 +53,34 @@ const ProjectTaskItem = ({ task, onToggle, onClick, commentCount = 0 }: ProjectT
   return (
     <div 
       className={cn(
-        "flex items-start gap-3 p-4 rounded-xl border border-border/40 bg-card hover:bg-muted/30 transition-colors cursor-pointer group",
+        "flex items-start gap-2 p-4 rounded-xl border border-border/40 bg-card hover:bg-muted/30 transition-colors cursor-pointer group",
         task.completed && "opacity-60"
       )}
       onClick={onClick}
     >
+      {/* Reorder controls */}
+      <div className="flex flex-col items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" onClick={(e) => e.stopPropagation()}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-5 w-5 text-muted-foreground hover:text-foreground"
+          onClick={onMoveUp}
+          disabled={isFirst}
+        >
+          <ChevronUp className="h-3 w-3" />
+        </Button>
+        <GripVertical className="h-3 w-3 text-muted-foreground/50" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-5 w-5 text-muted-foreground hover:text-foreground"
+          onClick={onMoveDown}
+          disabled={isLast}
+        >
+          <ChevronDown className="h-3 w-3" />
+        </Button>
+      </div>
+
       <Checkbox
         checked={task.completed}
         onCheckedChange={() => onToggle()}
@@ -97,6 +126,21 @@ const ProjectTaskItem = ({ task, onToggle, onClick, commentCount = 0 }: ProjectT
           )}
         </div>
       </div>
+
+      {/* Delete button */}
+      {onDelete && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      )}
     </div>
   );
 };
