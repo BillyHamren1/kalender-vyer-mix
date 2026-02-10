@@ -103,6 +103,7 @@ interface WizardData {
   returnContactName: string;
   returnContactPhone: string;
   returnContactEmail: string;
+  returnEstimatedDuration: string;
   driverNotes: string;
 }
 
@@ -949,6 +950,23 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                       />
                     </div>
 
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Uppskattad tid retur (timmar)</Label>
+                      <Select
+                        value={wizardData.returnEstimatedDuration || ''}
+                        onValueChange={v => setWizardData(p => ({ ...p, returnEstimatedDuration: v }))}
+                      >
+                        <SelectTrigger className="rounded-xl">
+                          <SelectValue placeholder="Välj antal timmar..." />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[240px]">
+                          {[0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 7, 8, 10, 12].map(h => (
+                            <SelectItem key={h} value={String(h)}>{h} {h === 1 ? 'timme' : 'timmar'}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Telefon (retur) *</Label>
@@ -1210,6 +1228,12 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
                         <p className="text-[11px] text-muted-foreground">Returtid</p>
                         <p className="text-sm font-semibold text-foreground">{wizardData.returnTime || '—'}</p>
                       </div>
+                      {wizardData.returnEstimatedDuration && (
+                        <div>
+                          <p className="text-[11px] text-muted-foreground">Uppskattad tid</p>
+                          <p className="text-sm font-semibold text-foreground">{wizardData.returnEstimatedDuration} {Number(wizardData.returnEstimatedDuration) === 1 ? 'timme' : 'timmar'}</p>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <p className="text-[11px] text-muted-foreground">Returadress (upphämtning)</p>
