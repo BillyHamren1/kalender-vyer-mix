@@ -7,6 +7,7 @@ import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectComments from "@/components/project/ProjectComments";
 import ProjectActivityLog from "@/components/project/ProjectActivityLog";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
+import ProjectTransportBookingDialog from "@/components/project/ProjectTransportBookingDialog";
 
 import TaskDetailSheet from "@/components/project/TaskDetailSheet";
 import { ProjectTask } from "@/types/project";
@@ -19,10 +20,11 @@ const tabTriggerClass =
 const ProjectViewPage = () => {
   const detail = useOutletContext<ReturnType<typeof useProjectDetail>>();
   const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
+  const [transportBookingOpen, setTransportBookingOpen] = useState(false);
 
   const { project, tasks, files, comments, activities } = detail;
   const bookingId = project?.booking_id || project?.booking?.id || null;
-  const { assignments: transportAssignments } = useProjectTransport(bookingId);
+  const { assignments: transportAssignments, refetch: refetchTransport } = useProjectTransport(bookingId);
 
   if (!project) return null;
 
@@ -89,6 +91,13 @@ const ProjectViewPage = () => {
             onAddTask={detail.addTask}
             onUpdateTask={detail.updateTask}
             onDeleteTask={detail.deleteTask}
+            onTaskAction={(task) => {
+              if (task.title === 'Transportbokning' && bookingId) {
+                setTransportBookingOpen(true);
+                return true; // handled, don't open detail sheet
+              }
+              return false;
+            }}
           />
         </TabsContent>
 
@@ -122,6 +131,15 @@ const ProjectViewPage = () => {
         onUpdateTask={detail.updateTask}
         onDeleteTask={detail.deleteTask}
       />
+
+      {bookingId && (
+        <ProjectTransportBookingDialog
+          bookingId={bookingId}
+          open={transportBookingOpen}
+          onOpenChange={setTransportBookingOpen}
+          onComplete={refetchTransport}
+        />
+      )}
     </div>
   );
 };
