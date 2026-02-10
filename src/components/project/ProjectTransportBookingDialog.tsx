@@ -1,5 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { toPng } from 'html-to-image';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -112,6 +113,7 @@ const ProjectTransportBookingDialog: React.FC<ProjectTransportBookingDialogProps
   const [emailReferencePerson, setEmailReferencePerson] = useState('');
   const [pendingAssignmentIds, setPendingAssignmentIds] = useState<string[]>([]);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const emailPreviewRef = useRef<HTMLDivElement>(null);
 
   const activeVehicles = vehicles.filter(v => v.is_active);
   const internalVehicles = activeVehicles.filter(v => !v.is_external);
@@ -263,6 +265,25 @@ const ProjectTransportBookingDialog: React.FC<ProjectTransportBookingDialogProps
     if (pendingAssignmentIds.length === 0) return;
     setSendingEmail(true);
     try {
+      // Capture email preview as image before sending
+      let emailImageUrl: string | undefined;
+      if (emailPreviewRef.current) {
+        try {
+          const dataUrl = await toPng(emailPreviewRef.current, { backgroundColor: '#ffffff', pixelRatio: 2 });
+          const blob = await (await fetch(dataUrl)).blob();
+          const fileName = `email-preview-${bookingId}-${Date.now()}.png`;
+          const { error: uploadError } = await supabase.storage
+            .from('project-files')
+            .upload(fileName, blob, { contentType: 'image/png' });
+          if (!uploadError) {
+            const { data: urlData } = supabase.storage.from('project-files').getPublicUrl(fileName);
+            emailImageUrl = urlData.publicUrl;
+          }
+        } catch (imgErr) {
+          console.warn('Could not capture email preview image:', imgErr);
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke('send-transport-request', {
         body: {
           assignment_ids: pendingAssignmentIds,
@@ -275,6 +296,24 @@ const ProjectTransportBookingDialog: React.FC<ProjectTransportBookingDialogProps
         toast.error('Mejl kunde inte skickas till partnern');
       } else {
         toast.success(`Transportförfrågan skickad till ${data?.sent_to || 'partnern'}`);
+        // Log activity with email image if we have a project
+        if (emailImageUrl) {
+          const { logProjectActivity } = await import('@/services/projectActivityService');
+          // Find the project for this booking
+          const { data: proj } = await supabase
+            .from('projects')
+            .select('id')
+            .eq('booking_id', bookingId)
+            .maybeSingle();
+          if (proj) {
+            await logProjectActivity({
+              project_id: proj.id,
+              action: 'email_snapshot',
+              description: `Mejlförhandsgranskning sparad — ${emailSubject || 'Transportförfrågan'}`,
+              metadata: { image_url: emailImageUrl, subject: emailSubject, recipient: selectedPartner?.contact_email },
+            });
+          }
+        }
       }
     } catch {
       toast.error('Mejlutskick misslyckades');
@@ -906,7 +945,7 @@ const ProjectTransportBookingDialog: React.FC<ProjectTransportBookingDialogProps
             </DialogTitle>
             <DialogDescription>Granska och redigera mejlet innan det skickas till partnern.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div ref={emailPreviewRef} className="space-y-4">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Mottagare</Label>
               <div className="flex items-center gap-2">
