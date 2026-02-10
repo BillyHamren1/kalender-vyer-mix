@@ -55,8 +55,7 @@ export const DateBadge = ({
   return (
     <>
       <Badge 
-        variant="secondary" 
-        className={`px-2 py-1 cursor-pointer ${isOnlyDate ? 'cursor-default' : 'hover:bg-secondary/80'}`}
+        className={`px-2 py-1 cursor-pointer bg-primary text-primary-foreground ${isOnlyDate ? 'cursor-default' : 'hover:bg-primary/90'}`}
         onDoubleClick={handleDoubleClick}
         title={isOnlyDate ? "Cannot remove the only " + getEventTypeName() : "Double-click to remove"}
       >
