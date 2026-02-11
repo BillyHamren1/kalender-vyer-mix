@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
@@ -25,6 +25,16 @@ const ProjectViewPage = () => {
   const { project, tasks, files, comments, activities } = detail;
   const bookingId = project?.booking_id || project?.booking?.id || null;
   const { assignments: transportAssignments, refetch: refetchTransport } = useProjectTransport(bookingId);
+
+  // Auto-complete Transportbokning task if transport assignments exist
+  useEffect(() => {
+    if (transportAssignments.length > 0 && tasks.length > 0) {
+      const transportTask = tasks.find(t => t.title === 'Transportbokning' && !t.completed);
+      if (transportTask) {
+        detail.updateTask({ id: transportTask.id, updates: { completed: true } });
+      }
+    }
+  }, [transportAssignments.length, tasks]);
 
   if (!project) return null;
 
@@ -137,7 +147,14 @@ const ProjectViewPage = () => {
           bookingId={bookingId}
           open={transportBookingOpen}
           onOpenChange={setTransportBookingOpen}
-          onComplete={refetchTransport}
+          onComplete={() => {
+            refetchTransport();
+            // Auto-complete the Transportbokning task
+            const transportTask = tasks.find(t => t.title === 'Transportbokning' && !t.completed);
+            if (transportTask) {
+              detail.updateTask({ id: transportTask.id, updates: { completed: true } });
+            }
+          }}
         />
       )}
     </div>
