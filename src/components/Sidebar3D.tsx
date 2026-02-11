@@ -10,7 +10,8 @@ import {
   Sparkles,
   PieChart,
   LayoutDashboard,
-  Truck
+  Truck,
+  Briefcase
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +24,7 @@ interface NavItem {
 
 const navigationItems: NavItem[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Mina projekt", url: "/my-projects", icon: Briefcase },
   { title: "Personalplanering", url: "/calendar", icon: Calendar },
   { title: "Projekthantering", url: "/projects", icon: FolderKanban },
   { 

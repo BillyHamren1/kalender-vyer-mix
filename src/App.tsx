@@ -36,6 +36,7 @@ import LargeProjectEconomyPage from "./pages/project/LargeProjectEconomyPage";
 import EconomyOverview from "./pages/EconomyOverview";
 import ProjectEconomyDetail from "./pages/ProjectEconomyDetail";
 import PlanningDashboard from "./pages/PlanningDashboard";
+import MyProjects from "./pages/MyProjects";
 import StaffRevenueOverview from "./pages/StaffRevenueOverview";
 import JobDetail from "./pages/JobDetail";
 import APIDocumentation from "./pages/APIDocumentation";
@@ -131,6 +132,7 @@ const AppContent = () => {
                     <Routes>
                       <Route path="/" element={<ProtectedRoute><MainSystemLayout><PlanningDashboard /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/dashboard" element={<ProtectedRoute><MainSystemLayout><PlanningDashboard /></MainSystemLayout></ProtectedRoute>} />
+                      <Route path="/my-projects" element={<ProtectedRoute><MainSystemLayout><MyProjects /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/calendar" element={<ProtectedRoute><MainSystemLayout><CustomCalendarPage /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/staff-management" element={<ProtectedRoute><MainSystemLayout><StaffManagement /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/staff-management/time-approvals" element={<ProtectedRoute><MainSystemLayout><TimeReportApprovals /></MainSystemLayout></ProtectedRoute>} />
