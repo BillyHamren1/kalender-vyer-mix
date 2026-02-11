@@ -1,99 +1,91 @@
 
 
-# Genomgang av bokningsdetaljvyn -- problem och forbattringsforslag
+# UI-granskning: Avvikelser fran designsystemet
 
-## Sammanfattning
+## Hittade problem
 
-Jag har gatt igenom hela bokningsdetaljflodet och hittat flera problem: oanvanda props, debug-loggar kvar i produktion, inkonsekvent sprak (blandat svenska/engelska), stilavvikelser fran designsystemet, och en komponent som inte foljer samma Card-standard som ovriga.
+### 1. ClientInformation -- avvikande storlekar
+Kortet anvander mindre padding och typsnitt an alla andra kort:
+- `py-2 px-3` istallet for `py-3 px-4`
+- `text-sm` istallet for `text-base`
+- `h-3.5 w-3.5` ikon istallet for `h-4 w-4`
 
----
+### 2. Engelska kvar i flera komponenter
 
-## Problem som hittades
+**StatusChangeForm.tsx:**
+- Statusetiketter: "Offer", "Confirmed", "Cancelled" -- bor vara "Offert", "Bekraftad", "Avbokad"
+- "Updating..." -- bor vara "Uppdaterar..."
 
-### 1. Oanvanda props och dod kod
+**DateBadge.tsx:**
+- "Not scheduled" -- bor vara "Ej schemalagd"
+- ConfirmationDialog: "Remove rig day?", "Are you sure you want to remove...?", "Remove", "Cancel" -- allt pa engelska
+- Tooltip: "Double-click to remove" / "Cannot remove the only..." -- engelska
 
-**BookingDetailContent.tsx** tar emot tre props som aldrig anvands i renderingen:
-- `lastViewedDate` -- definieras i interfacet, skickas fran BookingDetail, men anvands aldrig
-- `onLogisticsChange` -- definieras i interfacet, skickas fran BookingDetail, men ingen komponent anvander den (inget LogisticsOptionsForm renderas langre)
-- `onReloadData` -- samma sak, definieras men anvands aldrig
+**DatesSection.tsx:**
+- "No dates scheduled" -- bor vara "Inga datum schemalagda"
 
-**BookingDetail.tsx** destrukturerar fran hooken men anvander aldrig:
-- `isSyncingToCalendar` -- importeras men anvands inte
-- `syncWithCalendar` -- importeras men anvands inte
-- `handleDateChange` -- importeras men anvands inte (addDate/removeDate anvands istallet)
+**ProductsList.tsx:**
+- "Qty:" -- bor vara "Antal:" eller "St:"
 
-### 2. Debug console.logs i produktion
+### 3. Hardkodade gra farger istallet for semantiska
 
-**BookingDetail.tsx** har fyra console.log-satser som inte bor vara kvar:
-- Rad 21: `console.log('BookingDetail component mounted with params:', ...)`
-- Rad 46: `console.log('BookingDetail useEffect triggered...')`
-- Rad 56-57: `console.log('Booking data changed:', booking)` och `console.log('Booking products:', ...)`
+Designsystemet foreskriver `text-muted-foreground` och `bg-muted` istallet for `text-gray-500`, `text-gray-400`, `bg-gray-50` etc.
 
-Det finns ocksa en hel `useEffect` (rad 55-58) som bara loggar -- kan tas bort helt.
+**AttachmentsList.tsx:**
+- `text-gray-500` (rad 211, 314) -- bor vara `text-muted-foreground`
+- `text-gray-400` (rad 359) -- bor vara `text-muted-foreground`
+- `divide-gray-100` (rad 244) -- bor vara `divide-border`
+- `text-blue-600` for lankar (rad 300, 310) -- bor vara `text-primary`
 
-### 3. Inkonsekvent sprak (svenska vs engelska)
+**InternalNotes.tsx:**
+- `text-gray-700` (rad 93) -- bor vara `text-foreground`
+- `text-gray-400` (rad 93) -- bor vara `text-muted-foreground`
+- `hover:bg-gray-50` (rad 93) -- bor vara `hover:bg-muted`
 
-Hela applikationen verkar vara riktad mot svenska anvandare men manga korttitlar ar pa engelska:
-- "Delivery Information" bor vara "Leveransinformation"
-- "Schedule" bor vara "Schema"
-- "Rig Days" / "Event Dates" / "Rig Down Dates" -- kan behallas pa engelska (branschtermer)
-- "Products" bor vara "Produkter"
-- "Attachments" / "No attachments available" bor vara "Bilagor" / "Inga bilagor tillgangliga"
-- "Internal Notes" / "Save" / "Cancel" bor vara "Interna anteckningar" / "Spara" / "Avbryt"
-- "Client" bor vara "Kund"
-- "Project Assignment" bor vara "Projekttilldelning"
-- "Confirm Status Change" i dialogen bor vara pa svenska
+**DatesSection.tsx:**
+- `text-gray-500` (rad 52) -- bor vara `text-muted-foreground`
 
-### 4. ProjectAssignmentCard avviker fran designstandarden
+**StatusChangeForm.tsx:**
+- `text-gray-500` (rad 163) -- bor vara `text-muted-foreground`
+- DialogContent saknar `bg-card` (designsystemkrav for alla dialoger/popups)
 
-`ProjectAssignmentCard.tsx` anvander annorlunda styling:
-- `className="mb-4"` (marginal) istallet for `shadow-sm` som alla andra kort
-- `pb-3` / `text-lg` istallet for `py-3 px-4` / `text-base` som ovriga
-- Visar ratt `project ID` som en `font-mono bg-gray-100`-rad -- anvandaren bryr sig troligen inte om UUID
-- Anvander `variant="secondary"` pa badge (bor vara `bg-blue-100 text-blue-800` som det redan ar, men `variant` overrides kan stalla till det)
-
-### 5. MapDrawingCard lightbox-problem
-
-`MapDrawingCard.tsx` -- DialogContent saknar `bg-card` (designsystemet kraver att alla dialoger har `bg-card`-bakgrund). Den har ocksa `p-2` vilket ger valdigt liten padding.
-
-### 6. DeliveryInformationCard auto-save pa varje knapptryckning
-
-`DeliveryInformationCard.tsx` anropar `onSave()` vid varje enstaka teckenandring i kontaktfalten (rad 126-164). Det innebar en databasforfragan per knapptryckning. Bor debounce:as.
+### 4. StatusChangeForm dialog saknar bg-card
+Alla dialoger ska ha `bg-card` enligt designsystemet. Rad 169: `<DialogContent className="max-w-sm">` saknar `bg-card`.
 
 ---
 
 ## Atgardsplan
 
-### Steg 1: Rensa dod kod och debug-loggar
-- Ta bort console.log-raderna i BookingDetail.tsx
-- Ta bort den debug-only useEffect (rad 54-58)
-- Ta bort oanvanda destrukturerade variabler: `isSyncingToCalendar`, `syncWithCalendar`, `handleDateChange`
-- Ta bort oanvanda props fran BookingDetailContent-interfacet: `lastViewedDate`, `onLogisticsChange`, `onReloadData`
-- Ta bort att dessa skickas fran BookingDetail.tsx
+### Steg 1: ClientInformation -- standardisera storlekar
+Andra till `py-3 px-4`, `text-base`, och `h-4 w-4` for att matcha ovriga kort.
 
-### Steg 2: Konsekvent svenskt sprak
-Uppdatera alla korttitlar och etiketter till svenska:
-- ClientInformation: "Kund: {client}"
-- DeliveryInformationCard: "Leveransinformation"
-- ScheduleCard: "Schema"
-- ProductsList: "Produkter ({count})"
-- AttachmentsList: "Bilagor" / "Inga bilagor tillgangliga"
-- InternalNotes: "Interna anteckningar" / "Spara" / "Avbryt" / "Klicka for att lagga till anteckningar..."
-- ProjectAssignmentCard: "Projekttilldelning" / "Tilldelad till projekt"
-- StatusChangeForm: "Bekrafta statusandring" (dialog)
+### Steg 2: Oversatt all kvarvarande engelska
 
-### Steg 3: ProjectAssignmentCard -- anpassa till designstandard
-- Byt `className="mb-4"` till `className="shadow-sm"` (som ovriga kort)
-- Anpassa CardHeader till `py-3 px-4` och `text-base`
-- Ta bort visning av ra projekt-UUID (ointressant for anvandaren)
-- Gor kortet klickbart (navigera till projektet) om projekt ar tilldelat
+**StatusChangeForm.tsx:**
+- "Offer" till "Offert", "Confirmed" till "Bekraftad", "Cancelled" till "Avbokad"
+- "Updating..." till "Uppdaterar..."
 
-### Steg 4: MapDrawingCard lightbox-fix
-- Lagg till `bg-card` pa DialogContent
-- Justera padding for battre visning
+**DateBadge.tsx:**
+- "Not scheduled" till "Ej schemalagd"
+- "Remove rig day?" till "Ta bort riggdag?"
+- Bekraftelsetext och knappar pa svenska
+- Tooltip-texter pa svenska
 
-### Steg 5: Debounce auto-save i DeliveryInformationCard
-- Lagg till en debounce (500ms) pa kontaktfaltens auto-save sa det inte sker en databasforfragan per knapptryckning
+**DatesSection.tsx:**
+- "No dates scheduled" till "Inga datum schemalagda"
+
+**ProductsList.tsx:**
+- "Qty:" till "Antal:"
+
+### Steg 3: Byt hardkodade farger till semantiska
+
+I **AttachmentsList.tsx**, **InternalNotes.tsx**, **DatesSection.tsx**, och **StatusChangeForm.tsx**:
+- `text-gray-*` till `text-muted-foreground` / `text-foreground`
+- `bg-gray-50` till `bg-muted`
+- `divide-gray-100` till `divide-border`
+- `text-blue-600` till `text-primary`
+
+### Steg 4: Lagg till bg-card pa StatusChangeForm-dialogen
 
 ---
 
@@ -101,15 +93,11 @@ Uppdatera alla korttitlar och etiketter till svenska:
 
 | Fil | Andring |
 |-----|---------|
-| `src/pages/BookingDetail.tsx` | Ta bort console.logs, debug useEffect, oanvanda variabler, oanvanda props |
-| `src/components/booking/detail/BookingDetailContent.tsx` | Ta bort oanvanda props fran interface |
-| `src/components/booking/ClientInformation.tsx` | Svenskt sprak |
-| `src/components/booking/DeliveryInformationCard.tsx` | Svenskt sprak + debounce auto-save |
-| `src/components/booking/ScheduleCard.tsx` | Svenskt sprak |
-| `src/components/booking/ProductsList.tsx` | Svenskt sprak |
-| `src/components/booking/AttachmentsList.tsx` | Svenskt sprak |
-| `src/components/booking/InternalNotes.tsx` | Svenskt sprak |
-| `src/components/booking/ProjectAssignmentCard.tsx` | Designstandard + svenskt sprak |
-| `src/components/booking/MapDrawingCard.tsx` | `bg-card` pa dialog |
-| `src/components/booking/StatusChangeForm.tsx` | Svenskt sprak i dialog |
+| `src/components/booking/ClientInformation.tsx` | Standardisera padding/storlekar |
+| `src/components/booking/StatusChangeForm.tsx` | Svenska etiketter, semantiska farger, bg-card |
+| `src/components/booking/DateBadge.tsx` | Svenska texter |
+| `src/components/booking/DatesSection.tsx` | Svenska texter, semantiska farger |
+| `src/components/booking/ProductsList.tsx` | "Qty" till "Antal" |
+| `src/components/booking/AttachmentsList.tsx` | Semantiska farger |
+| `src/components/booking/InternalNotes.tsx` | Semantiska farger |
 
