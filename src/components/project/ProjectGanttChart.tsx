@@ -148,7 +148,8 @@ const ProjectGanttChart = ({ tasks, onTaskClick }: ProjectGanttChartProps) => {
           <div className="flex">
             {/* Task labels column - sticky */}
             <div className="flex-shrink-0 border-r bg-background z-20 sticky left-0" style={{ width: taskLabelWidth }}>
-              <div className="border-b bg-muted/50 px-3 flex items-end pb-2 font-medium text-sm" style={{ height: headerHeight }}>
+              <div className="border-b bg-muted/30" style={{ height: 20 }} />
+              <div className="border-b bg-muted/50 px-3 flex items-end pb-1 font-medium text-sm" style={{ height: 40 }}>
                 Uppgift
               </div>
               {ganttData.tasks.map((task) => (
@@ -181,12 +182,37 @@ const ProjectGanttChart = ({ tasks, onTaskClick }: ProjectGanttChartProps) => {
 
             {/* Timeline */}
             <div className="flex-shrink-0" style={{ width: timelineWidth }}>
-              {/* Date headers */}
-              <div className="flex border-b bg-muted/50" style={{ height: headerHeight }}>
+              {/* Month headers */}
+              <div className="flex border-b bg-muted/30" style={{ height: 20 }}>
+                {(() => {
+                  const months: { label: string; span: number }[] = [];
+                  let currentMonth = '';
+                  ganttData.days.forEach(day => {
+                    const m = format(day, 'MMMM yyyy', { locale: sv });
+                    if (m !== currentMonth) {
+                      months.push({ label: m, span: 1 });
+                      currentMonth = m;
+                    } else {
+                      months[months.length - 1].span++;
+                    }
+                  });
+                  return months.map((m, i) => (
+                    <div
+                      key={i}
+                      className="flex-shrink-0 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center px-1 border-r"
+                      style={{ width: m.span * dayWidth }}
+                    >
+                      {m.label}
+                    </div>
+                  ));
+                })()}
+              </div>
+
+              {/* Day headers */}
+              <div className="flex border-b bg-muted/50" style={{ height: 40 }}>
                 {ganttData.days.map((day, index) => {
                   const isToday = differenceInDays(day, today) === 0;
                   const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-                  const isFirstOfMonth = day.getDate() === 1;
                   return (
                     <div
                       key={index}
@@ -197,11 +223,6 @@ const ProjectGanttChart = ({ tasks, onTaskClick }: ProjectGanttChartProps) => {
                       )}
                       style={{ width: dayWidth }}
                     >
-                      {isFirstOfMonth && (
-                        <span className="text-[10px] font-medium text-muted-foreground">
-                          {format(day, 'MMM', { locale: sv })}
-                        </span>
-                      )}
                       <span className={cn("font-medium", isToday && "text-primary")}>{format(day, 'd')}</span>
                       <span className="text-[10px] text-muted-foreground">{format(day, 'EEE', { locale: sv })}</span>
                     </div>
