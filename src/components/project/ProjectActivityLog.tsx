@@ -3,11 +3,14 @@ import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { 
   CheckCircle2, MessageSquare, FileUp, ArrowRightLeft, 
-  Trash2, PlusCircle, Filter, Clock, Truck, Mail, Send
+  Trash2, PlusCircle, Filter, Clock, Truck, Mail, Send,
+  ChevronDown, ChevronRight, User, Calendar, MapPin, ExternalLink
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ProjectActivity } from "@/services/projectActivityService";
+import { cn } from "@/lib/utils";
 
 interface ProjectActivityLogProps {
   activities: ProjectActivity[];
@@ -38,6 +41,120 @@ const FILTER_OPTIONS = [
   { value: 'transport', label: 'Transport' },
 ];
 
+// Detail row for metadata
+const MetadataDetail = ({ label, value, icon: Icon }: { label: string; value?: string | null; icon?: React.ElementType }) => {
+  if (!value) return null;
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      {Icon && <Icon className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
+      <span className="text-muted-foreground">{label}:</span>
+      <span className="text-foreground font-medium">{value}</span>
+    </div>
+  );
+};
+
+const ActivityDetailContent = ({ activity }: { activity: ProjectActivity }) => {
+  const meta = (activity.metadata || {}) as Record<string, any>;
+  const hasDetails = Object.keys(meta).length > 0;
+
+  if (!hasDetails && activity.action !== 'email_snapshot') return null;
+
+  return (
+    <div className="ml-7 mt-1 mb-2 p-3 rounded-lg bg-muted/40 border border-border/30 space-y-1.5">
+      {/* Transport details */}
+      {(activity.action === 'transport_added' || activity.action === 'transport_updated') && (
+        <>
+          <MetadataDetail label="Fordon" value={meta.vehicle_name} icon={Truck} />
+          <MetadataDetail label="Datum" value={meta.transport_date} icon={Calendar} />
+          <MetadataDetail label="Tid" value={meta.transport_time} icon={Clock} />
+          <MetadataDetail label="Upphämtning" value={meta.pickup_address} icon={MapPin} />
+          <MetadataDetail label="Status" value={
+            meta.status === 'pending' ? 'Väntar på svar' :
+            meta.status === 'accepted' ? 'Accepterad' :
+            meta.status === 'declined' ? 'Nekad' :
+            meta.status
+          } />
+        </>
+      )}
+
+      {/* Transport response details */}
+      {(activity.action === 'transport_response' || activity.action === 'transport_declined') && (
+        <>
+          <MetadataDetail label="Partner" value={meta.partner_name} icon={User} />
+          <MetadataDetail label="Fordon" value={meta.vehicle_name} icon={Truck} />
+          <MetadataDetail label="Svar" value={
+            meta.response_type === 'accepted' ? '✅ Accepterad' :
+            meta.response_type === 'declined' ? '❌ Nekad' :
+            meta.response_type
+          } />
+          {meta.responded_at && (
+            <MetadataDetail label="Svarstid" value={format(new Date(meta.responded_at), 'HH:mm d MMM yyyy', { locale: sv })} icon={Clock} />
+          )}
+        </>
+      )}
+
+      {/* Email details */}
+      {(activity.action === 'email_sent' || activity.action === 'email_snapshot') && (
+        <>
+          <MetadataDetail label="Mottagare" value={meta.recipient_name || meta.recipient_email} icon={User} />
+          {meta.recipient_email && meta.recipient_name && (
+            <MetadataDetail label="E-post" value={meta.recipient_email} icon={Mail} />
+          )}
+          <MetadataDetail label="Ämne" value={meta.subject} />
+          {meta.image_url && (
+            <a
+              href={meta.image_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 block"
+            >
+              <img
+                src={meta.image_url}
+                alt="Mejlförhandsgranskning"
+                className="max-w-xs rounded-lg border border-border/40 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+              />
+              <span className="text-xs text-primary flex items-center gap-1 mt-1">
+                <ExternalLink className="h-3 w-3" /> Visa mejl i helskärm
+              </span>
+            </a>
+          )}
+        </>
+      )}
+
+      {/* Status change details */}
+      {activity.action === 'status_changed' && (
+        <>
+          <MetadataDetail label="Från" value={meta.old_status} />
+          <MetadataDetail label="Till" value={meta.new_status} />
+        </>
+      )}
+
+      {/* Comment preview */}
+      {activity.action === 'comment_added' && meta.preview && (
+        <p className="text-xs text-muted-foreground italic">"{meta.preview}"</p>
+      )}
+
+      {/* Task details */}
+      {activity.action === 'task_completed' && (
+        <>
+          <MetadataDetail label="Slutförd av" value={meta.completed_by} icon={User} />
+        </>
+      )}
+
+      {/* Generic metadata fallback for items without specific rendering */}
+      {!['transport_added','transport_updated','transport_response','transport_declined',
+         'email_sent','email_snapshot','status_changed','comment_added','task_completed'
+        ].includes(activity.action) && hasDetails && (
+        <div className="text-xs text-muted-foreground">
+          {Object.entries(meta).map(([key, val]) => (
+            <MetadataDetail key={key} label={key} value={String(val)} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ProjectActivityLog = ({ activities }: ProjectActivityLogProps) => {
   const [filter, setFilter] = useState('all');
 
@@ -58,6 +175,11 @@ const ProjectActivityLog = ({ activities }: ProjectActivityLogProps) => {
     });
     return groups;
   }, [filteredActivities]);
+
+  const hasExpandableContent = (activity: ProjectActivity) => {
+    const meta = activity.metadata as Record<string, any> | null;
+    return (meta && Object.keys(meta).length > 0) || activity.action === 'email_snapshot';
+  };
 
   return (
     <Card className="border-border/40 shadow-2xl rounded-2xl">
@@ -104,7 +226,7 @@ const ProjectActivityLog = ({ activities }: ProjectActivityLogProps) => {
                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 sticky top-0 bg-card py-1">
                   {format(new Date(dateKey), 'EEEE d MMMM yyyy', { locale: sv })}
                 </h4>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {dayActivities.map((activity) => {
                     const config = ACTION_CONFIG[activity.action] || {
                       icon: PlusCircle,
@@ -112,43 +234,60 @@ const ProjectActivityLog = ({ activities }: ProjectActivityLogProps) => {
                       label: 'Övrigt'
                     };
                     const Icon = config.icon;
-                    
-                    return (
-                      <div
-                        key={activity.id}
-                        className="flex items-start gap-3 p-2 rounded-xl hover:bg-muted/50 transition-colors group"
-                      >
-                        <div className={`mt-0.5 flex-shrink-0 ${config.color}`}>
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-foreground">{activity.description}</p>
-                          {activity.action === 'email_snapshot' && (activity.metadata as any)?.image_url && (
-                            <a
-                              href={(activity.metadata as any).image_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="mt-2 block"
-                            >
-                              <img
-                                src={(activity.metadata as any).image_url}
-                                alt="Mejlförhandsgranskning"
-                                className="max-w-xs rounded-lg border border-border/40 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                              />
-                            </a>
-                          )}
-                          <div className="flex items-center gap-2 mt-0.5">
-                            {activity.performed_by && (
-                              <span className="text-xs text-muted-foreground font-medium">
-                                {activity.performed_by}
+                    const expandable = hasExpandableContent(activity);
+
+                    if (!expandable) {
+                      return (
+                        <div
+                          key={activity.id}
+                          className="flex items-start gap-3 p-2 rounded-xl hover:bg-muted/50 transition-colors"
+                        >
+                          <div className={`mt-0.5 flex-shrink-0 ${config.color}`}>
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-foreground">{activity.description}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              {activity.performed_by && (
+                                <span className="text-xs text-muted-foreground font-medium">{activity.performed_by}</span>
+                              )}
+                              <span className="text-xs text-muted-foreground">
+                                {format(new Date(activity.created_at), 'HH:mm', { locale: sv })}
                               </span>
-                            )}
-                            <span className="text-xs text-muted-foreground">
-                              {format(new Date(activity.created_at), 'HH:mm', { locale: sv })}
-                            </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      );
+                    }
+
+                    return (
+                      <Collapsible key={activity.id}>
+                        <CollapsibleTrigger asChild>
+                          <div className="flex items-start gap-3 p-2 rounded-xl hover:bg-muted/50 transition-colors cursor-pointer group">
+                            <div className={`mt-0.5 flex-shrink-0 ${config.color}`}>
+                              <Icon className="h-4 w-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-sm text-foreground">{activity.description}</p>
+                                <ChevronRight className="h-3 w-3 text-muted-foreground group-data-[state=open]:hidden" />
+                                <ChevronDown className="h-3 w-3 text-muted-foreground hidden group-data-[state=open]:block" />
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                {activity.performed_by && (
+                                  <span className="text-xs text-muted-foreground font-medium">{activity.performed_by}</span>
+                                )}
+                                <span className="text-xs text-muted-foreground">
+                                  {format(new Date(activity.created_at), 'HH:mm', { locale: sv })}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <ActivityDetailContent activity={activity} />
+                        </CollapsibleContent>
+                      </Collapsible>
                     );
                   })}
                 </div>
