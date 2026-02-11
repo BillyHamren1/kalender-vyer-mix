@@ -111,7 +111,15 @@ export const useProjectDetail = (projectId: string) => {
             .eq('id', newRow.vehicle_id)
             .single();
           const vehicleName = vehicle?.name || 'Okänt fordon';
-          logActivity('transport_added', `Transport bokad: ${vehicleName} (${newRow.transport_date})`);
+          logActivity('transport_added', `Transport bokad: ${vehicleName} (${newRow.transport_date})`, {
+            vehicle_name: vehicleName,
+            vehicle_id: newRow.vehicle_id,
+            transport_date: newRow.transport_date,
+            transport_time: newRow.transport_time || null,
+            pickup_address: newRow.pickup_address || null,
+            status: newRow.status || 'pending',
+            assignment_id: newRow.id,
+          });
         }
       )
       .on(
@@ -134,13 +142,29 @@ export const useProjectDetail = (projectId: string) => {
           const vehicleName = vehicle?.name || 'Okänt fordon';
 
           if (oldRow.partner_response !== newRow.partner_response && newRow.partner_response) {
+            const responseMeta = {
+              vehicle_name: vehicleName,
+              vehicle_id: newRow.vehicle_id,
+              response_type: newRow.partner_response,
+              partner_name: newRow.partner_name || null,
+              responded_at: newRow.partner_responded_at || new Date().toISOString(),
+              assignment_id: newRow.id,
+            };
             if (newRow.partner_response === 'accepted') {
-              logActivity('transport_response', `Partnersvar: Accepterad — ${vehicleName}`);
+              logActivity('transport_response', `Partnersvar: Accepterad — ${vehicleName}`, responseMeta);
             } else if (newRow.partner_response === 'declined') {
-              logActivity('transport_declined', `Partnersvar: Nekad — ${vehicleName}`);
+              logActivity('transport_declined', `Partnersvar: Nekad — ${vehicleName}`, responseMeta);
             }
           } else {
-            logActivity('transport_updated', `Transport uppdaterad: ${vehicleName}`);
+            logActivity('transport_updated', `Transport uppdaterad: ${vehicleName}`, {
+              vehicle_name: vehicleName,
+              vehicle_id: newRow.vehicle_id,
+              transport_date: newRow.transport_date,
+              transport_time: newRow.transport_time || null,
+              pickup_address: newRow.pickup_address || null,
+              status: newRow.status || newRow.partner_response || 'pending',
+              assignment_id: newRow.id,
+            });
           }
         }
       )
@@ -155,7 +179,12 @@ export const useProjectDetail = (projectId: string) => {
         (payload) => {
           const newRow = payload.new as any;
           const recipientName = newRow.recipient_name || newRow.recipient_email || 'partner';
-          logActivity('email_sent', `Mejl skickat till ${recipientName}`);
+          logActivity('email_sent', `Mejl skickat till ${recipientName}`, {
+            recipient_name: newRow.recipient_name || null,
+            recipient_email: newRow.recipient_email || null,
+            subject: newRow.subject || null,
+            assignment_id: newRow.assignment_id || null,
+          });
         }
       )
       .subscribe();
