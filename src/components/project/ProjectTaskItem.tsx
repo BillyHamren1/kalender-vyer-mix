@@ -1,4 +1,4 @@
-import { Calendar, User, MessageSquare, Trash2, GripVertical, ChevronUp, ChevronDown } from "lucide-react";
+import { Calendar, User, MessageSquare, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ProjectTask } from "@/types/project";
 import { format } from "date-fns";
@@ -53,27 +53,26 @@ const ProjectTaskItem = ({ task, onToggle, onClick, onDelete, onMoveUp, onMoveDo
   return (
     <div 
       className={cn(
-        "flex items-start gap-2 p-4 rounded-xl border border-border/40 bg-card hover:bg-muted/30 transition-colors cursor-pointer group",
-        task.completed && "opacity-60"
+        "flex items-center gap-2 py-2.5 px-3 rounded-lg hover:bg-muted/40 transition-colors cursor-pointer group",
+        task.completed && "opacity-50"
       )}
       onClick={onClick}
     >
-      {/* Reorder controls */}
-      <div className="flex flex-col items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" onClick={(e) => e.stopPropagation()}>
+      {/* Reorder controls - compact */}
+      <div className="flex flex-col items-center opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => e.stopPropagation()}>
         <Button
           variant="ghost"
           size="icon"
-          className="h-5 w-5 text-muted-foreground hover:text-foreground"
+          className="h-4 w-4 text-muted-foreground hover:text-foreground"
           onClick={onMoveUp}
           disabled={isFirst}
         >
           <ChevronUp className="h-3 w-3" />
         </Button>
-        <GripVertical className="h-3 w-3 text-muted-foreground/50" />
         <Button
           variant="ghost"
           size="icon"
-          className="h-5 w-5 text-muted-foreground hover:text-foreground"
+          className="h-4 w-4 text-muted-foreground hover:text-foreground"
           onClick={onMoveDown}
           disabled={isLast}
         >
@@ -85,46 +84,39 @@ const ProjectTaskItem = ({ task, onToggle, onClick, onDelete, onMoveUp, onMoveDo
         checked={task.completed}
         onCheckedChange={() => onToggle()}
         onClick={(e) => e.stopPropagation()}
-        className="mt-1"
+        className="shrink-0"
       />
       
-      <div className="flex-1 min-w-0">
-        <p className={cn(
-          "font-medium tracking-tight",
-          task.completed && "line-through text-muted-foreground"
-        )}>
-          {task.title}
-        </p>
-        
-        {task.description && (
-          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-            {task.description}
-          </p>
-        )}
+      <span className={cn(
+        "flex-1 min-w-0 text-sm font-medium truncate",
+        task.completed && "line-through text-muted-foreground"
+      )}>
+        {task.title}
+      </span>
 
-        <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
-          {assignedStaff && (
-            <div className="flex items-center gap-1">
-              <User className="h-3 w-3" />
-              <span>{assignedStaff.name}</span>
-            </div>
-          )}
-          {task.deadline && (
-            <div className={cn(
-              "flex items-center gap-1",
-              isOverdue && "text-destructive font-medium"
-            )}>
-              <Calendar className="h-3 w-3" />
-              <span>{format(new Date(task.deadline), 'd MMM', { locale: sv })}</span>
-            </div>
-          )}
-          {actualCommentCount > 0 && (
-            <div className="flex items-center gap-1">
-              <MessageSquare className="h-3 w-3" />
-              <span>{actualCommentCount}</span>
-            </div>
-          )}
-        </div>
+      {/* Inline metadata */}
+      <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
+        {assignedStaff && (
+          <div className="flex items-center gap-1 max-w-[100px]">
+            <User className="h-3 w-3 shrink-0" />
+            <span className="truncate">{assignedStaff.name}</span>
+          </div>
+        )}
+        {task.deadline && (
+          <div className={cn(
+            "flex items-center gap-1",
+            isOverdue && "text-destructive font-medium"
+          )}>
+            <Calendar className="h-3 w-3" />
+            <span>{format(new Date(task.deadline), 'd MMM', { locale: sv })}</span>
+          </div>
+        )}
+        {actualCommentCount > 0 && (
+          <div className="flex items-center gap-1">
+            <MessageSquare className="h-3 w-3" />
+            <span>{actualCommentCount}</span>
+          </div>
+        )}
       </div>
 
       {/* Delete button */}
@@ -132,13 +124,13 @@ const ProjectTaskItem = ({ task, onToggle, onClick, onDelete, onMoveUp, onMoveDo
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
+          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
           onClick={(e) => {
             e.stopPropagation();
             onDelete();
           }}
         >
-          <Trash2 className="h-4 w-4" />
+          <Trash2 className="h-3.5 w-3.5" />
         </Button>
       )}
     </div>
