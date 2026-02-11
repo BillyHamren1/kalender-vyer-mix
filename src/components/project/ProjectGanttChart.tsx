@@ -143,8 +143,8 @@ const ProjectGanttChart = ({ tasks, onTaskClick }: ProjectGanttChartProps) => {
       <CardHeader className="pb-2">
         <CardTitle>Gantt-schema</CardTitle>
       </CardHeader>
-      <CardContent className="p-0 overflow-x-auto" ref={scrollRef}>
-        <div style={{ width: taskLabelWidth + timelineWidth }}>
+      <div className="overflow-x-auto relative" ref={scrollRef}>
+        <div style={{ minWidth: taskLabelWidth + timelineWidth }}>
           <div className="flex">
             {/* Task labels column - sticky */}
             <div className="flex-shrink-0 border-r bg-background z-20 sticky left-0" style={{ width: taskLabelWidth }}>
@@ -288,7 +288,7 @@ const ProjectGanttChart = ({ tasks, onTaskClick }: ProjectGanttChartProps) => {
             </div>
           </div>
         </div>
-      </CardContent>
+      </div>
 
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-4 p-3 border-t text-xs text-muted-foreground">
