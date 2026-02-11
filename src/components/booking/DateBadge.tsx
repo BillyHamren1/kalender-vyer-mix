@@ -23,7 +23,7 @@ export const DateBadge = ({
   const [dialogOpen, setDialogOpen] = useState(false);
   
   const formatDate = (dateString: string) => {
-    if (!dateString) return 'Not scheduled';
+    if (!dateString) return 'Ej schemalagd';
     return new Date(dateString).toLocaleDateString();
   };
 
@@ -45,10 +45,10 @@ export const DateBadge = ({
   // Map event type to readable name for dialog
   const getEventTypeName = () => {
     switch (eventType) {
-      case 'rig': return 'rig day';
-      case 'event': return 'event date';
-      case 'rigDown': return 'rig down day';
-      default: return 'date';
+      case 'rig': return 'riggdag';
+      case 'event': return 'eventdatum';
+      case 'rigDown': return 'nedriggdag';
+      default: return 'datum';
     }
   };
 
@@ -57,16 +57,16 @@ export const DateBadge = ({
       <Badge 
         className={`px-2 py-1 cursor-pointer bg-primary text-primary-foreground ${isOnlyDate ? 'cursor-default' : 'hover:bg-primary/90'}`}
         onDoubleClick={handleDoubleClick}
-        title={isOnlyDate ? "Cannot remove the only " + getEventTypeName() : "Double-click to remove"}
+        title={isOnlyDate ? "Kan inte ta bort enda " + getEventTypeName() : "Dubbelklicka för att ta bort"}
       >
         {formatDate(date)}
       </Badge>
       
-      <ConfirmationDialog
-        title={`Remove ${getEventTypeName()}?`}
-        description={`Are you sure you want to remove ${formatDate(date)}? This action will also remove the associated calendar event.`}
-        confirmLabel="Remove"
-        cancelLabel="Cancel"
+        <ConfirmationDialog
+        title={`Ta bort ${getEventTypeName()}?`}
+        description={`Är du säker på att du vill ta bort ${formatDate(date)}? Detta tar även bort den associerade kalenderhändelsen.`}
+        confirmLabel="Ta bort"
+        cancelLabel="Avbryt"
         onConfirm={handleConfirmRemove}
         open={dialogOpen}
         onOpenChange={setDialogOpen}

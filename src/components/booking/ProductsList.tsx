@@ -109,7 +109,7 @@ const ProductItem = ({ product, isAccessory: isAcc, showPricing = true }: { prod
     <div className={`py-2 ${isAcc ? 'pl-4 text-muted-foreground' : ''}`}>
       <div className="flex justify-between">
         <span className={`text-sm ${isAcc ? '' : 'font-medium'}`}>{cleanProductName(product.name)}</span>
-        <span className="text-xs text-muted-foreground">Qty: {product.quantity}</span>
+        <span className="text-xs text-muted-foreground">Antal: {product.quantity}</span>
       </div>
       {showPricing && product.unitPrice && (
         <p className="text-xs text-muted-foreground mt-0.5">
@@ -155,7 +155,7 @@ const ProductGroupItem = ({ group, showPricing = true }: { group: ProductGroup; 
               <span className="text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded">
                 +{group.accessories.length}
               </span>
-              <span className="text-xs text-muted-foreground">Qty: {group.parent.quantity}</span>
+              <span className="text-xs text-muted-foreground">Antal: {group.parent.quantity}</span>
             </div>
           </div>
         </div>

@@ -90,7 +90,7 @@ export const InternalNotes = ({ notes, bookingId, isSaving = false, onSave }: In
         ) : (
           <div 
             className={`text-sm cursor-pointer rounded p-2 transition-colors ${
-              notes ? 'text-gray-700' : 'text-gray-400 italic hover:bg-gray-50'
+              notes ? 'text-foreground' : 'text-muted-foreground italic hover:bg-muted'
             }`}
             onClick={handleEdit}
           >
