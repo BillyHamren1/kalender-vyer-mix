@@ -1,84 +1,50 @@
 
-# Utokat Gantt-schema och fullstandig projekthistorik
+# Samlad projektvy -- allt synligt utan flikar
 
-## Del 1: Gantt-schemat visar alla uppgifter (inklusive administrativa)
+## Vad vi andrar
 
-Idag visar Gantt-schemat pa Projektvyn (`ProjectGanttChart`) bara uppgifter som har deadlines. Det etablerings-Gantt som visas pa bilden ar en separat komponent for fysiska logistiksteg.
+Idag ar projektvyn uppdelad i flikar (Uppgifter, Filer, Kommentarer, Historik, Transport). Anvandaren maste klicka mellan flikar for att se olika delar. Vi tar bort flik-strukturen och visar **allt pa en enda scrollbar sida** i logiska sektioner, plus en ny sektion for bokningens produkter.
 
-### Andring
-Uppdatera `ProjectGanttChart` sa att det visar **samtliga** uppgifter fran projektets checklista -- inklusive administrativa som "Transportbokning", "Offert skickad" etc. Uppgifter utan deadline far en beraknad position baserat pa skapad-datum och en standardlangd. Fargkodning baseras pa uppgiftskategori:
+## Ny sidstruktur (uppifran och ned)
 
-| Kategori | Farg | Matchningsregel |
-|----------|------|-----------------|
-| Transport | Bla | Titel innehaller "transport" |
-| Material | Orange | Titel innehaller "material" eller "produkt" |
-| Personal | Gron | Titel innehaller "personal" |
-| Installation | Lila | Titel innehaller "montering" eller "installation" |
-| Kontroll | Teal | Titel innehaller "kontroll" eller "slutkontroll" |
-| Admin | Gra | Alla ovriga |
+1. **Oversiktskort** (befintliga 3 kort -- behalls som de ar)
+2. **Gantt-schema** (befintligt, visas alltid)
+3. **Utrustning / Produkter** (NY) -- Visar bokningens produkter med hierarkisk gruppering
+4. **Uppgifter** -- Checklistan
+5. **Transport** -- Transportwidgeten
+6. **Filer** -- Filsektionen
+7. **Kommentarer** -- Kommentarsektionen
+8. **Historik** -- Aktivitetsloggen
 
-En legend visas langst ned (som i skarmbilden).
+Varje sektion far en kompakt rubrik med ikon och badge (antal). Sektionerna ar visuellt separerade med `space-y-6`.
 
-### Filer
-- `src/components/project/ProjectGanttChart.tsx` -- Ny fargkategorisering, inkludera uppgifter utan deadline, uppdaterad legend
+## Ny komponent: Produktlista
 
-## Del 2: Fullstandig projekthistorik med detaljvy
+En ny komponent `ProjectProductsList` som:
+- Tar emot `bookingId` och hamtar produkter fran `booking_products`
+- Visar produkter i en kompakt lista med hierarkisk gruppering (samma logik som redan finns i projektet -- `parent_product_id`, `is_package_component`)
+- Visar namn, antal, och eventuell notering
+- Visar totalvikt/volym om data finns
+- Ren, kompakt design utan overflodiga detaljer
 
-### Problem idag
-Aktivitetsloggen visar enradsbeskrivningar ("Transport bokad: Fordon X") men saknar:
-- Detaljvy: man kan inte klicka och se *vad* som hande
-- Mejlinnehall: att se det faktiska mejlet som skickades
-- Partnersvar: vem svarade, nar, och vad de svarade
-- Tidsstamplar for varje delsteg
+## Teknisk plan
 
-### Losning: Expanderbar historikrad med detaljinnehall
+### 1. `ProjectViewPage.tsx` -- Ta bort Tabs, visa allt
+- Ta bort `Tabs`, `TabsContent`, `TabsList`, `TabsTrigger` helt
+- Renderar alla sektioner sekventiellt med sektionsrubriker
+- Lagg till Gantt-schemat och den nya produktlistan
 
-Varje rad i aktivitetsloggen blir klickbar/expanderbar. Vid expandering visas:
+### 2. `ProjectProductsList.tsx` (NY)
+- Hamtar `booking_products` via `bookingId`
+- Renderar en Card med rubrik "Utrustning" och produktlista
+- Hierarkisk gruppering: huvudprodukter visas normalt, tillbehor/paketkomponenter indenteras med `pl-6` och `arrow`-indikator
+- Visar `name`, `quantity`, och summary-rad med total antal produkter
 
-**For `email_sent` / `email_snapshot`:**
-- Mottagare (namn + e-post)
-- Amnesrad
-- Eventuellt meddelande
-- Skickat-tidpunkt
-- Mejlforhandsgranskning (bild fran `email_snapshot` om den finns)
+### 3. `useProjectDetail.tsx` -- Ingen andring (redan exponerar all data)
 
-**For `transport_added` / `transport_updated`:**
-- Fordon och fordonstyp
-- Transportdatum och tid
-- Upphantningsadress
-- Status (vantande, accepterad, nekad)
-
-**For `transport_response` / `transport_declined`:**
-- Partnerns namn
-- Svar (Accepterad/Nekad)
-- Svarstidpunkt
-- Fordon
-
-**For `task_completed`:**
-- Uppgiftsnamn
-- Vem som slutforde
-- Nar
-
-### Implementering
-
-1. **Utoka metadata vid loggning** -- Nar aktiviteter loggas (i `useProjectDetail.tsx`), spara rikare metadata. Till exempel vid `email_sent`: spara `recipient_email`, `subject`, `assignment_id`. Vid `transport_response`: spara `vehicle_name`, `partner_name`, `response_type`.
-
-2. **Expanderbar rad i `ProjectActivityLog`** -- Anvand Collapsible fran Radix for att visa/dolj detaljer. Klick pa en rad expanderar den och visar metadata formaterat i en kompakt detaljvy.
-
-3. **Mejlforhandsgranskning inline** -- For `email_snapshot`-poster: visa mejlbilden direkt i den expanderade raden (redan delvis implementerat).
-
-4. **Hamta kompletterande data vid behov** -- For transport-poster: hamta `transport_assignments` och `transport_email_log` och matcha mot `assignment_id` i metadata for att visa fullstandiga detaljer.
-
-### Filer
-- `src/components/project/ProjectActivityLog.tsx` -- Expanderbara rader med detaljinnehall per aktivitetstyp
-- `src/hooks/useProjectDetail.tsx` -- Rikare metadata vid loggning av aktiviteter
-- `src/services/projectActivityService.ts` -- Ev. ny funktion for att hamta transport-detaljer kopplat till en aktivitet
-
-## Sammanfattning av filer
+## Filer
 
 | Fil | Andring |
 |-----|---------|
-| `src/components/project/ProjectGanttChart.tsx` | Kategorifarger, inkludera alla uppgifter, legend |
-| `src/components/project/ProjectActivityLog.tsx` | Expanderbara rader med rik detaljvy |
-| `src/hooks/useProjectDetail.tsx` | Utokad metadata vid loggning |
-| `src/services/projectActivityService.ts` | Hjalp-funktion for transportdetaljer |
+| `src/pages/project/ProjectViewPage.tsx` | Ta bort flikar, visa allt sekventiellt, lagg till Gantt + Produkter |
+| `src/components/project/ProjectProductsList.tsx` | Ny komponent for bokningens produkter |
