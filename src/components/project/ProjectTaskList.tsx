@@ -84,36 +84,36 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
             Lägg till
           </Button>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="p-0 pb-2">
           {tasks.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">
+            <p className="text-muted-foreground text-center py-8 px-6">
               Inga uppgifter ännu. Klicka på "Lägg till" för att skapa en.
             </p>
           ) : (
-            <>
+            <div className="divide-y divide-border/30">
               {/* Incomplete tasks */}
               {incompleteTasks.map((task, i) => renderTaskItem(task, i, incompleteTasks))}
               
               {/* Info tasks (milestones) */}
               {infoTasks.length > 0 && (
-                <div className="pt-4 border-t border-border/40">
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Milstolpar
-                  </p>
+                <>
+                  <div className="px-4 pt-3 pb-1">
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Milstolpar</span>
+                  </div>
                   {infoTasks.map((task, i) => renderTaskItem(task, i, infoTasks))}
-                </div>
+                </>
               )}
               
               {/* Completed tasks */}
               {completedTasks.length > 0 && (
-                <div className="pt-4 border-t border-border/40">
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Klara ({completedTasks.length})
-                  </p>
+                <>
+                  <div className="px-4 pt-3 pb-1">
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Klara ({completedTasks.length})</span>
+                  </div>
                   {completedTasks.map((task, i) => renderTaskItem(task, i, completedTasks))}
-                </div>
+                </>
               )}
-            </>
+            </div>
           )}
         </CardContent>
 
