@@ -1,84 +1,84 @@
 
+# Utokat Gantt-schema och fullstandig projekthistorik
 
-# Mina projekt -- personlig projektsamlingssida
+## Del 1: Gantt-schemat visar alla uppgifter (inklusive administrativa)
 
-## Vad vi bygger
+Idag visar Gantt-schemat pa Projektvyn (`ProjectGanttChart`) bara uppgifter som har deadlines. Det etablerings-Gantt som visas pa bilden ar en separat komponent for fysiska logistiksteg.
 
-En ny sida "Mina projekt" som ger den inloggade anvandaren en samlad oversikt over alla projekt (sma, medelstora och stora) dar hen ar involverad -- antingen som projektledare eller med tilldelade uppgifter. Sidan ger snabb kontroll over status, deadlines och uppgifter utan att behova klicka sig igenom alla projektlistor.
+### Andring
+Uppdatera `ProjectGanttChart` sa att det visar **samtliga** uppgifter fran projektets checklista -- inklusive administrativa som "Transportbokning", "Offert skickad" etc. Uppgifter utan deadline far en beraknad position baserat pa skapad-datum och en standardlangd. Fargkodning baseras pa uppgiftskategori:
 
-## Hur vi kopplar inloggad anvandare till projekt
+| Kategori | Farg | Matchningsregel |
+|----------|------|-----------------|
+| Transport | Bla | Titel innehaller "transport" |
+| Material | Orange | Titel innehaller "material" eller "produkt" |
+| Personal | Gron | Titel innehaller "personal" |
+| Installation | Lila | Titel innehaller "montering" eller "installation" |
+| Kontroll | Teal | Titel innehaller "kontroll" eller "slutkontroll" |
+| Admin | Gra | Alla ovriga |
 
-Systemet har foljande koppling:
-1. Inloggad anvandare har ett `user_id` (Supabase Auth)
-2. Tabellen `profiles` kopplar `user_id` till `email`
-3. Tabellen `staff_members` har samma `email` -- det ger ett `staff_id`
-4. Projekt har `project_leader` = staff_id
-5. Uppgifter har `assigned_to` = staff_id
+En legend visas langst ned (som i skarmbilden).
 
-Vi skapar en hook som slar upp den inloggade anvandarens staff_id via email-matchning.
+### Filer
+- `src/components/project/ProjectGanttChart.tsx` -- Ny fargkategorisering, inkludera uppgifter utan deadline, uppdaterad legend
 
-## Sidans uppbyggnad
+## Del 2: Fullstandig projekthistorik med detaljvy
 
-Sidan visar:
-- **Snabbstatistik** -- Antal aktiva projekt, oavslutade uppgifter, forsenade uppgifter
-- **Projektkort** -- Ett kort per projekt (bade vanliga och stora) med:
-  - Projektnamn och kund
-  - Status (Planering/Pagaende etc.)
-  - Eventdatum
-  - Uppgiftsframgang (X/Y klara, progress bar)
-  - Nastakommande deadline
-  - Din roll (Projektledare eller Tilldelad uppgift)
-- **Filtrera/sortera** -- Pa status, projekttyp, och sortering (datum, namn)
+### Problem idag
+Aktivitetsloggen visar enradsbeskrivningar ("Transport bokad: Fordon X") men saknar:
+- Detaljvy: man kan inte klicka och se *vad* som hande
+- Mejlinnehall: att se det faktiska mejlet som skickades
+- Partnersvar: vem svarade, nar, och vad de svarade
+- Tidsstamplar for varje delsteg
 
-## Teknisk plan
+### Losning: Expanderbar historikrad med detaljinnehall
 
-### 1. Ny hook: `useCurrentStaffId`
-Skapar en liten hook som:
-- Hamtar `user.email` fran `useAuth()`
-- Slar upp matchande `staff_members.id` via email
-- Returnerar `{ staffId, isLoading }`
+Varje rad i aktivitetsloggen blir klickbar/expanderbar. Vid expandering visas:
 
-**Fil:** `src/hooks/useCurrentStaffId.ts`
+**For `email_sent` / `email_snapshot`:**
+- Mottagare (namn + e-post)
+- Amnesrad
+- Eventuellt meddelande
+- Skickat-tidpunkt
+- Mejlforhandsgranskning (bild fran `email_snapshot` om den finns)
 
-### 2. Ny service-funktion: `fetchMyProjects`
-Hamtar alla projekt dar anvandaren ar inblandad:
-- Vanliga projekt: dar `project_leader = staffId` ELLER dar det finns `project_tasks` med `assigned_to = staffId`
-- Stora projekt: dar `project_leader = staffId` ELLER dar det finns `large_project_tasks` med `assigned_to = staffId`
-- Inkluderar booking-data (kund, eventdatum) och uppgiftsstatistik
+**For `transport_added` / `transport_updated`:**
+- Fordon och fordonstyp
+- Transportdatum och tid
+- Upphantningsadress
+- Status (vantande, accepterad, nekad)
 
-**Fil:** `src/services/myProjectsService.ts`
+**For `transport_response` / `transport_declined`:**
+- Partnerns namn
+- Svar (Accepterad/Nekad)
+- Svarstidpunkt
+- Fordon
 
-### 3. Ny sida: `MyProjects`
-Renderar en samlad vy med:
-- Header med ikon och titel "Mina projekt"
-- Statistik-rad (aktiva projekt, oppna uppgifter, forsenade)
-- Filterbar (status, projekttyp)
-- Projektkortlista -- varje kort ar klickbart och navigerar till ratt projektdetaljsida (`/project/:id` eller `/large-project/:id`)
-- Tom-vy om inga projekt ar kopplade
+**For `task_completed`:**
+- Uppgiftsnamn
+- Vem som slutforde
+- Nar
 
-**Fil:** `src/pages/MyProjects.tsx`
+### Implementering
 
-### 4. Route och navigation
-- Ny route: `/my-projects`
-- Lagg till i sidomenyn (Sidebar3D) som forsta alternativ under "Dashboard", med ikon `Briefcase` och titel "Mina projekt"
+1. **Utoka metadata vid loggning** -- Nar aktiviteter loggas (i `useProjectDetail.tsx`), spara rikare metadata. Till exempel vid `email_sent`: spara `recipient_email`, `subject`, `assignment_id`. Vid `transport_response`: spara `vehicle_name`, `partner_name`, `response_type`.
 
-**Filer:** `src/App.tsx`, `src/components/Sidebar3D.tsx`
+2. **Expanderbar rad i `ProjectActivityLog`** -- Anvand Collapsible fran Radix for att visa/dolj detaljer. Klick pa en rad expanderar den och visar metadata formaterat i en kompakt detaljvy.
 
-### 5. Designregler som foljs
-- `bg-card`, `shadow-sm`, `rounded-lg` for kort
-- `border-l-[3px] border-l-primary` for vansterteal-kant
-- `text-muted-foreground` for sekundar text
-- `bg-primary text-primary-foreground` for badges
-- Alla texter pa svenska
-- Semantiska fargvariabler, inga hardkodade hex/gray
+3. **Mejlforhandsgranskning inline** -- For `email_snapshot`-poster: visa mejlbilden direkt i den expanderade raden (redan delvis implementerat).
 
-## Filer som skapas/andras
+4. **Hamta kompletterande data vid behov** -- For transport-poster: hamta `transport_assignments` och `transport_email_log` och matcha mot `assignment_id` i metadata for att visa fullstandiga detaljer.
 
-| Fil | Aktion |
-|-----|--------|
-| `src/hooks/useCurrentStaffId.ts` | Ny |
-| `src/services/myProjectsService.ts` | Ny |
-| `src/pages/MyProjects.tsx` | Ny |
-| `src/App.tsx` | Lagg till route |
-| `src/components/Sidebar3D.tsx` | Lagg till menyvalet "Mina projekt" |
+### Filer
+- `src/components/project/ProjectActivityLog.tsx` -- Expanderbara rader med detaljinnehall per aktivitetstyp
+- `src/hooks/useProjectDetail.tsx` -- Rikare metadata vid loggning av aktiviteter
+- `src/services/projectActivityService.ts` -- Ev. ny funktion for att hamta transport-detaljer kopplat till en aktivitet
 
+## Sammanfattning av filer
+
+| Fil | Andring |
+|-----|---------|
+| `src/components/project/ProjectGanttChart.tsx` | Kategorifarger, inkludera alla uppgifter, legend |
+| `src/components/project/ProjectActivityLog.tsx` | Expanderbara rader med rik detaljvy |
+| `src/hooks/useProjectDetail.tsx` | Utokad metadata vid loggning |
+| `src/services/projectActivityService.ts` | Hjalp-funktion for transportdetaljer |
