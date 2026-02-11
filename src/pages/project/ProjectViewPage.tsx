@@ -1,21 +1,33 @@
 import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
+import ProjectGanttChart from "@/components/project/ProjectGanttChart";
+import ProjectProductsList from "@/components/project/ProjectProductsList";
 import ProjectTaskList from "@/components/project/ProjectTaskList";
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectComments from "@/components/project/ProjectComments";
 import ProjectActivityLog from "@/components/project/ProjectActivityLog";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import ProjectTransportBookingDialog from "@/components/project/ProjectTransportBookingDialog";
-
 import TaskDetailSheet from "@/components/project/TaskDetailSheet";
 import { ProjectTask } from "@/types/project";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
+import { ListChecks, Truck, FileText, MessageSquare, History, Package } from "lucide-react";
 
-const tabTriggerClass =
-  "relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground";
+const SectionHeader = ({ icon: Icon, title, count }: { icon: React.ElementType; title: string; count?: number }) => (
+  <div className="flex items-center gap-2 mb-3">
+    <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-primary/10">
+      <Icon className="h-4 w-4 text-primary" />
+    </div>
+    <h2 className="text-base font-semibold text-foreground tracking-tight">{title}</h2>
+    {count !== undefined && count > 0 && (
+      <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary text-primary-foreground">
+        {count}
+      </span>
+    )}
+  </div>
+);
 
 const ProjectViewPage = () => {
   const detail = useOutletContext<ReturnType<typeof useProjectDetail>>();
@@ -48,90 +60,63 @@ const ProjectViewPage = () => {
         activities={activities}
       />
 
-      {/* Tabbed content */}
-      <Tabs defaultValue="tasks" className="space-y-6">
-        <div className="border-b border-border/40 overflow-x-auto">
-          <TabsList className="h-auto p-0 bg-transparent gap-0">
-            <TabsTrigger value="tasks" className={tabTriggerClass}>
-              Uppgifter
-              {tasks.length > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                  {tasks.length}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="files" className={tabTriggerClass}>
-              Filer
-              {files.length > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                  {files.length}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="comments" className={tabTriggerClass}>
-              Kommentarer
-              {comments.length > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                  {comments.length}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="activity" className={tabTriggerClass}>
-              Historik
-              {activities.length > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                  {activities.length}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="transport" className={tabTriggerClass}>
-              Transport
-              {transportAssignments.length > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                  {transportAssignments.length}
-                </span>
-              )}
-            </TabsTrigger>
-          </TabsList>
-        </div>
+      {/* Gantt chart */}
+      <ProjectGanttChart tasks={tasks} />
 
-        <TabsContent value="tasks">
-          <ProjectTaskList
-            tasks={tasks}
-            onAddTask={detail.addTask}
-            onUpdateTask={detail.updateTask}
-            onDeleteTask={detail.deleteTask}
-            onTaskAction={(task) => {
-              if (task.title === 'Transportbokning' && bookingId) {
-                setTransportBookingOpen(true);
-                return true; // handled, don't open detail sheet
-              }
-              return false;
-            }}
-          />
-        </TabsContent>
+      {/* Equipment / Products */}
+      {bookingId && (
+        <section>
+          <SectionHeader icon={Package} title="Utrustning" />
+          <ProjectProductsList bookingId={bookingId} />
+        </section>
+      )}
 
-        <TabsContent value="files">
-          <ProjectFiles
-            files={files}
-            onUpload={detail.uploadFile}
-            onDelete={detail.deleteFile}
-            isUploading={detail.isUploadingFile}
-          />
-        </TabsContent>
+      {/* Tasks */}
+      <section>
+        <SectionHeader icon={ListChecks} title="Uppgifter" count={tasks.length} />
+        <ProjectTaskList
+          tasks={tasks}
+          onAddTask={detail.addTask}
+          onUpdateTask={detail.updateTask}
+          onDeleteTask={detail.deleteTask}
+          onTaskAction={(task) => {
+            if (task.title === 'Transportbokning' && bookingId) {
+              setTransportBookingOpen(true);
+              return true;
+            }
+            return false;
+          }}
+        />
+      </section>
 
-        <TabsContent value="comments">
-          <ProjectComments comments={comments} onAddComment={detail.addComment} />
-        </TabsContent>
+      {/* Transport */}
+      <section>
+        <SectionHeader icon={Truck} title="Transport" count={transportAssignments.length} />
+        <ProjectTransportWidget bookingId={bookingId} />
+      </section>
 
-        <TabsContent value="activity">
-          <ProjectActivityLog activities={activities} />
-        </TabsContent>
+      {/* Files */}
+      <section>
+        <SectionHeader icon={FileText} title="Filer" count={files.length} />
+        <ProjectFiles
+          files={files}
+          onUpload={detail.uploadFile}
+          onDelete={detail.deleteFile}
+          isUploading={detail.isUploadingFile}
+        />
+      </section>
 
-        <TabsContent value="transport">
-          <ProjectTransportWidget bookingId={bookingId} />
-        </TabsContent>
-      </Tabs>
+      {/* Comments */}
+      <section>
+        <SectionHeader icon={MessageSquare} title="Kommentarer" count={comments.length} />
+        <ProjectComments comments={comments} onAddComment={detail.addComment} />
+      </section>
+
+      {/* Activity History */}
+      <section>
+        <SectionHeader icon={History} title="Historik" count={activities.length} />
+        <ProjectActivityLog activities={activities} />
+      </section>
 
       {/* Task detail sheet */}
       <TaskDetailSheet
@@ -149,7 +134,6 @@ const ProjectViewPage = () => {
           onOpenChange={setTransportBookingOpen}
           onComplete={() => {
             refetchTransport();
-            // Auto-complete the Transportbokning task
             const transportTask = tasks.find(t => t.title === 'Transportbokning' && !t.completed);
             if (transportTask) {
               detail.updateTask({ id: transportTask.id, updates: { completed: true } });
