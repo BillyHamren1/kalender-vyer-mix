@@ -1,103 +1,84 @@
 
 
-# UI-granskning: Avvikelser fran designsystemet
+# Mina projekt -- personlig projektsamlingssida
 
-## Hittade problem
+## Vad vi bygger
 
-### 1. ClientInformation -- avvikande storlekar
-Kortet anvander mindre padding och typsnitt an alla andra kort:
-- `py-2 px-3` istallet for `py-3 px-4`
-- `text-sm` istallet for `text-base`
-- `h-3.5 w-3.5` ikon istallet for `h-4 w-4`
+En ny sida "Mina projekt" som ger den inloggade anvandaren en samlad oversikt over alla projekt (sma, medelstora och stora) dar hen ar involverad -- antingen som projektledare eller med tilldelade uppgifter. Sidan ger snabb kontroll over status, deadlines och uppgifter utan att behova klicka sig igenom alla projektlistor.
 
-### 2. Engelska kvar i flera komponenter
+## Hur vi kopplar inloggad anvandare till projekt
 
-**StatusChangeForm.tsx:**
-- Statusetiketter: "Offer", "Confirmed", "Cancelled" -- bor vara "Offert", "Bekraftad", "Avbokad"
-- "Updating..." -- bor vara "Uppdaterar..."
+Systemet har foljande koppling:
+1. Inloggad anvandare har ett `user_id` (Supabase Auth)
+2. Tabellen `profiles` kopplar `user_id` till `email`
+3. Tabellen `staff_members` har samma `email` -- det ger ett `staff_id`
+4. Projekt har `project_leader` = staff_id
+5. Uppgifter har `assigned_to` = staff_id
 
-**DateBadge.tsx:**
-- "Not scheduled" -- bor vara "Ej schemalagd"
-- ConfirmationDialog: "Remove rig day?", "Are you sure you want to remove...?", "Remove", "Cancel" -- allt pa engelska
-- Tooltip: "Double-click to remove" / "Cannot remove the only..." -- engelska
+Vi skapar en hook som slar upp den inloggade anvandarens staff_id via email-matchning.
 
-**DatesSection.tsx:**
-- "No dates scheduled" -- bor vara "Inga datum schemalagda"
+## Sidans uppbyggnad
 
-**ProductsList.tsx:**
-- "Qty:" -- bor vara "Antal:" eller "St:"
+Sidan visar:
+- **Snabbstatistik** -- Antal aktiva projekt, oavslutade uppgifter, forsenade uppgifter
+- **Projektkort** -- Ett kort per projekt (bade vanliga och stora) med:
+  - Projektnamn och kund
+  - Status (Planering/Pagaende etc.)
+  - Eventdatum
+  - Uppgiftsframgang (X/Y klara, progress bar)
+  - Nastakommande deadline
+  - Din roll (Projektledare eller Tilldelad uppgift)
+- **Filtrera/sortera** -- Pa status, projekttyp, och sortering (datum, namn)
 
-### 3. Hardkodade gra farger istallet for semantiska
+## Teknisk plan
 
-Designsystemet foreskriver `text-muted-foreground` och `bg-muted` istallet for `text-gray-500`, `text-gray-400`, `bg-gray-50` etc.
+### 1. Ny hook: `useCurrentStaffId`
+Skapar en liten hook som:
+- Hamtar `user.email` fran `useAuth()`
+- Slar upp matchande `staff_members.id` via email
+- Returnerar `{ staffId, isLoading }`
 
-**AttachmentsList.tsx:**
-- `text-gray-500` (rad 211, 314) -- bor vara `text-muted-foreground`
-- `text-gray-400` (rad 359) -- bor vara `text-muted-foreground`
-- `divide-gray-100` (rad 244) -- bor vara `divide-border`
-- `text-blue-600` for lankar (rad 300, 310) -- bor vara `text-primary`
+**Fil:** `src/hooks/useCurrentStaffId.ts`
 
-**InternalNotes.tsx:**
-- `text-gray-700` (rad 93) -- bor vara `text-foreground`
-- `text-gray-400` (rad 93) -- bor vara `text-muted-foreground`
-- `hover:bg-gray-50` (rad 93) -- bor vara `hover:bg-muted`
+### 2. Ny service-funktion: `fetchMyProjects`
+Hamtar alla projekt dar anvandaren ar inblandad:
+- Vanliga projekt: dar `project_leader = staffId` ELLER dar det finns `project_tasks` med `assigned_to = staffId`
+- Stora projekt: dar `project_leader = staffId` ELLER dar det finns `large_project_tasks` med `assigned_to = staffId`
+- Inkluderar booking-data (kund, eventdatum) och uppgiftsstatistik
 
-**DatesSection.tsx:**
-- `text-gray-500` (rad 52) -- bor vara `text-muted-foreground`
+**Fil:** `src/services/myProjectsService.ts`
 
-**StatusChangeForm.tsx:**
-- `text-gray-500` (rad 163) -- bor vara `text-muted-foreground`
-- DialogContent saknar `bg-card` (designsystemkrav for alla dialoger/popups)
+### 3. Ny sida: `MyProjects`
+Renderar en samlad vy med:
+- Header med ikon och titel "Mina projekt"
+- Statistik-rad (aktiva projekt, oppna uppgifter, forsenade)
+- Filterbar (status, projekttyp)
+- Projektkortlista -- varje kort ar klickbart och navigerar till ratt projektdetaljsida (`/project/:id` eller `/large-project/:id`)
+- Tom-vy om inga projekt ar kopplade
 
-### 4. StatusChangeForm dialog saknar bg-card
-Alla dialoger ska ha `bg-card` enligt designsystemet. Rad 169: `<DialogContent className="max-w-sm">` saknar `bg-card`.
+**Fil:** `src/pages/MyProjects.tsx`
 
----
+### 4. Route och navigation
+- Ny route: `/my-projects`
+- Lagg till i sidomenyn (Sidebar3D) som forsta alternativ under "Dashboard", med ikon `Briefcase` och titel "Mina projekt"
 
-## Atgardsplan
+**Filer:** `src/App.tsx`, `src/components/Sidebar3D.tsx`
 
-### Steg 1: ClientInformation -- standardisera storlekar
-Andra till `py-3 px-4`, `text-base`, och `h-4 w-4` for att matcha ovriga kort.
+### 5. Designregler som foljs
+- `bg-card`, `shadow-sm`, `rounded-lg` for kort
+- `border-l-[3px] border-l-primary` for vansterteal-kant
+- `text-muted-foreground` for sekundar text
+- `bg-primary text-primary-foreground` for badges
+- Alla texter pa svenska
+- Semantiska fargvariabler, inga hardkodade hex/gray
 
-### Steg 2: Oversatt all kvarvarande engelska
+## Filer som skapas/andras
 
-**StatusChangeForm.tsx:**
-- "Offer" till "Offert", "Confirmed" till "Bekraftad", "Cancelled" till "Avbokad"
-- "Updating..." till "Uppdaterar..."
-
-**DateBadge.tsx:**
-- "Not scheduled" till "Ej schemalagd"
-- "Remove rig day?" till "Ta bort riggdag?"
-- Bekraftelsetext och knappar pa svenska
-- Tooltip-texter pa svenska
-
-**DatesSection.tsx:**
-- "No dates scheduled" till "Inga datum schemalagda"
-
-**ProductsList.tsx:**
-- "Qty:" till "Antal:"
-
-### Steg 3: Byt hardkodade farger till semantiska
-
-I **AttachmentsList.tsx**, **InternalNotes.tsx**, **DatesSection.tsx**, och **StatusChangeForm.tsx**:
-- `text-gray-*` till `text-muted-foreground` / `text-foreground`
-- `bg-gray-50` till `bg-muted`
-- `divide-gray-100` till `divide-border`
-- `text-blue-600` till `text-primary`
-
-### Steg 4: Lagg till bg-card pa StatusChangeForm-dialogen
-
----
-
-## Filer som andras
-
-| Fil | Andring |
-|-----|---------|
-| `src/components/booking/ClientInformation.tsx` | Standardisera padding/storlekar |
-| `src/components/booking/StatusChangeForm.tsx` | Svenska etiketter, semantiska farger, bg-card |
-| `src/components/booking/DateBadge.tsx` | Svenska texter |
-| `src/components/booking/DatesSection.tsx` | Svenska texter, semantiska farger |
-| `src/components/booking/ProductsList.tsx` | "Qty" till "Antal" |
-| `src/components/booking/AttachmentsList.tsx` | Semantiska farger |
-| `src/components/booking/InternalNotes.tsx` | Semantiska farger |
+| Fil | Aktion |
+|-----|--------|
+| `src/hooks/useCurrentStaffId.ts` | Ny |
+| `src/services/myProjectsService.ts` | Ny |
+| `src/pages/MyProjects.tsx` | Ny |
+| `src/App.tsx` | Lagg till route |
+| `src/components/Sidebar3D.tsx` | Lagg till menyvalet "Mina projekt" |
 
