@@ -49,9 +49,9 @@ export const DatesSection = ({
           ))}
         </div>
       ) : (
-        <div className="text-gray-500 text-sm flex items-center mt-2">
+        <div className="text-muted-foreground text-sm flex items-center mt-2">
           <CalendarX className="h-4 w-4 mr-1" />
-          No dates scheduled
+          Inga datum schemalagda
         </div>
       )}
     </div>

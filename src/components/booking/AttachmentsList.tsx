@@ -208,7 +208,7 @@ export const AttachmentsList = ({ bookingId, attachments, onAttachmentDeleted, o
                     className="data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground"
                     {...(someSelected ? { 'data-state': 'indeterminate' } : {})}
                   />
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-muted-foreground">
                     {selectedAttachments.size > 0 ? `${selectedAttachments.size} valda` : 'Välj alla'}
                   </span>
                 </div>
@@ -241,7 +241,7 @@ export const AttachmentsList = ({ bookingId, attachments, onAttachmentDeleted, o
       </CardHeader>
       <CardContent className="pt-0 px-4 pb-3">
         {attachments && attachments.length > 0 ? (
-          <ul className="divide-y divide-gray-100">
+          <ul className="divide-y divide-border">
             {attachments.map(attachment => (
               <li key={attachment.id} className="py-2 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -297,7 +297,7 @@ export const AttachmentsList = ({ bookingId, attachments, onAttachmentDeleted, o
                             href={attachment.url} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline text-sm truncate"
+                            className="text-primary hover:underline text-sm truncate"
                           >
                             {attachment.fileName}
                           </a>
@@ -307,11 +307,11 @@ export const AttachmentsList = ({ bookingId, attachments, onAttachmentDeleted, o
                           href={attachment.url} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="flex items-center text-blue-600 hover:underline text-sm flex-1 min-w-0"
+                          className="flex items-center text-primary hover:underline text-sm flex-1 min-w-0"
                         >
                           <FileImage className="h-3.5 w-3.5 mr-1.5 flex-shrink-0" />
                           <span className="truncate">{attachment.fileName}</span>
-                          <span className="text-xs text-gray-500 ml-1.5 flex-shrink-0">
+                          <span className="text-xs text-muted-foreground ml-1.5 flex-shrink-0">
                             ({attachment.fileType})
                           </span>
                         </a>
@@ -356,7 +356,7 @@ export const AttachmentsList = ({ bookingId, attachments, onAttachmentDeleted, o
             ))}
           </ul>
         ) : (
-          <div className="text-sm text-gray-400 italic py-2">
+          <div className="text-sm text-muted-foreground italic py-2">
             Inga bilagor tillgängliga
           </div>
         )}

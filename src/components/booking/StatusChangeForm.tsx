@@ -28,17 +28,17 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
   const statusOptions: { value: BookingStatus; label: string; icon: React.ReactNode }[] = [
     { 
       value: 'OFFER', 
-      label: 'Offer', 
+      label: 'Offert', 
       icon: <Clock className="h-3 w-3" /> 
     },
     { 
       value: 'CONFIRMED', 
-      label: 'Confirmed', 
+      label: 'Bekräftad', 
       icon: <CheckCircle className="h-3 w-3" /> 
     },
     { 
       value: 'CANCELLED', 
-      label: 'Cancelled', 
+      label: 'Avbokad', 
       icon: <XCircle className="h-3 w-3" /> 
     }
   ];
@@ -160,13 +160,13 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
         </Select>
 
         {isUpdating && (
-          <div className="text-xs text-gray-500">Updating...</div>
+          <div className="text-xs text-muted-foreground">Uppdaterar...</div>
         )}
       </div>
 
       {/* Confirmation Dialog */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm bg-card">
           <DialogHeader>
             <DialogTitle>Bekräfta statusändring</DialogTitle>
             <DialogDescription className="text-sm pt-2">
