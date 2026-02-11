@@ -110,9 +110,9 @@ const ProjectGanttChart = ({ tasks, onTaskClick }: ProjectGanttChartProps) => {
   useEffect(() => {
     if (ganttData && scrollRef.current) {
       const today = startOfDay(new Date());
-      const daysSinceStart = differenceInDays(today, ganttData.minDate);
       const dayWidth = 40;
-      scrollRef.current.scrollLeft = Math.max(0, daysSinceStart * dayWidth - 100);
+      const daysSinceStart = differenceInDays(today, ganttData.minDate);
+      scrollRef.current.scrollLeft = Math.max(0, daysSinceStart * dayWidth - 100 + 200);
       setTodayPosition(daysSinceStart);
     }
   }, [ganttData]);
@@ -143,44 +143,44 @@ const ProjectGanttChart = ({ tasks, onTaskClick }: ProjectGanttChartProps) => {
       <CardHeader className="pb-2">
         <CardTitle>Gantt-schema</CardTitle>
       </CardHeader>
-      <CardContent className="p-0">
-        <div className="flex">
-          {/* Task labels column */}
-          <div className="flex-shrink-0 border-r bg-background z-10" style={{ width: taskLabelWidth }}>
-            <div className="border-b bg-muted/50 px-3 flex items-end pb-2 font-medium text-sm" style={{ height: headerHeight }}>
-              Uppgift
-            </div>
-            {ganttData.tasks.map((task) => (
-              <div
-                key={task.id}
-                className={cn(
-                  "flex items-center gap-2 px-3 border-b cursor-pointer hover:bg-muted/50 transition-colors",
-                  task.completed && "opacity-60"
-                )}
-                style={{ height: rowHeight }}
-                onClick={() => onTaskClick?.(task.originalTask)}
-              >
-                <div
-                  className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: CATEGORY_CONFIG[task.category].color }}
-                />
-                {task.isInfoOnly ? (
-                  <Info className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                ) : task.completed ? (
-                  <CheckCircle2 className="h-3 w-3 text-primary flex-shrink-0" />
-                ) : (
-                  <Circle className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                )}
-                <span className={cn("text-sm truncate", task.completed && "line-through text-muted-foreground")}>
-                  {task.title}
-                </span>
+      <CardContent className="p-0 overflow-x-auto" ref={scrollRef}>
+        <div style={{ width: taskLabelWidth + timelineWidth }}>
+          <div className="flex">
+            {/* Task labels column - sticky */}
+            <div className="flex-shrink-0 border-r bg-background z-20 sticky left-0" style={{ width: taskLabelWidth }}>
+              <div className="border-b bg-muted/50 px-3 flex items-end pb-2 font-medium text-sm" style={{ height: headerHeight }}>
+                Uppgift
               </div>
-            ))}
-          </div>
+              {ganttData.tasks.map((task) => (
+                <div
+                  key={task.id}
+                  className={cn(
+                    "flex items-center gap-2 px-3 border-b cursor-pointer hover:bg-muted/50 transition-colors",
+                    task.completed && "opacity-60"
+                  )}
+                  style={{ height: rowHeight }}
+                  onClick={() => onTaskClick?.(task.originalTask)}
+                >
+                  <div
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: CATEGORY_CONFIG[task.category].color }}
+                  />
+                  {task.isInfoOnly ? (
+                    <Info className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                  ) : task.completed ? (
+                    <CheckCircle2 className="h-3 w-3 text-primary flex-shrink-0" />
+                  ) : (
+                    <Circle className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                  )}
+                  <span className={cn("text-sm truncate", task.completed && "line-through text-muted-foreground")}>
+                    {task.title}
+                  </span>
+                </div>
+              ))}
+            </div>
 
-          {/* Scrollable timeline */}
-          <div className="flex-1 overflow-x-auto" ref={scrollRef}>
-            <div style={{ width: timelineWidth, minWidth: '100%' }}>
+            {/* Timeline */}
+            <div className="flex-shrink-0" style={{ width: timelineWidth }}>
               {/* Date headers */}
               <div className="flex border-b bg-muted/50" style={{ height: headerHeight }}>
                 {ganttData.days.map((day, index) => {
@@ -267,25 +267,25 @@ const ProjectGanttChart = ({ tasks, onTaskClick }: ProjectGanttChartProps) => {
             </div>
           </div>
         </div>
-
-        {/* Legend */}
-        <div className="flex flex-wrap items-center gap-4 p-3 border-t text-xs text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <div className="w-0.5 h-4 bg-primary" />
-            <span>Idag</span>
-          </div>
-          {usedCategories.map(cat => (
-            <div key={cat} className="flex items-center gap-1.5">
-              <div className="w-4 h-2.5 rounded-sm" style={{ backgroundColor: CATEGORY_CONFIG[cat].color }} />
-              <span>{CATEGORY_CONFIG[cat].label}</span>
-            </div>
-          ))}
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-muted-foreground/40" />
-            <span>Milstolpe</span>
-          </div>
-        </div>
       </CardContent>
+
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-4 p-3 border-t text-xs text-muted-foreground">
+        <div className="flex items-center gap-1">
+          <div className="w-0.5 h-4 bg-primary" />
+          <span>Idag</span>
+        </div>
+        {usedCategories.map(cat => (
+          <div key={cat} className="flex items-center gap-1.5">
+            <div className="w-4 h-2.5 rounded-sm" style={{ backgroundColor: CATEGORY_CONFIG[cat].color }} />
+            <span>{CATEGORY_CONFIG[cat].label}</span>
+          </div>
+        ))}
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded-full bg-muted-foreground/40" />
+          <span>Milstolpe</span>
+        </div>
+      </div>
     </Card>
   );
 };
