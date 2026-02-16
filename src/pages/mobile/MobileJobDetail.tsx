@@ -25,7 +25,6 @@ const MobileJobDetail = () => {
   const [activeTab, setActiveTab] = useState<TabKey>('Info');
   const [timerElapsed, setTimerElapsed] = useState(0);
 
-  // Use geofencing with current booking as array
   const bookingsArr = booking ? [booking as MobileBooking] : [];
   const { activeTimers, startTimer, stopTimer } = useGeofencing(bookingsArr);
   
@@ -39,7 +38,6 @@ const MobileJobDetail = () => {
       .finally(() => setIsLoading(false));
   }, [id]);
 
-  // Timer tick
   useEffect(() => {
     if (!currentTimer) { setTimerElapsed(0); return; }
     const interval = setInterval(() => {
@@ -94,27 +92,32 @@ const MobileJobDetail = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen bg-background">
       {/* Header */}
-      <div className="bg-gradient-to-r from-primary to-primary/80 px-4 pt-12 pb-4 safe-area-top">
-        <div className="flex items-center gap-3 mb-3">
-          <button onClick={() => navigate('/m')} className="p-1.5 rounded-full bg-primary-foreground/10">
+      <div className="relative bg-gradient-to-br from-primary via-primary to-primary/85 px-4 pt-12 pb-5 safe-area-top overflow-hidden">
+        <div className="absolute -top-10 -right-10 w-36 h-36 rounded-full bg-primary-foreground/5" />
+        
+        <div className="relative flex items-center gap-3 mb-4">
+          <button 
+            onClick={() => navigate('/m')} 
+            className="p-2 rounded-2xl bg-primary-foreground/10 hover:bg-primary-foreground/20 active:scale-95 transition-all"
+          >
             <ArrowLeft className="w-5 h-5 text-primary-foreground" />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold text-primary-foreground truncate">{booking.client}</h1>
+            <h1 className="text-lg font-extrabold text-primary-foreground truncate tracking-tight">{booking.client}</h1>
             {booking.booking_number && (
-              <p className="text-xs text-primary-foreground/70 font-mono">#{booking.booking_number}</p>
+              <p className="text-xs text-primary-foreground/60 font-mono">#{booking.booking_number}</p>
             )}
           </div>
         </div>
 
         {/* Timer button */}
-        <div className="flex items-center gap-3">
+        <div className="relative flex items-center gap-3">
           <Button
             onClick={handleTimerToggle}
             className={cn(
-              "flex-1 h-12 rounded-xl gap-2 text-base font-semibold",
+              "flex-1 h-[52px] rounded-2xl gap-2 text-[15px] font-bold shadow-lg transition-all active:scale-[0.98]",
               currentTimer
                 ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
                 : "bg-primary-foreground text-primary hover:bg-primary-foreground/90"
@@ -137,7 +140,7 @@ const MobileJobDetail = () => {
             <Button
               onClick={openNavigation}
               variant="outline"
-              className="h-12 w-12 shrink-0 rounded-xl border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10"
+              className="h-[52px] w-[52px] shrink-0 rounded-2xl border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 bg-primary-foreground/5"
             >
               <Navigation className="w-5 h-5" />
             </Button>
@@ -147,26 +150,28 @@ const MobileJobDetail = () => {
 
       {/* Address card */}
       {booking.deliveryaddress && (
-        <div className="mx-4 -mt-2 mb-2 p-3 rounded-xl bg-card border shadow-sm">
-          <div className="flex items-center gap-2 text-sm">
-            <MapPin className="w-4 h-4 text-primary shrink-0" />
-            <span className="text-foreground">{booking.deliveryaddress}</span>
+        <div className="mx-4 -mt-3 mb-2 p-3.5 rounded-2xl bg-card border border-border/60 shadow-md">
+          <div className="flex items-center gap-2.5 text-sm">
+            <div className="p-1.5 rounded-xl bg-primary/8">
+              <MapPin className="w-4 h-4 text-primary" />
+            </div>
+            <span className="text-foreground font-medium">{booking.deliveryaddress}</span>
           </div>
         </div>
       )}
 
       {/* Tab navigation */}
-      <div className="px-4 pt-2">
-        <div className="flex gap-1 bg-muted rounded-xl p-1">
+      <div className="px-4 pt-3">
+        <div className="flex gap-1 bg-muted/60 rounded-2xl p-1">
           {tabs.map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
-                "flex-1 py-2 text-xs font-medium rounded-lg transition-all",
+                "flex-1 py-2.5 text-xs font-semibold rounded-xl transition-all duration-200",
                 activeTab === tab
                   ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground"
+                  : "text-muted-foreground hover:text-foreground/70"
               )}
             >
               {tab}

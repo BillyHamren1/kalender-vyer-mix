@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 import { useGeofencing, ActiveTimer } from '@/hooks/useGeofencing';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
-import { Clock, Square, Loader2, Check } from 'lucide-react';
+import { Clock, Square, Loader2, Check, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,7 +15,6 @@ const MobileTimeReport = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Form state
   const [selectedBookingId, setSelectedBookingId] = useState('');
   const [reportDate, setReportDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [startTime, setStartTime] = useState('07:00');
@@ -60,7 +59,6 @@ const MobileTimeReport = () => {
         description: description || undefined,
       });
       toast.success('Tidrapport skapad!');
-      // Reset form
       setSelectedBookingId('');
       setDescription('');
       setStartTime('07:00');
@@ -76,9 +74,10 @@ const MobileTimeReport = () => {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col min-h-screen">
-        <div className="bg-gradient-to-r from-primary to-primary/80 px-5 pt-12 pb-5 safe-area-top">
-          <h1 className="text-xl font-bold text-primary-foreground">Tidrapportering</h1>
+      <div className="flex flex-col min-h-screen bg-background">
+        <div className="relative bg-gradient-to-br from-primary via-primary to-primary/85 px-5 pt-14 pb-6 safe-area-top overflow-hidden">
+          <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-primary-foreground/5" />
+          <h1 className="relative text-2xl font-extrabold text-primary-foreground tracking-tight">Tidrapportering</h1>
         </div>
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -88,18 +87,20 @@ const MobileTimeReport = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen bg-background">
       {/* Header */}
-      <div className="bg-gradient-to-r from-primary to-primary/80 px-5 pt-12 pb-5 safe-area-top">
-        <h1 className="text-xl font-bold text-primary-foreground">Tidrapportering</h1>
-        <p className="text-xs text-primary-foreground/70">Rapportera arbetstid</p>
+      <div className="relative bg-gradient-to-br from-primary via-primary to-primary/85 px-5 pt-14 pb-6 safe-area-top overflow-hidden">
+        <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-primary-foreground/5" />
+        <div className="absolute -bottom-6 -left-6 w-28 h-28 rounded-full bg-primary-foreground/5" />
+        <h1 className="relative text-2xl font-extrabold text-primary-foreground tracking-tight">Tidrapportering</h1>
+        <p className="relative text-sm text-primary-foreground/60 font-medium mt-0.5">Rapportera arbetstid</p>
       </div>
 
-      <div className="flex-1 px-4 py-4 space-y-4">
+      <div className="flex-1 px-4 py-5 space-y-4">
         {/* Active timers */}
         {activeTimers.size > 0 && (
-          <div className="space-y-2">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-primary">Aktiva timers</h2>
+          <div className="space-y-2.5">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-primary">Aktiva timers</h2>
             {Array.from(activeTimers.entries()).map(([bookingId, timer]) => (
               <ActiveTimerCard
                 key={bookingId}
@@ -114,14 +115,14 @@ const MobileTimeReport = () => {
           </div>
         )}
 
-        {/* Report form — always visible */}
-        <div className="rounded-xl border bg-card p-4 space-y-4">
-          <h2 className="font-semibold text-sm">Ny tidrapport</h2>
+        {/* Report form */}
+        <div className="rounded-2xl border border-border/60 bg-card p-5 space-y-5 shadow-sm">
+          <h2 className="font-bold text-base text-foreground">Ny tidrapport</h2>
 
           <div className="space-y-2">
-            <Label className="text-xs">Jobb</Label>
+            <Label className="text-xs font-semibold text-muted-foreground">Jobb</Label>
             <Select value={selectedBookingId} onValueChange={setSelectedBookingId}>
-              <SelectTrigger className="h-11 rounded-lg">
+              <SelectTrigger className="h-12 rounded-xl">
                 <SelectValue placeholder="Välj jobb..." />
               </SelectTrigger>
               <SelectContent>
@@ -135,49 +136,55 @@ const MobileTimeReport = () => {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs">Datum</Label>
-            <Input type="date" value={reportDate} onChange={e => setReportDate(e.target.value)} className="h-11 rounded-lg" />
+            <Label className="text-xs font-semibold text-muted-foreground">Datum</Label>
+            <Input type="date" value={reportDate} onChange={e => setReportDate(e.target.value)} className="h-12 rounded-xl" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label className="text-xs">Start</Label>
-              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="h-11 rounded-lg" />
+              <Label className="text-xs font-semibold text-muted-foreground">Start</Label>
+              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="h-12 rounded-xl" />
             </div>
             <div className="space-y-2">
-              <Label className="text-xs">Slut</Label>
-              <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="h-11 rounded-lg" />
+              <Label className="text-xs font-semibold text-muted-foreground">Slut</Label>
+              <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="h-12 rounded-xl" />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label className="text-xs">Rast (h)</Label>
-              <Input type="number" step="0.25" value={breakTime} onChange={e => setBreakTime(e.target.value)} className="h-11 rounded-lg" />
+              <Label className="text-xs font-semibold text-muted-foreground">Rast (h)</Label>
+              <Input type="number" step="0.25" value={breakTime} onChange={e => setBreakTime(e.target.value)} className="h-12 rounded-xl" />
             </div>
             <div className="space-y-2">
-              <Label className="text-xs">Övertid (h)</Label>
-              <Input type="number" step="0.5" value={overtime} onChange={e => setOvertime(e.target.value)} className="h-11 rounded-lg" />
+              <Label className="text-xs font-semibold text-muted-foreground">Övertid (h)</Label>
+              <Input type="number" step="0.5" value={overtime} onChange={e => setOvertime(e.target.value)} className="h-12 rounded-xl" />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs">Beskrivning</Label>
+            <Label className="text-xs font-semibold text-muted-foreground">Beskrivning</Label>
             <Textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Vad gjorde du..."
-              className="rounded-lg min-h-[80px]"
+              className="rounded-xl min-h-[80px]"
             />
           </div>
 
-          <div className="flex items-center justify-between pt-2">
-            <div className="text-sm">
-              <span className="text-muted-foreground">Totalt: </span>
-              <span className="font-bold text-foreground">{calculateHours()}h</span>
+          {/* Summary & submit */}
+          <div className="flex items-center justify-between pt-1 border-t border-border/40">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-sm text-muted-foreground">Totalt:</span>
+              <span className="text-xl font-extrabold text-foreground tabular-nums">{calculateHours()}h</span>
             </div>
-            <Button onClick={handleSubmit} disabled={isSaving} className="rounded-lg gap-1.5">
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+            <Button 
+              onClick={handleSubmit} 
+              disabled={isSaving} 
+              className="rounded-xl gap-2 h-11 px-6 font-semibold shadow-md active:scale-[0.98] transition-all"
+              style={{ boxShadow: '0 4px 16px hsl(184 60% 38% / 0.2)' }}
+            >
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               Spara
             </Button>
           </div>
@@ -187,7 +194,6 @@ const MobileTimeReport = () => {
   );
 };
 
-// Active timer card sub-component
 const ActiveTimerCard = ({ timer, onStop }: { timer: ActiveTimer; onStop: () => void }) => {
   const [elapsed, setElapsed] = useState(0);
 
@@ -203,18 +209,18 @@ const ActiveTimerCard = ({ timer, onStop }: { timer: ActiveTimer; onStop: () => 
   const s = elapsed % 60;
 
   return (
-    <div className="flex items-center gap-3 p-3 rounded-xl border border-primary/30 bg-primary/5">
+    <div className="flex items-center gap-3 p-4 rounded-2xl border border-primary/20 bg-primary/5 shadow-sm">
       <div className="flex-1 min-w-0">
-        <p className="font-semibold text-sm truncate">{timer.client}</p>
-        <p className="text-xs text-muted-foreground">
+        <p className="font-bold text-sm truncate text-foreground">{timer.client}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
           Startad {format(parseISO(timer.startTime), 'HH:mm')}
           {timer.isAutoStarted && ' (auto)'}
         </p>
       </div>
-      <div className="font-mono font-bold text-primary text-base tabular-nums">
+      <div className="font-mono font-extrabold text-primary text-lg tabular-nums">
         {h.toString().padStart(2, '0')}:{m.toString().padStart(2, '0')}:{s.toString().padStart(2, '0')}
       </div>
-      <Button size="sm" variant="destructive" className="rounded-lg h-9 gap-1" onClick={onStop}>
+      <Button size="sm" variant="destructive" className="rounded-xl h-10 gap-1.5 font-semibold" onClick={onStop}>
         <Square className="w-3.5 h-3.5" />
         Stopp
       </Button>
