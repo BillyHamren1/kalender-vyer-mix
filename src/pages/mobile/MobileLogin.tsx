@@ -47,7 +47,7 @@ const MobileLogin = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="min-h-screen flex flex-col bg-card">
       {/* Decorative top gradient */}
       <div className="absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-primary/8 via-primary/3 to-transparent pointer-events-none" />
       

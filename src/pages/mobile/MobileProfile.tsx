@@ -36,7 +36,7 @@ const MobileProfile = () => {
   const totalHours = timeReports.reduce((sum, r) => sum + r.hours_worked, 0);
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen bg-card">
       {/* Header */}
       <div className="relative bg-gradient-to-br from-primary via-primary to-primary/85 px-5 pt-14 pb-10 safe-area-top overflow-hidden">
         <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-primary-foreground/5" />
