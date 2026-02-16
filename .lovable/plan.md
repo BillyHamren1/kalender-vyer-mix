@@ -1,50 +1,81 @@
 
-# Samlad projektvy -- allt synligt utan flikar
 
-## Vad vi andrar
+# Optimistisk uppdatering -- Snabbare UI-upplevelse
 
-Idag ar projektvyn uppdelad i flikar (Uppgifter, Filer, Kommentarer, Historik, Transport). Anvandaren maste klicka mellan flikar for att se olika delar. Vi tar bort flik-strukturen och visar **allt pa en enda scrollbar sida** i logiska sektioner, plus en ny sektion for bokningens produkter.
+## Sammanfattning
 
-## Ny sidstruktur (uppifran och ned)
+Idag väntar varje ändring (statusbyte, uppgift markerad som klar, kommentar tillagd, etc.) på att servern svarar innan UI:t uppdateras. Det ger en märkbar fördröjning på 200-500ms. Med optimistisk uppdatering visas ändringen **direkt** i UI:t och rullas tillbaka automatiskt om servern returnerar ett fel.
 
-1. **Oversiktskort** (befintliga 3 kort -- behalls som de ar)
-2. **Gantt-schema** (befintligt, visas alltid)
-3. **Utrustning / Produkter** (NY) -- Visar bokningens produkter med hierarkisk gruppering
-4. **Uppgifter** -- Checklistan
-5. **Transport** -- Transportwidgeten
-6. **Filer** -- Filsektionen
-7. **Kommentarer** -- Kommentarsektionen
-8. **Historik** -- Aktivitetsloggen
+## Nuläge
 
-Varje sektion far en kompakt rubrik med ikon och badge (antal). Sektionerna ar visuellt separerade med `space-y-6`.
+- **25 hooks** med `useMutation` som alla följer mönstret: vänta på svar --> `invalidateQueries` --> visa toast
+- **2 undantag** som redan har optimistisk logik: kalender-drag (`useOptimisticUpdates`) och personalplanering (`useUnifiedStaffOperations`)
+- Ingen av de vanliga CRUD-operationerna (uppgifter, kommentarer, status, ekonomi) använder `onMutate`
 
-## Ny komponent: Produktlista
+## Strategi
 
-En ny komponent `ProjectProductsList` som:
-- Tar emot `bookingId` och hamtar produkter fran `booking_products`
-- Visar produkter i en kompakt lista med hierarkisk gruppering (samma logik som redan finns i projektet -- `parent_product_id`, `is_package_component`)
-- Visar namn, antal, och eventuell notering
-- Visar totalvikt/volym om data finns
-- Ren, kompakt design utan overflodiga detaljer
+Istället för att skriva om varje hook individuellt skapar vi en **generisk hjälpfunktion** som kapslar in React Querys optimistiska mönster (`onMutate` / `onError` / `onSettled`). Sedan applicerar vi den på de hooks som ger störst upplevd hastighetsförbättring.
 
-## Teknisk plan
+## Prioriterade hooks (fas 1 -- högst användarfrekvens)
 
-### 1. `ProjectViewPage.tsx` -- Ta bort Tabs, visa allt
-- Ta bort `Tabs`, `TabsContent`, `TabsList`, `TabsTrigger` helt
-- Renderar alla sektioner sekventiellt med sektionsrubriker
-- Lagg till Gantt-schemat och den nya produktlistan
+| Hook | Operationer | Effekt |
+|------|------------|--------|
+| `useProjectDetail` | Uppgift klar/uppdatera/radera, status, kommentarer | Projektvy känns direkt |
+| `usePackingDetail` | Uppgift klar/uppdatera/radera, status | Packningsvy känns direkt |
+| `useProjectEconomy` | Inköp, offerter, fakturor (add/delete) | Ekonomivy utan fördröjning |
+| `useBookingDetail` (status) | Statusbyte på bokningar | Mest använda operationen |
 
-### 2. `ProjectProductsList.tsx` (NY)
-- Hamtar `booking_products` via `bookingId`
-- Renderar en Card med rubrik "Utrustning" och produktlista
-- Hierarkisk gruppering: huvudprodukter visas normalt, tillbehor/paketkomponenter indenteras med `pl-6` och `arrow`-indikator
-- Visar `name`, `quantity`, och summary-rad med total antal produkter
+## Teknisk implementation
 
-### 3. `useProjectDetail.tsx` -- Ingen andring (redan exponerar all data)
+### Steg 1: Skapa `createOptimisticMutation` hjälpare
 
-## Filer
+En ny fil `src/hooks/useOptimisticMutation.ts` med en generisk funktion som:
 
-| Fil | Andring |
-|-----|---------|
-| `src/pages/project/ProjectViewPage.tsx` | Ta bort flikar, visa allt sekventiellt, lagg till Gantt + Produkter |
-| `src/components/project/ProjectProductsList.tsx` | Ny komponent for bokningens produkter |
+```text
+1. onMutate: Sparar snapshot av cachen, applicerar optimistisk ändring direkt
+2. onError: Återställer till snapshot, visar felmeddelande
+3. onSettled: Invaliderar queries för att synka med servern
+```
+
+Stöd för tre operationstyper:
+- **Update**: Ändrar ett befintligt objekt i en cachad lista
+- **Add**: Lägger till ett temporärt objekt (med temp-id) i listan
+- **Delete**: Tar bort objektet från listan omedelbart
+
+### Steg 2: Applicera i `useProjectDetail`
+
+Byta ut alla mutations (tasks, status, comments) till att använda `onMutate` med cache-snapshot och direkt UI-uppdatering. Exempel:
+
+- `updateTaskMutation`: När användaren bockar av en uppgift, markeras den omedelbart som klar i UI
+- `deleteTaskMutation`: Uppgiften försvinner direkt från listan
+- `addCommentMutation`: Kommentaren visas direkt med "skickar..."-indikator
+
+### Steg 3: Applicera i `usePackingDetail`
+
+Samma mönster som projekt -- uppgifter och status uppdateras optimistiskt.
+
+### Steg 4: Applicera i `useProjectEconomy`
+
+Inköp, offerter och fakturor som läggs till/tas bort visas/försvinner direkt i UI.
+
+### Steg 5: Booking-statusbyte
+
+`updateBookingStatus` i bokningsdetaljvyn -- statusändring visas direkt.
+
+## Vad som INTE ändras
+
+- Kalender-drag (redan optimistiskt)
+- Personalplanering (redan optimistiskt)
+- Filuppladdningar (kan inte vara optimistiska -- servern genererar URL)
+- Databasmigreringar: Inga krävs
+
+## Risker och hantering
+
+- **Felaktigt tillagda objekt**: Temp-ID:n rensas vid `onSettled` och ersätts med server-genererade
+- **Rollback vid nätverksfel**: `onError` återställer cachen till snapshot, visar tydligt felmeddelande
+- **Stale data**: `onSettled` gör alltid `invalidateQueries` så serverns sanning synkas inom sekunder
+
+## Resultat
+
+Alla vanliga operationer (uppgifter, status, kommentarer, ekonomi) kommer upplevas som **omedelbart** responsiva. Fördröjningen elimineras helt i normalfallet och fel hanteras graciöst med automatisk rollback.
+
