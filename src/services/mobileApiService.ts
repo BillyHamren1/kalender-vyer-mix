@@ -125,7 +125,7 @@ export const mobileApi = {
   getBookings: () => callApi<{ bookings: MobileBooking[] }>('get_bookings'),
 
   getBookingDetails: (bookingId: string) =>
-    callApi<{ booking: any }>('get_booking_details', { booking_id: bookingId }),
+    callApi<{ booking: any; planning?: any; project?: any; my_time_reports?: any[] }>('get_booking_details', { booking_id: bookingId }),
 
   getTimeReports: () => callApi<{ time_reports: MobileTimeReport[] }>('get_time_reports'),
 

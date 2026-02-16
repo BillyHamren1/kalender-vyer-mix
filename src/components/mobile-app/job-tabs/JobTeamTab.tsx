@@ -14,7 +14,7 @@ const JobTeamTab = ({ bookingId }: JobTeamTabProps) => {
   useEffect(() => {
     mobileApi.getBookingDetails(bookingId)
       .then(res => {
-        setTeam(res.booking?.assigned_staff || []);
+        setTeam(res.planning?.assigned_staff || res.booking?.assigned_staff || []);
       })
       .catch(() => toast.error('Kunde inte ladda team'))
       .finally(() => setIsLoading(false));
