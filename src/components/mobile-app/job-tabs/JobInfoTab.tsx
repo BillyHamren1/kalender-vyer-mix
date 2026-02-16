@@ -109,7 +109,7 @@ const InfoRow = ({ label, value, icon: Icon }: { label: string; value: string | 
 const TimeBlock = ({ label, date, start, end }: { label: string; date: string | null; start: string | null; end: string | null }) => {
   if (!date) return null;
   return (
-    <div className="rounded-lg border bg-muted/30 p-3">
+    <div className="rounded-xl border border-border/50 bg-muted/30 p-3">
       <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">{label}</p>
       <p className="text-sm font-medium">
         {format(parseISO(date), 'd MMM yyyy', { locale: sv })}

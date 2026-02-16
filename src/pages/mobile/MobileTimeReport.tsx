@@ -74,7 +74,7 @@ const MobileTimeReport = () => {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col min-h-screen bg-background">
+      <div className="flex flex-col min-h-screen bg-card">
         <div className="relative bg-gradient-to-br from-primary via-primary to-primary/85 px-5 pt-14 pb-6 safe-area-top overflow-hidden">
           <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-primary-foreground/5" />
           <h1 className="relative text-2xl font-extrabold text-primary-foreground tracking-tight">Tidrapportering</h1>
@@ -87,7 +87,7 @@ const MobileTimeReport = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen bg-card">
       {/* Header */}
       <div className="relative bg-gradient-to-br from-primary via-primary to-primary/85 px-5 pt-14 pb-6 safe-area-top overflow-hidden">
         <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-primary-foreground/5" />

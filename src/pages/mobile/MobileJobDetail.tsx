@@ -92,7 +92,7 @@ const MobileJobDetail = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen bg-card">
       {/* Header */}
       <div className="relative bg-gradient-to-br from-primary via-primary to-primary/85 px-4 pt-12 pb-5 safe-area-top overflow-hidden">
         <div className="absolute -top-10 -right-10 w-36 h-36 rounded-full bg-primary-foreground/5" />
