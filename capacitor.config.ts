@@ -4,11 +4,10 @@ const config: CapacitorConfig = {
   appId: 'se.fransaugust.tidrapport',
   appName: 'Tidrapport',
   webDir: 'dist',
-  // server: {
-  //   // For development only - uncomment and set URL to enable hot-reload:
-  //   url: 'https://d42a96b9-4d25-4701-b40a-d3fe594418b5.lovableproject.com/m/login?forceHideBadge=true',
-  //   cleartext: true
-  // },
+  server: {
+    url: 'https://kalender-vyer-mix.lovable.app/m/login',
+    cleartext: true
+  },
   android: {
     allowMixedContent: true,
     backgroundColor: '#0A0A0B',
