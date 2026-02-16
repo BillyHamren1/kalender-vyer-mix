@@ -2,7 +2,8 @@ import React, { createContext, useState } from 'react';
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Capacitor } from '@capacitor/core';
 import { useBackgroundImport } from "@/hooks/useBackgroundImport";
 import { useSsoListener } from "@/hooks/useSsoListener";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -125,6 +126,11 @@ const AppContent = () => {
                 <Route path="/m/report" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileTimeReport /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
                 <Route path="/m/expenses" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileExpenses /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
                 <Route path="/m/profile" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileProfile /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
+
+                {/* Native Capacitor app: redirect root to mobile */}
+                {Capacitor.isNativePlatform() && (
+                  <Route path="/" element={<Navigate to="/m/login" replace />} />
+                )}
 
                 {/* Main System Routes - Protected (wrapped in AuthProvider) */}
                 <Route path="/*" element={
