@@ -19,7 +19,6 @@ const MobileExpenses = () => {
   const [showForm, setShowForm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Form
   const [selectedBookingId, setSelectedBookingId] = useState('');
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -30,15 +29,12 @@ const MobileExpenses = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    Promise.all([
-      mobileApi.getBookings(),
-    ]).then(([bookingsRes]) => {
-      setBookings(bookingsRes.bookings);
-    }).catch(() => toast.error('Kunde inte ladda data'))
+    mobileApi.getBookings()
+      .then(res => setBookings(res.bookings))
+      .catch(() => toast.error('Kunde inte ladda data'))
       .finally(() => setIsLoading(false));
   }, []);
 
-  // Load purchases when booking selected
   useEffect(() => {
     if (!selectedBookingId) return;
     mobileApi.getProjectPurchases(selectedBookingId)
@@ -83,7 +79,6 @@ const MobileExpenses = () => {
       setCategory('');
       setReceiptPreview(null);
       setReceiptBase64(null);
-      // Refresh
       if (selectedBookingId) {
         const res = await mobileApi.getProjectPurchases(selectedBookingId);
         setPurchases(res.purchases || []);
@@ -97,9 +92,10 @@ const MobileExpenses = () => {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col min-h-screen">
-        <div className="bg-gradient-to-r from-primary to-primary/80 px-5 pt-12 pb-5 safe-area-top">
-          <h1 className="text-xl font-bold text-primary-foreground">Utlägg</h1>
+      <div className="flex flex-col min-h-screen bg-background">
+        <div className="relative bg-gradient-to-br from-primary via-primary to-primary/85 px-5 pt-14 pb-6 safe-area-top overflow-hidden">
+          <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-primary-foreground/5" />
+          <h1 className="relative text-2xl font-extrabold text-primary-foreground tracking-tight">Utlägg</h1>
         </div>
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -109,34 +105,36 @@ const MobileExpenses = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen bg-background">
       {/* Header */}
-      <div className="bg-gradient-to-r from-primary to-primary/80 px-5 pt-12 pb-5 safe-area-top">
-        <div className="flex items-center justify-between">
+      <div className="relative bg-gradient-to-br from-primary via-primary to-primary/85 px-5 pt-14 pb-6 safe-area-top overflow-hidden">
+        <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-primary-foreground/5" />
+        <div className="absolute -bottom-6 -left-6 w-28 h-28 rounded-full bg-primary-foreground/5" />
+        <div className="relative flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-primary-foreground">Utlägg</h1>
-            <p className="text-xs text-primary-foreground/70">Kvitton & inköp</p>
+            <h1 className="text-2xl font-extrabold text-primary-foreground tracking-tight">Utlägg</h1>
+            <p className="text-sm text-primary-foreground/60 font-medium mt-0.5">Kvitton & inköp</p>
           </div>
           <Button
             onClick={() => setShowForm(!showForm)}
-            className="rounded-xl bg-primary-foreground text-primary hover:bg-primary-foreground/90 gap-1.5"
+            className="rounded-2xl bg-primary-foreground text-primary hover:bg-primary-foreground/90 gap-1.5 font-semibold shadow-lg active:scale-[0.98] transition-all"
           >
             <Plus className="w-4 h-4" />
-            Nytt utlägg
+            Nytt
           </Button>
         </div>
       </div>
 
-      <div className="flex-1 px-4 py-4 space-y-4">
+      <div className="flex-1 px-4 py-5 space-y-4">
         {/* Form */}
         {showForm && (
-          <div className="rounded-xl border bg-card p-4 space-y-4 animate-in slide-in-from-top-2 duration-200">
-            <h2 className="font-semibold text-sm">Nytt utlägg</h2>
+          <div className="rounded-2xl border border-border/60 bg-card p-5 space-y-5 shadow-md animate-in slide-in-from-top-2 duration-200">
+            <h2 className="font-bold text-base text-foreground">Nytt utlägg</h2>
 
             <div className="space-y-2">
-              <Label className="text-xs">Jobb</Label>
+              <Label className="text-xs font-semibold text-muted-foreground">Jobb</Label>
               <Select value={selectedBookingId} onValueChange={setSelectedBookingId}>
-                <SelectTrigger className="h-11 rounded-lg">
+                <SelectTrigger className="h-12 rounded-xl">
                   <SelectValue placeholder="Välj jobb..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -150,30 +148,30 @@ const MobileExpenses = () => {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs">Beskrivning</Label>
+              <Label className="text-xs font-semibold text-muted-foreground">Beskrivning</Label>
               <Textarea
                 value={description}
                 onChange={e => setDescription(e.target.value)}
                 placeholder="Vad köpte du..."
-                className="rounded-lg min-h-[60px]"
+                className="rounded-xl min-h-[60px]"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label className="text-xs">Belopp (kr)</Label>
+                <Label className="text-xs font-semibold text-muted-foreground">Belopp (kr)</Label>
                 <Input
                   type="number"
                   value={amount}
                   onChange={e => setAmount(e.target.value)}
                   placeholder="0"
-                  className="h-11 rounded-lg"
+                  className="h-12 rounded-xl"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs">Kategori</Label>
+                <Label className="text-xs font-semibold text-muted-foreground">Kategori</Label>
                 <Select value={category} onValueChange={setCategory}>
-                  <SelectTrigger className="h-11 rounded-lg">
+                  <SelectTrigger className="h-12 rounded-xl">
                     <SelectValue placeholder="Välj..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -186,18 +184,18 @@ const MobileExpenses = () => {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs">Leverantör</Label>
+              <Label className="text-xs font-semibold text-muted-foreground">Leverantör</Label>
               <Input
                 value={supplier}
                 onChange={e => setSupplier(e.target.value)}
                 placeholder="Butik/företag"
-                className="h-11 rounded-lg"
+                className="h-12 rounded-xl"
               />
             </div>
 
             {/* Receipt photo */}
             <div className="space-y-2">
-              <Label className="text-xs">Kvitto (foto)</Label>
+              <Label className="text-xs font-semibold text-muted-foreground">Kvitto (foto)</Label>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -207,11 +205,11 @@ const MobileExpenses = () => {
                 className="hidden"
               />
               {receiptPreview ? (
-                <div className="relative rounded-lg overflow-hidden border">
+                <div className="relative rounded-2xl overflow-hidden border border-border/60">
                   <img src={receiptPreview} alt="Kvitto" className="w-full h-40 object-cover" />
                   <button
                     onClick={() => { setReceiptPreview(null); setReceiptBase64(null); }}
-                    className="absolute top-2 right-2 px-2 py-1 rounded-lg bg-black/50 text-white text-xs"
+                    className="absolute top-2 right-2 px-3 py-1.5 rounded-xl bg-black/60 text-white text-xs font-medium backdrop-blur-sm"
                   >
                     Ta bort
                   </button>
@@ -219,17 +217,24 @@ const MobileExpenses = () => {
               ) : (
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full h-24 rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 hover:border-primary/40 transition-colors"
+                  className="w-full h-28 rounded-2xl border-2 border-dashed border-border/60 flex flex-col items-center justify-center gap-2 hover:border-primary/30 transition-colors bg-muted/20"
                 >
-                  <Camera className="w-6 h-6 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Ta foto av kvitto</span>
+                  <div className="p-2.5 rounded-xl bg-muted/60">
+                    <Camera className="w-5 h-5 text-muted-foreground/60" />
+                  </div>
+                  <span className="text-xs font-medium text-muted-foreground">Ta foto av kvitto</span>
                 </button>
               )}
             </div>
 
-            <div className="flex gap-2 pt-2">
-              <Button variant="outline" className="flex-1 rounded-lg" onClick={() => setShowForm(false)}>Avbryt</Button>
-              <Button className="flex-1 rounded-lg gap-1.5" onClick={handleSubmit} disabled={isSaving}>
+            <div className="flex gap-2.5 pt-1">
+              <Button variant="outline" className="flex-1 h-12 rounded-xl font-semibold" onClick={() => setShowForm(false)}>Avbryt</Button>
+              <Button 
+                className="flex-1 h-12 rounded-xl gap-1.5 font-semibold shadow-md active:scale-[0.98] transition-all" 
+                onClick={handleSubmit} 
+                disabled={isSaving}
+                style={{ boxShadow: '0 4px 16px hsl(184 60% 38% / 0.2)' }}
+              >
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                 Spara
               </Button>
@@ -239,29 +244,31 @@ const MobileExpenses = () => {
 
         {/* Purchase history */}
         <div>
-          <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Senaste utlägg</h2>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Senaste utlägg</h2>
           {purchases.length === 0 ? (
-            <div className="text-center py-8">
-              <Receipt className="w-10 h-10 mx-auto text-muted-foreground/20 mb-2" />
-              <p className="text-sm text-muted-foreground">Inga utlägg registrerade</p>
+            <div className="text-center py-12">
+              <div className="w-16 h-16 rounded-3xl bg-muted/60 flex items-center justify-center mx-auto mb-3">
+                <Receipt className="w-8 h-8 text-muted-foreground/30" />
+              </div>
+              <p className="text-sm font-semibold text-foreground/60">Inga utlägg registrerade</p>
               <p className="text-xs text-muted-foreground mt-1">Välj ett jobb ovan för att se historik</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {purchases.map(p => (
-                <div key={p.id} className="rounded-xl border bg-card p-3">
+                <div key={p.id} className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-sm">{p.description}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="font-semibold text-sm text-foreground">{p.description}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
                         {p.supplier && <span>{p.supplier} · </span>}
                         {p.category && <span>{p.category} · </span>}
                         {p.created_at && format(parseISO(p.created_at), 'd MMM', { locale: sv })}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      {p.receipt_url && <Image className="w-4 h-4 text-muted-foreground" />}
-                      <span className="font-bold text-sm">{p.amount} kr</span>
+                      {p.receipt_url && <Image className="w-4 h-4 text-muted-foreground/50" />}
+                      <span className="font-extrabold text-sm tabular-nums">{p.amount} kr</span>
                     </div>
                   </div>
                 </div>

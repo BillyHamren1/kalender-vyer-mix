@@ -19,8 +19,8 @@ const MobileBottomNav = () => {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-lg border-t border-border safe-area-bottom">
-      <div className="flex items-stretch h-16 max-w-lg mx-auto">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-xl border-t border-border/60 safe-area-bottom">
+      <div className="flex items-stretch h-[68px] max-w-lg mx-auto px-2">
         {tabs.map(tab => {
           const active = isActive(tab);
           return (
@@ -28,22 +28,27 @@ const MobileBottomNav = () => {
               key={tab.path}
               onClick={() => navigate(tab.path)}
               className={cn(
-                "flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors",
+                "relative flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-200",
                 active
                   ? "text-primary"
-                  : "text-muted-foreground active:text-foreground"
+                  : "text-muted-foreground/60 active:text-foreground"
               )}
             >
-              <tab.icon className={cn("w-5 h-5", active && "stroke-[2.5]")} />
+              {active && (
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[3px] rounded-full bg-primary" />
+              )}
+              <div className={cn(
+                "flex items-center justify-center w-10 h-8 rounded-xl transition-all duration-200",
+                active && "bg-primary/10"
+              )}>
+                <tab.icon className={cn("w-[22px] h-[22px] transition-all", active && "stroke-[2.5]")} />
+              </div>
               <span className={cn(
-                "text-[10px] font-medium",
-                active && "font-bold"
+                "text-[10px] leading-none transition-all",
+                active ? "font-bold text-primary" : "font-medium"
               )}>
                 {tab.label}
               </span>
-              {active && (
-                <div className="absolute top-0 w-8 h-0.5 rounded-full bg-primary" />
-              )}
             </button>
           );
         })}
