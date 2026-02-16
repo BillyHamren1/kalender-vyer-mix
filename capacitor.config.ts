@@ -1,17 +1,34 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.lovable.d42a96b94d254701b40ad3fe594418b5',
-  appName: 'kalender-vyer-mix',
+  appId: 'se.fransaugust.tidrapport',
+  appName: 'Tidrapport',
   webDir: 'dist',
   server: {
-    url: 'https://d42a96b9-4d25-4701-b40a-d3fe594418b5.lovableproject.com?forceHideBadge=true',
+    // For development: point to hosted preview
+    // For production: remove this block to use bundled assets
+    url: 'https://d42a96b9-4d25-4701-b40a-d3fe594418b5.lovableproject.com/m/login?forceHideBadge=true',
     cleartext: true
   },
-  plugins: {
-    BarcodeScanner: {
-      // Enable camera permission request
+  android: {
+    allowMixedContent: true,
+    backgroundColor: '#0A0A0B',
+    buildOptions: {
+      keystorePath: undefined,
+      keystoreAlias: undefined,
     }
+  },
+  plugins: {
+    SplashScreen: {
+      launchAutoHide: true,
+      launchShowDuration: 2000,
+      backgroundColor: '#0A0A0B',
+      showSpinner: false,
+    },
+    StatusBar: {
+      style: 'DARK',
+      backgroundColor: '#0A0A0B',
+    },
   }
 };
 
