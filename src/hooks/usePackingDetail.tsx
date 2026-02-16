@@ -14,91 +14,140 @@ import {
   deletePackingFile
 } from "@/services/packingService";
 import { PackingStatus, PackingTask } from "@/types/packing";
+import { createOptimisticCallbacks } from "./useOptimisticMutation";
 
 export const usePackingDetail = (packingId: string) => {
   const queryClient = useQueryClient();
 
-  // Fetch packing details
   const { data: packing, isLoading: isLoadingPacking } = useQuery({
     queryKey: ['packing', packingId],
     queryFn: () => fetchPacking(packingId),
     enabled: !!packingId
   });
 
-  // Fetch tasks
   const { data: tasks = [], isLoading: isLoadingTasks } = useQuery({
     queryKey: ['packing-tasks', packingId],
     queryFn: () => fetchPackingTasks(packingId),
     enabled: !!packingId
   });
 
-  // Fetch comments
   const { data: comments = [] } = useQuery({
     queryKey: ['packing-comments', packingId],
     queryFn: () => fetchPackingComments(packingId),
     enabled: !!packingId
   });
 
-  // Fetch files
   const { data: files = [] } = useQuery({
     queryKey: ['packing-files', packingId],
     queryFn: () => fetchPackingFiles(packingId),
     enabled: !!packingId
   });
 
-  // Update status mutation
-  const updateStatusMutation = useMutation({
-    mutationFn: (status: PackingStatus) => updatePackingStatus(packingId, status),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['packing', packingId] });
-      toast.success('Status uppdaterad');
-    },
-    onError: () => toast.error('Kunde inte uppdatera status')
+  // --- Optimistic mutations ---
+
+  const statusOptimistic = createOptimisticCallbacks<any, PackingStatus>({
+    queryClient,
+    queryKey: ['packing', packingId],
+    type: 'single',
+    optimisticData: (status, old) => old ? { ...old, status } : old,
+    errorMessage: 'Kunde inte uppdatera status',
   });
 
-  // Add task mutation
+  const updateStatusMutation = useMutation({
+    mutationFn: (status: PackingStatus) => updatePackingStatus(packingId, status),
+    ...statusOptimistic,
+    onSuccess: () => { toast.success('Status uppdaterad'); },
+    onError: statusOptimistic.onError,
+    onSettled: statusOptimistic.onSettled,
+  });
+
+  const addTaskOptimistic = createOptimisticCallbacks<any, { title: string; description?: string; assigned_to?: string | null; deadline?: string | null }>({
+    queryClient,
+    queryKey: ['packing-tasks', packingId],
+    type: 'add',
+    optimisticData: (vars) => ({
+      id: `temp-${Date.now()}`,
+      title: vars.title,
+      description: vars.description || null,
+      assigned_to: vars.assigned_to || null,
+      deadline: vars.deadline || null,
+      completed: false,
+      packing_id: packingId,
+      sort_order: 0,
+      is_info_only: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }),
+    errorMessage: 'Kunde inte lägga till uppgift',
+  });
+
   const addTaskMutation = useMutation({
     mutationFn: (task: { title: string; description?: string; assigned_to?: string | null; deadline?: string | null }) =>
       createPackingTask({ ...task, packing_id: packingId }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['packing-tasks', packingId] });
-      toast.success('Uppgift tillagd');
-    },
-    onError: () => toast.error('Kunde inte lägga till uppgift')
+    ...addTaskOptimistic,
+    onSuccess: () => { toast.success('Uppgift tillagd'); },
+    onError: addTaskOptimistic.onError,
+    onSettled: addTaskOptimistic.onSettled,
   });
 
-  // Update task mutation
+  const updateTaskOptimistic = createOptimisticCallbacks<any, { id: string; updates: Partial<PackingTask> }>({
+    queryClient,
+    queryKey: ['packing-tasks', packingId],
+    type: 'update',
+    getId: (vars) => vars.id,
+    optimisticData: (vars, old) => {
+      const existing = old.find(t => t.id === vars.id);
+      return existing ? { ...existing, ...vars.updates } : existing;
+    },
+    errorMessage: 'Kunde inte uppdatera uppgift',
+  });
+
   const updateTaskMutation = useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<PackingTask> }) =>
       updatePackingTask(id, updates),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['packing-tasks', packingId] });
-    },
-    onError: () => toast.error('Kunde inte uppdatera uppgift')
+    ...updateTaskOptimistic,
   });
 
-  // Delete task mutation
+  const deleteTaskOptimistic = createOptimisticCallbacks<any, string>({
+    queryClient,
+    queryKey: ['packing-tasks', packingId],
+    type: 'delete',
+    getId: (id) => id,
+    errorMessage: 'Kunde inte ta bort uppgift',
+  });
+
   const deleteTaskMutation = useMutation({
     mutationFn: deletePackingTask,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['packing-tasks', packingId] });
-      toast.success('Uppgift borttagen');
-    },
-    onError: () => toast.error('Kunde inte ta bort uppgift')
+    ...deleteTaskOptimistic,
+    onSuccess: () => { toast.success('Uppgift borttagen'); },
+    onError: deleteTaskOptimistic.onError,
+    onSettled: deleteTaskOptimistic.onSettled,
   });
 
-  // Add comment mutation
+  const addCommentOptimistic = createOptimisticCallbacks<any, { author_name: string; content: string }>({
+    queryClient,
+    queryKey: ['packing-comments', packingId],
+    type: 'add',
+    optimisticData: (vars) => ({
+      id: `temp-${Date.now()}`,
+      author_name: vars.author_name,
+      content: vars.content,
+      packing_id: packingId,
+      created_at: new Date().toISOString(),
+    }),
+    errorMessage: 'Kunde inte lägga till kommentar',
+  });
+
   const addCommentMutation = useMutation({
     mutationFn: (data: { author_name: string; content: string }) =>
       createPackingComment({ ...data, packing_id: packingId }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['packing-comments', packingId] });
-      toast.success('Kommentar tillagd');
-    },
-    onError: () => toast.error('Kunde inte lägga till kommentar')
+    ...addCommentOptimistic,
+    onSuccess: () => { toast.success('Kommentar tillagd'); },
+    onError: addCommentOptimistic.onError,
+    onSettled: addCommentOptimistic.onSettled,
   });
 
-  // Upload file mutation
+  // File mutations remain non-optimistic
   const uploadFileMutation = useMutation({
     mutationFn: ({ file, uploadedBy }: { file: File; uploadedBy?: string }) =>
       uploadPackingFile(packingId, file, uploadedBy),
@@ -109,7 +158,6 @@ export const usePackingDetail = (packingId: string) => {
     onError: () => toast.error('Kunde inte ladda upp fil')
   });
 
-  // Delete file mutation
   const deleteFileMutation = useMutation({
     mutationFn: ({ id, url }: { id: string; url: string }) =>
       deletePackingFile(id, url),
@@ -120,7 +168,6 @@ export const usePackingDetail = (packingId: string) => {
     onError: () => toast.error('Kunde inte ta bort fil')
   });
 
-  // Refetch all data
   const refetchAll = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['packing', packingId] }),
