@@ -17,6 +17,7 @@ import {
 import { fetchProjectActivities, logProjectActivity } from "@/services/projectActivityService";
 import { ProjectStatus, ProjectTask, PROJECT_STATUS_LABELS } from "@/types/project";
 import { toast } from "sonner";
+import { createOptimisticCallbacks } from "./useOptimisticMutation";
 
 export const useProjectDetail = (projectId: string) => {
   const queryClient = useQueryClient();
@@ -194,11 +195,21 @@ export const useProjectDetail = (projectId: string) => {
     };
   }, [bookingId, projectId]);
 
+  // --- Optimistic mutations ---
+
+  const statusOptimistic = createOptimisticCallbacks<any, ProjectStatus>({
+    queryClient,
+    queryKey: ['project', projectId],
+    type: 'single',
+    optimisticData: (status, old) => old ? { ...old, status } : old,
+    errorMessage: 'Kunde inte uppdatera status',
+    invalidateKeys: [['projects']],
+  });
+
   const updateStatusMutation = useMutation({
     mutationFn: (status: ProjectStatus) => updateProjectStatus(projectId, status),
+    ...statusOptimistic,
     onSuccess: (_data, status) => {
-      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
       const oldStatus = projectQuery.data?.status;
       logActivity('status_changed', `Status ändrad till "${PROJECT_STATUS_LABELS[status]}"`, {
         old_status: oldStatus,
@@ -206,25 +217,59 @@ export const useProjectDetail = (projectId: string) => {
       });
       toast.success('Status uppdaterad');
     },
-    onError: () => toast.error('Kunde inte uppdatera status')
+    onError: statusOptimistic.onError,
+    onSettled: statusOptimistic.onSettled,
+  });
+
+  const addTaskOptimistic = createOptimisticCallbacks<any, { title: string; description?: string; assigned_to?: string | null; deadline?: string | null }>({
+    queryClient,
+    queryKey: ['project-tasks', projectId],
+    type: 'add',
+    optimisticData: (vars) => ({
+      id: `temp-${Date.now()}`,
+      title: vars.title,
+      description: vars.description || null,
+      assigned_to: vars.assigned_to || null,
+      deadline: vars.deadline || null,
+      completed: false,
+      project_id: projectId,
+      sort_order: 0,
+      is_info_only: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }),
+    errorMessage: 'Kunde inte lägga till uppgift',
   });
 
   const addTaskMutation = useMutation({
     mutationFn: (task: { title: string; description?: string; assigned_to?: string | null; deadline?: string | null }) => 
       createProjectTask({ ...task, project_id: projectId }),
+    ...addTaskOptimistic,
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['project-tasks', projectId] });
       logActivity('task_added', `Uppgift tillagd: "${variables.title}"`);
       toast.success('Uppgift tillagd');
     },
-    onError: () => toast.error('Kunde inte lägga till uppgift')
+    onError: addTaskOptimistic.onError,
+    onSettled: addTaskOptimistic.onSettled,
+  });
+
+  const updateTaskOptimistic = createOptimisticCallbacks<any, { id: string; updates: Partial<ProjectTask> }>({
+    queryClient,
+    queryKey: ['project-tasks', projectId],
+    type: 'update',
+    getId: (vars) => vars.id,
+    optimisticData: (vars, old) => {
+      const existing = old.find(t => t.id === vars.id);
+      return existing ? { ...existing, ...vars.updates } : existing;
+    },
+    errorMessage: 'Kunde inte uppdatera uppgift',
   });
 
   const updateTaskMutation = useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<ProjectTask> }) => 
       updateProjectTask(id, updates),
+    ...updateTaskOptimistic,
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['project-tasks', projectId] });
       if (variables.updates.completed !== undefined) {
         const task = tasksQuery.data?.find(t => t.id === variables.id);
         const taskName = task?.title || 'Uppgift';
@@ -233,7 +278,16 @@ export const useProjectDetail = (projectId: string) => {
         }
       }
     },
-    onError: () => toast.error('Kunde inte uppdatera uppgift')
+    onError: updateTaskOptimistic.onError,
+    onSettled: updateTaskOptimistic.onSettled,
+  });
+
+  const deleteTaskOptimistic = createOptimisticCallbacks<any, string>({
+    queryClient,
+    queryKey: ['project-tasks', projectId],
+    type: 'delete',
+    getId: (id) => id,
+    errorMessage: 'Kunde inte ta bort uppgift',
   });
 
   const deleteTaskMutation = useMutation({
@@ -241,26 +295,43 @@ export const useProjectDetail = (projectId: string) => {
       const task = tasksQuery.data?.find(t => t.id === id);
       return deleteProjectTask(id).then(() => task?.title || 'Uppgift');
     },
+    ...deleteTaskOptimistic,
     onSuccess: (taskTitle) => {
-      queryClient.invalidateQueries({ queryKey: ['project-tasks', projectId] });
       logActivity('task_deleted', `Uppgift borttagen: "${taskTitle}"`);
       toast.success('Uppgift borttagen');
     },
-    onError: () => toast.error('Kunde inte ta bort uppgift')
+    onError: deleteTaskOptimistic.onError,
+    onSettled: deleteTaskOptimistic.onSettled,
+  });
+
+  const addCommentOptimistic = createOptimisticCallbacks<any, { author_name: string; content: string }>({
+    queryClient,
+    queryKey: ['project-comments', projectId],
+    type: 'add',
+    optimisticData: (vars) => ({
+      id: `temp-${Date.now()}`,
+      author_name: vars.author_name,
+      content: vars.content,
+      project_id: projectId,
+      created_at: new Date().toISOString(),
+    }),
+    errorMessage: 'Kunde inte lägga till kommentar',
   });
 
   const addCommentMutation = useMutation({
     mutationFn: (data: { author_name: string; content: string }) => 
       createProjectComment({ ...data, project_id: projectId }),
+    ...addCommentOptimistic,
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['project-comments', projectId] });
       logActivity('comment_added', `Kommentar av ${variables.author_name}`, {
         preview: variables.content.substring(0, 100),
       });
     },
-    onError: () => toast.error('Kunde inte lägga till kommentar')
+    onError: addCommentOptimistic.onError,
+    onSettled: addCommentOptimistic.onSettled,
   });
 
+  // File mutations remain non-optimistic (server generates URL)
   const uploadFileMutation = useMutation({
     mutationFn: ({ file, uploadedBy }: { file: File; uploadedBy?: string }) => 
       uploadProjectFile(projectId, file, uploadedBy),

@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
 import { BookingStatus, updateBookingStatusWithCalendarSync, getStatusColor } from "@/services/booking/bookingStatusService";
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface StatusChangeFormProps {
   currentStatus: string;
@@ -20,6 +21,7 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
   onStatusChange,
   disabled = false
 }) => {
+  const queryClient = useQueryClient();
   const [selectedStatus, setSelectedStatus] = useState<BookingStatus>(currentStatus.toUpperCase() as BookingStatus);
   const [isUpdating, setIsUpdating] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -81,12 +83,17 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
   const handleStatusUpdate = async (newStatus: BookingStatus) => {
     setIsUpdating(true);
     
+    // Optimistic: update cache immediately
+    const previousBooking = queryClient.getQueryData(['booking', bookingId]);
+    queryClient.setQueryData(['booking', bookingId], (old: any) => 
+      old ? { ...old, status: newStatus } : old
+    );
+    
     try {
       await updateBookingStatusWithCalendarSync(bookingId, newStatus, currentStatus);
       
       onStatusChange(newStatus);
       
-      // Show appropriate toast message
       if (newStatus === 'CONFIRMED') {
         toast.success('Bokning bekräftad', {
           description: 'Bokningen har bekräftats och synkats till kalendern'
@@ -103,16 +110,21 @@ const StatusChangeForm: React.FC<StatusChangeFormProps> = ({
       
     } catch (error) {
       console.error('Error updating booking status:', error);
+      // Rollback cache
+      if (previousBooking !== undefined) {
+        queryClient.setQueryData(['booking', bookingId], previousBooking);
+      }
       toast.error('Misslyckades att uppdatera status', {
         description: 'Försök igen eller kontakta support'
       });
-      
-      // Reset to current status on error
       setSelectedStatus(currentStatus.toUpperCase() as BookingStatus);
     } finally {
       setIsUpdating(false);
       setShowConfirmDialog(false);
       setPendingStatus(null);
+      // Always re-sync with server
+      queryClient.invalidateQueries({ queryKey: ['booking', bookingId] });
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
     }
   };
 
