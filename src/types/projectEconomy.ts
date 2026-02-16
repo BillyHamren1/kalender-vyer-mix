@@ -50,6 +50,20 @@ export interface ProjectInvoice {
   created_at: string;
 }
 
+export interface DetailedTimeReport {
+  id: string;
+  staff_id: string;
+  staff_name: string;
+  report_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  hours_worked: number;
+  overtime_hours: number;
+  hourly_rate: number;
+  cost: number;
+  approved: boolean;
+}
+
 export interface StaffTimeReport {
   staff_id: string;
   staff_name: string;
@@ -60,6 +74,7 @@ export interface StaffTimeReport {
   total_cost: number;
   approved: boolean;
   report_ids: string[];
+  detailed_reports: DetailedTimeReport[];
 }
 
 export interface EconomySummary {

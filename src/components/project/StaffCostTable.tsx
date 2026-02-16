@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Settings, CheckCircle, AlertTriangle, Clock, Check } from 'lucide-react';
+import { Settings, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
 import type { StaffTimeReport, EconomySummary } from '@/types/projectEconomy';
 import { getDeviationStatus, getDeviationColor } from '@/types/projectEconomy';
 import { supabase } from '@/integrations/supabase/client';
@@ -29,7 +29,7 @@ export const StaffCostTable = ({ timeReports, summary, bookingId, onOpenBudgetSe
     }).format(amount);
   };
 
-  const handleApprove = async (reportIds: string[], staffName: string) => {
+  const handleApprove = async (reportIds: string[], label: string) => {
     try {
       const { error } = await supabase
         .from('time_reports')
@@ -42,20 +42,26 @@ export const StaffCostTable = ({ timeReports, summary, bookingId, onOpenBudgetSe
 
       if (error) throw error;
       
-      // Invalidate correct query keys and await completion
       await queryClient.invalidateQueries({ queryKey: ['project-time-reports', bookingId] });
       await queryClient.invalidateQueries({ queryKey: ['pending-time-reports'] });
       
-      toast.success(`Tidrapport för ${staffName} godkänd`);
+      toast.success(`Tidrapport för ${label} godkänd`);
     } catch (error) {
       console.error('Error approving time report:', error);
       toast.error('Kunde inte godkänna tidrapporten');
     }
   };
 
-  // Check how many reports are pending
-  const pendingCount = timeReports.filter(r => !(r as any).approved).length;
+  const allReports = timeReports.flatMap(r => r.detailed_reports || []);
+  const pendingCount = allReports.filter(r => !r.approved).length;
   const allApproved = pendingCount === 0;
+
+  const formatTime = (start: string | null, end: string | null) => {
+    if (!start && !end) return '–';
+    const s = start ? start.substring(0, 5) : '?';
+    const e = end ? end.substring(0, 5) : '?';
+    return `${s}–${e}`;
+  };
 
   return (
     <Card>
@@ -79,49 +85,70 @@ export const StaffCostTable = ({ timeReports, summary, bookingId, onOpenBudgetSe
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Personal</TableHead>
+                  <TableHead>Personal / Datum</TableHead>
+                  <TableHead>Tid</TableHead>
                   <TableHead className="text-right">Timmar</TableHead>
                   <TableHead className="text-right">Kostnad</TableHead>
                   <TableHead className="text-center">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {timeReports.map((report) => {
-                  const isApproved = (report as any).approved === true;
-                  
-                  return (
-                    <TableRow key={report.staff_id}>
-                      <TableCell className="font-medium">{report.staff_name}</TableCell>
-                      <TableCell className="text-right">
-                        {report.total_hours.toFixed(1)} h
-                        {report.overtime_hours > 0 && (
-                          <span className="text-muted-foreground text-xs ml-1">
-                            (+{report.overtime_hours.toFixed(1)} öt)
-                          </span>
-                        )}
+                {timeReports.map((staff) => (
+                  <>
+                    {/* Staff grouping header */}
+                    <TableRow key={`staff-${staff.staff_id}`} className="bg-muted/50 hover:bg-muted/50">
+                      <TableCell colSpan={2} className="font-semibold">
+                        {staff.staff_name}
                       </TableCell>
-                      <TableCell className="text-right">{formatCurrency(report.total_cost)}</TableCell>
-                      <TableCell className="text-center">
-                        {isApproved ? (
-                          <CheckCircle className="h-4 w-4 text-green-600 mx-auto" />
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 text-amber-600 hover:text-green-600 hover:bg-green-50"
-                            onClick={() => handleApprove(report.report_ids, report.staff_name)}
-                            title="Klicka för att godkänna"
-                          >
-                            <Clock className="h-4 w-4 mr-1" />
-                            <span className="text-xs">Väntar</span>
-                          </Button>
-                        )}
+                      <TableCell className="text-right font-medium text-muted-foreground">
+                        {staff.total_hours.toFixed(1)} h
                       </TableCell>
+                      <TableCell className="text-right font-medium text-muted-foreground">
+                        {formatCurrency(staff.total_cost)}
+                      </TableCell>
+                      <TableCell />
                     </TableRow>
-                  );
-                })}
+                    {/* Individual report rows */}
+                    {(staff.detailed_reports || []).map((report) => (
+                      <TableRow key={report.id}>
+                        <TableCell className="pl-8 text-muted-foreground">
+                          {report.report_date}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {formatTime(report.start_time, report.end_time)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {report.hours_worked.toFixed(1)} h
+                          {report.overtime_hours > 0 && (
+                            <span className="text-muted-foreground text-xs ml-1">
+                              (+{report.overtime_hours.toFixed(1)} öt)
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">{formatCurrency(report.cost)}</TableCell>
+                        <TableCell className="text-center">
+                          {report.approved ? (
+                            <CheckCircle className="h-4 w-4 text-green-600 mx-auto" />
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-amber-600 hover:text-green-600 hover:bg-green-50"
+                              onClick={() => handleApprove([report.id], `${staff.staff_name} (${report.report_date})`)}
+                              title="Klicka för att godkänna"
+                            >
+                              <Clock className="h-4 w-4 mr-1" />
+                              <span className="text-xs">Väntar</span>
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </>
+                ))}
+                {/* Total row */}
                 <TableRow className="font-bold border-t-2">
-                  <TableCell>TOTALT</TableCell>
+                  <TableCell colSpan={2}>TOTALT</TableCell>
                   <TableCell className="text-right">{summary.actualHours.toFixed(1)} h</TableCell>
                   <TableCell className="text-right">{formatCurrency(summary.staffActual)}</TableCell>
                   <TableCell className="text-center">
