@@ -1,48 +1,44 @@
 
-# Auto-spara tidrapport vid timer-stopp
+# Visa individuella tidrapporter istället för ihopklumpade per person
 
 ## Problem
-När man stoppar en timer i ett projekt navigeras man till tidrapporteringssidan och måste manuellt fylla i formuläret. Användaren vill att tiden sparas automatiskt baserat på timerns start- och stopptid.
+Idag aggregeras alla tidrapporter per person till en enda rad i tabellen (t.ex. "Billy Hamren - 17.0h - 5 950 kr"). Användaren vill se varje rapport separat med datum och tider.
 
 ## Lösning
-När timern stoppas beräknas arbetstiden automatiskt (stopptid minus starttid) och en tidrapport skapas direkt via API:t utan att behöva fylla i formuläret. En bekräftelse visas med hur lång tid som sparades.
+Ändra datahämtningen och tabellvisningen så att varje tidrapport visas som en egen rad med datum, start/sluttid, timmar och kostnad. Personens namn visas som en grupperingsrubrik.
 
-## Hur det fungerar för användaren
+## Visuell struktur (före och efter)
 
-1. Tryck "Starta timer" i ett jobb -- timer börjar räkna
-2. Tryck "Stoppa" -- tiden sparas automatiskt till det jobbet
-3. En toast visar "Tidrapport sparad: 4.5h" som bekräftelse
-4. Ingen omdirigering till formulärsidan behövs längre
+**Före:**
+```text
+Personal       Timmar    Kostnad    Status
+Billy Hamrén   17.0 h    5 950 kr   Väntar
+```
+
+**Efter:**
+```text
+Personal          Datum        Tid           Timmar   Kostnad    Status
+Billy Hamrén
+  2026-02-14      08:00-17:00   8.5 h    2 975 kr   Väntar
+  2026-02-15      07:30-16:00   8.5 h    2 975 kr   Väntar
+TOTALT                          17.0 h   5 950 kr
+```
 
 ## Tekniska ändringar
 
-### `src/pages/mobile/MobileJobDetail.tsx`
-- Ändra `handleTimerToggle` så att vid stopp:
-  - Hämta timerns startTime och beräkna hours_worked (differens i timmar)
-  - Dra av 0.5h rast om arbetstiden överstiger 5h (standard)
-  - Anropa `mobileApi.createTimeReport()` med booking_id, report_date (dagens datum), start_time, end_time, hours_worked
-  - Visa toast med bekräftelse ("Tidrapport sparad: Xh")
-  - Ta BORT navigeringen till `/m/report`
+### 1. `src/services/projectEconomyService.ts` -- `fetchProjectTimeReports`
+- Hämta även `report_date`, `start_time`, `end_time` från databasen
+- Returnera en ny lista med individuella rapporter **utöver** den aggregerade per-person-listan
+- Lägga till ett nytt interface `DetailedTimeReport` med fälten: `id`, `staff_id`, `staff_name`, `report_date`, `start_time`, `end_time`, `hours_worked`, `overtime_hours`, `hourly_rate`, `cost`, `approved`
 
-### `src/pages/mobile/MobileTimeReport.tsx`
-- Ändra `onStop`-hanteraren för aktiva timers i tidrappportvyn:
-  - Samma auto-save-logik: beräkna tid, spara direkt
-  - Ta bort "fyll i tidrapporten"-meddelandet
-  - Visa bekräftelse-toast istället
+### 2. `src/types/projectEconomy.ts`
+- Lägga till `DetailedTimeReport`-interface
+- Lägga till `detailed_reports: DetailedTimeReport[]` i `StaffTimeReport` (varje aggregerad personrad bär sina underliggande rapporter)
 
-### Ingen ändring behövs i:
-- `useGeofencing.ts` (timer-logiken returnerar redan startTime)
-- `mobileApiService.ts` (createTimeReport-endpointen stöder redan alla fält)
-- Databas (inga migreringar)
-
-## Beräkningslogik
-
-```text
-stopTime = now()
-startTime = timer.startTime (ISO-sträng)
-totalHours = (stopTime - startTime) i timmar
-breakTime = totalHours > 5 ? 0.5 : 0
-hoursWorked = totalHours - breakTime
-```
-
-start_time och end_time formateras som "HH:mm" för att matcha befintligt API-format.
+### 3. `src/components/project/StaffCostTable.tsx`
+- Expandera varje personrad till att visa underliggande rapporter
+- Visa datum, start-/sluttid, timmar, kostnad, och godkännandestatus per rad
+- Personnamnet visas som en grupperingsrubrik (vänsterindenterad rad utan bakgrund)
+- Individuella rapporter visas indenterade under varje person
+- Behåll TOTALT-raden längst ner
+- Godkännandeknappen visas per individuell rapport (inte per person)
