@@ -1,34 +1,48 @@
 
-# Förbättra Utläggssidan -- Synligare och snabbare
+# Auto-spara tidrapport vid timer-stopp
 
 ## Problem
-Utläggssidan har all funktionalitet (formulär, kamerafoto, kvittohantering) men den är gömd bakom en liten "Nytt"-knapp. Sidan visas som tom tills man aktivt klickar den knappen, vilket ger intrycket att "allt är borta".
+När man stoppar en timer i ett projekt navigeras man till tidrapporteringssidan och måste manuellt fylla i formuläret. Användaren vill att tiden sparas automatiskt baserat på timerns start- och stopptid.
 
 ## Lösning
+När timern stoppas beräknas arbetstiden automatiskt (stopptid minus starttid) och en tidrapport skapas direkt via API:t utan att behöva fylla i formuläret. En bekräftelse visas med hur lång tid som sparades.
 
-### 1. Visa formuläret som standard när inga utlägg finns
-Istället for att starta med tomt tillstand, visa formularet direkt nar det inte finns nagra utlagg. Detta gor att anvandaren omedelbart kan borja registrera.
+## Hur det fungerar för användaren
 
-### 2. Stor, tydlig "Fota kvitto"-knapp som huvudaction
-Lagg till en framtradande knapp med kameraikon som primart call-to-action nar formularet inte ar oppet, sa att anvandaren direkt forstar att man kan fotografera kvitton.
+1. Tryck "Starta timer" i ett jobb -- timer börjar räkna
+2. Tryck "Stoppa" -- tiden sparas automatiskt till det jobbet
+3. En toast visar "Tidrapport sparad: 4.5h" som bekräftelse
+4. Ingen omdirigering till formulärsidan behövs längre
 
-### 3. Auto-valj jobb om bara ett finns
-Om anvandaren bara ar tilldelad ett jobb, forvalj det automatiskt sa att man slipper ett extra steg.
+## Tekniska ändringar
 
-### 4. Visa alla utlagg oavsett valt jobb
-Ladda in utlagg fran alla jobb direkt vid start (inte bara nar ett jobb ar valt), sa att historiken alltid syns.
+### `src/pages/mobile/MobileJobDetail.tsx`
+- Ändra `handleTimerToggle` så att vid stopp:
+  - Hämta timerns startTime och beräkna hours_worked (differens i timmar)
+  - Dra av 0.5h rast om arbetstiden överstiger 5h (standard)
+  - Anropa `mobileApi.createTimeReport()` med booking_id, report_date (dagens datum), start_time, end_time, hours_worked
+  - Visa toast med bekräftelse ("Tidrapport sparad: Xh")
+  - Ta BORT navigeringen till `/m/report`
 
-## Tekniska andringar
+### `src/pages/mobile/MobileTimeReport.tsx`
+- Ändra `onStop`-hanteraren för aktiva timers i tidrappportvyn:
+  - Samma auto-save-logik: beräkna tid, spara direkt
+  - Ta bort "fyll i tidrapporten"-meddelandet
+  - Visa bekräftelse-toast istället
 
-### `src/pages/mobile/MobileExpenses.tsx`
-- Ladda utlagg fran alla bokningar vid uppstart (loopa over alla bookings och hamta purchases)
-- Auto-valj `selectedBookingId` om bara en booking finns
-- Satt `showForm = true` som default nar purchases ar tomma
-- Lagg till en stor, synlig CTA-knapp ("Registrera utlagg") med kameraikon nar formularet ar stangd
-- Visa en sammanfattning av totala utlagg langst upp (oavsett vilken bokning)
+### Ingen ändring behövs i:
+- `useGeofencing.ts` (timer-logiken returnerar redan startTime)
+- `mobileApiService.ts` (createTimeReport-endpointen stöder redan alla fält)
+- Databas (inga migreringar)
 
-### `src/services/mobileApiService.ts`
-- Ingen andring behovs -- befintliga endpoints racker
+## Beräkningslogik
 
-## Resultat
-Anvandaren ser antingen formularet direkt (om inga utlagg finns) eller en tydlig "Registrera utlagg"-knapp + sin historik. Det blir omojligt att missa att man kan fota kvitton.
+```text
+stopTime = now()
+startTime = timer.startTime (ISO-sträng)
+totalHours = (stopTime - startTime) i timmar
+breakTime = totalHours > 5 ? 0.5 : 0
+hoursWorked = totalHours - breakTime
+```
+
+start_time och end_time formateras som "HH:mm" för att matcha befintligt API-format.
