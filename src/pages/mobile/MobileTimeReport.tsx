@@ -105,10 +105,29 @@ const MobileTimeReport = () => {
               <ActiveTimerCard
                 key={bookingId}
                 timer={timer}
-                onStop={() => {
+                onStop={async () => {
+                  const stopTime = new Date();
+                  const startTimeDate = parseISO(timer.startTime);
+                  const totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
+                  const breakDeduction = totalHours > 5 ? 0.5 : 0;
+                  const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
+
                   stopTimer(bookingId);
-                  setSelectedBookingId(bookingId);
-                  toast.info('Timer stoppad – fyll i tidrapporten');
+
+                  try {
+                    await mobileApi.createTimeReport({
+                      booking_id: bookingId,
+                      report_date: format(new Date(), 'yyyy-MM-dd'),
+                      start_time: format(startTimeDate, 'HH:mm'),
+                      end_time: format(stopTime, 'HH:mm'),
+                      hours_worked: hoursWorked,
+                      break_time: breakDeduction,
+                      description: `Timer: ${timer.client}`,
+                    });
+                    toast.success(`Tidrapport sparad: ${hoursWorked}h`);
+                  } catch (err: any) {
+                    toast.error(err.message || 'Kunde inte spara tidrapport');
+                  }
                 }}
               />
             ))}

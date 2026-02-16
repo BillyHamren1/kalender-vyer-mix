@@ -53,12 +53,31 @@ const MobileJobDetail = () => {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const handleTimerToggle = () => {
+  const handleTimerToggle = async () => {
     if (!id || !booking) return;
     if (currentTimer) {
+      const stopTime = new Date();
+      const startTimeDate = parseISO(currentTimer.startTime);
+      const totalHours = (stopTime.getTime() - startTimeDate.getTime()) / (1000 * 60 * 60);
+      const breakDeduction = totalHours > 5 ? 0.5 : 0;
+      const hoursWorked = Math.max(0, Number((totalHours - breakDeduction).toFixed(2)));
+
       stopTimer(id);
-      toast.success('Timer stoppad');
-      navigate('/m/report');
+
+      try {
+        await mobileApi.createTimeReport({
+          booking_id: id,
+          report_date: format(new Date(), 'yyyy-MM-dd'),
+          start_time: format(startTimeDate, 'HH:mm'),
+          end_time: format(stopTime, 'HH:mm'),
+          hours_worked: hoursWorked,
+          break_time: breakDeduction,
+          description: `Timer: ${booking.client}`,
+        });
+        toast.success(`Tidrapport sparad: ${hoursWorked}h`);
+      } catch (err: any) {
+        toast.error(err.message || 'Kunde inte spara tidrapport');
+      }
     } else {
       startTimer(id, booking.client, false);
       toast.success('Timer startad');
