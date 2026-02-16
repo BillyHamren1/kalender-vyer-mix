@@ -176,13 +176,17 @@ export const fetchProjectTimeReports = async (bookingId: string): Promise<StaffT
       hours_worked,
       overtime_hours,
       approved,
+      report_date,
+      start_time,
+      end_time,
       staff_members!inner(name, hourly_rate, overtime_rate)
     `)
-    .eq('booking_id', bookingId);
+    .eq('booking_id', bookingId)
+    .order('report_date', { ascending: true });
   
   if (error) throw error;
   
-  // Aggregate by staff member
+  // Aggregate by staff member, keeping detailed reports
   const staffMap = new Map<string, StaffTimeReport>();
   
   (data || []).forEach((report: any) => {
@@ -192,31 +196,45 @@ export const fetchProjectTimeReports = async (bookingId: string): Promise<StaffT
     const staffData = report.staff_members;
     const hourlyRate = Number(staffData?.hourly_rate) || 0;
     const overtimeRate = Number(staffData?.overtime_rate) || hourlyRate * 1.5;
+    const hoursWorked = Number(report.hours_worked) || 0;
+    const overtimeHours = Number(report.overtime_hours) || 0;
+    
+    const detailedReport = {
+      id: report.id,
+      staff_id: staffId,
+      staff_name: staffData?.name || 'Okänd',
+      report_date: report.report_date,
+      start_time: report.start_time,
+      end_time: report.end_time,
+      hours_worked: hoursWorked,
+      overtime_hours: overtimeHours,
+      hourly_rate: hourlyRate,
+      cost: (hoursWorked * hourlyRate) + (overtimeHours * overtimeRate),
+      approved: report.approved === true,
+    };
     
     if (existing) {
       existing.report_ids.push(report.id);
-      existing.total_hours += Number(report.hours_worked) || 0;
-      existing.overtime_hours += Number(report.overtime_hours) || 0;
+      existing.detailed_reports.push(detailedReport);
+      existing.total_hours += hoursWorked;
+      existing.overtime_hours += overtimeHours;
       existing.total_cost = (existing.total_hours * existing.hourly_rate) + 
                            (existing.overtime_hours * existing.overtime_rate);
-      // Mark as not approved if any report is not approved
       if (!report.approved) {
         existing.approved = false;
       }
     } else {
-      const totalHours = Number(report.hours_worked) || 0;
-      const overtimeHours = Number(report.overtime_hours) || 0;
-      
       staffMap.set(staffId, {
         staff_id: staffId,
         staff_name: staffData?.name || 'Okänd',
-        total_hours: totalHours,
+        total_hours: hoursWorked,
         overtime_hours: overtimeHours,
         hourly_rate: hourlyRate,
         overtime_rate: overtimeRate,
-        total_cost: (totalHours * hourlyRate) + (overtimeHours * overtimeRate),
+        total_cost: (hoursWorked * hourlyRate) + (overtimeHours * overtimeRate),
         approved: report.approved === true,
-        report_ids: [report.id]
+        report_ids: [report.id],
+        detailed_reports: [detailedReport],
       });
     }
   });
