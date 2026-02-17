@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { mobileApi, MobileTimeReport } from '@/services/mobileApiService';
 import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, getDay, isSameDay, addMonths, subMonths, addWeeks, subWeeks, isWithinInterval } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { ArrowLeft, Calendar, List, ChevronLeft, ChevronRight, Clock, Loader2 } from 'lucide-react';
+import { ArrowLeft, Calendar, List, ChevronLeft, ChevronRight, Clock, Loader2, Download } from 'lucide-react';
+import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -11,6 +12,7 @@ type ViewMode = 'calendar' | 'list';
 type ListFilter = 'week' | 'month';
 
 const MobileTimeHistory = () => {
+  const { staff } = useMobileAuth();
   const navigate = useNavigate();
   const [reports, setReports] = useState<MobileTimeReport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -93,6 +95,64 @@ const MobileTimeHistory = () => {
       ? (dir === 1 ? addWeeks(p, 1) : subWeeks(p, 1))
       : (dir === 1 ? addMonths(p, 1) : subMonths(p, 1))
     );
+  };
+
+  const exportPdf = () => {
+    const staffName = staff?.name || 'Personal';
+    const rows = groupedListReports.map(({ dateKey, reports: dr }) => {
+      const d = parseISO(dateKey);
+      const dayNum = format(d, 'd');
+      const dayName = format(d, 'EEE', { locale: sv });
+      if (dr.length === 0) {
+        return `<tr style="color:#aaa"><td>${dayNum}</td><td>${dayName}</td><td>–</td><td>–</td><td>–</td><td>–</td></tr>`;
+      }
+      return dr.map((r, i) => {
+        const client = r.bookings?.client || 'Okänt';
+        return `<tr>
+          <td>${i === 0 ? dayNum : ''}</td>
+          <td>${i === 0 ? dayName : ''}</td>
+          <td>${client}</td>
+          <td>${r.start_time?.slice(0, 5) || '–'}</td>
+          <td>${r.end_time?.slice(0, 5) || '–'}</td>
+          <td style="font-weight:700">${r.hours_worked}</td>
+        </tr>`;
+      }).join('');
+    }).join('');
+
+    const totalOt = filteredListReports.reduce((s, r) => s + (r.overtime_hours || 0), 0);
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Tidrapport – ${staffName}</title>
+    <style>
+      * { margin:0; padding:0; box-sizing:border-box; }
+      body { font-family: -apple-system, system-ui, sans-serif; padding: 24px; color: #1a1a1a; }
+      h1 { font-size: 18px; margin-bottom: 4px; }
+      .meta { font-size: 12px; color: #666; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #888; padding: 6px 8px; border-bottom: 2px solid #ddd; }
+      td { padding: 6px 8px; border-bottom: 1px solid #eee; }
+      th:nth-child(4), th:nth-child(5), th:nth-child(6),
+      td:nth-child(4), td:nth-child(5), td:nth-child(6) { text-align: center; }
+      th:last-child, td:last-child { text-align: right; }
+      .total td { border-top: 2px solid #333; border-bottom: none; font-weight: 800; font-size: 14px; }
+      @media print { body { padding: 12px; } }
+    </style></head><body>
+    <h1>Tidrapport – ${staffName}</h1>
+    <p class="meta">${listPeriodLabel} · ${filteredListReports.length} rapporter</p>
+    <table>
+      <thead><tr><th>Dag</th><th></th><th>Kund</th><th>Start</th><th>Slut</th><th>Tim</th></tr></thead>
+      <tbody>${rows}
+        <tr class="total"><td colspan="5">Totalt${totalOt > 0 ? ` (varav ${totalOt}h övertid)` : ''}</td><td>${filteredTotalHours}h</td></tr>
+      </tbody>
+    </table></body></html>`;
+
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+      setTimeout(() => w.print(), 300);
+    } else {
+      toast.error('Kunde inte öppna fönster för PDF');
+    }
   };
 
   const weekDays = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
@@ -332,6 +392,15 @@ const MobileTimeHistory = () => {
                 <span className="text-sm font-extrabold text-primary tabular-nums text-right">{filteredTotalHours}</span>
               </div>
             </div>
+
+            {/* Export button */}
+            <button
+              onClick={exportPdf}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-primary text-primary-foreground font-semibold text-sm active:scale-[0.98] transition-all shadow-sm"
+            >
+              <Download className="w-4 h-4" />
+              Exportera som PDF
+            </button>
           </div>
         )}
       </div>
