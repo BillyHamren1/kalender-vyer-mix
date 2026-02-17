@@ -77,7 +77,7 @@ const MobileJobs = () => {
   return (
     <div className="flex flex-col min-h-screen bg-background">
       {/* Header — clean, no bubbles */}
-      <div className="bg-primary px-5 pt-14 pb-5 safe-area-top">
+      <div className="bg-primary px-5 pt-14 pb-5 safe-area-top rounded-b-3xl shadow-md">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-primary-foreground/70 text-[11px] font-semibold tracking-widest uppercase">Välkommen</p>
