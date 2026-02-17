@@ -964,19 +964,26 @@ serve(async (req) => {
     }
 
     // Fetch bookings from export-bookings function with timeout and retry
-    const fetchWithRetry = async (url: string, options: RequestInit, retries = 2): Promise<Response> => {
+    const fetchWithRetry = async (url: string, options: RequestInit, retries = 3): Promise<Response> => {
       for (let attempt = 0; attempt <= retries; attempt++) {
         try {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout per attempt
           const resp = await fetch(url, { ...options, signal: controller.signal });
           clearTimeout(timeoutId);
+          // Also retry on 5xx server errors from external API
+          if (resp.status >= 500 && attempt < retries) {
+            const bodyText = await resp.text();
+            console.error(`Fetch attempt ${attempt + 1} got ${resp.status}, retrying... Body: ${bodyText.substring(0, 200)}`);
+            await new Promise(r => setTimeout(r, 3000 * (attempt + 1))); // exponential backoff: 3s, 6s, 9s
+            continue;
+          }
           return resp;
         } catch (err) {
           console.error(`Fetch attempt ${attempt + 1} failed:`, err);
           if (attempt === retries) throw err;
-          // Wait 2s before retry
-          await new Promise(r => setTimeout(r, 2000));
+          // Wait before retry with exponential backoff
+          await new Promise(r => setTimeout(r, 3000 * (attempt + 1)));
         }
       }
       throw new Error('All fetch attempts failed');
