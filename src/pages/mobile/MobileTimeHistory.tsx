@@ -104,11 +104,11 @@ const MobileTimeHistory = () => {
       const dayNum = format(d, 'd');
       const dayName = format(d, 'EEE', { locale: sv });
       if (dr.length === 0) {
-        return `<tr style="color:#aaa"><td>${dayNum}</td><td>${dayName}</td><td>–</td><td>–</td><td>–</td><td>–</td></tr>`;
+        return `<tr class="empty"><td>${dayNum}</td><td>${dayName}</td><td>–</td><td>–</td><td>–</td><td>–</td></tr>`;
       }
       return dr.map((r, i) => {
         const client = r.bookings?.client || 'Okänt';
-        return `<tr>
+        return `<tr class="report">
           <td>${i === 0 ? dayNum : ''}</td>
           <td>${i === 0 ? dayName : ''}</td>
           <td>${client}</td>
@@ -124,26 +124,38 @@ const MobileTimeHistory = () => {
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Tidrapport – ${staffName}</title>
     <style>
       * { margin:0; padding:0; box-sizing:border-box; }
-      body { font-family: -apple-system, system-ui, sans-serif; padding: 24px; color: #1a1a1a; }
-      h1 { font-size: 18px; margin-bottom: 4px; }
-      .meta { font-size: 12px; color: #666; margin-bottom: 16px; }
+      body { font-family: -apple-system, system-ui, sans-serif; padding: 32px; color: #1a2a2a; background: #f0f4f5; }
+      .card { background: #fff; border-radius: 16px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); border: 1px solid #e2e8ea; }
+      h1 { font-size: 20px; font-weight: 800; color: #0f3b3d; margin-bottom: 2px; letter-spacing: -0.3px; }
+      .meta { font-size: 12px; color: #7a8f90; margin-bottom: 20px; }
+      .brand { display: inline-block; background: #279B9E; color: #fff; font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 8px; margin-bottom: 16px; letter-spacing: 0.5px; text-transform: uppercase; }
       table { width: 100%; border-collapse: collapse; font-size: 13px; }
-      th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #888; padding: 6px 8px; border-bottom: 2px solid #ddd; }
-      td { padding: 6px 8px; border-bottom: 1px solid #eee; }
+      th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: #7a8f90; padding: 8px 10px; border-bottom: 2px solid #d5dfe0; font-weight: 700; }
+      td { padding: 8px 10px; border-bottom: 1px solid #eef2f3; vertical-align: top; }
+      tr.empty td { color: #c0cccd; }
+      tr.report td:first-child, tr.report td:nth-child(2) { color: #0f3b3d; font-weight: 600; }
       th:nth-child(4), th:nth-child(5), th:nth-child(6),
       td:nth-child(4), td:nth-child(5), td:nth-child(6) { text-align: center; }
       th:last-child, td:last-child { text-align: right; }
-      .total td { border-top: 2px solid #333; border-bottom: none; font-weight: 800; font-size: 14px; }
-      @media print { body { padding: 12px; } }
+      td:last-child { font-weight: 700; }
+      .total td { border-top: 2px solid #279B9E; border-bottom: none; font-weight: 800; font-size: 14px; color: #0f3b3d; padding-top: 12px; }
+      .total td:last-child { color: #279B9E; font-size: 16px; }
+      .footer { text-align: center; margin-top: 20px; font-size: 10px; color: #aab8b9; }
+      @media print { body { background: #fff; padding: 12px; } .card { box-shadow: none; border: none; padding: 0; } }
     </style></head><body>
-    <h1>Tidrapport – ${staffName}</h1>
-    <p class="meta">${listPeriodLabel} · ${filteredListReports.length} rapporter</p>
-    <table>
-      <thead><tr><th>Dag</th><th></th><th>Kund</th><th>Start</th><th>Slut</th><th>Tim</th></tr></thead>
-      <tbody>${rows}
-        <tr class="total"><td colspan="5">Totalt${totalOt > 0 ? ` (varav ${totalOt}h övertid)` : ''}</td><td>${filteredTotalHours}h</td></tr>
-      </tbody>
-    </table></body></html>`;
+    <div class="card">
+      <div class="brand">EventFlow</div>
+      <h1>Tidrapport – ${staffName}</h1>
+      <p class="meta">${listPeriodLabel} · ${filteredListReports.length} rapporter</p>
+      <table>
+        <thead><tr><th>Dag</th><th></th><th>Kund</th><th>Start</th><th>Slut</th><th>Tim</th></tr></thead>
+        <tbody>${rows}
+          <tr class="total"><td colspan="5">Totalt${totalOt > 0 ? ` (varav ${totalOt}h övertid)` : ''}</td><td>${filteredTotalHours}h</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="footer">Genererad ${format(new Date(), 'yyyy-MM-dd HH:mm')}</p>
+    </body></html>`;
 
     const w = window.open('', '_blank');
     if (w) {
