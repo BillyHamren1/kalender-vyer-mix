@@ -138,13 +138,11 @@ const MobileProfile = () => {
             <span className="font-mono text-[11px] text-muted-foreground/60">1.0.0</span>
           </div>
         </div>
-      </div>
 
-      {/* Logout pinned to bottom */}
-      <div className="px-4 pb-6 pt-2 mt-auto">
+        {/* Logout */}
         <Button
           variant="outline"
-          className="w-full h-12 rounded-2xl text-sm gap-2 font-semibold border-destructive/25 text-destructive hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-all active:scale-[0.98]"
+          className="w-full h-11 rounded-2xl text-sm gap-2 font-semibold border-destructive/25 text-destructive hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-all active:scale-[0.98]"
           onClick={handleLogout}
         >
           <LogOut className="w-4.5 h-4.5" />
