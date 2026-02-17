@@ -96,7 +96,7 @@ const ProjectDetail = () => {
         {/* Overview Dashboard */}
         <ProjectOverviewHeader
           tasks={tasks}
-          filesCount={files.length}
+          filesCount={files.length + bookingAttachments.length}
           commentsCount={comments.length}
           activities={activities}
         />

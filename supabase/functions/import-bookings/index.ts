@@ -2264,6 +2264,11 @@ serve(async (req) => {
         }
 
         // Extract tent images as booking attachments
+        console.log(`Booking ${bookingData.id} tent_images: ${
+          externalBooking.tent_images
+            ? `${externalBooking.tent_images.length} bilder`
+            : 'saknas i API-svaret'
+        }`);
         if (externalBooking.tent_images && Array.isArray(externalBooking.tent_images)) {
           await syncTentImages(supabase, bookingData.id, externalBooking.tent_images, results);
         }
