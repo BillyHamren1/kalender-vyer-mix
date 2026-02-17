@@ -261,40 +261,77 @@ const MobileTimeHistory = () => {
               </button>
             </div>
 
-            {/* Grouped reports */}
-            {groupedListReports.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-2">
-                  <Clock className="w-6 h-6 text-muted-foreground/30" />
-                </div>
-                <p className="text-sm font-medium text-foreground/60">Inga rapporter denna period</p>
+            {/* Table */}
+            <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+              {/* Table header */}
+              <div className="grid grid-cols-[1fr_60px_60px_50px] bg-muted/50 border-b border-border px-3 py-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Datum</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-center">Start</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-center">Slut</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-right">Tim</span>
               </div>
-            ) : (
-              groupedListReports.map(({ dateKey, reports: dateReports }) => {
-                const dayTotal = dateReports.reduce((s, r) => s + r.hours_worked, 0);
+              {groupedListReports.map(({ dateKey, reports: dateReports }, idx) => {
                 const hasReports = dateReports.length > 0;
-                return (
-                  <div key={dateKey}>
-                    <div className="flex items-center justify-between px-1 mb-1.5">
-                      <h3 className={cn(
-                        "text-[11px] font-bold uppercase tracking-widest",
-                        hasReports ? "text-muted-foreground" : "text-muted-foreground/40"
-                      )}>
-                        {format(parseISO(dateKey), 'EEEE d MMM', { locale: sv })}
-                      </h3>
-                      {hasReports && <span className="text-[11px] font-bold text-primary">{dayTotal}h</span>}
-                    </div>
-                    {hasReports && (
-                      <div className="space-y-1.5">
-                        {dateReports.map(report => (
-                          <ReportCard key={report.id} report={report} showDate={false} />
-                        ))}
+                const isLast = idx === groupedListReports.length - 1;
+                const dayNum = format(parseISO(dateKey), 'd');
+                const dayName = format(parseISO(dateKey), 'EEE', { locale: sv });
+
+                if (!hasReports) {
+                  return (
+                    <div key={dateKey} className={cn(
+                      "grid grid-cols-[1fr_60px_60px_50px] px-3 py-2.5 items-center",
+                      !isLast && "border-b border-border/50"
+                    )}>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-sm font-bold text-foreground/30 tabular-nums w-5 text-right">{dayNum}</span>
+                        <span className="text-xs text-muted-foreground/40 capitalize">{dayName}</span>
                       </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
+                      <span className="text-xs text-muted-foreground/30 text-center">–</span>
+                      <span className="text-xs text-muted-foreground/30 text-center">–</span>
+                      <span className="text-xs text-muted-foreground/30 text-right">–</span>
+                    </div>
+                  );
+                }
+
+                return dateReports.map((report, rIdx) => {
+                  const isLastRow = isLast && rIdx === dateReports.length - 1;
+                  return (
+                    <div key={report.id} className={cn(
+                      "grid grid-cols-[1fr_60px_60px_50px] px-3 py-2.5 items-center",
+                      !isLastRow && "border-b border-border/50"
+                    )}>
+                      <div className="min-w-0">
+                        {rIdx === 0 && (
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-sm font-bold text-foreground tabular-nums w-5 text-right">{dayNum}</span>
+                            <span className="text-xs text-muted-foreground capitalize">{dayName}</span>
+                          </div>
+                        )}
+                        <p className={cn("text-xs text-foreground font-medium truncate", rIdx === 0 ? "mt-0.5 pl-[26px]" : "pl-[26px]")}>
+                          {report.bookings?.client || 'Okänt'}
+                        </p>
+                      </div>
+                      <span className="text-xs font-medium text-foreground tabular-nums text-center">
+                        {report.start_time?.slice(0, 5) || '–'}
+                      </span>
+                      <span className="text-xs font-medium text-foreground tabular-nums text-center">
+                        {report.end_time?.slice(0, 5) || '–'}
+                      </span>
+                      <span className="text-sm font-bold text-foreground tabular-nums text-right">
+                        {report.hours_worked}
+                      </span>
+                    </div>
+                  );
+                });
+              })}
+              {/* Total row */}
+              <div className="grid grid-cols-[1fr_60px_60px_50px] px-3 py-2.5 border-t border-border bg-muted/50">
+                <span className="text-xs font-bold text-foreground uppercase">Totalt</span>
+                <span />
+                <span />
+                <span className="text-sm font-extrabold text-primary tabular-nums text-right">{filteredTotalHours}</span>
+              </div>
+            </div>
           </div>
         )}
       </div>
