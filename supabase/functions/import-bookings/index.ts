@@ -111,7 +111,43 @@ async function syncProductImages(supabase: any, bookingId: string, products: any
 }
 
 /**
- * Sync tent images as booking attachments (with deduplication)
+ * Upload a base64 string to Supabase Storage and return the public URL.
+ * Returns null if upload fails.
+ */
+async function uploadBase64ToStorage(
+  supabase: any,
+  base64: string,
+  filePath: string,
+  contentType: string
+): Promise<string | null> {
+  try {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+    const { error } = await supabase.storage
+      .from('map-snapshots')
+      .upload(filePath, bytes, { contentType, upsert: true });
+
+    if (error) {
+      console.error(`[Storage Upload] Error uploading ${filePath}:`, error);
+      return null;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('map-snapshots')
+      .getPublicUrl(filePath);
+
+    return urlData?.publicUrl ?? null;
+  } catch (err) {
+    console.error(`[Storage Upload] Exception uploading ${filePath}:`, err);
+    return null;
+  }
+}
+
+/**
+ * Sync tent images as booking attachments (with deduplication).
+ * Supports both public_url (legacy) and content_base64 (new format).
  */
 async function syncTentImages(supabase: any, bookingId: string, tentImages: any[], results: any) {
   const { data: existingAttachments } = await supabase
@@ -122,13 +158,27 @@ async function syncTentImages(supabase: any, bookingId: string, tentImages: any[
   const seenUrls = new Set<string>((existingAttachments || []).map((a: any) => a.url));
 
   for (const tentImage of tentImages) {
-    const imgUrl = tentImage.public_url;
-    if (!imgUrl || seenUrls.has(imgUrl)) continue;
-    seenUrls.add(imgUrl);
-
     const tentIndex = tentImage.tent_index ?? '';
     const viewKey   = tentImage.view_key   ?? '';
     const fileName  = (`Tält ${tentIndex} - ${viewKey}`).trim() || 'Tältbild';
+
+    let imgUrl: string | null = tentImage.public_url || null;
+
+    // New format: upload base64 to Storage
+    if (!imgUrl && tentImage.content_base64) {
+      const storageFileName = `tent-${bookingId}-${tentIndex}-${String(viewKey).replace(/[^a-zA-Z0-9]/g, '_')}.jpg`;
+      const filePath = `${bookingId}/${storageFileName}`;
+      imgUrl = await uploadBase64ToStorage(supabase, tentImage.content_base64, filePath, 'image/jpeg');
+      if (imgUrl) {
+        console.log(`[Tent Image] Uploaded base64 to Storage: ${filePath}`);
+      } else {
+        console.error(`[Tent Image] Failed to upload base64 for tent ${tentIndex}/${viewKey}, booking ${bookingId}`);
+        continue;
+      }
+    }
+
+    if (!imgUrl || seenUrls.has(imgUrl)) continue;
+    seenUrls.add(imgUrl);
 
     let fileType = 'image/jpeg';
     if (imgUrl.includes('.png'))  fileType = 'image/png';
@@ -2236,10 +2286,37 @@ serve(async (req) => {
           
           for (const attachment of externalBooking.attachments) {
             try {
+              let attUrl: string | null = attachment.public_url || attachment.url || attachment.file_url || null;
+              const attFileName = attachment.file_name || attachment.name || 'Unknown File';
+
+              // New format: upload base64 to Storage
+              if (!attUrl && attachment.content_base64) {
+                const ext = attFileName.includes('.') ? attFileName.split('.').pop()!.toLowerCase() : 'bin';
+                const safeFileName = attFileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+                const filePath = `${bookingData.id}/attachments/${safeFileName}`;
+                const mimeMap: Record<string, string> = {
+                  pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+                  png: 'image/png', webp: 'image/webp', gif: 'image/gif'
+                };
+                const contentType = mimeMap[ext] || 'application/octet-stream';
+                attUrl = await uploadBase64ToStorage(supabase, attachment.content_base64, filePath, contentType);
+                if (attUrl) {
+                  console.log(`[Attachment] Uploaded base64 attachment "${attFileName}" to Storage`);
+                } else {
+                  console.error(`[Attachment] Failed to upload base64 for "${attFileName}", booking ${bookingData.id}`);
+                  continue;
+                }
+              }
+
+              if (!attUrl) {
+                console.warn(`[Attachment] No URL for attachment "${attFileName}", skipping`);
+                continue;
+              }
+
               const attachmentData: AttachmentData = {
                 booking_id: bookingData.id,
-                url: attachment.public_url || attachment.url || attachment.file_url,
-                file_name: attachment.file_name || attachment.name || 'Unknown File',
+                url: attUrl,
+                file_name: attFileName,
                 file_type: attachment.file_type || attachment.type || 'unknown'
               }
 
@@ -2256,6 +2333,37 @@ serve(async (req) => {
               console.error(`Error processing attachment for booking ${bookingData.id}:`, attachmentErr)
             }
           }
+        }
+
+        // Process map_drawing (situationsplan) — supports both map_drawing_url and content_base64
+        if (externalBooking.map_drawing) {
+          const md = externalBooking.map_drawing;
+          let mdUrl: string | null = md.public_url || md.url || externalBooking.map_drawing_url || null;
+
+          if (!mdUrl && md.content_base64) {
+            const filePath = `${bookingData.id}/map_drawing.jpg`;
+            mdUrl = await uploadBase64ToStorage(supabase, md.content_base64, filePath, 'image/jpeg');
+            if (mdUrl) {
+              console.log(`[Map Drawing] Uploaded base64 map_drawing to Storage for booking ${bookingData.id}`);
+            } else {
+              console.error(`[Map Drawing] Failed to upload base64 map_drawing for booking ${bookingData.id}`);
+            }
+          }
+
+          if (mdUrl && mdUrl !== bookingData.map_drawing_url) {
+            const { error: mdErr } = await supabase
+              .from('bookings')
+              .update({ map_drawing_url: mdUrl })
+              .eq('id', bookingData.id);
+            if (mdErr) {
+              console.error(`[Map Drawing] Error updating map_drawing_url for booking ${bookingData.id}:`, mdErr);
+            } else {
+              console.log(`[Map Drawing] Updated map_drawing_url for booking ${bookingData.id}`);
+            }
+          }
+        } else if (externalBooking.map_drawing_url && externalBooking.map_drawing_url !== bookingData.map_drawing_url) {
+          // Legacy: map_drawing_url directly on the booking object
+          await supabase.from('bookings').update({ map_drawing_url: externalBooking.map_drawing_url }).eq('id', bookingData.id);
         }
 
         // Extract product images as booking attachments
