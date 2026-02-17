@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { 
   Calendar, 
   Users, 
@@ -29,7 +29,6 @@ const navigationItems: NavItem[] = [
     url: "/projects", 
     icon: FolderKanban,
     children: [
-      { title: "Projekthantering", url: "/projects" },
       { title: "Mina projekt", url: "/my-projects" },
     ]
   },
@@ -67,6 +66,7 @@ const navigationItems: NavItem[] = [
 export function Sidebar3D() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
+  const navigate = useNavigate();
   const location = useLocation();
 
   // Auto-expand parent if a child route is active
@@ -163,7 +163,7 @@ export function Sidebar3D() {
             {navigationItems.map((item, index) => {
               const hasChildren = item.children && item.children.length > 0;
               const isParentActive = hasChildren 
-                ? item.children!.some(child => location.pathname === child.url)
+                ? location.pathname === item.url || item.children!.some(child => location.pathname === child.url)
                 : location.pathname === item.url || location.pathname.startsWith(item.url + '/');
               const isExpanded = expandedItems.includes(item.url);
               
@@ -171,7 +171,7 @@ export function Sidebar3D() {
                 <div key={item.url}>
                   {hasChildren ? (
                     <button
-                      onClick={() => toggleExpanded(item.url)}
+                      onClick={() => { navigate(item.url); toggleExpanded(item.url); }}
                       className={cn(
                         "group relative flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-300 w-full text-left",
                         "hover:bg-accent/50",
