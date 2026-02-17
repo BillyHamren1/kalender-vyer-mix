@@ -77,6 +77,9 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const [isQRActive, setIsQRActive] = useState(false);
   const [lastScan, setLastScan] = useState<{ value: string; result: string; success: boolean } | null>(null);
   
+  // Stable item order map (item.id -> initial index)
+  const [itemOrder, setItemOrder] = useState<Record<string, number>>({});
+
   // Kolli mode state
   const [isKolliMode, setIsKolliMode] = useState(false);
   const [activeParcel, setActiveParcel] = useState<PackingParcel | null>(null);
@@ -95,7 +98,23 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       ]);
 
       setPacking(packingData);
-      setItems(itemsData as PackingItem[]);
+      
+      // Stabilize item order: lock to first-load order
+      const typedItems = itemsData as PackingItem[];
+      if (Object.keys(itemOrder).length === 0) {
+        // First load — save the order
+        const order: Record<string, number> = {};
+        typedItems.forEach((item, idx) => { order[item.id] = idx; });
+        setItemOrder(order);
+        setItems(typedItems);
+      } else {
+        // Subsequent loads — sort according to saved order
+        const stableSorted = [...typedItems].sort(
+          (a, b) => (itemOrder[a.id] ?? 9999) - (itemOrder[b.id] ?? 9999)
+        );
+        setItems(stableSorted);
+      }
+      
       setProgress(progressData);
       setItemParcelMap(parcelsData);
     } catch (err) {
