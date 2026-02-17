@@ -36,7 +36,7 @@ const MobileProfile = () => {
   return (
     <div className="flex flex-col min-h-screen bg-card">
       {/* Header */}
-      <div className="bg-primary px-5 pt-14 pb-8 safe-area-top">
+      <div className="bg-primary px-5 pt-14 pb-8 safe-area-top rounded-b-3xl shadow-md">
         <div className="flex flex-col items-center">
           <div className="w-16 h-16 rounded-2xl bg-primary-foreground/15 border border-primary-foreground/15 flex items-center justify-center mb-2.5">
             <User className="w-8 h-8 text-primary-foreground" />
