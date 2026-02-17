@@ -4,7 +4,6 @@ import { addCalendarEvent, deleteCalendarEvent } from './eventService';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { format } from 'date-fns';
 import { 
-  syncBookingToWarehouseCalendar, 
   removeWarehouseEventsForBooking,
   checkAndMarkWarehouseChanges 
 } from './warehouseCalendarService';
@@ -268,15 +267,6 @@ export const syncSingleBookingToCalendar = async (bookingId: string, booking?: a
           .delete()
           .eq('id', existingEvent.id);
       }
-    }
-
-    // Sync to warehouse calendar
-    try {
-      await syncBookingToWarehouseCalendar(booking);
-      console.log(`Successfully synced booking ${bookingId} to warehouse calendar`);
-    } catch (warehouseError) {
-      console.error(`Error syncing to warehouse calendar:`, warehouseError);
-      // Don't throw - warehouse sync failure shouldn't block main calendar sync
     }
 
     console.log(`Successfully synced events for booking ${bookingId}`);
