@@ -105,43 +105,43 @@ const DashboardEventCard = ({ event, compact = false }: DashboardEventCardProps)
     <div
       onClick={handleClick}
       className={cn(
-        "group relative rounded-lg border transition-all duration-200 overflow-hidden cursor-pointer",
+        "group relative rounded border transition-all duration-200 overflow-hidden cursor-pointer",
         categoryColor.bg, categoryColor.border,
-        "hover:shadow-sm hover:scale-[1.01]"
+        "hover:shadow-sm"
       )}
     >
-      <div className="p-2.5">
+      <div className="px-2 py-1.5">
         {/* Header row */}
-        <div className="flex items-center gap-2 mb-1.5">
+        <div className="flex items-center gap-1.5 mb-0.5">
           <span className={cn(
-            "px-2 py-0.5 rounded text-[10px] tracking-wide font-bold border",
+            "px-1.5 py-px rounded text-[9px] tracking-wide font-bold border shrink-0",
             badgeStyle
           )}>
             {getEventTypeLabel(event.eventType)}
           </span>
           {event.bookingNumber && (
-            <span className="text-xs font-mono text-muted-foreground">
+            <span className="text-[10px] font-mono text-muted-foreground truncate">
               #{event.bookingNumber}
             </span>
           )}
-          <CategoryIcon className={cn("w-3 h-3 ml-auto", categoryColor.text)} />
+          <CategoryIcon className={cn("w-2.5 h-2.5 ml-auto shrink-0", categoryColor.text)} />
         </div>
         
-        {/* Client name */}
-        <h4 className="font-semibold text-sm text-foreground line-clamp-2 mb-1">
+        {/* Client name - single line */}
+        <h4 className="font-semibold text-xs text-foreground truncate mb-0.5">
           {event.client}
         </h4>
         
         {/* Assigned staff (planning only) */}
         {event.category === 'planning' && (
-          <div className="flex items-start gap-1.5">
-            <Users className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
+          <div className="flex items-center gap-1">
+            <Users className="w-2.5 h-2.5 text-muted-foreground shrink-0" />
             {event.assignedStaff.length === 0 ? (
-              <span className="text-xs italic text-muted-foreground/50">
+              <span className="text-[10px] italic text-muted-foreground/50">
                 Ingen tilldelad
               </span>
             ) : (
-              <span className="text-xs text-foreground leading-tight">
+              <span className="text-[10px] text-foreground leading-tight truncate">
                 {event.assignedStaff.map(s => s.name.split(' ')[0]).join(', ')}
               </span>
             )}
@@ -150,14 +150,14 @@ const DashboardEventCard = ({ event, compact = false }: DashboardEventCardProps)
 
         {/* Status for logistics */}
         {event.category === 'logistics' && event.status && (
-          <div className="flex items-center gap-1.5 mt-1">
+          <div className="flex items-center gap-1 mt-0.5">
             <div className={cn(
-              "w-2 h-2 rounded-full",
+              "w-1.5 h-1.5 rounded-full shrink-0",
               event.status === 'delivered' ? 'bg-primary' :
               event.status === 'in_transit' ? 'bg-secondary animate-pulse' :
               'bg-muted-foreground'
             )} />
-            <span className="text-xs text-muted-foreground">
+            <span className="text-[10px] text-muted-foreground">
               {event.status === 'delivered' ? 'Levererad' :
                event.status === 'in_transit' ? 'På väg' :
                'Väntar'}

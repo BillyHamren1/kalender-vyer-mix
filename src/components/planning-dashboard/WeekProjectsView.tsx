@@ -110,50 +110,47 @@ const ProjectCard = ({
       ref={drop as any}
       onClick={handleClick}
       className={cn(
-        "group relative rounded-lg border transition-all duration-200 overflow-hidden cursor-pointer",
+        "group relative rounded border transition-all duration-200 overflow-hidden cursor-pointer",
         styles.cardBgClass,
         styles.cardBorderClass,
         isOver && canDrop 
-          ? "border-primary shadow-lg scale-[1.02] ring-2 ring-primary/20" 
+          ? "border-primary shadow-md scale-[1.01] ring-1 ring-primary/20" 
           : "hover:border-primary/50 hover:shadow-sm",
       )}
     >
-      {/* Compact content */}
-      <div className="p-2.5">
-        {/* Header row - compact */}
-        <div className="flex items-center gap-2 mb-1.5">
+      <div className="px-2 py-1.5">
+        {/* Header row */}
+        <div className="flex items-center gap-1.5 mb-0.5">
           <span className={cn(
-            "px-2 py-0.5 rounded text-[10px] tracking-wide",
+            "px-1.5 py-px rounded text-[9px] tracking-wide shrink-0",
             styles.badgeClass
           )}>
             {getEventTypeLabel(project.eventType)}
           </span>
           {project.bookingNumber && (
-            <span className="text-xs font-mono text-muted-foreground">
+            <span className="text-[10px] font-mono text-muted-foreground truncate">
               #{project.bookingNumber}
             </span>
           )}
         </div>
         
-        {/* Client name - compact */}
-        <h4 className="font-semibold text-sm text-foreground line-clamp-2 mb-1.5">
+        {/* Client name - single line */}
+        <h4 className="font-semibold text-xs text-foreground truncate mb-0.5">
           {project.client}
         </h4>
         
-        {/* Assigned staff section - compact list */}
-        <div className="flex items-start gap-1.5">
-          <Users className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
+        {/* Assigned staff */}
+        <div className="flex items-center gap-1">
+          <Users className="w-2.5 h-2.5 text-muted-foreground shrink-0" />
           {project.assignedStaff.length === 0 ? (
             <span className={cn(
-              "text-xs italic transition-colors",
-              isOver && canDrop 
-                ? "text-primary" 
-                : "text-muted-foreground/50"
+              "text-[10px] italic transition-colors",
+              isOver && canDrop ? "text-primary" : "text-muted-foreground/50"
             )}>
-              Dra hit...
+              {isOver && canDrop ? "Släpp här" : "Ingen tilldelad"}
             </span>
           ) : (
-            <span className="text-xs text-foreground leading-tight">
+            <span className="text-[10px] text-foreground leading-tight truncate">
               {project.assignedStaff.map(s => s.name.split(' ')[0]).join(', ')}
             </span>
           )}
