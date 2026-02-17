@@ -75,7 +75,7 @@ const MobileJobs = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen bg-card">
       {/* Header — clean, no bubbles */}
       <div className="bg-primary px-5 pt-14 pb-5 safe-area-top rounded-b-3xl shadow-md">
         <div className="flex items-center justify-between">

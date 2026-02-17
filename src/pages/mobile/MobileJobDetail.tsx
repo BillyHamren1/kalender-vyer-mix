@@ -96,7 +96,7 @@ const MobileJobDetail = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center bg-card">
         <Loader2 className="w-7 h-7 animate-spin text-primary" />
       </div>
     );
@@ -104,7 +104,7 @@ const MobileJobDetail = () => {
 
   if (!booking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center bg-card">
         <p className="text-muted-foreground">Jobb hittades inte</p>
       </div>
     );
