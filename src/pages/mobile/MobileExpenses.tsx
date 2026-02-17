@@ -120,7 +120,7 @@ const MobileExpenses = () => {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col min-h-screen bg-background">
+      <div className="flex flex-col min-h-screen bg-card">
         <div className="bg-primary px-5 pt-14 pb-5 safe-area-top">
           <h1 className="text-[22px] font-extrabold text-primary-foreground tracking-tight">Utlägg</h1>
         </div>
@@ -132,7 +132,7 @@ const MobileExpenses = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen bg-card">
       {/* Header */}
       <div className="bg-primary px-5 pt-14 pb-5 safe-area-top">
         <div className="flex items-center justify-between">
