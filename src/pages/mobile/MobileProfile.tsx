@@ -48,14 +48,14 @@ const MobileProfile = () => {
         </div>
       </div>
 
-      <div className="flex-1 px-4 py-4 space-y-3 -mt-3">
+      <div className="flex-1 px-4 py-3 space-y-2.5 -mt-3">
         {/* Contact info */}
-        <div className="rounded-2xl border border-primary/20 bg-card p-4 space-y-3 shadow-md">
+        <div className="rounded-2xl border border-primary/20 bg-card px-4 py-3 space-y-2 shadow-md">
           <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Kontaktinfo</h2>
           
           {staff.email && (
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/8">
+              <div className="p-1.5 rounded-lg bg-primary/8">
                 <Mail className="w-4 h-4 text-primary" />
               </div>
               <div className="min-w-0 flex-1">
@@ -67,7 +67,7 @@ const MobileProfile = () => {
 
           {staff.phone && (
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/8">
+              <div className="p-1.5 rounded-lg bg-primary/8">
                 <Phone className="w-4 h-4 text-primary" />
               </div>
               <div className="min-w-0 flex-1">
@@ -79,7 +79,7 @@ const MobileProfile = () => {
 
           {staff.department && (
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/8">
+              <div className="p-1.5 rounded-lg bg-primary/8">
                 <Shield className="w-4 h-4 text-primary" />
               </div>
               <div className="min-w-0 flex-1">
@@ -93,9 +93,9 @@ const MobileProfile = () => {
         {/* Time reports button */}
         <button
           onClick={() => navigate('/m/time-history')}
-          className="w-full rounded-2xl border border-primary/20 bg-card p-4 shadow-md flex items-center gap-3 active:scale-[0.98] transition-all"
+          className="w-full rounded-2xl border border-primary/20 bg-card px-4 py-3 shadow-md flex items-center gap-3 active:scale-[0.98] transition-all"
         >
-          <div className="p-2 rounded-lg bg-primary/8">
+          <div className="p-1.5 rounded-lg bg-primary/8">
             <Clock className="w-4 h-4 text-primary" />
           </div>
           <div className="flex-1 text-left">
@@ -108,23 +108,23 @@ const MobileProfile = () => {
         </button>
 
         {/* GPS Settings */}
-        <div className="rounded-2xl border border-primary/20 bg-card p-4 space-y-3 shadow-md">
+        <div className="rounded-2xl border border-primary/20 bg-card px-4 py-3 space-y-2 shadow-md">
           <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">GPS & Geofencing</h2>
           
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/8">
+            <div className="p-1.5 rounded-lg bg-primary/8">
               <MapPin className="w-4 h-4 text-primary" />
             </div>
             <div className="flex-1">
               <p className="text-sm font-semibold text-foreground">Automatisk tidrapportering</p>
               <p className="text-[11px] text-muted-foreground mt-0.5">Starta timer vid arbetsplatsen</p>
             </div>
-            <div className={`px-2 py-1 rounded-lg text-[11px] font-bold ${gps.enabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+            <div className={`px-2 py-0.5 rounded-lg text-[11px] font-bold ${gps.enabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
               {gps.enabled ? 'Aktiv' : 'Av'}
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 pl-11">
+          <div className="flex items-center gap-2.5 pl-10">
             <Radar className="w-3.5 h-3.5 text-muted-foreground/40" />
             <span className="text-[11px] text-muted-foreground">Radie</span>
             <span className="text-sm font-semibold text-foreground">{gps.radius} m</span>
@@ -132,7 +132,7 @@ const MobileProfile = () => {
         </div>
 
         {/* Version */}
-        <div className="rounded-2xl border border-primary/20 bg-card px-4 py-3 shadow-md">
+        <div className="rounded-2xl border border-primary/20 bg-card px-4 py-2.5 shadow-md">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground font-medium">Version</span>
             <span className="font-mono text-[11px] text-muted-foreground/60">1.0.0</span>
