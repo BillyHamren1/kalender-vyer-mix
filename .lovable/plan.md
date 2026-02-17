@@ -1,44 +1,79 @@
 
-# Visa individuella tidrapporter istället för ihopklumpade per person
 
-## Problem
-Idag aggregeras alla tidrapporter per person till en enda rad i tabellen (t.ex. "Billy Hamren - 17.0h - 5 950 kr"). Användaren vill se varje rapport separat med datum och tider.
+## Strukturell och visuell upprensning av EventFlow
 
-## Lösning
-Ändra datahämtningen och tabellvisningen så att varje tidrapport visas som en egen rad med datum, start/sluttid, timmar och kostnad. Personens namn visas som en grupperingsrubrik.
+### Sammanfattning
+Appen har ackumulerat oanvanda komponenter, duplicerade navigationslosningar och inkonsekvenser i sidofaltets struktur. Planen fokuserar pa att rensa bort dod kod, forbattra sidofaltets organisation och harmonisera det visuella uttrycket - utan att andra nagon befintlig funktionalitet.
 
-## Visuell struktur (före och efter)
+---
 
-**Före:**
-```text
-Personal       Timmar    Kostnad    Status
-Billy Hamrén   17.0 h    5 950 kr   Väntar
-```
+### 1. Ta bort oanvanda navigationskomponenter
 
-**Efter:**
-```text
-Personal          Datum        Tid           Timmar   Kostnad    Status
-Billy Hamrén
-  2026-02-14      08:00-17:00   8.5 h    2 975 kr   Väntar
-  2026-02-15      07:30-16:00   8.5 h    2 975 kr   Väntar
-TOTALT                          17.0 h   5 950 kr
-```
+Foljande filer importeras aldrig nagonstans och ar rester fran tidigare versioner:
 
-## Tekniska ändringar
+- `src/components/Navigation.tsx` (gammal toppnavigering)
+- `src/components/Navigation/Navbar.tsx` (gammal navbar med hardkodade bla farger)
+- `src/components/GlobalTopBar.tsx` (aldrig anvand)
+- `src/components/WarehouseTopBar.tsx` (aldrig anvand)
 
-### 1. `src/services/projectEconomyService.ts` -- `fetchProjectTimeReports`
-- Hämta även `report_date`, `start_time`, `end_time` från databasen
-- Returnera en ny lista med individuella rapporter **utöver** den aggregerade per-person-listan
-- Lägga till ett nytt interface `DetailedTimeReport` med fälten: `id`, `staff_id`, `staff_name`, `report_date`, `start_time`, `end_time`, `hours_worked`, `overtime_hours`, `hourly_rate`, `cost`, `approved`
+**Atgard:** Radera alla fyra filer. Ingen funktionalitet paverkas.
 
-### 2. `src/types/projectEconomy.ts`
-- Lägga till `DetailedTimeReport`-interface
-- Lägga till `detailed_reports: DetailedTimeReport[]` i `StaffTimeReport` (varje aggregerad personrad bär sina underliggande rapporter)
+---
 
-### 3. `src/components/project/StaffCostTable.tsx`
-- Expandera varje personrad till att visa underliggande rapporter
-- Visa datum, start-/sluttid, timmar, kostnad, och godkännandestatus per rad
-- Personnamnet visas som en grupperingsrubrik (vänsterindenterad rad utan bakgrund)
-- Individuella rapporter visas indenterade under varje person
-- Behåll TOTALT-raden längst ner
-- Godkännandeknappen visas per individuell rapport (inte per person)
+### 2. Ta bort oanvanda/overgivna sidor
+
+Dessa sidor importeras i `App.tsx` men har inga rutter kopplade till sig:
+
+- `src/pages/FinishedJobs.tsx` - importeras men ar aldrig i en `<Route>`
+- `src/pages/StaffEndpoint.tsx` - importeras men ar aldrig i en `<Route>`
+- `src/pages/CalendarPage.tsx` - ersatt av `CustomCalendarPage.tsx`
+- `src/pages/LogisticsMap.tsx` - ingen rutt kopplar hit
+- `src/pages/Index.tsx` - `/` renderar redan `PlanningDashboard`, Index ar overflodigt
+
+**Atgard:** Radera filerna och ta bort deras oanvanda importer fran `App.tsx`.
+
+---
+
+### 3. Fixa sidofaltet (Sidebar3D)
+
+**Problem som atsardas:**
+
+| Problem | Losning |
+|---|---|
+| "Personal-\nadministration" har en literal `\n` i titeln, ger konstig radbrytning | Andra till "Personaladmin" eller "Personal" som enradig text |
+| Mobil-navigeringen visar alla 7 poster (for trangt) | Begansa mobilvyn till de 4-5 viktigaste (Dashboard, Kalender, Projekt, Personal, Logistik) |
+| Breddskillnad: huvudsystem w-56 vs lager w-64 | Harmonisera till samma bredd (w-56) |
+
+---
+
+### 4. Rensa dubbel rutt
+
+- `/` och `/dashboard` pekar bada pa `PlanningDashboard`
+- **Atgard:** Behal bada men ta bort importen av `Index`-sidan som aldrig renderas
+
+---
+
+### 5. Sammanfattning av filandringar
+
+| Fil | Andring |
+|---|---|
+| `src/components/Navigation.tsx` | Radera |
+| `src/components/Navigation/Navbar.tsx` | Radera |
+| `src/components/GlobalTopBar.tsx` | Radera |
+| `src/components/WarehouseTopBar.tsx` | Radera |
+| `src/pages/FinishedJobs.tsx` | Radera |
+| `src/pages/StaffEndpoint.tsx` | Radera |
+| `src/pages/CalendarPage.tsx` | Radera |
+| `src/pages/LogisticsMap.tsx` | Radera |
+| `src/pages/Index.tsx` | Radera |
+| `src/App.tsx` | Ta bort oanvanda importer (Index, FinishedJobs, StaffEndpoint, CalendarPage, LogisticsMap) |
+| `src/components/Sidebar3D.tsx` | Fixa sidofaltstiteln, begansa mobil-nav till 5 poster |
+| `src/components/WarehouseSidebar3D.tsx` | Andra bredd fran w-64 till w-56 |
+
+### Vad som INTE andras
+- Alla befintliga rutter och sidorna de pekar pa
+- All affarslogik (formulae, databasanrop, hooks)
+- Designsystemets farger och tokens
+- Mobilappens separata navigering (`/m/*`)
+- Lagersystemets funktionalitet
+
