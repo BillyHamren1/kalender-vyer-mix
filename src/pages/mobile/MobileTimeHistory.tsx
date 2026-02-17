@@ -67,27 +67,32 @@ const MobileTimeHistory = () => {
               {reports.length} st · {totalHours}h totalt
             </p>
           </div>
-          {/* View toggle */}
-          <div className="flex bg-primary-foreground/10 rounded-xl p-0.5 gap-0.5">
-            <button
-              onClick={() => setViewMode('list')}
-              className={cn(
-                "p-2 rounded-lg transition-all",
-                viewMode === 'list' ? "bg-primary-foreground/20 text-primary-foreground" : "text-primary-foreground/50"
-              )}
-            >
-              <List className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('calendar')}
-              className={cn(
-                "p-2 rounded-lg transition-all",
-                viewMode === 'calendar' ? "bg-primary-foreground/20 text-primary-foreground" : "text-primary-foreground/50"
-              )}
-            >
-              <Calendar className="w-4 h-4" />
-            </button>
-          </div>
+        </div>
+      </div>
+
+      {/* Tabs under header */}
+      <div className="px-4 pt-3 pb-1">
+        <div className="flex bg-muted rounded-2xl p-1 gap-1">
+          <button
+            onClick={() => setViewMode('list')}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all",
+              viewMode === 'list' ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+            )}
+          >
+            <List className="w-4 h-4" />
+            Lista
+          </button>
+          <button
+            onClick={() => setViewMode('calendar')}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all",
+              viewMode === 'calendar' ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+            )}
+          >
+            <Calendar className="w-4 h-4" />
+            Kalender
+          </button>
         </div>
       </div>
 
