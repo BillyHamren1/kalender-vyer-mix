@@ -195,7 +195,7 @@ const MobileExpenses = () => {
 
         {/* Form */}
         {showForm && (
-          <div className="rounded-2xl border border-border/50 bg-card p-4 space-y-4 shadow-sm animate-in slide-in-from-top-2 duration-200">
+          <div className="rounded-2xl border border-primary/20 bg-card p-4 space-y-4 shadow-md animate-in slide-in-from-top-2 duration-200">
             <h2 className="font-bold text-sm text-foreground">Nytt utlägg</h2>
 
             <div className="space-y-1.5">
@@ -308,7 +308,7 @@ const MobileExpenses = () => {
           ) : allPurchases.length === 0 ? null : (
             <div className="space-y-2">
               {allPurchases.map(p => (
-                <div key={p.id} className="rounded-2xl border border-border/50 bg-card p-3.5 shadow-sm">
+                <div key={p.id} className="rounded-2xl border border-primary/20 bg-card p-3.5 shadow-md">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-sm text-foreground">{p.description}</p>

@@ -132,7 +132,7 @@ const MobileTimeReport = () => {
         )}
 
         {/* Report form */}
-        <div className="rounded-2xl border border-border/50 bg-card p-4 space-y-4 shadow-sm">
+        <div className="rounded-2xl border border-primary/20 bg-card p-4 space-y-4 shadow-md">
           <h2 className="font-bold text-sm text-foreground">Ny tidrapport</h2>
 
           <div className="space-y-1.5">

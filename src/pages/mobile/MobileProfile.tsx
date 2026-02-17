@@ -50,7 +50,7 @@ const MobileProfile = () => {
 
       <div className="flex-1 px-4 py-4 space-y-3 -mt-3">
         {/* Contact info */}
-        <div className="rounded-2xl border border-border/50 bg-card p-4 space-y-3 shadow-sm">
+        <div className="rounded-2xl border border-primary/20 bg-card p-4 space-y-3 shadow-md">
           <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Kontaktinfo</h2>
           
           {staff.email && (
@@ -93,7 +93,7 @@ const MobileProfile = () => {
         {/* Time reports button */}
         <button
           onClick={() => navigate('/m/time-history')}
-          className="w-full rounded-2xl border border-border/50 bg-card p-4 shadow-sm flex items-center gap-3 active:scale-[0.98] transition-all"
+          className="w-full rounded-2xl border border-primary/20 bg-card p-4 shadow-md flex items-center gap-3 active:scale-[0.98] transition-all"
         >
           <div className="p-2 rounded-lg bg-primary/8">
             <Clock className="w-4 h-4 text-primary" />
@@ -108,7 +108,7 @@ const MobileProfile = () => {
         </button>
 
         {/* GPS Settings */}
-        <div className="rounded-2xl border border-border/50 bg-card p-4 space-y-3 shadow-sm">
+        <div className="rounded-2xl border border-primary/20 bg-card p-4 space-y-3 shadow-md">
           <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">GPS & Geofencing</h2>
           
           <div className="flex items-center gap-3">
@@ -132,7 +132,7 @@ const MobileProfile = () => {
         </div>
 
         {/* Version */}
-        <div className="rounded-2xl border border-border/50 bg-card px-4 py-3 shadow-sm">
+        <div className="rounded-2xl border border-primary/20 bg-card px-4 py-3 shadow-md">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground font-medium">Version</span>
             <span className="font-mono text-[11px] text-muted-foreground/60">1.0.0</span>

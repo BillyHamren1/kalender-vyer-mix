@@ -233,7 +233,7 @@ const MobileTimeHistory = () => {
             </div>
 
             {/* Calendar grid */}
-            <div className="rounded-2xl border border-border/50 bg-card p-3 shadow-sm">
+            <div className="rounded-2xl border border-primary/20 bg-card p-3 shadow-md">
               <div className="grid grid-cols-7 gap-1 mb-1">
                 {weekDays.map(d => (
                   <div key={d} className="text-center text-[10px] font-semibold text-muted-foreground uppercase py-1">{d}</div>
@@ -334,7 +334,7 @@ const MobileTimeHistory = () => {
             </div>
 
             {/* Table */}
-            <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+            <div className="rounded-2xl border border-primary/20 bg-card shadow-md overflow-hidden">
               {/* Table header */}
               <div className="grid grid-cols-[1fr_60px_60px_50px] bg-muted/50 border-b border-border px-3 py-2">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Datum</span>
@@ -421,7 +421,7 @@ const MobileTimeHistory = () => {
 };
 
 const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; showDate?: boolean }) => (
-  <div className="rounded-xl border border-border/40 bg-card p-3 shadow-sm">
+  <div className="rounded-xl border border-primary/20 bg-card p-3 shadow-md">
     <div className="flex items-start justify-between gap-2">
       <div className="min-w-0 flex-1">
         <p className="font-semibold text-sm truncate text-foreground">
