@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 import { useGeofencing, ActiveTimer } from '@/hooks/useGeofencing';
+import { useMobileBookingDetails, useInvalidateMobileData } from '@/hooks/useMobileData';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { ArrowLeft, Play, Square, MapPin, Navigation, Phone, Clock, Loader2 } from 'lucide-react';
@@ -20,23 +21,16 @@ type TabKey = typeof tabs[number];
 const MobileJobDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [booking, setBooking] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: bookingData, isLoading } = useMobileBookingDetails(id);
+  const { invalidateTimeReports } = useInvalidateMobileData();
+  const booking = bookingData?.booking ?? null;
   const [activeTab, setActiveTab] = useState<TabKey>('Info');
   const [timerElapsed, setTimerElapsed] = useState(0);
 
-  const bookingsArr = booking ? [booking as MobileBooking] : [];
+  const bookingsArr = useMemo(() => booking ? [booking as MobileBooking] : [], [booking]);
   const { activeTimers, startTimer, stopTimer } = useGeofencing(bookingsArr);
   
   const currentTimer = id ? activeTimers.get(id) : undefined;
-
-  useEffect(() => {
-    if (!id) return;
-    mobileApi.getBookingDetails(id)
-      .then(res => setBooking(res.booking))
-      .catch(() => toast.error('Kunde inte ladda jobb'))
-      .finally(() => setIsLoading(false));
-  }, [id]);
 
   useEffect(() => {
     if (!currentTimer) { setTimerElapsed(0); return; }
@@ -74,6 +68,7 @@ const MobileJobDetail = () => {
           break_time: breakDeduction,
           description: `Timer: ${booking.client}`,
         });
+        invalidateTimeReports();
         toast.success(`Tidrapport sparad: ${hoursWorked}h`);
       } catch (err: any) {
         toast.error(err.message || 'Kunde inte spara tidrapport');

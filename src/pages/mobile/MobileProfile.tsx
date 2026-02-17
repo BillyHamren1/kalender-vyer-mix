@@ -1,28 +1,16 @@
-import { useState, useEffect } from 'react';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useNavigate } from 'react-router-dom';
 import { getGpsSettings } from '@/hooks/useGeofencing';
-import { mobileApi, MobileTimeReport } from '@/services/mobileApiService';
-import { format, parseISO } from 'date-fns';
-import { sv } from 'date-fns/locale';
-import { User, Mail, Phone, MapPin, LogOut, Radar, Shield, Clock, Loader2, ChevronRight } from 'lucide-react';
+import { useMobileTimeReports } from '@/hooks/useMobileData';
+import { User, Mail, Phone, MapPin, LogOut, Radar, Shield, Clock, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+
 
 const MobileProfile = () => {
   const { staff, logout } = useMobileAuth();
   const navigate = useNavigate();
   const gps = getGpsSettings();
-
-  const [timeReports, setTimeReports] = useState<MobileTimeReport[]>([]);
-  const [isLoadingReports, setIsLoadingReports] = useState(true);
-
-  useEffect(() => {
-    mobileApi.getTimeReports()
-      .then(res => setTimeReports(res.time_reports))
-      .catch(() => toast.error('Kunde inte ladda rapporter'))
-      .finally(() => setIsLoadingReports(false));
-  }, []);
+  const { data: timeReports = [], isLoading: isLoadingReports } = useMobileTimeReports();
 
   const handleLogout = () => {
     logout();
