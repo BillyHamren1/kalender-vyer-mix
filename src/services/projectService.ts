@@ -258,3 +258,13 @@ export const deleteProjectFile = async (id: string, url: string): Promise<void> 
 
   if (error) throw error;
 };
+
+export const fetchBookingAttachments = async (bookingId: string) => {
+  const { data, error } = await supabase
+    .from('booking_attachments')
+    .select('*')
+    .eq('booking_id', bookingId)
+    .order('uploaded_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+};

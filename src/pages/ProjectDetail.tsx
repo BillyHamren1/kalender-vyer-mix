@@ -31,6 +31,7 @@ const ProjectDetail = () => {
     comments,
     files,
     activities,
+    bookingAttachments,
     isLoading,
     updateStatus,
     addTask,
@@ -206,6 +207,7 @@ const ProjectDetail = () => {
               onUpload={uploadFile}
               onDelete={deleteFile}
               isUploading={isUploadingFile}
+              bookingAttachments={bookingAttachments}
             />
           </TabsContent>
 

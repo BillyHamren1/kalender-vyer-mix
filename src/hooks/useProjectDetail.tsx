@@ -6,6 +6,7 @@ import {
   fetchProjectTasks, 
   fetchProjectComments, 
   fetchProjectFiles,
+  fetchBookingAttachments,
   updateProjectStatus,
   createProjectTask,
   updateProjectTask,
@@ -53,6 +54,12 @@ export const useProjectDetail = (projectId: string) => {
   });
 
   const bookingId = projectQuery.data?.booking_id || (projectQuery.data as any)?.booking?.id || null;
+
+  const bookingAttachmentsQuery = useQuery({
+    queryKey: ['booking-attachments', bookingId],
+    queryFn: () => fetchBookingAttachments(bookingId!),
+    enabled: !!bookingId
+  });
 
   const logActivity = (action: string, description: string, metadata?: Record<string, unknown>) => {
     logProjectActivity({
@@ -359,6 +366,7 @@ export const useProjectDetail = (projectId: string) => {
     comments: commentsQuery.data || [],
     files: filesQuery.data || [],
     activities: activitiesQuery.data || [],
+    bookingAttachments: bookingAttachmentsQuery.data || [],
     isLoading: projectQuery.isLoading,
     updateStatus: updateStatusMutation.mutate,
     addTask: addTaskMutation.mutate,
