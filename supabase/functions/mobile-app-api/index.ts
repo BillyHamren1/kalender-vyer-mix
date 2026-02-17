@@ -1021,34 +1021,49 @@ async function handleGetProjectFiles(supabase: any, data: { booking_id: string }
     )
   }
 
+  // Fetch project files
+  let projectFiles: any[] = []
   const { data: project } = await supabase
     .from('projects')
     .select('id')
     .eq('booking_id', booking_id)
     .maybeSingle()
 
-  if (!project) {
-    return new Response(
-      JSON.stringify({ error: 'No project found for this booking' }),
-      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+  if (project) {
+    const { data: files } = await supabase
+      .from('project_files')
+      .select('id, file_name, file_type, url, uploaded_by, uploaded_at')
+      .eq('project_id', project.id)
+      .order('uploaded_at', { ascending: false })
+    projectFiles = files || []
   }
 
-  const { data: files, error } = await supabase
-    .from('project_files')
-    .select('id, file_name, file_type, url, uploaded_by, uploaded_at')
-    .eq('project_id', project.id)
-    .order('uploaded_at', { ascending: false })
+  // Fetch booking attachments (imported product images etc.)
+  const { data: bookingAttachments } = await supabase
+    .from('booking_attachments')
+    .select('id, file_name, file_type, url, uploaded_at')
+    .eq('booking_id', booking_id)
 
-  if (error) {
-    return new Response(
-      JSON.stringify({ error: 'Failed to fetch files' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
+  // Merge both sources - booking attachments first, then project files
+  const allFiles = [
+    ...(bookingAttachments || []).map((a: any) => ({
+      id: a.id,
+      file_name: a.file_name,
+      name: a.file_name,
+      file_type: a.file_type,
+      url: a.url,
+      uploaded_at: a.uploaded_at,
+      source: 'booking'
+    })),
+    ...projectFiles.map((f: any) => ({
+      ...f,
+      name: f.file_name,
+      source: 'project'
+    }))
+  ]
 
   return new Response(
-    JSON.stringify({ files: files || [] }),
+    JSON.stringify({ files: allFiles }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
