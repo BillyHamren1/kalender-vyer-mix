@@ -1,84 +1,66 @@
 
-## Rotorsak: Race condition skapar dubbletter i warehouse_calendar_events
+## Varför bilderna saknas — diagnos och lösning
 
-### Vad som händer
+### Rotorsak
 
-Det finns **två separata kodvägar** som båda skapar warehouse-kalender-events för samma bokning:
+Problemet är **inte** i koden — `syncTentImages` är korrekt implementerad och deployad. Problemet är att det externa källsystemet (export-API:t) **inte skickar några bilder alls för bokning 2601-1 (A Catering)** just nu.
 
-1. **Edge Function `import-bookings`** anropar `syncWarehouseEventsForBooking()` — skapar 6 warehouse-events direkt i databasen
-2. **Frontend-tjänsten `bookingCalendarService.ts`** — `syncSingleBookingToCalendar()` anropar i sin tur `syncBookingToWarehouseCalendar()` från `warehouseCalendarService.ts` och skapar samma 6 events en gång till
+Bekräftad data från databasen:
+- `booking_attachments` för 2601-1: **0 rader**
+- `map_drawing_url` på bokningen: **null**
+- En manuell import kördes precis — fortfarande 0 bilder
 
-Båda körs var för sig med ett delete-then-insert-mönster. Men eftersom de inte är synkroniserade kan de interferera med varandra och skapa dubbletter.
+Det finns alltså inga bilder att importera från källsystemet för just den bokningen ännu.
 
-Dessutom finns det ett **datumsformat-fel** i warehouse-queryn i `useDashboardEvents.ts` (rad 126) som gör att queryn hämtar mer data än avsett.
+### Vad som faktiskt visas var (webbvyn)
 
-### Lösning: Ta bort dubbelskapningen + städa upp befintliga dubbletter
+Webbvyn visar "0 Filer" i snabbstatistiken. Det räknar `project_files` — inte `booking_attachments`. Snabbstatistiken visar alltså korrekt information.
 
-**Del 1 — Ta bort duplicate-källan i `bookingCalendarService.ts`**
+Flik-fliken "Filer" i projektet **borde** visa "Bilder från bokning" sektionen när det väl finns data i `booking_attachments`.
 
-`syncSingleBookingToCalendar` anropar `syncBookingToWarehouseCalendar(booking)` på rad 275. Det ska **tas bort** — warehouse-sync i frontend-tjänsten är redundant eftersom Edge Function redan hanterar detta vid import. Frontend-tjänsten ska bara hantera `calendar_events` (personal-planering), inte warehouse-events.
+### Statistik-räknaren i webbvyn
 
-**Del 2 — Fixa datumsformat i `useDashboardEvents.ts`**
+Det finns dock en separat bugg att fixa: **snabbstatistiken på projektkortet** räknar bara `project_files` och inte `booking_attachments`. Så även när importer bildar finns, visas "0 Filer" i statistiken.
 
-Rad 126 använder `startStr` (utan tid) medan alla andra queries korrekt använder `${startStr}T00:00:00`. Konsistens bör upprätthållas.
+Jag hittar och fixar denna räknare.
 
-**Del 3 — Städa upp befintliga dubbletter i databasen**
+### Plan
 
-Nuvarande dubbletter i `warehouse_calendar_events` måste rensas. En SQL-query körs som behåller den nyaste raden per `(booking_id, event_type)` och tar bort de äldre.
+**1. Fixa statistikräknaren i ProjectOverview** så att den inkluderar både `project_files` OCH `booking_attachments` i "Filer"-siffran.
+
+**2. Lägg till debug-loggning i import-bookings** för att logga `tent_images`-fältets närvaro per bokning — så vi kan se i loggarna om/när det externa API:t börjar skicka bilder.
+
+**3. Trigga en full historical re-import av 2601-1** för att säkerställa att alla fält (inklusive eventuella bilder som lagts till sedan senaste import) hämtas in.
 
 ### Tekniska ändringar
 
-**Fil 1: `src/services/bookingCalendarService.ts`**
+**Fil 1: `src/hooks/useProjectDetail.tsx` eller `ProjectOverview.tsx`**
 
-Ta bort anropet till `syncBookingToWarehouseCalendar` från `syncSingleBookingToCalendar` (rad 273-280). Warehouse-synkronisering sker uteslutande via Edge Function `import-bookings`. Frontend-tjänsten ska **inte** skriva warehouse-events.
+Statistiken "0 Filer" räknar troligtvis bara `files.length` (project_files). Uppdatera den att visa `files.length + bookingAttachments.length`.
 
-Före:
+**Fil 2: `supabase/functions/import-bookings/index.ts`**
+
+Lägg till loggning av `tent_images`-fältets existens och längd för varje bokning som processas, så att vi kan se i loggar när/om externa API:t börjar skicka dem:
+
 ```typescript
-// Sync to warehouse calendar
-try {
-  await syncBookingToWarehouseCalendar(booking);
-  ...
-} catch (warehouseError) {
-  ...
-}
+console.log(`Booking ${bookingData.id} tent_images: ${
+  externalBooking.tent_images 
+    ? `${externalBooking.tent_images.length} bilder` 
+    : 'saknas i API-svaret'
+}`);
 ```
 
-Efter: hela det blocket raderas.
+### Vad som händer automatiskt när bilder finns
 
-**Fil 2: `src/hooks/useDashboardEvents.ts`**
-
-Rad 126 — fixa datumfilter för warehouse-queryn:
-```typescript
-// Före:
-.gte('start_time', startStr)
-
-// Efter:
-.gte('start_time', `${startStr}T00:00:00`)
-```
-
-**Databasrensning (SQL att köra)**
-
-```sql
--- Ta bort dubbletter, behåll senaste per booking_id + event_type
-DELETE FROM warehouse_calendar_events
-WHERE id IN (
-  SELECT id FROM (
-    SELECT id,
-      ROW_NUMBER() OVER (
-        PARTITION BY booking_id, event_type 
-        ORDER BY created_at DESC NULLS LAST
-      ) AS rn
-    FROM warehouse_calendar_events
-  ) sub
-  WHERE rn > 1
-);
-```
+När det externa systemet lägger in tältbilder för A Catering och nästa import körs:
+1. `syncTentImages` fångar upp dem automatiskt
+2. De sparas som `booking_attachments`
+3. Webb-UI:ts "Filer"-flik visar dem direkt under "Bilder från bokning"
+4. Mobilappens "Bilder"-flik visar dem via `get_project_files` Edge Function
 
 ### Filer att ändra
 
-1. `src/services/bookingCalendarService.ts` — ta bort `syncBookingToWarehouseCalendar`-anropet
-2. `src/hooks/useDashboardEvents.ts` — fixa datumsformat i warehouse-queryn
+1. Statistikräknaren i projektvy (1 rad) — inkludera `bookingAttachments.length`
+2. Import-loggning — för felsökning framåt
 
-### Direkt databasrensning
-
-Jag kör också en rensnings-SQL direkt för att ta bort befintliga dubbletter så att dashboarden ser korrekt ut omedelbart.
+Inga databasmigrationer behövs.
