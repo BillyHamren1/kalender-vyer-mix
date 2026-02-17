@@ -79,8 +79,12 @@ const MobileExpenses = () => {
   if (isLoading) {
     return (
       <div className="flex flex-col min-h-screen bg-card">
-        <div className="bg-primary px-5 pt-14 pb-5 safe-area-top rounded-b-3xl shadow-md">
-          <h1 className="text-[22px] font-extrabold text-primary-foreground tracking-tight">Utlägg</h1>
+        <div className="bg-primary rounded-b-3xl shadow-md">
+          {/* Safe area – täcker telefonens statusbar */}
+          <div style={{ height: 'env(safe-area-inset-top, 44px)', minHeight: '44px' }} />
+          <div className="px-5 pb-5">
+            <h1 className="text-[22px] font-extrabold text-primary-foreground tracking-tight">Utlägg</h1>
+          </div>
         </div>
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="w-7 h-7 animate-spin text-primary" />
@@ -94,22 +98,26 @@ const MobileExpenses = () => {
   return (
     <div className="flex flex-col min-h-screen bg-card">
       {/* Header */}
-      <div className="bg-primary px-5 pt-14 pb-5 safe-area-top rounded-b-3xl shadow-md">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-[22px] font-extrabold text-primary-foreground tracking-tight">Utlägg</h1>
-            <p className="text-xs text-primary-foreground/60 font-medium mt-0.5">Kvitton & inköp</p>
-          </div>
-          {allPurchases.length > 0 && (
-            <div className="text-right">
-              <p className="text-lg font-extrabold text-primary-foreground tabular-nums">
-                {totalAmount.toLocaleString('sv-SE')} kr
-              </p>
-              <p className="text-[10px] text-primary-foreground/50 font-medium">
-                {allPurchases.length} utlägg
-              </p>
+      <div className="bg-primary rounded-b-3xl shadow-md">
+        {/* Safe area – täcker telefonens statusbar */}
+        <div style={{ height: 'env(safe-area-inset-top, 44px)', minHeight: '44px' }} />
+        <div className="px-5 pb-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-[22px] font-extrabold text-primary-foreground tracking-tight">Utlägg</h1>
+              <p className="text-xs text-primary-foreground/60 font-medium mt-0.5">Kvitton & inköp</p>
             </div>
-          )}
+            {allPurchases.length > 0 && (
+              <div className="text-right">
+                <p className="text-lg font-extrabold text-primary-foreground tabular-nums">
+                  {totalAmount.toLocaleString('sv-SE')} kr
+                </p>
+                <p className="text-[10px] text-primary-foreground/50 font-medium">
+                  {allPurchases.length} utlägg
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

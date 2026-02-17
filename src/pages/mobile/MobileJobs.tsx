@@ -61,32 +61,36 @@ const MobileJobs = () => {
   return (
     <div className="flex flex-col min-h-screen bg-card">
       {/* Header — clean, no bubbles */}
-      <div className="bg-primary px-5 pt-14 pb-5 safe-area-top rounded-b-3xl shadow-md">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-primary-foreground/70 text-[11px] font-semibold tracking-widest uppercase">Välkommen</p>
-            <h1 className="text-[22px] font-extrabold text-primary-foreground tracking-tight leading-tight mt-0.5">
-              {staff?.name?.split(' ')[0] || 'Hej'}
-            </h1>
-          </div>
-          <button
-            onClick={() => refetch()}
-            className="p-2.5 rounded-xl bg-primary-foreground/10 active:scale-95 transition-all"
-          >
-            <RefreshCw className={cn("w-4.5 h-4.5 text-primary-foreground/80", isRefreshing && "animate-spin")} />
-          </button>
-        </div>
-        
-        {activeTimers.size > 0 && (
-          <div className="mt-3 px-3 py-2 rounded-xl bg-primary-foreground/10 border border-primary-foreground/10">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-primary-foreground animate-pulse" />
-              <span className="text-primary-foreground/90 text-xs font-semibold">
-                {activeTimers.size} aktiv timer
-              </span>
+      <div className="bg-primary rounded-b-3xl shadow-md">
+        {/* Safe area – täcker telefonens statusbar */}
+        <div style={{ height: 'env(safe-area-inset-top, 44px)', minHeight: '44px' }} />
+        <div className="px-5 pb-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-primary-foreground/70 text-[11px] font-semibold tracking-widest uppercase">Välkommen</p>
+              <h1 className="text-[22px] font-extrabold text-primary-foreground tracking-tight leading-tight mt-0.5">
+                {staff?.name?.split(' ')[0] || 'Hej'}
+              </h1>
             </div>
+            <button
+              onClick={() => refetch()}
+              className="p-2.5 rounded-xl bg-primary-foreground/10 active:scale-95 transition-all"
+            >
+              <RefreshCw className={cn("w-4.5 h-4.5 text-primary-foreground/80", isRefreshing && "animate-spin")} />
+            </button>
           </div>
-        )}
+          
+          {activeTimers.size > 0 && (
+            <div className="mt-3 px-3 py-2 rounded-xl bg-primary-foreground/10 border border-primary-foreground/10">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-primary-foreground animate-pulse" />
+                <span className="text-primary-foreground/90 text-xs font-semibold">
+                  {activeTimers.size} aktiv timer
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <GeofenceStatusBar isTracking={isTracking} activeTimers={activeTimers} />

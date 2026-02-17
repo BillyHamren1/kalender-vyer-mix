@@ -108,41 +108,45 @@ const MobileJobDetail = () => {
   return (
     <div className="flex flex-col min-h-screen bg-card">
       {/* Header */}
-      <div className="bg-primary px-4 pt-12 pb-4 safe-area-top rounded-b-3xl shadow-md">
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => navigate('/m')} 
-            className="p-2 -ml-1 rounded-xl active:scale-95 transition-all"
-          >
-            <ArrowLeft className="w-5 h-5 text-primary-foreground" />
-          </button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-extrabold text-primary-foreground truncate tracking-tight">{booking.client}</h1>
-            {booking.booking_number && (
-              <p className="text-[11px] text-primary-foreground/50 font-mono">#{booking.booking_number}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleTimerToggle}
-              className={cn(
-                "w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all shadow-md relative",
-                currentTimer
-                  ? "bg-destructive text-destructive-foreground animate-pulse"
-                  : "bg-primary-foreground text-primary"
-              )}
+      <div className="bg-primary rounded-b-3xl shadow-md">
+        {/* Safe area – täcker telefonens statusbar */}
+        <div style={{ height: 'env(safe-area-inset-top, 44px)', minHeight: '44px' }} />
+        <div className="px-4 pb-4">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => navigate('/m')} 
+              className="p-2 -ml-1 rounded-xl active:scale-95 transition-all"
             >
-              {currentTimer ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+              <ArrowLeft className="w-5 h-5 text-primary-foreground" />
             </button>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-lg font-extrabold text-primary-foreground truncate tracking-tight">{booking.client}</h1>
+              {booking.booking_number && (
+                <p className="text-[11px] text-primary-foreground/50 font-mono">#{booking.booking_number}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleTimerToggle}
+                className={cn(
+                  "w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all shadow-md relative",
+                  currentTimer
+                    ? "bg-destructive text-destructive-foreground animate-pulse"
+                    : "bg-primary-foreground text-primary"
+                )}
+              >
+                {currentTimer ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+              </button>
+            </div>
           </div>
+          {currentTimer && (
+            <div className="mt-2 text-center">
+              <span className="text-xs font-mono text-primary-foreground/80 bg-primary-foreground/10 px-3 py-1 rounded-full">
+                <Clock className="w-3 h-3 inline mr-1" />{formatTimer(timerElapsed)}
+              </span>
+            </div>
+          )}
         </div>
-        {currentTimer && (
-          <div className="mt-2 text-center">
-            <span className="text-xs font-mono text-primary-foreground/80 bg-primary-foreground/10 px-3 py-1 rounded-full">
-              <Clock className="w-3 h-3 inline mr-1" />{formatTimer(timerElapsed)}
-            </span>
-          </div>
-        )}
       </div>
 
       {booking.deliveryaddress && (
