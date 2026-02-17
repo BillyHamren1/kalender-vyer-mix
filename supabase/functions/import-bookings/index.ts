@@ -1461,6 +1461,10 @@ serve(async (req) => {
             console.log(`Only warehouse recovery needed for ${bookingData.id}`);
             const warehouseEventsCreated = await syncWarehouseEventsForBooking(supabase, bookingData);
             results.warehouse_events_created += warehouseEventsCreated;
+            // Sync product images even for warehouse-only recovery
+            if (externalBooking.products && Array.isArray(externalBooking.products)) {
+              await syncProductImages(supabase, bookingData.id, externalBooking.products, results);
+            }
             results.imported++;
             continue;
           }
@@ -1651,6 +1655,10 @@ serve(async (req) => {
               console.log(`[Product Recovery] Synced ${recoveryPackingSynced} packing list items for booking ${bookingData.id}`);
             }
             
+            // Sync product images during product recovery
+            if (externalBooking.products && Array.isArray(externalBooking.products)) {
+              await syncProductImages(supabase, bookingData.id, externalBooking.products, results);
+            }
             results.imported++;
             results.updated_bookings.push(existingBooking.id);
             console.log(`[Product Recovery] Completed for booking ${bookingData.id}`);
