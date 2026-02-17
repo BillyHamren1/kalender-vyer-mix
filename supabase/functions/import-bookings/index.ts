@@ -111,6 +111,48 @@ async function syncProductImages(supabase: any, bookingId: string, products: any
 }
 
 /**
+ * Sync tent images as booking attachments (with deduplication)
+ */
+async function syncTentImages(supabase: any, bookingId: string, tentImages: any[], results: any) {
+  const { data: existingAttachments } = await supabase
+    .from('booking_attachments')
+    .select('url')
+    .eq('booking_id', bookingId);
+  
+  const seenUrls = new Set<string>((existingAttachments || []).map((a: any) => a.url));
+
+  for (const tentImage of tentImages) {
+    const imgUrl = tentImage.public_url;
+    if (!imgUrl || seenUrls.has(imgUrl)) continue;
+    seenUrls.add(imgUrl);
+
+    const tentIndex = tentImage.tent_index ?? '';
+    const viewKey   = tentImage.view_key   ?? '';
+    const fileName  = (`Tält ${tentIndex} - ${viewKey}`).trim() || 'Tältbild';
+
+    let fileType = 'image/jpeg';
+    if (imgUrl.includes('.png'))  fileType = 'image/png';
+    else if (imgUrl.includes('.webp')) fileType = 'image/webp';
+
+    const { error: tentErr } = await supabase
+      .from('booking_attachments')
+      .insert({
+        booking_id: bookingId,
+        url:        imgUrl,
+        file_name:  fileName,
+        file_type:  fileType
+      });
+
+    if (tentErr) {
+      console.error(`[Tent Image] Error inserting tent image for booking ${bookingId}:`, tentErr);
+    } else {
+      results.attachments_imported++;
+      console.log(`[Tent Image] Saved "${fileName}" for booking ${bookingId}`);
+    }
+  }
+}
+
+/**
  * Sync warehouse calendar events for a confirmed booking
  * Creates 6 logistics events based on rig/event/rigdown dates
  */
@@ -1458,6 +1500,11 @@ serve(async (req) => {
             if (externalBooking.products && Array.isArray(externalBooking.products)) {
               await syncProductImages(supabase, bookingData.id, externalBooking.products, results);
             }
+
+            // Sync tent images even for unchanged bookings
+            if (externalBooking.tent_images && Array.isArray(externalBooking.tent_images)) {
+              await syncTentImages(supabase, bookingData.id, externalBooking.tent_images, results);
+            }
             
             results.unchanged_bookings_skipped.push(bookingData.id)
             continue; // SKIP UPDATE - NO CHANGES
@@ -1471,6 +1518,10 @@ serve(async (req) => {
             // Sync product images even for warehouse-only recovery
             if (externalBooking.products && Array.isArray(externalBooking.products)) {
               await syncProductImages(supabase, bookingData.id, externalBooking.products, results);
+            }
+            // Sync tent images even for warehouse-only recovery
+            if (externalBooking.tent_images && Array.isArray(externalBooking.tent_images)) {
+              await syncTentImages(supabase, bookingData.id, externalBooking.tent_images, results);
             }
             results.imported++;
             continue;
@@ -1665,6 +1716,10 @@ serve(async (req) => {
             // Sync product images during product recovery
             if (externalBooking.products && Array.isArray(externalBooking.products)) {
               await syncProductImages(supabase, bookingData.id, externalBooking.products, results);
+            }
+            // Sync tent images during product recovery
+            if (externalBooking.tent_images && Array.isArray(externalBooking.tent_images)) {
+              await syncTentImages(supabase, bookingData.id, externalBooking.tent_images, results);
             }
             results.imported++;
             results.updated_bookings.push(existingBooking.id);
@@ -2206,6 +2261,11 @@ serve(async (req) => {
         // Extract product images as booking attachments
         if (externalBooking.products && Array.isArray(externalBooking.products)) {
           await syncProductImages(supabase, bookingData.id, externalBooking.products, results);
+        }
+
+        // Extract tent images as booking attachments
+        if (externalBooking.tent_images && Array.isArray(externalBooking.tent_images)) {
+          await syncTentImages(supabase, bookingData.id, externalBooking.tent_images, results);
         }
 
         results.imported++
