@@ -159,7 +159,7 @@ const MobileJobDetail = () => {
       </div>
 
       {booking.deliveryaddress && (
-        <div className="mx-4 mt-3 p-3.5 rounded-2xl bg-card border border-border/50 shadow-sm">
+        <div className="mx-4 mt-3 p-3.5 rounded-2xl bg-card border border-primary/30 shadow-[0_4px_12px_-2px_hsl(184_60%_38%/0.15)]">
           <div className="flex items-center gap-2.5 text-sm">
             <MapPin className="w-4 h-4 text-primary shrink-0" />
             <span className="text-foreground font-medium">{booking.deliveryaddress}</span>
