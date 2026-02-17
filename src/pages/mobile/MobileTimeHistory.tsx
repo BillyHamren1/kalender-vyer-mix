@@ -19,7 +19,7 @@ const MobileTimeHistory = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [listFilter, setListFilter] = useState<ListFilter>('week');
+  const [listFilter] = useState<ListFilter>('month');
   const [listPeriod, setListPeriod] = useState(new Date());
 
   useEffect(() => {
@@ -297,28 +297,6 @@ const MobileTimeHistory = () => {
         ) : (
           /* List view */
           <div className="space-y-3">
-            {/* Period filter: week / month toggle */}
-            <div className="flex bg-muted rounded-xl p-0.5 gap-0.5">
-              <button
-                onClick={() => setListFilter('week')}
-                className={cn(
-                  "flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all",
-                  listFilter === 'week' ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
-                )}
-              >
-                Vecka
-              </button>
-              <button
-                onClick={() => setListFilter('month')}
-                className={cn(
-                  "flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all",
-                  listFilter === 'month' ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
-                )}
-              >
-                Månad
-              </button>
-            </div>
-
             {/* Period navigation */}
             <div className="flex items-center justify-between">
               <button onClick={() => navigateListPeriod(-1)} className="p-2 rounded-xl active:scale-95 transition-all">
