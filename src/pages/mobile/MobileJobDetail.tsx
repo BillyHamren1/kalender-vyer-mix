@@ -151,18 +151,16 @@ const MobileJobDetail = () => {
       </div>
 
       {booking.deliveryaddress && (
-        <div className="mx-4 mt-3 p-3.5 rounded-2xl bg-card border border-primary flex items-center gap-2.5">
+        <button
+          onClick={openNavigation}
+          className="mx-4 mt-3 p-3.5 rounded-2xl bg-card border border-primary flex items-center gap-2.5 w-[calc(100%-2rem)] text-left active:scale-[0.98] transition-all"
+        >
           <MapPin className="w-4 h-4 text-primary shrink-0" />
           <span className="text-foreground font-medium text-sm flex-1">{booking.deliveryaddress}</span>
-          {(booking.delivery_latitude || booking.deliveryaddress) && (
-            <button
-              onClick={openNavigation}
-              className="w-9 h-9 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-all shrink-0"
-            >
-              <Navigation className="w-4 h-4 text-primary-foreground" />
-            </button>
-          )}
-        </div>
+          <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center shrink-0">
+            <Navigation className="w-4 h-4 text-primary-foreground" />
+          </div>
+        </button>
       )}
 
       {/* Tab navigation */}
