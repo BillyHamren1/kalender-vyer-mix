@@ -149,6 +149,48 @@ async function uploadBase64ToStorage(
  * Sync tent images as booking attachments (with deduplication).
  * Supports both public_url (legacy) and content_base64 (new format).
  */
+/**
+ * Sync files from files_metadata (new API format).
+ * Each entry has: { url, name, type, tent_view_image?, tent_index?, view_angle? }
+ */
+async function syncFilesMetadata(supabase: any, bookingId: string, filesMetadata: any[], results: any) {
+  const { data: existingAttachments } = await supabase
+    .from('booking_attachments')
+    .select('url')
+    .eq('booking_id', bookingId);
+  const seenUrls = new Set<string>((existingAttachments || []).map((a: any) => a.url));
+
+  for (const file of filesMetadata) {
+    const fileUrl: string = file.url || file.public_url;
+    if (!fileUrl || seenUrls.has(fileUrl)) continue;
+    seenUrls.add(fileUrl);
+
+    const fileName: string = file.name || file.file_name || 'Fil';
+    let fileType = 'image/jpeg';
+    const lower = fileName.toLowerCase();
+    if (lower.endsWith('.png')) fileType = 'image/png';
+    else if (lower.endsWith('.webp')) fileType = 'image/webp';
+    else if (lower.endsWith('.pdf')) fileType = 'application/pdf';
+    else if (lower.endsWith('.gif')) fileType = 'image/gif';
+
+    const { error } = await supabase
+      .from('booking_attachments')
+      .insert({
+        booking_id: bookingId,
+        url: fileUrl,
+        file_name: fileName,
+        file_type: fileType,
+      });
+
+    if (!error) {
+      results.attachments_imported = (results.attachments_imported || 0) + 1;
+      console.log(`[FilesMetadata] Saved attachment "${fileName}" for booking ${bookingId}`);
+    } else {
+      console.error(`[FilesMetadata] Error saving "${fileName}":`, error.message);
+    }
+  }
+}
+
 async function syncTentImages(supabase: any, bookingId: string, tentImages: any[], results: any) {
   const { data: existingAttachments } = await supabase
     .from('booking_attachments')
@@ -1551,8 +1593,10 @@ serve(async (req) => {
               await syncProductImages(supabase, bookingData.id, externalBooking.products, results);
             }
 
-            // Sync tent images even for unchanged bookings
-            if (externalBooking.tent_images && Array.isArray(externalBooking.tent_images)) {
+            // Sync files (new: files_metadata, legacy: tent_images)
+            if (externalBooking.files_metadata && Array.isArray(externalBooking.files_metadata)) {
+              await syncFilesMetadata(supabase, bookingData.id, externalBooking.files_metadata, results);
+            } else if (externalBooking.tent_images && Array.isArray(externalBooking.tent_images)) {
               await syncTentImages(supabase, bookingData.id, externalBooking.tent_images, results);
             }
             
@@ -1569,8 +1613,10 @@ serve(async (req) => {
             if (externalBooking.products && Array.isArray(externalBooking.products)) {
               await syncProductImages(supabase, bookingData.id, externalBooking.products, results);
             }
-            // Sync tent images even for warehouse-only recovery
-            if (externalBooking.tent_images && Array.isArray(externalBooking.tent_images)) {
+            // Sync files (new: files_metadata, legacy: tent_images)
+            if (externalBooking.files_metadata && Array.isArray(externalBooking.files_metadata)) {
+              await syncFilesMetadata(supabase, bookingData.id, externalBooking.files_metadata, results);
+            } else if (externalBooking.tent_images && Array.isArray(externalBooking.tent_images)) {
               await syncTentImages(supabase, bookingData.id, externalBooking.tent_images, results);
             }
             results.imported++;
@@ -1767,8 +1813,10 @@ serve(async (req) => {
             if (externalBooking.products && Array.isArray(externalBooking.products)) {
               await syncProductImages(supabase, bookingData.id, externalBooking.products, results);
             }
-            // Sync tent images during product recovery
-            if (externalBooking.tent_images && Array.isArray(externalBooking.tent_images)) {
+            // Sync files (new: files_metadata, legacy: tent_images)
+            if (externalBooking.files_metadata && Array.isArray(externalBooking.files_metadata)) {
+              await syncFilesMetadata(supabase, bookingData.id, externalBooking.files_metadata, results);
+            } else if (externalBooking.tent_images && Array.isArray(externalBooking.tent_images)) {
               await syncTentImages(supabase, bookingData.id, externalBooking.tent_images, results);
             }
             results.imported++;
@@ -2371,13 +2419,12 @@ serve(async (req) => {
           await syncProductImages(supabase, bookingData.id, externalBooking.products, results);
         }
 
-        // Extract tent images as booking attachments
-        console.log(`Booking ${bookingData.id} tent_images: ${
-          externalBooking.tent_images
-            ? `${externalBooking.tent_images.length} bilder`
-            : 'saknas i API-svaret'
-        }`);
-        if (externalBooking.tent_images && Array.isArray(externalBooking.tent_images)) {
+        // Extract files from files_metadata (new API format)
+        if (externalBooking.files_metadata && Array.isArray(externalBooking.files_metadata)) {
+          await syncFilesMetadata(supabase, bookingData.id, externalBooking.files_metadata, results);
+        }
+        // Legacy: tent_images field support
+        else if (externalBooking.tent_images && Array.isArray(externalBooking.tent_images)) {
           await syncTentImages(supabase, bookingData.id, externalBooking.tent_images, results);
         }
 
