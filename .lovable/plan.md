@@ -1,79 +1,59 @@
 
 
-## Strukturell och visuell upprensning av EventFlow
+## Upprensning av Personalsidan
 
-### Sammanfattning
-Appen har ackumulerat oanvanda komponenter, duplicerade navigationslosningar och inkonsekvenser i sidofaltets struktur. Planen fokuserar pa att rensa bort dod kod, forbattra sidofaltets organisation och harmonisera det visuella uttrycket - utan att andra nagon befintlig funktionalitet.
-
----
-
-### 1. Ta bort oanvanda navigationskomponenter
-
-Foljande filer importeras aldrig nagonstans och ar rester fran tidigare versioner:
-
-- `src/components/Navigation.tsx` (gammal toppnavigering)
-- `src/components/Navigation/Navbar.tsx` (gammal navbar med hardkodade bla farger)
-- `src/components/GlobalTopBar.tsx` (aldrig anvand)
-- `src/components/WarehouseTopBar.tsx` (aldrig anvand)
-
-**Atgard:** Radera alla fyra filer. Ingen funktionalitet paverkas.
+### Problem
+Sidan har for manga synliga knappar, ikoner och element som konkurrerar om uppmarksamhet. Varje personalkort har 5-6 interaktiva element (toggle, 3 knappar, nyckelikon), headern har 4 knappar, och hogerpanelen ar tung. Det saknas tydlig visuell hierarki.
 
 ---
 
-### 2. Ta bort oanvanda/overgivna sidor
+### 1. Forenkla headern
 
-Dessa sidor importeras i `App.tsx` men har inga rutter kopplade till sig:
+**Fore:** 4 separata knappar (Importera, Exportera, Uppdatera, Lagg till personal)
 
-- `src/pages/FinishedJobs.tsx` - importeras men ar aldrig i en `<Route>`
-- `src/pages/StaffEndpoint.tsx` - importeras men ar aldrig i en `<Route>`
-- `src/pages/CalendarPage.tsx` - ersatt av `CustomCalendarPage.tsx`
-- `src/pages/LogisticsMap.tsx` - ingen rutt kopplar hit
-- `src/pages/Index.tsx` - `/` renderar redan `PlanningDashboard`, Index ar overflodigt
-
-**Atgard:** Radera filerna och ta bort deras oanvanda importer fran `App.tsx`.
+**Efter:** Behall bara "Lagg till personal" som primar knapp. Flytta Importera, Exportera och Uppdatera till en enda "mer"-meny (DropdownMenu med tre-punkts-ikon). Titeln andras fran "Personaladministration" till "Personal" och undertiteln kortas.
 
 ---
 
-### 3. Fixa sidofaltet (Sidebar3D)
+### 2. Forenkla personalkorten
 
-**Problem som atsardas:**
+**Fore:** Varje kort visar avatar med nyckelikon-overlay, namn, roll, mejl, telefon, aktiv-toggle, kalenderknapp, fargknapp, redigeringsknapp.
 
-| Problem | Losning |
-|---|---|
-| "Personal-\nadministration" har en literal `\n` i titeln, ger konstig radbrytning | Andra till "Personaladmin" eller "Personal" som enradig text |
-| Mobil-navigeringen visar alla 7 poster (for trangt) | Begansa mobilvyn till de 4-5 viktigaste (Dashboard, Kalender, Projekt, Personal, Logistik) |
-| Breddskillnad: huvudsystem w-56 vs lager w-64 | Harmonisera till samma bredd (w-56) |
-
----
-
-### 4. Rensa dubbel rutt
-
-- `/` och `/dashboard` pekar bada pa `PlanningDashboard`
-- **Atgard:** Behal bada men ta bort importen av `Index`-sidan som aldrig renderas
+**Efter:**
+- Ta bort nyckelikon-overlayen pa avataren (kontostatus finns redan i hogerpanelen)
+- Ta bort de tre separata aktionsknapparna (kalender, farg, redigera) - ersatt med en enda liten redigeringsikon som visas vid hover
+- Behall aktiv-toggeln men gor den mer diskret (mindre, utan text "Aktiv/Inaktiv")
+- Klick pa kortet navigerar till personaldetaljsidan (fungerar redan)
+- Fargandring flyttas till redigeringsdialogen istallet for separat panel
 
 ---
 
-### 5. Sammanfattning av filandringar
+### 3. Ta bort farginstellningar-panelen fran hogersidan
+
+Farginstellningspanelen tar plats och ar overfloding som separat sektion. Fargvalet flyttas istallet in i EditStaffDialog sa att allt redigeras pa ett stalle. Hogersidan visar da bara Personalkonton-panelen.
+
+---
+
+### 4. Rensa hogerpanelens (Personalkonton) visuella tyngd
+
+- Behall all funktionalitet
+- Gor layouten mer kompakt med mindre mellanrum
+- Ta bort hardkodade farger (green-50, orange-100) och anvand semantiska tokens istallet (bg-muted, text-muted-foreground)
+
+---
+
+### Tekniska andringar
 
 | Fil | Andring |
 |---|---|
-| `src/components/Navigation.tsx` | Radera |
-| `src/components/Navigation/Navbar.tsx` | Radera |
-| `src/components/GlobalTopBar.tsx` | Radera |
-| `src/components/WarehouseTopBar.tsx` | Radera |
-| `src/pages/FinishedJobs.tsx` | Radera |
-| `src/pages/StaffEndpoint.tsx` | Radera |
-| `src/pages/CalendarPage.tsx` | Radera |
-| `src/pages/LogisticsMap.tsx` | Radera |
-| `src/pages/Index.tsx` | Radera |
-| `src/App.tsx` | Ta bort oanvanda importer (Index, FinishedJobs, StaffEndpoint, CalendarPage, LogisticsMap) |
-| `src/components/Sidebar3D.tsx` | Fixa sidofaltstiteln, begansa mobil-nav till 5 poster |
-| `src/components/WarehouseSidebar3D.tsx` | Andra bredd fran w-64 till w-56 |
+| `src/pages/StaffManagement.tsx` | Byt ut separata knappar mot DropdownMenu. Ta bort farginstallningspanelen fran layouten. Rensa bort `selectedStaffForColor`-state. Andra titel till "Personal". |
+| `src/components/staff/StaffList.tsx` | Ta bort nyckelikon-overlay fran avatar. Ersatt tre aktionsknappar med en hover-synlig redigeringsikon. Ta bort `onColorEdit` prop. |
+| `src/components/staff/StaffAccountsPanel.tsx` | Byt hardkodade farger (green-50, orange-100) till semantiska tokens. |
+| `src/components/staff/EditStaffDialog.tsx` | Lagg till fargvaljare i dialogen (importera ColorPicker). |
 
 ### Vad som INTE andras
-- Alla befintliga rutter och sidorna de pekar pa
-- All affarslogik (formulae, databasanrop, hooks)
-- Designsystemets farger och tokens
-- Mobilappens separata navigering (`/m/*`)
-- Lagersystemets funktionalitet
+- Alla funktioner behalls (lagg till, redigera, importera, exportera, konton, tillganglighet)
+- Navigering till personaldetalj vid klick fungerar som forut
+- Kontosystemet (skapa/ta bort/aterstall) rors inte
+- Befintliga dialoger och datafloden behalls
 
