@@ -59,6 +59,58 @@ const addDays = (dateString: string, days: number): string => {
 };
 
 /**
+ * Sync product images as booking attachments (with deduplication)
+ */
+async function syncProductImages(supabase: any, bookingId: string, products: any[], results: any) {
+  const seenUrls = new Set<string>();
+  
+  const { data: existingAttachments } = await supabase
+    .from('booking_attachments')
+    .select('url')
+    .eq('booking_id', bookingId);
+  (existingAttachments || []).forEach((a: any) => seenUrls.add(a.url));
+  
+  for (const product of products) {
+    const imageUrls: string[] = [];
+    if (product.image_url && typeof product.image_url === 'string') {
+      imageUrls.push(product.image_url);
+    }
+    if (Array.isArray(product.image_urls)) {
+      for (const url of product.image_urls) {
+        if (typeof url === 'string') imageUrls.push(url);
+      }
+    }
+    for (const imgUrl of imageUrls) {
+      if (!imgUrl || seenUrls.has(imgUrl)) continue;
+      seenUrls.add(imgUrl);
+      
+      const productName = product.name || product.product_name || 'Produkt';
+      const fileName = `${productName} - bild`;
+      
+      let fileType = 'image/jpeg';
+      if (imgUrl.includes('.png')) fileType = 'image/png';
+      else if (imgUrl.includes('.webp')) fileType = 'image/webp';
+      
+      const { error: imgError } = await supabase
+        .from('booking_attachments')
+        .insert({
+          booking_id: bookingId,
+          url: imgUrl,
+          file_name: fileName,
+          file_type: fileType
+        });
+      
+      if (imgError) {
+        console.error(`Error inserting product image for booking ${bookingId}:`, imgError);
+      } else {
+        results.attachments_imported++;
+        console.log(`[Product Image] Saved image from "${productName}" for booking ${bookingId}`);
+      }
+    }
+  }
+}
+
+/**
  * Sync warehouse calendar events for a confirmed booking
  * Creates 6 logistics events based on rig/event/rigdown dates
  */
@@ -1394,6 +1446,12 @@ serve(async (req) => {
           
           if (!hasChanged && !statusChanged && !needsCalendarRecovery && !needsWarehouseRecovery && !needsProductRecovery && !needsProductUpdate) {
             console.log(`No changes detected for ${bookingData.id}, skipping update`)
+            
+            // Still sync product images even for unchanged bookings
+            if (externalBooking.products && Array.isArray(externalBooking.products)) {
+              await syncProductImages(supabase, bookingData.id, externalBooking.products, results);
+            }
+            
             results.unchanged_bookings_skipped.push(bookingData.id)
             continue; // SKIP UPDATE - NO CHANGES
           }
@@ -2132,59 +2190,7 @@ serve(async (req) => {
 
         // Extract product images as booking attachments
         if (externalBooking.products && Array.isArray(externalBooking.products)) {
-          const seenUrls = new Set<string>();
-          
-          // Collect existing attachment URLs to avoid duplicates
-          const { data: existingAttachments } = await supabase
-            .from('booking_attachments')
-            .select('url')
-            .eq('booking_id', bookingData.id);
-          (existingAttachments || []).forEach((a: any) => seenUrls.add(a.url));
-          
-          for (const product of externalBooking.products) {
-            const imageUrls: string[] = [];
-            
-            // Single image_url field
-            if (product.image_url && typeof product.image_url === 'string') {
-              imageUrls.push(product.image_url);
-            }
-            
-            // Array of image_urls
-            if (Array.isArray(product.image_urls)) {
-              for (const url of product.image_urls) {
-                if (typeof url === 'string') imageUrls.push(url);
-              }
-            }
-            
-            for (const imgUrl of imageUrls) {
-              if (!imgUrl || seenUrls.has(imgUrl)) continue;
-              seenUrls.add(imgUrl);
-              
-              const productName = product.name || product.product_name || 'Produkt';
-              const fileName = `${productName} - bild`;
-              
-              // Determine file type from URL
-              let fileType = 'image/jpeg';
-              if (imgUrl.includes('.png')) fileType = 'image/png';
-              else if (imgUrl.includes('.webp')) fileType = 'image/webp';
-              
-              const { error: imgError } = await supabase
-                .from('booking_attachments')
-                .insert({
-                  booking_id: bookingData.id,
-                  url: imgUrl,
-                  file_name: fileName,
-                  file_type: fileType
-                });
-              
-              if (imgError) {
-                console.error(`Error inserting product image for booking ${bookingData.id}:`, imgError);
-              } else {
-                results.attachments_imported++;
-                console.log(`[Product Image] Saved image from "${productName}" for booking ${bookingData.id}`);
-              }
-            }
-          }
+          await syncProductImages(supabase, bookingData.id, externalBooking.products, results);
         }
 
         results.imported++
