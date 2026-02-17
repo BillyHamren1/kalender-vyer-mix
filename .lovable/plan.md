@@ -1,44 +1,80 @@
 
-
-## Fix: Stabilisera artikelordningen i scannerlistan
+## Lägg till stöd för `tent_images` i bokningsimport
 
 ### Problem
-Efter varje skanning eller manuell markering anropas `loadData()` som hämtar och sorterar om hela listan. Artiklar hoppar runt i listan, vilket gor det omojligt att folja med.
 
-### Losning
-Ge varje artikel en stabil sorteringsordning som inte andras nar den verifieras. Ordningen ska baseras pa **initialordningen** (foraldraartikel + barn under), inte pa verifieringsstatus.
+Det externa API:t skickar tältbilder i ett eget fält `tent_images` — en array av objekt med strukturen:
+```json
+{ "view_key": "...", "tent_index": 1, "public_url": "https://...", "offer_image": false }
+```
 
-### Andringar
+Importkoden hanterar idag:
+- `attachments` → sparas som `booking_attachments`
+- `products[].image_url` / `products[].image_urls` → sparas som `booking_attachments`
 
-**`src/services/scannerService.ts`** — `sortPackingItems()`
-- Lagga till en stabil sekundar sortering pa huvudprodukter baserat pa namn (alfabetisk) sa ordningen alltid ar identisk oavsett vilka som ar verifierade
+Men `tent_images` ignoreras helt, vilket är varför A Catering saknar bilder.
 
-**`src/components/scanner/VerificationView.tsx`**
-- Spara den initiala artikelordningen (en mappning fran item-ID till index) nar listan forst laddas
-- Vid efterfoljande `loadData()`-anrop: sortera artiklarna enligt den sparade ordningen istallet for att lata dem hamna i en ny ordning
-- Nya artiklar (som inte fanns i initial-ordningen) laggs sist
+### Lösning
 
-### Teknisk detalj
+Lägg till ett nytt block i importsekvensen som läser `tent_images` och sparar varje bild (med `public_url`) som en `booking_attachment`. Exakt samma dedupliceringslogik som för övriga bilder används.
+
+### Teknisk ändring
+
+**`supabase/functions/import-bookings/index.ts`** — ett enda nytt block efter nuvarande `attachments`-hantering (rad ~2204) och före `syncProductImages` (rad ~2207):
 
 ```typescript
-// Spara initial ordning vid forsta laddning
-const [itemOrder, setItemOrder] = useState<Record<string, number>>({});
-
-// I loadData:
-const itemsData = await fetchPackingListItems(packingId);
-const sorted = sortPackingItems(itemsData);
-
-if (Object.keys(itemOrder).length === 0) {
-  // Forsta laddning — spara ordningen
-  const order: Record<string, number> = {};
-  sorted.forEach((item, idx) => { order[item.id] = idx; });
-  setItemOrder(order);
-  setItems(sorted);
-} else {
-  // Efterfoljande — sortera enligt sparad ordning
-  sorted.sort((a, b) => (itemOrder[a.id] ?? 9999) - (itemOrder[b.id] ?? 9999));
-  setItems(sorted);
+// Process tent_images (tältbilder från externa API:t)
+if (externalBooking.tent_images && Array.isArray(externalBooking.tent_images)) {
+  console.log(`Processing ${externalBooking.tent_images.length} tent images for booking ${bookingData.id}`);
+  
+  const { data: existingUrls } = await supabase
+    .from('booking_attachments')
+    .select('url')
+    .eq('booking_id', bookingData.id);
+  
+  const seenUrls = new Set((existingUrls || []).map((a: any) => a.url));
+  
+  for (const tentImage of externalBooking.tent_images) {
+    const imgUrl = tentImage.public_url;
+    if (!imgUrl || seenUrls.has(imgUrl)) continue;
+    seenUrls.add(imgUrl);
+    
+    const tentIndex = tentImage.tent_index ?? '';
+    const viewKey   = tentImage.view_key   ?? '';
+    const fileName  = `Tält ${tentIndex} - ${viewKey}`.trim();
+    
+    const fileType = imgUrl.includes('.png')  ? 'image/png'
+                   : imgUrl.includes('.webp') ? 'image/webp'
+                   : 'image/jpeg';
+    
+    const { error: tentErr } = await supabase
+      .from('booking_attachments')
+      .insert({
+        booking_id: bookingData.id,
+        url:        imgUrl,
+        file_name:  fileName || 'Tältbild',
+        file_type:  fileType
+      });
+    
+    if (tentErr) {
+      console.error(`Error inserting tent image for booking ${bookingData.id}:`, tentErr);
+    } else {
+      results.attachments_imported++;
+      console.log(`[Tent Image] Saved tent image "${fileName}" for booking ${bookingData.id}`);
+    }
+  }
 }
 ```
 
-**Filer att andra:** 2 (`scannerService.ts`, `VerificationView.tsx`)
+Samma logik läggs även till i de tre "early-exit"-grenarna (unchanged, warehouse-recovery, product-recovery) precis som `syncProductImages` redan är tillagd där — annars missas bilder för bokningar som inte ändrats.
+
+### Filer att ändra
+
+1 fil: `supabase/functions/import-bookings/index.ts`
+
+- Lägg till `tent_images`-blocket på 4 ställen (ny bokning + 3 early-exit-grenar)
+- Inga databasmigrationer behövs — `booking_attachments`-tabellen fungerar som den är
+
+### Resultat
+
+Nästa gång importen körs för A Catering (eller vilken annan bokning som helst med `tent_images`) sparas alla tältbilder automatiskt som bokningsbilagor och visas i mobilappens "Bilder"-flik.
