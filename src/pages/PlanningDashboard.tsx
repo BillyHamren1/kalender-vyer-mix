@@ -13,6 +13,7 @@ import DashboardWeekView from "@/components/dashboard/DashboardWeekView";
 import DashboardDayView from "@/components/dashboard/DashboardDayView";
 import DashboardMonthView from "@/components/dashboard/DashboardMonthView";
 import DashboardNewBookings from "@/components/dashboard/DashboardNewBookings";
+import DashboardAllBookings from "@/components/dashboard/DashboardAllBookings";
 
 import CreateProjectWizard from "@/components/project/CreateProjectWizard";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
@@ -123,6 +124,11 @@ const PlanningDashboard = () => {
             onCreateLargeProject={handleCreateLargeProject}
           />
         </div>
+      </div>
+
+      {/* Alla bokningar */}
+      <div className="mb-6">
+        <DashboardAllBookings />
       </div>
 
       {/* Dialogs */}
