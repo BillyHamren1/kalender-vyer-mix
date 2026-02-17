@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Truck, Plus, Edit2, Trash2, Weight, Box, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import PartnerWizard from '@/components/logistics/PartnerWizard';
 import { Badge } from '@/components/ui/badge';
 import { 
   Dialog, 
@@ -45,6 +46,7 @@ const vehicleTypes = [
 const LogisticsVehicles: React.FC = () => {
   const { vehicles, isLoading, createVehicle, updateVehicle, deleteVehicle } = useVehicles();
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [showPartnerWizard, setShowPartnerWizard] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [vehicleToDelete, setVehicleToDelete] = useState<Vehicle | null>(null);
@@ -102,8 +104,13 @@ const LogisticsVehicles: React.FC = () => {
 
   const openCreateForm = () => {
     resetForm();
-    setFormData(prev => ({ ...prev, is_external: activeTab === 'external' }));
-    setIsFormOpen(true);
+    if (activeTab === 'external') {
+      setFormData(prev => ({ ...prev, is_external: true }));
+      setShowPartnerWizard(true);
+    } else {
+      setFormData(prev => ({ ...prev, is_external: false }));
+      setIsFormOpen(true);
+    }
   };
 
   const openEditForm = (vehicle: Vehicle) => {
@@ -128,8 +135,14 @@ const LogisticsVehicles: React.FC = () => {
       hourly_rate: vehicle.hourly_rate,
       daily_rate: vehicle.daily_rate,
       notes: vehicle.notes || '',
+      provided_vehicle_types: vehicle.provided_vehicle_types || [],
+      vehicle_type_rates: (vehicle.vehicle_type_rates as Record<string, any>) || {},
     });
-    setIsFormOpen(true);
+    if (vehicle.is_external) {
+      setShowPartnerWizard(true);
+    } else {
+      setIsFormOpen(true);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -142,6 +155,21 @@ const LogisticsVehicles: React.FC = () => {
     }
     
     setIsFormOpen(false);
+    resetForm();
+  };
+
+  const handlePartnerWizardSubmit = async (data: VehicleFormData) => {
+    if (editingVehicle) {
+      await updateVehicle(editingVehicle.id, data);
+    } else {
+      await createVehicle(data);
+    }
+    setShowPartnerWizard(false);
+    resetForm();
+  };
+
+  const handlePartnerWizardCancel = () => {
+    setShowPartnerWizard(false);
     resetForm();
   };
 
@@ -304,7 +332,14 @@ const LogisticsVehicles: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="external">
-          {isLoading ? (
+          {showPartnerWizard ? (
+            <PartnerWizard
+              initialData={formData}
+              isEditing={!!editingVehicle}
+              onSubmit={handlePartnerWizardSubmit}
+              onCancel={handlePartnerWizardCancel}
+            />
+          ) : isLoading ? (
             <div className="text-center py-8 text-muted-foreground">Laddar...</div>
           ) : (
             renderVehicleGrid(
