@@ -34,7 +34,7 @@ const MobileProfile = () => {
   const totalHours = timeReports.reduce((sum, r) => sum + r.hours_worked, 0);
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen bg-card">
       {/* Header */}
       <div className="bg-primary px-5 pt-14 pb-8 safe-area-top">
         <div className="flex flex-col items-center">
@@ -138,8 +138,10 @@ const MobileProfile = () => {
             <span className="font-mono text-[11px] text-muted-foreground/60">1.0.0</span>
           </div>
         </div>
+      </div>
 
-        {/* Logout */}
+      {/* Logout pinned to bottom */}
+      <div className="px-4 pb-6 pt-2 mt-auto">
         <Button
           variant="outline"
           className="w-full h-12 rounded-2xl text-sm gap-2 font-semibold border-destructive/25 text-destructive hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-all active:scale-[0.98]"
