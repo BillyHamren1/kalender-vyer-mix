@@ -152,7 +152,7 @@ const MobileJobs = () => {
                           "w-full text-left rounded-2xl border bg-card p-3.5 transition-all duration-150 active:scale-[0.98]",
                           hasTimer
                             ? "border-primary/30 shadow-md ring-1 ring-primary/10"
-                            : "border-border/50 shadow-sm",
+                            : "border-primary/20 shadow-md",
                         )}
                       >
                         <div className="flex items-start justify-between gap-3">
