@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { mobileApi, MobileTimeReport } from '@/services/mobileApiService';
-import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, isSameMonth, addMonths, subMonths } from 'date-fns';
+import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, getDay, isSameDay, addMonths, subMonths, addWeeks, subWeeks, isWithinInterval } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { ArrowLeft, Calendar, List, ChevronLeft, ChevronRight, Clock, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 type ViewMode = 'calendar' | 'list';
+type ListFilter = 'week' | 'month';
 
 const MobileTimeHistory = () => {
   const navigate = useNavigate();
@@ -16,6 +17,8 @@ const MobileTimeHistory = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [listFilter, setListFilter] = useState<ListFilter>('week');
+  const [listPeriod, setListPeriod] = useState(new Date());
 
   useEffect(() => {
     mobileApi.getTimeReports()
@@ -47,9 +50,47 @@ const MobileTimeHistory = () => {
     ? reports.filter(r => isSameDay(parseISO(r.report_date), selectedDate))
     : [];
 
-  const visibleReports = viewMode === 'list'
-    ? reports
-    : selectedDateReports;
+  // List view: filter by period
+  const listInterval = useMemo(() => {
+    if (listFilter === 'week') {
+      const s = startOfWeek(listPeriod, { weekStartsOn: 1 });
+      const e = endOfWeek(listPeriod, { weekStartsOn: 1 });
+      return { start: s, end: e };
+    }
+    return { start: startOfMonth(listPeriod), end: endOfMonth(listPeriod) };
+  }, [listFilter, listPeriod]);
+
+  const filteredListReports = useMemo(() => {
+    return reports.filter(r => {
+      const d = parseISO(r.report_date);
+      return isWithinInterval(d, listInterval);
+    });
+  }, [reports, listInterval]);
+
+  // Group filtered reports by date
+  const groupedListReports = useMemo(() => {
+    const map = new Map<string, MobileTimeReport[]>();
+    filteredListReports.forEach(r => {
+      const key = r.report_date;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(r);
+    });
+    // Sort dates descending
+    return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [filteredListReports]);
+
+  const filteredTotalHours = filteredListReports.reduce((s, r) => s + r.hours_worked, 0);
+
+  const listPeriodLabel = listFilter === 'week'
+    ? `${format(listInterval.start, 'd MMM', { locale: sv })} – ${format(listInterval.end, 'd MMM yyyy', { locale: sv })}`
+    : format(listPeriod, 'MMMM yyyy', { locale: sv });
+
+  const navigateListPeriod = (dir: 1 | -1) => {
+    setListPeriod(p => listFilter === 'week'
+      ? (dir === 1 ? addWeeks(p, 1) : subWeeks(p, 1))
+      : (dir === 1 ? addMonths(p, 1) : subMonths(p, 1))
+    );
+  };
 
   const weekDays = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
 
@@ -180,27 +221,79 @@ const MobileTimeHistory = () => {
           </div>
         ) : (
           /* List view */
-          reports.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-2">
-                <Clock className="w-6 h-6 text-muted-foreground/30" />
+          <div className="space-y-3">
+            {/* Period filter: week / month toggle */}
+            <div className="flex bg-muted rounded-xl p-0.5 gap-0.5">
+              <button
+                onClick={() => setListFilter('week')}
+                className={cn(
+                  "flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all",
+                  listFilter === 'week' ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+                )}
+              >
+                Vecka
+              </button>
+              <button
+                onClick={() => setListFilter('month')}
+                className={cn(
+                  "flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all",
+                  listFilter === 'month' ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+                )}
+              >
+                Månad
+              </button>
+            </div>
+
+            {/* Period navigation */}
+            <div className="flex items-center justify-between">
+              <button onClick={() => navigateListPeriod(-1)} className="p-2 rounded-xl active:scale-95 transition-all">
+                <ChevronLeft className="w-5 h-5 text-foreground" />
+              </button>
+              <div className="text-center">
+                <p className="text-sm font-bold text-foreground capitalize">{listPeriodLabel}</p>
+                <p className="text-[11px] text-muted-foreground">{filteredListReports.length} rapporter · {filteredTotalHours}h</p>
               </div>
-              <p className="text-sm font-medium text-foreground/60">Inga rapporter ännu</p>
+              <button onClick={() => navigateListPeriod(1)} className="p-2 rounded-xl active:scale-95 transition-all">
+                <ChevronRight className="w-5 h-5 text-foreground" />
+              </button>
             </div>
-          ) : (
-            <div className="space-y-1.5">
-              {reports.map(report => (
-                <ReportCard key={report.id} report={report} />
-              ))}
-            </div>
-          )
+
+            {/* Grouped reports */}
+            {groupedListReports.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-2">
+                  <Clock className="w-6 h-6 text-muted-foreground/30" />
+                </div>
+                <p className="text-sm font-medium text-foreground/60">Inga rapporter denna period</p>
+              </div>
+            ) : (
+              groupedListReports.map(([dateKey, dateReports]) => {
+                const dayTotal = dateReports.reduce((s, r) => s + r.hours_worked, 0);
+                return (
+                  <div key={dateKey}>
+                    <div className="flex items-center justify-between px-1 mb-1.5">
+                      <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+                        {format(parseISO(dateKey), 'EEEE d MMM', { locale: sv })}
+                      </h3>
+                      <span className="text-[11px] font-bold text-primary">{dayTotal}h</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {dateReports.map(report => (
+                        <ReportCard key={report.id} report={report} showDate={false} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         )}
       </div>
     </div>
   );
 };
 
-const ReportCard = ({ report }: { report: MobileTimeReport }) => (
+const ReportCard = ({ report, showDate = true }: { report: MobileTimeReport; showDate?: boolean }) => (
   <div className="rounded-xl border border-border/40 bg-card p-3 shadow-sm">
     <div className="flex items-start justify-between gap-2">
       <div className="min-w-0 flex-1">
@@ -208,9 +301,10 @@ const ReportCard = ({ report }: { report: MobileTimeReport }) => (
           {report.bookings?.client || 'Okänt jobb'}
         </p>
         <p className="text-[11px] text-muted-foreground mt-0.5">
-          {format(parseISO(report.report_date), 'd MMM yyyy', { locale: sv })}
+          {showDate && format(parseISO(report.report_date), 'd MMM yyyy', { locale: sv })}
+          {showDate && report.start_time && report.end_time && ' · '}
           {report.start_time && report.end_time && (
-            <span> · {report.start_time.slice(0, 5)}–{report.end_time.slice(0, 5)}</span>
+            <span>{report.start_time.slice(0, 5)}–{report.end_time.slice(0, 5)}</span>
           )}
         </p>
       </div>
