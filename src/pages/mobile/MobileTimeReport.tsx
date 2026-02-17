@@ -17,10 +17,10 @@ const MobileTimeReport = () => {
 
   const [selectedBookingId, setSelectedBookingId] = useState('');
   const [reportDate, setReportDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [startTime, setStartTime] = useState('07:00');
-  const [endTime, setEndTime] = useState('16:00');
-  const [breakTime, setBreakTime] = useState('0.5');
-  const [overtime, setOvertime] = useState('0');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [breakTime, setBreakTime] = useState('');
+  const [overtime, setOvertime] = useState('');
   const [description, setDescription] = useState('');
 
   const { activeTimers, stopTimer } = useGeofencing(bookings);
@@ -61,10 +61,10 @@ const MobileTimeReport = () => {
       toast.success('Tidrapport skapad!');
       setSelectedBookingId('');
       setDescription('');
-      setStartTime('07:00');
-      setEndTime('16:00');
-      setBreakTime('0.5');
-      setOvertime('0');
+      setStartTime('');
+      setEndTime('');
+      setBreakTime('');
+      setOvertime('');
     } catch (err: any) {
       toast.error(err.message || 'Kunde inte skapa tidrapport');
     } finally {
