@@ -68,6 +68,7 @@ import MobileJobDetail from "./pages/mobile/MobileJobDetail";
 import MobileTimeReport from "./pages/mobile/MobileTimeReport";
 import MobileExpenses from "./pages/mobile/MobileExpenses";
 import MobileProfile from "./pages/mobile/MobileProfile";
+import MobileTimeHistory from "./pages/mobile/MobileTimeHistory";
 
 const queryClient = new QueryClient();
 
@@ -125,6 +126,7 @@ const AppContent = () => {
                 <Route path="/m/report" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileTimeReport /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
                 <Route path="/m/expenses" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileExpenses /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
                 <Route path="/m/profile" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileProfile /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
+                <Route path="/m/time-history" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileTimeHistory /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
 
 
                 {/* Main System Routes - Protected (wrapped in AuthProvider) */}
