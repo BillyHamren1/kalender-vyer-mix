@@ -113,8 +113,8 @@ const MobileJobDetail = () => {
   return (
     <div className="flex flex-col min-h-screen bg-card">
       {/* Header */}
-      <div className="bg-primary px-4 pt-12 pb-5 safe-area-top rounded-b-3xl shadow-md">
-        <div className="flex items-center gap-3 mb-4">
+      <div className="bg-primary px-4 pt-12 pb-4 safe-area-top rounded-b-3xl shadow-md">
+        <div className="flex items-center gap-3">
           <button 
             onClick={() => navigate('/m')} 
             className="p-2 -ml-1 rounded-xl active:scale-95 transition-all"
@@ -127,35 +127,35 @@ const MobileJobDetail = () => {
               <p className="text-[11px] text-primary-foreground/50 font-mono">#{booking.booking_number}</p>
             )}
           </div>
-        </div>
-
-        <div className="flex items-center gap-2.5">
-          <Button
-            onClick={handleTimerToggle}
-            className={cn(
-              "flex-1 h-12 rounded-2xl gap-2 text-sm font-bold transition-all active:scale-[0.98] shadow-md",
-              currentTimer
-                ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                : "bg-primary-foreground text-primary hover:bg-primary-foreground/90"
+          <div className="flex items-center gap-2">
+            {(booking.delivery_latitude || booking.deliveryaddress) && (
+              <button
+                onClick={openNavigation}
+                className="w-10 h-10 rounded-full bg-primary-foreground/15 flex items-center justify-center active:scale-95 transition-all"
+              >
+                <Navigation className="w-4 h-4 text-primary-foreground" />
+              </button>
             )}
-          >
-            {currentTimer ? (
-              <><Square className="w-4 h-4" /> Stoppa {formatTimer(timerElapsed)}</>
-            ) : (
-              <><Play className="w-4 h-4" /> Starta timer</>
-            )}
-          </Button>
-          
-          {(booking.delivery_latitude || booking.deliveryaddress) && (
-            <Button
-              onClick={openNavigation}
-              variant="outline"
-              className="h-12 w-12 shrink-0 rounded-2xl border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 bg-primary-foreground/10 p-0"
+            <button
+              onClick={handleTimerToggle}
+              className={cn(
+                "w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all shadow-md relative",
+                currentTimer
+                  ? "bg-destructive text-destructive-foreground animate-pulse"
+                  : "bg-primary-foreground text-primary"
+              )}
             >
-              <Navigation className="w-4.5 h-4.5" />
-            </Button>
-          )}
+              {currentTimer ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+            </button>
+          </div>
         </div>
+        {currentTimer && (
+          <div className="mt-2 text-center">
+            <span className="text-xs font-mono text-primary-foreground/80 bg-primary-foreground/10 px-3 py-1 rounded-full">
+              <Clock className="w-3 h-3 inline mr-1" />{formatTimer(timerElapsed)}
+            </span>
+          </div>
+        )}
       </div>
 
       {booking.deliveryaddress && (
