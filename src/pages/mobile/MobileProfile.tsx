@@ -24,15 +24,19 @@ const MobileProfile = () => {
   return (
     <div className="flex flex-col min-h-screen bg-card">
       {/* Header */}
-      <div className="bg-primary px-5 pt-14 pb-8 safe-area-top rounded-b-3xl shadow-md">
-        <div className="flex flex-col items-center">
-          <div className="w-16 h-16 rounded-2xl bg-primary-foreground/15 border border-primary-foreground/15 flex items-center justify-center mb-2.5">
-            <User className="w-8 h-8 text-primary-foreground" />
+      <div className="bg-primary rounded-b-3xl shadow-md">
+        {/* Safe area – täcker telefonens statusbar */}
+        <div style={{ height: 'env(safe-area-inset-top, 44px)', minHeight: '44px' }} />
+        <div className="px-5 pb-8">
+          <div className="flex flex-col items-center">
+            <div className="w-16 h-16 rounded-2xl bg-primary-foreground/15 border border-primary-foreground/15 flex items-center justify-center mb-2.5">
+              <User className="w-8 h-8 text-primary-foreground" />
+            </div>
+            <h1 className="text-lg font-extrabold text-primary-foreground tracking-tight">{staff.name}</h1>
+            {staff.role && (
+              <p className="text-xs text-primary-foreground/60 mt-0.5 font-medium">{staff.role}</p>
+            )}
           </div>
-          <h1 className="text-lg font-extrabold text-primary-foreground tracking-tight">{staff.name}</h1>
-          {staff.role && (
-            <p className="text-xs text-primary-foreground/60 mt-0.5 font-medium">{staff.role}</p>
-          )}
         </div>
       </div>
 
