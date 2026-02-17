@@ -5,7 +5,7 @@ import { getGpsSettings } from '@/hooks/useGeofencing';
 import { mobileApi, MobileTimeReport } from '@/services/mobileApiService';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { User, Mail, Phone, MapPin, LogOut, Radar, Shield, Clock, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { User, Mail, Phone, MapPin, LogOut, Radar, Shield, Clock, Loader2, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
@@ -16,7 +16,6 @@ const MobileProfile = () => {
 
   const [timeReports, setTimeReports] = useState<MobileTimeReport[]>([]);
   const [isLoadingReports, setIsLoadingReports] = useState(true);
-  const [showAllReports, setShowAllReports] = useState(false);
 
   useEffect(() => {
     mobileApi.getTimeReports()
@@ -32,7 +31,6 @@ const MobileProfile = () => {
 
   if (!staff) return null;
 
-  const visibleReports = showAllReports ? timeReports : timeReports.slice(0, 5);
   const totalHours = timeReports.reduce((sum, r) => sum + r.hours_worked, 0);
 
   return (
@@ -92,77 +90,22 @@ const MobileProfile = () => {
           )}
         </div>
 
-        {/* Time report history */}
-        <div className="rounded-2xl border border-border/50 bg-card p-4 space-y-3 shadow-sm">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Tidrapporter</h2>
-            {!isLoadingReports && timeReports.length > 0 && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-muted-foreground">{timeReports.length} st</span>
-                <span className="px-2 py-0.5 rounded-md bg-primary/10 text-[11px] font-bold text-primary">{totalHours}h</span>
-              </div>
-            )}
+        {/* Time reports button */}
+        <button
+          onClick={() => navigate('/m/time-history')}
+          className="w-full rounded-2xl border border-border/50 bg-card p-4 shadow-sm flex items-center gap-3 active:scale-[0.98] transition-all"
+        >
+          <div className="p-2 rounded-lg bg-primary/8">
+            <Clock className="w-4 h-4 text-primary" />
           </div>
-
-          {isLoadingReports ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-5 h-5 animate-spin text-primary" />
-            </div>
-          ) : timeReports.length === 0 ? (
-            <div className="text-center py-8">
-              <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-2">
-                <Clock className="w-6 h-6 text-muted-foreground/30" />
-              </div>
-              <p className="text-sm font-medium text-foreground/60">Inga rapporter ännu</p>
-            </div>
-          ) : (
-            <>
-              <div className="space-y-1.5">
-                {visibleReports.map(report => (
-                  <div key={report.id} className="rounded-xl border border-border/40 bg-muted/30 p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-sm truncate text-foreground">
-                          {report.bookings?.client || 'Okänt jobb'}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">
-                          {format(parseISO(report.report_date), 'd MMM yyyy', { locale: sv })}
-                          {report.start_time && report.end_time && (
-                            <span> · {report.start_time.slice(0, 5)}–{report.end_time.slice(0, 5)}</span>
-                          )}
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="font-extrabold text-sm tabular-nums">{report.hours_worked}h</p>
-                        {report.overtime_hours > 0 && (
-                          <p className="text-[10px] text-primary font-bold">+{report.overtime_hours}h öt</p>
-                        )}
-                      </div>
-                    </div>
-                    {report.description && (
-                      <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2">{report.description}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {timeReports.length > 5 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full text-xs gap-1 text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowAllReports(!showAllReports)}
-                >
-                  {showAllReports ? (
-                    <><ChevronUp className="w-3.5 h-3.5" /> Visa färre</>
-                  ) : (
-                    <><ChevronDown className="w-3.5 h-3.5" /> Visa alla ({timeReports.length})</>
-                  )}
-                </Button>
-              )}
-            </>
-          )}
-        </div>
+          <div className="flex-1 text-left">
+            <p className="text-sm font-semibold text-foreground">Tidrapporter</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {isLoadingReports ? 'Laddar...' : `${timeReports.length} st · ${totalHours}h totalt`}
+            </p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+        </button>
 
         {/* GPS Settings */}
         <div className="rounded-2xl border border-border/50 bg-card p-4 space-y-3 shadow-sm">
