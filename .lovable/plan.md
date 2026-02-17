@@ -1,80 +1,90 @@
 
-## Lägg till stöd för `tent_images` i bokningsimport
+## Problem: Bokningsbilder syns inte i projektvy
 
-### Problem
+Bilder importerade från det externa API:t (tent_images, attachments, product images) sparas i tabellen `booking_attachments` kopplat till ett `booking_id`. Projektdetaljer-sidan (`/project/:id`) visar däremot enbart filer från `project_files`-tabellen kopplat till ett `project_id`. De två datakällorna visas aldrig tillsammans.
 
-Det externa API:t skickar tältbilder i ett eget fält `tent_images` — en array av objekt med strukturen:
-```json
-{ "view_key": "...", "tent_index": 1, "public_url": "https://...", "offer_image": false }
+### Dataflöde idag
+
+```text
+Externa API  →  import-bookings  →  booking_attachments  (booking_id)
+                                          ↓
+                                   Visas BARA i mobilappens
+                                   booking.attachments-sektion
+
+Web-UI upload →  project_files  (project_id)
+                       ↓
+                 Visas i ProjectFiles-tab i webb-UI
+                 + mobilappens "Bilder"-flik (get_project_files)
 ```
-
-Importkoden hanterar idag:
-- `attachments` → sparas som `booking_attachments`
-- `products[].image_url` / `products[].image_urls` → sparas som `booking_attachments`
-
-Men `tent_images` ignoreras helt, vilket är varför A Catering saknar bilder.
 
 ### Lösning
 
-Lägg till ett nytt block i importsekvensen som läser `tent_images` och sparar varje bild (med `public_url`) som en `booking_attachment`. Exakt samma dedupliceringslogik som för övriga bilder används.
+Lägg till bokningsbilagor (`booking_attachments`) som en skrivskyddad sektion i webb-UI:ts projektvy, bredvid de uppladdningsbara `project_files`. Inga nya tabeller eller migrationer behövs.
 
-### Teknisk ändring
+### Tekniska ändringar
 
-**`supabase/functions/import-bookings/index.ts`** — ett enda nytt block efter nuvarande `attachments`-hantering (rad ~2204) och före `syncProductImages` (rad ~2207):
+**1. `src/services/projectService.ts`**
+
+Ny funktion `fetchBookingAttachments(bookingId: string)` som hämtar från `booking_attachments`:
 
 ```typescript
-// Process tent_images (tältbilder från externa API:t)
-if (externalBooking.tent_images && Array.isArray(externalBooking.tent_images)) {
-  console.log(`Processing ${externalBooking.tent_images.length} tent images for booking ${bookingData.id}`);
-  
-  const { data: existingUrls } = await supabase
+export const fetchBookingAttachments = async (bookingId: string) => {
+  const { data, error } = await supabase
     .from('booking_attachments')
-    .select('url')
-    .eq('booking_id', bookingData.id);
-  
-  const seenUrls = new Set((existingUrls || []).map((a: any) => a.url));
-  
-  for (const tentImage of externalBooking.tent_images) {
-    const imgUrl = tentImage.public_url;
-    if (!imgUrl || seenUrls.has(imgUrl)) continue;
-    seenUrls.add(imgUrl);
-    
-    const tentIndex = tentImage.tent_index ?? '';
-    const viewKey   = tentImage.view_key   ?? '';
-    const fileName  = `Tält ${tentIndex} - ${viewKey}`.trim();
-    
-    const fileType = imgUrl.includes('.png')  ? 'image/png'
-                   : imgUrl.includes('.webp') ? 'image/webp'
-                   : 'image/jpeg';
-    
-    const { error: tentErr } = await supabase
-      .from('booking_attachments')
-      .insert({
-        booking_id: bookingData.id,
-        url:        imgUrl,
-        file_name:  fileName || 'Tältbild',
-        file_type:  fileType
-      });
-    
-    if (tentErr) {
-      console.error(`Error inserting tent image for booking ${bookingData.id}:`, tentErr);
-    } else {
-      results.attachments_imported++;
-      console.log(`[Tent Image] Saved tent image "${fileName}" for booking ${bookingData.id}`);
-    }
-  }
-}
+    .select('*')
+    .eq('booking_id', bookingId)
+    .order('uploaded_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+};
 ```
 
-Samma logik läggs även till i de tre "early-exit"-grenarna (unchanged, warehouse-recovery, product-recovery) precis som `syncProductImages` redan är tillagd där — annars missas bilder för bokningar som inte ändrats.
+**2. `src/hooks/useProjectDetail.tsx`**
+
+Lägg till en ny query som hämtar `booking_attachments` när bokning finns:
+
+```typescript
+const bookingAttachmentsQuery = useQuery({
+  queryKey: ['booking-attachments', bookingId],
+  queryFn: () => fetchBookingAttachments(bookingId!),
+  enabled: !!bookingId
+});
+```
+
+Returnera `bookingAttachments: bookingAttachmentsQuery.data || []` i hook-returen.
+
+**3. `src/components/project/ProjectFiles.tsx`**
+
+Utöka komponenten med en `bookingAttachments`-prop och lägg till en skrivskyddad sektion "Bilder från bokning" ovanför de uppladdningsbara filerna. Bilder renderas som miniatyrbilder (thumbnails), övriga filer som länkar. Inget delete/upload-gränssnitt för bokningsbilagor.
+
+**4. `src/pages/ProjectDetail.tsx`**
+
+Skicka med `bookingAttachments` till `ProjectFiles`-komponenten.
+
+### Mockup
+
+```text
+┌─ Filer ──────────────────────────────────────┐
+│                                              │
+│  Bilder från bokning (4)                     │
+│  ┌────┐ ┌────┐ ┌────┐ ┌────┐                │
+│  │ 🖼 │ │ 🖼 │ │ 🖼 │ │ 🖼 │                │
+│  └────┘ └────┘ └────┘ └────┘                │
+│  Tält 1 - Framsida  •  Tält 1 - Sida  ...   │
+│                                              │
+│  ─────────────────────────────────────────  │
+│                                              │
+│  Uppladdade filer                            │
+│  [Upload-knapp]                              │
+│  (tom om inga filer finns)                   │
+└──────────────────────────────────────────────┘
+```
 
 ### Filer att ändra
 
-1 fil: `supabase/functions/import-bookings/index.ts`
+1. `src/services/projectService.ts` — lägg till `fetchBookingAttachments`
+2. `src/hooks/useProjectDetail.tsx` — ny query + returnera `bookingAttachments`
+3. `src/components/project/ProjectFiles.tsx` — ny skrivskyddad sektion
+4. `src/pages/ProjectDetail.tsx` — skicka prop
 
-- Lägg till `tent_images`-blocket på 4 ställen (ny bokning + 3 early-exit-grenar)
-- Inga databasmigrationer behövs — `booking_attachments`-tabellen fungerar som den är
-
-### Resultat
-
-Nästa gång importen körs för A Catering (eller vilken annan bokning som helst med `tent_images`) sparas alla tältbilder automatiskt som bokningsbilagor och visas i mobilappens "Bilder"-flik.
+Inga databasmigrationer eller Edge Function-ändringar behövs.
