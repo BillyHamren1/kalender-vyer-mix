@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -24,6 +24,7 @@ import {
   Send,
   Weight,
   Trash2,
+  Settings2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -80,6 +81,20 @@ const vehicleTypeLabels: Record<string, string> = {
   other: 'Övrigt',
 };
 
+const VISIBLE_TYPES_KEY = 'eventflow-visible-vehicle-types';
+
+const getVisibleVehicleTypes = (): string[] => {
+  try {
+    const stored = localStorage.getItem(VISIBLE_TYPES_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return Object.keys(vehicleTypeLabels);
+};
+
+const saveVisibleVehicleTypes = (types: string[]) => {
+  localStorage.setItem(VISIBLE_TYPES_KEY, JSON.stringify(types));
+};
+
 interface TransportBookingTabProps {
   vehicles: Vehicle[];
 }
@@ -119,6 +134,23 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
   const [cancellingAssignment, setCancellingAssignment] = useState<{ id: string; vehicleName: string; bookingClient: string; transportDate: string; is_external?: boolean } | null>(null);
   const [cancellingInProgress, setCancellingInProgress] = useState(false);
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
+  const [visibleTypes, setVisibleTypes] = useState<string[]>(getVisibleVehicleTypes());
+  const [editingTypeFilter, setEditingTypeFilter] = useState(false);
+
+  const toggleTypeVisibility = (value: string) => {
+    setVisibleTypes(prev => {
+      const next = prev.includes(value)
+        ? prev.filter(v => v !== value)
+        : [...prev, value];
+      saveVisibleVehicleTypes(next);
+      return next;
+    });
+  };
+
+  const filteredTypeLabels = useMemo(
+    () => Object.entries(vehicleTypeLabels).filter(([value]) => visibleTypes.includes(value)),
+    [visibleTypes]
+  );
 
   // Email preview dialog state
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
@@ -605,20 +637,66 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
               {wizardData.transportMode === 'own' && (
                 <>
                   <div className="space-y-2">
-                    <Label>Fordonstyp *</Label>
-                    <Select
-                      value={wizardData.vehicleType || ''}
-                      onValueChange={v => setWizardData(p => ({ ...p, vehicleType: v, vehicleId: '' }))}
-                    >
-                      <SelectTrigger className="rounded-xl">
-                        <SelectValue placeholder="Välj fordonstyp..." />
-                      </SelectTrigger>
-                      <SelectContent>
+                    <div className="flex items-center justify-between">
+                      <Label>Fordonstyp *</Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs text-muted-foreground hover:text-foreground gap-1"
+                        onClick={() => setEditingTypeFilter(!editingTypeFilter)}
+                      >
+                        <Settings2 className="w-3 h-3" />
+                        {editingTypeFilter ? 'Klar' : 'Redigera lista'}
+                      </Button>
+                    </div>
+
+                    {editingTypeFilter ? (
+                      <div className="border rounded-xl p-3 space-y-1 max-h-[240px] overflow-y-auto bg-card">
                         {Object.entries(vehicleTypeLabels).map(([value, label]) => (
-                          <SelectItem key={value} value={value}>{label}</SelectItem>
+                          <label
+                            key={value}
+                            className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-muted cursor-pointer text-sm"
+                          >
+                            <div
+                              className={cn(
+                                "w-4 h-4 rounded border flex items-center justify-center transition-colors",
+                                visibleTypes.includes(value)
+                                  ? "bg-primary border-primary"
+                                  : "border-border"
+                              )}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                toggleTypeVisibility(value);
+                              }}
+                            >
+                              {visibleTypes.includes(value) && (
+                                <Check className="w-3 h-3 text-primary-foreground" />
+                              )}
+                            </div>
+                            <span className={cn(
+                              !visibleTypes.includes(value) && "text-muted-foreground line-through"
+                            )}>
+                              {label}
+                            </span>
+                          </label>
                         ))}
-                      </SelectContent>
-                    </Select>
+                      </div>
+                    ) : (
+                      <Select
+                        value={wizardData.vehicleType || ''}
+                        onValueChange={v => setWizardData(p => ({ ...p, vehicleType: v, vehicleId: '' }))}
+                      >
+                        <SelectTrigger className="rounded-xl">
+                          <SelectValue placeholder="Välj fordonstyp..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {filteredTypeLabels.map(([value, label]) => (
+                            <SelectItem key={value} value={value}>{label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
 
                   {wizardData.vehicleType && (
