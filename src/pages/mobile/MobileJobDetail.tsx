@@ -96,62 +96,54 @@ const MobileJobDetail = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-7 h-7 animate-spin text-primary" />
       </div>
     );
   }
 
   if (!booking) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <p className="text-muted-foreground">Jobb hittades inte</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-card">
+    <div className="flex flex-col min-h-screen bg-background">
       {/* Header */}
-      <div className="relative bg-gradient-to-br from-primary via-primary to-primary/85 px-4 pt-12 pb-5 safe-area-top overflow-hidden">
-        <div className="absolute -top-10 -right-10 w-36 h-36 rounded-full bg-primary-foreground/5" />
-        
-        <div className="relative flex items-center gap-3 mb-4">
+      <div className="bg-primary px-4 pt-12 pb-4 safe-area-top">
+        <div className="flex items-center gap-3 mb-3">
           <button 
             onClick={() => navigate('/m')} 
-            className="p-2 rounded-2xl bg-primary-foreground/10 hover:bg-primary-foreground/20 active:scale-95 transition-all"
+            className="p-2 rounded-xl bg-primary-foreground/10 active:scale-95 transition-all"
           >
             <ArrowLeft className="w-5 h-5 text-primary-foreground" />
           </button>
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-extrabold text-primary-foreground truncate tracking-tight">{booking.client}</h1>
             {booking.booking_number && (
-              <p className="text-xs text-primary-foreground/60 font-mono">#{booking.booking_number}</p>
+              <p className="text-[11px] text-primary-foreground/50 font-mono">#{booking.booking_number}</p>
             )}
           </div>
         </div>
 
         {/* Timer button */}
-        <div className="relative flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <Button
             onClick={handleTimerToggle}
             className={cn(
-              "flex-1 h-[52px] rounded-2xl gap-2 text-[15px] font-bold shadow-lg transition-all active:scale-[0.98]",
+              "flex-1 h-11 rounded-xl gap-2 text-sm font-bold transition-all active:scale-[0.98]",
               currentTimer
                 ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
                 : "bg-primary-foreground text-primary hover:bg-primary-foreground/90"
             )}
           >
             {currentTimer ? (
-              <>
-                <Square className="w-5 h-5" />
-                Stoppa {formatTimer(timerElapsed)}
-              </>
+              <><Square className="w-4 h-4" /> Stoppa {formatTimer(timerElapsed)}</>
             ) : (
-              <>
-                <Play className="w-5 h-5" />
-                Starta timer
-              </>
+              <><Play className="w-4 h-4" /> Starta timer</>
             )}
           </Button>
           
@@ -159,9 +151,9 @@ const MobileJobDetail = () => {
             <Button
               onClick={openNavigation}
               variant="outline"
-              className="h-[52px] w-[52px] shrink-0 rounded-2xl border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 bg-primary-foreground/5"
+              className="h-11 w-11 shrink-0 rounded-xl border-primary-foreground/15 text-primary-foreground hover:bg-primary-foreground/10 bg-primary-foreground/5 p-0"
             >
-              <Navigation className="w-5 h-5" />
+              <Navigation className="w-4.5 h-4.5" />
             </Button>
           )}
         </div>
@@ -169,28 +161,26 @@ const MobileJobDetail = () => {
 
       {/* Address card */}
       {booking.deliveryaddress && (
-        <div className="mx-4 -mt-3 mb-2 p-3.5 rounded-2xl bg-card border border-border/60 shadow-md">
-          <div className="flex items-center gap-2.5 text-sm">
-            <div className="p-1.5 rounded-xl bg-primary/8">
-              <MapPin className="w-4 h-4 text-primary" />
-            </div>
-            <span className="text-foreground font-medium">{booking.deliveryaddress}</span>
+        <div className="mx-4 -mt-2 mb-1 p-3 rounded-xl bg-card border border-border/50 shadow-sm">
+          <div className="flex items-center gap-2 text-sm">
+            <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
+            <span className="text-foreground font-medium text-sm">{booking.deliveryaddress}</span>
           </div>
         </div>
       )}
 
       {/* Tab navigation */}
-      <div className="px-4 pt-3">
-        <div className="flex gap-1 bg-muted/60 rounded-2xl p-1">
+      <div className="px-4 pt-2.5">
+        <div className="flex gap-0.5 bg-muted/50 rounded-xl p-0.5">
           {tabs.map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
-                "flex-1 py-2.5 text-xs font-semibold rounded-xl transition-all duration-200",
+                "flex-1 py-2 text-[11px] font-semibold rounded-lg transition-all duration-200",
                 activeTab === tab
                   ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground/70"
+                  : "text-muted-foreground"
               )}
             >
               {tab}
@@ -200,7 +190,7 @@ const MobileJobDetail = () => {
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 px-4 py-4">
+      <div className="flex-1 px-4 py-3">
         {activeTab === 'Info' && <JobInfoTab booking={booking} />}
         {activeTab === 'Team' && <JobTeamTab bookingId={booking.id} />}
         {activeTab === 'Bilder' && <JobPhotosTab bookingId={booking.id} />}

@@ -74,33 +74,30 @@ const MobileTimeReport = () => {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col min-h-screen bg-card">
-        <div className="relative bg-gradient-to-br from-primary via-primary to-primary/85 px-5 pt-14 pb-6 safe-area-top overflow-hidden">
-          <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-primary-foreground/5" />
-          <h1 className="relative text-2xl font-extrabold text-primary-foreground tracking-tight">Tidrapportering</h1>
+      <div className="flex flex-col min-h-screen bg-background">
+        <div className="bg-primary px-5 pt-14 pb-5 safe-area-top">
+          <h1 className="text-[22px] font-extrabold text-primary-foreground tracking-tight">Tidrapportering</h1>
         </div>
         <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <Loader2 className="w-7 h-7 animate-spin text-primary" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-card">
+    <div className="flex flex-col min-h-screen bg-background">
       {/* Header */}
-      <div className="relative bg-gradient-to-br from-primary via-primary to-primary/85 px-5 pt-14 pb-6 safe-area-top overflow-hidden">
-        <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-primary-foreground/5" />
-        <div className="absolute -bottom-6 -left-6 w-28 h-28 rounded-full bg-primary-foreground/5" />
-        <h1 className="relative text-2xl font-extrabold text-primary-foreground tracking-tight">Tidrapportering</h1>
-        <p className="relative text-sm text-primary-foreground/60 font-medium mt-0.5">Rapportera arbetstid</p>
+      <div className="bg-primary px-5 pt-14 pb-5 safe-area-top">
+        <h1 className="text-[22px] font-extrabold text-primary-foreground tracking-tight">Tidrapportering</h1>
+        <p className="text-xs text-primary-foreground/60 font-medium mt-0.5">Rapportera arbetstid</p>
       </div>
 
-      <div className="flex-1 px-4 py-5 space-y-4">
+      <div className="flex-1 px-4 py-4 space-y-3">
         {/* Active timers */}
         {activeTimers.size > 0 && (
-          <div className="space-y-2.5">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-primary">Aktiva timers</h2>
+          <div className="space-y-2">
+            <h2 className="text-[11px] font-bold uppercase tracking-widest text-primary">Aktiva timers</h2>
             {Array.from(activeTimers.entries()).map(([bookingId, timer]) => (
               <ActiveTimerCard
                 key={bookingId}
@@ -135,13 +132,13 @@ const MobileTimeReport = () => {
         )}
 
         {/* Report form */}
-        <div className="rounded-2xl border border-border/60 bg-card p-5 space-y-5 shadow-sm">
-          <h2 className="font-bold text-base text-foreground">Ny tidrapport</h2>
+        <div className="rounded-2xl border border-border/50 bg-card p-4 space-y-4 shadow-sm">
+          <h2 className="font-bold text-sm text-foreground">Ny tidrapport</h2>
 
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold text-muted-foreground">Jobb</Label>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Jobb</Label>
             <Select value={selectedBookingId} onValueChange={setSelectedBookingId}>
-              <SelectTrigger className="h-12 rounded-xl">
+              <SelectTrigger className="h-11 rounded-xl text-sm">
                 <SelectValue placeholder="Välj jobb..." />
               </SelectTrigger>
               <SelectContent>
@@ -154,54 +151,53 @@ const MobileTimeReport = () => {
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold text-muted-foreground">Datum</Label>
-            <Input type="date" value={reportDate} onChange={e => setReportDate(e.target.value)} className="h-12 rounded-xl" />
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Datum</Label>
+            <Input type="date" value={reportDate} onChange={e => setReportDate(e.target.value)} className="h-11 rounded-xl text-sm" />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold text-muted-foreground">Start</Label>
-              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="h-12 rounded-xl" />
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Start</Label>
+              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="h-11 rounded-xl text-sm" />
             </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold text-muted-foreground">Slut</Label>
-              <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="h-12 rounded-xl" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold text-muted-foreground">Rast (h)</Label>
-              <Input type="number" step="0.25" value={breakTime} onChange={e => setBreakTime(e.target.value)} className="h-12 rounded-xl" />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold text-muted-foreground">Övertid (h)</Label>
-              <Input type="number" step="0.5" value={overtime} onChange={e => setOvertime(e.target.value)} className="h-12 rounded-xl" />
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Slut</Label>
+              <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="h-11 rounded-xl text-sm" />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold text-muted-foreground">Beskrivning</Label>
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Rast (h)</Label>
+              <Input type="number" step="0.25" value={breakTime} onChange={e => setBreakTime(e.target.value)} className="h-11 rounded-xl text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Övertid (h)</Label>
+              <Input type="number" step="0.5" value={overtime} onChange={e => setOvertime(e.target.value)} className="h-11 rounded-xl text-sm" />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Beskrivning</Label>
             <Textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Vad gjorde du..."
-              className="rounded-xl min-h-[80px]"
+              className="rounded-xl min-h-[72px] text-sm"
             />
           </div>
 
           {/* Summary & submit */}
-          <div className="flex items-center justify-between pt-1 border-t border-border/40">
+          <div className="flex items-center justify-between pt-2 border-t border-border/40">
             <div className="flex items-baseline gap-1.5">
-              <span className="text-sm text-muted-foreground">Totalt:</span>
-              <span className="text-xl font-extrabold text-foreground tabular-nums">{calculateHours()}h</span>
+              <span className="text-xs text-muted-foreground">Totalt:</span>
+              <span className="text-lg font-extrabold text-foreground tabular-nums">{calculateHours()}h</span>
             </div>
             <Button 
               onClick={handleSubmit} 
               disabled={isSaving} 
-              className="rounded-xl gap-2 h-11 px-6 font-semibold shadow-md active:scale-[0.98] transition-all"
-              style={{ boxShadow: '0 4px 16px hsl(184 60% 38% / 0.2)' }}
+              className="rounded-xl gap-2 h-10 px-5 text-sm font-semibold active:scale-[0.98] transition-all"
             >
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               Spara
@@ -228,7 +224,7 @@ const ActiveTimerCard = ({ timer, onStop }: { timer: ActiveTimer; onStop: () => 
   const s = elapsed % 60;
 
   return (
-    <div className="flex items-center gap-3 p-4 rounded-2xl border border-primary/20 bg-primary/5 shadow-sm">
+    <div className="flex items-center gap-3 p-3.5 rounded-2xl border border-primary/20 bg-primary/5">
       <div className="flex-1 min-w-0">
         <p className="font-bold text-sm truncate text-foreground">{timer.client}</p>
         <p className="text-xs text-muted-foreground mt-0.5">
@@ -236,11 +232,11 @@ const ActiveTimerCard = ({ timer, onStop }: { timer: ActiveTimer; onStop: () => 
           {timer.isAutoStarted && ' (auto)'}
         </p>
       </div>
-      <div className="font-mono font-extrabold text-primary text-lg tabular-nums">
+      <div className="font-mono font-extrabold text-primary text-base tabular-nums">
         {h.toString().padStart(2, '0')}:{m.toString().padStart(2, '0')}:{s.toString().padStart(2, '0')}
       </div>
-      <Button size="sm" variant="destructive" className="rounded-xl h-10 gap-1.5 font-semibold" onClick={onStop}>
-        <Square className="w-3.5 h-3.5" />
+      <Button size="sm" variant="destructive" className="rounded-xl h-9 gap-1 text-xs font-semibold" onClick={onStop}>
+        <Square className="w-3 h-3" />
         Stopp
       </Button>
     </div>
