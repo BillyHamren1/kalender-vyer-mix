@@ -310,6 +310,13 @@ const sortPackingItems = (items: any[]) => {
     });
   });
   
+  // Sort main products alphabetically for stable order
+  mainProducts.sort((a, b) => {
+    const aName = a.booking_products?.name || '';
+    const bName = b.booking_products?.name || '';
+    return aName.localeCompare(bName, 'sv');
+  });
+
   // Build ordered list: main product followed by its children
   const orderedItems: typeof items = [];
   mainProducts.forEach(main => {
