@@ -1,81 +1,44 @@
 
 
-## Problem
+## Fix: Stabilisera artikelordningen i scannerlistan
 
-Every time you open a mobile page (Jobb, Tid, Utlagg, Profil), the data is fetched from scratch via `useEffect` + `mobileApi.xxx()`. There is zero caching — even navigating back and forth between tabs re-fetches everything. This causes noticeable loading delays on every page transition.
+### Problem
+Efter varje skanning eller manuell markering anropas `loadData()` som hämtar och sorterar om hela listan. Artiklar hoppar runt i listan, vilket gor det omojligt att folja med.
 
-## Solution
+### Losning
+Ge varje artikel en stabil sorteringsordning som inte andras nar den verifieras. Ordningen ska baseras pa **initialordningen** (foraldraartikel + barn under), inte pa verifieringsstatus.
 
-Replace all manual `useEffect`-based data fetching with **React Query** (`useQuery`), which is already installed and configured in the app. React Query automatically caches results and serves them instantly on repeat visits, while silently refreshing in the background.
+### Andringar
 
-### What changes
+**`src/services/scannerService.ts`** — `sortPackingItems()`
+- Lagga till en stabil sekundar sortering pa huvudprodukter baserat pa namn (alfabetisk) sa ordningen alltid ar identisk oavsett vilka som ar verifierade
 
-**1. Create a shared hooks file: `src/hooks/useMobileData.ts`**
+**`src/components/scanner/VerificationView.tsx`**
+- Spara den initiala artikelordningen (en mappning fran item-ID till index) nar listan forst laddas
+- Vid efterfoljande `loadData()`-anrop: sortera artiklarna enligt den sparade ordningen istallet for att lata dem hamna i en ny ordning
+- Nya artiklar (som inte fanns i initial-ordningen) laggs sist
 
-Centralize all mobile data-fetching into reusable hooks:
-
-- `useMobileBookings()` — wraps `mobileApi.getBookings()`, cached with key `['mobile-bookings']`
-- `useMobileTimeReports()` — wraps `mobileApi.getTimeReports()`, cached with key `['mobile-time-reports']`
-- `useMobileBookingDetails(id)` — wraps `mobileApi.getBookingDetails(id)`, cached per booking
-- `useMobileBookingPurchases(bookings)` — aggregates purchases across bookings
-
-All hooks will use a `staleTime` of ~2 minutes so data feels instant on tab switches but still refreshes periodically.
-
-**2. Update pages to use the new hooks**
-
-Each page replaces its `useEffect` + `useState` pattern with the corresponding hook:
-
-| Page | Current pattern | New pattern |
-|------|----------------|-------------|
-| `MobileJobs.tsx` | `useEffect` → `mobileApi.getBookings()` | `useMobileBookings()` |
-| `MobileTimeReport.tsx` | `useEffect` → `mobileApi.getBookings()` | `useMobileBookings()` |
-| `MobileTimeHistory.tsx` | `useEffect` → `mobileApi.getTimeReports()` | `useMobileTimeReports()` |
-| `MobileExpenses.tsx` | `useEffect` → `getBookings` + `getProjectPurchases` per booking | `useMobileBookings()` + `useMobileBookingPurchases()` |
-| `MobileJobDetail.tsx` | `useEffect` → `mobileApi.getBookingDetails(id)` | `useMobileBookingDetails(id)` |
-| `MobileProfile.tsx` | `useEffect` → `mobileApi.getTimeReports()` | `useMobileTimeReports()` |
-
-**3. Invalidate cache after mutations**
-
-When creating a time report or purchase, call `queryClient.invalidateQueries()` so the cached data refreshes:
-
-- After `createTimeReport` → invalidate `['mobile-time-reports']`
-- After `createPurchase` → invalidate `['mobile-purchases']`
-
-### Result
-
-- First load: same as today (one network call)
-- Subsequent visits: **instant** (served from cache)
-- Pull-to-refresh / mutations: triggers a background refetch
-- No stale data: auto-refreshes after 2 minutes
-
-### Technical details
+### Teknisk detalj
 
 ```typescript
-// src/hooks/useMobileData.ts
-import { useQuery } from '@tanstack/react-query';
-import { mobileApi } from '@/services/mobileApiService';
+// Spara initial ordning vid forsta laddning
+const [itemOrder, setItemOrder] = useState<Record<string, number>>({});
 
-const STALE_TIME = 2 * 60 * 1000; // 2 minutes
+// I loadData:
+const itemsData = await fetchPackingListItems(packingId);
+const sorted = sortPackingItems(itemsData);
 
-export function useMobileBookings() {
-  return useQuery({
-    queryKey: ['mobile-bookings'],
-    queryFn: () => mobileApi.getBookings().then(r => r.bookings),
-    staleTime: STALE_TIME,
-  });
+if (Object.keys(itemOrder).length === 0) {
+  // Forsta laddning — spara ordningen
+  const order: Record<string, number> = {};
+  sorted.forEach((item, idx) => { order[item.id] = idx; });
+  setItemOrder(order);
+  setItems(sorted);
+} else {
+  // Efterfoljande — sortera enligt sparad ordning
+  sorted.sort((a, b) => (itemOrder[a.id] ?? 9999) - (itemOrder[b.id] ?? 9999));
+  setItems(sorted);
 }
-
-export function useMobileTimeReports() {
-  return useQuery({
-    queryKey: ['mobile-time-reports'],
-    queryFn: () => mobileApi.getTimeReports().then(r => r.time_reports),
-    staleTime: STALE_TIME,
-  });
-}
-
-// ... etc
 ```
 
-**Files to create:** 1 (hooks file)
-**Files to edit:** 6 (all mobile pages listed above)
-
+**Filer att andra:** 2 (`scannerService.ts`, `VerificationView.tsx`)
