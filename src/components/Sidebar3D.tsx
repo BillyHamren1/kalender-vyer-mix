@@ -53,13 +53,9 @@ const navigationItems: NavItem[] = [
     ]
   },
   { 
-    title: "Personaladmin", 
+    title: "Personal", 
     url: "/staff-management", 
     icon: Users,
-    children: [
-      { title: "Personal", url: "/staff-management" },
-      { title: "Tidgodkännanden", url: "/staff-management/time-approvals" },
-    ]
   },
 ];
 
