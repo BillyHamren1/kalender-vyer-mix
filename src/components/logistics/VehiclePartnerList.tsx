@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Truck,
   Building2,
@@ -13,6 +13,8 @@ import {
   ChevronDown,
   ChevronUp,
   X,
+  Settings2,
+  Check,
 } from 'lucide-react';
 import PartnerWizard from './PartnerWizard';
 import { Button } from '@/components/ui/button';
@@ -53,6 +55,20 @@ const vehicleTypes = [
   { value: 'crane_trailer', label: 'Kranbil med släp' },
   { value: 'other', label: 'Övrigt' },
 ];
+
+const VEHICLE_TYPES_STORAGE_KEY = 'eventflow-visible-vehicle-types';
+
+const getVisibleTypes = (): string[] => {
+  try {
+    const stored = localStorage.getItem(VEHICLE_TYPES_STORAGE_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return vehicleTypes.map(t => t.value); // all visible by default
+};
+
+const saveVisibleTypes = (types: string[]) => {
+  localStorage.setItem(VEHICLE_TYPES_STORAGE_KEY, JSON.stringify(types));
+};
 
 const emptyFormData = (isExternal: boolean): VehicleFormData => ({
   name: '',
@@ -98,6 +114,24 @@ const VehiclePartnerList: React.FC<VehiclePartnerListProps> = ({
   const [formData, setFormData] = useState<VehicleFormData>(emptyFormData(false));
   const [deleteTarget, setDeleteTarget] = useState<Vehicle | null>(null);
   const [expanded, setExpanded] = useState(true);
+
+  const [visibleTypes, setVisibleTypes] = useState<string[]>(getVisibleTypes());
+  const [editingTypes, setEditingTypes] = useState(false);
+
+  const filteredVehicleTypes = useMemo(
+    () => vehicleTypes.filter(t => visibleTypes.includes(t.value)),
+    [visibleTypes]
+  );
+
+  const toggleTypeVisibility = (value: string) => {
+    setVisibleTypes(prev => {
+      const next = prev.includes(value)
+        ? prev.filter(v => v !== value)
+        : [...prev, value];
+      saveVisibleTypes(next);
+      return next;
+    });
+  };
 
   const internalVehicles = vehicles.filter(v => !v.is_external);
   const externalVehicles = vehicles.filter(v => v.is_external);
@@ -284,20 +318,66 @@ const VehiclePartnerList: React.FC<VehiclePartnerListProps> = ({
                 />
               </div>
               <div className="space-y-2">
-                <Label>Fordonstyp</Label>
-                <Select
-                  value={formData.vehicle_type}
-                  onValueChange={v => setFormData(p => ({ ...p, vehicle_type: v as VehicleFormData['vehicle_type'] }))}
-                >
-                  <SelectTrigger className="rounded-xl">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
+                <div className="flex items-center justify-between">
+                  <Label>Fordonstyp</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs text-muted-foreground hover:text-foreground gap-1"
+                    onClick={() => setEditingTypes(!editingTypes)}
+                  >
+                    <Settings2 className="w-3 h-3" />
+                    {editingTypes ? 'Klar' : 'Redigera lista'}
+                  </Button>
+                </div>
+
+                {editingTypes ? (
+                  <div className="border rounded-xl p-3 space-y-1 max-h-[240px] overflow-y-auto bg-card">
                     {vehicleTypes.map(t => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                      <label
+                        key={t.value}
+                        className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-muted cursor-pointer text-sm"
+                      >
+                        <div
+                          className={cn(
+                            "w-4 h-4 rounded border flex items-center justify-center transition-colors",
+                            visibleTypes.includes(t.value)
+                              ? "bg-primary border-primary"
+                              : "border-border"
+                          )}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleTypeVisibility(t.value);
+                          }}
+                        >
+                          {visibleTypes.includes(t.value) && (
+                            <Check className="w-3 h-3 text-primary-foreground" />
+                          )}
+                        </div>
+                        <span className={cn(
+                          !visibleTypes.includes(t.value) && "text-muted-foreground line-through"
+                        )}>
+                          {t.label}
+                        </span>
+                      </label>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </div>
+                ) : (
+                  <Select
+                    value={formData.vehicle_type}
+                    onValueChange={v => setFormData(p => ({ ...p, vehicle_type: v as VehicleFormData['vehicle_type'] }))}
+                  >
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredVehicleTypes.map(t => (
+                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Max vikt (kg)</Label>
