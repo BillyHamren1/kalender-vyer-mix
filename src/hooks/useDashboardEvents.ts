@@ -95,18 +95,31 @@ export function useDashboardEvents(
         staffByDateTeam.get(key)!.push({ id: staff.id, name: staff.name, color: staff.color, teamId: a.team_id });
       });
 
-      return events.map(e => {
+      // Group by booking_id — show one card per booking (use the first/earliest event as representative)
+      const bookingEventsMap = new Map<string, typeof events[0][]>();
+      events.forEach(e => {
+        const key = e.booking_id || e.id;
+        if (!bookingEventsMap.has(key)) bookingEventsMap.set(key, []);
+        bookingEventsMap.get(key)!.push(e);
+      });
+
+      return Array.from(bookingEventsMap.values()).map(bookingEvents => {
+        // Pick the earliest event as representative
+        const e = bookingEvents.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0];
         const booking = e.booking_id ? bookingMap.get(e.booking_id) : null;
         const dateStr = format(new Date(e.start_time), 'yyyy-MM-dd');
         const staffKey = `${dateStr}-${e.resource_id}`;
 
+        // Collect all event types for this booking
+        const eventTypes = bookingEvents.map(ev => ev.event_type).filter(Boolean).join(', ');
+
         return {
-          id: e.id,
+          id: e.booking_id || e.id,
           bookingId: e.booking_id || '',
           bookingNumber: booking?.booking_number || null,
           client: booking?.client || 'Okänd',
           date: new Date(e.start_time),
-          eventType: e.event_type || 'Event',
+          eventType: eventTypes || e.event_type || 'Event',
           category: 'planning' as EventCategory,
           assignedStaff: staffByDateTeam.get(staffKey) || [],
           deliveryAddress: booking?.deliveryaddress || null,
@@ -123,7 +136,7 @@ export function useDashboardEvents(
       const { data, error } = await supabase
         .from('warehouse_calendar_events')
         .select('id, booking_id, booking_number, title, event_type, start_time')
-        .gte('start_time', startStr)
+        .gte('start_time', `${startStr}T00:00:00`)
         .lte('start_time', `${endStr}T23:59:59`)
         .order('start_time', { ascending: true });
 
