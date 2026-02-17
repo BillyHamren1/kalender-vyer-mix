@@ -136,7 +136,7 @@ const MobileExpenses = () => {
   return (
     <div className="flex flex-col min-h-screen bg-card">
       {/* Header */}
-      <div className="bg-primary px-5 pt-14 pb-3 safe-area-top rounded-b-3xl shadow-md">
+      <div className="bg-primary px-5 pt-14 pb-5 safe-area-top rounded-b-3xl shadow-md">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-[22px] font-extrabold text-primary-foreground tracking-tight">Utlägg</h1>
@@ -153,36 +153,36 @@ const MobileExpenses = () => {
             </div>
           )}
         </div>
-
-        {/* Tabs */}
-        <div className="flex mt-3 bg-primary-foreground/10 rounded-xl p-0.5">
-          <button
-            onClick={() => setActiveTab('new')}
-            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'new'
-                ? 'bg-primary-foreground text-primary shadow-sm'
-                : 'text-primary-foreground/70'
-            }`}
-          >
-            Nytt utlägg
-          </button>
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'history'
-                ? 'bg-primary-foreground text-primary shadow-sm'
-                : 'text-primary-foreground/70'
-            }`}
-          >
-            Sparade utlägg
-          </button>
-        </div>
       </div>
 
-      <div className="flex-1 px-4 py-3">
+      {/* Tabs */}
+      <div className="flex mx-4 mt-3 bg-muted rounded-xl p-0.5">
+        <button
+          onClick={() => setActiveTab('new')}
+          className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+            activeTab === 'new'
+              ? 'bg-card text-foreground shadow-sm'
+              : 'text-muted-foreground'
+          }`}
+        >
+          Nytt utlägg
+        </button>
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+            activeTab === 'history'
+              ? 'bg-card text-foreground shadow-sm'
+              : 'text-muted-foreground'
+          }`}
+        >
+          Sparade utlägg
+        </button>
+      </div>
+
+      <div className="flex-1 flex flex-col px-4 py-3">
         {activeTab === 'new' ? (
           /* New expense form */
-          <div className="rounded-2xl border border-primary/20 bg-card px-4 py-3 space-y-3 shadow-md">
+          <div className="flex-1 rounded-2xl border border-primary/20 bg-card px-4 py-3 space-y-3 shadow-md">
             <h2 className="font-bold text-sm text-foreground">Nytt utlägg</h2>
 
             <div className="space-y-1">
@@ -281,7 +281,7 @@ const MobileExpenses = () => {
           </div>
         ) : (
           /* Purchase history */
-          <div>
+          <div className="flex-1">
             {allPurchases.length === 0 ? (
               <div className="text-center py-12">
                 <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-3">
