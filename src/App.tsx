@@ -16,7 +16,7 @@ import WarehouseSystemLayout from "@/components/layouts/WarehouseSystemLayout";
 import MobileAppLayout from "@/components/mobile-app/MobileAppLayout";
 
 // Main system pages
-import Index from "./pages/Index";
+
 import CustomCalendarPage from "./pages/CustomCalendarPage";
 import StaffManagement from "./pages/StaffManagement";
 import TimeReportApprovals from "./pages/TimeReportApprovals";

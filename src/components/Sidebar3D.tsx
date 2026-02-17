@@ -48,7 +48,7 @@ const navigationItems: NavItem[] = [
     ]
   },
   { 
-    title: "Personal-\nadministration", 
+    title: "Personaladmin", 
     url: "/staff-management", 
     icon: Users,
     children: [
@@ -326,7 +326,7 @@ export function Sidebar3D() {
       {/* Mobile Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-background/95 backdrop-blur-lg border-t border-border">
         <div className="flex items-center justify-around py-2 px-4">
-          {navigationItems.map((item) => {
+          {navigationItems.filter((_, i) => i <= 4).map((item) => {
             const hasChildren = item.children && item.children.length > 0;
             const isActive = hasChildren 
               ? item.children!.some(child => location.pathname === child.url)
@@ -346,7 +346,7 @@ export function Sidebar3D() {
                   <div className="absolute inset-0 bg-primary/10 rounded-xl" />
                 )}
                 <item.icon className={cn("w-5 h-5 relative z-10", isActive && "text-primary")} />
-                <span className="text-xs font-medium relative z-10">{item.title}</span>
+                <span className="text-xs font-medium relative z-10 truncate max-w-[4rem]">{item.title}</span>
               </NavLink>
             );
           })}

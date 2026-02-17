@@ -39,7 +39,7 @@ export function WarehouseSidebar3D() {
         className={cn(
           "relative z-40 h-screen shrink-0 transition-all duration-300 ease-out",
           "hidden md:flex flex-col",
-          isCollapsed ? "w-20" : "w-64"
+          isCollapsed ? "w-20" : "w-56"
         )}
         style={{
           perspective: "1000px",
