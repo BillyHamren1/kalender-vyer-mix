@@ -267,13 +267,13 @@ const StaffAccountsPanel: React.FC = () => {
           {/* Stats */}
           <div className="flex gap-4 text-sm">
             <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="bg-green-100 text-green-800">
+              <Badge variant="secondary" className="bg-primary/10 text-primary">
                 {staffWithAccounts.length}
               </Badge>
               <span className="text-muted-foreground">med konto</span>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="bg-orange-100 text-orange-800">
+              <Badge variant="secondary" className="bg-muted text-muted-foreground">
                 {staffWithoutAccounts.length}
               </Badge>
               <span className="text-muted-foreground">utan konto</span>
@@ -307,7 +307,7 @@ const StaffAccountsPanel: React.FC = () => {
                       className="flex items-center justify-between p-2 bg-muted/50 rounded-md"
                     >
                       <div className="flex items-center gap-2">
-                        <AlertCircle className="h-4 w-4 text-orange-500" />
+                        <AlertCircle className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm font-medium">{staff.name}</span>
                       </div>
                       <Button
@@ -337,10 +337,10 @@ const StaffAccountsPanel: React.FC = () => {
                     return (
                       <div 
                         key={staff.id} 
-                        className="flex items-center justify-between p-2 bg-green-50 rounded-md"
+                        className="flex items-center justify-between p-2 bg-muted/50 rounded-md"
                       >
                         <div className="flex items-center gap-2">
-                          <Check className="h-4 w-4 text-green-600" />
+                          <Check className="h-4 w-4 text-primary" />
                           <div>
                             <span className="text-sm font-medium">{staff.name}</span>
                             <span className="text-xs text-muted-foreground ml-2">

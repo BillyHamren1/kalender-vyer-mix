@@ -1,5 +1,4 @@
-
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -11,6 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StaffMember, syncStaffMember } from '@/services/staffService';
 import { toast } from 'sonner';
+import ColorPicker from './ColorPicker';
 
 const staffSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -37,14 +37,18 @@ interface EditStaffDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onStaffUpdated: () => void;
+  onColorUpdate?: (staffId: string, color: string) => Promise<void>;
 }
 
 const EditStaffDialog: React.FC<EditStaffDialogProps> = ({ 
   staff, 
   isOpen, 
   onClose, 
-  onStaffUpdated 
+  onStaffUpdated,
+  onColorUpdate 
 }) => {
+  const [selectedColor, setSelectedColor] = useState(staff.color || '#E3F2FD');
+
   const form = useForm<StaffFormData>({
     resolver: zodResolver(staffSchema),
     defaultValues: {
@@ -85,6 +89,7 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
         emergency_contact_phone: staff.emergency_contact_phone || '',
         notes: staff.notes || '',
       });
+      setSelectedColor(staff.color || '#E3F2FD');
     }
   }, [staff, form]);
 
@@ -110,30 +115,35 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
       };
 
       await syncStaffMember(updatedStaffData);
+
+      // Save color if changed
+      if (onColorUpdate && selectedColor !== staff.color) {
+        await onColorUpdate(staff.id, selectedColor);
+      }
       
       onStaffUpdated();
-      toast.success('Staff member updated successfully');
     } catch (error) {
       console.error('Error updating staff member:', error);
-      toast.error('Failed to update staff member');
+      toast.error('Kunde inte uppdatera personal');
     }
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[75vw] max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[75vw] max-h-[85vh] overflow-y-auto bg-card">
         <DialogHeader>
-          <DialogTitle>Edit Staff Member</DialogTitle>
+          <DialogTitle>Redigera personal</DialogTitle>
         </DialogHeader>
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <Tabs defaultValue="personal" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="personal">Personal</TabsTrigger>
-                <TabsTrigger value="employment">Employment</TabsTrigger>
-                <TabsTrigger value="financial">Financial</TabsTrigger>
-                <TabsTrigger value="emergency">Emergency</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="personal">Personligt</TabsTrigger>
+                <TabsTrigger value="employment">Anställning</TabsTrigger>
+                <TabsTrigger value="financial">Ekonomi</TabsTrigger>
+                <TabsTrigger value="emergency">Kontaktperson</TabsTrigger>
+                <TabsTrigger value="color">Färg</TabsTrigger>
               </TabsList>
 
               <TabsContent value="personal" className="space-y-4">
@@ -142,9 +152,9 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Full Name *</FormLabel>
+                      <FormLabel>Namn *</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter full name" {...field} />
+                        <Input placeholder="Ange namn" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -156,13 +166,9 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email</FormLabel>
+                      <FormLabel>E-post</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="email" 
-                          placeholder="Enter email address" 
-                          {...field} 
-                        />
+                        <Input type="email" placeholder="Ange e-postadress" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -174,13 +180,9 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
                   name="phone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Phone Number</FormLabel>
+                      <FormLabel>Telefon</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="tel" 
-                          placeholder="Enter phone number" 
-                          {...field} 
-                        />
+                        <Input type="tel" placeholder="Ange telefonnummer" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -192,9 +194,9 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
                   name="address"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Address</FormLabel>
+                      <FormLabel>Adress</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter address" {...field} />
+                        <Input placeholder="Ange adress" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -207,23 +209,22 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
                     name="city"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>City</FormLabel>
+                        <FormLabel>Stad</FormLabel>
                         <FormControl>
-                          <Input placeholder="Enter city" {...field} />
+                          <Input placeholder="Ange stad" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="postal_code"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Postal Code</FormLabel>
+                        <FormLabel>Postnummer</FormLabel>
                         <FormControl>
-                          <Input placeholder="Enter postal code" {...field} />
+                          <Input placeholder="Ange postnummer" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -238,35 +239,33 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
                   name="role"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Role/Position</FormLabel>
+                      <FormLabel>Roll</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter role or position" {...field} />
+                        <Input placeholder="Ange roll" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
                   name="department"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Department</FormLabel>
+                      <FormLabel>Avdelning</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter department" {...field} />
+                        <Input placeholder="Ange avdelning" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
                   name="hire_date"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Hire Date</FormLabel>
+                      <FormLabel>Anställningsdatum</FormLabel>
                       <FormControl>
                         <Input type="date" {...field} />
                       </FormControl>
@@ -274,18 +273,14 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
                   name="notes"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Notes</FormLabel>
+                      <FormLabel>Anteckningar</FormLabel>
                       <FormControl>
-                        <Textarea 
-                          placeholder="Additional notes about the staff member" 
-                          {...field} 
-                        />
+                        <Textarea placeholder="Ytterligare anteckningar" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -299,52 +294,35 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
                   name="hourly_rate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Hourly Rate (SEK)</FormLabel>
+                      <FormLabel>Timlön (SEK)</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="number" 
-                          step="0.01" 
-                          placeholder="Enter hourly rate" 
-                          {...field} 
-                        />
+                        <Input type="number" step="0.01" placeholder="Ange timlön" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
                   name="overtime_rate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Overtime Rate (SEK)</FormLabel>
+                      <FormLabel>Övertidsersättning (SEK)</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="number" 
-                          step="0.01" 
-                          placeholder="Enter overtime rate" 
-                          {...field} 
-                        />
+                        <Input type="number" step="0.01" placeholder="Ange övertidsersättning" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
                   name="salary"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Monthly Salary (SEK)</FormLabel>
+                      <FormLabel>Månadslön (SEK)</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="number" 
-                          step="0.01" 
-                          placeholder="Enter monthly salary" 
-                          {...field} 
-                        />
+                        <Input type="number" step="0.01" placeholder="Ange månadslön" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -358,49 +336,47 @@ const EditStaffDialog: React.FC<EditStaffDialogProps> = ({
                   name="emergency_contact_name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Emergency Contact Name</FormLabel>
+                      <FormLabel>Kontaktpersonens namn</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter emergency contact name" {...field} />
+                        <Input placeholder="Ange namn" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
                   name="emergency_contact_phone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Emergency Contact Phone</FormLabel>
+                      <FormLabel>Kontaktpersonens telefon</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="tel" 
-                          placeholder="Enter emergency contact phone" 
-                          {...field} 
-                        />
+                        <Input type="tel" placeholder="Ange telefonnummer" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </TabsContent>
+
+              <TabsContent value="color" className="space-y-4">
+                <ColorPicker
+                  selectedColor={selectedColor}
+                  onColorChange={setSelectedColor}
+                  staffName={staff.name}
+                />
+              </TabsContent>
             </Tabs>
             
             <div className="flex justify-end space-x-2 pt-4">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={onClose}
-              >
-                Cancel
+              <Button type="button" variant="outline" onClick={onClose}>
+                Avbryt
               </Button>
               <Button 
                 type="submit" 
-                className="bg-[#82b6c6] hover:bg-[#6a9fb0] text-white"
                 disabled={form.formState.isSubmitting}
               >
-                {form.formState.isSubmitting ? 'Updating...' : 'Update Staff Member'}
+                {form.formState.isSubmitting ? 'Sparar...' : 'Spara'}
               </Button>
             </div>
           </form>
