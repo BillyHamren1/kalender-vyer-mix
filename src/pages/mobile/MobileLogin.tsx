@@ -16,7 +16,7 @@ const MobileLogin = () => {
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <Loader2 className="h-7 w-7 animate-spin text-primary" />
       </div>
     );
   }
@@ -47,27 +47,21 @@ const MobileLogin = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-card">
-      {/* Decorative top gradient */}
-      <div className="absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-primary/8 via-primary/3 to-transparent pointer-events-none" />
-      
-      {/* Top section with branding */}
-      <div className="relative flex-1 flex flex-col items-center justify-center px-6 pt-16 pb-8">
-        <div className="relative mb-10">
-          <div className="absolute -inset-4 rounded-3xl bg-primary/5 blur-2xl" />
-          <div className="relative w-[72px] h-[72px] rounded-[20px] bg-gradient-to-br from-primary via-primary to-primary-foreground/10 flex items-center justify-center shadow-xl"
-               style={{ boxShadow: '0 12px 40px hsl(184 60% 38% / 0.25)' }}>
-            <Zap className="w-9 h-9 text-primary-foreground" />
-          </div>
+    <div className="min-h-screen flex flex-col bg-background">
+      {/* Top section */}
+      <div className="flex-1 flex flex-col items-center justify-center px-6 pt-16 pb-8">
+        <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mb-6 shadow-lg"
+             style={{ boxShadow: '0 8px 32px hsl(184 60% 38% / 0.25)' }}>
+          <Zap className="w-8 h-8 text-primary-foreground" />
         </div>
         
-        <h1 className="text-[28px] font-extrabold tracking-tight text-foreground mb-1">EventFlow</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight text-foreground mb-0.5">EventFlow</h1>
         <p className="text-sm text-muted-foreground font-medium">Tidrapportering för fältpersonal</p>
 
         {/* Login form */}
-        <form onSubmit={handleSubmit} className="w-full max-w-sm mt-10 space-y-5">
-          <div className="space-y-2">
-            <Label htmlFor="email" className="text-sm font-semibold text-foreground">E-postadress</Label>
+        <form onSubmit={handleSubmit} className="w-full max-w-sm mt-10 space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="email" className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">E-postadress</Label>
             <Input
               id="email"
               type="email"
@@ -78,24 +72,24 @@ const MobileLogin = () => {
               autoCorrect="off"
               autoComplete="email"
               inputMode="email"
-              className="h-[52px] text-base rounded-2xl border-border/80 bg-card shadow-sm focus:shadow-md transition-shadow"
+              className="h-12 text-sm rounded-xl border-border/60 bg-card shadow-sm"
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="password" className="text-sm font-semibold text-foreground">Lösenord</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="password" className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Lösenord</Label>
             <Input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="h-[52px] text-base rounded-2xl border-border/80 bg-card shadow-sm focus:shadow-md transition-shadow"
+              className="h-12 text-sm rounded-xl border-border/60 bg-card shadow-sm"
             />
           </div>
 
           {error && (
-            <div className="px-4 py-3 rounded-2xl bg-destructive/8 border border-destructive/15">
+            <div className="px-3 py-2.5 rounded-xl bg-destructive/8 border border-destructive/15">
               <p className="text-sm text-destructive font-medium">{error}</p>
             </div>
           )}
@@ -103,14 +97,14 @@ const MobileLogin = () => {
           <Button
             type="submit"
             disabled={isLoading}
-            className="w-full h-[52px] text-[15px] font-semibold rounded-2xl bg-primary hover:bg-primary/90 shadow-xl transition-all active:scale-[0.98]"
-            style={{ boxShadow: '0 6px 24px hsl(184 60% 38% / 0.3)' }}
+            className="w-full h-12 text-sm font-semibold rounded-xl shadow-lg transition-all active:scale-[0.98]"
+            style={{ boxShadow: '0 4px 20px hsl(184 60% 38% / 0.25)' }}
           >
             {isLoading ? (
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               <>
-                <LogIn className="w-5 h-5 mr-2" />
+                <LogIn className="w-4.5 h-4.5 mr-2" />
                 Logga in
               </>
             )}
@@ -120,7 +114,7 @@ const MobileLogin = () => {
 
       {/* Footer */}
       <div className="text-center pb-10 px-6">
-        <p className="text-xs text-muted-foreground/60">
+        <p className="text-[11px] text-muted-foreground/50">
           Kontakta din administratör om du saknar inloggningsuppgifter
         </p>
       </div>
