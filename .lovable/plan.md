@@ -1,88 +1,74 @@
 
-## Problemet: API skickar base64 — koden förväntar sig public_url
+## Problem: Telefonens statusbar täcker headertexten
 
-### Vad som händer nu
+Alla mobilsidor har sin header-text för högt upp — `pt-14` (56px) räcker inte för att undvika kollision med telefonens klocka, batteri och signalstyrka.
 
-Det externa systemet har ändrat hur bilder skickas. Istället för en `public_url` per bild skickar de nu:
+### Lösning: Safe area-block i toppen
 
-```json
-"tent_images": [
-  { "tent_index": 1, "view_key": "Sida", "content_base64": "iVBORw0KGgo..." }
-],
-"attachments": [
-  { "file_name": "ritning.pdf", "content_base64": "JVBERi0x..." }
-],
-"map_drawing": {
-  "content_base64": "iVBORw0KGgo..."
+Istället för att justera padding i varje enskild header individuellt skapas ett **globalt safe area-system** som löser problemet konsekvent på alla sidor.
+
+Strategin är tvådelad:
+
+**1. Lägg till en CSS-variabel för safe area** i `index.css`/`App.css`:
+```css
+:root {
+  --sat: env(safe-area-inset-top, 0px);
 }
 ```
 
-Men `syncTentImages` letar efter `tentImage.public_url` — ett fält som nu är tomt/saknas. Därför sparas ingenting.
-
-### Lösning: Ladda upp base64 till Supabase Storage, spara URL
-
-Flödet för varje bild:
+**2. Uppdatera alla mobilsidors header-div** med en extra enfärgad "cap" högst upp — ett block som är exakt lika högt som telefonens statusbar men utan text eller ikoner:
 
 ```text
-base64-sträng → avkoda → ladda upp till "map-snapshots"-bucket → hämta publicUrl → spara i booking_attachments
+┌─────────────────────────────────┐
+│  [enfärgat block, bg-primary]   │  ← safe zone, ~44px, ingen text
+│  Välkommen                      │  ← befintlig headertext
+│  Erik                           │
+└─────────────────────────────────┘
 ```
 
-Bucketen `map-snapshots` är redan publik och används av FileUpload-komponenten — perfekt att återanvända.
+### Teknisk implementation
 
-### Tekniska ändringar i `syncTentImages`
-
-Funktion uppdateras att hantera **båda fallen**:
-1. `public_url` finns → beteende oförändrat (bakåtkompatibelt)
-2. `content_base64` finns → ladda upp till Storage → använd den returnerade URL:en
-
-```typescript
-async function syncTentImages(supabase, bookingId, tentImages, results) {
-  for (const tentImage of tentImages) {
-    let imgUrl = tentImage.public_url;
-    
-    // Nytt: hantera base64-bilder
-    if (!imgUrl && tentImage.content_base64) {
-      const fileName = `tent-${bookingId}-${tentImage.tent_index}-${tentImage.view_key}.jpg`;
-      const filePath = `${bookingId}/${fileName}`;
-      
-      // Avkoda base64 och ladda upp
-      const binary = atob(tentImage.content_base64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      
-      const { error } = await supabase.storage
-        .from('map-snapshots')
-        .upload(filePath, bytes, { contentType: 'image/jpeg', upsert: true });
-      
-      if (!error) {
-        const { data: urlData } = supabase.storage
-          .from('map-snapshots')
-          .getPublicUrl(filePath);
-        imgUrl = urlData.publicUrl;
-      }
-    }
-    
-    if (!imgUrl) continue;
-    // ... spara i booking_attachments som tidigare
-  }
-}
+Varje header-div ändras från detta mönster:
+```tsx
+<div className="bg-primary px-5 pt-14 pb-5 safe-area-top rounded-b-3xl shadow-md">
+  <h1>Tidrapportering</h1>
 ```
 
-### Vad som också hanteras
+Till detta:
+```tsx
+<div className="bg-primary rounded-b-3xl shadow-md">
+  {/* Safe area – täcker telefonens statusbar */}
+  <div className="bg-primary" style={{ height: 'env(safe-area-inset-top, 44px)', minHeight: '44px' }} />
+  <div className="px-5 pb-5">
+    <h1>Tidrapportering</h1>
+```
 
-**Bilagor (`attachments[].content_base64`)**: Samma mönster — base64 laddas upp till Storage, URL sparas. Filtypen bestäms från `file_name`-ändelsen.
-
-**Situationsplan (`map_drawing.content_base64`)**: Laddas upp som en bild och URL:en sparas i `bookings.map_drawing_url`-kolumnen (används redan av UI:t för "Placeringsritning").
-
-### Deduplicering
-
-Eftersom `upsert: true` används vid uppladdning till Storage, och URL:en baseras på `bookingId + tent_index + view_key`, skapas aldrig dubbletter ens vid re-import.
+`env(safe-area-inset-top)` är en CSS-standard som automatiskt läser av telefonens exakta statusbar-höjd (Dynamic Island, notch, etc.). Fallback är `44px` för enheter som inte stödjer det.
 
 ### Filer att ändra
 
-1. **`supabase/functions/import-bookings/index.ts`**
-   - Uppdatera `syncTentImages` att stödja `content_base64`
-   - Uppdatera `attachments`-blocket att stödja `content_base64`
-   - Lägg till hantering av `map_drawing.content_base64`
+Samtliga 6 mobilsidor + loading-states har headers som behöver uppdateras:
 
-Inga databasmigrationer behövs — `booking_attachments` och `map-snapshots`-bucketen finns redan.
+1. **`src/pages/mobile/MobileJobs.tsx`** — `pt-14` → safe area block
+2. **`src/pages/mobile/MobileJobDetail.tsx`** — `pt-12` → safe area block  
+3. **`src/pages/mobile/MobileTimeReport.tsx`** — `pt-14` × 2 (loading + main) → safe area block
+4. **`src/pages/mobile/MobileExpenses.tsx`** — `pt-14` × 2 (loading + main) → safe area block
+5. **`src/pages/mobile/MobileProfile.tsx`** — `pt-14` → safe area block
+6. **`src/pages/mobile/MobileTimeHistory.tsx`** — `pt-12` → safe area block
+7. **`src/pages/mobile/MobileLogin.tsx`** — `pt-16` på login-sidan → safe area block (enfärgad topp)
+
+Dessutom läggs `safe-area-inset` CSS till i `src/index.css` för att Tailwind-klassen `safe-area-top` ska fungera korrekt med `padding-top: env(safe-area-inset-top)`.
+
+### Visuellt resultat
+
+```text
+Före:                           Efter:
+┌─── [klocka/batteri] ───┐     ┌─── [klocka/batteri] ───┐
+│ Välkommen ← TEXT HÄR!  │     │  [teal, ingen text]    │
+│ Erik                   │     ├────────────────────────┤
+└────────────────────────┘     │ Välkommen              │
+                               │ Erik                   │
+                               └────────────────────────┘
+```
+
+Ingen databas- eller backend-ändring behövs.
