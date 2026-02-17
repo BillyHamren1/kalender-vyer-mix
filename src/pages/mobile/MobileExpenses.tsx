@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { mobileApi, MobileBooking, MobilePurchase } from '@/services/mobileApiService';
+import { useMobileBookings, useMobileBookingPurchases, useInvalidateMobileData } from '@/hooks/useMobileData';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { Receipt, Camera, Plus, Loader2, Check, Image } from 'lucide-react';
@@ -13,9 +14,10 @@ import { toast } from 'sonner';
 const categories = ['Material', 'Transport', 'Mat', 'Verktyg', 'Övrigt'];
 
 const MobileExpenses = () => {
-  const [bookings, setBookings] = useState<MobileBooking[]>([]);
-  const [allPurchases, setAllPurchases] = useState<(MobilePurchase & { booking_client?: string })[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: bookings = [], isLoading: isLoadingBookings } = useMobileBookings();
+  const { data: allPurchases = [], isLoading: isLoadingPurchases } = useMobileBookingPurchases(bookings);
+  const { invalidatePurchases } = useInvalidateMobileData();
+  const isLoading = isLoadingBookings || (bookings.length > 0 && isLoadingPurchases);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'new' | 'history'>('new');
 
@@ -27,38 +29,6 @@ const MobileExpenses = () => {
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   const [receiptBase64, setReceiptBase64] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    mobileApi.getBookings()
-      .then(async (res) => {
-        if (cancelled) return;
-        const bks = res.bookings;
-        setBookings(bks);
-        if (bks.length === 1) setSelectedBookingId(bks[0].id);
-
-        const allResults = await Promise.allSettled(
-          bks.map(b =>
-            mobileApi.getProjectPurchases(b.id).then(r =>
-              (r.purchases || []).map(p => ({ ...p, booking_client: b.client }))
-            )
-          )
-        );
-        if (cancelled) return;
-
-        const merged = allResults
-          .filter(r => r.status === 'fulfilled')
-          .flatMap(r => (r as PromiseFulfilledResult<(MobilePurchase & { booking_client?: string })[]>).value)
-          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-        setAllPurchases(merged);
-        if (merged.length === 0) setActiveTab('new');
-      })
-      .catch(() => toast.error('Kunde inte ladda data'))
-      .finally(() => { if (!cancelled) setIsLoading(false); });
-
-    return () => { cancelled = true; };
-  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -89,6 +59,7 @@ const MobileExpenses = () => {
         receipt_image: receiptBase64 || undefined,
       });
       toast.success('Utlägg sparat!');
+      invalidatePurchases();
       setActiveTab('history');
       setDescription('');
       setAmount('');
@@ -96,19 +67,6 @@ const MobileExpenses = () => {
       setCategory('');
       setReceiptPreview(null);
       setReceiptBase64(null);
-
-      const allResults = await Promise.allSettled(
-        bookings.map(b =>
-          mobileApi.getProjectPurchases(b.id).then(r =>
-            (r.purchases || []).map(p => ({ ...p, booking_client: b.client }))
-          )
-        )
-      );
-      const merged = allResults
-        .filter(r => r.status === 'fulfilled')
-        .flatMap(r => (r as PromiseFulfilledResult<(MobilePurchase & { booking_client?: string })[]>).value)
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      setAllPurchases(merged);
     } catch (err: any) {
       toast.error(err.message || 'Kunde inte spara utlägg');
     } finally {

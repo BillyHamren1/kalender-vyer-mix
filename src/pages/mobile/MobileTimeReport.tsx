@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { mobileApi, MobileBooking } from '@/services/mobileApiService';
 import { useGeofencing, ActiveTimer } from '@/hooks/useGeofencing';
+import { useMobileBookings, useInvalidateMobileData } from '@/hooks/useMobileData';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
 import { Clock, Square, Loader2, Check, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,8 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 
 const MobileTimeReport = () => {
-  const [bookings, setBookings] = useState<MobileBooking[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: bookings = [], isLoading } = useMobileBookings();
+  const { invalidateTimeReports } = useInvalidateMobileData();
   const [isSaving, setIsSaving] = useState(false);
 
   const [selectedBookingId, setSelectedBookingId] = useState('');
@@ -24,13 +25,6 @@ const MobileTimeReport = () => {
   const [description, setDescription] = useState('');
 
   const { activeTimers, stopTimer } = useGeofencing(bookings);
-
-  useEffect(() => {
-    mobileApi.getBookings()
-      .then(res => setBookings(res.bookings))
-      .catch(() => toast.error('Kunde inte ladda jobb'))
-      .finally(() => setIsLoading(false));
-  }, []);
 
   const calculateHours = () => {
     if (!startTime || !endTime) return 0;
@@ -59,6 +53,7 @@ const MobileTimeReport = () => {
         description: description || undefined,
       });
       toast.success('Tidrapport skapad!');
+      invalidateTimeReports();
       setSelectedBookingId('');
       setDescription('');
       setStartTime('');

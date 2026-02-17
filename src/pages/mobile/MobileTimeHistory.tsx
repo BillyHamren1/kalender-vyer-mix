@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { mobileApi, MobileTimeReport } from '@/services/mobileApiService';
+import { MobileTimeReport } from '@/services/mobileApiService';
+import { useMobileTimeReports } from '@/hooks/useMobileData';
 import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, getDay, isSameDay, addMonths, subMonths, addWeeks, subWeeks, isWithinInterval } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { ArrowLeft, Calendar, List, ChevronLeft, ChevronRight, Clock, Loader2, Download } from 'lucide-react';
@@ -14,20 +15,12 @@ type ListFilter = 'week' | 'month';
 const MobileTimeHistory = () => {
   const { staff } = useMobileAuth();
   const navigate = useNavigate();
-  const [reports, setReports] = useState<MobileTimeReport[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: reports = [], isLoading } = useMobileTimeReports();
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [listFilter] = useState<ListFilter>('month');
   const [listPeriod, setListPeriod] = useState(new Date());
-
-  useEffect(() => {
-    mobileApi.getTimeReports()
-      .then(res => setReports(res.time_reports))
-      .catch(() => toast.error('Kunde inte ladda rapporter'))
-      .finally(() => setIsLoading(false));
-  }, []);
 
   const totalHours = reports.reduce((sum, r) => sum + r.hours_worked, 0);
 

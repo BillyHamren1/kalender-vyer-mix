@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { mobileApi, MobileBooking } from '@/services/mobileApiService';
+import { MobileBooking } from '@/services/mobileApiService';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
+import { useMobileBookings } from '@/hooks/useMobileData';
 import { useGeofencing } from '@/hooks/useGeofencing';
 import GeofenceStatusBar from '@/components/mobile-app/GeofenceStatusBar';
 import GeofencePrompt from '@/components/mobile-app/GeofencePrompt';
@@ -21,26 +22,9 @@ const eventTypeBadge = (dates: { rigdaydate: string | null; eventdate: string | 
 const MobileJobs = () => {
   const navigate = useNavigate();
   const { staff } = useMobileAuth();
-  const [bookings, setBookings] = useState<MobileBooking[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { data: bookings = [], isLoading, isRefetching: isRefreshing, refetch } = useMobileBookings();
 
   const { activeTimers, isTracking, geofenceEvent, nearbyBookings, startTimer, stopTimer, dismissGeofenceEvent } = useGeofencing(bookings);
-
-  const fetchBookings = async (showRefresh = false) => {
-    if (showRefresh) setIsRefreshing(true);
-    try {
-      const res = await mobileApi.getBookings();
-      setBookings(res.bookings);
-    } catch (err) {
-      toast.error('Kunde inte hämta jobb');
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  };
-
-  useEffect(() => { fetchBookings(); }, []);
 
   const handleGeofenceConfirm = () => {
     if (!geofenceEvent) return;
@@ -86,7 +70,7 @@ const MobileJobs = () => {
             </h1>
           </div>
           <button
-            onClick={() => fetchBookings(true)}
+            onClick={() => refetch()}
             className="p-2.5 rounded-xl bg-primary-foreground/10 active:scale-95 transition-all"
           >
             <RefreshCw className={cn("w-4.5 h-4.5 text-primary-foreground/80", isRefreshing && "animate-spin")} />
