@@ -157,14 +157,14 @@ const MobileTimeHistory = () => {
     <p class="footer">Genererad ${format(new Date(), 'yyyy-MM-dd HH:mm')}</p>
     </body></html>`;
 
-    const w = window.open('', '_blank');
-    if (w) {
-      w.document.write(html);
-      w.document.close();
-      setTimeout(() => w.print(), 300);
-    } else {
-      toast.error('Kunde inte öppna fönster för PDF');
-    }
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
   const weekDays = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
