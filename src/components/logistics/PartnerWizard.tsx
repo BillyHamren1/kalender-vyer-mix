@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Building2,
   Truck,
@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   Check,
   X,
+  Settings2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +32,20 @@ const VEHICLE_TYPES = [
   { value: 'other', label: 'Övrigt', description: 'Annan typ av fordon' },
 ];
 
+const VISIBLE_TYPES_KEY = 'eventflow-visible-vehicle-types';
+
+const getVisibleTypes = (): string[] => {
+  try {
+    const stored = localStorage.getItem(VISIBLE_TYPES_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return VEHICLE_TYPES.map(t => t.value);
+};
+
+const saveVisibleTypes = (types: string[]) => {
+  localStorage.setItem(VISIBLE_TYPES_KEY, JSON.stringify(types));
+};
+
 interface PartnerWizardProps {
   initialData: VehicleFormData;
   isEditing: boolean;
@@ -52,6 +67,23 @@ const PartnerWizard: React.FC<PartnerWizardProps> = ({
   const [typeRates, setTypeRates] = useState<Record<string, VehicleTypeRate>>(
     initialData.vehicle_type_rates || {}
   );
+  const [visibleTypes, setVisibleTypes] = useState<string[]>(getVisibleTypes());
+  const [editingTypeFilter, setEditingTypeFilter] = useState(false);
+
+  const toggleTypeVisibility = (value: string) => {
+    setVisibleTypes(prev => {
+      const next = prev.includes(value)
+        ? prev.filter(v => v !== value)
+        : [...prev, value];
+      saveVisibleTypes(next);
+      return next;
+    });
+  };
+
+  const filteredVehicleTypes = useMemo(
+    () => VEHICLE_TYPES.filter(t => visibleTypes.includes(t.value)),
+    [visibleTypes]
+  );
 
   const canProceed = formData.name.trim().length > 0;
 
@@ -64,10 +96,10 @@ const PartnerWizard: React.FC<PartnerWizardProps> = ({
   };
 
   const handleSelectAll = () => {
-    if (selectedTypes.length === VEHICLE_TYPES.length) {
+    if (selectedTypes.length === filteredVehicleTypes.length) {
       setSelectedTypes([]);
     } else {
-      setSelectedTypes(VEHICLE_TYPES.map(t => t.value));
+      setSelectedTypes(filteredVehicleTypes.map(t => t.value));
     }
   };
 
@@ -235,19 +267,63 @@ const PartnerWizard: React.FC<PartnerWizardProps> = ({
                 Välj fordonstyper och ange pris per typ
               </p>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleSelectAll}
-              className="text-xs h-7"
-            >
-              {selectedTypes.length === VEHICLE_TYPES.length ? 'Avmarkera alla' : 'Markera alla'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setEditingTypeFilter(!editingTypeFilter)}
+                className="text-xs h-7 gap-1 text-muted-foreground hover:text-foreground"
+              >
+                <Settings2 className="w-3 h-3" />
+                {editingTypeFilter ? 'Klar' : 'Redigera lista'}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSelectAll}
+                className="text-xs h-7"
+              >
+                {selectedTypes.length === filteredVehicleTypes.length ? 'Avmarkera alla' : 'Markera alla'}
+              </Button>
+            </div>
           </div>
 
+          {editingTypeFilter ? (
+            <div className="border rounded-xl p-3 space-y-1 max-h-[240px] overflow-y-auto bg-card">
+              {VEHICLE_TYPES.map(t => (
+                <label
+                  key={t.value}
+                  className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-muted cursor-pointer text-sm"
+                >
+                  <div
+                    className={cn(
+                      "w-4 h-4 rounded border flex items-center justify-center transition-colors",
+                      visibleTypes.includes(t.value)
+                        ? "bg-primary border-primary"
+                        : "border-border"
+                    )}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      toggleTypeVisibility(t.value);
+                    }}
+                  >
+                    {visibleTypes.includes(t.value) && (
+                      <Check className="w-3 h-3 text-primary-foreground" />
+                    )}
+                  </div>
+                  <span className={cn(
+                    !visibleTypes.includes(t.value) && "text-muted-foreground line-through"
+                  )}>
+                    {t.label}
+                  </span>
+                </label>
+              ))}
+            </div>
+          ) : (
+          <>
           {/* Vehicle type list with inline pricing */}
           <div className="space-y-2">
-            {VEHICLE_TYPES.map(type => {
+            {filteredVehicleTypes.map(type => {
               const isSelected = selectedTypes.includes(type.value);
               const rates = typeRates[type.value] || {};
               return (
@@ -374,6 +450,8 @@ const PartnerWizard: React.FC<PartnerWizardProps> = ({
               );
             })}
           </div>
+          </>
+          )}
 
           {/* Selected count */}
           {selectedTypes.length > 0 && (
