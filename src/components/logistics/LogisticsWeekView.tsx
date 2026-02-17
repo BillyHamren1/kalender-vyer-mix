@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, ChevronLeft, ChevronRight, Truck, MapPin, Package } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Truck, MapPin, Package, Clock, ArrowRight, User, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format, addDays, isSameDay, startOfWeek, endOfWeek } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -8,10 +8,9 @@ import { useTransportAssignments, TransportAssignment } from '@/hooks/useTranspo
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-const TransportEventCard = ({ assignment }: { assignment: TransportAssignment }) => {
-  const navigate = useNavigate();
-
+const TransportEventCard = ({ assignment, onSelect }: { assignment: TransportAssignment; onSelect: (a: TransportAssignment) => void }) => {
   const statusLabel = assignment.status === 'delivered' ? 'Levererad' :
     assignment.status === 'in_transit' ? 'På väg' :
     assignment.status === 'skipped' ? 'Hoppad' :
@@ -26,9 +25,7 @@ const TransportEventCard = ({ assignment }: { assignment: TransportAssignment })
 
   return (
     <div
-      onClick={() => {
-        if (assignment.booking_id) navigate(`/booking/${assignment.booking_id}`);
-      }}
+      onClick={() => onSelect(assignment)}
       className={cn(
         "group relative rounded-lg border transition-all duration-200 overflow-hidden cursor-pointer",
         "bg-secondary/10 border-secondary/30",
@@ -36,7 +33,6 @@ const TransportEventCard = ({ assignment }: { assignment: TransportAssignment })
       )}
     >
       <div className="p-2.5">
-        {/* Header row */}
         <div className="flex items-center gap-2 mb-1.5">
           <span className="px-2 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-secondary/20 text-secondary border-secondary/40">
             TRANSPORT
@@ -44,12 +40,10 @@ const TransportEventCard = ({ assignment }: { assignment: TransportAssignment })
           <Truck className="w-3 h-3 ml-auto text-secondary" />
         </div>
         
-        {/* Client name */}
         <h4 className="font-semibold text-sm text-foreground line-clamp-2 mb-1">
           {assignment.booking?.client || 'Okänd kund'}
         </h4>
 
-        {/* Address */}
         {assignment.booking?.deliveryaddress && (
           <div className="flex items-start gap-1.5 mb-1">
             <MapPin className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
@@ -59,7 +53,6 @@ const TransportEventCard = ({ assignment }: { assignment: TransportAssignment })
           </div>
         )}
 
-        {/* Status */}
         <div className="flex items-center gap-1.5 mt-1">
           <div className={cn("w-2 h-2 rounded-full", statusDot)} />
           <span className="text-xs text-muted-foreground">{statusLabel}</span>
@@ -69,12 +62,154 @@ const TransportEventCard = ({ assignment }: { assignment: TransportAssignment })
   );
 };
 
+const TransportDetailDialog = ({ assignment, open, onClose }: { assignment: TransportAssignment | null; open: boolean; onClose: () => void }) => {
+  const navigate = useNavigate();
+  if (!assignment) return null;
+
+  const statusLabel = assignment.status === 'delivered' ? 'Levererad' :
+    assignment.status === 'in_transit' ? 'På väg' :
+    assignment.status === 'skipped' ? 'Hoppad' :
+    assignment.partner_response === 'accepted' ? 'Accepterad' :
+    assignment.partner_response === 'declined' ? 'Nekad' : 'Väntar';
+
+  const statusColor = assignment.status === 'delivered' ? 'bg-primary/10 text-primary border-primary/30' :
+    assignment.status === 'in_transit' ? 'bg-accent text-accent-foreground border-accent' :
+    assignment.partner_response === 'accepted' ? 'bg-primary/10 text-primary border-primary/30' :
+    assignment.partner_response === 'declined' ? 'bg-destructive/10 text-destructive border-destructive/30' :
+    'bg-muted text-muted-foreground border-border';
+
+  const durationHours = assignment.estimated_duration ? (assignment.estimated_duration / 60).toFixed(1) : null;
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Truck className="w-5 h-5 text-secondary" />
+            Transportdetaljer
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Status & date */}
+          <div className="flex items-center justify-between">
+            <Badge variant="outline" className={cn("text-xs", statusColor)}>
+              {statusLabel}
+            </Badge>
+            <span className="text-sm text-muted-foreground">
+              {format(new Date(assignment.transport_date + 'T00:00:00'), 'd MMMM yyyy', { locale: sv })}
+            </span>
+          </div>
+
+          {/* Client */}
+          <div className="bg-muted/50 rounded-lg p-3 space-y-1">
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Kund</div>
+            <div className="font-semibold text-foreground">{assignment.booking?.client || 'Okänd'}</div>
+            {assignment.booking?.booking_number && (
+              <div className="text-xs text-muted-foreground">Bokningsnr: {assignment.booking.booking_number}</div>
+            )}
+          </div>
+
+          {/* Vehicle */}
+          <div className="bg-muted/50 rounded-lg p-3 space-y-1">
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Fordon / Partner</div>
+            <div className="font-semibold text-foreground">{assignment.vehicle?.name || 'Ej tilldelat'}</div>
+            {assignment.vehicle?.is_external && (
+              <Badge variant="outline" className="text-[10px] mt-1">Extern partner</Badge>
+            )}
+          </div>
+
+          {/* Time & duration */}
+          <div className="grid grid-cols-2 gap-3">
+            {assignment.transport_time && (
+              <div className="bg-muted/50 rounded-lg p-3 space-y-1">
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Avgång</div>
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-secondary" />
+                  <span className="font-semibold">{assignment.transport_time}</span>
+                </div>
+              </div>
+            )}
+            {durationHours && (
+              <div className="bg-muted/50 rounded-lg p-3 space-y-1">
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Uppskattad tid</div>
+                <div className="font-semibold">{durationHours} h</div>
+              </div>
+            )}
+          </div>
+
+          {/* Route: pickup → delivery */}
+          <div className="bg-muted/50 rounded-lg p-3 space-y-3">
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Rutt</div>
+            {assignment.pickup_address && (
+              <div className="flex items-start gap-2">
+                <div className="w-2 h-2 rounded-full bg-accent mt-1.5 shrink-0" />
+                <div>
+                  <div className="text-xs text-muted-foreground">Upphämtning</div>
+                  <div className="text-sm font-medium">{assignment.pickup_address}</div>
+                </div>
+              </div>
+            )}
+            {(assignment.pickup_address && assignment.booking?.deliveryaddress) && (
+              <div className="flex items-center pl-0.5">
+                <ArrowRight className="w-3 h-3 text-muted-foreground" />
+              </div>
+            )}
+            {assignment.booking?.deliveryaddress && (
+              <div className="flex items-start gap-2">
+                <div className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0" />
+                <div>
+                  <div className="text-xs text-muted-foreground">Leverans</div>
+                  <div className="text-sm font-medium">
+                    {assignment.booking.deliveryaddress}
+                    {assignment.booking.delivery_city && `, ${assignment.booking.delivery_city}`}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Driver notes */}
+          {assignment.driver_notes && (
+            <div className="bg-muted/50 rounded-lg p-3 space-y-1">
+              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Anteckningar</div>
+              <div className="text-sm text-foreground">{assignment.driver_notes}</div>
+            </div>
+          )}
+
+          {/* Partner response info */}
+          {assignment.partner_responded_at && (
+            <div className="text-xs text-muted-foreground">
+              Partner svarade: {format(new Date(assignment.partner_responded_at), 'd MMM yyyy HH:mm', { locale: sv })}
+            </div>
+          )}
+
+          {/* Link to booking */}
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => {
+              onClose();
+              navigate(`/booking/${assignment.booking_id}`);
+            }}
+          >
+            <ExternalLink className="w-4 h-4 mr-2" />
+            Visa bokning
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 const DayColumn = ({
   date,
   assignments,
+  onSelectAssignment,
 }: {
   date: Date;
   assignments: TransportAssignment[];
+  onSelectAssignment: (a: TransportAssignment) => void;
 }) => {
   const isToday = isSameDay(date, new Date());
   const isPast = date < new Date() && !isToday;
@@ -89,7 +224,6 @@ const DayColumn = ({
       "flex flex-col flex-1 min-w-[160px]",
       isPast && "opacity-50"
     )}>
-      {/* Day header */}
       <div className={cn(
         "relative rounded-t-xl px-3 py-2.5 text-center border-x border-t transition-all",
         isToday ? "bg-primary/15 border-primary/30" : "bg-muted border-border"
@@ -97,14 +231,12 @@ const DayColumn = ({
         {isToday && (
           <div className="pointer-events-none absolute left-1/2 top-2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-primary" />
         )}
-
         <div className={cn(
           "text-[10px] font-bold uppercase tracking-widest",
           isToday ? "text-primary" : "text-muted-foreground"
         )}>
           {dayName}
         </div>
-
         <div className="flex items-baseline justify-center gap-0.5 mt-0.5">
           <span className={cn(
             "text-2xl font-bold tabular-nums",
@@ -116,7 +248,6 @@ const DayColumn = ({
 
       <div className={cn("h-px", isToday ? "bg-primary/40" : "bg-border")} />
       
-      {/* Events container */}
       <div className={cn(
         "flex-1 p-2 space-y-2 min-h-[280px] border-x border-b rounded-b-xl",
         isToday ? "bg-primary/5 border-primary/30" : "bg-card border-border"
@@ -130,7 +261,7 @@ const DayColumn = ({
           </div>
         ) : (
           dayEvents.map(assignment => (
-            <TransportEventCard key={assignment.id} assignment={assignment} />
+            <TransportEventCard key={assignment.id} assignment={assignment} onSelect={onSelectAssignment} />
           ))
         )}
       </div>
@@ -140,6 +271,7 @@ const DayColumn = ({
 
 const LogisticsWeekView: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedAssignment, setSelectedAssignment] = useState<TransportAssignment | null>(null);
   
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
@@ -154,7 +286,7 @@ const LogisticsWeekView: React.FC = () => {
 
   return (
     <div className="bg-card rounded-2xl shadow-xl border overflow-hidden">
-      {/* Header — teal gradient identical to DashboardWeekView */}
+      {/* Header */}
       <div className="bg-gradient-to-r from-primary to-primary/80 px-6 py-4">
         <div className="flex items-center justify-center">
           <div className="flex items-center gap-3">
@@ -199,11 +331,19 @@ const LogisticsWeekView: React.FC = () => {
                 key={day.toISOString()}
                 date={day}
                 assignments={assignments}
+                onSelectAssignment={setSelectedAssignment}
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* Transport detail dialog */}
+      <TransportDetailDialog
+        assignment={selectedAssignment}
+        open={!!selectedAssignment}
+        onClose={() => setSelectedAssignment(null)}
+      />
     </div>
   );
 };
