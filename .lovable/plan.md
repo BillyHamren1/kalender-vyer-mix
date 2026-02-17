@@ -1,66 +1,69 @@
 
-## Varför bilderna saknas — diagnos och lösning
+## Ny container på dashboarden: Alla bokningar
 
-### Rotorsak
+### Vad som ska byggas
 
-Problemet är **inte** i koden — `syncTentImages` är korrekt implementerad och deployad. Problemet är att det externa källsystemet (export-API:t) **inte skickar några bilder alls för bokning 2601-1 (A Catering)** just nu.
+En ny, fristående sektion längst ner på dashboarden (`PlanningDashboard.tsx`) som visar **alla bokningar precis som de är** — inga projektkopplingar, inga triageknappar. Enbart bokningsdata med sök och filter.
 
-Bekräftad data från databasen:
-- `booking_attachments` för 2601-1: **0 rader**
-- `map_drawing_url` på bokningen: **null**
-- En manuell import kördes precis — fortfarande 0 bilder
+### Layout på dashboarden
 
-Det finns alltså inga bilder att importera från källsystemet för just den bokningen ännu.
+```text
+[Kalendervy]          [Nya bokningar]
+                      (befintligt)
 
-### Vad som faktiskt visas var (webbvyn)
-
-Webbvyn visar "0 Filer" i snabbstatistiken. Det räknar `project_files` — inte `booking_attachments`. Snabbstatistiken visar alltså korrekt information.
-
-Flik-fliken "Filer" i projektet **borde** visa "Bilder från bokning" sektionen när det väl finns data i `booking_attachments`.
-
-### Statistik-räknaren i webbvyn
-
-Det finns dock en separat bugg att fixa: **snabbstatistiken på projektkortet** räknar bara `project_files` och inte `booking_attachments`. Så även när importer bildar finns, visas "0 Filer" i statistiken.
-
-Jag hittar och fixar denna räknare.
-
-### Plan
-
-**1. Fixa statistikräknaren i ProjectOverview** så att den inkluderar både `project_files` OCH `booking_attachments` i "Filer"-siffran.
-
-**2. Lägg till debug-loggning i import-bookings** för att logga `tent_images`-fältets närvaro per bokning — så vi kan se i loggarna om/när det externa API:t börjar skicka bilder.
-
-**3. Trigga en full historical re-import av 2601-1** för att säkerställa att alla fält (inklusive eventuella bilder som lagts till sedan senaste import) hämtas in.
-
-### Tekniska ändringar
-
-**Fil 1: `src/hooks/useProjectDetail.tsx` eller `ProjectOverview.tsx`**
-
-Statistiken "0 Filer" räknar troligtvis bara `files.length` (project_files). Uppdatera den att visa `files.length + bookingAttachments.length`.
-
-**Fil 2: `supabase/functions/import-bookings/index.ts`**
-
-Lägg till loggning av `tent_images`-fältets existens och längd för varje bokning som processas, så att vi kan se i loggar när/om externa API:t börjar skicka dem:
-
-```typescript
-console.log(`Booking ${bookingData.id} tent_images: ${
-  externalBooking.tent_images 
-    ? `${externalBooking.tent_images.length} bilder` 
-    : 'saknas i API-svaret'
-}`);
+──────────────────────────────────────
+  ALLA BOKNINGAR  (ny sektion, full bredd)
+  [Sök...]  [Status ▾]  [Datum från]  [Datum till]
+  ┌─────────────────────────────────────────────────┐
+  │ #2601-1  A Catering   CONFIRMED   2026-02-20 ... │
+  │ #2601-2  Företag AB   PENDING     2026-02-22 ... │
+  │ ...                                              │
+  └─────────────────────────────────────────────────┘
 ```
 
-### Vad som händer automatiskt när bilder finns
+### Ny komponent: `DashboardAllBookings.tsx`
 
-När det externa systemet lägger in tältbilder för A Catering och nästa import körs:
-1. `syncTentImages` fångar upp dem automatiskt
-2. De sparas som `booking_attachments`
-3. Webb-UI:ts "Filer"-flik visar dem direkt under "Bilder från bokning"
-4. Mobilappens "Bilder"-flik visar dem via `get_project_files` Edge Function
+Skapas i `src/components/dashboard/`. Komponenten:
 
-### Filer att ändra
+**Data**: Hämtar alla bokningar via `fetchBookings()` med React Query (queryKey: `['all-bookings-dashboard']`). Ingen filtrering på status i databasen — allt hämtas och filtreras lokalt.
 
-1. Statistikräknaren i projektvy (1 rad) — inkludera `bookingAttachments.length`
-2. Import-loggning — för felsökning framåt
+**Sök** (fritextsökning):
+- Söker på: klientnamn, bokningsnummer, leveransadress, stad
 
-Inga databasmigrationer behövs.
+**Filtrerbar på**:
+- Status: Alla / CONFIRMED / PENDING / CANCELLED / OFFER
+- Datum från (eventDate)
+- Datum till (eventDate)
+
+**Bokningskort / rader** visar:
+- Bokningsnummer (`#XXXX-X`)
+- Klientnamn
+- Status-badge (med befintlig `StatusBadge`-komponent)
+- Riggdatum → Eventdatum → Returdatum
+- Leveransadress + stad
+- Antal produkter
+- Klickbar → navigerar till `/booking/{id}`
+
+**Utseende**: Samma stil som övriga dashboard-komponenter — rounded-2xl, gradient bakgrund, shadow. Tabellvy med hover-effekt per rad. Scrollbar vid många rader (`max-h-[600px] overflow-y-auto`).
+
+**Tom-state**: Visar ett meddelande "Inga bokningar hittades" med ett filter-reset-alternativ.
+
+### Ändring i `PlanningDashboard.tsx`
+
+Lägg till den nya komponenten som en ny sektion under det befintliga grid:
+
+```tsx
+{/* Alla bokningar */}
+<div className="mb-6">
+  <DashboardAllBookings />
+</div>
+```
+
+### Filer att skapa/ändra
+
+1. **Ny fil**: `src/components/dashboard/DashboardAllBookings.tsx`
+2. **Ändrad fil**: `src/pages/PlanningDashboard.tsx` — importera och rendera den nya komponenten
+
+### Inga databasändringar behövs
+
+Befintlig `fetchBookings()` används direkt. All filtrering sker på klientsidan i React-state.
