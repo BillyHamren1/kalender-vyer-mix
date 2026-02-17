@@ -113,11 +113,11 @@ const MobileJobDetail = () => {
   return (
     <div className="flex flex-col min-h-screen bg-card">
       {/* Header */}
-      <div className="bg-primary px-4 pt-12 pb-4 safe-area-top">
-        <div className="flex items-center gap-3 mb-3">
+      <div className="bg-primary px-4 pt-12 pb-5 safe-area-top rounded-b-3xl shadow-md">
+        <div className="flex items-center gap-3 mb-4">
           <button 
             onClick={() => navigate('/m')} 
-            className="p-2 rounded-xl bg-primary-foreground/10 active:scale-95 transition-all"
+            className="p-2 -ml-1 rounded-xl active:scale-95 transition-all"
           >
             <ArrowLeft className="w-5 h-5 text-primary-foreground" />
           </button>
@@ -129,12 +129,11 @@ const MobileJobDetail = () => {
           </div>
         </div>
 
-        {/* Timer button */}
         <div className="flex items-center gap-2.5">
           <Button
             onClick={handleTimerToggle}
             className={cn(
-              "flex-1 h-11 rounded-xl gap-2 text-sm font-bold transition-all active:scale-[0.98]",
+              "flex-1 h-12 rounded-2xl gap-2 text-sm font-bold transition-all active:scale-[0.98] shadow-md",
               currentTimer
                 ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
                 : "bg-primary-foreground text-primary hover:bg-primary-foreground/90"
@@ -151,7 +150,7 @@ const MobileJobDetail = () => {
             <Button
               onClick={openNavigation}
               variant="outline"
-              className="h-11 w-11 shrink-0 rounded-xl border-primary-foreground/15 text-primary-foreground hover:bg-primary-foreground/10 bg-primary-foreground/5 p-0"
+              className="h-12 w-12 shrink-0 rounded-2xl border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 bg-primary-foreground/10 p-0"
             >
               <Navigation className="w-4.5 h-4.5" />
             </Button>
@@ -159,12 +158,11 @@ const MobileJobDetail = () => {
         </div>
       </div>
 
-      {/* Address card */}
       {booking.deliveryaddress && (
-        <div className="mx-4 -mt-2 mb-1 p-3 rounded-xl bg-card border border-border/50 shadow-sm">
-          <div className="flex items-center gap-2 text-sm">
-            <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
-            <span className="text-foreground font-medium text-sm">{booking.deliveryaddress}</span>
+        <div className="mx-4 -mt-5 p-3.5 rounded-2xl bg-card border border-border/50 shadow-sm z-10 relative">
+          <div className="flex items-center gap-2.5 text-sm">
+            <MapPin className="w-4 h-4 text-primary shrink-0" />
+            <span className="text-foreground font-medium">{booking.deliveryaddress}</span>
           </div>
         </div>
       )}
