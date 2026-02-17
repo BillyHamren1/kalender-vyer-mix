@@ -124,7 +124,7 @@ const MobileTimeHistory = () => {
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Tidrapport – ${staffName}</title>
     <style>
       * { margin:0; padding:0; box-sizing:border-box; }
-      body { font-family: -apple-system, system-ui, sans-serif; padding: 32px; color: #1a2a2a; background: #f0f4f5; }
+      body { font-family: -apple-system, system-ui, sans-serif; padding: 32px; color: #1a2a2a; background: #fff; }
       .card { background: #fff; border-radius: 16px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); border: 1px solid #e2e8ea; }
       h1 { font-size: 20px; font-weight: 800; color: #0f3b3d; margin-bottom: 2px; letter-spacing: -0.3px; }
       .meta { font-size: 12px; color: #7a8f90; margin-bottom: 20px; }
