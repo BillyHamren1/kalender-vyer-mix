@@ -56,6 +56,30 @@ const vehicleTypes = [
   { value: 'other', label: 'Övrigt' },
 ];
 
+// Default specs per vehicle type
+const vehicleTypeDefaults: Record<string, {
+  max_weight_kg: number;
+  max_volume_m3: number;
+  crane_capacity_ton: number | null;
+  crane_reach_m: number | null;
+  vehicle_length_m: number | null;
+  vehicle_height_m: number | null;
+  vehicle_width_m: number | null;
+}> = {
+  van:            { max_weight_kg: 1200,  max_volume_m3: 12,  crane_capacity_ton: null, crane_reach_m: null, vehicle_length_m: 6, vehicle_height_m: 2.5, vehicle_width_m: 2 },
+  light_truck:    { max_weight_kg: 3500,  max_volume_m3: 20,  crane_capacity_ton: null, crane_reach_m: null, vehicle_length_m: 7, vehicle_height_m: 3, vehicle_width_m: 2.4 },
+  pickup_crane:   { max_weight_kg: 3500,  max_volume_m3: 8,   crane_capacity_ton: 3,    crane_reach_m: 8,    vehicle_length_m: 6.5, vehicle_height_m: 2.5, vehicle_width_m: 2.2 },
+  crane_15m:      { max_weight_kg: 12000, max_volume_m3: 25,  crane_capacity_ton: 15,   crane_reach_m: 15,   vehicle_length_m: 10, vehicle_height_m: 3.5, vehicle_width_m: 2.5 },
+  crane_jib_20m:  { max_weight_kg: 15000, max_volume_m3: 30,  crane_capacity_ton: 20,   crane_reach_m: 20,   vehicle_length_m: 12, vehicle_height_m: 3.8, vehicle_width_m: 2.5 },
+  body_truck:     { max_weight_kg: 5000,  max_volume_m3: 35,  crane_capacity_ton: null, crane_reach_m: null, vehicle_length_m: 8, vehicle_height_m: 3.2, vehicle_width_m: 2.5 },
+  truck:          { max_weight_kg: 18000, max_volume_m3: 50,  crane_capacity_ton: null, crane_reach_m: null, vehicle_length_m: 10, vehicle_height_m: 3.5, vehicle_width_m: 2.5 },
+  trailer:        { max_weight_kg: 10000, max_volume_m3: 40,  crane_capacity_ton: null, crane_reach_m: null, vehicle_length_m: 8, vehicle_height_m: 3, vehicle_width_m: 2.5 },
+  trailer_13m:    { max_weight_kg: 25000, max_volume_m3: 80,  crane_capacity_ton: null, crane_reach_m: null, vehicle_length_m: 13, vehicle_height_m: 3.5, vehicle_width_m: 2.5 },
+  truck_trailer:  { max_weight_kg: 38000, max_volume_m3: 90,  crane_capacity_ton: null, crane_reach_m: null, vehicle_length_m: 18, vehicle_height_m: 3.5, vehicle_width_m: 2.5 },
+  crane_trailer:  { max_weight_kg: 30000, max_volume_m3: 60,  crane_capacity_ton: 20,   crane_reach_m: 15,   vehicle_length_m: 16, vehicle_height_m: 3.5, vehicle_width_m: 2.5 },
+  other:          { max_weight_kg: 3500,  max_volume_m3: 15,  crane_capacity_ton: null, crane_reach_m: null, vehicle_length_m: null, vehicle_height_m: null, vehicle_width_m: null },
+};
+
 const VEHICLE_TYPES_STORAGE_KEY = 'eventflow-visible-vehicle-types';
 
 const getVisibleTypes = (): string[] => {
@@ -73,8 +97,8 @@ const saveVisibleTypes = (types: string[]) => {
 const emptyFormData = (isExternal: boolean): VehicleFormData => ({
   name: '',
   registration_number: '',
-  max_weight_kg: 3500,
-  max_volume_m3: 15,
+  max_weight_kg: vehicleTypeDefaults['van'].max_weight_kg,
+  max_volume_m3: vehicleTypeDefaults['van'].max_volume_m3,
   vehicle_type: 'van',
   is_active: true,
   is_external: isExternal,
@@ -82,11 +106,11 @@ const emptyFormData = (isExternal: boolean): VehicleFormData => ({
   contact_person: '',
   contact_email: '',
   contact_phone: '',
-  crane_capacity_ton: null,
-  crane_reach_m: null,
-  vehicle_length_m: null,
-  vehicle_height_m: null,
-  vehicle_width_m: null,
+  crane_capacity_ton: vehicleTypeDefaults['van'].crane_capacity_ton,
+  crane_reach_m: vehicleTypeDefaults['van'].crane_reach_m,
+  vehicle_length_m: vehicleTypeDefaults['van'].vehicle_length_m,
+  vehicle_height_m: vehicleTypeDefaults['van'].vehicle_height_m,
+  vehicle_width_m: vehicleTypeDefaults['van'].vehicle_width_m,
   hourly_rate: null,
   daily_rate: null,
   notes: '',
@@ -366,7 +390,22 @@ const VehiclePartnerList: React.FC<VehiclePartnerListProps> = ({
                 ) : (
                   <Select
                     value={formData.vehicle_type}
-                    onValueChange={v => setFormData(p => ({ ...p, vehicle_type: v as VehicleFormData['vehicle_type'] }))}
+                    onValueChange={v => {
+                      const defaults = vehicleTypeDefaults[v];
+                      setFormData(p => ({
+                        ...p,
+                        vehicle_type: v as VehicleFormData['vehicle_type'],
+                        ...(defaults && !editingVehicle ? {
+                          max_weight_kg: defaults.max_weight_kg,
+                          max_volume_m3: defaults.max_volume_m3,
+                          crane_capacity_ton: defaults.crane_capacity_ton,
+                          crane_reach_m: defaults.crane_reach_m,
+                          vehicle_length_m: defaults.vehicle_length_m,
+                          vehicle_height_m: defaults.vehicle_height_m,
+                          vehicle_width_m: defaults.vehicle_width_m,
+                        } : {}),
+                      }));
+                    }}
                   >
                     <SelectTrigger className="rounded-xl">
                       <SelectValue />
