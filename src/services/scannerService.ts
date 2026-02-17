@@ -366,24 +366,28 @@ export const verifyProductBySku = async (
     return { success: false, error: `Ingen produkt med SKU "${sku}" hittades` };
   }
 
-  // Check if already verified
-  if (matchingItem.verified_at) {
+  // Check if already fully packed
+  const currentPacked = matchingItem.quantity_packed || 0;
+  if (currentPacked >= matchingItem.quantity_to_pack) {
     return { 
       success: false, 
-      error: `${(matchingItem as any).booking_products?.name} är redan verifierad`,
+      error: `${(matchingItem as any).booking_products?.name} är redan fullständigt packad (${currentPacked}/${matchingItem.quantity_to_pack})`,
       productName: (matchingItem as any).booking_products?.name
     };
   }
 
-  // Update the item as verified
+  // Increment quantity_packed by 1
+  const newQuantity = currentPacked + 1;
+  const isNowFull = newQuantity >= matchingItem.quantity_to_pack;
+  const now = new Date().toISOString();
+
   const { error: updateError } = await supabase
     .from('packing_list_items')
     .update({
-      quantity_packed: matchingItem.quantity_to_pack,
-      packed_at: new Date().toISOString(),
+      quantity_packed: newQuantity,
+      packed_at: now,
       packed_by: verifiedBy,
-      verified_at: new Date().toISOString(),
-      verified_by: verifiedBy
+      ...(isNowFull ? { verified_at: now, verified_by: verifiedBy } : {})
     })
     .eq('id', matchingItem.id);
 
@@ -393,7 +397,7 @@ export const verifyProductBySku = async (
 
   return { 
     success: true, 
-    productName: (matchingItem as any).booking_products?.name 
+    productName: `${(matchingItem as any).booking_products?.name} (${newQuantity}/${matchingItem.quantity_to_pack})`
   };
 };
 
@@ -421,15 +425,25 @@ export const togglePackingItemManually = async (
     
     if (error) return { success: false, error: 'Kunde inte avmarkera' };
   } else {
-    // Check - set as fully packed
+    // Increment by 1
+    // We need to fetch current value first
+    const { data: currentItem } = await supabase
+      .from('packing_list_items')
+      .select('quantity_packed')
+      .eq('id', itemId)
+      .single();
+    
+    const currentPacked = currentItem?.quantity_packed || 0;
+    const newQuantity = Math.min(currentPacked + 1, quantityToPack);
+    const isNowFull = newQuantity >= quantityToPack;
+
     const { error } = await supabase
       .from('packing_list_items')
       .update({
-        quantity_packed: quantityToPack,
+        quantity_packed: newQuantity,
         packed_at: now,
         packed_by: verifiedBy,
-        verified_at: now,
-        verified_by: verifiedBy
+        ...(isNowFull ? { verified_at: now, verified_by: verifiedBy } : {})
       })
       .eq('id', itemId);
     
