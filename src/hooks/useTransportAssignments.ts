@@ -8,9 +8,12 @@ export interface TransportAssignment {
   vehicle_id: string;
   booking_id: string;
   transport_date: string;
+  transport_time: string | null;
+  estimated_duration: number | null;
   stop_order: number;
   status: 'pending' | 'in_transit' | 'delivered' | 'skipped';
   partner_response: string | null;
+  partner_responded_at: string | null;
   estimated_arrival: string | null;
   actual_arrival: string | null;
   driver_notes: string | null;
@@ -19,6 +22,12 @@ export interface TransportAssignment {
   pickup_longitude: number | null;
   created_at: string;
   // Joined data
+  vehicle?: {
+    id: string;
+    name: string;
+    is_external: boolean;
+    vehicle_type: string | null;
+  };
   booking?: {
     id: string;
     client: string;
@@ -26,6 +35,10 @@ export interface TransportAssignment {
     delivery_city: string;
     delivery_latitude: number | null;
     delivery_longitude: number | null;
+    booking_number: string | null;
+    rigdaydate: string | null;
+    eventdate: string | null;
+    rigdowndate: string | null;
     booking_products?: Array<{
       name: string;
       quantity: number;
@@ -60,6 +73,12 @@ export const useTransportAssignments = (date?: Date | null, endDate?: Date | nul
         .from('transport_assignments')
         .select(`
           *,
+          vehicle:vehicles!vehicle_id (
+            id,
+            name,
+            is_external,
+            vehicle_type
+          ),
           booking:bookings!booking_id (
             id,
             client,
@@ -67,6 +86,10 @@ export const useTransportAssignments = (date?: Date | null, endDate?: Date | nul
             delivery_city,
             delivery_latitude,
             delivery_longitude,
+            booking_number,
+            rigdaydate,
+            eventdate,
+            rigdowndate,
             booking_products (
               name,
               quantity,
