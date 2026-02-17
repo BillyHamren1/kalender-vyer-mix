@@ -67,17 +67,20 @@ const MobileTimeHistory = () => {
     });
   }, [reports, listInterval]);
 
-  // Group filtered reports by date
+  // Build all days in interval with their reports (ascending order)
   const groupedListReports = useMemo(() => {
-    const map = new Map<string, MobileTimeReport[]>();
+    const days = eachDayOfInterval(listInterval);
+    const reportMap = new Map<string, MobileTimeReport[]>();
     filteredListReports.forEach(r => {
       const key = r.report_date;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(r);
+      if (!reportMap.has(key)) reportMap.set(key, []);
+      reportMap.get(key)!.push(r);
     });
-    // Sort dates descending
-    return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0]));
-  }, [filteredListReports]);
+    return days.map(day => {
+      const key = format(day, 'yyyy-MM-dd');
+      return { dateKey: key, day, reports: reportMap.get(key) || [] };
+    });
+  }, [filteredListReports, listInterval]);
 
   const filteredTotalHours = filteredListReports.reduce((s, r) => s + r.hours_worked, 0);
 
@@ -267,21 +270,27 @@ const MobileTimeHistory = () => {
                 <p className="text-sm font-medium text-foreground/60">Inga rapporter denna period</p>
               </div>
             ) : (
-              groupedListReports.map(([dateKey, dateReports]) => {
+              groupedListReports.map(({ dateKey, reports: dateReports }) => {
                 const dayTotal = dateReports.reduce((s, r) => s + r.hours_worked, 0);
+                const hasReports = dateReports.length > 0;
                 return (
                   <div key={dateKey}>
                     <div className="flex items-center justify-between px-1 mb-1.5">
-                      <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+                      <h3 className={cn(
+                        "text-[11px] font-bold uppercase tracking-widest",
+                        hasReports ? "text-muted-foreground" : "text-muted-foreground/40"
+                      )}>
                         {format(parseISO(dateKey), 'EEEE d MMM', { locale: sv })}
                       </h3>
-                      <span className="text-[11px] font-bold text-primary">{dayTotal}h</span>
+                      {hasReports && <span className="text-[11px] font-bold text-primary">{dayTotal}h</span>}
                     </div>
-                    <div className="space-y-1.5">
-                      {dateReports.map(report => (
-                        <ReportCard key={report.id} report={report} showDate={false} />
-                      ))}
-                    </div>
+                    {hasReports && (
+                      <div className="space-y-1.5">
+                        {dateReports.map(report => (
+                          <ReportCard key={report.id} report={report} showDate={false} />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })
