@@ -88,18 +88,18 @@ const ProjectViewPage = () => {
         </div>
       </div>
 
-      {/* Full-width sections below */}
-      <section>
-        <SectionHeader icon={FileText} title="Filer" count={files.length} />
-        <ProjectFiles
-          files={files}
-          onUpload={detail.uploadFile}
-          onDelete={detail.deleteFile}
-          isUploading={detail.isUploadingFile}
-        />
-      </section>
+      {/* Three-column: Filer, Kommentarer, Historik */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <section>
+          <SectionHeader icon={FileText} title="Filer" count={files.length} />
+          <ProjectFiles
+            files={files}
+            onUpload={detail.uploadFile}
+            onDelete={detail.deleteFile}
+            isUploading={detail.isUploadingFile}
+          />
+        </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <section>
           <SectionHeader icon={MessageSquare} title="Kommentarer" count={comments.length} />
           <ProjectComments comments={comments} onAddComment={detail.addComment} />
