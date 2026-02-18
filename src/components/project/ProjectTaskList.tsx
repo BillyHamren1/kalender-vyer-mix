@@ -19,9 +19,10 @@ interface ProjectTaskListProps {
   onUpdateTask: (data: { id: string; updates: Partial<ProjectTask> }) => void;
   onDeleteTask: (id: string) => void;
   onTaskAction?: (task: ProjectTask) => boolean;
+  getTaskAction?: (task: ProjectTask) => (() => void) | undefined;
 }
 
-const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskAction }: ProjectTaskListProps) => {
+const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskAction, getTaskAction }: ProjectTaskListProps) => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProjectTask | null>(null);
@@ -178,6 +179,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
                 onClose={() => setSelectedTask(null)}
                 onUpdateTask={onUpdateTask}
                 onDeleteTask={onDeleteTask}
+                onAction={getTaskAction?.(syncedSelectedTask)}
               />
             </div>
           )}

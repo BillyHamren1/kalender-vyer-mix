@@ -78,12 +78,11 @@ const ProjectViewPage = () => {
             onAddTask={detail.addTask}
             onUpdateTask={detail.updateTask}
             onDeleteTask={detail.deleteTask}
-            onTaskAction={(task) => {
+            getTaskAction={(task) => {
               if (task.title === 'Transportbokning' && bookingId) {
-                setTransportBookingOpen(true);
-                return true;
+                return () => setTransportBookingOpen(true);
               }
-              return false;
+              return undefined;
             }}
           />
         </div>
