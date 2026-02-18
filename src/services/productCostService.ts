@@ -10,6 +10,7 @@ export interface ProductCostData {
   handlingCost: number;
   purchaseCost: number;
   totalCost: number;
+  parentProductId: string | null;
   // Legacy editable fields (kept for backward compat)
   laborCost: number;
   materialCost: number;
@@ -40,7 +41,7 @@ export interface ProductCostSummary {
 export const fetchProductCosts = async (bookingId: string): Promise<ProductCostSummary> => {
   const { data, error } = await supabase
     .from('booking_products')
-    .select('id, name, quantity, unit_price, total_price, assembly_cost, handling_cost, purchase_cost, labor_cost, material_cost, setup_hours, external_cost, cost_notes')
+    .select('id, name, quantity, unit_price, total_price, assembly_cost, handling_cost, purchase_cost, labor_cost, material_cost, setup_hours, external_cost, cost_notes, parent_product_id')
     .eq('booking_id', bookingId);
 
   if (error) throw error;
@@ -63,6 +64,7 @@ export const fetchProductCosts = async (bookingId: string): Promise<ProductCostS
       handlingCost,
       purchaseCost,
       totalCost,
+      parentProductId: p.parent_product_id || null,
       // Legacy fields
       laborCost: Number(p.labor_cost) || 0,
       materialCost: Number(p.material_cost) || 0,

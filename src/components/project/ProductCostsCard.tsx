@@ -20,9 +20,6 @@ interface ProductGroup {
   children: ProductCostData[];
 }
 
-const isChild = (name: string): boolean =>
-  /^\s{2,}/.test(name) || /^[↳└⦿L,]/.test(name.trim());
-
 const cleanName = (name: string): string =>
   name.replace(/^[\s↳└⦿L,\-–]+/, '').trim();
 
@@ -33,22 +30,18 @@ const getMarginColor = (pct: number) =>
   pct >= 50 ? 'text-green-600' : pct >= 30 ? 'text-yellow-600' : 'text-red-500';
 
 export const ProductCostsCard = ({ productCosts }: ProductCostsCardProps) => {
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-
   const groupedProducts = useMemo((): ProductGroup[] => {
-    const groups: ProductGroup[] = [];
-    let currentGroup: ProductGroup | null = null;
-    for (const product of productCosts.products) {
-      if (!isChild(product.name)) {
-        if (currentGroup) groups.push(currentGroup);
-        currentGroup = { parent: product, children: [] };
-      } else if (currentGroup) {
-        currentGroup.children.push(product);
-      }
-    }
-    if (currentGroup) groups.push(currentGroup);
-    return groups;
+    const parents = productCosts.products.filter(p => !p.parentProductId);
+    return parents.map(parent => ({
+      parent,
+      children: productCosts.products.filter(p => p.parentProductId === parent.id),
+    }));
   }, [productCosts.products]);
+
+  // All groups with children are expanded by default
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
+    () => new Set(groupedProducts.filter(g => g.children.length > 0).map(g => g.parent.id))
+  );
 
   const toggleGroup = (id: string) => {
     setExpandedGroups(prev => {
