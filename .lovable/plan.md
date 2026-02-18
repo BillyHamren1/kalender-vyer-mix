@@ -1,48 +1,58 @@
 
 ## Problemet
 
-`bookingAttachments` (bilder från bokning) visas på **två ställen** simultaneously:
+Databasen (`booking_attachments`) innehåller faktiska dubbletter — samma bild-URL finns med flera olika `id`. Exempelvis:
+- `tent-0-view-b-1771376044790.png` → 2 rader
+- `tent-0-view-a-1771376044636.png` → 2 rader
+- `kartritning-2026-02-18.jpg` → 2 rader (en av dessa med annan URL)
 
-1. **`BookingInfoExpanded`** — visar bilderna i "Bilder"-sektionen (nyligen tillagd)
-2. **`ProjectFiles`** i `ProjectViewPage` — tar också emot `bookingAttachments` som prop och visar dem som "Bilder från bokning"
+Importen (`syncAllAttachments`) kördes tydligen vid mer än ett tillfälle och skapade dessa dubbletter trots det dedupliceringslogik som finns.
 
-Produkterna dupliceras inte på samma sätt — det är bara bilderna och möjligen en gammal utrustningslista. Felet är att `bookingAttachments` skickas till `ProjectFiles` i `ProjectViewPage.tsx` rad 95 men visas nu redan i `BookingInfoExpanded`.
+## Lösning: Två delar
 
-## Lösning
+### Del 1 — Databasrensning (SQL som körs manuellt av dig)
 
-Ta bort `bookingAttachments`-propen från `<ProjectFiles>`-anropet i `ProjectViewPage.tsx`. Bilderna visas redan korrekt i "Bokning"-containern ovanför.
+Du behöver köra följande SQL i Supabase > SQL Editor för att ta bort duplikaten och behålla en rad per unik URL per bokning:
 
-## Ändringar
-
-### `src/pages/project/ProjectViewPage.tsx`
-
-- Ta bort `bookingAttachments={bookingAttachments}` från `<ProjectFiles>`-anropet (rad 95)
-- Uppdatera count i `SectionHeader` för Filer så att den bara räknar `files.length` (inte `+ bookingAttachments.length`)
-
-### `src/components/project/ProjectFiles.tsx` (valfritt städning)
-
-- Ta bort `bookingAttachments`-prop och all logik kopplad till den, eftersom bilderna nu hanteras av `BookingInfoExpanded`
-
-## Resultat
-
+```sql
+DELETE FROM booking_attachments
+WHERE id IN (
+  SELECT id FROM (
+    SELECT id,
+           ROW_NUMBER() OVER (
+             PARTITION BY booking_id, url
+             ORDER BY uploaded_at ASC
+           ) AS rn
+    FROM booking_attachments
+    WHERE booking_id = '7faa62ad-8eb0-49ad-82c2-b9d256a8c15b'
+  ) sub
+  WHERE rn > 1
+);
 ```
-┌─ Bokning ────────────────────────────┐
-│  [Klientinfo, tidslinje]             │
-│  ─── Utrustning ───                  │
-│  Multiflex 10x21              1 st   │
-│  ─── Bilder ───                      │
-│  [bildgrid - visas EN gång]          │
-└──────────────────────────────────────┘
 
-┌─ Filer ──────────────────────────────┐
-│  [Bara uppladdade projektfiler]      │
-│  Inga bilder från bokning här        │
-└──────────────────────────────────────┘
+### Del 2 — Frontend-skydd i `BookingInfoExpanded.tsx`
+
+Lägg till URL-baserad deduplicering i komponenten så att om dubbletter slipper igenom till frontend filtreras de bort:
+
+```typescript
+// Dedupa på URL, behåll första förekomsten
+const uniqueAttachments = bookingAttachments.filter(
+  (a, idx, arr) => arr.findIndex(x => x.url === a.url) === idx
+);
+
+const imageAttachments = uniqueAttachments.filter(a =>
+  a.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(a.url)
+);
 ```
 
 ## Filer att ändra
 
-| Fil | Ändring |
+| Del | Vad |
 |---|---|
-| `src/pages/project/ProjectViewPage.tsx` | Ta bort `bookingAttachments` prop från `<ProjectFiles>`, uppdatera count |
-| `src/components/project/ProjectFiles.tsx` | Ta bort `bookingAttachments` prop-stöd och tillhörande JSX |
+| SQL (körs av dig) | Ta bort dubbletter ur `booking_attachments` för denna bokning |
+| `src/components/project/BookingInfoExpanded.tsx` | Lägg till URL-dedup innan `imageAttachments`-filtret |
+
+## Ordning
+
+1. Jag lägger till frontend-skyddet i koden
+2. Du kör SQL-satsen i Supabase SQL Editor för att städa databasen
