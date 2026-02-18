@@ -76,7 +76,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
 
   return (
     <>
-      <Card className="border-border/40 shadow-2xl rounded-2xl overflow-hidden flex flex-col h-full">
+      <Card className="border-border/40 shadow-2xl rounded-2xl overflow-hidden flex flex-col flex-1">
         {/* Compact header */}
         <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pt-3 pb-2">
           <div className="flex items-center gap-2 min-w-0 flex-1">
