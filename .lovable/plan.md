@@ -1,34 +1,49 @@
 
-## Lägg till detaljerade loggar för kamera-kraschen
+## Diagnos: Två separata problem
 
-För att förstå exakt VAR kraschen sker lägger vi till `console.log`/`console.error`-anrop på varje steg i kameraflödet. Loggarna syns sedan i konsolen här i Lovable nästa gång du klickar "Fota kvitto".
+### Problem 1 – Webb (det du ser nu)
+`fileInputRef` pekar på en `<input>` som bara existerar när `showForm === true`. Men `handleCameraClick` kan i teorin anropas när `showForm` är false (om knappen renderas utanför formuläret). Dessutom: `<input capture="environment">` behöver testas.
 
-### Ändringar i `src/utils/capacitorCamera.ts`
+**Faktisk rotorsak på webben:** `takePhotoBase64()` returnerar `null` → `fileInputRef.current?.click()` → detta fungerar på webben men öppnar en *filväljare*, inte kameran direkt.
 
-Lägger till loggar på:
-1. Plattformskontroll – loggar om det är native eller webb
-2. Innan `Camera.getPhoto()` anropas
-3. Efter att foto returneras – loggar `photo.path` och `photo.webPath`
-4. Innan `fetch(photo.webPath)` – loggar den faktiska URL:en
-5. I `catch`-blocket – loggar hela fellobjektet (inte bara `message`)
+### Problem 2 – Native Android (kraschen)
+Det mest troliga är ett av dessa:
+1. **`npx cap sync` har inte körts** efter att `@capacitor/camera` lades till – pluginen är inte registrerad i den nativa appen
+2. **Kamera-behörighet** saknas i AndroidManifest (läggs till automatiskt av `cap sync`)
+3. **`CAMERA`-permission dialog** visas inte och appen kraschar istället
 
-### Ändringar i `src/components/mobile-app/job-tabs/JobCostsTab.tsx`
+## Lösning
 
-Lägger till loggar i `handleCameraClick`:
-1. Innan `takePhotoBase64()` anropas
-2. Efter – loggar om base64 returnerades eller var null
-3. Felhantering med `try/catch` runt hela anropet
+### Del 1: Fixa webb-upplevelsen
+Lägg till en `accept="image/*" capture="environment"` input **utanför** `showForm`-blocket så att den alltid finns i DOM:en, och ändra kamera-knappen på webben så den faktiskt öppnar kameran (inte filväljare) via `capture="environment"`.
 
-### Tekniska detaljer
+### Del 2: Lägg till explicit permission-request för Android
+Lägg till ett explicit anrop till `Camera.requestPermissions()` **innan** `Camera.getPhoto()` anropas. Detta är det vanligaste felet – utan detta kraschar appen på Android istället för att visa permission-dialogen.
+
+```typescript
+// Begär behörighet explicit INNAN getPhoto()
+const permissions = await Camera.requestPermissions({ permissions: ['camera'] });
+if (permissions.camera !== 'granted') {
+  console.warn('[Camera] Permission denied');
+  return null;
+}
+```
+
+### Del 3: Säkerställ att `<input>` alltid finns i DOM
+
+Flytta `<input ref={fileInputRef}>` till **utanför** `showForm`-blocket så den alltid är monterad och `fileInputRef.current` alltid pekar på ett giltigt element.
+
+## Tekniska ändringar
 
 | Fil | Ändring |
 |---|---|
-| `src/utils/capacitorCamera.ts` | Detaljerade console.log på varje steg + console.error i catch |
-| `src/components/mobile-app/job-tabs/JobCostsTab.tsx` | try/catch + console.log runt handleCameraClick |
+| `src/utils/capacitorCamera.ts` | Lägg till `Camera.requestPermissions()` innan `Camera.getPhoto()` |
+| `src/components/mobile-app/job-tabs/JobCostsTab.tsx` | Flytta `<input>` utanför `showForm`-blocket |
 
-### Hur du ser loggarna
+## Efter implementering
 
-När loggarna är tillagda:
-1. Klicka "Fota kvitto" i appen
-2. Skicka ett nytt meddelande här i chatten (t.ex. "Jag klickade nu")
-3. Jag ser direkt vad som loggades och kan identifiera exakt var det kraschar
+Du behöver:
+1. `git pull`
+2. `npm install`
+3. `npm run build && npx cap sync` (kritiskt – synkar permission-ändringarna)
+4. Bygg om och installera appen på enheten
