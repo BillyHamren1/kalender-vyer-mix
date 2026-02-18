@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
-import ProjectGanttChart from "@/components/project/ProjectGanttChart";
 import ProjectProductsList from "@/components/project/ProjectProductsList";
 import ProjectTaskList from "@/components/project/ProjectTaskList";
 import ProjectFiles from "@/components/project/ProjectFiles";
@@ -60,8 +59,6 @@ const ProjectViewPage = () => {
         activities={activities}
       />
 
-      {/* Gantt chart */}
-      <ProjectGanttChart tasks={tasks} />
 
       {/* Equipment / Products */}
       {bookingId && (
