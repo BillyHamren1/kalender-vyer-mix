@@ -971,10 +971,12 @@ serve(async (req) => {
       historicalMode = false,
       forceHistoricalImport = false,
       startDate,
-      endDate
+      endDate,
+      booking_id: singleBookingId = null,
     } = await req.json()
     
     const isHistoricalImport = historicalMode || forceHistoricalImport;
+    const isSingleBookingRefresh = !!singleBookingId;
     
     console.log(`Starting import with sync mode: ${syncMode}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
 
@@ -1020,18 +1022,20 @@ serve(async (req) => {
       console.error('Error updating sync state:', syncStateError)
     }
 
-    // Build API URL with timestamp filter for incremental sync
+    // Build API URL
     let apiUrl = 'https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings';
     
-    // For incremental sync (non-historical), use timestamp filtering
-    if (syncMode === 'incremental' && lastSyncTimestamp && !isHistoricalImport) {
+    if (isSingleBookingRefresh) {
+      // Fetch only the single booking by ID
+      apiUrl += `?booking_id=${encodeURIComponent(singleBookingId)}`;
+      console.log(`Single booking refresh mode: fetching booking ${singleBookingId}`);
+    } else if (syncMode === 'incremental' && lastSyncTimestamp && !isHistoricalImport) {
+      // For incremental sync (non-historical), use timestamp filtering
       const sinceDate = new Date(lastSyncTimestamp).toISOString();
       apiUrl += `?since=${encodeURIComponent(sinceDate)}`;
       console.log(`Fetching bookings modified since: ${sinceDate}`);
-    }
-    
-    // For historical imports with date range
-    if (isHistoricalImport && (startDate || endDate)) {
+    } else if (isHistoricalImport && (startDate || endDate)) {
+      // For historical imports with date range
       const params = new URLSearchParams();
       if (startDate) params.append('start_date', startDate);
       if (endDate) params.append('end_date', endDate);

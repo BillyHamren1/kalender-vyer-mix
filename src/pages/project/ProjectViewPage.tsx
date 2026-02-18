@@ -10,7 +10,9 @@ import ProjectTransportBookingDialog from "@/components/project/ProjectTransport
 import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
-import { FileText, MessageSquare, History } from "lucide-react";
+import { useRefreshBooking } from "@/hooks/useRefreshBooking";
+import { FileText, MessageSquare, History, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const SectionHeader = ({ icon: Icon, title, count }: { icon: React.ElementType; title: string; count?: number }) => (
   <div className="flex items-center gap-2 mb-3">
@@ -33,6 +35,7 @@ const ProjectViewPage = () => {
   const { project, tasks, files, comments, activities, bookingAttachments } = detail;
   const bookingId = project?.booking_id || project?.booking?.id || null;
   const { assignments: transportAssignments, refetch: refetchTransport } = useProjectTransport(bookingId);
+  const { refreshBooking, isRefreshing } = useRefreshBooking(bookingId, project?.id ?? '');
 
   // Auto-complete Transportbokning task if transport assignments exist
   useEffect(() => {
@@ -62,12 +65,28 @@ const ProjectViewPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6 items-start">
         {/* Left: Booking info – scrolls if content overflows */}
         {booking && (
-          <div className="h-[560px] overflow-y-auto rounded-2xl">
-            <BookingInfoExpanded
-              booking={booking}
-              projectLeader={project.project_leader}
-              bookingAttachments={bookingAttachments}
-            />
+          <div className="flex flex-col gap-2">
+            {bookingId && (
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={refreshBooking}
+                  disabled={isRefreshing}
+                  className="gap-1.5 text-xs h-7"
+                >
+                  <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  {isRefreshing ? 'Hämtar...' : 'Uppdatera bokning'}
+                </Button>
+              </div>
+            )}
+            <div className="h-[560px] overflow-y-auto rounded-2xl">
+              <BookingInfoExpanded
+                booking={booking}
+                projectLeader={project.project_leader}
+                bookingAttachments={bookingAttachments}
+              />
+            </div>
           </div>
         )}
 
