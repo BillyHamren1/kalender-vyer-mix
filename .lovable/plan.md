@@ -1,58 +1,68 @@
 
-## Problemet
+## Rotorsaken
 
-Databasen (`booking_attachments`) innehåller faktiska dubbletter — samma bild-URL finns med flera olika `id`. Exempelvis:
-- `tent-0-view-b-1771376044790.png` → 2 rader
-- `tent-0-view-a-1771376044636.png` → 2 rader
-- `kartritning-2026-02-18.jpg` → 2 rader (en av dessa med annan URL)
+Importen i `import-bookings` edge-funktionen kör `DELETE + INSERT` för produkter när `needsProductUpdate = true`. Under de millisekunder som DELETE körs men INSERT inte är klar visas produktlistan som tom (eller delvis inskriven). Om bakgrundsimporten (`useBackgroundImport`) triggar en ny körning under detta fönster ser den en "förändring" (produkter saknas eller är ofullständiga) och startar EN TILL DELETE+INSERT-cykel — vilket skapar ett race condition som kan resultera i dubbletter eller varierande antal produkter.
 
-Importen (`syncAllAttachments`) kördes tydligen vid mer än ett tillfälle och skapade dessa dubbletter trots det dedupliceringslogik som finns.
+Bevis: Tre på varandra följande DB-queries returnerade tre olika ID:n för "Multiflex 10x21" — `2ac03af4`, `1362a9a1`, `effde116` — vilket visar att produkterna skapas om och om igen.
 
-## Lösning: Två delar
+## Lösningen: UPSERT istället för DELETE + INSERT
 
-### Del 1 — Databasrensning (SQL som körs manuellt av dig)
+Istället för att ta bort alla produkter och skriva in dem på nytt ska vi använda en **UPSERT-strategi baserad på ett deterministiskt, stabilt ID** som genereras från `booking_id + sort_index` (eller `booking_id + name`). På så sätt:
 
-Du behöver köra följande SQL i Supabase > SQL Editor för att ta bort duplikaten och behålla en rad per unik URL per bokning:
+1. Inga gamla rader raderas
+2. Befintliga rader uppdateras in-place
+3. Rader som inte längre finns i API-svaret raderas selektivt
+4. Inga race conditions eftersom det aldrig uppstår ett tomt tillstånd
 
-```sql
-DELETE FROM booking_attachments
-WHERE id IN (
-  SELECT id FROM (
-    SELECT id,
-           ROW_NUMBER() OVER (
-             PARTITION BY booking_id, url
-             ORDER BY uploaded_at ASC
-           ) AS rn
-    FROM booking_attachments
-    WHERE booking_id = '7faa62ad-8eb0-49ad-82c2-b9d256a8c15b'
-  ) sub
-  WHERE rn > 1
-);
+## Teknisk implementering
+
+### Strategi: Stable UUID från `booking_id + sort_index`
+
+Generera ett deterministiskt UUID för varje produkt baserat på `booking_id` + `sort_index`. Vi kan använda en enkel hash-funktion. Postgres stöder `gen_random_uuid()` men för deterministiska ID:n behöver vi en namngiven UUID (UUID v5/namespace), eller alternativt använda `name`-fältet som nyckel.
+
+**Enklast och säkrast**: Behåll befintliga `id` oförändrade vid re-import. Istället för `DELETE + INSERT` gör vi:
+
+1. Hämta befintliga produkter med deras `id`
+2. För varje extern produkt: matcha mot befintlig via `name` (trimmat + lowercase)
+3. `UPDATE` om match hittas (samma `id` behålls)
+4. `INSERT` om ingen match finns
+5. `DELETE` de som finns i DB men inte i externt API
+
+### Filer att ändra
+
+**`supabase/functions/import-bookings/index.ts`** — ersätt DELETE+INSERT-blocket (runt rad 2024-2066) med en merge-funktion som:
+
+```
+mergeProducts(supabase, bookingId, externalProducts, existingProducts):
+  existingByName = Map<name → {id, ...}>
+  
+  toInsert = []
+  toUpdate = []  
+  seenIds  = Set()
+  
+  for each externalProduct:
+    match = existingByName[externalProduct.name]
+    if match:
+      toUpdate.push({id: match.id, ...newData})
+      seenIds.add(match.id)
+    else:
+      toInsert.push({...newData})
+  
+  toDelete = existingProducts.filter(p => !seenIds.has(p.id))
+  
+  if toDelete.length: DELETE WHERE id IN (toDelete ids)
+  if toUpdate.length: UPDATE each row individually  
+  if toInsert.length: INSERT batch
 ```
 
-### Del 2 — Frontend-skydd i `BookingInfoExpanded.tsx`
+### Varför detta löser problemet
 
-Lägg till URL-baserad deduplicering i komponenten så att om dubbletter slipper igenom till frontend filtreras de bort:
+- **Inga race conditions**: Det finns aldrig ett tillstånd där tabellen är tom för en bokning
+- **Stabila ID:n**: Samma produkt behåller sitt `id` mellan importer, vilket betyder att `packing_list_items`-kopplingar inte bryts (bonus: `reconnectPackingListItems`-logiken kan förenklas)
+- **Idempotent**: Om importen körs 10 gånger i rad med samma data händer ingenting
 
-```typescript
-// Dedupa på URL, behåll första förekomsten
-const uniqueAttachments = bookingAttachments.filter(
-  (a, idx, arr) => arr.findIndex(x => x.url === a.url) === idx
-);
+### Filer
 
-const imageAttachments = uniqueAttachments.filter(a =>
-  a.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(a.url)
-);
-```
-
-## Filer att ändra
-
-| Del | Vad |
+| Fil | Ändring |
 |---|---|
-| SQL (körs av dig) | Ta bort dubbletter ur `booking_attachments` för denna bokning |
-| `src/components/project/BookingInfoExpanded.tsx` | Lägg till URL-dedup innan `imageAttachments`-filtret |
-
-## Ordning
-
-1. Jag lägger till frontend-skyddet i koden
-2. Du kör SQL-satsen i Supabase SQL Editor för att städa databasen
+| `supabase/functions/import-bookings/index.ts` | Ersätt DELETE+INSERT (~rad 2024-2066) med merge-logik |
