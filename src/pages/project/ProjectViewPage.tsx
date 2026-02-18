@@ -89,26 +89,28 @@ const ProjectViewPage = () => {
       </div>
 
       {/* Three-column: Filer, Kommentarer, Historik */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        <section>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+        <div className="flex flex-col h-full">
           <SectionHeader icon={FileText} title="Filer" count={files.length} />
           <ProjectFiles
             files={files}
             onUpload={detail.uploadFile}
             onDelete={detail.deleteFile}
             isUploading={detail.isUploadingFile}
+            bookingAttachments={bookingAttachments}
+            className="h-full"
           />
-        </section>
+        </div>
 
-        <section>
+        <div className="flex flex-col h-full">
           <SectionHeader icon={MessageSquare} title="Kommentarer" count={comments.length} />
-          <ProjectComments comments={comments} onAddComment={detail.addComment} />
-        </section>
+          <ProjectComments comments={comments} onAddComment={detail.addComment} className="h-full" />
+        </div>
 
-        <section>
+        <div className="flex flex-col h-full">
           <SectionHeader icon={History} title="Historik" count={activities.length} />
-          <ProjectActivityLog activities={activities} />
-        </section>
+          <ProjectActivityLog activities={activities} className="h-full" />
+        </div>
       </div>
 
       {bookingId && (

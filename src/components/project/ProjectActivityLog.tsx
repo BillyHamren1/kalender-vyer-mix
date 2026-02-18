@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 
 interface ProjectActivityLogProps {
   activities: ProjectActivity[];
+  className?: string;
 }
 
 const ACTION_CONFIG: Record<string, { icon: React.ElementType; color: string; label: string }> = {
@@ -155,7 +156,7 @@ const ActivityDetailContent = ({ activity }: { activity: ProjectActivity }) => {
   );
 };
 
-const ProjectActivityLog = ({ activities }: ProjectActivityLogProps) => {
+const ProjectActivityLog = ({ activities, className }: ProjectActivityLogProps) => {
   const [filter, setFilter] = useState('all');
 
   const filteredActivities = useMemo(() => {
@@ -182,7 +183,7 @@ const ProjectActivityLog = ({ activities }: ProjectActivityLogProps) => {
   };
 
   return (
-    <Card className="border-border/40 shadow-2xl rounded-2xl">
+    <Card className={`border-border/40 shadow-2xl rounded-2xl${className ? ` ${className}` : ''}`}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-3 tracking-tight">

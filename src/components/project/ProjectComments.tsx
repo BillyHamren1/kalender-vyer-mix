@@ -11,9 +11,10 @@ import { sv } from "date-fns/locale";
 interface ProjectCommentsProps {
   comments: ProjectComment[];
   onAddComment: (data: { author_name: string; content: string }) => void;
+  className?: string;
 }
 
-const ProjectComments = ({ comments, onAddComment }: ProjectCommentsProps) => {
+const ProjectComments = ({ comments, onAddComment, className }: ProjectCommentsProps) => {
   const [authorName, setAuthorName] = useState(() => 
     localStorage.getItem('project_comment_author') || ''
   );
@@ -32,7 +33,7 @@ const ProjectComments = ({ comments, onAddComment }: ProjectCommentsProps) => {
   };
 
   return (
-    <Card className="border-border/40 shadow-2xl rounded-2xl">
+    <Card className={`border-border/40 shadow-2xl rounded-2xl${className ? ` ${className}` : ''}`}>
       <CardHeader>
         <CardTitle className="tracking-tight">Kommentarer</CardTitle>
       </CardHeader>
