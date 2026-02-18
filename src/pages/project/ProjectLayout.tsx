@@ -2,7 +2,6 @@ import { useParams, useNavigate, Outlet, useLocation, Link } from "react-router-
 import { ArrowLeft, LayoutDashboard, HardHat, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ProjectStatusDropdown from "@/components/project/ProjectStatusDropdown";
-import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
 import { useProjectDetail } from "@/hooks/useProjectDetail";
 import { cn } from "@/lib/utils";
 
@@ -115,15 +114,6 @@ const ProjectLayout = () => {
             })}
           </div>
         </nav>
-
-        {/* Booking info – only on project overview */}
-        {booking && activeKey === "overview" && (
-          <BookingInfoExpanded
-            booking={booking}
-            projectLeader={project.project_leader}
-            bookingAttachments={detail.bookingAttachments}
-          />
-        )}
 
         {/* Sub-page content */}
         <Outlet context={detail} />

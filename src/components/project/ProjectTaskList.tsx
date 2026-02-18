@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { ProjectTask } from "@/types/project";
 import ProjectTaskItem from "./ProjectTaskItem";
 import AddTaskDialog from "./AddTaskDialog";
@@ -25,12 +26,14 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
   const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProjectTask | null>(null);
 
-  // Separate regular tasks from info-only tasks
   const regularTasks = tasks.filter(t => !t.is_info_only);
   const infoTasks = tasks.filter(t => t.is_info_only);
-  
   const incompleteTasks = regularTasks.filter(t => !t.completed);
   const completedTasks = regularTasks.filter(t => t.completed);
+
+  const totalRegular = regularTasks.length;
+  const doneCount = completedTasks.length;
+  const progress = totalRegular > 0 ? Math.round((doneCount / totalRegular) * 100) : 0;
 
   const handleToggleComplete = (task: ProjectTask) => {
     onUpdateTask({ id: task.id, updates: { completed: !task.completed } });
@@ -44,11 +47,8 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
   const handleMove = (taskList: ProjectTask[], index: number, direction: 'up' | 'down') => {
     const swapIndex = direction === 'up' ? index - 1 : index + 1;
     if (swapIndex < 0 || swapIndex >= taskList.length) return;
-
     const currentTask = taskList[index];
     const swapTask = taskList[swapIndex];
-
-    // Swap sort_order values
     onUpdateTask({ id: currentTask.id, updates: { sort_order: swapTask.sort_order } });
     onUpdateTask({ id: swapTask.id, updates: { sort_order: currentTask.sort_order } });
   };
@@ -76,39 +76,55 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
 
   return (
     <>
-      <Card className="border-border/40 shadow-2xl rounded-2xl">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <CardTitle className="tracking-tight">Uppgifter</CardTitle>
-          <Button size="sm" onClick={() => setIsAddOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Lägg till
+      <Card className="border-border/40 shadow-2xl rounded-2xl overflow-hidden">
+        {/* Compact header */}
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pt-3 pb-2">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <span className="text-sm font-semibold text-foreground tracking-tight">Uppgifter</span>
+            {totalRegular > 0 && (
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {doneCount}/{totalRegular}
+              </span>
+            )}
+          </div>
+          <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => setIsAddOpen(true)}>
+            <Plus className="h-4 w-4" />
           </Button>
         </CardHeader>
-        <CardContent className="p-0 pb-2">
+
+        {/* Progress bar */}
+        {totalRegular > 0 && (
+          <div className="px-4 pb-2">
+            <Progress
+              value={progress}
+              className="h-1.5 bg-muted/60"
+              indicatorClassName="bg-primary"
+            />
+          </div>
+        )}
+
+        <CardContent className="p-0 pb-1">
           {tasks.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8 px-6">
-              Inga uppgifter ännu. Klicka på "Lägg till" för att skapa en.
+            <p className="text-muted-foreground text-center text-xs py-6 px-4">
+              Inga uppgifter. Klicka på + för att skapa en.
             </p>
           ) : (
             <div className="divide-y divide-border/30">
-              {/* Incomplete tasks */}
               {incompleteTasks.map((task, i) => renderTaskItem(task, i, incompleteTasks))}
-              
-              {/* Info tasks (milestones) */}
+
               {infoTasks.length > 0 && (
                 <>
-                  <div className="px-4 pt-3 pb-1">
-                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Milstolpar</span>
+                  <div className="px-4 pt-2 pb-0.5">
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Milstolpar</span>
                   </div>
                   {infoTasks.map((task, i) => renderTaskItem(task, i, infoTasks))}
                 </>
               )}
-              
-              {/* Completed tasks */}
+
               {completedTasks.length > 0 && (
                 <>
-                  <div className="px-4 pt-3 pb-1">
-                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Klara ({completedTasks.length})</span>
+                  <div className="px-4 pt-2 pb-0.5">
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Klara ({completedTasks.length})</span>
                   </div>
                   {completedTasks.map((task, i) => renderTaskItem(task, i, completedTasks))}
                 </>
@@ -135,7 +151,6 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
         onDeleteTask={onDeleteTask}
       />
 
-      {/* Delete confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
