@@ -1,69 +1,22 @@
 
 ## Mål
-Placera bokningsinformationen och uppgiftslistan sida vid sida i en tvåkolumnslayout på projektvyn, och gör uppgiftswidgeten visuellt renare och mer kompakt.
+Reducera vertikalt utrymme i uppgiftslistan radikalt — kompaktare rader, mindre padding överallt, och eliminera onödig whitespace.
 
-## Nuläge
+## Ändringar
 
-Idag är layouten i `ProjectLayout.tsx`:
-```
-[BookingInfoExpanded]  ← full bredd
-[Outlet → ProjectViewPage]
-  [ProjectTaskList]    ← full bredd
-  [Transport]
-  [Filer]
-  [Kommentarer]
-  [Historik]
-```
+### `src/components/project/ProjectTaskItem.tsx`
+- `py-2.5` → `py-1` på varje rad (halverar radhöjden)
+- `px-3` → `px-2` för lite tätare horisontellt
+- Reorder-knapparna (`h-4 w-4`) är 8px höga men tar mer plats p.g.a. flex-col stackning — gör dem `h-3 w-3` och göm dem mer aggressivt
+- Checkbox `shrink-0` behålls men inget extra utrymme
+- `gap-2` → `gap-1.5` mellan element
 
-## Ny layout
+### `src/components/project/ProjectTaskList.tsx`
+- `CardHeader`: `pt-3 pb-2` → `pt-2 pb-1.5` — sparar 6–8px i toppen
+- Progress bar div: `pb-2` → `pb-1`
+- Sektionsrubriker (`px-4 pt-2 pb-0.5`) → `px-2 pt-1.5 pb-0` — extremt kompakt
+- `CardContent`: `pb-1` behålls
+- Empty state `py-6` → `py-4`
 
-```
-[Kolumn vänster – 60%]     [Kolumn höger – 40%]
- BookingInfoExpanded         Uppgifter (kompakt)
-                             Transport
-```
-
-Filer, kommentarer och historik förblir i full bredd under tvåkolumnslayouten.
-
-## Tekniska ändringar
-
-### 1. `src/pages/project/ProjectLayout.tsx`
-- Ta bort `BookingInfoExpanded` från layoutfilen (den flyttas ner till `ProjectViewPage`).
-
-### 2. `src/pages/project/ProjectViewPage.tsx`
-- Importera `BookingInfoExpanded` och läs `booking`, `bookingAttachments` och `projectLeader` från `detail`-kontexten.
-- Wrap toppen i en `grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6`:
-  - **Vänster kolumn**: `BookingInfoExpanded`
-  - **Höger kolumn**: Uppgiftswidgeten (kompakt ny design) + Transport-sektion
-- Filer, kommentarer och historik renderas under i full bredd (som idag).
-
-### 3. `src/components/project/ProjectTaskList.tsx` — kompakt design
-Gör uppgiftskortet visuellt snyggare och mindre:
-- Kompaktare `CardHeader` med mindre padding
-- Knapptext för "Lägg till" förkortas till en `+`-ikon utan text
-- Uppgiftsrader lite tätare (`py-2` istället för `py-2.5`)
-- Lägg till en liten progress-bar högst upp (klarade/totalt) för visuell feedback
-- Sektionsrubriker ("Klara", "Milstolpar") mer subtila
-
-## Visuell sketch
-
-```text
-┌────────────────────────────────┬──────────────────────┐
-│ BookingInfoExpanded            │ ✓ Uppgifter      [+] │
-│  (med utrustning och bilder)   │ ━━━━━━━━━━━░░ 5/8   │
-│                                │ □ Transportbokning   │
-│                                │ □ Riggschema klart   │
-│                                │ □ Personal bekräftad │
-│                                │ ─────────────────── │
-│                                │ □ Truck transport   │
-└────────────────────────────────┴──────────────────────┘
-  Filer | Kommentarer | Historik (full bredd)
-```
-
-## Filer att ändra
-
-| Fil | Ändring |
-|---|---|
-| `src/pages/project/ProjectLayout.tsx` | Ta bort `BookingInfoExpanded` från overview-blocket |
-| `src/pages/project/ProjectViewPage.tsx` | Tvåkolumnslayout med bokning + uppgifter sida vid sida |
-| `src/components/project/ProjectTaskList.tsx` | Kompaktare, snyggare design med progress-bar |
+## Resultat
+Varje uppgiftsrad går från ~40px → ~28px. Med 8 uppgifter sparas ~96px, vilket gör att listan tar markant mindre plats och bättre matchar bokningscontainerns höjd.
