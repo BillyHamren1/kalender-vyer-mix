@@ -4,20 +4,33 @@ export interface ProductCostData {
   id: string;
   name: string;
   quantity: number;
+  unitPrice: number;
+  totalRevenue: number;
+  assemblyCost: number;
+  handlingCost: number;
+  purchaseCost: number;
+  totalCost: number;
+  // Legacy editable fields (kept for backward compat)
   laborCost: number;
   materialCost: number;
   setupHours: number;
   externalCost: number;
   costNotes: string | null;
-  totalCost: number;
 }
 
 export interface ProductCostSummary {
+  totalRevenue: number;
+  assemblyCostTotal: number;
+  handlingCostTotal: number;
+  purchaseCostTotal: number;
+  totalProductCost: number;
+  grossMargin: number;
+  marginPct: number;
+  // Legacy
   laborCostTotal: number;
   materialCostTotal: number;
   setupHoursTotal: number;
   externalCostTotal: number;
-  totalProductCost: number;
   products: ProductCostData[];
 }
 
@@ -27,43 +40,59 @@ export interface ProductCostSummary {
 export const fetchProductCosts = async (bookingId: string): Promise<ProductCostSummary> => {
   const { data, error } = await supabase
     .from('booking_products')
-    .select('id, name, quantity, labor_cost, material_cost, setup_hours, external_cost, cost_notes')
+    .select('id, name, quantity, unit_price, total_price, assembly_cost, handling_cost, purchase_cost, labor_cost, material_cost, setup_hours, external_cost, cost_notes')
     .eq('booking_id', bookingId);
 
   if (error) throw error;
 
   const products: ProductCostData[] = (data || []).map((p: any) => {
-    const laborCost = Number(p.labor_cost) || 0;
-    const materialCost = Number(p.material_cost) || 0;
-    const setupHours = Number(p.setup_hours) || 0;
-    const externalCost = Number(p.external_cost) || 0;
-    const totalCost = laborCost + materialCost + externalCost;
+    const unitPrice = Number(p.unit_price) || 0;
+    const totalRevenue = Number(p.total_price) || 0;
+    const assemblyCost = Number(p.assembly_cost) || 0;
+    const handlingCost = Number(p.handling_cost) || 0;
+    const purchaseCost = Number(p.purchase_cost) || 0;
+    const totalCost = assemblyCost + handlingCost + purchaseCost;
 
     return {
       id: p.id,
       name: p.name,
       quantity: p.quantity || 1,
-      laborCost,
-      materialCost,
-      setupHours,
-      externalCost,
+      unitPrice,
+      totalRevenue,
+      assemblyCost,
+      handlingCost,
+      purchaseCost,
+      totalCost,
+      // Legacy fields
+      laborCost: Number(p.labor_cost) || 0,
+      materialCost: Number(p.material_cost) || 0,
+      setupHours: Number(p.setup_hours) || 0,
+      externalCost: Number(p.external_cost) || 0,
       costNotes: p.cost_notes || null,
-      totalCost
     };
   });
 
-  const laborCostTotal = products.reduce((sum, p) => sum + p.laborCost, 0);
-  const materialCostTotal = products.reduce((sum, p) => sum + p.materialCost, 0);
-  const setupHoursTotal = products.reduce((sum, p) => sum + p.setupHours, 0);
-  const externalCostTotal = products.reduce((sum, p) => sum + p.externalCost, 0);
-  const totalProductCost = laborCostTotal + materialCostTotal + externalCostTotal;
+  const totalRevenue = products.reduce((sum, p) => sum + p.totalRevenue, 0);
+  const assemblyCostTotal = products.reduce((sum, p) => sum + p.assemblyCost, 0);
+  const handlingCostTotal = products.reduce((sum, p) => sum + p.handlingCost, 0);
+  const purchaseCostTotal = products.reduce((sum, p) => sum + p.purchaseCost, 0);
+  const totalProductCost = assemblyCostTotal + handlingCostTotal + purchaseCostTotal;
+  const grossMargin = totalRevenue - totalProductCost;
+  const marginPct = totalRevenue > 0 ? Math.round((grossMargin / totalRevenue) * 100) : 0;
 
   return {
-    laborCostTotal,
-    materialCostTotal,
-    setupHoursTotal,
-    externalCostTotal,
+    totalRevenue,
+    assemblyCostTotal,
+    handlingCostTotal,
+    purchaseCostTotal,
     totalProductCost,
+    grossMargin,
+    marginPct,
+    // Legacy
+    laborCostTotal: products.reduce((sum, p) => sum + p.laborCost, 0),
+    materialCostTotal: products.reduce((sum, p) => sum + p.materialCost, 0),
+    setupHoursTotal: products.reduce((sum, p) => sum + p.setupHours, 0),
+    externalCostTotal: products.reduce((sum, p) => sum + p.externalCost, 0),
     products
   };
 };
@@ -102,7 +131,6 @@ export const batchUpdateProductCosts = async (
     cost_notes?: string | null;
   }>
 ): Promise<void> => {
-  // Supabase doesn't support batch updates directly, so we use Promise.all
   await Promise.all(
     updates.map(({ id, ...costs }) =>
       supabase.from('booking_products').update(costs).eq('id', id)

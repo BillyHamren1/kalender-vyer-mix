@@ -1,10 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Pencil, Save, X, Package, ChevronDown, ChevronRight } from 'lucide-react';
-import { toast } from 'sonner';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Package, ChevronDown, ChevronRight } from 'lucide-react';
 import type { ProductCostData, ProductCostSummary } from '@/services/productCostService';
 
 interface ProductCostsCardProps {
@@ -24,37 +20,26 @@ interface ProductGroup {
   children: ProductCostData[];
 }
 
-const isAccessory = (name: string): boolean => {
-  return name.startsWith('└') || 
-         name.startsWith('↳') || 
-         name.startsWith('L,') || 
-         name.startsWith('└,') ||
-         name.startsWith('  ↳') ||
-         name.startsWith('  └') ||
-         name.startsWith('⦿');
-};
+const isChild = (name: string): boolean =>
+  /^\s{2,}/.test(name) || /^[↳└⦿L,]/.test(name.trim());
 
-const cleanName = (name: string): string => {
-  return name.replace(/^[↳└⦿\s,L]+/, '').trim();
-};
+const cleanName = (name: string): string =>
+  name.replace(/^[\s↳└⦿L,\-–]+/, '').trim();
 
-export const ProductCostsCard = ({ productCosts, onUpdateCost, isLoading }: ProductCostsCardProps) => {
-  const [editingId, setEditingId] = useState<string | null>(null);
+const fmt = (v: number) =>
+  v === 0 ? '0' : v.toLocaleString('sv-SE');
+
+const getMarginColor = (pct: number) =>
+  pct >= 50 ? 'text-green-600' : pct >= 30 ? 'text-yellow-600' : 'text-red-500';
+
+export const ProductCostsCard = ({ productCosts }: ProductCostsCardProps) => {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const [editValues, setEditValues] = useState<{
-    labor_cost: number;
-    material_cost: number;
-    setup_hours: number;
-    external_cost: number;
-  }>({ labor_cost: 0, material_cost: 0, setup_hours: 0, external_cost: 0 });
 
-  // Group products by parent/child relationship
   const groupedProducts = useMemo((): ProductGroup[] => {
     const groups: ProductGroup[] = [];
     let currentGroup: ProductGroup | null = null;
-
     for (const product of productCosts.products) {
-      if (!isAccessory(product.name)) {
+      if (!isChild(product.name)) {
         if (currentGroup) groups.push(currentGroup);
         currentGroup = { parent: product, children: [] };
       } else if (currentGroup) {
@@ -65,49 +50,12 @@ export const ProductCostsCard = ({ productCosts, onUpdateCost, isLoading }: Prod
     return groups;
   }, [productCosts.products]);
 
-  const formatCurrency = (amount: number) => {
-    return `${amount.toLocaleString('sv-SE')} kr`;
-  };
-
-  const handleStartEdit = (product: ProductCostData) => {
-    setEditingId(product.id);
-    setEditValues({
-      labor_cost: product.laborCost,
-      material_cost: product.materialCost,
-      setup_hours: product.setupHours,
-      external_cost: product.externalCost
-    });
-  };
-
-  const handleCancelEdit = () => {
-    setEditingId(null);
-    setEditValues({ labor_cost: 0, material_cost: 0, setup_hours: 0, external_cost: 0 });
-  };
-
-  const handleSave = async () => {
-    if (!editingId) return;
-    try {
-      await onUpdateCost(editingId, editValues);
-      toast.success('Kostnad uppdaterad');
-      setEditingId(null);
-    } catch {
-      toast.error('Kunde inte uppdatera kostnad');
-    }
-  };
-
-  const toggleGroup = (groupId: string) => {
+  const toggleGroup = (id: string) => {
     setExpandedGroups(prev => {
       const next = new Set(prev);
-      if (next.has(groupId)) next.delete(groupId);
-      else next.add(groupId);
+      next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-  };
-
-  const calculateGroupTotal = (group: ProductGroup): number => {
-    const parentTotal = group.parent.totalCost;
-    const childrenTotal = group.children.reduce((sum, c) => sum + c.totalCost, 0);
-    return parentTotal + childrenTotal;
   };
 
   if (productCosts.products.length === 0) {
@@ -126,168 +74,143 @@ export const ProductCostsCard = ({ productCosts, onUpdateCost, isLoading }: Prod
     );
   }
 
-  const renderProductRow = (product: ProductCostData, isChild: boolean = false) => {
-    const isEditing = editingId === product.id;
-    
-    if (isEditing) {
-      return (
-        <div key={product.id} className={`flex items-center gap-2 py-1 ${isChild ? 'pl-4 text-xs' : 'text-sm'}`}>
-          <span className="flex-1 truncate text-muted-foreground">{cleanName(product.name)}</span>
-          <Input
-            type="number"
-            value={editValues.labor_cost}
-            onChange={(e) => setEditValues(prev => ({ ...prev, labor_cost: Number(e.target.value) }))}
-            className="w-16 h-6 text-xs text-right"
-            placeholder="Arb"
-          />
-          <Input
-            type="number"
-            value={editValues.material_cost}
-            onChange={(e) => setEditValues(prev => ({ ...prev, material_cost: Number(e.target.value) }))}
-            className="w-16 h-6 text-xs text-right"
-            placeholder="Mat"
-          />
-          <Input
-            type="number"
-            value={editValues.external_cost}
-            onChange={(e) => setEditValues(prev => ({ ...prev, external_cost: Number(e.target.value) }))}
-            className="w-16 h-6 text-xs text-right"
-            placeholder="Ext"
-          />
-          <span className="w-16 text-right text-xs font-medium">
-            {formatCurrency(editValues.labor_cost + editValues.material_cost + editValues.external_cost)}
-          </span>
-          <Button size="icon" variant="ghost" className="h-5 w-5" onClick={handleSave}>
-            <Save className="h-3 w-3" />
-          </Button>
-          <Button size="icon" variant="ghost" className="h-5 w-5" onClick={handleCancelEdit}>
-            <X className="h-3 w-3" />
-          </Button>
-        </div>
-      );
-    }
-
+  const renderChildRow = (product: ProductCostData) => {
+    const rev = product.totalRevenue;
+    const cost = product.totalCost;
+    const pct = rev > 0 ? Math.round(((rev - cost) / rev) * 100) : 0;
     return (
-      <div key={product.id} className={`flex items-center gap-2 py-0.5 ${isChild ? 'pl-4 text-xs text-muted-foreground' : 'text-xs'}`}>
-        <span className="w-6 text-right text-muted-foreground">{product.quantity}×</span>
-        <span className="flex-1 truncate" title={product.name}>{cleanName(product.name)}</span>
-        <span className="w-14 text-right text-muted-foreground">{formatCurrency(product.laborCost)}</span>
-        <span className="w-14 text-right text-muted-foreground">{formatCurrency(product.materialCost)}</span>
-        <span className="w-14 text-right text-muted-foreground">{formatCurrency(product.externalCost)}</span>
-        <span className="w-14 text-right font-medium">{formatCurrency(product.totalCost)}</span>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-5 w-5 opacity-50 hover:opacity-100"
-          onClick={() => handleStartEdit(product)}
-          disabled={isLoading}
-        >
-          <Pencil className="h-3 w-3" />
-        </Button>
-      </div>
+      <tr key={product.id} className="border-b border-border/20 bg-muted/10">
+        <td className="py-1.5 pr-3 pl-6 text-xs text-muted-foreground">
+          <span className="mr-1 opacity-50">└</span>
+          {cleanName(product.name)}
+        </td>
+        <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{product.quantity}</td>
+        <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(product.unitPrice)}</td>
+        <td className="py-1.5 px-2 text-right text-xs">{fmt(rev)}</td>
+        <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(product.assemblyCost)}</td>
+        <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(product.handlingCost)}</td>
+        <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(product.purchaseCost)}</td>
+        <td className="py-1.5 px-2 text-right text-xs font-medium">{fmt(cost)}</td>
+        <td className={`py-1.5 pl-2 text-right text-xs font-semibold ${getMarginColor(pct)}`}>
+          {rev > 0 ? `${pct}%` : <span className="text-muted-foreground">–</span>}
+        </td>
+      </tr>
     );
   };
 
+  const renderGroupRows = (group: ProductGroup) => {
+    const hasChildren = group.children.length > 0;
+    const isExpanded = expandedGroups.has(group.parent.id);
+    const allItems = [group.parent, ...group.children];
+    const groupRev = allItems.reduce((s, p) => s + p.totalRevenue, 0);
+    const groupCost = allItems.reduce((s, p) => s + p.totalCost, 0);
+    const groupPct = groupRev > 0 ? Math.round(((groupRev - groupCost) / groupRev) * 100) : 0;
+    const groupAssembly = allItems.reduce((s, p) => s + p.assemblyCost, 0);
+    const groupHandling = allItems.reduce((s, p) => s + p.handlingCost, 0);
+    const groupPurchase = allItems.reduce((s, p) => s + p.purchaseCost, 0);
+
+    const parentRow = (
+      <tr
+        key={group.parent.id}
+        className={`border-b border-border/40 ${hasChildren ? 'cursor-pointer hover:bg-muted/30' : 'hover:bg-muted/20'}`}
+        onClick={hasChildren ? () => toggleGroup(group.parent.id) : undefined}
+      >
+        <td className="py-2 pr-3">
+          <span className="flex items-center gap-1.5 text-sm font-medium">
+            {hasChildren && (
+              isExpanded
+                ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            )}
+            {!hasChildren && <span className="w-3.5 inline-block" />}
+            {cleanName(group.parent.name)}
+          </span>
+        </td>
+        <td className="py-2 px-2 text-right text-sm">{group.parent.quantity}</td>
+        <td className="py-2 px-2 text-right text-sm">{fmt(group.parent.unitPrice)}</td>
+        <td className="py-2 px-2 text-right text-sm font-medium">{fmt(groupRev)}</td>
+        <td className="py-2 px-2 text-right text-sm">{fmt(groupAssembly)}</td>
+        <td className="py-2 px-2 text-right text-sm">{fmt(groupHandling)}</td>
+        <td className="py-2 px-2 text-right text-sm">{fmt(groupPurchase)}</td>
+        <td className="py-2 px-2 text-right text-sm font-medium">{fmt(groupCost)}</td>
+        <td className={`py-2 pl-2 text-right text-sm font-semibold ${getMarginColor(groupPct)}`}>
+          {groupRev > 0 ? `${groupPct}%` : <span className="text-muted-foreground">–</span>}
+        </td>
+      </tr>
+    );
+
+    return [
+      parentRow,
+      ...(hasChildren && isExpanded ? group.children.map(renderChildRow) : [])
+    ];
+  };
+
+  const { totalRevenue, assemblyCostTotal, handlingCostTotal, purchaseCostTotal, totalProductCost, marginPct } = productCosts;
+  const grossMargin = totalRevenue - totalProductCost;
+
   return (
     <Card>
-      <CardHeader className="py-3">
+      <CardHeader className="py-3 pb-0">
         <CardTitle className="flex items-center gap-2 text-base">
           <Package className="h-4 w-4" />
           Produktkostnader
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-0 space-y-3">
-        {/* Summary row */}
-        <div className="grid grid-cols-4 gap-2 p-2 bg-muted/50 rounded text-center text-xs">
-          <div>
-            <span className="text-muted-foreground">Arbete</span>
-            <p className="font-semibold">{formatCurrency(productCosts.laborCostTotal)}</p>
+      <CardContent className="pt-3 space-y-3">
+
+        {/* KPI header — matches bild 2 */}
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-1 border-b pb-3">
+          <div className="text-sm">
+            <span className="text-muted-foreground">Intäkter </span>
+            <span className="font-bold">{fmt(totalRevenue)} kr</span>
           </div>
-          <div>
-            <span className="text-muted-foreground">Material</span>
-            <p className="font-semibold">{formatCurrency(productCosts.materialCostTotal)}</p>
+          <div className="text-sm">
+            <span className="text-muted-foreground">Kostnader </span>
+            <span className="font-bold">{fmt(totalProductCost)} kr</span>
           </div>
-          <div>
-            <span className="text-muted-foreground">Externa</span>
-            <p className="font-semibold">{formatCurrency(productCosts.externalCostTotal)}</p>
+          <div className="text-sm">
+            <span className="text-muted-foreground">Marginal </span>
+            <span className="font-bold">{fmt(grossMargin)} kr</span>
           </div>
-          <div>
-            <span className="text-muted-foreground">Totalt</span>
-            <p className="font-bold text-primary">{formatCurrency(productCosts.totalProductCost)}</p>
+          <div className="text-sm ml-auto">
+            <span className="text-muted-foreground">Marginal % </span>
+            <span className={`font-bold ${getMarginColor(marginPct)}`}>{marginPct}%</span>
           </div>
         </div>
 
-        {/* Header row */}
-        <div className="flex items-center gap-2 text-[10px] text-muted-foreground border-b pb-1">
-          <span className="w-6"></span>
-          <span className="flex-1">Produkt</span>
-          <span className="w-14 text-right">Arbete</span>
-          <span className="w-14 text-right">Material</span>
-          <span className="w-14 text-right">Externa</span>
-          <span className="w-14 text-right">Totalt</span>
-          <span className="w-5"></span>
-        </div>
-
-        {/* Grouped products */}
-        <div className="space-y-1 max-h-[400px] overflow-y-auto">
-          {groupedProducts.map(group => {
-            const hasChildren = group.children.length > 0;
-            const isExpanded = expandedGroups.has(group.parent.id);
-            const groupTotal = calculateGroupTotal(group);
-
-            if (!hasChildren) {
-              return renderProductRow(group.parent, false);
-            }
-
-            return (
-              <Collapsible 
-                key={group.parent.id} 
-                open={isExpanded} 
-                onOpenChange={() => toggleGroup(group.parent.id)}
-              >
-                <CollapsibleTrigger className="w-full">
-                  <div className="flex items-center gap-2 py-1 hover:bg-muted/50 rounded text-xs">
-                    {isExpanded ? (
-                      <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
-                    ) : (
-                      <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                    )}
-                    <span className="w-5 text-right text-muted-foreground">{group.parent.quantity}×</span>
-                    <span className="flex-1 text-left font-medium truncate">{cleanName(group.parent.name)}</span>
-                    <span className="text-[10px] text-muted-foreground bg-muted px-1 rounded">
-                      +{group.children.length}
-                    </span>
-                    <span className="w-14 text-right font-semibold">{formatCurrency(groupTotal)}</span>
-                    <span className="w-5"></span>
-                  </div>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <div className="ml-3 border-l border-muted pl-2 space-y-0">
-                    {/* Parent product details */}
-                    <div className="flex items-center gap-2 py-0.5 text-xs text-muted-foreground">
-                      <span className="w-6"></span>
-                      <span className="flex-1 italic">Huvudprodukt</span>
-                      <span className="w-14 text-right">{formatCurrency(group.parent.laborCost)}</span>
-                      <span className="w-14 text-right">{formatCurrency(group.parent.materialCost)}</span>
-                      <span className="w-14 text-right">{formatCurrency(group.parent.externalCost)}</span>
-                      <span className="w-14 text-right">{formatCurrency(group.parent.totalCost)}</span>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-5 w-5 opacity-50 hover:opacity-100"
-                        onClick={(e) => { e.stopPropagation(); handleStartEdit(group.parent); }}
-                        disabled={isLoading}
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </Button>
-                    </div>
-                    {/* Children */}
-                    {group.children.map(child => renderProductRow(child, true))}
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-            );
-          })}
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[700px]">
+            <thead>
+              <tr className="border-b text-xs text-muted-foreground">
+                <th className="text-left py-2 pr-3 font-medium">Produkt</th>
+                <th className="text-right py-2 px-2 font-medium">Antal</th>
+                <th className="text-right py-2 px-2 font-medium">Pris/st</th>
+                <th className="text-right py-2 px-2 font-medium">Totalt</th>
+                <th className="text-right py-2 px-2 font-medium">Montage/st</th>
+                <th className="text-right py-2 px-2 font-medium">Lagerkostnad</th>
+                <th className="text-right py-2 px-2 font-medium">Inköp/st</th>
+                <th className="text-right py-2 px-2 font-medium">Kostn. totalt</th>
+                <th className="text-right py-2 pl-2 font-medium">Marginal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groupedProducts.flatMap(group => renderGroupRows(group))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 text-sm font-semibold">
+                <td className="py-2.5 pr-3">Totalt</td>
+                <td className="py-2.5 px-2" />
+                <td className="py-2.5 px-2" />
+                <td className="py-2.5 px-2 text-right">{fmt(totalRevenue)}</td>
+                <td className="py-2.5 px-2 text-right">{fmt(assemblyCostTotal)}</td>
+                <td className="py-2.5 px-2 text-right">{fmt(handlingCostTotal)}</td>
+                <td className="py-2.5 px-2 text-right">{fmt(purchaseCostTotal)}</td>
+                <td className="py-2.5 px-2 text-right">{fmt(totalProductCost)}</td>
+                <td className={`py-2.5 pl-2 text-right ${getMarginColor(marginPct)}`}>{marginPct}%</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </CardContent>
     </Card>
