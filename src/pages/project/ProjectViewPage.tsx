@@ -109,15 +109,17 @@ const ProjectViewPage = () => {
         />
       </section>
 
-      <section>
-        <SectionHeader icon={MessageSquare} title="Kommentarer" count={comments.length} />
-        <ProjectComments comments={comments} onAddComment={detail.addComment} />
-      </section>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <section>
+          <SectionHeader icon={MessageSquare} title="Kommentarer" count={comments.length} />
+          <ProjectComments comments={comments} onAddComment={detail.addComment} />
+        </section>
 
-      <section>
-        <SectionHeader icon={History} title="Historik" count={activities.length} />
-        <ProjectActivityLog activities={activities} />
-      </section>
+        <section>
+          <SectionHeader icon={History} title="Historik" count={activities.length} />
+          <ProjectActivityLog activities={activities} />
+        </section>
+      </div>
 
       {/* Task detail sheet */}
       <TaskDetailSheet
