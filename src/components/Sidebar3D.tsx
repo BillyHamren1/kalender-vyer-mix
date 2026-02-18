@@ -210,7 +210,9 @@ export function Sidebar3D() {
                 gap: isCollapsed ? 0 : 8,
                 cursor: "pointer",
                 transition: "background 150ms",
-                justifyContent: isCollapsed ? "center" : undefined,
+                justifyContent: isCollapsed ? "center" : "flex-start",
+                textAlign: "left",
+                boxSizing: "border-box",
               };
 
               const iconStyle: React.CSSProperties = {
