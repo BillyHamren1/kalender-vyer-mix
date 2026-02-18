@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Plus } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,8 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProjectTask | null>(null);
+  const [quickAddValue, setQuickAddValue] = useState("");
+  const quickAddRef = useRef<HTMLInputElement>(null);
 
   const regularTasks = tasks.filter(t => !t.is_info_only);
   const infoTasks = tasks.filter(t => t.is_info_only);
@@ -44,13 +46,8 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
     setSelectedTask(task);
   };
 
-  const handleMove = (taskList: ProjectTask[], index: number, direction: 'up' | 'down') => {
-    const swapIndex = direction === 'up' ? index - 1 : index + 1;
-    if (swapIndex < 0 || swapIndex >= taskList.length) return;
-    const currentTask = taskList[index];
-    const swapTask = taskList[swapIndex];
-    onUpdateTask({ id: currentTask.id, updates: { sort_order: swapTask.sort_order } });
-    onUpdateTask({ id: swapTask.id, updates: { sort_order: currentTask.sort_order } });
+  const handleRenameTask = (id: string, title: string) => {
+    onUpdateTask({ id, updates: { title } });
   };
 
   const handleConfirmDelete = () => {
@@ -60,6 +57,14 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
     }
   };
 
+  const handleQuickAdd = () => {
+    const trimmed = quickAddValue.trim();
+    if (!trimmed) return;
+    onAddTask({ title: trimmed });
+    setQuickAddValue("");
+    quickAddRef.current?.focus();
+  };
+
   const renderTaskItem = (task: ProjectTask, index: number, list: ProjectTask[]) => (
     <ProjectTaskItem
       key={task.id}
@@ -67,8 +72,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
       onToggle={() => handleToggleComplete(task)}
       onClick={() => handleClick(task)}
       onDelete={() => setDeleteTarget(task)}
-      onMoveUp={() => handleMove(list, index, 'up')}
-      onMoveDown={() => handleMove(list, index, 'down')}
+      onRenameTask={handleRenameTask}
       isFirst={index === 0}
       isLast={index === list.length - 1}
     />
@@ -103,13 +107,13 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
           </div>
         )}
 
-        <CardContent className="p-0 pb-1 flex-1 overflow-y-auto">
+        <CardContent className="p-0 pb-1 flex-1 overflow-y-auto flex flex-col">
           {tasks.length === 0 ? (
             <p className="text-muted-foreground text-center text-xs py-4 px-4">
-              Inga uppgifter. Klicka på + för att skapa en.
+              Inga uppgifter ännu.
             </p>
           ) : (
-            <div className="divide-y divide-border/30">
+            <div className="divide-y divide-border/30 flex-1">
               {incompleteTasks.map((task, i) => renderTaskItem(task, i, incompleteTasks))}
 
               {infoTasks.length > 0 && (
@@ -131,6 +135,29 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
               )}
             </div>
           )}
+
+          {/* Quick add row */}
+          <div className="flex items-center gap-2 px-3 py-2 border-t border-border/20 mt-auto">
+            <Plus className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <input
+              ref={quickAddRef}
+              value={quickAddValue}
+              onChange={(e) => setQuickAddValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleQuickAdd();
+              }}
+              placeholder="Lägg till uppgift..."
+              className="flex-1 text-sm bg-transparent outline-none placeholder:text-muted-foreground text-foreground"
+            />
+            {quickAddValue.trim() && (
+              <button
+                onClick={handleQuickAdd}
+                className="text-xs text-primary font-medium hover:opacity-80 transition-opacity"
+              >
+                Lägg till
+              </button>
+            )}
+          </div>
         </CardContent>
 
         <AddTaskDialog
