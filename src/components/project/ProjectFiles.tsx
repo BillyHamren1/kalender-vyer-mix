@@ -1,19 +1,29 @@
 import { useRef } from "react";
-import { Upload, File, FileText, Image, Trash2, Download, Loader2 } from "lucide-react";
+import { Upload, File, FileText, Image, Trash2, Download, Loader2, ImageIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ProjectFile } from "@/types/project";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 
+interface BookingAttachment {
+  id: string;
+  booking_id: string;
+  url: string;
+  file_name: string | null;
+  file_type: string | null;
+  uploaded_at: string;
+}
+
 interface ProjectFilesProps {
   files: ProjectFile[];
   onUpload: (data: { file: File; uploadedBy?: string }) => void;
   onDelete: (data: { id: string; url: string }) => void;
   isUploading: boolean;
+  bookingAttachments?: BookingAttachment[];
 }
 
-const ProjectFiles = ({ files, onUpload, onDelete, isUploading }: ProjectFilesProps) => {
+const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachments = [] }: ProjectFilesProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -29,6 +39,13 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading }: ProjectFilesPr
     if (fileType?.includes('pdf') || fileType?.includes('document')) return FileText;
     return File;
   };
+
+  // Deduplicate and filter to images only
+  const imageAttachments = bookingAttachments
+    .filter((a, idx, arr) => arr.findIndex(x => x.url === a.url) === idx)
+    .filter(a =>
+      a.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(a.url)
+    );
 
   return (
     <Card className="border-border/40 shadow-2xl rounded-2xl">
@@ -127,6 +144,34 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading }: ProjectFilesPr
             </div>
           )}
         </div>
+
+        {/* Booking images */}
+        {imageAttachments.length > 0 && (
+          <div className="border-t border-border/40 pt-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-primary/10">
+                <ImageIcon className="h-4 w-4 text-primary" />
+              </div>
+              <span className="text-sm font-semibold text-foreground tracking-tight">Bilder från bokning</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {imageAttachments.map(img => (
+                <a key={img.id} href={img.url} target="_blank" rel="noopener noreferrer" className="block group">
+                  <div className="relative aspect-video rounded-xl overflow-hidden bg-muted border border-border/40">
+                    <img
+                      src={img.url}
+                      alt={img.file_name || "Bild"}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                    />
+                  </div>
+                  {img.file_name && (
+                    <p className="text-xs text-muted-foreground mt-1 truncate">{img.file_name}</p>
+                  )}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
 
       </CardContent>
     </Card>
