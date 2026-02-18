@@ -49,9 +49,10 @@ export const fetchProductCosts = async (bookingId: string): Promise<ProductCostS
   const products: ProductCostData[] = (data || []).map((p: any) => {
     const unitPrice = Number(p.unit_price) || 0;
     const totalRevenue = Number(p.total_price) || 0;
-    const assemblyCost = Number(p.assembly_cost) || 0;
-    const handlingCost = Number(p.handling_cost) || 0;
-    const purchaseCost = Number(p.purchase_cost) || 0;
+    const quantity = p.quantity || 1;
+    const assemblyCost = (Number(p.assembly_cost) || 0) * quantity;
+    const handlingCost = (Number(p.handling_cost) || 0) * quantity;
+    const purchaseCost = (Number(p.purchase_cost) || 0) * quantity;
     const totalCost = assemblyCost + handlingCost + purchaseCost;
 
     return {
