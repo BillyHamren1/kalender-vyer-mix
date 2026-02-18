@@ -62,7 +62,7 @@ const ProjectViewPage = () => {
       />
 
       {/* Two-column layout: Booking info + Tasks & Transport */}
-      <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6 items-stretch">
         {/* Left: Booking info */}
         {booking && (
           <BookingInfoExpanded
@@ -73,7 +73,7 @@ const ProjectViewPage = () => {
         )}
 
         {/* Right: Tasks + Transport */}
-        <div className="space-y-4">
+        <div className="flex flex-col gap-4">
           <ProjectTaskList
             tasks={tasks}
             onAddTask={detail.addTask}
