@@ -20,7 +20,7 @@ interface ProjectProductsListProps {
   bookingId: string;
 }
 
-const cleanName = (name: string) => name.replace(/^[↳└L,\-–]+\s*/, "");
+const cleanName = (name: string) => name.replace(/^[\u21B3\u2514\u2192\u2713L,\-–\s↳└→]+\s*/, "").trim();
 
 const ProjectProductsList = ({ bookingId }: ProjectProductsListProps) => {
   const { data: products = [], isLoading } = useQuery({
