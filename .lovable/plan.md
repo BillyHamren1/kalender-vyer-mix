@@ -1,69 +1,73 @@
 
-## Problem: Duplicerade bilder i bokningsvyn
+## Problemet: economics_data är NULL för alla bokningar
 
-### Rotkorsaken
+### Rotkorsaken — tre samverkande brister
 
-Varje import-körning anropar **två separata bildfunktioner** — `syncProductImages` och `syncFilesMetadata`/`syncTentImages` — och de körs sekventiellt utan att dela ett gemensamt `seenUrls`-set.
+**1. Kolumnen är ny, datan är gammal**
+`economics_data`-kolonnen lades till i databasen och edge-funktionen uppdaterades för att spara den — men alla 17 befintliga bokningar hade redan importerats. Ingen återimport triggades → alla har `economics_data = NULL`.
 
-Resultatet: `syncFilesMetadata` hämtar existerande attachments från databasen, men vid det laget har `syncProductImages` precis INSERT:at nya rader — som ännu inte återspeglas i den hämtning som gjordes i början av `syncFilesMetadata`. Dedupliceringslogiken missar dem alltså.
-
-Databas-bevis: Exakt 2 rader per bild med identisk URL, vilket stämmer perfekt med ett sekventiellt dubbeltkall.
-
+**2. `hasBookingChanged()` ignorerar economics_data**
+Ändringskontrollfunktionen jämför bara dessa fält:
 ```
-syncProductImages()        → hämtar befintliga, ser inga bilder, INSERT:ar 6 bilder
-syncFilesMetadata()        → hämtar befintliga (DB-read BEFORE commit syncs?), ser inte de 6, INSERT:ar 6 till
-                           → 12 rader totalt, exakt 2x per bild
+client, rigdaydate, eventdate, rigdowndate, deliveryaddress,
+delivery_city, delivery_postal_code, status, booking_number,
+assigned_project_id, assigned_project_name, assigned_to_project
 ```
+`economics_data` ingår inte. Även om API:et skickar economics-data för en befintlig bokning detekteras ingen förändring → bokningen skippas (`continue`) och `economics_data` skrivs aldrig.
 
-### Lösning: Gemensam deduplicering
-
-**En samlad funktion `syncAllAttachments`** som:
-1. Hämtar **alla** befintliga bilder för bokningen **en gång**
-2. Bygger ett **gemensamt** `seenUrls`-set
-3. Processar `products[]` och `files_metadata[]` i **samma anrop** mot detta delade set
-4. Gör bara ett INSERT per unik URL, oavsett källa
-
+**3. Skippade bokningar uppdateras aldrig**
 ```typescript
-async function syncAllAttachments(supabase, bookingId, products, filesMetadata, tentImages, results) {
-  // Hämta befintliga URLS en gång
-  const { data: existing } = await supabase
-    .from('booking_attachments')
-    .select('url')
-    .eq('booking_id', bookingId);
-  
-  const seenUrls = new Set(existing?.map(a => a.url) ?? []);
-  
-  // Bearbeta produktbilder + files_metadata/tent_images mot SAMMA set
-  ...
+if (!hasChanged && !statusChanged && ...) {
+  // Sync attachments
+  results.unchanged_bookings_skipped.push(bookingData.id)
+  continue; // ← economics_data skrivs ALDRIG
 }
 ```
 
-Alla 6 anropsplatser i edge-funktionen ersätts med ett anrop till den nya kombinerade funktionen.
+### Lösningen — tre åtgärder
 
-### Städa upp befintlig data
-
-Befintliga duplikat i databasen tas bort med en SQL-query som behåller den äldsta raden per unik URL:
-
-```sql
-DELETE FROM booking_attachments
-WHERE id IN (
-  SELECT id FROM (
-    SELECT id, ROW_NUMBER() OVER (
-      PARTITION BY booking_id, url ORDER BY created_at ASC
-    ) AS rn
-    FROM booking_attachments
-  ) sub
-  WHERE rn > 1
-);
+**Åtgärd 1: Lägg till economics_data i hasBookingChanged()**
+Så att framtida imports detekterar när economics-data tillkommer eller ändras:
+```typescript
+// Kolla om economics_data saknas i befintlig bokning men finns i extern data
+if (externalBooking.economics_data && !existingBooking.economics_data) {
+  return true; // Markera som förändrad
+}
 ```
+
+**Åtgärd 2: Uppdatera economics_data även för "unchanged" bokningar som saknar den**
+I den skippade-grenen, lägg till en check:
+```typescript
+if (!hasChanged && !statusChanged && ...) {
+  // Om economics_data saknas men finns i API-svaret → uppdatera bara den
+  if (!existingBooking.economics_data && bookingData.economics_data) {
+    await supabase.from('bookings')
+      .update({ economics_data: bookingData.economics_data })
+      .eq('id', existingBooking.id);
+  }
+  await syncAllAttachments(...);
+  results.unchanged_bookings_skipped.push(bookingData.id)
+  continue;
+}
+```
+
+**Åtgärd 3: SQL-patch för befintliga bokningar**
+Eftersom 0 av 17 bokningar har economics_data och datan finns i API:et behöver vi trigga en re-import. Det enklaste: lägg till en "force economics backfill"-logik som alltid uppdaterar `economics_data` om den är null, oavsett om bokningen i övrigt är oförändrad.
+
+Alternativt: kör direkt `UPDATE bookings SET economics_data = NULL WHERE true` är onödigt — datan finns inte ens i DB. Lösningen är edge-funktionen som skriver den vid nästa import.
+
+### UI-problemet — kortet visas inte ens om data saknas
+
+I `BookingDetailContent.tsx`:
+```tsx
+{booking.economics && <BookingEconomicsCard economics={booking.economics} />}
+```
+Detta är korrekt beteende — kortet ska bara visas om data finns. Problemet är att data aldrig importerades.
 
 ### Filer att ändra
 
-1. **`supabase/functions/import-bookings/index.ts`**
-   - Ta bort `syncProductImages`, `syncFilesMetadata`, `syncTentImages` (3 separata funktioner)
-   - Lägg till ny samlad `syncAllAttachments` med delat `seenUrls`-set
-   - Uppdatera alla 6 anropsplatser att använda den nya funktionen
+| Fil | Förändring |
+|-----|-----------|
+| `supabase/functions/import-bookings/index.ts` | 1) Lägg till `economics_data`-check i `hasBookingChanged()` · 2) Backfill economics_data i skip-grenen om den saknas |
 
-2. **Databasmigration** — rensa befintliga duplikat med `DELETE ... WHERE rn > 1`
-
-Ingen UI-ändring krävs — bilder visas redan korrekt, det blir bara rätt antal av dem.
+Det är **bara edge-funktionen** som behöver ändras. Ingen UI-ändring. Efter deploy räcker det att trigga en import för att alla bokningar ska få sin `economics_data` fylld.
