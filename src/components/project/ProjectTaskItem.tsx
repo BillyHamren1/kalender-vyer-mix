@@ -20,9 +20,10 @@ interface ProjectTaskItemProps {
   commentCount?: number;
   isFirst?: boolean;
   isLast?: boolean;
+  isSelected?: boolean;
 }
 
-const ProjectTaskItem = ({ task, onToggle, onClick, onDelete, onRenameTask, commentCount = 0 }: ProjectTaskItemProps) => {
+const ProjectTaskItem = ({ task, onToggle, onClick, onDelete, onRenameTask, commentCount = 0, isSelected }: ProjectTaskItemProps) => {
   const isOverdue = task.deadline && !task.completed && new Date(task.deadline) < new Date();
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState(task.title);
@@ -71,7 +72,8 @@ const ProjectTaskItem = ({ task, onToggle, onClick, onDelete, onRenameTask, comm
     <div
       className={cn(
         "flex items-center gap-1.5 py-1 px-2 rounded-lg hover:bg-muted/40 transition-colors cursor-pointer group",
-        task.completed && "opacity-50"
+        task.completed && "opacity-50",
+        isSelected && "bg-primary/8 hover:bg-primary/10"
       )}
       onClick={isEditingTitle ? undefined : onClick}
     >
