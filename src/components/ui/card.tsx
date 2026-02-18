@@ -12,7 +12,7 @@ const Card = React.forwardRef<
       "rounded-xl border bg-card text-card-foreground",
       className
     )}
-    style={{ boxShadow: "var(--shadow-card)", ...((props as any).style) }}
+    style={{ boxShadow: "0 1px 3px hsl(200 15% 15% / 0.04)", ...(props.style) }}
     {...props}
   />
 ))
