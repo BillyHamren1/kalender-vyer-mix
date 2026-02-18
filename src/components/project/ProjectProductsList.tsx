@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CornerDownRight } from "lucide-react";
+
 
 interface BookingProduct {
   id: string;
@@ -86,8 +86,8 @@ const ProjectProductsList = ({ bookingId }: ProjectProductsListProps) => {
                 </div>
                 {accessories.map(child => (
                   <div key={child.id} className="flex items-center justify-between py-1 pl-5 pb-1.5">
-                    <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <CornerDownRight className="h-3 w-3 shrink-0" />
+                    <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50 shrink-0" />
                       {cleanName(child.name)}
                     </span>
                     <span className="text-xs text-muted-foreground tabular-nums">{child.quantity} st</span>
