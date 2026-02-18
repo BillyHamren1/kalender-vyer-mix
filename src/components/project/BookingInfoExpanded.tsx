@@ -1,14 +1,22 @@
 import { useState } from "react";
 import { 
-  User, Calendar, MapPin, Phone, Mail, ChevronDown, ChevronUp, 
-  AlertTriangle, StickyNote, Eye, EyeOff, Truck, Hammer, Clock
+  User, MapPin, Phone, Mail, 
+  AlertTriangle, StickyNote, Eye, EyeOff, Truck, Hammer, Clock, Package, Image as ImageIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { format } from "date-fns";
-import { sv } from "date-fns/locale";
 import ProjectScheduleTimeline from "./ProjectScheduleTimeline";
+import ProjectProductsList from "./ProjectProductsList";
+
+interface BookingAttachment {
+  id: string;
+  booking_id: string;
+  url: string;
+  file_name: string | null;
+  file_type: string | null;
+  uploaded_at: string;
+}
 
 interface BookingData {
   id: string;
@@ -33,13 +41,19 @@ interface BookingData {
 interface BookingInfoExpandedProps {
   booking: BookingData;
   projectLeader?: string | null;
+  bookingAttachments?: BookingAttachment[];
 }
 
-const BookingInfoExpanded = ({ booking, projectLeader }: BookingInfoExpandedProps) => {
+const BookingInfoExpanded = ({ booking, projectLeader, bookingAttachments = [] }: BookingInfoExpandedProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const hasLogistics = booking.carry_more_than_10m || booking.ground_nails_allowed !== undefined || booking.exact_time_needed;
   const hasAddress = booking.deliveryaddress || booking.delivery_city || booking.delivery_postal_code;
+
+  // Only show images (filter by file_type)
+  const imageAttachments = bookingAttachments.filter(a =>
+    a.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(a.url)
+  );
 
   return (
     <Card className="mb-4 border-border/40 shadow-2xl rounded-2xl">
@@ -81,7 +95,7 @@ const BookingInfoExpanded = ({ booking, projectLeader }: BookingInfoExpandedProp
             <CollapsibleTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1.5 border-border/60">
                 {isExpanded ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                {isExpanded ? 'Dölj detaljer' : 'Visa bokning'}
+                {isExpanded ? 'Dölj detaljer' : 'Visa detaljer'}
               </Button>
             </CollapsibleTrigger>
           </div>
@@ -96,9 +110,9 @@ const BookingInfoExpanded = ({ booking, projectLeader }: BookingInfoExpandedProp
 
         {/* Expandable content */}
         <CollapsibleContent>
-          <div className="px-5 pb-5 pt-2 border-t border-border/40">
+          <div className="px-5 pb-5 pt-2 border-t border-border/40 space-y-6">
+            {/* Address / Contact / Logistics */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
-              {/* Address section */}
               {hasAddress && (
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 mb-2">
@@ -114,7 +128,6 @@ const BookingInfoExpanded = ({ booking, projectLeader }: BookingInfoExpandedProp
                 </div>
               )}
 
-              {/* Contact section */}
               {booking.contact_name && (
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 mb-2">
@@ -137,7 +150,6 @@ const BookingInfoExpanded = ({ booking, projectLeader }: BookingInfoExpandedProp
                 </div>
               )}
 
-              {/* Logistics section */}
               {hasLogistics && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 mb-2">
@@ -174,7 +186,7 @@ const BookingInfoExpanded = ({ booking, projectLeader }: BookingInfoExpandedProp
 
             {/* Internal notes */}
             {booking.internalnotes && (
-              <div className="mt-4 pt-4 border-t border-border/40">
+              <div className="pt-2 border-t border-border/40">
                 <div className="flex items-center gap-2 mb-2">
                   <StickyNote className="h-4 w-4 text-primary" />
                   <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Interna anteckningar</span>
@@ -186,6 +198,45 @@ const BookingInfoExpanded = ({ booking, projectLeader }: BookingInfoExpandedProp
             )}
           </div>
         </CollapsibleContent>
+
+        {/* Equipment — always visible */}
+        <div className="px-5 pb-2 border-t border-border/40">
+          <div className="flex items-center gap-2 mt-4 mb-3">
+            <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-primary/10">
+              <Package className="h-4 w-4 text-primary" />
+            </div>
+            <h2 className="text-base font-semibold text-foreground tracking-tight">Utrustning</h2>
+          </div>
+          <ProjectProductsList bookingId={booking.id} />
+        </div>
+
+        {/* Images — always visible if any */}
+        {imageAttachments.length > 0 && (
+          <div className="px-5 pb-5 border-t border-border/40">
+            <div className="flex items-center gap-2 mt-4 mb-3">
+              <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-primary/10">
+                <ImageIcon className="h-4 w-4 text-primary" />
+              </div>
+              <h2 className="text-base font-semibold text-foreground tracking-tight">Bilder</h2>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {imageAttachments.map(img => (
+                <a key={img.id} href={img.url} target="_blank" rel="noopener noreferrer" className="block group">
+                  <div className="relative aspect-video rounded-xl overflow-hidden bg-muted border border-border/40">
+                    <img
+                      src={img.url}
+                      alt={img.file_name || "Bild"}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                    />
+                  </div>
+                  {img.file_name && (
+                    <p className="text-xs text-muted-foreground mt-1 truncate">{img.file_name}</p>
+                  )}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
       </Collapsible>
     </Card>
   );

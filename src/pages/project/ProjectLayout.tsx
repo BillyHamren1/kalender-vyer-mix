@@ -118,7 +118,11 @@ const ProjectLayout = () => {
 
         {/* Booking info – always visible, collapsible */}
         {booking && (
-          <BookingInfoExpanded booking={booking} projectLeader={project.project_leader} />
+          <BookingInfoExpanded
+            booking={booking}
+            projectLeader={project.project_leader}
+            bookingAttachments={detail.bookingAttachments}
+          />
         )}
 
         {/* Sub-page content */}

@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
-import ProjectProductsList from "@/components/project/ProjectProductsList";
 import ProjectTaskList from "@/components/project/ProjectTaskList";
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectComments from "@/components/project/ProjectComments";
@@ -12,7 +11,7 @@ import TaskDetailSheet from "@/components/project/TaskDetailSheet";
 import { ProjectTask } from "@/types/project";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
-import { ListChecks, Truck, FileText, MessageSquare, History, Package } from "lucide-react";
+import { ListChecks, Truck, FileText, MessageSquare, History } from "lucide-react";
 
 const SectionHeader = ({ icon: Icon, title, count }: { icon: React.ElementType; title: string; count?: number }) => (
   <div className="flex items-center gap-2 mb-3">
@@ -60,13 +59,6 @@ const ProjectViewPage = () => {
       />
 
 
-      {/* Equipment / Products */}
-      {bookingId && (
-        <section>
-          <SectionHeader icon={Package} title="Utrustning" />
-          <ProjectProductsList bookingId={bookingId} />
-        </section>
-      )}
 
       {/* Tasks */}
       <section>
