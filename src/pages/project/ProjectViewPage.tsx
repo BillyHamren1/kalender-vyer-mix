@@ -62,18 +62,20 @@ const ProjectViewPage = () => {
       />
 
       {/* Two-column layout: Booking info + Tasks & Transport */}
-      <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6 items-stretch">
-        {/* Left: Booking info */}
+      <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6 items-start">
+        {/* Left: Booking info – scrolls if content overflows */}
         {booking && (
-          <BookingInfoExpanded
-            booking={booking}
-            projectLeader={project.project_leader}
-            bookingAttachments={bookingAttachments}
-          />
+          <div className="max-h-[560px] overflow-y-auto rounded-2xl">
+            <BookingInfoExpanded
+              booking={booking}
+              projectLeader={project.project_leader}
+              bookingAttachments={bookingAttachments}
+            />
+          </div>
         )}
 
-        {/* Right: Tasks + Transport */}
-        <div className="flex flex-col gap-4">
+        {/* Right: Tasks + Transport – same max height */}
+        <div className="flex flex-col gap-4 max-h-[560px]">
           <ProjectTaskList
             tasks={tasks}
             onAddTask={detail.addTask}
