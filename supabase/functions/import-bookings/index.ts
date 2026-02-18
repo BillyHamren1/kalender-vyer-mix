@@ -30,6 +30,7 @@ interface BookingData {
   assigned_project_name?: string;
   assigned_to_project?: boolean;
   map_drawing_url?: string;
+  economics_data?: Record<string, number> | null;
 }
 
 /**
@@ -1441,7 +1442,12 @@ serve(async (req) => {
           assigned_project_id: externalBooking.assigned_project_id,
           assigned_project_name: externalBooking.assigned_project_name,
           assigned_to_project: parseAssignedToProject(externalBooking.assigned_to_project),
-          map_drawing_url: externalBooking.map_drawing_url || null
+          map_drawing_url: externalBooking.map_drawing_url || null,
+          economics_data: externalBooking.economics || (externalBooking.totals ? {
+            total_revenue_ex_vat: externalBooking.totals.total_ex_vat,
+            total_costs: externalBooking.totals.total_costs,
+            gross_margin: externalBooking.totals.gross_margin,
+          } : null)
         }
 
         console.log(`Processing booking ${bookingData.id} with status: ${bookingData.status} and project: ${bookingData.assigned_project_name || 'No project'}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)

@@ -9,6 +9,7 @@ import { ProductsList } from '../ProductsList';
 import { AttachmentsList } from '../AttachmentsList';
 import { InternalNotes } from '../InternalNotes';
 import { MapDrawingCard } from '../MapDrawingCard';
+import BookingEconomicsCard from '../BookingEconomicsCard';
 
 interface BookingDetailContentProps {
   booking: Booking;
@@ -76,6 +77,7 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
             onAddDate={onAddDate}
             onRemoveDate={onRemoveDate}
           />
+          {booking.economics && <BookingEconomicsCard economics={booking.economics} />}
           <ProductsList products={booking.products || []} />
           <AttachmentsList 
             bookingId={booking.id}

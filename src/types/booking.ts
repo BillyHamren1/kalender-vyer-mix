@@ -25,6 +25,16 @@ export interface BookingAttachment {
   fileType: string;
 }
 
+export interface BookingEconomics {
+  total_revenue_ex_vat?: number;
+  total_assembly_cost?: number;
+  total_handling_cost?: number;
+  total_purchase_cost?: number;
+  total_costs?: number;
+  gross_margin?: number;
+  margin_pct?: number;
+}
+
 export interface Booking {
   id: string;
   bookingNumber?: string;
@@ -54,4 +64,5 @@ export interface Booking {
   assignedToProject?: boolean;
   largeProjectId?: string;
   mapDrawingUrl?: string;
+  economics?: BookingEconomics | null;
 }

@@ -29,6 +29,7 @@ export const transformBookingData = (dbBooking: any): Booking => {
     assignedToProject: dbBooking.assigned_to_project,
     largeProjectId: dbBooking.large_project_id,
     mapDrawingUrl: dbBooking.map_drawing_url,
+    economics: dbBooking.economics_data ?? null,
     products: dbBooking.booking_products?.map((product: any) => ({
       id: product.id,
       name: product.name,

@@ -266,6 +266,7 @@ export type Database = {
           delivery_longitude: number | null
           delivery_postal_code: string | null
           deliveryaddress: string | null
+          economics_data: Json | null
           event_end_time: string | null
           event_start_time: string | null
           eventdate: string | null
@@ -304,6 +305,7 @@ export type Database = {
           delivery_longitude?: number | null
           delivery_postal_code?: string | null
           deliveryaddress?: string | null
+          economics_data?: Json | null
           event_end_time?: string | null
           event_start_time?: string | null
           eventdate?: string | null
@@ -342,6 +344,7 @@ export type Database = {
           delivery_longitude?: number | null
           delivery_postal_code?: string | null
           deliveryaddress?: string | null
+          economics_data?: Json | null
           event_end_time?: string | null
           event_start_time?: string | null
           eventdate?: string | null
