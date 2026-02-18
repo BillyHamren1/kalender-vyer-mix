@@ -4,7 +4,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import EstablishmentGanttChart from "@/components/project/EstablishmentGanttChart";
 import DeestablishmentGanttChart from "@/components/project/DeestablishmentGanttChart";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
-import ProjectGanttChart from "@/components/project/ProjectGanttChart";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 
 const tabTriggerClass =
@@ -21,7 +20,7 @@ interface SelectedTask {
 
 const EstablishmentPage = () => {
   const detail = useOutletContext<ReturnType<typeof useProjectDetail>>();
-  const { project, tasks } = detail;
+  const { project } = detail;
   const booking = project?.booking;
   const [selectedTask, setSelectedTask] = useState<SelectedTask | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -35,7 +34,6 @@ const EstablishmentPage = () => {
 
   return (
     <div className="space-y-6">
-      <ProjectGanttChart tasks={tasks} />
 
       <Tabs defaultValue="establishment" className="space-y-6">
         <div className="border-b border-border/40 overflow-x-auto">
