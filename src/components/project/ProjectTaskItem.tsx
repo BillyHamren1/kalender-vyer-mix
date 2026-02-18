@@ -53,30 +53,30 @@ const ProjectTaskItem = ({ task, onToggle, onClick, onDelete, onMoveUp, onMoveDo
   return (
     <div 
       className={cn(
-        "flex items-center gap-2 py-2.5 px-3 rounded-lg hover:bg-muted/40 transition-colors cursor-pointer group",
+        "flex items-center gap-1.5 py-1 px-2 rounded-lg hover:bg-muted/40 transition-colors cursor-pointer group",
         task.completed && "opacity-50"
       )}
       onClick={onClick}
     >
       {/* Reorder controls - compact */}
-      <div className="flex flex-col items-center opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => e.stopPropagation()}>
+      <div className="flex flex-col items-center opacity-0 group-hover:opacity-60 transition-opacity shrink-0" onClick={(e) => e.stopPropagation()}>
         <Button
           variant="ghost"
           size="icon"
-          className="h-4 w-4 text-muted-foreground hover:text-foreground"
+          className="h-3 w-3 text-muted-foreground hover:text-foreground"
           onClick={onMoveUp}
           disabled={isFirst}
         >
-          <ChevronUp className="h-3 w-3" />
+          <ChevronUp className="h-2.5 w-2.5" />
         </Button>
         <Button
           variant="ghost"
           size="icon"
-          className="h-4 w-4 text-muted-foreground hover:text-foreground"
+          className="h-3 w-3 text-muted-foreground hover:text-foreground"
           onClick={onMoveDown}
           disabled={isLast}
         >
-          <ChevronDown className="h-3 w-3" />
+          <ChevronDown className="h-2.5 w-2.5" />
         </Button>
       </div>
 

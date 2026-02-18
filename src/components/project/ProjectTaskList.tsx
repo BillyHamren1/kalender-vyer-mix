@@ -78,7 +78,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
     <>
       <Card className="border-border/40 shadow-2xl rounded-2xl overflow-hidden flex flex-col flex-1">
         {/* Compact header */}
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pt-3 pb-2">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pt-2 pb-1.5">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <span className="text-sm font-semibold text-foreground tracking-tight">Uppgifter</span>
             {totalRegular > 0 && (
@@ -94,7 +94,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
 
         {/* Progress bar */}
         {totalRegular > 0 && (
-          <div className="px-4 pb-2">
+          <div className="px-4 pb-1">
             <Progress
               value={progress}
               className="h-1.5 bg-muted/60"
@@ -105,7 +105,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
 
         <CardContent className="p-0 pb-1 flex-1 overflow-y-auto">
           {tasks.length === 0 ? (
-            <p className="text-muted-foreground text-center text-xs py-6 px-4">
+            <p className="text-muted-foreground text-center text-xs py-4 px-4">
               Inga uppgifter. Klicka på + för att skapa en.
             </p>
           ) : (
@@ -114,7 +114,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
 
               {infoTasks.length > 0 && (
                 <>
-                  <div className="px-4 pt-2 pb-0.5">
+                  <div className="px-2 pt-1.5 pb-0">
                     <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Milstolpar</span>
                   </div>
                   {infoTasks.map((task, i) => renderTaskItem(task, i, infoTasks))}
@@ -123,7 +123,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
 
               {completedTasks.length > 0 && (
                 <>
-                  <div className="px-4 pt-2 pb-0.5">
+                  <div className="px-2 pt-1.5 pb-0">
                     <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Klara ({completedTasks.length})</span>
                   </div>
                   {completedTasks.map((task, i) => renderTaskItem(task, i, completedTasks))}
