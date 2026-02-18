@@ -124,6 +124,9 @@ const JobCostsTab = ({ bookingId }: JobCostsTabProps) => {
 
   return (
     <div className="space-y-3">
+      {/* Hidden file input – always in DOM so fileInputRef is always valid */}
+      <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileChange} className="hidden" />
+
       {/* Add button */}
       {!showForm && (
         <button
@@ -143,7 +146,6 @@ const JobCostsTab = ({ bookingId }: JobCostsTabProps) => {
       {/* Inline form */}
       {showForm && (
         <div className="rounded-xl border border-border/50 bg-card p-4 space-y-3 shadow-sm animate-in slide-in-from-top-2 duration-200">
-          <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileChange} className="hidden" />
 
           {receiptPreview ? (
             <div className="relative rounded-lg overflow-hidden border border-border/50">
