@@ -30,11 +30,16 @@ async function uriToBase64(uri: string): Promise<string> {
  * the Capacitor bridge.
  */
 export async function takePhotoBase64(): Promise<string | null> {
-  if (!isNativePlatform()) {
+  const isNative = isNativePlatform();
+  console.log('[Camera] isNativePlatform:', isNative);
+
+  if (!isNative) {
+    console.log('[Camera] Web platform – returning null for file input fallback');
     return null;
   }
 
   try {
+    console.log('[Camera] Calling Camera.getPhoto()...');
     const photo = await Camera.getPhoto({
       quality: 80,
       allowEditing: false,
@@ -42,25 +47,48 @@ export async function takePhotoBase64(): Promise<string | null> {
       source: CameraSource.Camera,
     });
 
-    if (!photo.path && !photo.webPath) return null;
+    console.log('[Camera] Camera.getPhoto() returned:', {
+      path: photo.path,
+      webPath: photo.webPath,
+      format: photo.format,
+    });
+
+    if (!photo.path && !photo.webPath) {
+      console.warn('[Camera] Both path and webPath are null/undefined – returning null');
+      return null;
+    }
 
     // Use webPath if available (already a usable URL), otherwise convert URI
     if (photo.webPath) {
+      console.log('[Camera] Fetching webPath:', photo.webPath);
       const response = await fetch(photo.webPath);
+      console.log('[Camera] fetch() status:', response.status, response.ok);
       const blob = await response.blob();
+      console.log('[Camera] blob size:', blob.size, 'type:', blob.type);
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
+        reader.onload = () => {
+          const result = reader.result as string;
+          console.log('[Camera] FileReader done – base64 length:', result?.length);
+          resolve(result);
+        };
+        reader.onerror = (e) => {
+          console.error('[Camera] FileReader error:', e);
+          reject(e);
+        };
         reader.readAsDataURL(blob);
       });
     }
 
     // Fallback: convert file:// or content:// URI
+    console.log('[Camera] Using uriToBase64 fallback with path:', photo.path);
     return await uriToBase64(photo.path!);
   } catch (err: any) {
-    // User cancelled or permission denied – don't throw
-    console.warn('Camera cancelled or failed:', err?.message);
+    console.error('[Camera] CRASH/ERROR in takePhotoBase64:', err);
+    console.error('[Camera] Error name:', err?.name);
+    console.error('[Camera] Error message:', err?.message);
+    console.error('[Camera] Error code:', err?.code);
+    console.error('[Camera] Full error object:', JSON.stringify(err, null, 2));
     return null;
   }
 }
