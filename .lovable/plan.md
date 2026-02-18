@@ -1,60 +1,50 @@
 
 ## Problemet
 
-`useState` lazy-init (`() => new Set(...)`) körs bara **en gång** — vid första renderingen. Om `productCosts.products` är tom vid den tidpunkten (data laddas asynkront), skapas `expandedGroups` som en tom Set och alla grupper startar kollapsade. Senare när data väl laddats in renderas tabellen men expandedGroups uppdateras aldrig automatiskt.
+I `ProjectProductsList.tsx` döljs alla barn-produkter bakom ett klickbart kollaps, oavsett typ. Det innebär att tillbehör (dubbelpilar, `is_package_component: false`) inte syns direkt utan kräver klick på föräldern.
+
+## Önskat beteende
+
+| Produkttyp | Prefix i namn | is_package_component | Visas? | Hur? |
+|---|---|---|---|---|
+| Huvudprodukt | (inget) | null | Ja | Alltid, som rubrik |
+| Paketkomponent | `-- M Ben` etc. | true | Nej | Döljs helt |
+| Tillbehör | `└, Kassetgolv` etc. | false | Ja | Alltid synlig direkt under föräldern |
 
 ## Lösning
 
-Ersätt `useState` med ett `useMemo` som alltid är synkroniserat med `groupedProducts`:
+Ändra `ProjectProductsList.tsx` så att:
 
-```typescript
-// NUVARANDE (fel — körs bara en gång vid mount):
-const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
-  () => new Set(groupedProducts.filter(g => g.children.length > 0).map(g => g.parent.id))
-);
+1. **Barn-produkter delas upp** i två grupper per förälder:
+   - `accessories` — `is_package_component === false` (dubbelpilar) → alltid synliga
+   - `packageComponents` — `is_package_component === true` (enkelpil + streck) → döljs
 
-// NY (korrekt — beräknas om när groupedProducts ändras):
-const defaultExpanded = useMemo(
-  () => new Set(groupedProducts.filter(g => g.children.length > 0).map(g => g.parent.id)),
-  [groupedProducts]
-);
-const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+2. **Ingen Collapsible** behövs längre för normala föräldrar med bara tillbehör. Tillbehören renderas direkt under föräldern utan klick.
 
-useEffect(() => {
-  setExpandedGroups(defaultExpanded);
-}, [defaultExpanded]);
+3. **ChevronRight och count-badge** (t.ex. `(17)`) tas bort eller justeras — räknar bara tillbehör.
+
+4. **Räknaren i footern** (`19 produkter`) uppdateras för att inte räkna paketkomponenter.
+
+## Ny renderingslogik (pseudokod)
+
+```text
+För varje huvudprodukt:
+  accessories = barn där is_package_component = false
+  (packageComponents filtreras bort, visas ej)
+  
+  Visa förälder (bold, namn rensat)
+  För varje accessory:
+    Visa direkt under föräldern med ↳-ikon och indragning
 ```
-
-Alternativt — enklare lösning: Istället för att hålla state, beräkna "är denna grupp expanderad?" dynamiskt. Om en grupp aldrig har klickats på, visa den som expanderad. Använd en `collapsedGroups` Set istället (tom från start = allt expanderat), och toggle lägger till/tar bort ID från collapsed-set:
-
-```typescript
-// Tom Set från start = alla expanderade
-const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-
-const toggleGroup = (id: string) => {
-  setCollapsedGroups(prev => {
-    const next = new Set(prev);
-    next.has(id) ? next.delete(id) : next.add(id);
-    return next;
-  });
-};
-
-// I renderGroupRows:
-const isExpanded = !collapsedGroups.has(group.parent.id);
-```
-
-Detta är den enklaste och mest robusta lösningen — inga `useEffect` eller timing-problem.
 
 ## Filer att ändra
 
 | Fil | Ändring |
-|-----|---------|
-| `src/components/project/ProductCostsCard.tsx` | Byt från `expandedGroups` (tom från start) till `collapsedGroups` (tom från start = allt expanderat). En grupp kollapsar när man klickar, och expanderar igen vid nytt klick. |
+|---|---|
+| `src/components/project/ProjectProductsList.tsx` | Dela upp barn i accessories/paketkomponenter, rendera accessories alltid synliga, dölj paketkomponenter, ta bort onödig Collapsible |
 
-## Beteende efter fix
+## Resultat
 
-- Alla förälderprodukter med barn (t.ex. Multiflex 10x21) visas **expanderade från start**
-- Barn (↳ Kassetgolv, ↳ Nålfiltsmatta etc.) syns direkt utan att klicka
-- Klick på föräldrad kollapsar barnen (som önskat)
-- Klick igen expanderar dem på nytt
-- Ingen timing-problematik med asynkron data
+- "Kassetgolv 10x21", "Nålfiltsmatta - Antracit", "M Gaveltriangel" etc. syns direkt under Multiflex utan att klicka
+- "M Ben", "M Takbalk GUL" etc. visas inte alls
+- Listan blir renare och mer lättläst
