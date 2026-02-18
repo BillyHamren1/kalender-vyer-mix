@@ -86,13 +86,12 @@ const ProjectViewPage = () => {
 
       {/* Files */}
       <section>
-        <SectionHeader icon={FileText} title="Filer" count={files.length + bookingAttachments.length} />
+        <SectionHeader icon={FileText} title="Filer" count={files.length} />
         <ProjectFiles
           files={files}
           onUpload={detail.uploadFile}
           onDelete={detail.deleteFile}
           isUploading={detail.isUploadingFile}
-          bookingAttachments={bookingAttachments}
         />
       </section>
 
