@@ -1,29 +1,33 @@
 
 ## Mål
-Placera sektionerna "Kommentarer" och "Historik" bredvid varandra i en 50/50-layout i `ProjectViewPage.tsx`.
+Uppgiftslistan ska ha exakt samma höjd som bokningscontainern — 560px fast höjd med intern scroll, inte bara en max-höjd.
 
-## Ändring
+## Problem
+- Bokningscontainern: `max-h-[560px] overflow-y-auto` — håller sig på 560px och scrollar inuti
+- Uppgiftslistan: `max-h-[560px]` utan `overflow-y-auto` — kan växa utöver 560px om innehållet är längre
+
+## Lösning
 
 ### `src/pages/project/ProjectViewPage.tsx`
-Wrap de två `<section>`-blocken (Kommentarer + Historik) i ett gemensamt grid:
-
+Ändra höger kolumn från:
 ```tsx
-<div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-  <section>
-    <SectionHeader icon={MessageSquare} title="Kommentarer" count={comments.length} />
-    <ProjectComments comments={comments} onAddComment={detail.addComment} />
-  </section>
-
-  <section>
-    <SectionHeader icon={History} title="Historik" count={activities.length} />
-    <ProjectActivityLog activities={activities} />
-  </section>
-</div>
+<div className="flex flex-col gap-4 max-h-[560px]">
+```
+Till:
+```tsx
+<div className="flex flex-col gap-4 h-[560px] overflow-y-auto">
 ```
 
-"Filer" och "Transport" förblir i full bredd ovanför.
+Och vänster kolumn (bokningscontainern) ändras från `max-h-[560px]` till `h-[560px]` för att båda ska vara exakt lika höga:
+```tsx
+<div className="h-[560px] overflow-y-auto rounded-2xl">
+```
 
 ## Fil att ändra
-| Fil | Ändring |
-|---|---|
-| `src/pages/project/ProjectViewPage.tsx` | Wrap Kommentarer + Historik i `grid grid-cols-1 lg:grid-cols-2` |
+| Fil | Rad | Ändring |
+|---|---|---|
+| `src/pages/project/ProjectViewPage.tsx` | 68 | `max-h-[560px]` → `h-[560px]` |
+| `src/pages/project/ProjectViewPage.tsx` | 78 | `max-h-[560px]` → `h-[560px] overflow-y-auto` |
+
+## Resultat
+Båda kolumnerna blir exakt 560px höga och scrollar inuti om innehållet överstiger det — de matchar varandra perfekt visuellt.
