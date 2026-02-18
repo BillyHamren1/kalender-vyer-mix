@@ -41,14 +41,26 @@ const JobCostsTab = ({ bookingId }: JobCostsTabProps) => {
   useEffect(() => { fetchPurchases(); }, [bookingId]);
 
   const handleCameraClick = async () => {
-    const base64 = await takePhotoBase64();
-    if (base64) {
-      // Native path – got base64 directly from Capacitor Camera
-      setReceiptPreview(base64);
-      setReceiptBase64(base64);
-    } else {
-      // Web fallback – trigger standard file input
-      fileInputRef.current?.click();
+    console.log('[JobCostsTab] handleCameraClick called');
+    try {
+      console.log('[JobCostsTab] Calling takePhotoBase64()...');
+      const base64 = await takePhotoBase64();
+      console.log('[JobCostsTab] takePhotoBase64() returned:', base64 ? `base64 string (length ${base64.length})` : 'null');
+      if (base64) {
+        // Native path – got base64 directly from Capacitor Camera
+        console.log('[JobCostsTab] Setting receipt preview from native camera');
+        setReceiptPreview(base64);
+        setReceiptBase64(base64);
+      } else {
+        // Web fallback – trigger standard file input
+        console.log('[JobCostsTab] base64 was null – triggering file input');
+        fileInputRef.current?.click();
+      }
+    } catch (err: any) {
+      console.error('[JobCostsTab] UNHANDLED ERROR in handleCameraClick:', err);
+      console.error('[JobCostsTab] Error name:', err?.name);
+      console.error('[JobCostsTab] Error message:', err?.message);
+      console.error('[JobCostsTab] Full error:', JSON.stringify(err, null, 2));
     }
   };
 
