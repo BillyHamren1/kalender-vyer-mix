@@ -50,8 +50,13 @@ const BookingInfoExpanded = ({ booking, projectLeader, bookingAttachments = [] }
   const hasLogistics = booking.carry_more_than_10m || booking.ground_nails_allowed !== undefined || booking.exact_time_needed;
   const hasAddress = booking.deliveryaddress || booking.delivery_city || booking.delivery_postal_code;
 
-  // Only show images (filter by file_type)
-  const imageAttachments = bookingAttachments.filter(a =>
+  // Deduplicate by URL (guard against duplicate DB rows)
+  const uniqueAttachments = bookingAttachments.filter(
+    (a, idx, arr) => arr.findIndex(x => x.url === a.url) === idx
+  );
+
+  // Only show images (filter by file_type or extension)
+  const imageAttachments = uniqueAttachments.filter(a =>
     a.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(a.url)
   );
 
