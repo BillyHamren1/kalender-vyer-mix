@@ -1,30 +1,20 @@
 
-## Fix: Föräldarraden ska visa förälderns egna kostnader
+## Ändra placeholder-text i Kommentarer-kortet
 
-### Problem
-`renderGroupRows` i `ProductCostsCard.tsx` (rad 96–102) summerar förälderns + alla barns kostnader via `allItems.reduce`:
+### Ändring
+**`src/components/project/ProjectComments.tsx`** — rad med `placeholder="Skriv en kommentar..."`
 
-```ts
-const allItems = [group.parent, ...group.children];
-const groupAssembly = allItems.reduce((s, p) => s + p.assemblyCost, 0); // FEL
+Ändra:
+```tsx
+placeholder="Skriv en kommentar..."
 ```
 
-Det gör att t.ex. Multiflex 10x21 visar 31 626 (12 600 + 11 151 + 7 875) istället för korrekt 12 600.
-
-### Lösning
-Byt ut de fem reduce-raderna (97–102) mot förälderns egna värden:
-
-```ts
-const groupRev      = group.parent.totalRevenue;
-const groupCost     = group.parent.totalCost;
-const groupAssembly = group.parent.assemblyCost;
-const groupHandling = group.parent.handlingCost;
-const groupPurchase = group.parent.purchaseCost;
+Till:
+```tsx
+placeholder="Lägg till interna anteckningar"
 ```
 
 ### Fil att ändra
-| Fil | Rad | Ändring |
-|---|---|---|
-| `src/components/project/ProductCostsCard.tsx` | 97–102 | Byt reduce-summeringar mot `group.parent.*`-värden |
-
-En rad ändring, rätt utfall.
+| Fil | Ändring |
+|---|---|
+| `src/components/project/ProjectComments.tsx` | Byt placeholder-text på Textarea |
