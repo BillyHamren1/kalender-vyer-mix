@@ -1199,6 +1199,7 @@ serve(async (req) => {
       let oldProductsForReconnection: any[] = [];
       let needsProductUpdate = false;
       let oldProducts: any[] | null = null;
+      const seenExistingIds = new Set<string>();
       let productChanges: { added: string[]; removed: string[]; updated: string[]; existingProducts: any[] } = { added: [], removed: [], updated: [], existingProducts: [] };
       
       try {
@@ -2110,7 +2111,7 @@ serve(async (req) => {
           const pendingByExternalParentId = new Map<string, string[]>();
           const pendingSequentialAccessoryIds: string[] = [];
           let lastParentProductId: string | null = null;
-          const seenExistingIds = new Set<string>();
+          
           
           for (const product of deduplicatedProducts) {
             try {
