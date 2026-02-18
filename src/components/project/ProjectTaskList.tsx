@@ -173,7 +173,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
 
           {/* RIGHT: Detail panel (when a task is selected) */}
           {syncedSelectedTask && (
-            <div className="flex-1 min-w-0 overflow-hidden">
+            <div className="w-1/2 min-w-0 overflow-hidden">
               <TaskDetailPanel
                 task={syncedSelectedTask}
                 onClose={() => setSelectedTask(null)}
