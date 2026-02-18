@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 
@@ -39,21 +38,17 @@ const ProjectProductsList = ({ bookingId }: ProjectProductsListProps) => {
 
   if (isLoading) {
     return (
-      <Card className="bg-card shadow-2xl border-border/40">
-        <CardContent className="py-4 px-4 space-y-2">
-          {[1, 2, 3].map(i => <Skeleton key={i} className="h-6 w-full" />)}
-        </CardContent>
-      </Card>
+      <div className="py-4 space-y-2">
+        {[1, 2, 3].map(i => <Skeleton key={i} className="h-6 w-full" />)}
+      </div>
     );
   }
 
   if (products.length === 0) {
     return (
-      <Card className="bg-card shadow-2xl border-border/40">
-        <CardContent className="py-6 px-4 text-center text-muted-foreground text-sm">
-          Inga produkter kopplade till denna bokning.
-        </CardContent>
-      </Card>
+      <div className="py-4 text-center text-muted-foreground text-sm">
+        Inga produkter kopplade till denna bokning.
+      </div>
     );
   }
 
@@ -69,43 +64,40 @@ const ProjectProductsList = ({ bookingId }: ProjectProductsListProps) => {
   const totalVolume = visibleProducts.reduce((sum, p) => sum + (p.estimated_volume_m3 || 0) * p.quantity, 0);
 
   return (
-    <Card className="bg-card shadow-2xl border-border/40">
-      <CardContent className="py-3 px-4">
-        <div className="divide-y divide-border/40">
-          {mainProducts.map(product => {
-            // Accessories: children with is_package_component = false (not true)
-            const accessories = allChildren.filter(
-              c => c.parent_product_id === product.id && c.is_package_component !== true
-            );
+    <div>
+      <div className="divide-y divide-border/40">
+        {mainProducts.map(product => {
+          const accessories = allChildren.filter(
+            c => c.parent_product_id === product.id && c.is_package_component !== true
+          );
 
-            return (
-              <div key={product.id}>
-                <div className="flex items-center justify-between py-2">
-                  <span className="text-sm font-medium text-foreground">{cleanName(product.name)}</span>
-                  <span className="text-xs font-medium text-muted-foreground tabular-nums">{product.quantity} st</span>
-                </div>
-                {accessories.map(child => (
-                  <div key={child.id} className="flex items-center justify-between py-1 pl-5 pb-1.5">
-                    <span className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50 shrink-0" />
-                      {cleanName(child.name)}
-                    </span>
-                    <span className="text-xs text-muted-foreground tabular-nums">{child.quantity} st</span>
-                  </div>
-                ))}
+          return (
+            <div key={product.id}>
+              <div className="flex items-center justify-between py-2">
+                <span className="text-sm font-medium text-foreground">{cleanName(product.name)}</span>
+                <span className="text-xs font-medium text-muted-foreground tabular-nums">{product.quantity} st</span>
               </div>
-            );
-          })}
-        </div>
+              {accessories.map(child => (
+                <div key={child.id} className="flex items-center justify-between py-1 pl-5 pb-1.5">
+                  <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50 shrink-0" />
+                    {cleanName(child.name)}
+                  </span>
+                  <span className="text-xs text-muted-foreground tabular-nums">{child.quantity} st</span>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
 
-        {/* Summary footer */}
-        <div className="mt-3 pt-2 border-t border-border/40 flex items-center gap-4 text-xs text-muted-foreground">
-          <span>{visibleProducts.length} produkter</span>
-          {totalWeight > 0 && <span>{Math.round(totalWeight)} kg</span>}
-          {totalVolume > 0 && <span>{totalVolume.toFixed(1)} m³</span>}
-        </div>
-      </CardContent>
-    </Card>
+      {/* Summary footer */}
+      <div className="mt-3 pt-2 border-t border-border/40 flex items-center gap-4 text-xs text-muted-foreground">
+        <span>{visibleProducts.length} produkter</span>
+        {totalWeight > 0 && <span>{Math.round(totalWeight)} kg</span>}
+        {totalVolume > 0 && <span>{totalVolume.toFixed(1)} m³</span>}
+      </div>
+    </div>
   );
 };
 
