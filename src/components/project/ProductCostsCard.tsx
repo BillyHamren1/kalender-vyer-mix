@@ -39,13 +39,11 @@ export const ProductCostsCard = ({ productCosts }: ProductCostsCardProps) => {
     }));
   }, [productCosts.products]);
 
-  // All groups with children are expanded by default
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
-    () => new Set(groupedProducts.filter(g => g.children.length > 0).map(g => g.parent.id))
-  );
+  // Empty set = all groups expanded by default; add ID to collapse
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   const toggleGroup = (id: string) => {
-    setExpandedGroups(prev => {
+    setCollapsedGroups(prev => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
@@ -94,7 +92,7 @@ export const ProductCostsCard = ({ productCosts }: ProductCostsCardProps) => {
 
   const renderGroupRows = (group: ProductGroup) => {
     const hasChildren = group.children.length > 0;
-    const isExpanded = expandedGroups.has(group.parent.id);
+    const isExpanded = !collapsedGroups.has(group.parent.id);
     const allItems = [group.parent, ...group.children];
     const groupRev = allItems.reduce((s, p) => s + p.totalRevenue, 0);
     const groupCost = allItems.reduce((s, p) => s + p.totalCost, 0);
