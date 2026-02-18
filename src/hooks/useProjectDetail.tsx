@@ -15,6 +15,7 @@ import {
   uploadProjectFile,
   deleteProjectFile
 } from "@/services/projectService";
+import { updateInternalNotes } from "@/services/booking/bookingMutationService";
 import { fetchProjectActivities, logProjectActivity } from "@/services/projectActivityService";
 import { ProjectStatus, ProjectTask, PROJECT_STATUS_LABELS } from "@/types/project";
 import { toast } from "sonner";
@@ -326,8 +327,30 @@ export const useProjectDetail = (projectId: string) => {
   });
 
   const addCommentMutation = useMutation({
-    mutationFn: (data: { author_name: string; content: string }) => 
-      createProjectComment({ ...data, project_id: projectId }),
+    mutationFn: async (data: { author_name: string; content: string }) => {
+      // Save comment to project_comments
+      const result = await createProjectComment({ ...data, project_id: projectId });
+
+      // Also append to booking's internal notes if project has a booking
+      const project = projectQuery.data;
+      const bookingId = project?.booking_id;
+      if (bookingId) {
+        // Fetch current internalnotes fresh from DB to avoid stale data
+        const { data: bookingData } = await supabase
+          .from('bookings')
+          .select('internalnotes')
+          .eq('id', bookingId)
+          .single();
+
+        const timestamp = new Date().toLocaleString('sv-SE', { dateStyle: 'short', timeStyle: 'short' });
+        const newEntry = `[${timestamp} – ${data.author_name}]\n${data.content}`;
+        const existingNotes = bookingData?.internalnotes || '';
+        const updatedNotes = existingNotes ? `${existingNotes}\n\n${newEntry}` : newEntry;
+        await updateInternalNotes(bookingId, updatedNotes);
+      }
+
+      return result;
+    },
     ...addCommentOptimistic,
     onSuccess: (_data, variables) => {
       logActivity('comment_added', `Kommentar av ${variables.author_name}`, {
