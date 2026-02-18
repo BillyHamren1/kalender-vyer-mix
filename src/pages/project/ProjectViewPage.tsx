@@ -3,7 +3,7 @@ import { useOutletContext } from "react-router-dom";
 import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
 import ProjectTaskList from "@/components/project/ProjectTaskList";
 import ProjectFiles from "@/components/project/ProjectFiles";
-import ProjectComments from "@/components/project/ProjectComments";
+import ProjectInternalNotes from "@/components/project/ProjectInternalNotes";
 import ProjectActivityLog from "@/components/project/ProjectActivityLog";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import ProjectTransportBookingDialog from "@/components/project/ProjectTransportBookingDialog";
@@ -122,8 +122,13 @@ const ProjectViewPage = () => {
         </div>
 
         <div className="flex flex-col h-full">
-          <SectionHeader icon={MessageSquare} title="Kommentarer" count={comments.length} />
-          <ProjectComments comments={comments} onAddComment={detail.addComment} className="h-full" />
+          <SectionHeader icon={MessageSquare} title="Interna anteckningar" />
+          <ProjectInternalNotes
+            bookingId={bookingId}
+            currentNotes={booking?.internalnotes}
+            projectId={project.id}
+            className="h-full"
+          />
         </div>
 
         <div className="flex flex-col h-full">
