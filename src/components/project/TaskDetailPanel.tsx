@@ -12,6 +12,7 @@ import {
   Circle,
   AlertTriangle,
   X,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,12 +31,13 @@ interface TaskDetailPanelProps {
   onClose: () => void;
   onUpdateTask: (data: { id: string; updates: Partial<ProjectTask> }) => void;
   onDeleteTask: (id: string) => void;
+  onAction?: () => void;
 }
 
 const initials = (name: string) =>
   name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
-const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask }: TaskDetailPanelProps) => {
+const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction }: TaskDetailPanelProps) => {
   const queryClient = useQueryClient();
   const [newComment, setNewComment] = useState("");
   const [authorName, setAuthorName] = useState(() => localStorage.getItem("task-comment-author") || "");
@@ -274,6 +276,17 @@ const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask }: TaskDeta
               ))}
             </PopoverContent>
           </Popover>
+
+          {/* Action button — e.g. "Öppna transportbokning" */}
+          {onAction && (
+            <button
+              onClick={onAction}
+              className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border border-primary/40 bg-primary/8 text-primary font-medium hover:bg-primary/15 transition-colors"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Öppna transportbokning
+            </button>
+          )}
         </div>
 
         {/* Description */}
