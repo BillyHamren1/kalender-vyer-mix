@@ -3,6 +3,7 @@ import { mobileApi, MobilePurchase } from '@/services/mobileApiService';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { Receipt, Loader2, Image, Plus, Camera, Check } from 'lucide-react';
+import { takePhotoBase64 } from '@/utils/capacitorCamera';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -38,6 +39,18 @@ const JobCostsTab = ({ bookingId }: JobCostsTabProps) => {
   };
 
   useEffect(() => { fetchPurchases(); }, [bookingId]);
+
+  const handleCameraClick = async () => {
+    const base64 = await takePhotoBase64();
+    if (base64) {
+      // Native path – got base64 directly from Capacitor Camera
+      setReceiptPreview(base64);
+      setReceiptBase64(base64);
+    } else {
+      // Web fallback – trigger standard file input
+      fileInputRef.current?.click();
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -126,7 +139,7 @@ const JobCostsTab = ({ bookingId }: JobCostsTabProps) => {
               <button onClick={() => { setReceiptPreview(null); setReceiptBase64(null); }} className="absolute top-1.5 right-1.5 px-2 py-0.5 rounded-md bg-foreground/70 text-card text-[10px] font-medium">Ta bort</button>
             </div>
           ) : (
-            <button onClick={() => fileInputRef.current?.click()} className="w-full h-20 rounded-lg border border-dashed border-primary/25 flex flex-col items-center justify-center gap-1 bg-primary/5">
+            <button onClick={handleCameraClick} className="w-full h-20 rounded-lg border border-dashed border-primary/25 flex flex-col items-center justify-center gap-1 bg-primary/5">
               <Camera className="w-4 h-4 text-primary/70" />
               <span className="text-[10px] font-semibold text-primary">Fota kvitto</span>
             </button>

@@ -3,6 +3,7 @@ import { mobileApi } from '@/services/mobileApiService';
 import { Image, Camera, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { takePhotoBase64 } from '@/utils/capacitorCamera';
 
 interface JobPhotosTabProps {
   bookingId: string;
@@ -29,7 +30,37 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
 
   useEffect(() => { fetchFiles(); }, [bookingId]);
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const uploadBase64 = async (base64: string, fileName: string, fileType: string) => {
+    await mobileApi.uploadFile({
+      booking_id: bookingId,
+      file_name: fileName,
+      file_data: base64,
+      file_type: fileType,
+    });
+    toast.success('Foto sparat!');
+    fetchFiles();
+  };
+
+  const handleCameraClick = async () => {
+    const base64 = await takePhotoBase64();
+    if (base64) {
+      // Native path – upload directly
+      setIsUploading(true);
+      try {
+        const fileName = `photo_${Date.now()}.jpg`;
+        await uploadBase64(base64, fileName, 'image/jpeg');
+      } catch {
+        toast.error('Uppladdning misslyckades');
+      } finally {
+        setIsUploading(false);
+      }
+    } else {
+      // Web fallback
+      fileInputRef.current?.click();
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -38,17 +69,10 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
       const reader = new FileReader();
       reader.onload = async (ev) => {
         const base64 = ev.target?.result as string;
-        await mobileApi.uploadFile({
-          booking_id: bookingId,
-          file_name: file.name,
-          file_data: base64,
-          file_type: file.type,
-        });
-        toast.success('Fil uppladdad!');
-        fetchFiles();
+        await uploadBase64(base64, file.name, file.type);
       };
       reader.readAsDataURL(file);
-    } catch (err: any) {
+    } catch {
       toast.error('Uppladdning misslyckades');
     } finally {
       setIsUploading(false);
@@ -77,11 +101,11 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
         type="file"
         accept="image/*"
         capture="environment"
-        onChange={handleUpload}
+        onChange={handleFileChange}
         className="hidden"
       />
       <Button
-        onClick={() => fileInputRef.current?.click()}
+        onClick={handleCameraClick}
         disabled={isUploading}
         className="w-full h-12 rounded-xl gap-2"
       >
