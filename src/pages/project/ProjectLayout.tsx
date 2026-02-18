@@ -59,7 +59,7 @@ const ProjectLayout = () => {
 
   return (
     <div className="h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
           <div className="flex items-center gap-4">
