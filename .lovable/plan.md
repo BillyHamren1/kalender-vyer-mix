@@ -1,55 +1,86 @@
 
-## Problem
+## Rotorsak
 
-`ProjectActivityLog` renderas utanför sin container av två anledningar:
+`JobCostsTab.tsx` använder en vanlig HTML `<input type="file" capture="environment">` för att öppna kameran. I en native Capacitor-app (Android/iOS) fungerar inte detta tillförlitligt – det orsakar crash/frys. Den korrekta lösningen är att använda `@capacitor/camera`-pluginen.
 
-### 1. Filterknapparna i CardHeader svämmar över
-Alla sex filter-knappar (Alla, Status, Uppgifter, Kommentarer, Filer, Transport) ligger på en `flex`-rad i `CardHeader`. I en tredjedels kolumn (lg:grid-cols-3) är de för många för att rymmas på en rad – de flödar ut ur kortets kant.
-
-### 2. `className` byggs ihop fel – mellanslag saknas
-På rad 186 i `ProjectActivityLog.tsx`:
-```tsx
-// Nuvarande – FEL: ger t.ex. "border-border/40 shadow-2xl rounded-2xlh-full"
-<Card className={`border-border/40 shadow-2xl rounded-2xl${className ? ` ${className}` : ''}`}>
-```
-`rounded-2xl` och `h-full` smälter ihop till `rounded-2xlh-full` som inte är en giltig klass.
+**Samma bugg finns troligtvis i `JobPhotosTab.tsx`** (rad 79: `capture="environment"`).
 
 ## Lösning
 
-### Fil: `src/components/project/ProjectActivityLog.tsx`
+### Steg 1: Installera `@capacitor/camera`
 
-**Fix 1 – Använd `cn()` för className-sammanslagning (rad 186)**
-
-Byt ut sträng-konkatenering mot `cn()` som redan importeras:
-```tsx
-<Card className={cn("border-border/40 shadow-2xl rounded-2xl", className)}>
+Lägga till paketet i `package.json`:
+```
+@capacitor/camera
 ```
 
-**Fix 2 – Gör filter-knapparna responsiva**
+### Steg 2: Skapa en gemensam kamera-hjälpfunktion
 
-Bryt ut filtren till ett eget block som kan wrappa. Ersätt den horisontella `flex`-raden med en `flex-wrap`-variant, eller flytta filtren under titeln som en andra rad i CardHeader:
+Ny fil `src/utils/capacitorCamera.ts` som:
+- Känner av om appen körs nativt (`window.Capacitor?.isNativePlatform()`)
+- Om nativt: använder `Camera.getPhoto()` från `@capacitor/camera` och returnerar en base64-sträng
+- Om webb: faller tillbaka på vanlig `<input type="file">` (för testning i webbläsaren)
 
-```tsx
-<CardHeader className="pb-3">
-  <CardTitle className="text-lg flex items-center gap-3 tracking-tight">
-    ...Aktivitetslogg
-  </CardTitle>
-  <div className="flex items-center gap-1 flex-wrap mt-2">
-    <Filter className="h-3.5 w-3.5 text-muted-foreground mr-1" />
-    {FILTER_OPTIONS.map(option => (
-      <Button key={option.value} ...>{option.label}</Button>
-    ))}
-  </div>
-</CardHeader>
+```typescript
+// src/utils/capacitorCamera.ts
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+
+export async function takePhotoBase64(): Promise<string | null> {
+  const isNative = typeof (window as any).Capacitor !== 'undefined'
+    && (window as any).Capacitor.isNativePlatform?.();
+
+  if (isNative) {
+    const photo = await Camera.getPhoto({
+      quality: 80,
+      allowEditing: false,
+      resultType: CameraResultType.Base64,
+      source: CameraSource.Camera,
+    });
+    return `data:image/jpeg;base64,${photo.base64String}`;
+  }
+  return null; // Webb: låt fileinput hantera det
+}
 ```
 
-Detta placerar filter-knapparna på en egen rad under titeln, med `flex-wrap` så de radbryts vid behov – utan att svämma utanför kortet.
+### Steg 3: Uppdatera `JobCostsTab.tsx`
 
-## Tekniska steg
+Ersätt `fileInputRef.current?.click()` med `takePhotoBase64()`:
+- Om nativt → `takePhotoBase64()` returnerar base64-strängen direkt
+- Om webb → faller tillbaka på `fileInputRef.current?.click()` som förut
+
+```tsx
+const handleCameraClick = async () => {
+  const base64 = await takePhotoBase64();
+  if (base64) {
+    // Native path: got base64 directly
+    setReceiptPreview(base64);
+    setReceiptBase64(base64);
+  } else {
+    // Web fallback
+    fileInputRef.current?.click();
+  }
+};
+```
+
+### Steg 4: Uppdatera `JobPhotosTab.tsx`
+
+Samma mönster – ersätt `fileInputRef.current?.click()` med `takePhotoBase64()` och vid nativt anrop `mobileApi.uploadFile()` direkt med base64-datan.
+
+### Tekniska steg
 
 | Fil | Ändring |
 |---|---|
-| `src/components/project/ProjectActivityLog.tsx` | Rad 186: byt till `cn(...)` för className |
-| `src/components/project/ProjectActivityLog.tsx` | Rad 187-211: dela CardHeader i titel-rad + filter-rad med flex-wrap |
+| `package.json` | Lägg till `@capacitor/camera` |
+| `src/utils/capacitorCamera.ts` | Ny fil med kamera-helper |
+| `src/components/mobile-app/job-tabs/JobCostsTab.tsx` | Byt `fileInputRef.click()` mot `takePhotoBase64()` |
+| `src/components/mobile-app/job-tabs/JobPhotosTab.tsx` | Byt `fileInputRef.click()` mot `takePhotoBase64()` |
 
-Inga andra filer behöver ändras.
+### Efter implementering
+
+Användaren behöver:
+1. `git pull` från sitt GitHub-repo
+2. `npm install` (installerar `@capacitor/camera`)
+3. `npx cap sync` (synkar plugin till Android/iOS)
+4. Bygga om appen (`npm run build && npx cap sync`)
+
+**OBS:** `AndroidManifest.xml` kräver kamera-behörighet – `@capacitor/camera` lägger till detta automatiskt vid `cap sync`.
