@@ -25,7 +25,23 @@ export interface BookingAttachment {
   fileType: string;
 }
 
+export interface BookingEconomicsLineItem {
+  product_name: string;
+  quantity: number;
+  total_revenue: number;
+  assembly_cost: number;
+  handling_cost: number;
+  purchase_cost: number;
+  total_cost: number;
+}
+
 export interface BookingEconomics {
+  // New API format
+  revenue?: { total_ex_vat?: number; currency?: string };
+  costs?: { assembly?: number; handling?: number; purchase?: number; total?: number };
+  margin?: { gross?: number; pct?: number };
+  line_items?: BookingEconomicsLineItem[];
+  // Legacy format (backward compat)
   total_revenue_ex_vat?: number;
   total_assembly_cost?: number;
   total_handling_cost?: number;

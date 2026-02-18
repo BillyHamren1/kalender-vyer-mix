@@ -15,8 +15,10 @@ import { PurchasesList } from './PurchasesList';
 import { QuotesInvoicesList } from './QuotesInvoicesList';
 import { BudgetSettingsDialog } from './BudgetSettingsDialog';
 import { ProductCostsCard } from './ProductCostsCard';
+import BookingEconomicsCard from '@/components/booking/BookingEconomicsCard';
 import { exportToExcel, exportToPDF } from '@/services/projectEconomyExportService';
 import { toast } from 'sonner';
+
 
 interface ProjectEconomyTabProps {
   projectId: string;
@@ -34,6 +36,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
     quotes,
     invoices,
     productCosts,
+    bookingEconomics,
     summary,
     isLoading,
     saveBudget,
@@ -114,6 +117,14 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Offertunderlag från bokning */}
+      {bookingEconomics && (
+        <BookingEconomicsCard
+          economics={bookingEconomics}
+          label="Offertunderlag (från bokningsoffert)"
+        />
+      )}
 
       {/* Summary Card */}
       <EconomySummaryCard summary={summary} />
