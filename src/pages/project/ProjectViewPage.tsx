@@ -74,7 +74,7 @@ const ProjectViewPage = () => {
           </div>
         )}
 
-        {/* Right: Tasks + Transport – same max height */}
+        {/* Right: Tasks only – same max height */}
         <div className="flex flex-col gap-4 max-h-[560px]">
           <ProjectTaskList
             tasks={tasks}
@@ -89,13 +89,14 @@ const ProjectViewPage = () => {
               return false;
             }}
           />
-
-          <section>
-            <SectionHeader icon={Truck} title="Transport" count={transportAssignments.length} />
-            <ProjectTransportWidget bookingId={bookingId} />
-          </section>
         </div>
       </div>
+
+      {/* Transport – full width */}
+      <section>
+        <SectionHeader icon={Truck} title="Transport" count={transportAssignments.length} />
+        <ProjectTransportWidget bookingId={bookingId} />
+      </section>
 
       {/* Full-width sections below */}
       <section>
