@@ -91,8 +91,9 @@ export function Sidebar3D() {
         )}
         style={{
           background: "hsl(var(--sidebar-background))",
-          borderRight: "1px solid hsl(var(--sidebar-border))",
+          borderRight: "1px solid hsl(200 12% 91%)",
         }}
+
       >
         {/* Content Container */}
         <div className="flex flex-col h-full px-3 py-4">
