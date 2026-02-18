@@ -1,50 +1,55 @@
 
-## Rotorsak
+## Problem
 
-I `supabase/functions/import-bookings/index.ts` finns en scope-bugg: variabeln `seenExistingIds` deklareras på rad 2113 **inuti** ett block, men refereras på rad 2270 **utanför** det blocket. Detta kastar ett `ReferenceError: seenExistingIds is not defined` för alla bokningar som behöver produktuppdatering, vilket innebär att try-catch fångar felet och hoppar vidare — **`syncAllAttachments` anropas aldrig** och inga bilder importeras.
+`ProjectActivityLog` renderas utanför sin container av två anledningar:
 
-## Vad som behöver fixas
+### 1. Filterknapparna i CardHeader svämmar över
+Alla sex filter-knappar (Alla, Status, Uppgifter, Kommentarer, Filer, Transport) ligger på en `flex`-rad i `CardHeader`. I en tredjedels kolumn (lg:grid-cols-3) är de för många för att rymmas på en rad – de flödar ut ur kortets kant.
 
-### 1. Flytta `seenExistingIds` till rätt scope
-
-`seenExistingIds` måste deklareras på samma nivå som `oldProducts` (som redan deklareras utanför blocket på rad ~1201), så att den är tillgänglig när produkter raderas på rad 2270.
-
-Aktuell felaktig struktur (förenklad):
+### 2. `className` byggs ihop fel – mellanslag saknas
+På rad 186 i `ProjectActivityLog.tsx`:
+```tsx
+// Nuvarande – FEL: ger t.ex. "border-border/40 shadow-2xl rounded-2xlh-full"
+<Card className={`border-border/40 shadow-2xl rounded-2xl${className ? ` ${className}` : ''}`}>
 ```
-let oldProducts: any[] | null = null;  // rad ~1201 — korrekt scope
+`rounded-2xl` och `h-full` smälter ihop till `rounded-2xlh-full` som inte är en giltig klass.
 
-if (needsProductUpdate || !existingBooking) {
-  // ... deduplication-kod ...
-  const seenExistingIds = new Set<string>();  // rad 2113 — FEL: lokal scope
-  
-  for (const product of deduplicatedProducts) {
-    seenExistingIds.add(...);  // används här
-  }
-}
+## Lösning
 
-// ── DELETE products ──
-const toDelete = oldProducts.filter(p => !seenExistingIds.has(p.id));  // rad 2270 — KRASCHAR: seenExistingIds okänd här
-```
+### Fil: `src/components/project/ProjectActivityLog.tsx`
 
-Fix: deklarera `seenExistingIds` vid sidan av `oldProducts`, ovanför if-blocket:
-```
-let oldProducts: any[] | null = null;
-const seenExistingIds = new Set<string>();  // flytta hit
+**Fix 1 – Använd `cn()` för className-sammanslagning (rad 186)**
+
+Byt ut sträng-konkatenering mot `cn()` som redan importeras:
+```tsx
+<Card className={cn("border-border/40 shadow-2xl rounded-2xl", className)}>
 ```
 
-### 2. Tekniska steg
+**Fix 2 – Gör filter-knapparna responsiva**
+
+Bryt ut filtren till ett eget block som kan wrappa. Ersätt den horisontella `flex`-raden med en `flex-wrap`-variant, eller flytta filtren under titeln som en andra rad i CardHeader:
+
+```tsx
+<CardHeader className="pb-3">
+  <CardTitle className="text-lg flex items-center gap-3 tracking-tight">
+    ...Aktivitetslogg
+  </CardTitle>
+  <div className="flex items-center gap-1 flex-wrap mt-2">
+    <Filter className="h-3.5 w-3.5 text-muted-foreground mr-1" />
+    {FILTER_OPTIONS.map(option => (
+      <Button key={option.value} ...>{option.label}</Button>
+    ))}
+  </div>
+</CardHeader>
+```
+
+Detta placerar filter-knapparna på en egen rad under titeln, med `flex-wrap` så de radbryts vid behov – utan att svämma utanför kortet.
+
+## Tekniska steg
 
 | Fil | Ändring |
 |---|---|
-| `supabase/functions/import-bookings/index.ts` | Flytta `const seenExistingIds = new Set<string>()` från rad 2113 till rad ~1201 (bredvid `let oldProducts`) |
+| `src/components/project/ProjectActivityLog.tsx` | Rad 186: byt till `cn(...)` för className |
+| `src/components/project/ProjectActivityLog.tsx` | Rad 187-211: dela CardHeader i titel-rad + filter-rad med flex-wrap |
 
-### 3. Driftsättning
-
-Edge-funktionen driftsätts automatiskt efter kodändringen.
-
-### Förväntat resultat
-
-- `seenExistingIds is not defined`-felet försvinner
-- Produkter uppdateras korrekt (befintliga uppdateras in-place, borttagna raderas)
-- `syncAllAttachments` anropas och bilder (tältbilder, situationsplaner, produktbilder) importeras till `booking_attachments`
-- Knappen "Uppdatera bokning" på projektsidan synkar bilder korrekt
+Inga andra filer behöver ändras.
