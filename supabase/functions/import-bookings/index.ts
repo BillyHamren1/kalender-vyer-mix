@@ -60,54 +60,90 @@ const addDays = (dateString: string, days: number): string => {
 };
 
 /**
- * Sync product images as booking attachments (with deduplication)
+ * Unified attachment sync — fetches existing URLs once, then processes
+ * products[], files_metadata[], and tent_images[] against a SHARED seenUrls set.
+ * This prevents duplicates that occurred when the three functions ran sequentially
+ * and each fetched existing attachments independently before the others had committed.
  */
-async function syncProductImages(supabase: any, bookingId: string, products: any[], results: any) {
-  const seenUrls = new Set<string>();
-  
+async function syncAllAttachments(
+  supabase: any,
+  bookingId: string,
+  products: any[],
+  filesMetadata: any[],
+  tentImages: any[],
+  results: any
+) {
+  // --- 1. Fetch all existing URLs for this booking ONCE ---
   const { data: existingAttachments } = await supabase
     .from('booking_attachments')
     .select('url')
     .eq('booking_id', bookingId);
-  (existingAttachments || []).forEach((a: any) => seenUrls.add(a.url));
-  
-  for (const product of products) {
-    const imageUrls: string[] = [];
-    if (product.image_url && typeof product.image_url === 'string') {
-      imageUrls.push(product.image_url);
+  const seenUrls = new Set<string>((existingAttachments || []).map((a: any) => a.url));
+
+  const insertAttachment = async (url: string, fileName: string, fileType: string) => {
+    if (!url || seenUrls.has(url)) return;
+    seenUrls.add(url);
+    const { error } = await supabase
+      .from('booking_attachments')
+      .insert({ booking_id: bookingId, url, file_name: fileName, file_type: fileType });
+    if (error) {
+      console.error(`[Attachments] Error inserting "${fileName}" for booking ${bookingId}:`, error.message);
+    } else {
+      results.attachments_imported++;
+      console.log(`[Attachments] Saved "${fileName}" for booking ${bookingId}`);
     }
+  };
+
+  // --- 2. Product images ---
+  for (const product of (products || [])) {
+    const imageUrls: string[] = [];
+    if (product.image_url && typeof product.image_url === 'string') imageUrls.push(product.image_url);
     if (Array.isArray(product.image_urls)) {
-      for (const url of product.image_urls) {
-        if (typeof url === 'string') imageUrls.push(url);
-      }
+      for (const u of product.image_urls) { if (typeof u === 'string') imageUrls.push(u); }
     }
     for (const imgUrl of imageUrls) {
-      if (!imgUrl || seenUrls.has(imgUrl)) continue;
-      seenUrls.add(imgUrl);
-      
       const productName = product.name || product.product_name || 'Produkt';
-      const fileName = `${productName} - bild`;
-      
       let fileType = 'image/jpeg';
       if (imgUrl.includes('.png')) fileType = 'image/png';
       else if (imgUrl.includes('.webp')) fileType = 'image/webp';
-      
-      const { error: imgError } = await supabase
-        .from('booking_attachments')
-        .insert({
-          booking_id: bookingId,
-          url: imgUrl,
-          file_name: fileName,
-          file_type: fileType
-        });
-      
-      if (imgError) {
-        console.error(`Error inserting product image for booking ${bookingId}:`, imgError);
-      } else {
-        results.attachments_imported++;
-        console.log(`[Product Image] Saved image from "${productName}" for booking ${bookingId}`);
+      await insertAttachment(imgUrl, `${productName} - bild`, fileType);
+    }
+  }
+
+  // --- 3. files_metadata (new API format) ---
+  for (const file of (filesMetadata || [])) {
+    const fileUrl: string = file.url || file.public_url;
+    const fileName: string = file.name || file.file_name || 'Fil';
+    let fileType = 'image/jpeg';
+    const lower = fileName.toLowerCase();
+    if (lower.endsWith('.png')) fileType = 'image/png';
+    else if (lower.endsWith('.webp')) fileType = 'image/webp';
+    else if (lower.endsWith('.pdf')) fileType = 'application/pdf';
+    else if (lower.endsWith('.gif')) fileType = 'image/gif';
+    await insertAttachment(fileUrl, fileName, fileType);
+  }
+
+  // --- 4. tent_images (legacy format, supports base64) ---
+  for (const tentImage of (tentImages || [])) {
+    const tentIndex = tentImage.tent_index ?? '';
+    const viewKey   = tentImage.view_key   ?? '';
+    const fileName  = (`Tält ${tentIndex} - ${viewKey}`).trim() || 'Tältbild';
+
+    let imgUrl: string | null = tentImage.public_url || null;
+    if (!imgUrl && tentImage.content_base64) {
+      const storageFileName = `tent-${bookingId}-${tentIndex}-${String(viewKey).replace(/[^a-zA-Z0-9]/g, '_')}.jpg`;
+      imgUrl = await uploadBase64ToStorage(supabase, tentImage.content_base64, `${bookingId}/${storageFileName}`, 'image/jpeg');
+      if (!imgUrl) {
+        console.error(`[Attachments] Failed to upload base64 tent image for booking ${bookingId}`);
+        continue;
       }
     }
+    if (!imgUrl) continue;
+
+    let fileType = 'image/jpeg';
+    if (imgUrl.includes('.png')) fileType = 'image/png';
+    else if (imgUrl.includes('.webp')) fileType = 'image/webp';
+    await insertAttachment(imgUrl, fileName, fileType);
   }
 }
 
@@ -143,105 +179,6 @@ async function uploadBase64ToStorage(
   } catch (err) {
     console.error(`[Storage Upload] Exception uploading ${filePath}:`, err);
     return null;
-  }
-}
-
-/**
- * Sync tent images as booking attachments (with deduplication).
- * Supports both public_url (legacy) and content_base64 (new format).
- */
-/**
- * Sync files from files_metadata (new API format).
- * Each entry has: { url, name, type, tent_view_image?, tent_index?, view_angle? }
- */
-async function syncFilesMetadata(supabase: any, bookingId: string, filesMetadata: any[], results: any) {
-  const { data: existingAttachments } = await supabase
-    .from('booking_attachments')
-    .select('url')
-    .eq('booking_id', bookingId);
-  const seenUrls = new Set<string>((existingAttachments || []).map((a: any) => a.url));
-
-  for (const file of filesMetadata) {
-    const fileUrl: string = file.url || file.public_url;
-    if (!fileUrl || seenUrls.has(fileUrl)) continue;
-    seenUrls.add(fileUrl);
-
-    const fileName: string = file.name || file.file_name || 'Fil';
-    let fileType = 'image/jpeg';
-    const lower = fileName.toLowerCase();
-    if (lower.endsWith('.png')) fileType = 'image/png';
-    else if (lower.endsWith('.webp')) fileType = 'image/webp';
-    else if (lower.endsWith('.pdf')) fileType = 'application/pdf';
-    else if (lower.endsWith('.gif')) fileType = 'image/gif';
-
-    const { error } = await supabase
-      .from('booking_attachments')
-      .insert({
-        booking_id: bookingId,
-        url: fileUrl,
-        file_name: fileName,
-        file_type: fileType,
-      });
-
-    if (!error) {
-      results.attachments_imported = (results.attachments_imported || 0) + 1;
-      console.log(`[FilesMetadata] Saved attachment "${fileName}" for booking ${bookingId}`);
-    } else {
-      console.error(`[FilesMetadata] Error saving "${fileName}":`, error.message);
-    }
-  }
-}
-
-async function syncTentImages(supabase: any, bookingId: string, tentImages: any[], results: any) {
-  const { data: existingAttachments } = await supabase
-    .from('booking_attachments')
-    .select('url')
-    .eq('booking_id', bookingId);
-  
-  const seenUrls = new Set<string>((existingAttachments || []).map((a: any) => a.url));
-
-  for (const tentImage of tentImages) {
-    const tentIndex = tentImage.tent_index ?? '';
-    const viewKey   = tentImage.view_key   ?? '';
-    const fileName  = (`Tält ${tentIndex} - ${viewKey}`).trim() || 'Tältbild';
-
-    let imgUrl: string | null = tentImage.public_url || null;
-
-    // New format: upload base64 to Storage
-    if (!imgUrl && tentImage.content_base64) {
-      const storageFileName = `tent-${bookingId}-${tentIndex}-${String(viewKey).replace(/[^a-zA-Z0-9]/g, '_')}.jpg`;
-      const filePath = `${bookingId}/${storageFileName}`;
-      imgUrl = await uploadBase64ToStorage(supabase, tentImage.content_base64, filePath, 'image/jpeg');
-      if (imgUrl) {
-        console.log(`[Tent Image] Uploaded base64 to Storage: ${filePath}`);
-      } else {
-        console.error(`[Tent Image] Failed to upload base64 for tent ${tentIndex}/${viewKey}, booking ${bookingId}`);
-        continue;
-      }
-    }
-
-    if (!imgUrl || seenUrls.has(imgUrl)) continue;
-    seenUrls.add(imgUrl);
-
-    let fileType = 'image/jpeg';
-    if (imgUrl.includes('.png'))  fileType = 'image/png';
-    else if (imgUrl.includes('.webp')) fileType = 'image/webp';
-
-    const { error: tentErr } = await supabase
-      .from('booking_attachments')
-      .insert({
-        booking_id: bookingId,
-        url:        imgUrl,
-        file_name:  fileName,
-        file_type:  fileType
-      });
-
-    if (tentErr) {
-      console.error(`[Tent Image] Error inserting tent image for booking ${bookingId}:`, tentErr);
-    } else {
-      results.attachments_imported++;
-      console.log(`[Tent Image] Saved "${fileName}" for booking ${bookingId}`);
-    }
   }
 }
 
@@ -1594,17 +1531,14 @@ serve(async (req) => {
           if (!hasChanged && !statusChanged && !needsCalendarRecovery && !needsWarehouseRecovery && !needsProductRecovery && !needsProductUpdate) {
             console.log(`No changes detected for ${bookingData.id}, skipping update`)
             
-            // Still sync product images even for unchanged bookings
-            if (externalBooking.products && Array.isArray(externalBooking.products)) {
-              await syncProductImages(supabase, bookingData.id, externalBooking.products, results);
-            }
-
-            // Sync files (new: files_metadata, legacy: tent_images)
-            if (externalBooking.files_metadata && Array.isArray(externalBooking.files_metadata)) {
-              await syncFilesMetadata(supabase, bookingData.id, externalBooking.files_metadata, results);
-            } else if (externalBooking.tent_images && Array.isArray(externalBooking.tent_images)) {
-              await syncTentImages(supabase, bookingData.id, externalBooking.tent_images, results);
-            }
+            // Sync all attachments (products, files_metadata, tent_images) with shared dedup
+            await syncAllAttachments(
+              supabase, bookingData.id,
+              externalBooking.products || [],
+              externalBooking.files_metadata || [],
+              externalBooking.tent_images || [],
+              results
+            );
             
             results.unchanged_bookings_skipped.push(bookingData.id)
             continue; // SKIP UPDATE - NO CHANGES
@@ -1615,16 +1549,14 @@ serve(async (req) => {
             console.log(`Only warehouse recovery needed for ${bookingData.id}`);
             const warehouseEventsCreated = await syncWarehouseEventsForBooking(supabase, bookingData);
             results.warehouse_events_created += warehouseEventsCreated;
-            // Sync product images even for warehouse-only recovery
-            if (externalBooking.products && Array.isArray(externalBooking.products)) {
-              await syncProductImages(supabase, bookingData.id, externalBooking.products, results);
-            }
-            // Sync files (new: files_metadata, legacy: tent_images)
-            if (externalBooking.files_metadata && Array.isArray(externalBooking.files_metadata)) {
-              await syncFilesMetadata(supabase, bookingData.id, externalBooking.files_metadata, results);
-            } else if (externalBooking.tent_images && Array.isArray(externalBooking.tent_images)) {
-              await syncTentImages(supabase, bookingData.id, externalBooking.tent_images, results);
-            }
+            // Sync all attachments with shared dedup
+            await syncAllAttachments(
+              supabase, bookingData.id,
+              externalBooking.products || [],
+              externalBooking.files_metadata || [],
+              externalBooking.tent_images || [],
+              results
+            );
             results.imported++;
             continue;
           }
@@ -1815,16 +1747,14 @@ serve(async (req) => {
               console.log(`[Product Recovery] Synced ${recoveryPackingSynced} packing list items for booking ${bookingData.id}`);
             }
             
-            // Sync product images during product recovery
-            if (externalBooking.products && Array.isArray(externalBooking.products)) {
-              await syncProductImages(supabase, bookingData.id, externalBooking.products, results);
-            }
-            // Sync files (new: files_metadata, legacy: tent_images)
-            if (externalBooking.files_metadata && Array.isArray(externalBooking.files_metadata)) {
-              await syncFilesMetadata(supabase, bookingData.id, externalBooking.files_metadata, results);
-            } else if (externalBooking.tent_images && Array.isArray(externalBooking.tent_images)) {
-              await syncTentImages(supabase, bookingData.id, externalBooking.tent_images, results);
-            }
+            // Sync all attachments with shared dedup
+            await syncAllAttachments(
+              supabase, bookingData.id,
+              externalBooking.products || [],
+              externalBooking.files_metadata || [],
+              externalBooking.tent_images || [],
+              results
+            );
             results.imported++;
             results.updated_bookings.push(existingBooking.id);
             console.log(`[Product Recovery] Completed for booking ${bookingData.id}`);
@@ -2420,19 +2350,14 @@ serve(async (req) => {
           await supabase.from('bookings').update({ map_drawing_url: externalBooking.map_drawing_url }).eq('id', bookingData.id);
         }
 
-        // Extract product images as booking attachments
-        if (externalBooking.products && Array.isArray(externalBooking.products)) {
-          await syncProductImages(supabase, bookingData.id, externalBooking.products, results);
-        }
-
-        // Extract files from files_metadata (new API format)
-        if (externalBooking.files_metadata && Array.isArray(externalBooking.files_metadata)) {
-          await syncFilesMetadata(supabase, bookingData.id, externalBooking.files_metadata, results);
-        }
-        // Legacy: tent_images field support
-        else if (externalBooking.tent_images && Array.isArray(externalBooking.tent_images)) {
-          await syncTentImages(supabase, bookingData.id, externalBooking.tent_images, results);
-        }
+        // Sync all attachments (products, files_metadata, tent_images) with shared dedup
+        await syncAllAttachments(
+          supabase, bookingData.id,
+          externalBooking.products || [],
+          externalBooking.files_metadata || [],
+          externalBooking.tent_images || [],
+          results
+        );
 
         results.imported++
 
