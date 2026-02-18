@@ -34,7 +34,7 @@ const ProjectViewPage = () => {
   const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
   const [transportBookingOpen, setTransportBookingOpen] = useState(false);
 
-  const { project, tasks, files, comments, activities } = detail;
+  const { project, tasks, files, comments, activities, bookingAttachments } = detail;
   const bookingId = project?.booking_id || project?.booking?.id || null;
   const { assignments: transportAssignments, refetch: refetchTransport } = useProjectTransport(bookingId);
 
@@ -97,12 +97,13 @@ const ProjectViewPage = () => {
 
       {/* Files */}
       <section>
-        <SectionHeader icon={FileText} title="Filer" count={files.length} />
+        <SectionHeader icon={FileText} title="Filer" count={files.length + bookingAttachments.length} />
         <ProjectFiles
           files={files}
           onUpload={detail.uploadFile}
           onDelete={detail.deleteFile}
           isUploading={detail.isUploadingFile}
+          bookingAttachments={bookingAttachments}
         />
       </section>
 
