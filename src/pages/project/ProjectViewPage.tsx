@@ -7,11 +7,12 @@ import ProjectComments from "@/components/project/ProjectComments";
 import ProjectActivityLog from "@/components/project/ProjectActivityLog";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import ProjectTransportBookingDialog from "@/components/project/ProjectTransportBookingDialog";
+import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
 import TaskDetailSheet from "@/components/project/TaskDetailSheet";
 import { ProjectTask } from "@/types/project";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
-import { ListChecks, Truck, FileText, MessageSquare, History } from "lucide-react";
+import { Truck, FileText, MessageSquare, History } from "lucide-react";
 
 const SectionHeader = ({ icon: Icon, title, count }: { icon: React.ElementType; title: string; count?: number }) => (
   <div className="flex items-center gap-2 mb-3">
@@ -48,6 +49,8 @@ const ProjectViewPage = () => {
 
   if (!project) return null;
 
+  const booking = project.booking;
+
   return (
     <div className="space-y-6">
       {/* Overview dashboard */}
@@ -58,33 +61,41 @@ const ProjectViewPage = () => {
         activities={activities}
       />
 
+      {/* Two-column layout: Booking info + Tasks & Transport */}
+      <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6 items-start">
+        {/* Left: Booking info */}
+        {booking && (
+          <BookingInfoExpanded
+            booking={booking}
+            projectLeader={project.project_leader}
+            bookingAttachments={bookingAttachments}
+          />
+        )}
 
+        {/* Right: Tasks + Transport */}
+        <div className="space-y-4">
+          <ProjectTaskList
+            tasks={tasks}
+            onAddTask={detail.addTask}
+            onUpdateTask={detail.updateTask}
+            onDeleteTask={detail.deleteTask}
+            onTaskAction={(task) => {
+              if (task.title === 'Transportbokning' && bookingId) {
+                setTransportBookingOpen(true);
+                return true;
+              }
+              return false;
+            }}
+          />
 
-      {/* Tasks */}
-      <section>
-        <SectionHeader icon={ListChecks} title="Uppgifter" count={tasks.length} />
-        <ProjectTaskList
-          tasks={tasks}
-          onAddTask={detail.addTask}
-          onUpdateTask={detail.updateTask}
-          onDeleteTask={detail.deleteTask}
-          onTaskAction={(task) => {
-            if (task.title === 'Transportbokning' && bookingId) {
-              setTransportBookingOpen(true);
-              return true;
-            }
-            return false;
-          }}
-        />
-      </section>
+          <section>
+            <SectionHeader icon={Truck} title="Transport" count={transportAssignments.length} />
+            <ProjectTransportWidget bookingId={bookingId} />
+          </section>
+        </div>
+      </div>
 
-      {/* Transport */}
-      <section>
-        <SectionHeader icon={Truck} title="Transport" count={transportAssignments.length} />
-        <ProjectTransportWidget bookingId={bookingId} />
-      </section>
-
-      {/* Files */}
+      {/* Full-width sections below */}
       <section>
         <SectionHeader icon={FileText} title="Filer" count={files.length} />
         <ProjectFiles
@@ -95,13 +106,11 @@ const ProjectViewPage = () => {
         />
       </section>
 
-      {/* Comments */}
       <section>
         <SectionHeader icon={MessageSquare} title="Kommentarer" count={comments.length} />
         <ProjectComments comments={comments} onAddComment={detail.addComment} />
       </section>
 
-      {/* Activity History */}
       <section>
         <SectionHeader icon={History} title="Historik" count={activities.length} />
         <ProjectActivityLog activities={activities} />
