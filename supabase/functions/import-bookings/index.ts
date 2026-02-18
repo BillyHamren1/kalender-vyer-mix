@@ -94,23 +94,7 @@ async function syncAllAttachments(
     }
   };
 
-  // --- 2. Product images ---
-  for (const product of (products || [])) {
-    const imageUrls: string[] = [];
-    if (product.image_url && typeof product.image_url === 'string') imageUrls.push(product.image_url);
-    if (Array.isArray(product.image_urls)) {
-      for (const u of product.image_urls) { if (typeof u === 'string') imageUrls.push(u); }
-    }
-    for (const imgUrl of imageUrls) {
-      const productName = product.name || product.product_name || 'Produkt';
-      let fileType = 'image/jpeg';
-      if (imgUrl.includes('.png')) fileType = 'image/png';
-      else if (imgUrl.includes('.webp')) fileType = 'image/webp';
-      await insertAttachment(imgUrl, `${productName} - bild`, fileType);
-    }
-  }
-
-  // --- 3. files_metadata (new API format) ---
+  // --- 2. files_metadata (new API format) ---
   for (const file of (filesMetadata || [])) {
     const fileUrl: string = file.url || file.public_url;
     const fileName: string = file.name || file.file_name || 'Fil';
