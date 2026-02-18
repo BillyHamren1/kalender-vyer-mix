@@ -20,8 +20,9 @@ interface ProductGroup {
   children: ProductCostData[];
 }
 
-const cleanName = (name: string): string =>
-  name.replace(/^[\s↳└⦿L,\-–]+/, '').trim();
+function cleanName(name: string): string {
+  return name.replace(/^[\s↳└⦿L,\-–]+/, '').trim();
+}
 
 const fmt = (v: number) =>
   v === 0 ? '0' : v.toLocaleString('sv-SE');
