@@ -23,7 +23,7 @@ const ProjectLayout = () => {
   if (isLoading) {
     return (
       <div className="h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 max-w-6xl">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-muted rounded w-1/3" />
             <div className="h-32 bg-muted rounded" />
@@ -59,7 +59,7 @@ const ProjectLayout = () => {
 
   return (
     <div className="h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 max-w-6xl">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
           <div className="flex items-center gap-4">
