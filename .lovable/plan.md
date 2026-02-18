@@ -1,73 +1,125 @@
 
-## Problemet: economics_data är NULL för alla bokningar
+## Fixa economics-visning — ny datastruktur + line_items-tabell
 
-### Rotkorsaken — tre samverkande brister
+### Problemet i detalj
 
-**1. Kolumnen är ny, datan är gammal**
-`economics_data`-kolonnen lades till i databasen och edge-funktionen uppdaterades för att spara den — men alla 17 befintliga bokningar hade redan importerats. Ingen återimport triggades → alla har `economics_data = NULL`.
-
-**2. `hasBookingChanged()` ignorerar economics_data**
-Ändringskontrollfunktionen jämför bara dessa fält:
-```
-client, rigdaydate, eventdate, rigdowndate, deliveryaddress,
-delivery_city, delivery_postal_code, status, booking_number,
-assigned_project_id, assigned_project_name, assigned_to_project
-```
-`economics_data` ingår inte. Även om API:et skickar economics-data för en befintlig bokning detekteras ingen förändring → bokningen skippas (`continue`) och `economics_data` skrivs aldrig.
-
-**3. Skippade bokningar uppdateras aldrig**
-```typescript
-if (!hasChanged && !statusChanged && ...) {
-  // Sync attachments
-  results.unchanged_bookings_skipped.push(bookingData.id)
-  continue; // ← economics_data skrivs ALDRIG
+API:et skickar nu detta format:
+```json
+{
+  "revenue": { "total_ex_vat": 85000, "currency": "SEK" },
+  "costs": { "assembly": 4200, "handling": 1800, "purchase": 9600, "total": 15600 },
+  "margin": { "gross": 69400, "pct": 82 },
+  "line_items": [
+    { "product_name": "Multiflex 10x21", "quantity": 1,
+      "total_revenue": 45000, "assembly_cost": 2000,
+      "handling_cost": 800, "purchase_cost": 5000, "total_cost": 7800 }
+  ]
 }
 ```
 
-### Lösningen — tre åtgärder
+Men koden är byggd för det gamla formatet (`total_revenue_ex_vat`, `total_assembly_cost` etc.). Tre saker är trasiga:
 
-**Åtgärd 1: Lägg till economics_data i hasBookingChanged()**
-Så att framtida imports detekterar när economics-data tillkommer eller ändras:
+1. **Typen är fel** — `BookingEconomics` matchar inte API:ets nya struktur
+2. **Edge-funktionen lagrar okartlagt** — `externalBooking.economics` sparas rakt in i DB utan att mappas, dvs fälten heter `revenue.total_ex_vat` inte `total_revenue_ex_vat`
+3. **UI:et saknar line_items** — den mest värdefulla delen (per-produkt-kalkyl) visas aldrig
+
+### Vad som byggs
+
+**Steg 1: Uppdatera typen `BookingEconomics`** (`src/types/booking.ts`)
+
+Lägg till den nya strukturen med bakåtkompatibilitet för det gamla formatet:
+
 ```typescript
-// Kolla om economics_data saknas i befintlig bokning men finns i extern data
-if (externalBooking.economics_data && !existingBooking.economics_data) {
-  return true; // Markera som förändrad
+export interface BookingEconomicsLineItem {
+  product_name: string;
+  quantity: number;
+  total_revenue: number;
+  assembly_cost: number;
+  handling_cost: number;
+  purchase_cost: number;
+  total_cost: number;
+}
+
+export interface BookingEconomics {
+  // Nytt format (från API)
+  revenue?: { total_ex_vat?: number; currency?: string };
+  costs?: { assembly?: number; handling?: number; purchase?: number; total?: number };
+  margin?: { gross?: number; pct?: number };
+  line_items?: BookingEconomicsLineItem[];
+  // Gammalt format (bakåtkompatibilitet)
+  total_revenue_ex_vat?: number;
+  total_assembly_cost?: number;
+  total_handling_cost?: number;
+  total_purchase_cost?: number;
+  total_costs?: number;
+  gross_margin?: number;
+  margin_pct?: number;
 }
 ```
 
-**Åtgärd 2: Uppdatera economics_data även för "unchanged" bokningar som saknar den**
-I den skippade-grenen, lägg till en check:
+**Steg 2: Bygg om `BookingEconomicsCard`** (`src/components/booking/BookingEconomicsCard.tsx`)
+
+Skapa en hjälpfunktion `normalizeEconomics()` som hanterar båda formaten:
+
 ```typescript
-if (!hasChanged && !statusChanged && ...) {
-  // Om economics_data saknas men finns i API-svaret → uppdatera bara den
-  if (!existingBooking.economics_data && bookingData.economics_data) {
-    await supabase.from('bookings')
-      .update({ economics_data: bookingData.economics_data })
-      .eq('id', existingBooking.id);
-  }
-  await syncAllAttachments(...);
-  results.unchanged_bookings_skipped.push(bookingData.id)
-  continue;
-}
+const normalizeEconomics = (e: BookingEconomics) => ({
+  revenue: e.revenue?.total_ex_vat ?? e.total_revenue_ex_vat,
+  assemblyCost: e.costs?.assembly ?? e.total_assembly_cost,
+  handlingCost: e.costs?.handling ?? e.total_handling_cost,
+  purchaseCost: e.costs?.purchase ?? e.total_purchase_cost,
+  totalCosts: e.costs?.total ?? e.total_costs,
+  grossMargin: e.margin?.gross ?? e.gross_margin,
+  marginPct: e.margin?.pct ?? e.margin_pct,
+  lineItems: e.line_items ?? [],
+});
 ```
 
-**Åtgärd 3: SQL-patch för befintliga bokningar**
-Eftersom 0 av 17 bokningar har economics_data och datan finns i API:et behöver vi trigga en re-import. Det enklaste: lägg till en "force economics backfill"-logik som alltid uppdaterar `economics_data` om den är null, oavsett om bokningen i övrigt är oförändrad.
+Kortet visar:
+- 3 KPI-rutor: Intäkter / Kostnader / Bruttomarginal (med %badge)
+- Kostnadsrad: Montage + Lager + Inköp
+- **Ny: line_items-tabell** med per-produkt-kalkyl, kollapsbar med en "Visa produktkalkyl"-knapp
 
-Alternativt: kör direkt `UPDATE bookings SET economics_data = NULL WHERE true` är onödigt — datan finns inte ens i DB. Lösningen är edge-funktionen som skriver den vid nästa import.
-
-### UI-problemet — kortet visas inte ens om data saknas
-
-I `BookingDetailContent.tsx`:
-```tsx
-{booking.economics && <BookingEconomicsCard economics={booking.economics} />}
+Layout för line_items-tabellen:
 ```
-Detta är korrekt beteende — kortet ska bara visas om data finns. Problemet är att data aldrig importerades.
+Produkt              Antal   Intäkt    Montage  Lager   Inköp   Totalt
+Multiflex 10x21       1     45 000    2 000     800    5 000   7 800
+Tält 6x12             2     40 000    2 200    1 000   4 600   7 800
+────────────────────────────────────────────────────────────────────
+TOTALT                      85 000    4 200    1 800   9 600  15 600
+```
+
+**Steg 3: Flytta kortet till fullbredd i bokning** (`src/components/booking/detail/BookingDetailContent.tsx`)
+
+Flytta `BookingEconomicsCard` ur den trånga högerkolumnen (som du visade i skärmbilden) till en separat full-bredd-sektion nedanför tvåkolumnslayouten:
+
+```
+┌──────────────────┬──────────────────┐
+│  Klientinfo      │  Schema          │
+│  Leverans        │  Produkter       │
+│  Karta           │  Bilagor         │
+│  Projekt         │  Interna noter   │
+└──────────────────┴──────────────────┘
+──── Ekonomisk kalkyl (full bredd) ────
+┌──────────────────────────────────────┐
+│  KPI-kort  |  KPI-kort  |  KPI-kort │
+│  Kostnadsuppdelning rad              │
+│  [Visa produktkalkyl ▼]              │
+│  Produkttabell (kollapsbar)          │
+└──────────────────────────────────────┘
+```
+
+**Steg 4: Visa offertunderlag i projektvyn** (`src/hooks/useProjectEconomy.tsx` + `src/components/project/ProjectEconomyTab.tsx`)
+
+Hämta `economics_data` från bokningen via `bookingId` och visa det överst i Ekonomi-fliken som ett "Offertunderlag"-kort — exakt samma `BookingEconomicsCard`-komponent återanvänds men med etikett "Offertunderlag (från bokningsoffert)".
 
 ### Filer att ändra
 
-| Fil | Förändring |
-|-----|-----------|
-| `supabase/functions/import-bookings/index.ts` | 1) Lägg till `economics_data`-check i `hasBookingChanged()` · 2) Backfill economics_data i skip-grenen om den saknas |
+| Fil | Vad som ändras |
+|-----|----------------|
+| `src/types/booking.ts` | Utöka `BookingEconomics` med ny struktur + `BookingEconomicsLineItem` |
+| `src/components/booking/BookingEconomicsCard.tsx` | Normalisera båda format, lägg till line_items-tabell, bättre layout |
+| `src/components/booking/detail/BookingDetailContent.tsx` | Flytta kortet till full-bredd-sektion utanför kolumnerna |
+| `src/hooks/useProjectEconomy.tsx` | Lägg till query för `bookingEconomics` via `bookingId` |
+| `src/components/project/ProjectEconomyTab.tsx` | Visa `BookingEconomicsCard` överst som offertunderlag |
 
-Det är **bara edge-funktionen** som behöver ändras. Ingen UI-ändring. Efter deploy räcker det att trigga en import för att alla bokningar ska få sin `economics_data` fylld.
+Inga databasändringar behövs — data sparas redan korrekt i `economics_data`-kolumnen.
