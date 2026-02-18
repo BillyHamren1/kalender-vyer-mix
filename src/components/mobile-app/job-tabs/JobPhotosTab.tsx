@@ -1,12 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { mobileApi } from '@/services/mobileApiService';
-import { Image, Camera, Upload, Loader2, X } from 'lucide-react';
+import { Image, Camera, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
 interface JobPhotosTabProps {
   bookingId: string;
 }
+
+const isImageFile = (file: any): boolean => {
+  if (file.file_type?.startsWith('image/')) return true;
+  return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.url || '');
+};
 
 const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
   const [files, setFiles] = useState<any[]>([]);
@@ -58,8 +63,14 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
     );
   }
 
+  // Separate by source, keep only images
+  const uploadedPhotos = files.filter(f => f.source === 'project' && isImageFile(f));
+  const bookingImages = files
+    .filter(f => f.source === 'booking' && isImageFile(f))
+    .filter((f, idx, arr) => arr.findIndex((x: any) => x.url === f.url) === idx);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Upload button */}
       <input
         ref={fileInputRef}
@@ -82,15 +93,15 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
         {isUploading ? 'Laddar upp...' : 'Ta foto / ladda upp'}
       </Button>
 
-      {/* Image grid */}
-      {files.length === 0 ? (
-        <div className="text-center py-8">
+      {/* Uploaded project photos */}
+      {uploadedPhotos.length === 0 ? (
+        <div className="text-center py-6">
           <Image className="w-10 h-10 mx-auto text-muted-foreground/20 mb-2" />
-          <p className="text-sm text-muted-foreground">Inga bilder ännu</p>
+          <p className="text-sm text-muted-foreground">Inga egna bilder ännu</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2">
-          {files.map((file: any) => (
+          {uploadedPhotos.map((file: any) => (
             <button
               key={file.id || file.url}
               onClick={() => setPreviewUrl(file.url)}
@@ -104,6 +115,31 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
               />
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Booking images section */}
+      {bookingImages.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+            Bilder från bokning
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {bookingImages.map((img: any) => (
+              <button
+                key={img.id || img.url}
+                onClick={() => setPreviewUrl(img.url)}
+                className="rounded-xl border overflow-hidden aspect-video bg-muted"
+              >
+                <img
+                  src={img.url}
+                  alt={img.file_name || img.name || 'Bild'}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
