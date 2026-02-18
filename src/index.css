@@ -27,13 +27,14 @@
     --accent-foreground: 184 25% 12%;
 
     /* === TEXT === */
-    --foreground: 184 15% 30%;          /* Body text */
-    --heading: 184 25% 12%;             /* Heading text */
-    --card: 0 0% 100%;                  /* L1 — ren vit kortyta */
-    --card-foreground: 184 15% 30%;
+    --foreground: 184 35% 16%;          /* Mörkare teal-text */
+    --heading: 184 25% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 184 35% 16%;
     --muted: 200 14% 93%;
-    --muted-foreground: 200 10% 55%;
+    --muted-foreground: 184 14% 38%;
     --ring: 184 55% 38%;
+
 
     --popover: 0 0% 100%;
     --popover-foreground: 184 15% 30%;
@@ -41,10 +42,11 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 200 12% 88%;              /* Subtil, nästan osynlig kant */
-    --input: 200 12% 88%;
+    --border: 200 12% 74%;              /* Generell kant */
+    --input: 200 12% 74%;
 
     --radius: 0.5rem;
+
 
     /* === SHADOWS (Premium Enterprise) === */
     --shadow-soft: 0 1px 2px hsl(184 30% 15% / 0.08), 0 1px 4px hsl(184 30% 15% / 0.05);
