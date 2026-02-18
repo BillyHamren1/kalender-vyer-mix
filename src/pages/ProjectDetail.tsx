@@ -96,7 +96,7 @@ const ProjectDetail = () => {
         {/* Overview Dashboard */}
         <ProjectOverviewHeader
           tasks={tasks}
-          filesCount={files.length + bookingAttachments.length}
+          filesCount={files.length}
           commentsCount={comments.length}
           activities={activities}
         />
@@ -207,7 +207,7 @@ const ProjectDetail = () => {
               onUpload={uploadFile}
               onDelete={deleteFile}
               isUploading={isUploadingFile}
-              bookingAttachments={bookingAttachments}
+              
             />
           </TabsContent>
 
