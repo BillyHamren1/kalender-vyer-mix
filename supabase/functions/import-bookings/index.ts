@@ -2021,9 +2021,12 @@ serve(async (req) => {
             .select('id, name, quantity')
             .eq('booking_id', existingBooking.id);
           
-          // 3. Clear existing products and attachments for updated bookings
-          await supabase.from('booking_products').delete().eq('booking_id', existingBooking.id)
-          await supabase.from('booking_attachments').delete().eq('booking_id', existingBooking.id)
+          // 3. Clear existing products and attachments ONLY if products have changed
+          // This prevents race conditions when imports run in parallel
+          if (needsProductUpdate) {
+            await supabase.from('booking_products').delete().eq('booking_id', existingBooking.id)
+            await supabase.from('booking_attachments').delete().eq('booking_id', existingBooking.id)
+          }
 
           // Store references for packing reconnection after products are created
           // Note: These variables are declared at the top of the loop
@@ -2059,6 +2062,8 @@ serve(async (req) => {
 
         // Process products with parent-child relationship tracking
         if (externalBooking.products && Array.isArray(externalBooking.products)) {
+        // Only re-insert products if they have changed (prevents duplicates from parallel imports)
+        if (needsProductUpdate || !existingBooking) {
           console.log(`Processing ${externalBooking.products.length} raw products for booking ${bookingData.id}`)
           
           // DEDUPLICATE: External API sometimes sends duplicate rows - merge by name + parent
@@ -2238,7 +2243,7 @@ serve(async (req) => {
           if (mainPackingSynced > 0) {
             console.log(`[Main Flow] Synced ${mainPackingSynced} packing list items for booking ${bookingData.id}`);
           }
-        
+        } // end if (needsProductUpdate || !existingBooking)
         // RECONNECT PACKING LIST ITEMS after products have been created
         if (needsPackingReconnection && packingIdForReconnection) {
           console.log(`[Packing Reconnect] Starting packing list reconnection for booking ${bookingData.id}`);
