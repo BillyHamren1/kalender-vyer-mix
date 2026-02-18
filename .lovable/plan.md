@@ -1,34 +1,31 @@
 
-## Två förbättringar i nedre raden: lika höga kort + bokningsbilder i Filer
+## Problemet
 
-### Problem 1: Ojämn höjd på de tre korten
-Griden använder `items-start`, vilket innebär att varje kort bara är lika högt som sitt innehåll. Filer-kortet är kortast och Historik-kortet längst. Lösningen är att byta till `items-stretch` och ge korten `h-full` så att alla tre sträcker sig till samma höjd.
+I `ProjectViewPage.tsx` (rad 92) används `items-start` på den tre-kolumniga griden. Det gör att varje kort bara är lika högt som sitt innehåll. Dessutom saknar `<ProjectFiles>` `bookingAttachments`-propen i den nuvarande koden på rad 95–101.
 
-### Problem 2: Bokningsbilder syns bara i Boknings-panelen, inte i Filer
-`bookingAttachments` (bilderna från bokningen) skickas idag till `BookingInfoExpanded` men inte till `ProjectFiles`. Användaren vill se dessa bilder direkt i Filer-kortet.
+## Lösningen — två enkla ändringar i `ProjectViewPage.tsx`
 
----
+### 1. `items-start` → `items-stretch`
+Ändrar gridens alignment så att alla tre kolumner sträcker sig till samma höjd (den högsta kolumnens höjd).
 
-### Lösning
+### 2. Wrappa varje `<section>` i `<div className="flex flex-col h-full">`
+Korten inuti måste också få `h-full` för att fylla sin förälders höjd. Kortkomponenterna (`ProjectFiles`, `ProjectComments`, `ProjectActivityLog`) använder alla `<Card>` — dessa får `className="h-full"`.
 
-**`src/pages/project/ProjectViewPage.tsx`**
-- Ändra `items-start` → `items-stretch` på den tre-kolumniga griden
-- Skicka `bookingAttachments` som prop till `<ProjectFiles />`
+### 3. Lägg till `bookingAttachments` på `<ProjectFiles>`
+Just nu på rad 95–101 skickas **inte** `bookingAttachments` till `ProjectFiles`. Den propen är redan implementerad i komponenten men saknas i anropet. Lägg till `bookingAttachments={bookingAttachments}`.
 
-**`src/components/project/ProjectFiles.tsx`**
-- Lägg till en `bookingAttachments` prop (array av `BookingAttachment`)
-- Lägg till en sektion under uppladdade filer som visar bilderna från bokningen i ett bildgalleri (klickbara, öppnar i ny flik)
-- Korten får `h-full` via en wrapping `div` så de fyller hela gridens höjd
+## Tekniska ändringar
 
----
+| Fil | Rad | Ändring |
+|---|---|---|
+| `src/pages/project/ProjectViewPage.tsx` | 92 | `items-start` → `items-stretch` |
+| `src/pages/project/ProjectViewPage.tsx` | 93–101 | Wrappa i `div h-full`, ge `ProjectFiles` `className="h-full"` + `bookingAttachments` |
+| `src/pages/project/ProjectViewPage.tsx` | 103–106 | Wrappa i `div h-full`, ge `ProjectComments` `className="h-full"` |
+| `src/pages/project/ProjectViewPage.tsx` | 108–111 | Wrappa i `div h-full`, ge `ProjectActivityLog` `className="h-full"` |
+| `src/components/project/ProjectFiles.tsx` | 51 | Lägg till `h-full` på `<Card>` |
+| `src/components/project/ProjectComments.tsx` | 35 | Lägg till `h-full` på `<Card>` |
+| `src/components/project/ProjectActivityLog.tsx` | 185 | Lägg till `h-full` på `<Card>` |
 
-### Tekniska detaljer
-
-| Fil | Ändring |
-|---|---|
-| `src/pages/project/ProjectViewPage.tsx` | `items-start` → `items-stretch`, lägg till `bookingAttachments={bookingAttachments}` på `<ProjectFiles />`, wrappa varje `<section>` i `<div className="flex flex-col h-full">` och ge `<ProjectFiles>` `className="h-full"` |
-| `src/components/project/ProjectFiles.tsx` | Ny prop `bookingAttachments?: BookingAttachment[]`, filtrera ut bilderna (`file_type?.startsWith('image/')` eller bildfil-extension), visa dem i ett bildgalleri-grid under de uppladdade filerna med en avskiljare och rubrik "Bilder från bokning" |
-
-### Resultat
-- Alla tre kort (Filer, Kommentarer, Historik) håller exakt samma höjd
-- Filer-kortet visar bokningens bilder (tältbilder, situationsplaner) direkt utan att användaren behöver scrolla upp till Boknings-panelen
+## Resultat
+- Filer, Kommentarer och Historik håller exakt samma höjd
+- Bokningsbilder visas i Filer-kortet (propen var implementerad men saknades i anropet)
