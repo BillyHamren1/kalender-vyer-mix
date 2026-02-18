@@ -1,52 +1,28 @@
 
 ## Problem
 
-`ProjectProductsList` renders its own `<Card>` wrapper internally. This causes "Utrustning" and "Bilder" to look like separate cards visually, even though they are already placed inside `BookingInfoExpanded`'s outer card. The result is cards-within-cards instead of a unified container.
+In `ProjectLayout.tsx` line 62, the main content wrapper has `max-w-6xl` which caps it at ~1152px and leaves empty gray space on wider screens, as visible in the screenshot.
 
 ## Solution
 
-Remove the `<Card>` and `<CardContent>` wrappers from `ProjectProductsList` so the product list renders as plain content — no nested card. The outer `BookingInfoExpanded` card already provides the container.
+Remove `max-w-6xl` from the container div in `ProjectLayout.tsx`. The container will then use the full available width (constrained naturally by the sidebar layout).
 
-## Changes
+## File to change
 
-### `src/components/project/ProjectProductsList.tsx`
+| File | Line | Change |
+|---|---|---|
+| `src/pages/project/ProjectLayout.tsx` | 62 | Remove `max-w-6xl` from the className |
 
-- Remove `Card`, `CardContent` imports
-- Replace all 3 `<Card>/<CardContent>` returns (loading state, empty state, normal state) with plain `<div>` elements
-- The styling/padding already comes from the parent's `px-5 pb-2` wrapper in `BookingInfoExpanded`
+## Before vs After
 
-### Before vs After
-
-**Before** — nested cards:
-```text
-┌─ BookingInfoExpanded Card ──────────────────┐
-│  [Client header]                            │
-│  [Timeline]                                 │
-│  ┌─ ProjectProductsList Card ─────────────┐ │
-│  │  Multiflex 10x21                  1 st │ │
-│  │    • M Gaveltriangel              2 st │ │
-│  └────────────────────────────────────────┘ │
-│  [Bilder section]                           │
-└─────────────────────────────────────────────┘
+**Before:**
+```
+<div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 max-w-6xl">
 ```
 
-**After** — single unified container:
-```text
-┌─ BookingInfoExpanded Card ──────────────────┐
-│  [Client header]                            │
-│  [Timeline]                                 │
-│  ─────────────────────── (border-t)         │
-│  Utrustning                                 │
-│  Multiflex 10x21                      1 st  │
-│    • M Gaveltriangel                  2 st  │
-│  ─────────────────────── (border-t)         │
-│  Bilder                                     │
-│  [image grid]                               │
-└─────────────────────────────────────────────┘
+**After:**
+```
+<div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
 ```
 
-## Files to modify
-
-| File | Change |
-|---|---|
-| `src/components/project/ProjectProductsList.tsx` | Remove `Card`/`CardContent` wrappers, use plain `<div>` elements |
+This also applies to the loading state on line 26 which has the same `max-w-6xl` constraint.
