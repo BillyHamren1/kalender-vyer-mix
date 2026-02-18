@@ -74,7 +74,7 @@ const ProjectComments = ({ comments, onAddComment, className }: ProjectCommentsP
           </div>
           <div className="flex gap-2">
             <Textarea
-              placeholder="Skriv en kommentar..."
+              placeholder="Lägg till interna anteckningar"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               rows={2}
