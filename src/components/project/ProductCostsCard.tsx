@@ -93,13 +93,12 @@ export const ProductCostsCard = ({ productCosts }: ProductCostsCardProps) => {
   const renderGroupRows = (group: ProductGroup) => {
     const hasChildren = group.children.length > 0;
     const isExpanded = !collapsedGroups.has(group.parent.id);
-    const allItems = [group.parent, ...group.children];
-    const groupRev = allItems.reduce((s, p) => s + p.totalRevenue, 0);
-    const groupCost = allItems.reduce((s, p) => s + p.totalCost, 0);
+    const groupRev = group.parent.totalRevenue;
+    const groupCost = group.parent.totalCost;
     const groupPct = groupRev > 0 ? Math.round(((groupRev - groupCost) / groupRev) * 100) : 0;
-    const groupAssembly = allItems.reduce((s, p) => s + p.assemblyCost, 0);
-    const groupHandling = allItems.reduce((s, p) => s + p.handlingCost, 0);
-    const groupPurchase = allItems.reduce((s, p) => s + p.purchaseCost, 0);
+    const groupAssembly = group.parent.assemblyCost;
+    const groupHandling = group.parent.handlingCost;
+    const groupPurchase = group.parent.purchaseCost;
 
     const parentRow = (
       <tr
