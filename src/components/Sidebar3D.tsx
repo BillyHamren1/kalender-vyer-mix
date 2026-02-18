@@ -7,7 +7,6 @@ import { type LucideIcon,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  Sparkles,
   PieChart,
   LayoutDashboard,
   Truck,
@@ -133,54 +132,20 @@ export function Sidebar3D() {
         {/* Content */}
         <div className="flex flex-col h-full px-3 py-4">
           {/* ── Logo ── */}
-          <div
-            className={cn(
-              "flex items-center mb-6",
-              isCollapsed ? "justify-center" : "gap-2.5"
-            )}
-          >
-            {/* Logo mark */}
-            <div
-              className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
-              style={{
-                background: "hsl(184 48% 40%)",
-                boxShadow: "0 2px 8px hsl(184 55% 30% / 0.35)",
-              }}
-            >
-              <Sparkles
-                className="text-white"
-                size={20}
-                strokeWidth={1.5}
-              />
+          {!isCollapsed && (
+            <div className="flex items-center mb-6">
+              <span
+                className="font-bold leading-none"
+                style={{
+                  fontSize: 15,
+                  letterSpacing: "-0.03em",
+                  color: "hsl(var(--foreground))",
+                }}
+              >
+                EventFlow
+              </span>
             </div>
-
-            {/* Logo text */}
-            {!isCollapsed && (
-              <div className="flex flex-col" style={{ gap: 3 }}>
-                <span
-                  className="font-bold leading-none"
-                  style={{
-                    fontSize: 15,
-                    letterSpacing: "-0.03em",
-                    color: "hsl(var(--foreground))",
-                  }}
-                >
-                  EventFlow
-                </span>
-                <span
-                  className="font-semibold uppercase leading-none"
-                  style={{
-                    fontSize: 10,
-                    letterSpacing: "0.12em",
-                    color: "hsl(var(--foreground))",
-                    opacity: 0.38,
-                  }}
-                >
-                  planering
-                </span>
-              </div>
-            )}
-          </div>
+          )}
 
           {/* ── Nav ── */}
           <nav className="flex-1 space-y-px">
