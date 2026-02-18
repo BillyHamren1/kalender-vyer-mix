@@ -10,7 +10,7 @@ import ProjectTransportBookingDialog from "@/components/project/ProjectTransport
 import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
-import { Truck, FileText, MessageSquare, History } from "lucide-react";
+import { FileText, MessageSquare, History } from "lucide-react";
 
 const SectionHeader = ({ icon: Icon, title, count }: { icon: React.ElementType; title: string; count?: number }) => (
   <div className="flex items-center gap-2 mb-3">
@@ -87,12 +87,6 @@ const ProjectViewPage = () => {
           />
         </div>
       </div>
-
-      {/* Transport – full width */}
-      <section>
-        <SectionHeader icon={Truck} title="Transport" count={transportAssignments.length} />
-        <ProjectTransportWidget bookingId={bookingId} />
-      </section>
 
       {/* Full-width sections below */}
       <section>
