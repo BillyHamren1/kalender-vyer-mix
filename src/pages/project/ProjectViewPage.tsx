@@ -8,8 +8,6 @@ import ProjectActivityLog from "@/components/project/ProjectActivityLog";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import ProjectTransportBookingDialog from "@/components/project/ProjectTransportBookingDialog";
 import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
-import TaskDetailSheet from "@/components/project/TaskDetailSheet";
-import { ProjectTask } from "@/types/project";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
 import { Truck, FileText, MessageSquare, History } from "lucide-react";
@@ -30,7 +28,6 @@ const SectionHeader = ({ icon: Icon, title, count }: { icon: React.ElementType; 
 
 const ProjectViewPage = () => {
   const detail = useOutletContext<ReturnType<typeof useProjectDetail>>();
-  const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
   const [transportBookingOpen, setTransportBookingOpen] = useState(false);
 
   const { project, tasks, files, comments, activities, bookingAttachments } = detail;
@@ -120,15 +117,6 @@ const ProjectViewPage = () => {
           <ProjectActivityLog activities={activities} />
         </section>
       </div>
-
-      {/* Task detail sheet */}
-      <TaskDetailSheet
-        task={selectedTask}
-        open={!!selectedTask}
-        onOpenChange={(open) => !open && setSelectedTask(null)}
-        onUpdateTask={detail.updateTask}
-        onDeleteTask={detail.deleteTask}
-      />
 
       {bookingId && (
         <ProjectTransportBookingDialog
