@@ -788,6 +788,12 @@ const hasBookingChanged = (externalBooking: any, existingBooking: any): boolean 
       return true;
     }
   }
+
+  // Detect when economics_data arrives from external but is missing in DB
+  if (externalBooking.economics_data && !existingBooking.economics_data) {
+    console.log(`economics_data missing in DB but present in external API - marking as changed`);
+    return true;
+  }
   
   return false;
 };
@@ -1531,6 +1537,20 @@ serve(async (req) => {
           if (!hasChanged && !statusChanged && !needsCalendarRecovery && !needsWarehouseRecovery && !needsProductRecovery && !needsProductUpdate) {
             console.log(`No changes detected for ${bookingData.id}, skipping update`)
             
+            // Backfill economics_data if it's missing in DB but present in external API
+            if (!existingBooking.economics_data && bookingData.economics_data) {
+              console.log(`[Economics] Backfilling economics_data for unchanged booking ${bookingData.id}`);
+              const { error: econError } = await supabase
+                .from('bookings')
+                .update({ economics_data: bookingData.economics_data })
+                .eq('id', existingBooking.id);
+              if (econError) {
+                console.error(`[Economics] Failed to backfill economics_data for ${bookingData.id}:`, econError.message);
+              } else {
+                console.log(`[Economics] Successfully backfilled economics_data for ${bookingData.id}`);
+              }
+            }
+
             // Sync all attachments (products, files_metadata, tent_images) with shared dedup
             await syncAllAttachments(
               supabase, bookingData.id,
