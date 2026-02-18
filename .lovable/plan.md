@@ -1,49 +1,87 @@
 
-## Diagnos: Två separata problem
+## Problem
 
-### Problem 1 – Webb (det du ser nu)
-`fileInputRef` pekar på en `<input>` som bara existerar när `showForm === true`. Men `handleCameraClick` kan i teorin anropas när `showForm` är false (om knappen renderas utanför formuläret). Dessutom: `<input capture="environment">` behöver testas.
+Personalplaneringens månadvy (`/calendar` → "Månad") använder komponenten `SimpleMonthlyCalendar` – en traditionell kalendergrid med datumrutor. Lagerkalendern använder istället `CustomCalendar` med `viewMode="monthly"` vilket ger sidovisa dagkort med tidsgrid + `WeekTabsNavigation` (veckoflikar längst ned). Användaren vill att personalplaneringens månadvy ska se ut och fungera exakt som lagerkalendern.
 
-**Faktisk rotorsak på webben:** `takePhotoBase64()` returnerar `null` → `fileInputRef.current?.click()` → detta fungerar på webben men öppnar en *filväljare*, inte kameran direkt.
+## Rotorsak
 
-### Problem 2 – Native Android (kraschen)
-Det mest troliga är ett av dessa:
-1. **`npx cap sync` har inte körts** efter att `@capacitor/camera` lades till – pluginen är inte registrerad i den nativa appen
-2. **Kamera-behörighet** saknas i AndroidManifest (läggs till automatiskt av `cap sync`)
-3. **`CAMERA`-permission dialog** visas inte och appen kraschar istället
+I `src/pages/CustomCalendarPage.tsx` (rad 258–274) renderas `SimpleMonthlyCalendar` när `viewMode === 'monthly'`. Lagerkalendern (`src/pages/WarehouseCalendarPage.tsx` rad 484–512) renderar `CustomCalendar` + `WeekTabsNavigation` för samma vy.
 
 ## Lösning
 
-### Del 1: Fixa webb-upplevelsen
-Lägg till en `accept="image/*" capture="environment"` input **utanför** `showForm`-blocket så att den alltid finns i DOM:en, och ändra kamera-knappen på webben så den faktiskt öppnar kameran (inte filväljare) via `capture="environment"`.
+Ersätt `SimpleMonthlyCalendar`-blocket i `CustomCalendarPage.tsx` med samma mönster som lagerkalendern:
 
-### Del 2: Lägg till explicit permission-request för Android
-Lägg till ett explicit anrop till `Camera.requestPermissions()` **innan** `Camera.getPhoto()` anropas. Detta är det vanligaste felet – utan detta kraschar appen på Android istället för att visa permission-dialogen.
-
-```typescript
-// Begär behörighet explicit INNAN getPhoto()
-const permissions = await Camera.requestPermissions({ permissions: ['camera'] });
-if (permissions.camera !== 'granted') {
-  console.warn('[Camera] Permission denied');
-  return null;
-}
-```
-
-### Del 3: Säkerställ att `<input>` alltid finns i DOM
-
-Flytta `<input ref={fileInputRef}>` till **utanför** `showForm`-blocket så den alltid är monterad och `fileInputRef.current` alltid pekar på ett giltigt element.
+1. Byt ut `SimpleMonthlyCalendar` mot `CustomCalendar` med `viewMode="monthly"`
+2. Lägg till `WeekTabsNavigation` under `CustomCalendar` (veckoflikar)
+3. Lägg till `handleWeekSelect` som anropar `setCurrentWeekStart` (funktionen finns redan men är inte kopplad)
+4. Ta bort importen av `SimpleMonthlyCalendar` (används inte längre)
 
 ## Tekniska ändringar
 
-| Fil | Ändring |
+**Fil: `src/pages/CustomCalendarPage.tsx`**
+
+Ersätt detta block (rad 258–274):
+```tsx
+) : viewMode === 'monthly' ? (
+  // Monthly View - simple calendar overview
+  isMobile ? (
+    <MobileCalendarView events={events} />
+  ) : (
+    <SimpleMonthlyCalendar
+      events={events}
+      currentDate={monthlyDate}
+      onDateChange={handleMonthChange}
+      onDayClick={(date: Date) => {
+        const centeredWeekStart = subDays(date, 3);
+        setCurrentWeekStart(centeredWeekStart);
+        setViewMode('weekly');
+      }}
+    />
+  )
+```
+
+Med detta (identiskt med lagerkalendern, men utan `variant="warehouse"` och utan `isEventReadOnly`/`onEventClick`):
+```tsx
+) : viewMode === 'monthly' ? (
+  // Monthly View - same day-grid style as warehouse calendar
+  isMobile ? (
+    <MobileCalendarView events={events} />
+  ) : (
+    <>
+      <CustomCalendar
+        events={events}
+        resources={teamResources}
+        isLoading={isLoading}
+        isMounted={isMounted}
+        currentDate={currentWeekStart}
+        onDateSet={handleDatesSet}
+        refreshEvents={refreshEvents}
+        onStaffDrop={staffOps.handleStaffDrop}
+        onOpenStaffSelection={handleOpenStaffSelection}
+        viewMode="monthly"
+        weeklyStaffOperations={staffOps}
+        getVisibleTeamsForDay={getVisibleTeamsForDay}
+        onToggleTeamForDay={handleToggleTeamForDay}
+        allTeams={teamResources}
+      />
+      <WeekTabsNavigation
+        currentMonth={monthlyDate}
+        currentWeekStart={currentWeekStart}
+        onWeekSelect={handleWeekSelect}
+      />
+    </>
+  )
+```
+
+Importera `WeekTabsNavigation` och ta bort `SimpleMonthlyCalendar` + `subDays` från importerna (om `subDays` inte används på annat ställe).
+
+## Effekt
+
+| Före | Efter |
 |---|---|
-| `src/utils/capacitorCamera.ts` | Lägg till `Camera.requestPermissions()` innan `Camera.getPhoto()` |
-| `src/components/mobile-app/job-tabs/JobCostsTab.tsx` | Flytta `<input>` utanför `showForm`-blocket |
+| Traditionell kalendergrid med datumrutor | Sidovisa dagkort med tidsgrid (identiskt med lagerkalendern) |
+| Inga veckoflikar | Veckoflikar (Vecka 5, 6, 7…) längst ned |
+| Klick på dag navigerar till veckovyn | Klick på veckofliken byter aktiv vecka |
+| Saknar personalinformation i månadsvyn | Visar personal, team och händelser per dag precis som veckovyn |
 
-## Efter implementering
-
-Du behöver:
-1. `git pull`
-2. `npm install`
-3. `npm run build && npx cap sync` (kritiskt – synkar permission-ändringarna)
-4. Bygg om och installera appen på enheten
+Ingen ny komponent behöver skapas – enbart konfigurationsändring i `CustomCalendarPage.tsx`.
