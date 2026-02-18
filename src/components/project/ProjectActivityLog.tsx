@@ -183,32 +183,30 @@ const ProjectActivityLog = ({ activities, className }: ProjectActivityLogProps) 
   };
 
   return (
-    <Card className={`border-border/40 shadow-2xl rounded-2xl${className ? ` ${className}` : ''}`}>
+    <Card className={cn("border-border/40 shadow-2xl rounded-2xl", className)}>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-3 tracking-tight">
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{ background: 'var(--gradient-icon)', boxShadow: 'var(--shadow-icon)' }}
-            >
-              <Clock className="h-4 w-4 text-primary-foreground" />
-            </div>
-            Aktivitetslogg
-          </CardTitle>
-          <div className="flex items-center gap-1">
-            <Filter className="h-3.5 w-3.5 text-muted-foreground mr-1" />
-            {FILTER_OPTIONS.map(option => (
-              <Button
-                key={option.value}
-                variant={filter === option.value ? "default" : "ghost"}
-                size="sm"
-                className="h-7 text-xs px-2"
-                onClick={() => setFilter(option.value)}
-              >
-                {option.label}
-              </Button>
-            ))}
+        <CardTitle className="text-lg flex items-center gap-3 tracking-tight">
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center"
+            style={{ background: 'var(--gradient-icon)', boxShadow: 'var(--shadow-icon)' }}
+          >
+            <Clock className="h-4 w-4 text-primary-foreground" />
           </div>
+          Aktivitetslogg
+        </CardTitle>
+        <div className="flex items-center gap-1 flex-wrap mt-2">
+          <Filter className="h-3.5 w-3.5 text-muted-foreground mr-1" />
+          {FILTER_OPTIONS.map(option => (
+            <Button
+              key={option.value}
+              variant={filter === option.value ? "default" : "ghost"}
+              size="sm"
+              className="h-7 text-xs px-2"
+              onClick={() => setFilter(option.value)}
+            >
+              {option.label}
+            </Button>
+          ))}
         </div>
       </CardHeader>
       <CardContent>
