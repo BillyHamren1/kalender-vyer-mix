@@ -1,83 +1,67 @@
 
-## Mål
-Omvandla uppgiftslistan till en modern, Todoist-inspirerad upplevelse — rik interaktivitet, inline-redigering, snabbkommentarer och tydlig visuell hierarki.
+## Problem
+TaskDetailSheet använder en `Sheet` (sidopanel från höger) som ser gammal och klumpig ut. Det rätta moderna sättet är att visa uppgiftsdetaljer **inline** i listan — ett panel som expanderar under uppgiften eller ersätter listan med en split-view.
 
-## Vad som saknas idag
-- Klicka på en uppgift → öppnar ett Sheet, men det är klumpigt och kräver för många steg
-- Ingen inline-redigering av titel direkt i listan
-- Kommentarsfältet kräver att man skriver in sitt namn varje gång (dålig UX)
-- Ingen möjlighet att snabbt lägga till en uppgift utan att öppna dialog
-- Reorder-knapparna tar upp onödig plats och är svåra att använda
-- TaskDetailSheet saknar sub-tasks / checklistor
+## Lösning: Inline "expand panel" i uppgiftslistan
 
-## Plan
+Istället för en Sheet, när man klickar på en uppgift, visas detaljerna i en elegant **inline-panel direkt inuti kortet** — ungefär som Todoist:
+- Vänster sida: Uppgiftslistan (komprimerad) 
+- Höger sida: Uppgiftsdetaljerna i ett inbyggt panel
 
-### 1. `src/components/project/TaskDetailSheet.tsx` — Komplett omdesign
-Förvandla till en rik Todoist-liknande sidopanel:
-
-**Header-sektion:**
-- Stor, klickbar titel med inline-redigering (klicka → textruta)
-- Status-chip (klar/ej klar) med checkmark
-- Stäng-knapp (X) tydlig
-
-**Detaljer-sektion (kompakt rad-layout):**
-- Deadline: klicka → date picker inline
-- Ansvarig: klicka → dropdown inline
-- Prioritet: (kan läggas till senare)
-
-**Kommentars-sektion (förbättrad):**
-- Ta bort "Ditt namn"-fältet — istället ett persistent namn-state i localStorage (kom ihåg senaste namn)
-- Kommentarer visas i tidslinje-stil med avatar, namn, tid
-- Enkel textarea + Enter = skicka (eller Shift+Enter för ny rad)
-
-**Åtgärder (botten):**
-- Ta bort-knapp (röd, diskret)
-
-### 2. `src/components/project/ProjectTaskItem.tsx` — Inline-redigering
-- Dubbelklick på titel → inline edit (ersätter span med input)
-- Swipe-to-delete / hover-trash behålls
-- Lägg till en prioritetsindikator-prick (valfritt färgat)
-- Drag-handle (≡) ersätter ChevronUp/Down-knapparna
-
-### 3. `src/components/project/ProjectTaskList.tsx` — Snabb-tillägg
-- Lägg till ett "Lägg till uppgift..."-fält direkt i botten av listan (ingen dialog)
-- Skriv titel + Enter → uppgift läggs till direkt
-- Behåll + knappen för full dialog (med deadline, ansvarig etc.)
-
-### 4. `src/components/project/AddTaskDialog.tsx` — Förenkling
-- Befintlig dialog behålls men "snabb-lägg-till" i listan prioriteras
-
-## Tekniska detaljer
-
-### localStorage för kommentar-namn
-```tsx
-const [authorName, setAuthorName] = useState(() => 
-  localStorage.getItem('task-comment-author') || ""
-);
-// Vid submit: localStorage.setItem('task-comment-author', authorName)
+### Visuellt flöde
+```text
+┌─────────────────────────────────────────────────────────┐
+│ Uppgifter                                      2/5  [+] │
+├──────────────────────────┬──────────────────────────────┤
+│ ○ Bokning av UE          │  Bokning av UE               │
+│ ● Transportbokning    ✓  │  ─────────────────────────── │
+│ ○ [Klickad uppgift] ───► │  📅 18 feb  👤 Anna          │
+│ ○ Förberedelser          │                              │
+│ ○ Återrapportering       │  Beskrivning...              │
+├──────────────────────────│                              │
+│ + Lägg till uppgift...   │  💬 Kommentarer              │
+└──────────────────────────┴──────────────────────────────┘
 ```
 
-### Inline quick-add i listan
-```tsx
-<div className="flex items-center gap-2 px-2 py-1.5 border-t border-border/20">
-  <Plus className="h-3.5 w-3.5 text-muted-foreground" />
-  <input
-    placeholder="Lägg till uppgift..."
-    onKeyDown={(e) => e.key === 'Enter' && handleQuickAdd()}
-    className="flex-1 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
-  />
-</div>
-```
+När ingen uppgift är vald syns listan i full bredd som idag.
 
-### Drag-handle istället för pilar
-Ersätt ChevronUp/Down med en `GripVertical`-ikon (≡) som är mer intuitiv och tar mindre plats.
+## Implementering
 
-## Filer att ändra
+### 1. `src/components/project/TaskDetailPanel.tsx` — NY komponent (ersätter Sheet)
+En kompakt detaljpanel utan Sheet-wrapper:
+- Ren vit `bg-card` bakgrund med `border-l border-border/40` separator
+- Rubrik med inline-redigering (klicka på titel)
+- Chips för deadline + ansvarig
+- Beskrivning (klicka för att redigera)
+- Kommentarer i tidslinje-stil (samma logik som idag men renare design)
+- Minimalistisk "Stäng"-knapp (X) i hörnet
+- "Ta bort"-länk diskret i botten
+
+### 2. `src/components/project/ProjectTaskList.tsx` — Uppdatering
+- Lägg till `selectedTaskId` state
+- När en uppgift väljs: rendera panelen i en `grid grid-cols-[1fr_1fr]` layout inuti kortet
+- När ingen uppgift är vald: vanlig full bredd
+
+### 3. `src/components/project/TaskDetailSheet.tsx` — Tas bort/avaktiveras
+Sheet-komponenten används inte längre. Listan hanterar allt internt.
+
+### 4. `src/pages/project/ProjectViewPage.tsx`
+Ta bort den fristående `<TaskDetailSheet>` längst ned i filen (den är redundant).
+
+## Design-principer (matchar EventFlow design system)
+- `bg-card` (vit) bakgrund — ingen grå bakgrund
+- Tunn separator `border-l border-primary/20` mellan listan och panelen
+- Kompakta chip-knappar för metadata (datum, ansvarig)
+- Kommentarer: avatar + namn + tidsstämpel + text
+- Persistent `localStorage` för kommentatorns namn
+- `shadow-none` — inga extra skuggor inuti kortet
+
+## Filer att ändra/skapa
 | Fil | Ändring |
 |---|---|
-| `src/components/project/TaskDetailSheet.tsx` | Komplett Todoist-redesign av sidopanelen |
-| `src/components/project/ProjectTaskItem.tsx` | Inline-redigering + drag-handle |
-| `src/components/project/ProjectTaskList.tsx` | Snabb-tillägg i botten av listan |
+| `src/components/project/TaskDetailPanel.tsx` | NY — Inline-detaljpanel (ersätter Sheet) |
+| `src/components/project/ProjectTaskList.tsx` | Byt Sheet mot inline split-view |
+| `src/pages/project/ProjectViewPage.tsx` | Ta bort redundant TaskDetailSheet-import |
 
 ## Resultat
-En snabb, modern och funktionell uppgiftshanterare som känns lika naturlig som Todoist — med stöd för kommentarer, redigering, snabb-tillägg och tydlig hierarki.
+En modern, snabb och elegant inline-detaljpanel som är naturlig och intuitiv — inget popup, inget sidopanel, bara en smidig expansion inuti uppgiftskortet.
