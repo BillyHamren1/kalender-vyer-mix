@@ -1198,6 +1198,7 @@ serve(async (req) => {
       let packingIdForReconnection: string | null = null;
       let oldProductsForReconnection: any[] = [];
       let needsProductUpdate = false;
+      let oldProducts: any[] | null = null;
       let productChanges: { added: string[]; removed: string[]; updated: string[]; existingProducts: any[] } = { added: [], removed: [], updated: [], existingProducts: [] };
       
       try {
@@ -2020,10 +2021,11 @@ serve(async (req) => {
             .single();
           
           // 2. Fetch existing products BEFORE deletion (for packing list reconnection)
-          const { data: oldProducts } = await supabase
+          const { data: oldProductsData } = await supabase
             .from('booking_products')
             .select('id, name, quantity')
             .eq('booking_id', existingBooking.id);
+          oldProducts = oldProductsData || null;
           
           // 3. Delete attachments only if products have changed (attachments are always fully replaced)
           if (needsProductUpdate) {
