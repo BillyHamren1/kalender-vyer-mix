@@ -356,6 +356,8 @@ export const useProjectDetail = (projectId: string) => {
       logActivity('comment_added', `Kommentar av ${variables.author_name}`, {
         preview: variables.content.substring(0, 100),
       });
+      // Invalidate project query so booking internalnotes refreshes in the UI
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
     },
     onError: addCommentOptimistic.onError,
     onSettled: addCommentOptimistic.onSettled,
