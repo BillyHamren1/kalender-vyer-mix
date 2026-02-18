@@ -39,6 +39,14 @@ export async function takePhotoBase64(): Promise<string | null> {
   }
 
   try {
+    console.log('[Camera] Requesting camera permissions...');
+    const permissions = await Camera.requestPermissions({ permissions: ['camera'] });
+    console.log('[Camera] Permissions result:', JSON.stringify(permissions));
+    if (permissions.camera !== 'granted') {
+      console.warn('[Camera] Permission not granted – returning null');
+      return null;
+    }
+
     console.log('[Camera] Calling Camera.getPhoto()...');
     const photo = await Camera.getPhoto({
       quality: 80,
