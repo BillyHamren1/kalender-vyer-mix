@@ -1,50 +1,52 @@
 
-## Problemet
+## Problem
 
-I `ProjectProductsList.tsx` döljs alla barn-produkter bakom ett klickbart kollaps, oavsett typ. Det innebär att tillbehör (dubbelpilar, `is_package_component: false`) inte syns direkt utan kräver klick på föräldern.
+`ProjectProductsList` renders its own `<Card>` wrapper internally. This causes "Utrustning" and "Bilder" to look like separate cards visually, even though they are already placed inside `BookingInfoExpanded`'s outer card. The result is cards-within-cards instead of a unified container.
 
-## Önskat beteende
+## Solution
 
-| Produkttyp | Prefix i namn | is_package_component | Visas? | Hur? |
-|---|---|---|---|---|
-| Huvudprodukt | (inget) | null | Ja | Alltid, som rubrik |
-| Paketkomponent | `-- M Ben` etc. | true | Nej | Döljs helt |
-| Tillbehör | `└, Kassetgolv` etc. | false | Ja | Alltid synlig direkt under föräldern |
+Remove the `<Card>` and `<CardContent>` wrappers from `ProjectProductsList` so the product list renders as plain content — no nested card. The outer `BookingInfoExpanded` card already provides the container.
 
-## Lösning
+## Changes
 
-Ändra `ProjectProductsList.tsx` så att:
+### `src/components/project/ProjectProductsList.tsx`
 
-1. **Barn-produkter delas upp** i två grupper per förälder:
-   - `accessories` — `is_package_component === false` (dubbelpilar) → alltid synliga
-   - `packageComponents` — `is_package_component === true` (enkelpil + streck) → döljs
+- Remove `Card`, `CardContent` imports
+- Replace all 3 `<Card>/<CardContent>` returns (loading state, empty state, normal state) with plain `<div>` elements
+- The styling/padding already comes from the parent's `px-5 pb-2` wrapper in `BookingInfoExpanded`
 
-2. **Ingen Collapsible** behövs längre för normala föräldrar med bara tillbehör. Tillbehören renderas direkt under föräldern utan klick.
+### Before vs After
 
-3. **ChevronRight och count-badge** (t.ex. `(17)`) tas bort eller justeras — räknar bara tillbehör.
-
-4. **Räknaren i footern** (`19 produkter`) uppdateras för att inte räkna paketkomponenter.
-
-## Ny renderingslogik (pseudokod)
-
+**Before** — nested cards:
 ```text
-För varje huvudprodukt:
-  accessories = barn där is_package_component = false
-  (packageComponents filtreras bort, visas ej)
-  
-  Visa förälder (bold, namn rensat)
-  För varje accessory:
-    Visa direkt under föräldern med ↳-ikon och indragning
+┌─ BookingInfoExpanded Card ──────────────────┐
+│  [Client header]                            │
+│  [Timeline]                                 │
+│  ┌─ ProjectProductsList Card ─────────────┐ │
+│  │  Multiflex 10x21                  1 st │ │
+│  │    • M Gaveltriangel              2 st │ │
+│  └────────────────────────────────────────┘ │
+│  [Bilder section]                           │
+└─────────────────────────────────────────────┘
 ```
 
-## Filer att ändra
+**After** — single unified container:
+```text
+┌─ BookingInfoExpanded Card ──────────────────┐
+│  [Client header]                            │
+│  [Timeline]                                 │
+│  ─────────────────────── (border-t)         │
+│  Utrustning                                 │
+│  Multiflex 10x21                      1 st  │
+│    • M Gaveltriangel                  2 st  │
+│  ─────────────────────── (border-t)         │
+│  Bilder                                     │
+│  [image grid]                               │
+└─────────────────────────────────────────────┘
+```
 
-| Fil | Ändring |
+## Files to modify
+
+| File | Change |
 |---|---|
-| `src/components/project/ProjectProductsList.tsx` | Dela upp barn i accessories/paketkomponenter, rendera accessories alltid synliga, dölj paketkomponenter, ta bort onödig Collapsible |
-
-## Resultat
-
-- "Kassetgolv 10x21", "Nålfiltsmatta - Antracit", "M Gaveltriangel" etc. syns direkt under Multiflex utan att klicka
-- "M Ben", "M Takbalk GUL" etc. visas inte alls
-- Listan blir renare och mer lättläst
+| `src/components/project/ProjectProductsList.tsx` | Remove `Card`/`CardContent` wrappers, use plain `<div>` elements |
