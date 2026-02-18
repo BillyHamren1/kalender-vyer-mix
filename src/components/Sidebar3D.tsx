@@ -85,78 +85,76 @@ export function Sidebar3D() {
       {/* Sidebar */}
       <aside
         className={cn(
-          "relative z-40 h-screen shrink-0 transition-all duration-300 ease-out",
+          "relative z-40 h-screen shrink-0 transition-all duration-200 ease-out",
           "hidden md:flex flex-col",
-          isCollapsed ? "w-20" : "w-56"
+          isCollapsed ? "w-14" : "w-48"
         )}
         style={{
-          perspective: "1000px",
-          transformStyle: "preserve-3d",
+          background: "hsl(var(--sidebar-background))",
+          borderRight: "1px solid hsl(var(--sidebar-border))",
         }}
       >
-        {/* Background Layer */}
-        <div
-          className="absolute inset-0 bg-gradient-to-b from-sidebar via-sidebar to-sidebar/95"
-          style={{
-            transform: "translateZ(-10px)",
-            boxShadow: "10px 0 40px rgba(0,0,0,0.15)",
-          }}
-        />
-
-        {/* Glassmorphism Overlay */}
-        <div
-          className="absolute inset-0 backdrop-blur-xl"
-          style={{
-            background: "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)",
-            borderRight: "1px solid rgba(255,255,255,0.1)",
-          }}
-        />
-
         {/* Content Container */}
-        <div className="relative z-10 flex flex-col h-full p-4">
+        <div className="flex flex-col h-full px-3 py-4">
+          
           {/* Logo Section */}
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-3">
+          <div className={cn(
+            "flex items-center mb-6",
+            isCollapsed ? "justify-center" : "justify-between"
+          )}>
+            <div className="flex items-center gap-2.5 min-w-0">
+              {/* Logo icon */}
               <div
-                className="relative w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg"
+                className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shrink-0"
                 style={{
-                  transform: "perspective(100px) rotateY(-5deg)",
-                  boxShadow: "0 4px 20px hsl(var(--primary) / 0.4)",
+                  boxShadow: "0 2px 8px hsl(184 55% 30% / 0.35)",
                 }}
               >
-                <Sparkles className="w-5 h-5 text-primary-foreground" />
+                <Sparkles className="w-4 h-4 text-white" />
               </div>
 
               {!isCollapsed && (
-                <div className="flex flex-col">
-                  <span className="font-bold text-lg text-foreground tracking-tight">
+                <div className="flex flex-col min-w-0">
+                  <span
+                    className="font-bold text-[15px] text-foreground leading-none"
+                    style={{ letterSpacing: "-0.03em" }}
+                  >
                     EventFlow
                   </span>
-                  <span className="text-xs text-primary -mt-1">
+                  <span
+                    className="text-muted-foreground font-semibold uppercase leading-none mt-0.5"
+                    style={{ fontSize: "10px", letterSpacing: "0.12em", opacity: 0.55 }}
+                  >
                     planering
                   </span>
                 </div>
               )}
             </div>
-            
+
             {/* Collapse Button */}
-            <button
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className={cn(
-                "p-2 rounded-xl transition-all duration-300 hover:bg-accent/50",
-                "text-muted-foreground hover:text-foreground",
-                "hover:shadow-md active:scale-95",
-                isCollapsed && "absolute -right-3 top-7 bg-sidebar shadow-lg border border-border/50"
-              )}
-              style={{ transform: isCollapsed ? "perspective(300px) rotateY(10deg)" : undefined }}
-            >
-              {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-            </button>
+            {!isCollapsed && (
+              <button
+                onClick={() => setIsCollapsed(true)}
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-150 shrink-0"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
+          {/* Expand Button (collapsed state) */}
+          {isCollapsed && (
+            <button
+              onClick={() => setIsCollapsed(false)}
+              className="w-8 h-8 mx-auto mb-4 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-150 flex items-center justify-center"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+
           {/* Navigation Items */}
-          <nav className="flex-1 space-y-1">
-            {navigationItems.map((item, index) => {
+          <nav className="flex-1 space-y-0.5">
+            {navigationItems.map((item) => {
               const hasChildren = item.children && item.children.length > 0;
               const isParentActive = hasChildren 
                 ? location.pathname === item.url || item.children!.some(child => location.pathname === child.url)
@@ -169,39 +167,35 @@ export function Sidebar3D() {
                     <button
                       onClick={() => { navigate(item.url); toggleExpanded(item.url); }}
                       className={cn(
-                        "group relative flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-300 w-full text-left",
-                        "hover:bg-accent/50",
-                        isParentActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                        "group relative flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-150 w-full text-left",
+                        isCollapsed && "justify-center",
+                        isParentActive
+                          ? "bg-accent text-foreground font-semibold"
+                          : "text-foreground hover:bg-accent/60"
                       )}
-                      style={{ animationDelay: `${index * 50}ms` }}
+                      style={isParentActive ? {
+                        borderLeft: "2.5px solid hsl(var(--primary))",
+                      } : { borderLeft: "2.5px solid transparent" }}
                     >
-                      {/* Hover Effect */}
-                      <div
-                        className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                        style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%)" }}
-                      />
                       {/* Icon */}
-                      <div
+                      <item.icon
                         className={cn(
-                          "relative z-10 p-2 rounded-lg transition-all duration-300",
-                          isParentActive ? "bg-primary text-primary-foreground shadow-md" : "bg-muted/50 group-hover:bg-muted"
+                          "w-4 h-4 shrink-0 transition-opacity duration-150",
+                          isParentActive ? "text-primary opacity-100" : "text-foreground opacity-60"
                         )}
-                        style={{
-                          transform: isParentActive ? "perspective(100px) rotateY(-5deg)" : undefined,
-                          boxShadow: isParentActive ? "0 4px 12px hsl(var(--primary) / 0.3)" : undefined,
-                        }}
-                      >
-                        <item.icon className="w-4 h-4" />
-                      </div>
+                      />
                       {/* Label */}
                       {!isCollapsed && (
                         <>
-                          <span className="relative z-10 font-medium text-sm flex-1 whitespace-pre-line leading-tight">
+                          <span className={cn(
+                            "text-sm flex-1 leading-tight truncate transition-opacity duration-150",
+                            isParentActive ? "font-semibold opacity-100" : "font-normal opacity-70"
+                          )}>
                             {item.title}
                           </span>
                           <ChevronDown 
                             className={cn(
-                              "w-4 h-4 transition-transform duration-200 text-muted-foreground",
+                              "w-3.5 h-3.5 text-muted-foreground opacity-60 transition-transform duration-200 shrink-0",
                               isExpanded && "rotate-180"
                             )} 
                           />
@@ -209,16 +203,8 @@ export function Sidebar3D() {
                       )}
                       {/* Tooltip (collapsed) */}
                       {isCollapsed && (
-                        <div
-                          className={cn(
-                            "absolute left-full ml-3 px-3 py-2 rounded-lg bg-popover text-popover-foreground text-sm font-medium",
-                            "opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200",
-                            "shadow-lg border border-border whitespace-nowrap"
-                          )}
-                          style={{ transform: "perspective(200px) rotateY(-5deg)" }}
-                        >
+                        <div className="absolute left-full ml-3 px-3 py-1.5 rounded-lg bg-popover text-popover-foreground text-sm font-medium opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 shadow-lg border border-border whitespace-nowrap z-50">
                           {item.title}
-                          <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-popover border-l border-b border-border rotate-45" />
                         </div>
                       )}
                     </button>
@@ -226,65 +212,44 @@ export function Sidebar3D() {
                     <NavLink
                       to={item.url}
                       className={cn(
-                        "group relative flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-300",
-                        "hover:bg-accent/50",
-                        isParentActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                        "group relative flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-150",
+                        isCollapsed && "justify-center",
+                        isParentActive
+                          ? "bg-accent text-foreground font-semibold"
+                          : "text-foreground hover:bg-accent/60"
                       )}
-                      style={{
-                        animationDelay: `${index * 50}ms`,
-                        transform: isParentActive ? "translateX(4px)" : undefined,
-                      }}
+                      style={isParentActive ? {
+                        borderLeft: "2.5px solid hsl(var(--primary))",
+                      } : { borderLeft: "2.5px solid transparent" }}
                     >
-                      {/* Active Background */}
-                      {isParentActive && (
-                        <div
-                          className="absolute inset-0 rounded-xl bg-primary/10 border border-primary/20"
-                          style={{ boxShadow: "0 0 20px hsl(var(--primary) / 0.15)" }}
-                        />
-                      )}
-                      {/* Hover Effect */}
-                      <div
-                        className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                        style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%)" }}
-                      />
                       {/* Icon */}
-                      <div
+                      <item.icon
                         className={cn(
-                          "relative z-10 p-2 rounded-lg transition-all duration-300",
-                          isParentActive ? "bg-primary text-primary-foreground shadow-md" : "bg-muted/50 group-hover:bg-muted"
+                          "w-4 h-4 shrink-0 transition-opacity duration-150",
+                          isParentActive ? "text-primary opacity-100" : "text-foreground opacity-60"
                         )}
-                        style={{
-                          transform: isParentActive ? "perspective(100px) rotateY(-5deg)" : undefined,
-                          boxShadow: isParentActive ? "0 4px 12px hsl(var(--primary) / 0.3)" : undefined,
-                        }}
-                      >
-                        <item.icon className="w-4 h-4" />
-                      </div>
+                      />
                       {/* Label */}
                       {!isCollapsed && (
-                        <span className="relative z-10 font-medium text-sm flex-1 whitespace-pre-line leading-tight">
+                        <span className={cn(
+                          "text-sm flex-1 leading-tight truncate transition-opacity duration-150",
+                          isParentActive ? "font-semibold opacity-100" : "font-normal opacity-70"
+                        )}>
                           {item.title}
                         </span>
                       )}
                       {/* Tooltip (collapsed) */}
                       {isCollapsed && (
-                        <div
-                          className={cn(
-                            "absolute left-full ml-3 px-3 py-2 rounded-lg bg-popover text-popover-foreground text-sm font-medium",
-                            "opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200",
-                            "shadow-lg border border-border whitespace-nowrap"
-                          )}
-                          style={{ transform: "perspective(200px) rotateY(-5deg)" }}
-                        >
+                        <div className="absolute left-full ml-3 px-3 py-1.5 rounded-lg bg-popover text-popover-foreground text-sm font-medium opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 shadow-lg border border-border whitespace-nowrap z-50">
                           {item.title}
-                          <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-popover border-l border-b border-border rotate-45" />
                         </div>
                       )}
                     </NavLink>
                   )}
+
                   {/* Sub-items */}
                   {hasChildren && !isCollapsed && isExpanded && (
-                    <div className="ml-11 mt-1 space-y-1 animate-accordion-down">
+                    <div className="ml-7 mt-0.5 space-y-0.5">
                       {item.children!.map((child) => {
                         const isChildActive = location.pathname === child.url;
                         return (
@@ -292,13 +257,11 @@ export function Sidebar3D() {
                             key={child.url}
                             to={child.url}
                             className={cn(
-                              "relative flex items-center px-3 py-2 rounded-lg text-sm transition-all duration-200",
-                              "hover:bg-accent/50",
+                              "flex items-center px-2.5 py-1.5 rounded-md text-sm transition-all duration-150",
                               isChildActive 
-                                ? "text-primary font-medium bg-primary/10" 
-                                : "text-muted-foreground hover:text-foreground"
+                                ? "text-primary font-semibold bg-accent" 
+                                : "text-foreground opacity-60 hover:opacity-90 hover:bg-accent/60"
                             )}
-                            style={{ transform: isChildActive ? "translateX(4px)" : undefined }}
                           >
                             {child.title}
                           </NavLink>
@@ -312,13 +275,21 @@ export function Sidebar3D() {
           </nav>
 
           {/* Bottom Section */}
-          <div className="pt-4 border-t border-border/50">
-            <div className="flex items-center gap-3 px-3 py-2">
-              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-                <Users className="w-4 h-4 text-primary" />
+          <div className="pt-3 border-t border-border">
+            <div className={cn(
+              "flex items-center gap-2.5 px-2.5 py-2",
+              isCollapsed && "justify-center"
+            )}>
+              <div className="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                <Users className="w-3.5 h-3.5 text-primary" />
               </div>
               {!isCollapsed && (
-                <span className="text-sm text-muted-foreground">EventFlow v1.0</span>
+                <span
+                  className="text-muted-foreground font-medium"
+                  style={{ fontSize: "11px", opacity: 0.65 }}
+                >
+                  EventFlow v1.0
+                </span>
               )}
             </div>
           </div>
@@ -326,7 +297,9 @@ export function Sidebar3D() {
       </aside>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-background/95 backdrop-blur-lg border-t border-border">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-border"
+        style={{ background: "hsl(var(--sidebar-background))" }}
+      >
         <div className="flex items-center justify-around py-2 px-4">
           {navigationItems.filter((_, i) => i <= 4).map((item) => {
             const hasChildren = item.children && item.children.length > 0;
@@ -340,14 +313,14 @@ export function Sidebar3D() {
                 key={item.url}
                 to={targetUrl}
                 className={cn(
-                  "flex flex-col items-center gap-1 py-2 px-3 rounded-xl transition-all duration-200 relative",
+                  "flex flex-col items-center gap-1 py-2 px-3 rounded-lg transition-all duration-150",
                   isActive ? "text-primary" : "text-muted-foreground"
                 )}
               >
                 {isActive && (
-                  <div className="absolute inset-0 bg-primary/10 rounded-xl" />
+                  <div className="absolute inset-0 bg-accent rounded-lg" />
                 )}
-                <item.icon className={cn("w-5 h-5 relative z-10", isActive && "text-primary")} />
+                <item.icon className={cn("w-5 h-5 relative z-10", isActive ? "opacity-100" : "opacity-60")} />
                 <span className="text-xs font-medium relative z-10 truncate max-w-[4rem]">{item.title}</span>
               </NavLink>
             );

@@ -7,59 +7,66 @@
 
 @layer base {
   :root {
-    --background: 200 20% 94%;
-    
-    /* === PRIMARY TEAL (EventFlow Design System) === */
-    --primary: 184 60% 38%;
-    --primary-foreground: 0 0% 100%;
-    --primary-hover: 184 60% 33%;
-    --primary-dark: 184 65% 28%;
+    /* === BACKGROUND LAYERS (Premium Enterprise) === */
+    --background: 200 15% 96%;          /* L0 — kall ljusgrå sida */
+    --surface-active: 200 14% 93%;      /* L2 — aktiva kontroller, header */
 
-    /* === SECONDARY (ljusare teal) === */
+    /* === PRIMARY TEAL (EventFlow Design System) === */
+    --primary: 184 55% 38%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 184 55% 32%;
+    --primary-dark: 184 60% 26%;        /* 3D-kant på knappar */
+
+    /* === SECONDARY === */
     --secondary: 184 45% 65%;
     --secondary-foreground: 0 0% 100%;
     --secondary-hover: 184 45% 58%;
 
-    /* === ACCENT === */
-    --accent: 184 40% 90%;
-    --accent-foreground: 184 40% 15%;
+    /* === ACCENT (insjunken yta) === */
+    --accent: 200 14% 93%;
+    --accent-foreground: 184 25% 12%;
 
-    /* === UI ELEMENTS med teal-tint === */
-    --foreground: 184 30% 20%;
-    --heading: 184 40% 15%;
-    --card: 0 0% 100%;
-    --card-foreground: 184 30% 20%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 184 10% 45%;
-    --ring: 184 55% 48%;
+    /* === TEXT === */
+    --foreground: 184 15% 30%;          /* Body text */
+    --heading: 184 25% 12%;             /* Heading text */
+    --card: 0 0% 100%;                  /* L1 — ren vit kortyta */
+    --card-foreground: 184 15% 30%;
+    --muted: 200 14% 93%;
+    --muted-foreground: 200 10% 55%;
+    --ring: 184 55% 38%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 184 30% 20%;
+    --popover-foreground: 184 15% 30%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 200 15% 85%;
-    --input: 200 15% 85%;
+    --border: 200 12% 88%;              /* Subtil, nästan osynlig kant */
+    --input: 200 12% 88%;
 
     --radius: 0.5rem;
 
-    /* === GRADIENTS === */
-    --gradient-icon: linear-gradient(135deg, hsl(184 55% 45%) 0%, hsl(184 60% 35%) 100%);
-    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(184 20% 98%) 100%);
-    --gradient-teal: linear-gradient(135deg, hsl(184 60% 42%) 0%, hsl(184 65% 36%) 100%);
-    --gradient-teal-bg: linear-gradient(180deg, hsl(184 25% 96%) 0%, hsl(184 20% 92%) 50%, hsl(184 25% 94%) 100%);
-    --gradient-page: linear-gradient(165deg, hsl(200 20% 96%) 0%, hsl(184 18% 93%) 50%, hsl(200 18% 95%) 100%);
+    /* === SHADOWS (Premium Enterprise) === */
+    --shadow-soft: 0 1px 2px hsl(184 30% 15% / 0.08), 0 1px 4px hsl(184 30% 15% / 0.05);
+    --shadow-raised: 0 1px 3px hsl(184 30% 15% / 0.07), 0 3px 0 hsl(200 18% 82%);
+    --shadow-btn-primary: 0 3px 0 hsl(184 60% 26%);
 
-    /* === SIDEBAR === */
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 184 30% 20%;
-    --sidebar-primary: 184 60% 42%;
+    /* === GRADIENTS (behåller för kompatibilitet) === */
+    --gradient-icon: linear-gradient(135deg, hsl(184 55% 45%) 0%, hsl(184 60% 35%) 100%);
+    --gradient-card: hsl(0 0% 100%);
+    --gradient-teal: linear-gradient(135deg, hsl(184 55% 42%) 0%, hsl(184 60% 36%) 100%);
+    --gradient-teal-bg: hsl(200 15% 96%);
+    --gradient-page: hsl(200 15% 96%);
+
+    /* === SIDEBAR (Premium Enterprise) === */
+    --sidebar-background: 200 12% 99%;  /* nära-vit, tydlig mot grå bg */
+    --sidebar-foreground: 184 15% 30%;
+    --sidebar-primary: 184 55% 38%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 184 40% 90%;
-    --sidebar-accent-foreground: 184 40% 15%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 184 55% 48%;
+    --sidebar-accent: 200 14% 93%;
+    --sidebar-accent-foreground: 184 25% 12%;
+    --sidebar-border: 200 10% 88%;
+    --sidebar-ring: 184 55% 38%;
 
     /* === CHARTS === */
     --chart-1: 184 60% 42%;
