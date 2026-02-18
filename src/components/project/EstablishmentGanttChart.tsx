@@ -450,9 +450,9 @@ const EstablishmentGanttChart = ({
 
       {/* Side Panel */}
       {showSidePanel && (
-        <div className="w-80 flex flex-col gap-4 flex-shrink-0">
+        <div className="w-80 flex flex-col gap-4 flex-shrink-0 h-[600px]">
           {/* Booking Data Panel */}
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-hidden">
             <EstablishmentDataPanel
               products={bookingData?.products || []}
               dates={bookingData?.dates || null}
@@ -461,7 +461,7 @@ const EstablishmentGanttChart = ({
           </div>
           
           {/* AI Assistant */}
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-hidden">
             <EstablishmentAIAssistant bookingData={bookingData || null} />
           </div>
         </div>

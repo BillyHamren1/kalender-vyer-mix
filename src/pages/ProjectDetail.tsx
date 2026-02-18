@@ -207,7 +207,7 @@ const ProjectDetail = () => {
               onUpload={uploadFile}
               onDelete={deleteFile}
               isUploading={isUploadingFile}
-              
+              bookingAttachments={bookingAttachments}
             />
           </TabsContent>
 
