@@ -2021,15 +2021,12 @@ serve(async (req) => {
             .select('id, name, quantity')
             .eq('booking_id', existingBooking.id);
           
-          // 3. Clear existing products and attachments ONLY if products have changed
-          // This prevents race conditions when imports run in parallel
+          // 3. Delete attachments only if products have changed (attachments are always fully replaced)
           if (needsProductUpdate) {
-            await supabase.from('booking_products').delete().eq('booking_id', existingBooking.id)
             await supabase.from('booking_attachments').delete().eq('booking_id', existingBooking.id)
           }
 
-          // Store references for packing reconnection after products are created
-          // Note: These variables are declared at the top of the loop
+          // Store references for packing reconnection after products are merged
           needsPackingReconnection = !!(packingProject?.id && oldProducts && oldProducts.length > 0 && needsProductUpdate);
           packingIdForReconnection = packingProject?.id || null;
           oldProductsForReconnection = oldProducts || [];
@@ -2062,7 +2059,7 @@ serve(async (req) => {
 
         // Process products with parent-child relationship tracking
         if (externalBooking.products && Array.isArray(externalBooking.products)) {
-        // Only re-insert products if they have changed (prevents duplicates from parallel imports)
+        // Only re-process products if they have changed (prevents duplicates from parallel imports)
         if (needsProductUpdate || !existingBooking) {
           console.log(`Processing ${externalBooking.products.length} raw products for booking ${bookingData.id}`)
           
@@ -2089,12 +2086,25 @@ serve(async (req) => {
           }
           
           console.log(`Processing ${deduplicatedProducts.length} deduplicated products for booking ${bookingData.id}`);
+
+          // ── MERGE STRATEGY ──────────────────────────────────────────────────────
+          // Build a lookup of existing products by normalised name so we can
+          // UPDATE in-place instead of DELETE + INSERT.  This eliminates the
+          // race-condition window where the table is momentarily empty.
+          const existingProductsByName = new Map<string, { id: string; name: string }>();
+          if (oldProducts) {
+            for (const ep of oldProducts) {
+              existingProductsByName.set((ep.name || '').trim().toLowerCase(), ep);
+            }
+          }
+          // ────────────────────────────────────────────────────────────────────────
           
           // Track the last parent product ID for linking accessories
           const externalIdToInternalId = new Map<string, string>();
           const pendingByExternalParentId = new Map<string, string[]>();
           const pendingSequentialAccessoryIds: string[] = [];
           let lastParentProductId: string | null = null;
+          const seenExistingIds = new Set<string>();
           
           for (const product of deduplicatedProducts) {
             try {
@@ -2165,51 +2175,70 @@ serve(async (req) => {
                 vat_rate: product.vat_rate ?? 25,
               }
 
-              const { data: insertedProduct, error: productError } = await supabase
-                .from('booking_products')
-                .insert(productData)
-                .select('id')
-                .single()
+              // ── MERGE: UPDATE existing or INSERT new ────────────────────────────
+              const nameKey = productName.trim().toLowerCase();
+              const existingMatch = existingProductsByName.get(nameKey);
+              
+              let upsertedProductId: string | null = null;
+              let productError: any = null;
+
+              if (existingMatch) {
+                // UPDATE in-place — keeps existing ID stable (no race condition gap)
+                seenExistingIds.add(existingMatch.id);
+                const { error: updateErr } = await supabase
+                  .from('booking_products')
+                  .update({ ...productData, parent_product_id: resolvedParentId || undefined })
+                  .eq('id', existingMatch.id);
+                productError = updateErr;
+                upsertedProductId = existingMatch.id;
+                if (!updateErr) console.log(`[Merge] Updated existing product "${productName}" (id=${existingMatch.id})`);
+              } else {
+                // INSERT new product
+                const { data: insertedProduct, error: insertErr } = await supabase
+                  .from('booking_products')
+                  .insert(productData)
+                  .select('id')
+                  .single();
+                productError = insertErr;
+                upsertedProductId = insertedProduct?.id ?? null;
+                if (!insertErr) console.log(`[Merge] Inserted new product "${productName}" (id=${upsertedProductId})`);
+              }
+              // ────────────────────────────────────────────────────────────────────
 
               if (productError) {
-                console.error(`Error inserting product for booking ${bookingData.id}:`, productError)
-              } else {
+                console.error(`Error upserting product for booking ${bookingData.id}:`, productError)
+              } else if (upsertedProductId) {
                 results.products_imported++
 
-                // Map external ID -> internal ID for later children (safe: only used in-memory during import)
-                if (externalId && insertedProduct?.id) {
-                  externalIdToInternalId.set(externalId, insertedProduct.id);
+                // Map external ID -> internal ID for later children
+                if (externalId) {
+                  externalIdToInternalId.set(externalId, upsertedProductId);
 
-                  // If any children were waiting for this parent external ID, attach them now
                   const pendingChildren = pendingByExternalParentId.get(externalId);
                   if (pendingChildren && pendingChildren.length > 0) {
                     const { error: pendingUpdateError } = await supabase
                       .from('booking_products')
-                      .update({ parent_product_id: insertedProduct.id })
+                      .update({ parent_product_id: upsertedProductId })
                       .in('id', pendingChildren);
-
                     if (pendingUpdateError) {
-                      console.error(`Error attaching pending children to ${insertedProduct.id}:`, pendingUpdateError);
+                      console.error(`Error attaching pending children to ${upsertedProductId}:`, pendingUpdateError);
                     }
                     pendingByExternalParentId.delete(externalId);
                   }
                 }
 
-                // If we couldn't resolve parent yet but we have an external parent ref, park it until parent shows up
-                if (!resolvedParentId && externalParentId && insertedProduct?.id) {
+                if (!resolvedParentId && externalParentId) {
                   const list = pendingByExternalParentId.get(externalParentId) || [];
-                  list.push(insertedProduct.id);
+                  list.push(upsertedProductId);
                   pendingByExternalParentId.set(externalParentId, list);
                 }
 
-                // If accessory comes before first parent and has no explicit external parent, attach it to next parent we see
-                if (isAccessory && !externalParentId && !resolvedParentId && insertedProduct?.id) {
-                  pendingSequentialAccessoryIds.push(insertedProduct.id);
+                if (isAccessory && !externalParentId && !resolvedParentId) {
+                  pendingSequentialAccessoryIds.push(upsertedProductId);
                 }
                 
-                // If this is a parent product (not an accessory and not a package component), store its ID for subsequent accessories
-                if (!isAccessory && !isPkgComponent && insertedProduct) {
-                  lastParentProductId = insertedProduct.id;
+                if (!isAccessory && !isPkgComponent) {
+                  lastParentProductId = upsertedProductId;
                   console.log(`Set lastParentProductId to ${lastParentProductId} for product "${productName}"`)
 
                   if (pendingSequentialAccessoryIds.length > 0) {
@@ -2217,7 +2246,6 @@ serve(async (req) => {
                       .from('booking_products')
                       .update({ parent_product_id: lastParentProductId })
                       .in('id', pendingSequentialAccessoryIds);
-
                     if (seqUpdateError) {
                       console.error(`Error attaching early accessories to ${lastParentProductId}:`, seqUpdateError);
                     }
@@ -2230,6 +2258,17 @@ serve(async (req) => {
             }
             }
           }
+
+          // ── DELETE products no longer in the external API ─────────────────────
+          if (oldProducts && oldProducts.length > 0) {
+            const toDelete = oldProducts.filter((p: any) => !seenExistingIds.has(p.id));
+            if (toDelete.length > 0) {
+              const idsToDelete = toDelete.map((p: any) => p.id);
+              console.log(`[Merge] Deleting ${idsToDelete.length} products no longer in external API`);
+              await supabase.from('booking_products').delete().in('id', idsToDelete);
+            }
+          }
+          // ─────────────────────────────────────────────────────────────────────
           
           // EXPAND package_components JSONB into individual rows (shared function)
           const mainExpanded = await expandPackageComponents(supabase, bookingData.id);
