@@ -92,7 +92,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
         <div className={syncedSelectedTask ? "flex flex-row flex-1 overflow-hidden" : "flex flex-col flex-1 overflow-hidden"}>
 
           {/* LEFT: Task list */}
-          <div className={syncedSelectedTask ? "flex flex-col w-[45%] min-w-0 border-r border-border/30 overflow-hidden" : "flex flex-col flex-1 overflow-hidden"}>
+          <div className={syncedSelectedTask ? "flex flex-col w-1/2 min-w-0 border-r border-border/30 overflow-hidden" : "flex flex-col flex-1 overflow-hidden"}>
             {/* Header */}
             <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pt-2 pb-1.5 shrink-0">
               <div className="flex items-center gap-2 min-w-0 flex-1">
