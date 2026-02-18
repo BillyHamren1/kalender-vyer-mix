@@ -65,7 +65,7 @@ const ProjectViewPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6 items-start">
         {/* Left: Booking info – scrolls if content overflows */}
         {booking && (
-          <div className="max-h-[560px] overflow-y-auto rounded-2xl">
+          <div className="h-[560px] overflow-y-auto rounded-2xl">
             <BookingInfoExpanded
               booking={booking}
               projectLeader={project.project_leader}
@@ -75,7 +75,7 @@ const ProjectViewPage = () => {
         )}
 
         {/* Right: Tasks only – same max height */}
-        <div className="flex flex-col gap-4 max-h-[560px]">
+        <div className="flex flex-col gap-4 h-[560px] overflow-y-auto">
           <ProjectTaskList
             tasks={tasks}
             onAddTask={detail.addTask}
