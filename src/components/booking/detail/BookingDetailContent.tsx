@@ -77,7 +77,6 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
             onAddDate={onAddDate}
             onRemoveDate={onRemoveDate}
           />
-          {booking.economics && <BookingEconomicsCard economics={booking.economics} />}
           <ProductsList products={booking.products || []} />
           <AttachmentsList 
             bookingId={booking.id}
@@ -94,6 +93,11 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
           />
         </div>
       </div>
+
+      {/* Economics full-width section */}
+      {booking.economics && (
+        <BookingEconomicsCard economics={booking.economics} />
+      )}
     </div>
   );
 };

@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import type { BookingEconomics } from '@/types/booking';
 import {
   fetchProjectBudget,
   upsertProjectBudget,
@@ -58,6 +60,19 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
   const { data: productCosts, isLoading: productCostsLoading } = useQuery({
     queryKey: ['product-costs', bookingId],
     queryFn: () => fetchProductCosts(bookingId!),
+    enabled: !!bookingId,
+  });
+
+  const { data: bookingEconomics } = useQuery({
+    queryKey: ['booking-economics', bookingId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('bookings')
+        .select('economics_data')
+        .eq('id', bookingId!)
+        .single();
+      return (data?.economics_data ?? null) as BookingEconomics | null;
+    },
     enabled: !!bookingId,
   });
 
@@ -261,6 +276,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     quotes,
     invoices,
     productCosts,
+    bookingEconomics,
     summary,
     isLoading,
     saveBudget: saveBudgetMutation.mutate,
