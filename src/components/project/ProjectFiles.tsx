@@ -21,9 +21,10 @@ interface ProjectFilesProps {
   onDelete: (data: { id: string; url: string }) => void;
   isUploading: boolean;
   bookingAttachments?: BookingAttachment[];
+  className?: string;
 }
 
-const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachments = [] }: ProjectFilesProps) => {
+const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachments = [], className }: ProjectFilesProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -48,7 +49,7 @@ const ProjectFiles = ({ files, onUpload, onDelete, isUploading, bookingAttachmen
     );
 
   return (
-    <Card className="border-border/40 shadow-2xl rounded-2xl">
+    <Card className={`border-border/40 shadow-2xl rounded-2xl${className ? ` ${className}` : ''}`}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
         <CardTitle className="tracking-tight">Filer</CardTitle>
         <div>
