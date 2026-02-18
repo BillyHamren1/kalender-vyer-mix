@@ -76,7 +76,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
 
   return (
     <>
-      <Card className="border-border/40 shadow-2xl rounded-2xl overflow-hidden">
+      <Card className="border-border/40 shadow-2xl rounded-2xl overflow-hidden flex flex-col h-full">
         {/* Compact header */}
         <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pt-3 pb-2">
           <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -103,7 +103,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
           </div>
         )}
 
-        <CardContent className="p-0 pb-1">
+        <CardContent className="p-0 pb-1 flex-1 overflow-y-auto">
           {tasks.length === 0 ? (
             <p className="text-muted-foreground text-center text-xs py-6 px-4">
               Inga uppgifter. Klicka på + för att skapa en.
