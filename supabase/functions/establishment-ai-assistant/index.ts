@@ -90,7 +90,7 @@ Svara ENDAST med ett JSON-objekt i detta format (ingen annan text):
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-3-flash-preview',
+          model: 'google/gemini-2.5-flash',
           messages: [
             { role: 'system', content: SYSTEM_PROMPT },
             { role: 'user', content: suggestionsPrompt }
@@ -100,19 +100,31 @@ Svara ENDAST med ett JSON-objekt i detta format (ingen annan text):
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('AI suggestions error:', response.status, errorText);
         if (response.status === 429) {
-          return new Response(JSON.stringify({ error: 'Rate limit exceeded' }), {
+          return new Response(JSON.stringify({ error: 'Rate limit exceeded, försök igen om en stund.' }), {
             status: 429,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
         if (response.status === 402) {
-          return new Response(JSON.stringify({ error: 'Payment required' }), {
+          return new Response(JSON.stringify({ error: 'Krediter slut, fyll på i Lovable-inställningar.' }), {
             status: 402,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
-        throw new Error(`AI API error: ${response.status}`);
+        // Return fallback suggestions instead of throwing
+        console.warn('AI API returned', response.status, '- using fallback suggestions');
+        return new Response(JSON.stringify({
+          suggestions: [
+            { id: '1', title: 'Generera tidsschema', description: 'Skapa ett optimalt etableringsschema' },
+            { id: '2', title: 'Analysera resursbehov', description: 'Bedöm om personalen räcker' },
+            { id: '3', title: 'Identifiera risker', description: 'Hitta potentiella problem' }
+          ]
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
 
       const data = await response.json();
@@ -164,7 +176,7 @@ ${context}
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-3-flash-preview',
+          model: 'google/gemini-2.5-flash',
           messages: [
             { role: 'system', content: systemMessage },
             ...messages
