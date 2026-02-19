@@ -33,7 +33,7 @@ const DayColumn = ({
 
   return (
     <div className={cn(
-      "flex flex-col flex-1 min-w-[100px]",
+      "flex flex-col flex-1 min-w-0",
       isPast && "opacity-50"
     )}>
       {/* Day header */}
@@ -137,8 +137,8 @@ const DashboardWeekView = ({
       </div>
       
       {/* Week grid */}
-      <div className="p-3 overflow-x-auto">
-        <div className="flex gap-2 min-w-[700px] items-stretch">
+      <div className="p-3">
+        <div className="flex gap-2 items-stretch">
           {days.map(day => (
             <DayColumn 
               key={day.toISOString()}
