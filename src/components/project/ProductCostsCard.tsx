@@ -25,7 +25,7 @@ function cleanName(name: string): string {
 }
 
 const fmt = (v: number) =>
-  v === 0 ? '0' : v.toLocaleString('sv-SE');
+  v == null ? '–' : v === 0 ? '0' : v.toLocaleString('sv-SE');
 
 const getMarginColor = (pct: number) =>
   pct >= 50 ? 'text-green-600' : pct >= 30 ? 'text-yellow-600' : 'text-red-500';
