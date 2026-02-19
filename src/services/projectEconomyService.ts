@@ -278,12 +278,8 @@ export const calculateEconomySummary = (
     return sum;
   }, 0);
 
-  // Product cost budget from imported/manually set product costs
-  const productCostBudget = productCosts?.totalProductCost || 0;
-  const laborCostTotal = productCosts?.laborCostTotal || 0;
-  const materialCostTotal = productCosts?.materialCostTotal || 0;
-  const externalCostTotal = productCosts?.externalCostTotal || 0;
-  const setupHoursTotal = productCosts?.setupHoursTotal || 0;
+  // Product cost budget from Booking system summary
+  const productCostBudget = productCosts?.summary?.costs || 0;
   
   // Total budget now includes: staff budget + quotes + product costs
   const totalBudget = staffBudget + quotesTotal + productCostBudget;
@@ -307,10 +303,6 @@ export const calculateEconomySummary = (
     invoicesTotal,
     invoiceDeviation,
     productCostBudget,
-    laborCostTotal,
-    materialCostTotal,
-    externalCostTotal,
-    setupHoursTotal,
     totalBudget,
     totalActual,
     totalDeviation,
