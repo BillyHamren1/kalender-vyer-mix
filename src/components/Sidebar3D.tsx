@@ -131,21 +131,6 @@ export function Sidebar3D() {
 
         {/* Content */}
         <div className="flex flex-col h-full px-3 py-4">
-          {/* ── Logo ── */}
-          {!isCollapsed && (
-            <div className="flex items-center mb-6">
-              <span
-                className="font-bold leading-none"
-                style={{
-                  fontSize: 15,
-                  letterSpacing: "-0.03em",
-                  color: "hsl(var(--foreground))",
-                }}
-              >
-                EventFlow
-              </span>
-            </div>
-          )}
 
           {/* ── Nav ── */}
           <nav className="flex-1 space-y-px">
