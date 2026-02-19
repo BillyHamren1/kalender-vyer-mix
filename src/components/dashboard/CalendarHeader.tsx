@@ -1,7 +1,8 @@
+import React, { useState, useRef, useEffect } from "react";
 import { 
   Calendar, CalendarDays, CalendarRange,
   Users, Package, Truck, LayoutGrid,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, SlidersHorizontal, Check
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -13,18 +14,16 @@ const viewModes: { value: DashboardViewMode; label: string; icon: React.Componen
   { value: 'month', label: 'Månad', icon: CalendarDays },
 ];
 
-const categories: { value: EventCategory; label: string; icon: React.ComponentType<{ className?: string }>; activeClass: string }[] = [
-  { value: 'planning', label: 'Personal', icon: Users, activeClass: 'bg-primary text-primary-foreground border-primary' },
-  { value: 'warehouse', label: 'Lager', icon: Package, activeClass: 'bg-warehouse text-warehouse-foreground border-warehouse' },
-  { value: 'logistics', label: 'Logistik', icon: Truck, activeClass: 'bg-secondary text-secondary-foreground border-secondary' },
+const categories: { value: EventCategory; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { value: 'planning', label: 'Personal', icon: Users },
+  { value: 'warehouse', label: 'Lager', icon: Package },
+  { value: 'logistics', label: 'Logistik', icon: Truck },
 ];
 
 interface CalendarHeaderProps {
-  // Navigation
   title: string;
   onPrevious: () => void;
   onNext: () => void;
-  // Filters
   viewMode: DashboardViewMode;
   onViewModeChange: (mode: DashboardViewMode) => void;
   activeCategories: EventCategory[];
@@ -40,7 +39,20 @@ const CalendarHeader = ({
   activeCategories,
   onCategoriesChange,
 }: CalendarHeaderProps) => {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const allActive = activeCategories.length === 3;
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const toggleAll = () => {
     onCategoriesChange(allActive ? ['planning'] : ['planning', 'warehouse', 'logistics']);
@@ -48,15 +60,17 @@ const CalendarHeader = ({
 
   const toggleCategory = (cat: EventCategory) => {
     if (activeCategories.includes(cat)) {
-      if (activeCategories.length === 1) return; // keep at least one
+      if (activeCategories.length === 1) return;
       onCategoriesChange(activeCategories.filter(c => c !== cat));
     } else {
       onCategoriesChange([...activeCategories, cat]);
     }
   };
 
+  const activeCount = activeCategories.length;
+
   return (
-    <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-primary to-primary/80 gap-4 flex-wrap">
+    <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-primary to-primary/80 gap-4">
       {/* Left: view mode tabs */}
       <div className="flex items-center gap-1 bg-primary-foreground/10 rounded-lg p-0.5">
         {viewModes.map(mode => (
@@ -99,40 +113,61 @@ const CalendarHeader = ({
         </Button>
       </div>
 
-      {/* Right: category filters */}
-      <div className="flex items-center gap-1">
-        {/* Alla */}
+      {/* Right: filter dropdown */}
+      <div className="relative" ref={dropdownRef}>
         <button
-          onClick={toggleAll}
+          onClick={() => setDropdownOpen(prev => !prev)}
           className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 border",
-            allActive
+            "flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium transition-all duration-150 border",
+            dropdownOpen || !allActive
               ? "bg-primary-foreground text-primary border-primary-foreground shadow-sm"
               : "text-primary-foreground/70 hover:text-primary-foreground border-primary-foreground/30"
           )}
+          title="Filtrera kategorier"
         >
-          <LayoutGrid className="w-3.5 h-3.5" />
-          Alla
+          <SlidersHorizontal className="w-3.5 h-3.5" />
+          {!allActive && (
+            <span className="text-xs font-bold">{activeCount}</span>
+          )}
         </button>
 
-        {categories.map(cat => {
-          const isActive = activeCategories.includes(cat.value);
-          return (
+        {dropdownOpen && (
+          <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border rounded-xl shadow-lg z-50 overflow-hidden">
+            {/* Alla */}
             <button
-              key={cat.value}
-              onClick={() => toggleCategory(cat.value)}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 border",
-                isActive
-                  ? "bg-primary-foreground/90 text-primary border-primary-foreground/80 shadow-sm"
-                  : "text-primary-foreground/50 border-primary-foreground/20 hover:text-primary-foreground/80 hover:border-primary-foreground/40"
-              )}
+              onClick={toggleAll}
+              className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm hover:bg-muted transition-colors"
             >
-              <cat.icon className="w-3.5 h-3.5" />
-              {cat.label}
+              <span className="flex items-center gap-2 text-foreground font-medium">
+                <LayoutGrid className="w-4 h-4 text-muted-foreground" />
+                Alla
+              </span>
+              {allActive && <Check className="w-3.5 h-3.5 text-primary" />}
             </button>
-          );
-        })}
+
+            <div className="h-px bg-border mx-2" />
+
+            {categories.map(cat => {
+              const isActive = activeCategories.includes(cat.value);
+              return (
+                <button
+                  key={cat.value}
+                  onClick={() => toggleCategory(cat.value)}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm hover:bg-muted transition-colors"
+                >
+                  <span className={cn(
+                    "flex items-center gap-2",
+                    isActive ? "text-foreground" : "text-muted-foreground"
+                  )}>
+                    <cat.icon className="w-4 h-4" />
+                    {cat.label}
+                  </span>
+                  {isActive && <Check className="w-3.5 h-3.5 text-primary" />}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
