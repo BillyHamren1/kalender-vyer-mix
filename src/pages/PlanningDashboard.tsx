@@ -86,44 +86,44 @@ const PlanningDashboard = () => {
       </div>
 
 
-      {/* Calendar View + New Bookings side by side */}
-      <div className="mb-6 grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4 min-w-0">
-        <div className="min-w-0 overflow-hidden">
-          {viewMode === 'week' && (
-            <DashboardWeekView
-              events={events}
-              weekStart={weekStart}
-              onPreviousWeek={goToPreviousWeek}
-              onNextWeek={goToNextWeek}
-              isLoading={isLoading}
-            />
-          )}
-          {viewMode === 'day' && (
-            <DashboardDayView
-              events={events}
-              currentDate={currentDate}
-              onPreviousDay={goToPreviousDay}
-              onNextDay={goToNextDay}
-              isLoading={isLoading}
-            />
-          )}
-          {viewMode === 'month' && (
-            <DashboardMonthView
-              events={events}
-              currentDate={currentDate}
-              onPreviousMonth={goToPreviousMonth}
-              onNextMonth={goToNextMonth}
-              onDayClick={handleDayClickFromMonth}
-              isLoading={isLoading}
-            />
-          )}
-        </div>
-        <div className="min-w-0">
-          <DashboardNewBookings
-            onCreateProject={handleCreateProject}
-            onCreateLargeProject={handleCreateLargeProject}
+      {/* New Bookings - above calendar, full width */}
+      <div className="mb-4">
+        <DashboardNewBookings
+          onCreateProject={handleCreateProject}
+          onCreateLargeProject={handleCreateLargeProject}
+        />
+      </div>
+
+      {/* Calendar View */}
+      <div className="mb-6 min-w-0 overflow-hidden">
+        {viewMode === 'week' && (
+          <DashboardWeekView
+            events={events}
+            weekStart={weekStart}
+            onPreviousWeek={goToPreviousWeek}
+            onNextWeek={goToNextWeek}
+            isLoading={isLoading}
           />
-        </div>
+        )}
+        {viewMode === 'day' && (
+          <DashboardDayView
+            events={events}
+            currentDate={currentDate}
+            onPreviousDay={goToPreviousDay}
+            onNextDay={goToNextDay}
+            isLoading={isLoading}
+          />
+        )}
+        {viewMode === 'month' && (
+          <DashboardMonthView
+            events={events}
+            currentDate={currentDate}
+            onPreviousMonth={goToPreviousMonth}
+            onNextMonth={goToNextMonth}
+            onDayClick={handleDayClickFromMonth}
+            isLoading={isLoading}
+          />
+        )}
       </div>
 
       {/* Alla bokningar */}
