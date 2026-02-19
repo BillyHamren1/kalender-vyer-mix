@@ -111,3 +111,6 @@ verify_jwt = false
 
 [functions.send-transport-cancellation]
 verify_jwt = false
+
+[functions.planning-api-proxy]
+verify_jwt = false
