@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileSpreadsheet, FileText } from 'lucide-react';
+import { FileSpreadsheet, FileText, Wallet } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import {
@@ -8,6 +8,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+} from '@/components/ui/dialog';
 import { useProjectEconomy } from '@/hooks/useProjectEconomy';
 import { EconomySummaryCard } from './EconomySummaryCard';
 import { StaffCostTable } from './StaffCostTable';
@@ -18,6 +22,7 @@ import { ProductCostsCard } from './ProductCostsCard';
 import BookingEconomicsCard from '@/components/booking/BookingEconomicsCard';
 import { exportToExcel, exportToPDF } from '@/services/projectEconomyExportService';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 
 interface ProjectEconomyTabProps {
@@ -28,6 +33,18 @@ interface ProjectEconomyTabProps {
 
 export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingId }: ProjectEconomyTabProps) => {
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
+  const [iframeOpen, setIframeOpen] = useState(false);
+  const [jwt, setJwt] = useState<string | null>(null);
+
+  const handleOpenIframe = async () => {
+    const { data } = await supabase.auth.getSession();
+    setJwt(data.session?.access_token || null);
+    setIframeOpen(true);
+  };
+
+  const iframeUrl = bookingId && jwt
+    ? `https://eventflow-booking.lovable.app/embed-app/booking/${bookingId}/costs?token=${jwt}`
+    : null;
   
   const {
     budget,
@@ -97,7 +114,11 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
   return (
     <div className="space-y-6">
       {/* Export buttons */}
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button onClick={handleOpenIframe} disabled={!bookingId} variant="default" size="sm" className="bg-teal-600 hover:bg-teal-700 text-white dark:bg-teal-700 dark:hover:bg-teal-600">
+          <Wallet className="h-4 w-4 mr-2" />
+          Projektekonomi
+        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm">
@@ -174,6 +195,23 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
         currentBudget={budget || null}
         onSave={saveBudget}
       />
+
+      {/* Projektekonomi iframe dialog */}
+      <Dialog open={iframeOpen} onOpenChange={setIframeOpen}>
+        <DialogContent className="max-w-5xl w-full h-[85vh] p-0 overflow-hidden">
+          {iframeUrl ? (
+            <iframe
+              src={iframeUrl}
+              className="w-full h-full border-0 rounded-lg"
+              title="Projektekonomi"
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full text-muted-foreground">
+              Saknar bokning eller session
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
