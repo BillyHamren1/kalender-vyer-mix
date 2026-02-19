@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { PageContainer } from '@/components/ui/PageContainer';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { 
   Users, 
   TrendingUp,
@@ -122,21 +124,12 @@ export default function StaffRevenueOverview() {
   const kpis = data?.kpis || {} as StaffRevenueKPIs;
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header with filters */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Personalekonomi</h1>
-          <p className="text-muted-foreground">
-            Intäkt och marginal per personal
-            {data?.dateRange && (
-              <span className="ml-2">
-                ({format(new Date(data.dateRange.start), 'd MMM', { locale: sv })} - {format(new Date(data.dateRange.end), 'd MMM yyyy', { locale: sv })})
-              </span>
-            )}
-          </p>
-        </div>
-
+    <PageContainer>
+      <PageHeader
+        icon={Users}
+        title="Personalekonomi"
+        subtitle="Intäkt och marginal per personal"
+      >
         {/* Time filter buttons */}
         <div className="flex flex-wrap gap-2">
           {(['day', 'week', 'month', 'year'] as TimeFilterType[]).map(type => (
@@ -193,7 +186,7 @@ export default function StaffRevenueOverview() {
             </PopoverContent>
           </Popover>
         </div>
-      </div>
+      </PageHeader>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -495,6 +488,6 @@ export default function StaffRevenueOverview() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 }
