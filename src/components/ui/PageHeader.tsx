@@ -30,12 +30,12 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   const isWarehouse = variant === 'warehouse';
 
   return (
-    <div className={cn("mb-8", className)}>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 p-7 rounded-2xl bg-card border border-border/40 shadow-2xl">
-        <div className="flex items-center gap-4">
+    <div className={cn("mb-4", className)}>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 px-5 py-3.5 rounded-xl bg-card border border-border/40 shadow-sm">
+        <div className="flex items-center gap-3">
           <div
             className={cn(
-              "w-12 h-12 rounded-xl flex items-center justify-center shadow-lg",
+              "w-9 h-9 rounded-lg flex items-center justify-center shadow-sm shrink-0",
               isWarehouse ? "shadow-warehouse/15" : "shadow-primary/15"
             )}
             style={{
@@ -44,14 +44,14 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
                 : 'var(--gradient-icon)'
             }}
           >
-            <Icon className="h-6 w-6 text-white" />
+            <Icon className="h-4.5 w-4.5 text-white" style={{ width: 18, height: 18 }} />
           </div>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-[hsl(var(--heading))]">
+            <h1 className="text-xl font-bold tracking-tight text-[hsl(var(--heading))] leading-none">
               {title}
             </h1>
             {subtitle && (
-              <p className="text-muted-foreground mt-0.5 text-[0.925rem] leading-relaxed">
+              <p className="text-muted-foreground mt-0.5 text-xs leading-none">
                 {subtitle}
               </p>
             )}
@@ -63,15 +63,15 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
           {action && (
             <Button
               onClick={action.onClick}
-              size="lg"
+              size="sm"
               className={cn(
-                "font-semibold rounded-xl px-8 h-12",
+                "font-medium rounded-lg px-4 h-8",
                 isWarehouse
-                  ? "bg-warehouse hover:bg-warehouse-hover shadow-xl shadow-warehouse/25"
-                  : "bg-primary hover:bg-[hsl(var(--primary-hover))] shadow-xl shadow-primary/25"
+                  ? "bg-warehouse hover:bg-warehouse-hover shadow-sm shadow-warehouse/20"
+                  : "bg-primary hover:bg-[hsl(var(--primary-hover))] shadow-sm shadow-primary/20"
               )}
             >
-              {action.icon && <action.icon className="h-5 w-5 mr-2" />}
+              {action.icon && <action.icon className="h-4 w-4 mr-1.5" />}
               {action.label}
             </Button>
           )}
