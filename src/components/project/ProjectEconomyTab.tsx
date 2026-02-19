@@ -15,6 +15,7 @@ import { PurchasesList } from './PurchasesList';
 import { QuotesInvoicesList } from './QuotesInvoicesList';
 import { BudgetSettingsDialog } from './BudgetSettingsDialog';
 import { ProductCostsCard } from './ProductCostsCard';
+import { SupplierInvoicesCard } from './SupplierInvoicesCard';
 import BookingEconomicsCard from '@/components/booking/BookingEconomicsCard';
 import { exportToExcel, exportToPDF } from '@/services/projectEconomyExportService';
 import { toast } from 'sonner';
@@ -37,6 +38,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
     quotes,
     invoices,
     productCosts,
+    supplierInvoices,
     bookingEconomics,
     summary,
     isLoading,
@@ -49,6 +51,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
     removeInvoice,
     updateInvoice,
     refetchProductCosts,
+    refetchSupplierInvoices,
   } = useProjectEconomy(projectId, bookingId);
 
   const handleExportExcel = () => {
@@ -166,6 +169,12 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
         onAddInvoice={addInvoice}
         onRemoveInvoice={removeInvoice}
         onUpdateInvoice={updateInvoice}
+      />
+
+      {/* Supplier Invoices (Fortnox) */}
+      <SupplierInvoicesCard
+        supplierInvoices={supplierInvoices}
+        onRefresh={refetchSupplierInvoices}
       />
 
       {/* Budget Settings Dialog */}

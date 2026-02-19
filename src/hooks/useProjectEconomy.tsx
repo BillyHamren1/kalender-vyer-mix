@@ -18,6 +18,7 @@ import {
   deleteInvoice,
   fetchTimeReports,
   fetchProductCostsRemote,
+  fetchSupplierInvoices,
 } from '@/services/planningApiService';
 import { calculateEconomySummary } from '@/services/projectEconomyService';
 import type { ProjectPurchase, ProjectQuote, ProjectInvoice } from '@/types/projectEconomy';
@@ -63,6 +64,12 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     enabled: !!bookingId,
   });
 
+  const { data: supplierInvoices = [], isLoading: supplierInvoicesLoading, refetch: refetchSupplierInvoices } = useQuery({
+    queryKey: ['supplier-invoices', bookingId],
+    queryFn: () => fetchSupplierInvoices(bookingId!),
+    enabled: !!bookingId,
+  });
+
   const { data: bookingEconomics } = useQuery({
     queryKey: ['booking-economics', bookingId],
     queryFn: async () => {
@@ -76,7 +83,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     enabled: !!bookingId,
   });
 
-  const summary = calculateEconomySummary(budget || null, timeReports, purchases, quotes, invoices, productCosts || null);
+  const summary = calculateEconomySummary(budget || null, timeReports, purchases, quotes, invoices, productCosts || null, supplierInvoices);
 
   // --- Mutations (all via planning-api-proxy) ---
 
@@ -254,7 +261,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
 
   // Product costs are read-only from Booking system — no local update mutation needed
 
-  const isLoading = budgetLoading || timeReportsLoading || purchasesLoading || quotesLoading || invoicesLoading || productCostsLoading;
+  const isLoading = budgetLoading || timeReportsLoading || purchasesLoading || quotesLoading || invoicesLoading || productCostsLoading || supplierInvoicesLoading;
 
   return {
     budget,
@@ -263,6 +270,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     quotes,
     invoices,
     productCosts,
+    supplierInvoices,
     bookingEconomics,
     summary,
     isLoading,
@@ -276,5 +284,6 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     updateInvoice: updateInvoiceMutation.mutate,
     removeInvoice: removeInvoiceMutation.mutate,
     refetchProductCosts,
+    refetchSupplierInvoices,
   };
 };

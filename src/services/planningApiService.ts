@@ -76,3 +76,9 @@ export const fetchTimeReports = (bookingId: string) =>
 
 export const fetchProductCostsRemote = (bookingId: string) =>
   callPlanningApi({ type: 'product_costs', method: 'GET', booking_id: bookingId });
+
+// ===== Supplier Invoices (Fortnox) =====
+
+export const fetchSupplierInvoices = (bookingId: string) =>
+  callPlanningApi({ type: 'supplier_invoices', method: 'GET', booking_id: bookingId })
+    .catch(() => [] as any[]);
