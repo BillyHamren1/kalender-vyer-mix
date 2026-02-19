@@ -173,15 +173,8 @@ async function uploadBase64ToStorage(
 const syncWarehouseEventsForBooking = async (supabase: any, booking: any): Promise<number> => {
   console.log(`[Warehouse] Syncing warehouse events for booking ${booking.id}`);
   
-  // Delete existing warehouse events for this booking (to avoid duplicates)
-  const { error: deleteError } = await supabase
-    .from('warehouse_calendar_events')
-    .delete()
-    .eq('booking_id', booking.id);
-  
-  if (deleteError) {
-    console.error(`[Warehouse] Error deleting existing events:`, deleteError);
-  }
+  // NOTE: No delete needed - upsert with onConflict handles idempotency
+  // The UNIQUE(booking_id, event_type) constraint prevents duplicates at DB level
   
   const events: any[] = [];
   const clientName = booking.client || 'Okänd kund';
@@ -306,19 +299,19 @@ const syncWarehouseEventsForBooking = async (supabase: any, booking: any): Promi
     });
   }
   
-  // Insert all warehouse events
+  // Upsert all warehouse events - uses UNIQUE(booking_id, event_type) to prevent duplicates
   if (events.length > 0) {
-    console.log(`[Warehouse] Inserting ${events.length} warehouse events for booking ${booking.id}`);
-    const { error: insertError } = await supabase
+    console.log(`[Warehouse] Upserting ${events.length} warehouse events for booking ${booking.id}`);
+    const { error: upsertError } = await supabase
       .from('warehouse_calendar_events')
-      .insert(events);
+      .upsert(events, { onConflict: 'booking_id,event_type', ignoreDuplicates: false });
     
-    if (insertError) {
-      console.error(`[Warehouse] Error inserting events:`, insertError);
+    if (upsertError) {
+      console.error(`[Warehouse] Error upserting events:`, upsertError);
       return 0;
     }
     
-    console.log(`[Warehouse] Successfully created ${events.length} warehouse events for booking ${booking.id}`);
+    console.log(`[Warehouse] Successfully upserted ${events.length} warehouse events for booking ${booking.id}`);
     return events.length;
   }
   
@@ -2503,7 +2496,7 @@ serve(async (req) => {
                   event_type: event.event_type,
                   delivery_address: event.delivery_address,
                   resource_id: assignedTeam
-                })
+                }, { onConflict: 'booking_id,event_type', ignoreDuplicates: true })
 
               if (eventError) {
                 console.error(`Error creating calendar event:`, eventError)
