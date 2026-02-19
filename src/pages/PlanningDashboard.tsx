@@ -87,8 +87,8 @@ const PlanningDashboard = () => {
 
 
       {/* Calendar View + New Bookings side by side */}
-      <div className="mb-6 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
-        <div>
+      <div className="mb-6 grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4 min-w-0">
+        <div className="min-w-0 overflow-hidden">
           {viewMode === 'week' && (
             <DashboardWeekView
               events={events}
@@ -118,7 +118,7 @@ const PlanningDashboard = () => {
             />
           )}
         </div>
-        <div>
+        <div className="min-w-0">
           <DashboardNewBookings
             onCreateProject={handleCreateProject}
             onCreateLargeProject={handleCreateLargeProject}
