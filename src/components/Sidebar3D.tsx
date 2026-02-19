@@ -36,6 +36,7 @@ const navigationItems: NavItem[] = [
       { title: "Projekt", url: "/economy/projects" },
       { title: "Personal", url: "/economy/staff" },
       { title: "Personalekonomi", url: "/economy/staff-revenue" },
+      { title: "Rapporterad tid / Utlägg", url: "/economy/time-reports" },
     ],
   },
   {
