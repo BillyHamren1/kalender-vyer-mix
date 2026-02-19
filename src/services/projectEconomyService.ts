@@ -249,7 +249,8 @@ export const calculateEconomySummary = (
   purchases: ProjectPurchase[],
   quotes: ProjectQuote[],
   invoices: ProjectInvoice[],
-  productCosts?: ProductCostSummary | null
+  productCosts?: ProductCostSummary | null,
+  supplierInvoices?: any[]
 ): EconomySummary => {
   const budgetedHours = budget?.budgeted_hours || 0;
   const hourlyRate = budget?.hourly_rate || 350;
@@ -257,7 +258,6 @@ export const calculateEconomySummary = (
   
   const actualHours = timeReports.reduce((sum, r) => sum + r.total_hours + r.overtime_hours, 0);
   const staffActual = timeReports.reduce((sum, r) => sum + r.total_cost, 0);
-  // Positive deviation = under budget (good), negative = over budget (bad)
   const staffDeviation = staffBudget - staffActual;
   const staffDeviationPercent = staffBudget > 0 
     ? ((staffBudget - staffActual) / staffBudget) * 100 
@@ -267,7 +267,6 @@ export const calculateEconomySummary = (
   const quotesTotal = quotes.reduce((sum, q) => sum + Number(q.quoted_amount), 0);
   const invoicesTotal = invoices.reduce((sum, i) => sum + Number(i.invoiced_amount), 0);
   
-  // Calculate invoice deviation against linked quotes
   const invoiceDeviation = invoices.reduce((sum, invoice) => {
     if (invoice.quote_id) {
       const quote = quotes.find(q => q.id === invoice.quote_id);
@@ -278,13 +277,14 @@ export const calculateEconomySummary = (
     return sum;
   }, 0);
 
-  // Product cost budget from Booking system summary
+  const supplierInvoicesTotal = (supplierInvoices || []).reduce(
+    (sum: number, si: any) => sum + (Number(si.invoice_data?.Total) || 0), 0
+  );
+
   const productCostBudget = productCosts?.summary?.costs || 0;
   
-  // Total budget now includes: staff budget + quotes + product costs
   const totalBudget = staffBudget + quotesTotal + productCostBudget;
-  const totalActual = staffActual + purchasesTotal + invoicesTotal;
-  // Positive deviation = under budget (good), negative = over budget (bad)
+  const totalActual = staffActual + purchasesTotal + invoicesTotal + supplierInvoicesTotal;
   const totalDeviation = totalBudget - totalActual;
   const totalDeviationPercent = totalBudget > 0 
     ? ((totalBudget - totalActual) / totalBudget) * 100 
@@ -302,6 +302,7 @@ export const calculateEconomySummary = (
     quotesTotal,
     invoicesTotal,
     invoiceDeviation,
+    supplierInvoicesTotal,
     productCostBudget,
     totalBudget,
     totalActual,

@@ -50,6 +50,24 @@ export interface ProjectInvoice {
   created_at: string;
 }
 
+export interface SupplierInvoice {
+  id: string;
+  booking_id: string;
+  given_number: string;
+  invoice_data: {
+    GivenNumber: string;
+    SupplierName: string;
+    InvoiceDate: string;
+    DueDate: string;
+    Total: number;
+    Balance: number;
+    Currency: string;
+    YourReference: string;
+  };
+  linked_product_id: string | null;
+  fetched_at: string;
+}
+
 export interface DetailedTimeReport {
   id: string;
   staff_id: string;
@@ -89,6 +107,7 @@ export interface EconomySummary {
   quotesTotal: number;
   invoicesTotal: number;
   invoiceDeviation: number;
+  supplierInvoicesTotal: number;
   // Product cost budget (from Booking summary.costs)
   productCostBudget: number;
   totalBudget: number;
