@@ -252,29 +252,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     onSettled: removeInvoiceOptimistic.onSettled,
   });
 
-  // Product cost update - forwarded to booking backend
-  const updateProductCostMutation = useMutation({
-    mutationFn: async ({ productId, costs }: {
-      productId: string;
-      costs: {
-        labor_cost?: number;
-        material_cost?: number;
-        setup_hours?: number;
-        external_cost?: number;
-        cost_notes?: string | null;
-      }
-    }) => {
-      const { error } = await supabase
-        .from('booking_products')
-        .update(costs)
-        .eq('id', productId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['product-costs', bookingId] });
-    },
-    onError: () => toast.error('Kunde inte uppdatera produktkostnad'),
-  });
+  // Product costs are read-only from Booking system — no local update mutation needed
 
   const isLoading = budgetLoading || timeReportsLoading || purchasesLoading || quotesLoading || invoicesLoading || productCostsLoading;
 
@@ -297,12 +275,5 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     addInvoice: addInvoiceMutation.mutate,
     updateInvoice: updateInvoiceMutation.mutate,
     removeInvoice: removeInvoiceMutation.mutate,
-    updateProductCost: (productId: string, costs: {
-      labor_cost?: number;
-      material_cost?: number;
-      setup_hours?: number;
-      external_cost?: number;
-      cost_notes?: string | null;
-    }) => updateProductCostMutation.mutateAsync({ productId, costs }),
   };
 };

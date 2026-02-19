@@ -48,7 +48,6 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
     addInvoice,
     removeInvoice,
     updateInvoice,
-    updateProductCost
   } = useProjectEconomy(projectId, bookingId);
 
   const handleExportExcel = () => {
@@ -134,7 +133,6 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
       {productCosts && (
         <ProductCostsCard
           productCosts={productCosts}
-          onUpdateCost={updateProductCost}
           isLoading={isLoading}
         />
       )}

@@ -5,13 +5,6 @@ import type { ProductCostData, ProductCostSummary } from '@/services/productCost
 
 interface ProductCostsCardProps {
   productCosts: ProductCostSummary;
-  onUpdateCost: (productId: string, costs: {
-    labor_cost?: number;
-    material_cost?: number;
-    setup_hours?: number;
-    external_cost?: number;
-    cost_notes?: string | null;
-  }) => Promise<void>;
   isLoading?: boolean;
 }
 
@@ -32,14 +25,13 @@ const getMarginColor = (pct: number) =>
 
 export const ProductCostsCard = ({ productCosts }: ProductCostsCardProps) => {
   const groupedProducts = useMemo((): ProductGroup[] => {
-    const parents = productCosts.products.filter(p => !p.parentProductId);
+    const parents = productCosts.products.filter(p => !p.parent_product_id);
     return parents.map(parent => ({
       parent,
-      children: productCosts.products.filter(p => p.parentProductId === parent.id),
+      children: productCosts.products.filter(p => p.parent_product_id === parent.id),
     }));
   }, [productCosts.products]);
 
-  // Empty set = all groups expanded by default; add ID to collapse
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   const toggleGroup = (id: string) => {
@@ -66,22 +58,25 @@ export const ProductCostsCard = ({ productCosts }: ProductCostsCardProps) => {
     );
   }
 
+  const calcTotalCost = (p: ProductCostData) =>
+    (p.assembly_cost + p.handling_cost + p.purchase_cost) * p.quantity;
+
   const renderChildRow = (product: ProductCostData) => {
-    const rev = product.totalRevenue;
-    const cost = product.totalCost;
+    const rev = product.total;
+    const cost = calcTotalCost(product);
     const pct = rev > 0 ? Math.round(((rev - cost) / rev) * 100) : 0;
     return (
       <tr key={product.id} className="border-b border-border/20 bg-muted/10">
         <td className="py-1.5 pr-3 pl-6 text-xs text-muted-foreground">
           <span className="mr-1 opacity-50">└</span>
-          {cleanName(product.name)}
+          {cleanName(product.product_name)}
         </td>
         <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{product.quantity}</td>
-        <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(product.unitPrice)}</td>
+        <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(product.unit_price)}</td>
         <td className="py-1.5 px-2 text-right text-xs">{fmt(rev)}</td>
-        <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(product.assemblyCost)}</td>
-        <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(product.handlingCost)}</td>
-        <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(product.purchaseCost)}</td>
+        <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(product.assembly_cost)}</td>
+        <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(product.handling_cost)}</td>
+        <td className="py-1.5 px-2 text-right text-xs text-muted-foreground">{fmt(product.purchase_cost)}</td>
         <td className="py-1.5 px-2 text-right text-xs font-medium">{fmt(cost)}</td>
         <td className={`py-1.5 pl-2 text-right text-xs font-semibold ${getMarginColor(pct)}`}>
           {rev > 0 ? `${pct}%` : <span className="text-muted-foreground">–</span>}
@@ -93,12 +88,9 @@ export const ProductCostsCard = ({ productCosts }: ProductCostsCardProps) => {
   const renderGroupRows = (group: ProductGroup) => {
     const hasChildren = group.children.length > 0;
     const isExpanded = !collapsedGroups.has(group.parent.id);
-    const groupRev = group.parent.totalRevenue;
-    const groupCost = group.parent.totalCost;
+    const groupRev = group.parent.total;
+    const groupCost = calcTotalCost(group.parent);
     const groupPct = groupRev > 0 ? Math.round(((groupRev - groupCost) / groupRev) * 100) : 0;
-    const groupAssembly = group.parent.assemblyCost;
-    const groupHandling = group.parent.handlingCost;
-    const groupPurchase = group.parent.purchaseCost;
 
     const parentRow = (
       <tr
@@ -114,15 +106,15 @@ export const ProductCostsCard = ({ productCosts }: ProductCostsCardProps) => {
                 : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             )}
             {!hasChildren && <span className="w-3.5 inline-block" />}
-            {cleanName(group.parent.name)}
+            {cleanName(group.parent.product_name)}
           </span>
         </td>
         <td className="py-2 px-2 text-right text-sm">{group.parent.quantity}</td>
-        <td className="py-2 px-2 text-right text-sm">{fmt(group.parent.unitPrice)}</td>
+        <td className="py-2 px-2 text-right text-sm">{fmt(group.parent.unit_price)}</td>
         <td className="py-2 px-2 text-right text-sm font-medium">{fmt(groupRev)}</td>
-        <td className="py-2 px-2 text-right text-sm">{fmt(groupAssembly)}</td>
-        <td className="py-2 px-2 text-right text-sm">{fmt(groupHandling)}</td>
-        <td className="py-2 px-2 text-right text-sm">{fmt(groupPurchase)}</td>
+        <td className="py-2 px-2 text-right text-sm">{fmt(group.parent.assembly_cost)}</td>
+        <td className="py-2 px-2 text-right text-sm">{fmt(group.parent.handling_cost)}</td>
+        <td className="py-2 px-2 text-right text-sm">{fmt(group.parent.purchase_cost)}</td>
         <td className="py-2 px-2 text-right text-sm font-medium">{fmt(groupCost)}</td>
         <td className={`py-2 pl-2 text-right text-sm font-semibold ${getMarginColor(groupPct)}`}>
           {groupRev > 0 ? `${groupPct}%` : <span className="text-muted-foreground">–</span>}
@@ -136,8 +128,13 @@ export const ProductCostsCard = ({ productCosts }: ProductCostsCardProps) => {
     ];
   };
 
-  const { totalRevenue, assemblyCostTotal, handlingCostTotal, purchaseCostTotal, totalProductCost, marginPct } = productCosts;
-  const grossMargin = totalRevenue - totalProductCost;
+  const { revenue, costs, margin } = productCosts.summary;
+  const marginPct = revenue > 0 ? Math.round((margin / revenue) * 100) : 0;
+
+  // Calculate column totals from products
+  const assemblyCostTotal = productCosts.products.reduce((s, p) => s + p.assembly_cost * p.quantity, 0);
+  const handlingCostTotal = productCosts.products.reduce((s, p) => s + p.handling_cost * p.quantity, 0);
+  const purchaseCostTotal = productCosts.products.reduce((s, p) => s + p.purchase_cost * p.quantity, 0);
 
   return (
     <Card>
@@ -149,19 +146,19 @@ export const ProductCostsCard = ({ productCosts }: ProductCostsCardProps) => {
       </CardHeader>
       <CardContent className="pt-3 space-y-3">
 
-        {/* KPI header — matches bild 2 */}
+        {/* KPI header */}
         <div className="flex flex-wrap items-center gap-x-8 gap-y-1 border-b pb-3">
           <div className="text-sm">
             <span className="text-muted-foreground">Intäkter </span>
-            <span className="font-bold">{fmt(totalRevenue)} kr</span>
+            <span className="font-bold">{fmt(revenue)} kr</span>
           </div>
           <div className="text-sm">
             <span className="text-muted-foreground">Kostnader </span>
-            <span className="font-bold">{fmt(totalProductCost)} kr</span>
+            <span className="font-bold">{fmt(costs)} kr</span>
           </div>
           <div className="text-sm">
             <span className="text-muted-foreground">Marginal </span>
-            <span className="font-bold">{fmt(grossMargin)} kr</span>
+            <span className="font-bold">{fmt(margin)} kr</span>
           </div>
           <div className="text-sm ml-auto">
             <span className="text-muted-foreground">Marginal % </span>
@@ -193,11 +190,11 @@ export const ProductCostsCard = ({ productCosts }: ProductCostsCardProps) => {
                 <td className="py-2.5 pr-3">Totalt</td>
                 <td className="py-2.5 px-2" />
                 <td className="py-2.5 px-2" />
-                <td className="py-2.5 px-2 text-right">{fmt(totalRevenue)}</td>
+                <td className="py-2.5 px-2 text-right">{fmt(revenue)}</td>
                 <td className="py-2.5 px-2 text-right">{fmt(assemblyCostTotal)}</td>
                 <td className="py-2.5 px-2 text-right">{fmt(handlingCostTotal)}</td>
                 <td className="py-2.5 px-2 text-right">{fmt(purchaseCostTotal)}</td>
-                <td className="py-2.5 px-2 text-right">{fmt(totalProductCost)}</td>
+                <td className="py-2.5 px-2 text-right">{fmt(costs)}</td>
                 <td className={`py-2.5 pl-2 text-right ${getMarginColor(marginPct)}`}>{marginPct}%</td>
               </tr>
             </tfoot>
