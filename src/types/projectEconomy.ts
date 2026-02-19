@@ -50,6 +50,8 @@ export interface ProjectInvoice {
   created_at: string;
 }
 
+export type LinkedCostType = 'product' | 'purchase' | 'budget' | null;
+
 export interface SupplierInvoice {
   id: string;
   booking_id: string;
@@ -65,6 +67,8 @@ export interface SupplierInvoice {
     YourReference: string;
   };
   linked_product_id: string | null;
+  linked_cost_type: LinkedCostType;
+  linked_cost_id: string | null;
   fetched_at: string;
 }
 

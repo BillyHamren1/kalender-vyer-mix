@@ -19,9 +19,10 @@ import {
   fetchTimeReports,
   fetchProductCostsRemote,
   fetchSupplierInvoices,
+  updateSupplierInvoiceLink,
 } from '@/services/planningApiService';
 import { calculateEconomySummary } from '@/services/projectEconomyService';
-import type { ProjectPurchase, ProjectQuote, ProjectInvoice } from '@/types/projectEconomy';
+import type { ProjectPurchase, ProjectQuote, ProjectInvoice, LinkedCostType } from '@/types/projectEconomy';
 import { createOptimisticCallbacks } from './useOptimisticMutation';
 
 export const useProjectEconomy = (projectId: string | undefined, bookingId: string | null | undefined) => {
@@ -261,6 +262,17 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
 
   // Product costs are read-only from Booking system — no local update mutation needed
 
+  // Supplier invoice linking
+  const linkSupplierInvoiceMutation = useMutation({
+    mutationFn: ({ id, linked_cost_type, linked_cost_id }: { id: string; linked_cost_type: LinkedCostType; linked_cost_id: string | null }) =>
+      updateSupplierInvoiceLink(id, { linked_cost_type, linked_cost_id }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supplier-invoices', bookingId] });
+      toast.success('Koppling sparad');
+    },
+    onError: () => toast.error('Kunde inte spara koppling'),
+  });
+
   const isLoading = budgetLoading || timeReportsLoading || purchasesLoading || quotesLoading || invoicesLoading || productCostsLoading || supplierInvoicesLoading;
 
   return {
@@ -285,5 +297,6 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     removeInvoice: removeInvoiceMutation.mutate,
     refetchProductCosts,
     refetchSupplierInvoices,
+    linkSupplierInvoice: linkSupplierInvoiceMutation.mutate,
   };
 };

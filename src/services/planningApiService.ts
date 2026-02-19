@@ -82,3 +82,6 @@ export const fetchProductCostsRemote = (bookingId: string) =>
 export const fetchSupplierInvoices = (bookingId: string) =>
   callPlanningApi({ type: 'supplier_invoices', method: 'GET', booking_id: bookingId })
     .catch(() => [] as any[]);
+
+export const updateSupplierInvoiceLink = (id: string, data: { linked_cost_type: string | null; linked_cost_id: string | null }) =>
+  callPlanningApi({ type: 'supplier_invoices', method: 'PUT', id, data });
