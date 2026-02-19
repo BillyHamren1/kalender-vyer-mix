@@ -1,19 +1,20 @@
 
 import React from 'react';
+import { ClipboardCheck } from 'lucide-react';
 import TimeReportApprovalPanel from '@/components/staff/TimeReportApprovalPanel';
+import { PageContainer } from '@/components/ui/PageContainer';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 const TimeReportApprovals = () => {
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Tidrapportsgodkännanden</h1>
-        <p className="text-muted-foreground mt-1">
-          Granska och godkänn inrapporterade timmar från personalen
-        </p>
-      </div>
-      
+    <PageContainer>
+      <PageHeader
+        icon={ClipboardCheck}
+        title="Tidrapportsgodkännanden"
+        subtitle="Granska och godkänn inrapporterade timmar från personalen"
+      />
       <TimeReportApprovalPanel />
-    </div>
+    </PageContainer>
   );
 };
 

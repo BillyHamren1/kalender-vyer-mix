@@ -3,6 +3,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Plus, FolderKanban, Archive } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageContainer } from "@/components/ui/PageContainer";
+import { PageHeader } from "@/components/ui/PageHeader";
 import CreateProjectWizard from "@/components/project/CreateProjectWizard";
 import { IncomingBookingsList } from "@/components/project/IncomingBookingsList";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
@@ -38,39 +40,31 @@ const ProjectManagement = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      <div className="container mx-auto px-4 py-6 max-w-[1600px]">
-        {/* Compact Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary to-primary/80 shadow-md">
-              <FolderKanban className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Projekthantering</h1>
-              <p className="text-sm text-muted-foreground">Hantera små, medelstora och stora projekt</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button 
-              onClick={() => navigate('/projects/archive')}
-              variant="outline"
-              size="sm"
-              className="rounded-lg h-9"
-            >
-              <Archive className="h-4 w-4 mr-1.5" />
-              Arkiv
-            </Button>
-            <Button 
-              onClick={() => { setSelectedBookingId(null); setIsCreateOpen(true); }}
-              size="sm"
-              className="rounded-lg h-9 shadow-sm"
-            >
-              <Plus className="h-4 w-4 mr-1.5" />
-              Nytt projekt
-            </Button>
-          </div>
-        </div>
+    <PageContainer>
+        {/* Header */}
+        <PageHeader
+          icon={FolderKanban}
+          title="Projekthantering"
+          subtitle="Hantera små, medelstora och stora projekt"
+        >
+          <Button 
+            onClick={() => navigate('/projects/archive')}
+            variant="outline"
+            size="sm"
+            className="rounded-lg h-8"
+          >
+            <Archive className="h-4 w-4 mr-1.5" />
+            Arkiv
+          </Button>
+          <Button 
+            onClick={() => { setSelectedBookingId(null); setIsCreateOpen(true); }}
+            size="sm"
+            className="rounded-lg h-8 shadow-sm bg-primary hover:bg-[hsl(var(--primary-hover))]"
+          >
+            <Plus className="h-4 w-4 mr-1.5" />
+            Nytt projekt
+          </Button>
+        </PageHeader>
 
         {/* Incoming Bookings - compact */}
         <div className="mb-6">
@@ -104,8 +98,7 @@ const ProjectManagement = () => {
           onOpenChange={(open) => !open && setLargeProjectBookingId(null)}
           bookingId={largeProjectBookingId || ''}
         />
-      </div>
-    </div>
+    </PageContainer>
   );
 };
 

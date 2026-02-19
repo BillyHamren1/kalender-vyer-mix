@@ -8,6 +8,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { PageContainer } from '@/components/ui/PageContainer';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { cn } from '@/lib/utils';
 import { format, isPast, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -74,17 +76,12 @@ const MyProjects: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="p-2.5 rounded-xl bg-primary text-primary-foreground shadow-md">
-          <Briefcase className="h-5 w-5" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Mina projekt</h1>
-          <p className="text-sm text-muted-foreground">Samlad översikt över dina aktiva projekt</p>
-        </div>
-      </div>
+    <PageContainer>
+      <PageHeader
+        icon={Briefcase}
+        title="Mina projekt"
+        subtitle="Samlad översikt över dina aktiva projekt"
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -251,7 +248,7 @@ const MyProjects: React.FC = () => {
           })}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 };
 

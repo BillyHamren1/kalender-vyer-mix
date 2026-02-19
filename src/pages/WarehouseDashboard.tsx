@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { RefreshCw, Plus, Package } from "lucide-react";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, isSameDay, parseISO } from "date-fns";
@@ -268,41 +269,31 @@ const WarehouseDashboard = () => {
         
         <div className="relative p-6 max-w-[1600px] mx-auto">
           {/* Header */}
-          <div className="flex items-center justify-between mb-6 p-7 rounded-2xl bg-card border border-border/40 shadow-2xl">
-            <div className="flex items-center gap-4">
-              <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg shadow-warehouse/15"
-                style={{ background: 'linear-gradient(135deg, hsl(38 92% 55%) 0%, hsl(32 95% 40%) 100%)' }}
-              >
-                <Package className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight text-[hsl(var(--heading))]">Lagerdashboard</h1>
-                <p className="text-muted-foreground text-[0.925rem]">
-                  {format(new Date(), "EEEE d MMMM yyyy", { locale: sv })}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={() => setShowCreateWizard(true)}
-                className="bg-warehouse hover:bg-warehouse-hover shadow-xl shadow-warehouse/25 font-semibold"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Ny packning
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={refetchAll}
-                disabled={isLoading}
-                className="border-border/60"
-              >
-                <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                Uppdatera
-              </Button>
-            </div>
-          </div>
+          <PageHeader
+            icon={Package}
+            title="Lagerdashboard"
+            subtitle={format(new Date(), "EEEE d MMMM yyyy", { locale: sv })}
+            variant="warehouse"
+          >
+            <Button
+              onClick={() => setShowCreateWizard(true)}
+              size="sm"
+              className="bg-warehouse hover:bg-warehouse-hover shadow-sm shadow-warehouse/20 font-medium rounded-lg px-4 h-8"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              Ny packning
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={refetchAll}
+              disabled={isLoading}
+              className="border-border/60 h-8 rounded-lg"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              Uppdatera
+            </Button>
+          </PageHeader>
 
           {/* Week Planning - Packings View */}
           <div className="mb-6">
