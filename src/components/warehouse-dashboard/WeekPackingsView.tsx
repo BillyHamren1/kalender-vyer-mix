@@ -240,33 +240,45 @@ const WeekPackingsView = ({
 
   return (
     <div className="rounded-2xl shadow-2xl border border-border/40 bg-card overflow-hidden">
-      {/* Header */}
+      {/* Header - same layout as planning dashboard CalendarHeader */}
       <div
-        className="px-6 py-4"
+        className="flex items-center justify-between px-4 py-3 gap-4"
         style={{ background: 'linear-gradient(135deg, hsl(38 92% 50%) 0%, hsl(32 95% 40%) 100%)' }}
       >
-        <div className="flex items-center justify-center">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onPreviousWeek}
-              className="text-white hover:bg-white/10 border border-white/30 rounded-lg"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </Button>
-            <span className="text-white font-semibold min-w-[80px] text-center tracking-tight">
-              Vecka {weekNumber}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onNextWeek}
-              className="text-white hover:bg-white/10 border border-white/30 rounded-lg"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </Button>
-          </div>
+        {/* Left: placeholder to balance layout */}
+        <div className="flex-1" />
+
+        {/* Center: navigation */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onPreviousWeek}
+            className="h-8 w-8 text-white hover:bg-white/10 border border-white/30 rounded-lg"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <span className="text-white font-semibold min-w-[90px] text-center text-sm tracking-tight">
+            Vecka {weekNumber}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onNextWeek}
+            className="h-8 w-8 text-white hover:bg-white/10 border border-white/30 rounded-lg"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+
+        {/* Right: "Idag" button to match visual balance */}
+        <div className="flex-1 flex justify-end">
+          <button
+            onClick={onCurrentWeek}
+            className="flex items-center h-8 px-3 rounded-lg text-sm font-medium transition-all duration-150 border text-white/70 hover:text-white border-white/30 hover:border-white/50"
+          >
+            Idag
+          </button>
         </div>
       </div>
       
