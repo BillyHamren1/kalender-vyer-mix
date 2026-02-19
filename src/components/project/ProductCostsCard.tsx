@@ -21,7 +21,7 @@ interface ProductGroup {
 }
 
 function cleanName(name: string): string {
-  return name.replace(/^[\s↳└⦿L,\-–]+/, '').trim();
+  return (name ?? '').replace(/^[\s↳└⦿L,\-–]+/, '').trim();
 }
 
 const fmt = (v: number) =>
