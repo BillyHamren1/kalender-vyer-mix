@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Inbox, Calendar, MapPin, Briefcase, FolderKanban, Building2, ArrowUpRight, Sparkles } from 'lucide-react';
+import { Inbox, Calendar, Briefcase, FolderKanban, Building2, ArrowUpRight, Sparkles } from 'lucide-react';
 import { fetchBookings } from '@/services/bookingService';
 import { createJobFromBooking } from '@/services/jobService';
 import { format } from 'date-fns';
@@ -145,29 +145,23 @@ const DashboardNewBookings: React.FC<DashboardNewBookingsProps> = ({
                 onClick={() => setExpandedId(isExpanded ? null : booking.id)}
               >
                 {/* Always visible: booking info row */}
-                <div className="p-4">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <h4 className="font-medium text-foreground truncate group-hover:text-primary transition-colors">
+                <div className="px-3 py-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <h4 className="font-semibold text-sm text-foreground leading-tight truncate group-hover:text-primary transition-colors">
                       {booking.client}
                     </h4>
+                    <ArrowUpRight className={`h-3.5 w-3.5 mt-0.5 shrink-0 transition-all duration-200 ${isExpanded ? 'text-primary rotate-45' : 'text-muted-foreground/40'}`} />
+                  </div>
+                  <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                     {booking.bookingNumber && (
-                      <Badge variant="outline" className="text-xs shrink-0 font-mono">
+                      <Badge variant="outline" className="text-xs shrink-0 font-mono h-5 px-1.5">
                         #{booking.bookingNumber}
                       </Badge>
                     )}
-                    <ArrowUpRight className={`h-4 w-4 ml-auto shrink-0 transition-all duration-200 ${isExpanded ? 'text-primary rotate-45' : 'text-muted-foreground/40'}`} />
-                  </div>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1.5">
-                      <Calendar className="w-3.5 h-3.5 text-muted-foreground/60" />
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-muted-foreground/60" />
                       {formatDate(booking.eventDate)}
                     </span>
-                    {booking.deliveryAddress && (
-                      <span className="flex items-center gap-1.5 truncate">
-                        <MapPin className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
-                        <span className="truncate">{booking.deliveryAddress}</span>
-                      </span>
-                    )}
                   </div>
                 </div>
 
