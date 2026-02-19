@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
-
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { PageHeader } from '@/components/ui/PageHeader';
 import CustomCalendar from '@/components/Calendar/CustomCalendar';
 import SimpleStaffCurtain from '@/components/Calendar/SimpleStaffCurtain';
 import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
@@ -13,6 +12,8 @@ import MobileCalendarView from '@/components/mobile/MobileCalendarView';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
 import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
 import { startOfWeek, startOfMonth, format } from 'date-fns';
+import { sv } from 'date-fns/locale';
+import { Calendar } from 'lucide-react';
 
 // Wrapper component to handle async loading of staff with status
 const SimpleStaffCurtainWrapper: React.FC<{
@@ -198,7 +199,15 @@ const CustomCalendarPage = () => {
 
   return (
     <TooltipProvider>
-        <div className="h-screen flex flex-col bg-muted/30">
+        <div className="h-screen flex flex-col bg-background overflow-hidden">
+          <div className="px-4 sm:px-6 lg:px-8 pt-6 shrink-0">
+            <PageHeader
+              icon={Calendar}
+              title="Personalplanering"
+              subtitle={format(new Date(), "EEEE d MMMM yyyy", { locale: sv })}
+            />
+          </div>
+
           {/* Navigation with view toggle */}
           <WeekNavigation
             currentWeekStart={currentWeekStart}
