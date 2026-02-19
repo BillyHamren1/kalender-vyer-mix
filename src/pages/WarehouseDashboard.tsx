@@ -262,7 +262,7 @@ const WarehouseDashboard = () => {
   };
 
   return (
-    <div className="h-full overflow-y-auto" style={{ background: 'var(--gradient-page)' }}>
+    <div className="h-full overflow-y-auto overflow-x-hidden" style={{ background: 'var(--gradient-page)' }}>
       {/* Subtle radial overlay */}
       <div className="relative">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,hsl(184_60%_38%/0.04),transparent)]" />
