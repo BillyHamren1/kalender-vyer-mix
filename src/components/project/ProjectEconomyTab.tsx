@@ -52,6 +52,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
     updateInvoice,
     refetchProductCosts,
     refetchSupplierInvoices,
+    linkSupplierInvoice,
   } = useProjectEconomy(projectId, bookingId);
 
   const handleExportExcel = () => {
@@ -175,6 +176,10 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
       <SupplierInvoicesCard
         supplierInvoices={supplierInvoices}
         onRefresh={refetchSupplierInvoices}
+        purchases={purchases}
+        productCosts={productCosts}
+        budget={budget || null}
+        onLinkInvoice={linkSupplierInvoice}
       />
 
       {/* Budget Settings Dialog */}
