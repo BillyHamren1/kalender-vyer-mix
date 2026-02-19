@@ -21,6 +21,7 @@ const DashboardNewBookings: React.FC<DashboardNewBookingsProps> = ({
 }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [expandedId, setExpandedId] = React.useState<string | null>(null);
 
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ['bookings-without-project'],
@@ -131,17 +132,20 @@ const DashboardNewBookings: React.FC<DashboardNewBookingsProps> = ({
 
         {/* Scrollable list */}
         <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
-          {bookings.map(booking => (
-            <div
-              key={booking.id}
-              className="group relative p-4 rounded-xl border border-border/50 bg-gradient-to-br from-background to-muted/20 hover:border-primary/30 hover:shadow-md transition-all duration-200"
-            >
-              <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-                {/* Left: Client info - clickable */}
-                <div
-                  className="flex-1 min-w-0 cursor-pointer"
-                  onClick={() => navigate(`/booking/${booking.id}`)}
-                >
+          {bookings.map(booking => {
+            const isExpanded = expandedId === booking.id;
+            return (
+              <div
+                key={booking.id}
+                className={`group relative rounded-xl border transition-all duration-200 cursor-pointer ${
+                  isExpanded
+                    ? 'border-primary/40 shadow-md bg-gradient-to-br from-background to-primary/5'
+                    : 'border-border/50 bg-gradient-to-br from-background to-muted/20 hover:border-primary/30 hover:shadow-sm'
+                }`}
+                onClick={() => setExpandedId(isExpanded ? null : booking.id)}
+              >
+                {/* Always visible: booking info row */}
+                <div className="p-4">
                   <div className="flex items-center gap-2 mb-1.5">
                     <h4 className="font-medium text-foreground truncate group-hover:text-primary transition-colors">
                       {booking.client}
@@ -151,7 +155,7 @@ const DashboardNewBookings: React.FC<DashboardNewBookingsProps> = ({
                         #{booking.bookingNumber}
                       </Badge>
                     )}
-                    <ArrowUpRight className="h-4 w-4 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity ml-auto lg:hidden" />
+                    <ArrowUpRight className={`h-4 w-4 ml-auto shrink-0 transition-all duration-200 ${isExpanded ? 'text-primary rotate-45' : 'text-muted-foreground/40'}`} />
                   </div>
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <span className="flex items-center gap-1.5">
@@ -167,43 +171,57 @@ const DashboardNewBookings: React.FC<DashboardNewBookingsProps> = ({
                   </div>
                 </div>
 
-                {/* Right: Triage buttons */}
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => createJobMutation.mutate(booking.id)}
-                    disabled={createJobMutation.isPending}
-                    className="gap-1.5 rounded-lg h-8 px-3 border-border/60 hover:border-primary/40 hover:bg-primary/5 transition-all"
-                    title="Skapa ett litet projekt (enkel struktur)"
-                  >
-                    <Briefcase className="w-3.5 h-3.5" />
-                    Litet
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onCreateProject(booking.id)}
-                    className="gap-1.5 rounded-lg h-8 px-3 border-border/60 hover:border-primary/40 hover:bg-primary/5 transition-all"
-                    title="Skapa ett medelstort projekt (full projekthantering)"
-                  >
-                    <FolderKanban className="w-3.5 h-3.5" />
-                    Medel
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onCreateLargeProject(booking.id)}
-                    className="gap-1.5 rounded-lg h-8 px-3 border-border/60 hover:border-primary/40 hover:bg-primary/5 transition-all"
-                    title="Lägg till i ett stort projekt (flera bokningar)"
-                  >
-                    <Building2 className="w-3.5 h-3.5" />
-                    Stort
-                  </Button>
-                </div>
+                {/* Expanded: triage buttons + open link */}
+                {isExpanded && (
+                  <div className="px-4 pb-4 pt-0 border-t border-border/40 mt-0">
+                    <p className="text-xs text-muted-foreground mb-2.5 pt-3">Välj projekttyp:</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); createJobMutation.mutate(booking.id); }}
+                        disabled={createJobMutation.isPending}
+                        className="gap-1.5 rounded-lg h-8 px-3 border-border/60 hover:border-primary/40 hover:bg-primary/5 transition-all"
+                        title="Skapa ett litet projekt (enkel struktur)"
+                      >
+                        <Briefcase className="w-3.5 h-3.5" />
+                        Litet
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); onCreateProject(booking.id); }}
+                        className="gap-1.5 rounded-lg h-8 px-3 border-border/60 hover:border-primary/40 hover:bg-primary/5 transition-all"
+                        title="Skapa ett medelstort projekt (full projekthantering)"
+                      >
+                        <FolderKanban className="w-3.5 h-3.5" />
+                        Medel
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); onCreateLargeProject(booking.id); }}
+                        className="gap-1.5 rounded-lg h-8 px-3 border-border/60 hover:border-primary/40 hover:bg-primary/5 transition-all"
+                        title="Lägg till i ett stort projekt (flera bokningar)"
+                      >
+                        <Building2 className="w-3.5 h-3.5" />
+                        Stort
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); navigate(`/booking/${booking.id}`); }}
+                        className="gap-1.5 rounded-lg h-8 px-3 ml-auto text-muted-foreground hover:text-foreground"
+                      >
+                        Öppna
+                        <ArrowUpRight className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
