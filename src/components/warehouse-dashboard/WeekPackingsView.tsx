@@ -97,6 +97,12 @@ const EventCard = ({ packing }: { packing: WeekPacking }) => {
   const navigate = useNavigate();
   const styles = getEventTypeStyles(packing.eventType);
 
+  // Strip the event-type prefix (e.g. "Packning - ", "Utleverans - ") from the title
+  // so it doesn't duplicate what the badge already shows
+  const displayName = packing.client.includes(' - ')
+    ? packing.client.substring(packing.client.indexOf(' - ') + 3)
+    : packing.client;
+
   const handleClick = () => {
     if (packing.eventType === 'packing') {
       navigate(`/warehouse/packing?booking=${packing.bookingId}`);
@@ -131,7 +137,7 @@ const EventCard = ({ packing }: { packing: WeekPacking }) => {
         </div>
         
         <h4 className="font-semibold text-sm text-foreground line-clamp-2">
-          {packing.client}
+          {displayName}
         </h4>
       </div>
     </div>
