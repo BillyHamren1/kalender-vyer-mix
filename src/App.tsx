@@ -34,6 +34,7 @@ import LargeProjectViewPage from "./pages/project/LargeProjectViewPage";
 import LargeEstablishmentPage from "./pages/project/LargeEstablishmentPage";
 import LargeProjectEconomyPage from "./pages/project/LargeProjectEconomyPage";
 import EconomyOverview from "./pages/EconomyOverview";
+import EconomyTimeReports from "./pages/EconomyTimeReports";
 import ProjectEconomyDetail from "./pages/ProjectEconomyDetail";
 import PlanningDashboard from "./pages/PlanningDashboard";
 import MyProjects from "./pages/MyProjects";
@@ -153,6 +154,7 @@ const AppContent = () => {
                       <Route path="/economy/projects" element={<ProtectedRoute><MainSystemLayout><EconomyOverview view="projects" /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/economy/staff" element={<ProtectedRoute><MainSystemLayout><EconomyOverview view="staff" /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/economy/staff-revenue" element={<ProtectedRoute><MainSystemLayout><StaffRevenueOverview /></MainSystemLayout></ProtectedRoute>} />
+                      <Route path="/economy/time-reports" element={<ProtectedRoute><MainSystemLayout><EconomyTimeReports /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/economy/:id" element={<ProtectedRoute><MainSystemLayout><ProjectEconomyDetail /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/jobs/:id" element={<ProtectedRoute><JobDetail /></ProtectedRoute>} />
                       <Route path="/large-project/:id" element={<ProtectedRoute><MainSystemLayout><LargeProjectLayout /></MainSystemLayout></ProtectedRoute>}>
