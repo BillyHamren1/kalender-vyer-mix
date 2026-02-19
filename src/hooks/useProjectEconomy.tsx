@@ -3,63 +3,63 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import type { BookingEconomics } from '@/types/booking';
 import {
-  fetchProjectBudget,
-  upsertProjectBudget,
-  fetchProjectPurchases,
-  createProjectPurchase,
-  deleteProjectPurchase,
-  fetchProjectQuotes,
-  createProjectQuote,
-  updateProjectQuote,
-  deleteProjectQuote,
-  fetchProjectInvoices,
-  createProjectInvoice,
-  updateProjectInvoice,
-  deleteProjectInvoice,
-  fetchProjectTimeReports,
-  calculateEconomySummary
-} from '@/services/projectEconomyService';
-import { fetchProductCosts, updateProductCost } from '@/services/productCostService';
+  fetchBudget,
+  upsertBudget,
+  fetchPurchases,
+  createPurchase,
+  deletePurchase,
+  fetchQuotes,
+  createQuote,
+  updateQuote,
+  deleteQuote,
+  fetchInvoices,
+  createInvoice,
+  updateInvoice,
+  deleteInvoice,
+  fetchTimeReports,
+  fetchProductCostsRemote,
+} from '@/services/planningApiService';
+import { calculateEconomySummary } from '@/services/projectEconomyService';
 import type { ProjectPurchase, ProjectQuote, ProjectInvoice } from '@/types/projectEconomy';
 import { createOptimisticCallbacks } from './useOptimisticMutation';
 
 export const useProjectEconomy = (projectId: string | undefined, bookingId: string | null | undefined) => {
   const queryClient = useQueryClient();
 
-  // Fetch budget
+  // All economy data is now fetched via bookingId through the planning-api-proxy
   const { data: budget, isLoading: budgetLoading } = useQuery({
-    queryKey: ['project-budget', projectId],
-    queryFn: () => fetchProjectBudget(projectId!),
-    enabled: !!projectId,
+    queryKey: ['project-budget', bookingId],
+    queryFn: () => fetchBudget(bookingId!),
+    enabled: !!bookingId,
   });
 
   const { data: timeReports = [], isLoading: timeReportsLoading } = useQuery({
     queryKey: ['project-time-reports', bookingId],
-    queryFn: () => fetchProjectTimeReports(bookingId!),
+    queryFn: () => fetchTimeReports(bookingId!),
     enabled: !!bookingId,
   });
 
   const { data: purchases = [], isLoading: purchasesLoading } = useQuery({
-    queryKey: ['project-purchases', projectId],
-    queryFn: () => fetchProjectPurchases(projectId!),
-    enabled: !!projectId,
+    queryKey: ['project-purchases', bookingId],
+    queryFn: () => fetchPurchases(bookingId!),
+    enabled: !!bookingId,
   });
 
   const { data: quotes = [], isLoading: quotesLoading } = useQuery({
-    queryKey: ['project-quotes', projectId],
-    queryFn: () => fetchProjectQuotes(projectId!),
-    enabled: !!projectId,
+    queryKey: ['project-quotes', bookingId],
+    queryFn: () => fetchQuotes(bookingId!),
+    enabled: !!bookingId,
   });
 
   const { data: invoices = [], isLoading: invoicesLoading } = useQuery({
-    queryKey: ['project-invoices', projectId],
-    queryFn: () => fetchProjectInvoices(projectId!),
-    enabled: !!projectId,
+    queryKey: ['project-invoices', bookingId],
+    queryFn: () => fetchInvoices(bookingId!),
+    enabled: !!bookingId,
   });
 
   const { data: productCosts, isLoading: productCostsLoading } = useQuery({
     queryKey: ['product-costs', bookingId],
-    queryFn: () => fetchProductCosts(bookingId!),
+    queryFn: () => fetchProductCostsRemote(bookingId!),
     enabled: !!bookingId,
   });
 
@@ -78,13 +78,13 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
 
   const summary = calculateEconomySummary(budget || null, timeReports, purchases, quotes, invoices, productCosts || null);
 
-  // --- Optimistic mutations ---
+  // --- Mutations (all via planning-api-proxy) ---
 
   const saveBudgetMutation = useMutation({
     mutationFn: (data: { budgeted_hours: number; hourly_rate: number; description?: string }) =>
-      upsertProjectBudget(projectId!, data),
+      upsertBudget(bookingId!, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['project-budget', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['project-budget', bookingId] });
       toast.success('Budget sparad');
     },
     onError: () => toast.error('Kunde inte spara budget'),
@@ -93,7 +93,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
   // Purchase - add
   const addPurchaseOptimistic = createOptimisticCallbacks<any, Omit<ProjectPurchase, 'id' | 'created_at'>>({
     queryClient,
-    queryKey: ['project-purchases', projectId],
+    queryKey: ['project-purchases', bookingId],
     type: 'add',
     optimisticData: (vars) => ({
       id: `temp-${Date.now()}`,
@@ -104,7 +104,8 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
   });
 
   const addPurchaseMutation = useMutation({
-    mutationFn: (data: Omit<ProjectPurchase, 'id' | 'created_at'>) => createProjectPurchase(data),
+    mutationFn: (data: Omit<ProjectPurchase, 'id' | 'created_at'>) =>
+      createPurchase({ ...data, booking_id: bookingId }),
     ...addPurchaseOptimistic,
     onSuccess: () => { toast.success('Inköp tillagt'); },
     onError: addPurchaseOptimistic.onError,
@@ -114,14 +115,14 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
   // Purchase - delete
   const removePurchaseOptimistic = createOptimisticCallbacks<any, string>({
     queryClient,
-    queryKey: ['project-purchases', projectId],
+    queryKey: ['project-purchases', bookingId],
     type: 'delete',
     getId: (id) => id,
     errorMessage: 'Kunde inte ta bort inköp',
   });
 
   const removePurchaseMutation = useMutation({
-    mutationFn: deleteProjectPurchase,
+    mutationFn: deletePurchase,
     ...removePurchaseOptimistic,
     onSuccess: () => { toast.success('Inköp borttaget'); },
     onError: removePurchaseOptimistic.onError,
@@ -131,7 +132,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
   // Quote - add
   const addQuoteOptimistic = createOptimisticCallbacks<any, Omit<ProjectQuote, 'id' | 'created_at' | 'updated_at'>>({
     queryClient,
-    queryKey: ['project-quotes', projectId],
+    queryKey: ['project-quotes', bookingId],
     type: 'add',
     optimisticData: (vars) => ({
       id: `temp-${Date.now()}`,
@@ -143,7 +144,8 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
   });
 
   const addQuoteMutation = useMutation({
-    mutationFn: (data: Omit<ProjectQuote, 'id' | 'created_at' | 'updated_at'>) => createProjectQuote(data),
+    mutationFn: (data: Omit<ProjectQuote, 'id' | 'created_at' | 'updated_at'>) =>
+      createQuote({ ...data, booking_id: bookingId }),
     ...addQuoteOptimistic,
     onSuccess: () => { toast.success('Offert tillagd'); },
     onError: addQuoteOptimistic.onError,
@@ -153,11 +155,11 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
   // Quote - update
   const updateQuoteOptimistic = createOptimisticCallbacks<any, { id: string; updates: Partial<ProjectQuote> }>({
     queryClient,
-    queryKey: ['project-quotes', projectId],
+    queryKey: ['project-quotes', bookingId],
     type: 'update',
     getId: (vars) => vars.id,
     optimisticData: (vars, old) => {
-      const existing = old.find(q => q.id === vars.id);
+      const existing = old.find((q: any) => q.id === vars.id);
       return existing ? { ...existing, ...vars.updates } : existing;
     },
     errorMessage: 'Kunde inte uppdatera offert',
@@ -165,7 +167,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
 
   const updateQuoteMutation = useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<ProjectQuote> }) =>
-      updateProjectQuote(id, updates),
+      updateQuote(id, updates),
     ...updateQuoteOptimistic,
     onSuccess: () => { toast.success('Offert uppdaterad'); },
     onError: updateQuoteOptimistic.onError,
@@ -175,14 +177,14 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
   // Quote - delete
   const removeQuoteOptimistic = createOptimisticCallbacks<any, string>({
     queryClient,
-    queryKey: ['project-quotes', projectId],
+    queryKey: ['project-quotes', bookingId],
     type: 'delete',
     getId: (id) => id,
     errorMessage: 'Kunde inte ta bort offert',
   });
 
   const removeQuoteMutation = useMutation({
-    mutationFn: deleteProjectQuote,
+    mutationFn: deleteQuote,
     ...removeQuoteOptimistic,
     onSuccess: () => { toast.success('Offert borttagen'); },
     onError: removeQuoteOptimistic.onError,
@@ -192,7 +194,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
   // Invoice - add
   const addInvoiceOptimistic = createOptimisticCallbacks<any, Omit<ProjectInvoice, 'id' | 'created_at'>>({
     queryClient,
-    queryKey: ['project-invoices', projectId],
+    queryKey: ['project-invoices', bookingId],
     type: 'add',
     optimisticData: (vars) => ({
       id: `temp-${Date.now()}`,
@@ -203,7 +205,8 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
   });
 
   const addInvoiceMutation = useMutation({
-    mutationFn: (data: Omit<ProjectInvoice, 'id' | 'created_at'>) => createProjectInvoice(data),
+    mutationFn: (data: Omit<ProjectInvoice, 'id' | 'created_at'>) =>
+      createInvoice({ ...data, booking_id: bookingId }),
     ...addInvoiceOptimistic,
     onSuccess: () => { toast.success('Faktura tillagd'); },
     onError: addInvoiceOptimistic.onError,
@@ -213,11 +216,11 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
   // Invoice - update
   const updateInvoiceOptimistic = createOptimisticCallbacks<any, { id: string; updates: Partial<ProjectInvoice> }>({
     queryClient,
-    queryKey: ['project-invoices', projectId],
+    queryKey: ['project-invoices', bookingId],
     type: 'update',
     getId: (vars) => vars.id,
     optimisticData: (vars, old) => {
-      const existing = old.find(i => i.id === vars.id);
+      const existing = old.find((i: any) => i.id === vars.id);
       return existing ? { ...existing, ...vars.updates } : existing;
     },
     errorMessage: 'Kunde inte uppdatera faktura',
@@ -225,7 +228,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
 
   const updateInvoiceMutation = useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<ProjectInvoice> }) =>
-      updateProjectInvoice(id, updates),
+      updateInvoice(id, updates),
     ...updateInvoiceOptimistic,
     onSuccess: () => { toast.success('Faktura uppdaterad'); },
     onError: updateInvoiceOptimistic.onError,
@@ -235,24 +238,24 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
   // Invoice - delete
   const removeInvoiceOptimistic = createOptimisticCallbacks<any, string>({
     queryClient,
-    queryKey: ['project-invoices', projectId],
+    queryKey: ['project-invoices', bookingId],
     type: 'delete',
     getId: (id) => id,
     errorMessage: 'Kunde inte ta bort faktura',
   });
 
   const removeInvoiceMutation = useMutation({
-    mutationFn: deleteProjectInvoice,
+    mutationFn: deleteInvoice,
     ...removeInvoiceOptimistic,
     onSuccess: () => { toast.success('Faktura borttagen'); },
     onError: removeInvoiceOptimistic.onError,
     onSettled: removeInvoiceOptimistic.onSettled,
   });
 
-  // Product cost mutation (not optimistic - complex recalculation)
+  // Product cost update - forwarded to booking backend
   const updateProductCostMutation = useMutation({
-    mutationFn: ({ productId, costs }: { 
-      productId: string; 
+    mutationFn: async ({ productId, costs }: {
+      productId: string;
       costs: {
         labor_cost?: number;
         material_cost?: number;
@@ -260,7 +263,13 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
         external_cost?: number;
         cost_notes?: string | null;
       }
-    }) => updateProductCost(productId, costs),
+    }) => {
+      const { error } = await supabase
+        .from('booking_products')
+        .update(costs)
+        .eq('id', productId);
+      if (error) throw error;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-costs', bookingId] });
     },
