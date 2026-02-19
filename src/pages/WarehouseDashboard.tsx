@@ -58,12 +58,17 @@ const WarehouseDashboard = () => {
 
       if (error) throw error;
 
+      const KNOWN_PREFIXES = [
+        'Packning - ', 'Utleverans - ', 'Event - ', 'Återleverans - ',
+        'Inventering - ', 'Upppackning - ', 'Rigg - ', 'Nedriggning - '
+      ];
       const packings: WeekPacking[] = (data || []).map(event => {
-        // Strip event-type prefix (e.g. "Inventering - ", "Packning - ") from title
-        // The badge already shows the event type, so we only want the client name
+        // Strip known event-type prefix — client names may also contain " - " so
+        // we match against a fixed list of prefixes rather than taking after first " - "
         const rawTitle = event.title || '';
-        const clientName = rawTitle.includes(' - ')
-          ? rawTitle.substring(rawTitle.indexOf(' - ') + 3)
+        const matchedPrefix = KNOWN_PREFIXES.find(p => rawTitle.startsWith(p));
+        const clientName = matchedPrefix
+          ? rawTitle.substring(matchedPrefix.length)
           : rawTitle;
         return {
           id: event.id,
