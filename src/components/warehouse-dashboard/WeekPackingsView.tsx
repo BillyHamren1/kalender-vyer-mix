@@ -1,7 +1,7 @@
 import { Calendar, Package, ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { format, addDays, isSameDay } from "date-fns";
+import { format, addDays, isSameDay, isBefore, startOfDay } from "date-fns";
 import { sv } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
@@ -154,17 +154,22 @@ const DayColumn = ({
   onDayClick: (date: Date) => void;
 }) => {
   const isToday = isSameDay(date, new Date());
-  const isPast = date < new Date() && !isToday;
+  const isPast = isBefore(date, startOfDay(new Date()));
   const dayPackings = packings.filter(p => isSameDay(p.date, date));
   const dayName = format(date, 'EEEE', { locale: sv });
   const dayNumber = format(date, 'd');
   const monthName = format(date, 'MMM', { locale: sv });
 
+  const flexValue = isPast ? 0.65 : 1;
+
   return (
-    <div className={cn(
-      "flex flex-col flex-1 min-w-0",
-      isPast && "opacity-50"
-    )}>
+    <div
+      style={{ flex: flexValue, minWidth: isPast ? 60 : 80 }}
+      className={cn(
+        "flex flex-col min-w-0",
+        isPast && "opacity-50"
+      )}
+    >
       {/* Day header - clickable */}
       <div 
         onClick={() => onDayClick(date)}
