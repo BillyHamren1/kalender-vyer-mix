@@ -1,104 +1,81 @@
 
-## Roten till problemet: Warehouse events skapas om utan datumkontroll
+## Öppna "Projektekonomi"-knappen i iframe-dialog
 
-### Vad som händer
+### Vad som ska göras
 
-Varje gång synken körs och en bokning har `needsProductUpdate = true` (t.ex. produkter har ändrats), passerar koden förbi alla `continue`-satser och når den avslutande sektionen (~rad 2518-2522):
+När användaren klickar på "Projektekonomi"-knappen i projektets ekonomiflik ska en modal/dialog öppnas med en inbäddad iframe som laddar:
 
-```typescript
-// Sync warehouse calendar events for confirmed bookings with dates
-if (bookingData.rigdaydate || bookingData.eventdate || bookingData.rigdowndate) {
-  const warehouseEventsCreated = await syncWarehouseEventsForBooking(supabase, bookingData);
-  results.warehouse_events_created += warehouseEventsCreated;
-}
+```
+https://eventflow-booking.lovable.app/embed-app/booking/{bookingId}/costs?token={jwt}
 ```
 
-Och `syncWarehouseEventsForBooking` gör alltid:
-1. **DELETE** alla warehouse events för bokningen
-2. **INSERT** 6 nya events
+Där `{bookingId}` är projektets kopplade bokning och `{jwt}` är användarens aktuella Supabase-sessionstoken (för autentisering mot den externa appen).
 
-Eftersom synken kördes 2 gånger på ~1 minut (syns i nätverksloggarna) och produkterna ändrades, skapades events om — men databasen visar `count:2` per event_type, vilket tyder på att DELETE faktiskt inte hann (eller misslyckades) och dubbletterna bliyr kvar.
+### Var knappen finns
 
-Nätverksloggarna visar `warehouse_events_created: 24` per synk (4 bokningar × 6 events = 24), men databasen visar att varje event finns 2 gånger för bokning 2602-2. Det bekräftar att DELETE+INSERT-cykeln körde men tidigare events inte raderades korrekt.
+Knappen "Projektekonomi" i navigationen (`ProjectLayout.tsx`) är en **nav-länk**, inte en knapp. Det är troligen en annan "Projektekonomi"-knapp som visas inne i ekonomisidan. Baserat på skärmbilden är det en teal-färgad knapp — den finns troligen i `ProjectEconomyTab.tsx` eller i en sidebar/header på projektsidan.
 
-### Egentliga bugg: Saknad guard för "dates unchanged"
+Implementationen görs direkt i `ProjectEconomyTab.tsx` bredvid exportknappen, alternativt som en ny knapp i toppen av ekonomisidan.
 
-Koden på rad 1412-1433 kontrollerar om warehouse events behöver återhämtas (utdaterade datum). Om datumen INTE ändrats sätts `needsWarehouseRecovery = false`. Men när koden sedan når rad 2518 anropas warehouse sync **ändå** utan att kontrollera `needsWarehouseRecovery`.
+### Teknisk implementation
 
-Flödet ser ut så här:
-```text
-hasChanged=false, needsProductUpdate=true
-  → skippas INTE (continue på rad 1527 triggas ej)
-  → skippas INTE (continue på rad 1558-1572 kräver att !needsProductUpdate)
-  → kod körs vidare till rad 2518
-  → syncWarehouseEventsForBooking() anropas ALLTID
-```
+**Fil att ändra:** `src/components/project/ProjectEconomyTab.tsx`
 
-### Lösning
+**Steg:**
 
-Lägg till en guard vid rad ~2518 som **bara** anropar `syncWarehouseEventsForBooking` när:
-- Booking är ny (`!existingBooking`), ELLER
-- Datumen faktiskt förändrats (`needsWarehouseRecovery = true`), ELLER
-- Bokningens status precis blivit CONFIRMED (`!wasConfirmed && isNowConfirmed`)
+1. **Hämta JWT-token** via `supabase.auth.getSession()` — returnerar `session.access_token` som är den JWT som skickas som `?token=`-param.
 
-```typescript
-// BEFORE (buggy):
-if (bookingData.rigdaydate || bookingData.eventdate || bookingData.rigdowndate) {
-  const warehouseEventsCreated = await syncWarehouseEventsForBooking(supabase, bookingData);
-  results.warehouse_events_created += warehouseEventsCreated;
-}
+2. **Lägg till state** för om iframe-dialogen är öppen:
+   ```tsx
+   const [iframeOpen, setIframeOpen] = useState(false);
+   const [jwt, setJwt] = useState<string | null>(null);
+   ```
 
-// AFTER (fixed):
-const isNewBooking = !existingBooking;
-const justConfirmed = !wasConfirmed && isNowConfirmed;
-if ((isNewBooking || needsWarehouseRecovery || justConfirmed) &&
-    (bookingData.rigdaydate || bookingData.eventdate || bookingData.rigdowndate)) {
-  const warehouseEventsCreated = await syncWarehouseEventsForBooking(supabase, bookingData);
-  results.warehouse_events_created += warehouseEventsCreated;
-}
-```
+3. **Hämta token** när knappen klickas:
+   ```tsx
+   const handleOpenIframe = async () => {
+     const { data } = await supabase.auth.getSession();
+     setJwt(data.session?.access_token || null);
+     setIframeOpen(true);
+   };
+   ```
 
-### Sekundär fix: Städa upp befintliga dubbletter
+4. **Bygg URL:en:**
+   ```tsx
+   const iframeUrl = bookingId && jwt
+     ? `https://eventflow-booking.lovable.app/embed-app/booking/${bookingId}/costs?token=${jwt}`
+     : null;
+   ```
 
-Det finns redan 2 kopior av varje event i databasen. RPC-funktionen `cleanup_duplicate_calendar_events` anropas redan av frontend, men hanterar troligen bara `calendar_events`, inte `warehouse_calendar_events`. Vi lägger till en SQL-rensning direkt i edge-funktionen vid start (eller skapar en ny SQL-funktion).
+5. **Rendera en Dialog** (Radix UI, redan tillgänglig) med en iframe inuti:
+   ```tsx
+   <Dialog open={iframeOpen} onOpenChange={setIframeOpen}>
+     <DialogContent className="max-w-5xl h-[85vh] p-0">
+       {iframeUrl ? (
+         <iframe
+           src={iframeUrl}
+           className="w-full h-full rounded-lg border-0"
+           title="Projektekonomi"
+         />
+       ) : (
+         <p>Saknar bokning eller session</p>
+       )}
+     </DialogContent>
+   </Dialog>
+   ```
 
-Alternativt rensa de befintliga dubbletterna nu via SQL:
-```sql
-DELETE FROM warehouse_calendar_events a
-USING warehouse_calendar_events b
-WHERE a.booking_id = b.booking_id
-  AND a.event_type = b.event_type
-  AND a.start_time = b.start_time
-  AND a.id > b.id;
-```
+6. **Knappen** läggs till bredvid exportknappen i toppen av `ProjectEconomyTab`:
+   ```tsx
+   <Button onClick={handleOpenIframe} className="...teal-stil...">
+     <Wallet className="h-4 w-4 mr-2" />
+     Projektekonomi
+   </Button>
+   ```
 
-### Tekniska ändringar
+### Filer att ändra
 
-**Fil att ändra:** `supabase/functions/import-bookings/index.ts`
+| Fil | Ändring |
+|-----|---------|
+| `src/components/project/ProjectEconomyTab.tsx` | Lägg till knapp, JWT-hämtning och iframe-dialog |
 
-**Rad ~2518-2522**: Lägg till guard med `isNewBooking || needsWarehouseRecovery || justConfirmed`:
-
-```typescript
-const isNewBooking = !existingBooking;
-const justConfirmed = !wasConfirmed && isNowConfirmed;
-
-if ((isNewBooking || needsWarehouseRecovery || justConfirmed) &&
-    (bookingData.rigdaydate || bookingData.eventdate || bookingData.rigdowndate)) {
-  const warehouseEventsCreated = await syncWarehouseEventsForBooking(supabase, bookingData);
-  results.warehouse_events_created += warehouseEventsCreated;
-}
-```
-
-**Notera:** `wasConfirmed` och `isNowConfirmed` deklareras på rad 1775-1776, men bara inuti `if (existingBooking)` blocket. Vi behöver flytta deklareringen eller använda `existingBooking` för att bestämma `isNewBooking`.
-
-### Städa upp nuvarande dubbletter
-
-Som en del av implementationen körs en SQL-rensning för att ta bort befintliga dubbletter från databasen via Supabase.
-
-### Sammanfattning
-
-| Åtgärd | Fil |
-|--------|-----|
-| Guard: anropa warehouse sync bara vid nya/ändrade datum | `supabase/functions/import-bookings/index.ts` rad ~2518 |
-| Rensa befintliga dubbletter | SQL direkt mot databasen |
-| Ny deploy av edge-funktionen | Automatiskt |
+Inga nya filer behöver skapas — Radix Dialog är redan installerat och Supabase-klienten finns redan importerad i projektet.
