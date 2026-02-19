@@ -8,7 +8,6 @@ import { sv } from "date-fns/locale";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useDashboardEvents, EventCategory, DashboardViewMode } from "@/hooks/useDashboardEvents";
-import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import DashboardWeekView from "@/components/dashboard/DashboardWeekView";
 import DashboardDayView from "@/components/dashboard/DashboardDayView";
 import DashboardMonthView from "@/components/dashboard/DashboardMonthView";
@@ -75,17 +74,6 @@ const PlanningDashboard = () => {
         </Button>
       </PageHeader>
 
-      {/* Filters */}
-      <div className="mb-4">
-        <DashboardFilters
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          activeCategories={activeCategories}
-          onCategoriesChange={setActiveCategories}
-        />
-      </div>
-
-
       {/* New Bookings - above calendar, full width */}
       <div className="mb-4">
         <DashboardNewBookings
@@ -103,6 +91,10 @@ const PlanningDashboard = () => {
             onPreviousWeek={goToPreviousWeek}
             onNextWeek={goToNextWeek}
             isLoading={isLoading}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            activeCategories={activeCategories}
+            onCategoriesChange={setActiveCategories}
           />
         )}
         {viewMode === 'day' && (
@@ -112,6 +104,10 @@ const PlanningDashboard = () => {
             onPreviousDay={goToPreviousDay}
             onNextDay={goToNextDay}
             isLoading={isLoading}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            activeCategories={activeCategories}
+            onCategoriesChange={setActiveCategories}
           />
         )}
         {viewMode === 'month' && (
@@ -122,6 +118,10 @@ const PlanningDashboard = () => {
             onNextMonth={goToNextMonth}
             onDayClick={handleDayClickFromMonth}
             isLoading={isLoading}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            activeCategories={activeCategories}
+            onCategoriesChange={setActiveCategories}
           />
         )}
       </div>

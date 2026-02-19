@@ -1,11 +1,11 @@
-import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Calendar } from "lucide-react";
 import { format, addDays, isSameDay } from "date-fns";
 import { sv } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { DashboardEvent } from "@/hooks/useDashboardEvents";
+import { DashboardEvent, EventCategory, DashboardViewMode } from "@/hooks/useDashboardEvents";
 import DashboardEventCard from "./DashboardEventCard";
 import { useNavigate } from "react-router-dom";
+import CalendarHeader from "./CalendarHeader";
 
 interface DashboardWeekViewProps {
   events: DashboardEvent[];
@@ -13,6 +13,10 @@ interface DashboardWeekViewProps {
   onPreviousWeek: () => void;
   onNextWeek: () => void;
   isLoading: boolean;
+  viewMode: DashboardViewMode;
+  onViewModeChange: (mode: DashboardViewMode) => void;
+  activeCategories: EventCategory[];
+  onCategoriesChange: (cats: EventCategory[]) => void;
 }
 
 const DayColumn = ({
@@ -96,7 +100,11 @@ const DashboardWeekView = ({
   weekStart,
   onPreviousWeek,
   onNextWeek,
-  isLoading 
+  isLoading,
+  viewMode,
+  onViewModeChange,
+  activeCategories,
+  onCategoriesChange,
 }: DashboardWeekViewProps) => {
   const navigate = useNavigate();
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -109,32 +117,15 @@ const DashboardWeekView = ({
 
   return (
     <div className="bg-card rounded-2xl shadow-xl border overflow-hidden">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-primary to-primary/80 px-6 py-4">
-        <div className="flex items-center justify-center">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onPreviousWeek}
-              className="text-primary-foreground hover:bg-primary-foreground/10 border border-primary-foreground/30 rounded-lg"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </Button>
-            <span className="text-primary-foreground font-medium min-w-[80px] text-center">
-              Vecka {weekNumber}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onNextWeek}
-              className="text-primary-foreground hover:bg-primary-foreground/10 border border-primary-foreground/30 rounded-lg"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </Button>
-          </div>
-        </div>
-      </div>
+      <CalendarHeader
+        title={`Vecka ${weekNumber}`}
+        onPrevious={onPreviousWeek}
+        onNext={onNextWeek}
+        viewMode={viewMode}
+        onViewModeChange={onViewModeChange}
+        activeCategories={activeCategories}
+        onCategoriesChange={onCategoriesChange}
+      />
       
       {/* Week grid */}
       <div className="p-3">

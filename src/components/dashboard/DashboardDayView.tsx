@@ -1,10 +1,10 @@
-import { ChevronLeft, ChevronRight, Clock, MapPin, Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Clock, MapPin, Users } from "lucide-react";
 import { format, isSameDay } from "date-fns";
 import { sv } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { DashboardEvent } from "@/hooks/useDashboardEvents";
+import { DashboardEvent, EventCategory, DashboardViewMode } from "@/hooks/useDashboardEvents";
 import DashboardEventCard, { getEventCategoryColor, getCategoryIcon } from "./DashboardEventCard";
+import CalendarHeader from "./CalendarHeader";
 
 interface DashboardDayViewProps {
   events: DashboardEvent[];
@@ -12,18 +12,28 @@ interface DashboardDayViewProps {
   onPreviousDay: () => void;
   onNextDay: () => void;
   isLoading: boolean;
+  viewMode: DashboardViewMode;
+  onViewModeChange: (mode: DashboardViewMode) => void;
+  activeCategories: EventCategory[];
+  onCategoriesChange: (cats: EventCategory[]) => void;
 }
+
 
 const DashboardDayView = ({ 
   events, 
   currentDate,
   onPreviousDay,
   onNextDay,
-  isLoading 
+  isLoading,
+  viewMode,
+  onViewModeChange,
+  activeCategories,
+  onCategoriesChange,
 }: DashboardDayViewProps) => {
   const isToday = isSameDay(currentDate, new Date());
   const dayEvents = events.filter(e => isSameDay(e.date, currentDate));
   const dayName = format(currentDate, 'EEEE d MMMM', { locale: sv });
+  const titleText = isToday ? `${dayName} — Idag` : dayName;
 
   // Group by category
   const planningEvents = dayEvents.filter(e => e.category === 'planning');
@@ -38,55 +48,15 @@ const DashboardDayView = ({
 
   return (
     <div className="bg-card rounded-2xl shadow-xl border overflow-hidden">
-      {/* Header */}
-      <div className={cn(
-        "px-6 py-4 bg-gradient-to-r",
-        isToday ? "from-primary to-primary/80" : "from-muted to-muted/80"
-      )}>
-        <div className="flex items-center justify-center">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onPreviousDay}
-              className={cn(
-                "border rounded-lg",
-                isToday 
-                  ? "text-primary-foreground hover:bg-primary-foreground/10 border-primary-foreground/30" 
-                  : "text-foreground hover:bg-accent border-border"
-              )}
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </Button>
-            <div className="text-center min-w-[200px]">
-              <span className={cn(
-                "font-medium capitalize",
-                isToday ? "text-primary-foreground" : "text-foreground"
-              )}>
-                {dayName}
-              </span>
-              {isToday && (
-                <span className="ml-2 text-xs bg-primary-foreground/20 text-primary-foreground px-2 py-0.5 rounded-full">
-                  Idag
-                </span>
-              )}
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onNextDay}
-              className={cn(
-                "border rounded-lg",
-                isToday 
-                  ? "text-primary-foreground hover:bg-primary-foreground/10 border-primary-foreground/30" 
-                  : "text-foreground hover:bg-accent border-border"
-              )}
-            >
-              <ChevronRight className="w-5 h-5" />
-            </Button>
-          </div>
-        </div>
-      </div>
+      <CalendarHeader
+        title={titleText}
+        onPrevious={onPreviousDay}
+        onNext={onNextDay}
+        viewMode={viewMode}
+        onViewModeChange={onViewModeChange}
+        activeCategories={activeCategories}
+        onCategoriesChange={onCategoriesChange}
+      />
       
       {/* Day content */}
       <div className="p-6">

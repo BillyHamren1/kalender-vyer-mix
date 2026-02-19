@@ -1,5 +1,3 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { 
   format, 
   startOfMonth, 
@@ -12,8 +10,9 @@ import {
 } from "date-fns";
 import { sv } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { DashboardEvent } from "@/hooks/useDashboardEvents";
+import { DashboardEvent, EventCategory, DashboardViewMode } from "@/hooks/useDashboardEvents";
 import DashboardEventCard, { getEventCategoryColor } from "./DashboardEventCard";
+import CalendarHeader from "./CalendarHeader";
 
 interface DashboardMonthViewProps {
   events: DashboardEvent[];
@@ -22,6 +21,10 @@ interface DashboardMonthViewProps {
   onNextMonth: () => void;
   onDayClick: (date: Date) => void;
   isLoading: boolean;
+  viewMode: DashboardViewMode;
+  onViewModeChange: (mode: DashboardViewMode) => void;
+  activeCategories: EventCategory[];
+  onCategoriesChange: (cats: EventCategory[]) => void;
 }
 
 const DashboardMonthView = ({ 
@@ -30,7 +33,11 @@ const DashboardMonthView = ({
   onPreviousMonth,
   onNextMonth,
   onDayClick,
-  isLoading 
+  isLoading,
+  viewMode,
+  onViewModeChange,
+  activeCategories,
+  onCategoriesChange,
 }: DashboardMonthViewProps) => {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -58,32 +65,15 @@ const DashboardMonthView = ({
 
   return (
     <div className="bg-card rounded-2xl shadow-xl border overflow-hidden">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-primary to-primary/80 px-6 py-4">
-        <div className="flex items-center justify-center">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onPreviousMonth}
-              className="text-primary-foreground hover:bg-primary-foreground/10 border border-primary-foreground/30 rounded-lg"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </Button>
-            <span className="text-primary-foreground font-medium min-w-[160px] text-center capitalize">
-              {monthLabel}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onNextMonth}
-              className="text-primary-foreground hover:bg-primary-foreground/10 border border-primary-foreground/30 rounded-lg"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </Button>
-          </div>
-        </div>
-      </div>
+      <CalendarHeader
+        title={monthLabel}
+        onPrevious={onPreviousMonth}
+        onNext={onNextMonth}
+        viewMode={viewMode}
+        onViewModeChange={onViewModeChange}
+        activeCategories={activeCategories}
+        onCategoriesChange={onCategoriesChange}
+      />
       
       {/* Calendar grid */}
       <div className="p-3">
