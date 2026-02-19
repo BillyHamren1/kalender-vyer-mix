@@ -57,7 +57,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     enabled: !!bookingId,
   });
 
-  const { data: productCosts, isLoading: productCostsLoading } = useQuery({
+  const { data: productCosts, isLoading: productCostsLoading, refetch: refetchProductCosts } = useQuery({
     queryKey: ['product-costs', bookingId],
     queryFn: () => fetchProductCostsRemote(bookingId!),
     enabled: !!bookingId,
@@ -275,5 +275,6 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     addInvoice: addInvoiceMutation.mutate,
     updateInvoice: updateInvoiceMutation.mutate,
     removeInvoice: removeInvoiceMutation.mutate,
+    refetchProductCosts,
   };
 };

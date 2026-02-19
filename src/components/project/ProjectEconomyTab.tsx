@@ -48,6 +48,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
     addInvoice,
     removeInvoice,
     updateInvoice,
+    refetchProductCosts,
   } = useProjectEconomy(projectId, bookingId);
 
   const handleExportExcel = () => {
@@ -134,6 +135,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
         <ProductCostsCard
           productCosts={productCosts}
           isLoading={isLoading}
+          onRefresh={refetchProductCosts}
         />
       )}
 
