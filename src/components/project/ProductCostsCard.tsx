@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, ChevronDown, ChevronRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Package, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 import type { ProductCostData, ProductCostSummary } from '@/services/productCostService';
 
 interface ProductCostsCardProps {
   productCosts: ProductCostSummary;
   isLoading?: boolean;
+  onRefresh?: () => Promise<any>;
 }
 
 interface ProductGroup {
@@ -23,7 +26,21 @@ const fmt = (v: number) =>
 const getMarginColor = (pct: number) =>
   pct >= 50 ? 'text-green-600' : pct >= 30 ? 'text-yellow-600' : 'text-red-500';
 
-export const ProductCostsCard = ({ productCosts }: ProductCostsCardProps) => {
+export const ProductCostsCard = ({ productCosts, onRefresh }: ProductCostsCardProps) => {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (!onRefresh) return;
+    setIsRefreshing(true);
+    try {
+      await onRefresh();
+      toast.success('Produktkostnader uppdaterade');
+    } catch {
+      toast.error('Kunde inte uppdatera');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
   const groupedProducts = useMemo((): ProductGroup[] => {
     const parents = productCosts.products.filter(p => !p.parent_product_id);
     return parents.map(parent => ({
@@ -139,10 +156,17 @@ export const ProductCostsCard = ({ productCosts }: ProductCostsCardProps) => {
   return (
     <Card>
       <CardHeader className="py-3 pb-0">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Package className="h-4 w-4" />
-          Produktkostnader
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Package className="h-4 w-4" />
+            Produktkostnader
+          </CardTitle>
+          {onRefresh && (
+            <Button variant="ghost" size="icon" onClick={handleRefresh} disabled={isRefreshing} className="h-8 w-8">
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="pt-3 space-y-3">
 
