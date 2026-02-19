@@ -2516,9 +2516,19 @@ serve(async (req) => {
           }
           
           // Sync warehouse calendar events for confirmed bookings with dates
-          if (bookingData.rigdaydate || bookingData.eventdate || bookingData.rigdowndate) {
+          // Guard: only sync if booking is new, dates changed, or status just became CONFIRMED
+          // This prevents duplicate events when only products change (needsProductUpdate=true)
+          const isNewBooking = !existingBooking;
+          const justConfirmed = existingBooking
+            ? (existingBooking.status !== 'CONFIRMED' && bookingData.status === 'CONFIRMED')
+            : false;
+          if ((isNewBooking || needsWarehouseRecovery || justConfirmed) &&
+              (bookingData.rigdaydate || bookingData.eventdate || bookingData.rigdowndate)) {
+            console.log(`[Warehouse Sync] Syncing events for ${bookingData.id} (isNew=${isNewBooking}, needsRecovery=${needsWarehouseRecovery}, justConfirmed=${justConfirmed})`);
             const warehouseEventsCreated = await syncWarehouseEventsForBooking(supabase, bookingData);
             results.warehouse_events_created += warehouseEventsCreated;
+          } else {
+            console.log(`[Warehouse Sync] Skipping for ${bookingData.id} - dates unchanged and not new/justConfirmed`);
           }
           
           // Create packing project for confirmed bookings
