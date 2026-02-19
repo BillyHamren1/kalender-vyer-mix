@@ -6,8 +6,6 @@ import { type LucideIcon,
   Package,
   Boxes,
   Wrench,
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
   TrendingUp,
 } from "lucide-react";
@@ -87,48 +85,8 @@ export function WarehouseSidebar3D() {
           borderRight: "1px solid hsl(200 18% 66%)",
         }}
       >
-        {/* Collapse toggle — absolute, sticks out on right edge */}
-        <button
-          onClick={() => setIsCollapsed((v) => !v)}
-          className="absolute -right-[9px] top-7 z-20 flex items-center justify-center rounded-sm border"
-          style={{
-            width: 18,
-            height: 18,
-            background: "hsl(var(--sidebar-background))",
-            borderColor: "hsl(var(--sidebar-border))",
-            color: "hsl(var(--foreground) / 0.38)",
-          }}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.color = "hsl(var(--foreground) / 0.70)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.color = "hsl(var(--foreground) / 0.38)")
-          }
-        >
-          {isCollapsed ? (
-            <ChevronRight className="w-[11px] h-[11px]" strokeWidth={2} />
-          ) : (
-            <ChevronLeft className="w-[11px] h-[11px]" strokeWidth={2} />
-          )}
-        </button>
-
         {/* Content */}
         <div className="flex flex-col h-full px-3 py-4">
-          {/* ── Logo ── */}
-          {!isCollapsed && (
-            <div className="flex items-center mb-6">
-              <span
-                className="font-bold leading-none"
-                style={{
-                  fontSize: 15,
-                  letterSpacing: "-0.03em",
-                  color: "hsl(var(--foreground))",
-                }}
-              >
-                EventFlow
-              </span>
-            </div>
-          )}
 
           {/* ── Nav ── */}
           <nav className="flex-1 space-y-px">

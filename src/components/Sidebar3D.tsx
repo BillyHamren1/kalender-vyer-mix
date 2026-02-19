@@ -4,8 +4,6 @@ import { type LucideIcon,
   Calendar,
   Users,
   FolderKanban,
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
   PieChart,
   LayoutDashboard,
@@ -104,30 +102,6 @@ export function Sidebar3D() {
           borderRight: "1px solid hsl(200 18% 66%)",
         }}
       >
-        {/* Collapse toggle — absolute, sticker out on right edge */}
-        <button
-          onClick={() => setIsCollapsed((v) => !v)}
-          className="absolute -right-[9px] top-7 z-20 flex items-center justify-center rounded-sm border"
-          style={{
-            width: 18,
-            height: 18,
-            background: "hsl(var(--sidebar-background))",
-            borderColor: "hsl(var(--sidebar-border))",
-            color: "hsl(var(--foreground) / 0.38)",
-          }}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.color = "hsl(var(--foreground) / 0.70)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.color = "hsl(var(--foreground) / 0.38)")
-          }
-        >
-          {isCollapsed ? (
-            <ChevronRight className="w-[11px] h-[11px]" strokeWidth={2} />
-          ) : (
-            <ChevronLeft className="w-[11px] h-[11px]" strokeWidth={2} />
-          )}
-        </button>
 
         {/* Content */}
         <div className="flex flex-col h-full px-3 py-4">
