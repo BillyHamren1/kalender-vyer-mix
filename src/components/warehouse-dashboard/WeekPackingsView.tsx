@@ -97,11 +97,7 @@ const EventCard = ({ packing }: { packing: WeekPacking }) => {
   const navigate = useNavigate();
   const styles = getEventTypeStyles(packing.eventType);
 
-  // Strip the event-type prefix (e.g. "Packning - ", "Utleverans - ") from the title
-  // so it doesn't duplicate what the badge already shows
-  const displayName = packing.client.includes(' - ')
-    ? packing.client.substring(packing.client.indexOf(' - ') + 3)
-    : packing.client;
+  // client is already stripped of event-type prefix in WarehouseDashboard mapping
 
   const handleClick = () => {
     if (packing.eventType === 'packing') {
@@ -137,7 +133,7 @@ const EventCard = ({ packing }: { packing: WeekPacking }) => {
         </div>
         
         <h4 className="font-semibold text-xs text-foreground truncate mb-0.5">
-          {displayName}
+          {packing.client}
         </h4>
       </div>
     </div>

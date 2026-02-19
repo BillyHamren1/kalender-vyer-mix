@@ -58,15 +58,23 @@ const WarehouseDashboard = () => {
 
       if (error) throw error;
 
-      const packings: WeekPacking[] = (data || []).map(event => ({
-        id: event.id,
-        bookingId: event.booking_id || '',
-        bookingNumber: event.booking_number,
-        client: event.title,
-        date: new Date(event.start_time),
-        eventType: (event.event_type?.toLowerCase() || 'other') as WeekPacking['eventType'],
-        status: 'active'
-      }));
+      const packings: WeekPacking[] = (data || []).map(event => {
+        // Strip event-type prefix (e.g. "Inventering - ", "Packning - ") from title
+        // The badge already shows the event type, so we only want the client name
+        const rawTitle = event.title || '';
+        const clientName = rawTitle.includes(' - ')
+          ? rawTitle.substring(rawTitle.indexOf(' - ') + 3)
+          : rawTitle;
+        return {
+          id: event.id,
+          bookingId: event.booking_id || '',
+          bookingNumber: event.booking_number,
+          client: clientName,
+          date: new Date(event.start_time),
+          eventType: (event.event_type?.toLowerCase() || 'other') as WeekPacking['eventType'],
+          status: 'active'
+        };
+      });
 
       return packings;
     }
