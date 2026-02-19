@@ -1,87 +1,65 @@
 
-## Problem
+## Dynamisk kolumnbredd baserat på förfluten tid
 
-Personalplaneringens månadvy (`/calendar` → "Månad") använder komponenten `SimpleMonthlyCalendar` – en traditionell kalendergrid med datumrutor. Lagerkalendern använder istället `CustomCalendar` med `viewMode="monthly"` vilket ger sidovisa dagkort med tidsgrid + `WeekTabsNavigation` (veckoflikar längst ned). Användaren vill att personalplaneringens månadvy ska se ut och fungera exakt som lagerkalendern.
+### Vad som ska göras
 
-## Rotorsak
+Kolumnerna i veckovyn ska få dynamisk bredd beroende på om dagen har passerat eller ej:
 
-I `src/pages/CustomCalendarPage.tsx` (rad 258–274) renderas `SimpleMonthlyCalendar` när `viewMode === 'monthly'`. Lagerkalendern (`src/pages/WarehouseCalendarPage.tsx` rad 484–512) renderar `CustomCalendar` + `WeekTabsNavigation` för samma vy.
+- **Förflutna dagar** (igår, förrgår, etc.) → 10% smalare än normal bredd
+- **Kvarvarande dagar** (idag och framåt) → får den "frigjorda" bredden fördelad jämnt
 
-## Lösning
+Flex-systemet löser detta elegant med viktade `flex`-värden — inga pixlar eller procent behövs.
 
-Ersätt `SimpleMonthlyCalendar`-blocket i `CustomCalendarPage.tsx` med samma mönster som lagerkalendern:
+### Hur det fungerar
 
-1. Byt ut `SimpleMonthlyCalendar` mot `CustomCalendar` med `viewMode="monthly"`
-2. Lägg till `WeekTabsNavigation` under `CustomCalendar` (veckoflikar)
-3. Lägg till `handleWeekSelect` som anropar `setCurrentWeekStart` (funktionen finns redan men är inte kopplad)
-4. Ta bort importen av `SimpleMonthlyCalendar` (används inte längre)
+Varje dag tilldelas ett `flex`-värde:
+- Förfluten dag: `flex: 0.65` (minskat)  
+- Idag eller framtida dag: `flex: 1` (normal/utökad)
 
-## Tekniska ändringar
+Flex-layouten fördelar automatiskt den totala bredden proportionellt. Om t.ex. 4 av 7 dagar har passerat och resten är 3 kvarvarande, får de 3 kvarvarande extra utrymme från de 4 smalare.
 
-**Fil: `src/pages/CustomCalendarPage.tsx`**
-
-Ersätt detta block (rad 258–274):
-```tsx
-) : viewMode === 'monthly' ? (
-  // Monthly View - simple calendar overview
-  isMobile ? (
-    <MobileCalendarView events={events} />
-  ) : (
-    <SimpleMonthlyCalendar
-      events={events}
-      currentDate={monthlyDate}
-      onDateChange={handleMonthChange}
-      onDayClick={(date: Date) => {
-        const centeredWeekStart = subDays(date, 3);
-        setCurrentWeekStart(centeredWeekStart);
-        setViewMode('weekly');
-      }}
-    />
-  )
+**Exempel vecka med 4 förflutna + 3 kvarvarande:**
+```text
+Förfluten: flex 0.65  x4 = 2.60 flex-enheter
+Kvarvarande: flex 1.0 x3 = 3.00 flex-enheter
+Total = 5.60 enheter → kvarvarande dagar får ~53% av bredden
 ```
 
-Med detta (identiskt med lagerkalendern, men utan `variant="warehouse"` och utan `isEventReadOnly`/`onEventClick`):
+### Teknisk implementation
+
+**Fil att ändra:** `src/components/warehouse-dashboard/WeekPackingsView.tsx`
+
+**Ändringar i `DayColumn`-komponenten:**
+
+1. Beräkna `isPast` korrekt (dag är strikt före dagens datum)
+2. Lägg till `flex`-stil dynamiskt:
+   - `isPast` → `style={{ flex: '0 0 auto', flexBasis: '...' }}` — eller enklare: sätt `flex`-värde direkt
+3. Behåll `min-w-0` för att tillåta flex-krympning
+
+Enklaste ansatsen: ersätt `flex-1 min-w-0` med en beräknad inline `style`:
+
 ```tsx
-) : viewMode === 'monthly' ? (
-  // Monthly View - same day-grid style as warehouse calendar
-  isMobile ? (
-    <MobileCalendarView events={events} />
-  ) : (
-    <>
-      <CustomCalendar
-        events={events}
-        resources={teamResources}
-        isLoading={isLoading}
-        isMounted={isMounted}
-        currentDate={currentWeekStart}
-        onDateSet={handleDatesSet}
-        refreshEvents={refreshEvents}
-        onStaffDrop={staffOps.handleStaffDrop}
-        onOpenStaffSelection={handleOpenStaffSelection}
-        viewMode="monthly"
-        weeklyStaffOperations={staffOps}
-        getVisibleTeamsForDay={getVisibleTeamsForDay}
-        onToggleTeamForDay={handleToggleTeamForDay}
-        allTeams={teamResources}
-      />
-      <WeekTabsNavigation
-        currentMonth={monthlyDate}
-        currentWeekStart={currentWeekStart}
-        onWeekSelect={handleWeekSelect}
-      />
-    </>
-  )
+// I DayColumn:
+const flexValue = isPast ? 0.65 : 1;
+
+<div
+  style={{ flex: flexValue, minWidth: 0 }}
+  className="flex flex-col"
+>
 ```
 
-Importera `WeekTabsNavigation` och ta bort `SimpleMonthlyCalendar` + `subDays` från importerna (om `subDays` inte används på annat ställe).
+**Gällande "inte keff efter 6 dagar":**  
+När det bara finns 1 dag kvar i veckan som inte är förfluten, skulle den dagen ta upp nästan hela bredden. För att förhindra att det ser konstigt ut sätts ett `maxWidth`-skydd: kvarvarande dagar begränsas till max `250px` medan de fortfarande är flex. Detta via:
 
-## Effekt
+```tsx
+maxWidth: isPast ? undefined : '250px'
+```
 
-| Före | Efter |
-|---|---|
-| Traditionell kalendergrid med datumrutor | Sidovisa dagkort med tidsgrid (identiskt med lagerkalendern) |
-| Inga veckoflikar | Veckoflikar (Vecka 5, 6, 7…) längst ned |
-| Klick på dag navigerar till veckovyn | Klick på veckofliken byter aktiv vecka |
-| Saknar personalinformation i månadsvyn | Visar personal, team och händelser per dag precis som veckovyn |
+Nej — tvärtom, vi vill inte begränsa. Istället sätts ett `minWidth: 60px` på förflutna dagar så de aldrig försvinner helt, och kvarvarande dagar får växa fritt. Det ger ett naturligt och snyggt resultat oavsett hur många dagar som återstår.
 
-Ingen ny komponent behöver skapas – enbart konfigurationsändring i `CustomCalendarPage.tsx`.
+### Sammanfattning av ändringen
+
+- `DayColumn` får `style={{ flex: isPast ? 0.65 : 1, minWidth: isPast ? 60 : 80 }}`
+- Tar bort `flex-1 min-w-0` från className och ersätter med inline style
+- `min-w-0` i Tailwind håller kvar för text-truncation att fungera
+- Inga färgändringar, inga layoutändringar utöver flex-viktningen
