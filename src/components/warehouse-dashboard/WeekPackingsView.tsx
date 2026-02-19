@@ -115,28 +115,28 @@ const EventCard = ({ packing }: { packing: WeekPacking }) => {
     <div
       onClick={handleClick}
       className={cn(
-        "group relative rounded-xl border transition-all duration-200 overflow-hidden cursor-pointer",
+        "group relative rounded border transition-all duration-200 overflow-hidden cursor-pointer",
         styles.cardBgClass,
         styles.cardBorderClass,
-        "hover:shadow-md hover:scale-[1.02]"
+        "hover:shadow-sm"
       )}
     >
-      <div className="p-2.5">
-        <div className="flex items-center gap-2 mb-1.5">
+      <div className="px-2 py-1.5">
+        <div className="flex items-center gap-1.5 mb-0.5">
           <span className={cn(
-            "px-2 py-0.5 rounded text-[10px] tracking-wide font-medium border",
+            "px-1.5 py-px rounded text-[9px] tracking-wide font-bold border shrink-0",
             styles.badgeClass
           )}>
             {styles.label}
           </span>
           {packing.bookingNumber && (
-            <span className="text-xs font-mono text-muted-foreground">
+            <span className="text-[10px] font-mono text-muted-foreground truncate">
               #{packing.bookingNumber}
             </span>
           )}
         </div>
         
-        <h4 className="font-semibold text-sm text-foreground line-clamp-2">
+        <h4 className="font-semibold text-xs text-foreground truncate mb-0.5">
           {displayName}
         </h4>
       </div>
@@ -202,7 +202,7 @@ const DayColumn = ({
       {/* Packings container */}
       <div className={cn(
         "flex-1 p-2 space-y-2 min-h-[280px] border-x border-b rounded-b-xl",
-        isToday ? "bg-warehouse/5 border-warehouse/30" : "bg-card border-border/30"
+        isToday ? "bg-warehouse/5 border-warehouse/30" : "bg-card border-border"
       )}>
         {dayPackings.length === 0 ? (
           <div className="flex items-center justify-center h-full">
