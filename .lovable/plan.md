@@ -1,23 +1,18 @@
 
 
-# Fix: Deploy proxy and harden ProductCostsCard
+# Fix: Guard `cleanName` against undefined
 
-## Problem 1: planning-api-proxy not deployed
-The edge function exists in code and `config.toml` but was never deployed. This causes all economy data fetches to return 404.
+## Problem
+`cleanName` on line 23 of `ProductCostsCard.tsx` calls `.replace()` on the `name` parameter, but some products coming from the API have `undefined` names, causing the crash.
 
-**Fix:** Deploy the `planning-api-proxy` edge function.
+## Fix
+Add a null guard to `cleanName`:
 
-## Problem 2: ProductCostsCard crashes on undefined
-When the proxy call fails, `productCosts` data contains `undefined` values. The `fmt` function on line 27-28 calls `.toLocaleString()` on `undefined`, crashing the component.
-
-**Fix:** Add a null guard to the `fmt` helper:
 ```typescript
-const fmt = (v: number) =>
-  v == null ? '–' : v === 0 ? '0' : v.toLocaleString('sv-SE');
+function cleanName(name: string): string {
+  return (name ?? '').replace(/^[\s↳└⦿L,\-–]+/, '').trim();
+}
 ```
 
-## Steps
-1. Deploy `planning-api-proxy` edge function
-2. Update `fmt` in `ProductCostsCard.tsx` line 27-28 to handle undefined/null values gracefully
-3. Verify the economy page loads without crashes
+This is a one-line change on line 24 of `ProductCostsCard.tsx`.
 
