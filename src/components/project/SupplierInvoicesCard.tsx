@@ -7,10 +7,19 @@ import { FileText, RefreshCw, AlertTriangle, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { SupplierInvoice, LinkedCostType, ProjectPurchase } from '@/types/projectEconomy';
 
+interface ProductCostItem {
+  id: string;
+  product_name?: string;
+  name?: string;
+  purchase_cost: number;
+  quantity: number;
+}
+
 interface SupplierInvoicesCardProps {
   supplierInvoices: SupplierInvoice[];
   onRefresh?: () => Promise<any>;
   purchases?: ProjectPurchase[];
+  productCosts?: { products?: ProductCostItem[] } | null;
   onLinkInvoice?: (data: { id: string; linked_cost_type: LinkedCostType; linked_cost_id: string | null; is_final_link?: boolean }) => void;
 }
 
@@ -32,6 +41,7 @@ export const SupplierInvoicesCard = ({
   supplierInvoices,
   onRefresh,
   purchases = [],
+  productCosts,
   onLinkInvoice,
 }: SupplierInvoicesCardProps) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -65,23 +75,45 @@ export const SupplierInvoicesCard = ({
     });
   };
 
+  const products = productCosts?.products || [];
+
   const getCostBudget = (si: SupplierInvoice): number | null => {
     if (!si.linked_cost_type || !si.linked_cost_id) return null;
-    const p = purchases.find(x => x.id === si.linked_cost_id);
-    return p ? p.amount : null;
+    switch (si.linked_cost_type) {
+      case 'purchase': {
+        const p = purchases.find(x => x.id === si.linked_cost_id);
+        return p ? p.amount : null;
+      }
+      case 'product': {
+        const pr = products.find(x => x.id === si.linked_cost_id);
+        return pr ? pr.purchase_cost * pr.quantity : null;
+      }
+      default:
+        return null;
+    }
   };
 
   const getLinkLabel = (si: SupplierInvoice): string | null => {
     if (!si.linked_cost_type || !si.linked_cost_id) return null;
-    const p = purchases.find(x => x.id === si.linked_cost_id);
-    return p ? `Inköp: ${p.description}` : 'Inköp (okänd)';
+    switch (si.linked_cost_type) {
+      case 'purchase': {
+        const p = purchases.find(x => x.id === si.linked_cost_id);
+        return p ? `Inköp: ${p.description}` : 'Inköp (okänd)';
+      }
+      case 'product': {
+        const pr = products.find(x => x.id === si.linked_cost_id);
+        return pr ? `Produkt: ${pr.product_name || pr.name}` : 'Produkt (okänd)';
+      }
+      default:
+        return null;
+    }
   };
 
   const total = supplierInvoices.reduce(
     (sum, si) => sum + (Number(si.invoice_data?.Total) || 0), 0
   );
 
-  const hasLinkingOptions = purchases.length > 0;
+  const hasLinkingOptions = purchases.length > 0 || products.length > 0;
 
   if (supplierInvoices.length === 0) {
     return (
@@ -187,11 +219,27 @@ export const SupplierInvoicesCard = ({
                                     <span className="text-muted-foreground">Ingen koppling</span>
                                   </SelectItem>
 
-                                  {purchases.map(p => (
-                                    <SelectItem key={`purchase::${p.id}`} value={`purchase::${p.id}`}>
-                                      {p.description} ({fmt(p.amount)} kr)
-                                    </SelectItem>
-                                  ))}
+                                  {purchases.length > 0 && (
+                                    <SelectGroup>
+                                      <SelectLabel>Inköp</SelectLabel>
+                                      {purchases.map(p => (
+                                        <SelectItem key={`purchase::${p.id}`} value={`purchase::${p.id}`}>
+                                          {p.description} ({fmt(p.amount)} kr)
+                                        </SelectItem>
+                                      ))}
+                                    </SelectGroup>
+                                  )}
+
+                                  {products.length > 0 && (
+                                    <SelectGroup>
+                                      <SelectLabel>Produkter (inköpskostnad)</SelectLabel>
+                                      {products.map(pr => (
+                                        <SelectItem key={`product::${pr.id}`} value={`product::${pr.id}`}>
+                                          {pr.product_name || pr.name} ({fmt(pr.purchase_cost * pr.quantity)} kr)
+                                        </SelectItem>
+                                      ))}
+                                    </SelectGroup>
+                                  )}
                                 </SelectContent>
                               </Select>
                             </div>
