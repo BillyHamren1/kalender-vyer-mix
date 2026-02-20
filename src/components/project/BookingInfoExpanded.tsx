@@ -1,11 +1,10 @@
 import { 
   User, MapPin, Phone, Mail, 
-  AlertTriangle, StickyNote, Truck, Hammer, Clock, Package, Image as ImageIcon
+  AlertTriangle, StickyNote, Truck, Hammer, Clock, Package
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import ProjectScheduleTimeline from "./ProjectScheduleTimeline";
 import ProjectProductsList from "./ProjectProductsList";
-import { ImageThumbnail } from "./ImageThumbnail";
 
 interface BookingAttachment {
   id: string;
@@ -45,16 +44,6 @@ interface BookingInfoExpandedProps {
 const BookingInfoExpanded = ({ booking, projectLeader, bookingAttachments = [] }: BookingInfoExpandedProps) => {
   const hasLogistics = booking.carry_more_than_10m || booking.ground_nails_allowed !== undefined || booking.exact_time_needed;
   const hasAddress = booking.deliveryaddress || booking.delivery_city || booking.delivery_postal_code;
-
-  // Deduplicate by URL (guard against duplicate DB rows)
-  const uniqueAttachments = bookingAttachments.filter(
-    (a, idx, arr) => arr.findIndex(x => x.url === a.url) === idx
-  );
-
-  // Only show images (filter by file_type or extension)
-  const imageAttachments = uniqueAttachments.filter(a =>
-    a.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(a.url)
-  );
 
   return (
     <Card className="mb-4 border-border/40 shadow-2xl rounded-2xl">
@@ -198,22 +187,6 @@ const BookingInfoExpanded = ({ booking, projectLeader, bookingAttachments = [] }
         <ProjectProductsList bookingId={booking.id} />
       </div>
 
-      {/* Images */}
-      {imageAttachments.length > 0 && (
-        <div className="px-5 pb-5 border-t border-border/40">
-          <div className="flex items-center gap-2 mt-4 mb-3">
-            <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-primary/10">
-              <ImageIcon className="h-4 w-4 text-primary" />
-            </div>
-            <h2 className="text-base font-semibold text-foreground tracking-tight">Bilder</h2>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {imageAttachments.map(img => (
-              <ImageThumbnail key={img.id} url={img.url} name={img.file_name} />
-            ))}
-          </div>
-        </div>
-      )}
     </Card>
   );
 };
