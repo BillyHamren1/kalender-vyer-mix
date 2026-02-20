@@ -5,6 +5,7 @@ import {
 import { Card } from "@/components/ui/card";
 import ProjectScheduleTimeline from "./ProjectScheduleTimeline";
 import ProjectProductsList from "./ProjectProductsList";
+import { ImageThumbnail } from "./ImageThumbnail";
 
 interface BookingAttachment {
   id: string;
@@ -206,20 +207,9 @@ const BookingInfoExpanded = ({ booking, projectLeader, bookingAttachments = [] }
             </div>
             <h2 className="text-base font-semibold text-foreground tracking-tight">Bilder</h2>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="flex flex-wrap gap-2">
             {imageAttachments.map(img => (
-              <a key={img.id} href={img.url} target="_blank" rel="noopener noreferrer" className="block group">
-                <div className="relative aspect-video rounded-xl overflow-hidden bg-muted border border-border/40">
-                  <img
-                    src={img.url}
-                    alt={img.file_name || "Bild"}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                  />
-                </div>
-                {img.file_name && (
-                  <p className="text-xs text-muted-foreground mt-1 truncate">{img.file_name}</p>
-                )}
-              </a>
+              <ImageThumbnail key={img.id} url={img.url} name={img.file_name} />
             ))}
           </div>
         </div>
