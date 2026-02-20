@@ -1009,6 +1009,27 @@ export type Database = {
         }
         Relationships: []
       }
+      organizations: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          slug: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          slug: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          slug?: string
+        }
+        Relationships: []
+      }
       packing_budget: {
         Row: {
           budgeted_hours: number
@@ -2837,6 +2858,7 @@ export type Database = {
           event_type_result: string
         }[]
       }
+      get_user_organization_id: { Args: { _user_id: string }; Returns: string }
       handle_booking_move: {
         Args: {
           p_booking_id: string
