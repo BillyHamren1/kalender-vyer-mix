@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { FileSpreadsheet, FileText } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import {
@@ -144,44 +145,58 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
         />
       )}
 
-      {/* Staff & Hours */}
-      <StaffCostTable
-        timeReports={timeReports}
-        summary={summary}
-        bookingId={bookingId}
-        onOpenBudgetSettings={() => setBudgetDialogOpen(true)}
-      />
+      {/* Tabbed sections */}
+      <Tabs defaultValue="staff" className="w-full">
+        <TabsList className="w-full justify-start">
+          <TabsTrigger value="staff">Personal & Timmar</TabsTrigger>
+          <TabsTrigger value="purchases">Inköp</TabsTrigger>
+          <TabsTrigger value="quotes">Offerter & Fakturor</TabsTrigger>
+          <TabsTrigger value="supplier">Leverantörsfakturor</TabsTrigger>
+        </TabsList>
 
-      {/* Purchases */}
-      <PurchasesList
-        purchases={purchases}
-        projectId={projectId}
-        totalAmount={summary.purchasesTotal}
-        onAddPurchase={addPurchase}
-        onRemovePurchase={removePurchase}
-        supplierInvoices={supplierInvoices}
-      />
+        <TabsContent value="staff">
+          <StaffCostTable
+            timeReports={timeReports}
+            summary={summary}
+            bookingId={bookingId}
+            onOpenBudgetSettings={() => setBudgetDialogOpen(true)}
+          />
+        </TabsContent>
 
-      {/* Quotes & Invoices */}
-      <QuotesInvoicesList
-        quotes={quotes}
-        invoices={invoices}
-        projectId={projectId}
-        onAddQuote={addQuote}
-        onRemoveQuote={removeQuote}
-        onAddInvoice={addInvoice}
-        onRemoveInvoice={removeInvoice}
-        onUpdateInvoice={updateInvoice}
-      />
+        <TabsContent value="purchases">
+          <PurchasesList
+            purchases={purchases}
+            projectId={projectId}
+            totalAmount={summary.purchasesTotal}
+            onAddPurchase={addPurchase}
+            onRemovePurchase={removePurchase}
+            supplierInvoices={supplierInvoices}
+          />
+        </TabsContent>
 
-      {/* Supplier Invoices (Fortnox) */}
-      <SupplierInvoicesCard
-        supplierInvoices={supplierInvoices}
-        onRefresh={refetchSupplierInvoices}
-        purchases={purchases}
-        productCosts={productCosts}
-        onLinkInvoice={linkSupplierInvoice}
-      />
+        <TabsContent value="quotes">
+          <QuotesInvoicesList
+            quotes={quotes}
+            invoices={invoices}
+            projectId={projectId}
+            onAddQuote={addQuote}
+            onRemoveQuote={removeQuote}
+            onAddInvoice={addInvoice}
+            onRemoveInvoice={removeInvoice}
+            onUpdateInvoice={updateInvoice}
+          />
+        </TabsContent>
+
+        <TabsContent value="supplier">
+          <SupplierInvoicesCard
+            supplierInvoices={supplierInvoices}
+            onRefresh={refetchSupplierInvoices}
+            purchases={purchases}
+            productCosts={productCosts}
+            onLinkInvoice={linkSupplierInvoice}
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* Budget Settings Dialog */}
       <BudgetSettingsDialog
