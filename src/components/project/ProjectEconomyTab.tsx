@@ -140,6 +140,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
           productCosts={productCosts}
           isLoading={isLoading}
           onRefresh={refetchProductCosts}
+          supplierInvoices={supplierInvoices}
         />
       )}
 
@@ -178,6 +179,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
         supplierInvoices={supplierInvoices}
         onRefresh={refetchSupplierInvoices}
         purchases={purchases}
+        productCosts={productCosts}
         onLinkInvoice={linkSupplierInvoice}
       />
 
