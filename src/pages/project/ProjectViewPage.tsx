@@ -65,28 +65,24 @@ const ProjectViewPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6 items-start">
         {/* Left: Booking info – scrolls if content overflows */}
         {booking && (
-          <div className="flex flex-col gap-2">
+          <div className="relative h-[560px] overflow-y-auto rounded-2xl">
             {bookingId && (
-              <div className="flex justify-end">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={refreshBooking}
-                  disabled={isRefreshing}
-                  className="gap-1.5 text-xs h-7"
-                >
-                  <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
-                  {isRefreshing ? 'Hämtar...' : 'Uppdatera bokning'}
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={refreshBooking}
+                disabled={isRefreshing}
+                className="absolute top-3 right-3 z-10 h-8 w-8"
+                title="Uppdatera bokning"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              </Button>
             )}
-            <div className="h-[560px] overflow-y-auto rounded-2xl">
-              <BookingInfoExpanded
-                booking={booking}
-                projectLeader={project.project_leader}
-                bookingAttachments={bookingAttachments}
-              />
-            </div>
+            <BookingInfoExpanded
+              booking={booking}
+              projectLeader={project.project_leader}
+              bookingAttachments={bookingAttachments}
+            />
           </div>
         )}
 
