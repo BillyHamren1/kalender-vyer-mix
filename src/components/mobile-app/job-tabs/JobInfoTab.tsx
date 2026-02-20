@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Calendar, ChevronDown, ChevronRight, Clock, FileText, StickyNote } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronRight, Clock, ClipboardCheck, FileText, StickyNote } from 'lucide-react';
+import InspectionWizard from '@/components/mobile-app/inspection/InspectionWizard';
 
 interface JobInfoTabProps {
   booking: any;
+  bookingId: string;
 }
 
 // --- Product grouping logic (mirrors desktop ProductsList.tsx) ---
@@ -172,7 +174,8 @@ const ProductGroupRow = ({ group }: { group: ProductGroup }) => {
 
 // --- Main component ---
 
-const JobInfoTab = ({ booking }: JobInfoTabProps) => {
+const JobInfoTab = ({ booking, bookingId }: JobInfoTabProps) => {
+  const [showInspection, setShowInspection] = useState(false);
   const products: ProductItem[] = booking.products || [];
   const groups = groupProducts(products);
 
@@ -227,6 +230,19 @@ const JobInfoTab = ({ booking }: JobInfoTabProps) => {
             ))}
           </div>
         </div>
+      )}
+      {/* Inspection button */}
+      <button
+        type="button"
+        onClick={() => setShowInspection(true)}
+        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm active:scale-[0.98] transition-all shadow-md"
+      >
+        <ClipboardCheck className="w-4.5 h-4.5" />
+        Skapa besiktning
+      </button>
+
+      {showInspection && (
+        <InspectionWizard bookingId={bookingId} onClose={() => setShowInspection(false)} />
       )}
     </div>
   );

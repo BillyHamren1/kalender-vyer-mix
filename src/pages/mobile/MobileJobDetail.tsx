@@ -184,7 +184,7 @@ const MobileJobDetail = () => {
 
       {/* Tab content */}
       <div className="flex-1 px-4 py-3">
-        {activeTab === 'Info' && <JobInfoTab booking={booking} />}
+        {activeTab === 'Info' && <JobInfoTab booking={booking} bookingId={booking.id} />}
         {activeTab === 'Team' && <JobTeamTab bookingId={booking.id} />}
         {activeTab === 'Bilder' && <JobPhotosTab bookingId={booking.id} />}
         {activeTab === 'Kostnader' && <JobCostsTab bookingId={booking.id} />}
