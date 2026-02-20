@@ -86,19 +86,14 @@ const ProjectViewPage = () => {
           </div>
         )}
 
-        {/* Right: Tasks only – same max height */}
+        {/* Right: Internal notes – same max height */}
         <div className="flex flex-col gap-4 h-[560px] overflow-y-auto">
-          <ProjectTaskList
-            tasks={tasks}
-            onAddTask={detail.addTask}
-            onUpdateTask={detail.updateTask}
-            onDeleteTask={detail.deleteTask}
-            getTaskAction={(task) => {
-              if (task.title === 'Transportbokning' && bookingId) {
-                return () => setTransportBookingOpen(true);
-              }
-              return undefined;
-            }}
+          <SectionHeader icon={MessageSquare} title="Interna anteckningar" />
+          <ProjectInternalNotes
+            bookingId={bookingId}
+            currentNotes={booking?.internalnotes}
+            projectId={project.id}
+            className="h-full"
           />
         </div>
       </div>
@@ -118,12 +113,17 @@ const ProjectViewPage = () => {
         </div>
 
         <div className="flex flex-col h-full">
-          <SectionHeader icon={MessageSquare} title="Interna anteckningar" />
-          <ProjectInternalNotes
-            bookingId={bookingId}
-            currentNotes={booking?.internalnotes}
-            projectId={project.id}
-            className="h-full"
+          <ProjectTaskList
+            tasks={tasks}
+            onAddTask={detail.addTask}
+            onUpdateTask={detail.updateTask}
+            onDeleteTask={detail.deleteTask}
+            getTaskAction={(task) => {
+              if (task.title === 'Transportbokning' && bookingId) {
+                return () => setTransportBookingOpen(true);
+              }
+              return undefined;
+            }}
           />
         </div>
 
