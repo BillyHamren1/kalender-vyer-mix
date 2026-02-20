@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Plus, Trash2, ExternalLink, Receipt, Image } from 'lucide-react';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import type { ProjectPurchase } from '@/types/projectEconomy';
+import type { ProjectPurchase, SupplierInvoice } from '@/types/projectEconomy';
 import { AddPurchaseDialog } from './AddPurchaseDialog';
 
 interface PurchasesListProps {
@@ -15,14 +15,18 @@ interface PurchasesListProps {
   totalAmount: number;
   onAddPurchase: (purchase: Omit<ProjectPurchase, 'id' | 'created_at'>) => void;
   onRemovePurchase: (id: string) => void;
+  supplierInvoices?: SupplierInvoice[];
 }
+
+const fmtSEK = (v: number) => v.toLocaleString('sv-SE');
 
 export const PurchasesList = ({ 
   purchases, 
   projectId, 
   totalAmount, 
   onAddPurchase, 
-  onRemovePurchase 
+  onRemovePurchase,
+  supplierInvoices = [],
 }: PurchasesListProps) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [receiptPreview, setReceiptPreview] = useState<{ url: string; description: string } | null>(null);
@@ -70,6 +74,7 @@ export const PurchasesList = ({
                     <TableHead>Kategori</TableHead>
                     <TableHead>Kvitto</TableHead>
                     <TableHead className="text-right">Belopp</TableHead>
+                    <TableHead className="text-right">Fakturerat</TableHead>
                     <TableHead className="w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -119,6 +124,26 @@ export const PurchasesList = ({
                         )}
                       </TableCell>
                       <TableCell className="text-right">{formatCurrency(purchase.amount)}</TableCell>
+                      <TableCell className="text-right">
+                        {(() => {
+                          const linked = supplierInvoices.filter(
+                            si => si.linked_cost_type === 'purchase' && si.linked_cost_id === purchase.id
+                          );
+                          if (linked.length === 0) return <span className="text-muted-foreground text-xs">–</span>;
+                          const invoicedTotal = linked.reduce((s, si) => s + (Number(si.invoice_data?.Total) || 0), 0);
+                          const diff = purchase.amount - invoicedTotal;
+                          const isFinal = linked.some(si => si.is_final_link);
+                          return (
+                            <div className="flex flex-col items-end">
+                              <span className="text-xs font-medium">{fmtSEK(invoicedTotal)} kr</span>
+                              <span className={`text-xs ${diff >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                {diff >= 0 ? '+' : ''}{fmtSEK(diff)} kr
+                              </span>
+                              {isFinal && <span className="text-[10px] text-green-600">✓ Slutgiltig</span>}
+                            </div>
+                          );
+                        })()}
+                      </TableCell>
                       <TableCell>
                         <Button
                           variant="ghost"
@@ -134,6 +159,7 @@ export const PurchasesList = ({
                   <TableRow className="font-bold border-t-2">
                     <TableCell colSpan={5}>TOTALT</TableCell>
                     <TableCell className="text-right">{formatCurrency(totalAmount)}</TableCell>
+                    <TableCell></TableCell>
                     <TableCell></TableCell>
                   </TableRow>
                 </TableBody>

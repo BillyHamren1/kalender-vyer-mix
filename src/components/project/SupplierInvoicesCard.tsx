@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FileText, RefreshCw, AlertTriangle, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -19,7 +20,7 @@ interface SupplierInvoicesCardProps {
   purchases?: ProjectPurchase[];
   productCosts?: { products?: ProductCostItem[] } | null;
   budget?: ProjectBudget | null;
-  onLinkInvoice?: (data: { id: string; linked_cost_type: LinkedCostType; linked_cost_id: string | null }) => void;
+  onLinkInvoice?: (data: { id: string; linked_cost_type: LinkedCostType; linked_cost_id: string | null; is_final_link?: boolean }) => void;
 }
 
 const fmt = (v: number) =>
@@ -65,7 +66,35 @@ export const SupplierInvoicesCard = ({
     onLinkInvoice({ id: invoiceId, linked_cost_type: type, linked_cost_id: id });
   };
 
+  const handleFinalLinkToggle = (si: SupplierInvoice) => {
+    if (!onLinkInvoice || !si.linked_cost_type || !si.linked_cost_id) return;
+    onLinkInvoice({
+      id: si.id,
+      linked_cost_type: si.linked_cost_type,
+      linked_cost_id: si.linked_cost_id,
+      is_final_link: !si.is_final_link,
+    });
+  };
+
   const products = productCosts?.products || [];
+
+  const getCostBudget = (si: SupplierInvoice): number | null => {
+    if (!si.linked_cost_type || !si.linked_cost_id) return null;
+    switch (si.linked_cost_type) {
+      case 'purchase': {
+        const p = purchases.find(x => x.id === si.linked_cost_id);
+        return p ? p.amount : null;
+      }
+      case 'product': {
+        const pr = products.find(x => x.id === si.linked_cost_id);
+        return pr?.total ?? null;
+      }
+      case 'budget':
+        return budget ? budget.budgeted_hours * budget.hourly_rate : null;
+      default:
+        return null;
+    }
+  };
 
   const getLinkLabel = (si: SupplierInvoice): string | null => {
     if (!si.linked_cost_type || !si.linked_cost_id) return null;
@@ -133,7 +162,7 @@ export const SupplierInvoicesCard = ({
       </CardHeader>
       <CardContent className="pt-3">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[750px]">
+          <table className="w-full min-w-[850px]">
             <thead>
               <tr className="border-b text-xs text-muted-foreground">
                 <th className="text-left py-2 pr-3 font-medium">Fakturanr</th>
@@ -142,7 +171,11 @@ export const SupplierInvoicesCard = ({
                 <th className="text-right py-2 px-2 font-medium">Belopp</th>
                 <th className="text-right py-2 px-2 font-medium">Kvar att betala</th>
                 {hasLinkingOptions && (
-                  <th className="text-left py-2 pl-2 font-medium">Kopplad till</th>
+                  <>
+                    <th className="text-left py-2 px-2 font-medium">Kopplad till</th>
+                    <th className="text-right py-2 px-2 font-medium">Budget/Kostnad</th>
+                    <th className="text-center py-2 pl-2 font-medium" title="Enda fakturan för denna kostnadspost">Slutgiltig</th>
+                  </>
                 )}
               </tr>
             </thead>
@@ -150,6 +183,9 @@ export const SupplierInvoicesCard = ({
               {supplierInvoices.map((si) => {
                 const currentValue = buildLinkValue(si.linked_cost_type, si.linked_cost_id);
                 const isLinked = !!si.linked_cost_type && !!si.linked_cost_id;
+                const costBudget = getCostBudget(si);
+                const invoiceAmount = Number(si.invoice_data?.Total) || 0;
+                const deviation = costBudget != null ? costBudget - invoiceAmount : null;
 
                 return (
                   <tr key={si.id} className="border-b border-border/40 hover:bg-muted/20">
@@ -163,69 +199,95 @@ export const SupplierInvoicesCard = ({
                       {si.invoice_data?.InvoiceDate || '–'}
                     </td>
                     <td className="py-2 px-2 text-sm text-right font-medium">
-                      {fmt(Number(si.invoice_data?.Total) || 0)} kr
+                      {fmt(invoiceAmount)} kr
                     </td>
                     <td className="py-2 px-2 text-sm text-right">
                       {fmt(Number(si.invoice_data?.Balance) || 0)} kr
                     </td>
                     {hasLinkingOptions && (
-                      <td className="py-1.5 pl-2">
-                        {onLinkInvoice ? (
-                          <div className="flex items-center gap-1.5">
-                            {!isLinked && (
-                              <AlertTriangle className="h-3.5 w-3.5 text-yellow-500 shrink-0" />
-                            )}
-                            {isLinked && (
-                              <Link2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                            )}
-                            <Select value={currentValue} onValueChange={(v) => handleLinkChange(si.id, v)}>
-                              <SelectTrigger className="h-7 text-xs w-[180px]">
-                                <SelectValue placeholder="Välj koppling..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__none__">
-                                  <span className="text-muted-foreground">Ingen koppling</span>
-                                </SelectItem>
+                      <>
+                        <td className="py-1.5 px-2">
+                          {onLinkInvoice ? (
+                            <div className="flex items-center gap-1.5">
+                              {!isLinked && (
+                                <AlertTriangle className="h-3.5 w-3.5 text-yellow-500 shrink-0" />
+                              )}
+                              {isLinked && (
+                                <Link2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                              )}
+                              <Select value={currentValue} onValueChange={(v) => handleLinkChange(si.id, v)}>
+                                <SelectTrigger className="h-7 text-xs w-[180px]">
+                                  <SelectValue placeholder="Välj koppling..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__none__">
+                                    <span className="text-muted-foreground">Ingen koppling</span>
+                                  </SelectItem>
 
-                                {purchases.length > 0 && (
-                                  <SelectGroup>
-                                    <SelectLabel>Inköp</SelectLabel>
-                                    {purchases.map(p => (
-                                      <SelectItem key={`purchase::${p.id}`} value={`purchase::${p.id}`}>
-                                        {p.description} ({fmt(p.amount)} kr)
+                                  {purchases.length > 0 && (
+                                    <SelectGroup>
+                                      <SelectLabel>Inköp</SelectLabel>
+                                      {purchases.map(p => (
+                                        <SelectItem key={`purchase::${p.id}`} value={`purchase::${p.id}`}>
+                                          {p.description} ({fmt(p.amount)} kr)
+                                        </SelectItem>
+                                      ))}
+                                    </SelectGroup>
+                                  )}
+
+                                  {products.length > 0 && (
+                                    <SelectGroup>
+                                      <SelectLabel>Produktkostnader</SelectLabel>
+                                      {products.map(pr => (
+                                        <SelectItem key={`product::${pr.id}`} value={`product::${pr.id}`}>
+                                          {pr.product_name || pr.name} ({fmt(pr.total || 0)} kr)
+                                        </SelectItem>
+                                      ))}
+                                    </SelectGroup>
+                                  )}
+
+                                  {budget && (
+                                    <SelectGroup>
+                                      <SelectLabel>Budget</SelectLabel>
+                                      <SelectItem value={`budget::${budget.id}`}>
+                                        Budgetpost ({fmt(budget.budgeted_hours * budget.hourly_rate)} kr)
                                       </SelectItem>
-                                    ))}
-                                  </SelectGroup>
-                                )}
-
-                                {products.length > 0 && (
-                                  <SelectGroup>
-                                    <SelectLabel>Produktkostnader</SelectLabel>
-                                    {products.map(pr => (
-                                      <SelectItem key={`product::${pr.id}`} value={`product::${pr.id}`}>
-                                        {pr.product_name || pr.name} ({fmt(pr.total || 0)} kr)
-                                      </SelectItem>
-                                    ))}
-                                  </SelectGroup>
-                                )}
-
-                                {budget && (
-                                  <SelectGroup>
-                                    <SelectLabel>Budget</SelectLabel>
-                                    <SelectItem value={`budget::${budget.id}`}>
-                                      Budgetpost ({fmt(budget.budgeted_hours * budget.hourly_rate)} kr)
-                                    </SelectItem>
-                                  </SelectGroup>
-                                )}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            {getLinkLabel(si) || '–'}
-                          </span>
-                        )}
-                      </td>
+                                    </SelectGroup>
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              {getLinkLabel(si) || '–'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2 px-2 text-sm text-right">
+                          {isLinked && costBudget != null ? (
+                            <div className="flex flex-col items-end">
+                              <span className="text-muted-foreground text-xs">{fmt(costBudget)} kr</span>
+                              <span className={`text-xs font-semibold ${deviation != null && deviation >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                {deviation != null ? `${deviation >= 0 ? '+' : ''}${fmt(deviation)} kr` : ''}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">–</span>
+                          )}
+                        </td>
+                        <td className="py-2 pl-2 text-center">
+                          {isLinked ? (
+                            <Checkbox
+                              checked={!!si.is_final_link}
+                              onCheckedChange={() => handleFinalLinkToggle(si)}
+                              className="mx-auto"
+                              title="Markera som slutgiltig koppling"
+                            />
+                          ) : (
+                            <span className="text-muted-foreground text-xs">–</span>
+                          )}
+                        </td>
+                      </>
                     )}
                   </tr>
                 );
@@ -236,7 +298,13 @@ export const SupplierInvoicesCard = ({
                 <td className="py-2.5 pr-3" colSpan={3}>Totalt</td>
                 <td className="py-2.5 px-2 text-right">{fmt(total)} kr</td>
                 <td className="py-2.5 px-2" />
-                {hasLinkingOptions && <td className="py-2.5 pl-2" />}
+                {hasLinkingOptions && (
+                  <>
+                    <td className="py-2.5 px-2" />
+                    <td className="py-2.5 px-2" />
+                    <td className="py-2.5 pl-2" />
+                  </>
+                )}
               </tr>
             </tfoot>
           </table>
