@@ -254,7 +254,7 @@ export const ProductCostsCard = ({ productCosts, onRefresh, supplierInvoices = [
                 <th className="text-right py-2 px-2 font-medium">Inköp/st</th>
                 <th className="text-right py-2 px-2 font-medium">Kostn. totalt</th>
                 <th className="text-right py-2 pl-2 font-medium">Marginal</th>
-                <th className="text-right py-2 pl-2 font-medium">Fakturerat</th>
+                <th className="text-right py-2 pl-2 font-medium">Lev.faktura</th>
               </tr>
             </thead>
             <tbody>

@@ -74,7 +74,7 @@ export const PurchasesList = ({
                     <TableHead>Kategori</TableHead>
                     <TableHead>Kvitto</TableHead>
                     <TableHead className="text-right">Belopp</TableHead>
-                    <TableHead className="text-right">Fakturerat</TableHead>
+                    <TableHead className="text-right">Lev.faktura</TableHead>
                     <TableHead className="w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
