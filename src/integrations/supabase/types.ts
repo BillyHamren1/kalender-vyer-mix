@@ -505,6 +505,7 @@ export type Database = {
           end_time: string | null
           id: string
           notes: string | null
+          organization_id: string
           parent_task_id: string
           sort_order: number
           start_time: string | null
@@ -520,6 +521,7 @@ export type Database = {
           end_time?: string | null
           id?: string
           notes?: string | null
+          organization_id?: string
           parent_task_id: string
           sort_order?: number
           start_time?: string | null
@@ -535,6 +537,7 @@ export type Database = {
           end_time?: string | null
           id?: string
           notes?: string | null
+          organization_id?: string
           parent_task_id?: string
           sort_order?: number
           start_time?: string | null
@@ -547,6 +550,13 @@ export type Database = {
             columns: ["assigned_to"]
             isOneToOne: false
             referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "establishment_subtasks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -566,6 +576,7 @@ export type Database = {
           ground_nails_allowed: boolean | null
           id: string
           margin_percentage: number | null
+          organization_id: string
           product_categories: Json | null
           project_id: string | null
           rig_date: string | null
@@ -600,6 +611,7 @@ export type Database = {
           ground_nails_allowed?: boolean | null
           id?: string
           margin_percentage?: number | null
+          organization_id?: string
           product_categories?: Json | null
           project_id?: string | null
           rig_date?: string | null
@@ -634,6 +646,7 @@ export type Database = {
           ground_nails_allowed?: boolean | null
           id?: string
           margin_percentage?: number | null
+          organization_id?: string
           product_categories?: Json | null
           project_id?: string | null
           rig_date?: string | null
@@ -656,6 +669,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "job_completion_analytics_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "job_completion_analytics_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
@@ -670,6 +690,7 @@ export type Database = {
           created_at: string
           id: string
           job_id: string
+          organization_id: string
           staff_id: string
         }
         Insert: {
@@ -677,6 +698,7 @@ export type Database = {
           created_at?: string
           id?: string
           job_id: string
+          organization_id?: string
           staff_id: string
         }
         Update: {
@@ -684,6 +706,7 @@ export type Database = {
           created_at?: string
           id?: string
           job_id?: string
+          organization_id?: string
           staff_id?: string
         }
         Relationships: [
@@ -692,6 +715,13 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_staff_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
@@ -709,6 +739,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          organization_id: string
           status: string
           updated_at: string
         }
@@ -717,6 +748,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          organization_id?: string
           status?: string
           updated_at?: string
         }
@@ -725,10 +757,19 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          organization_id?: string
           status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       large_project_bookings: {
         Row: {
