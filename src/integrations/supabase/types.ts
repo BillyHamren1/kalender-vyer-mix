@@ -1179,6 +1179,7 @@ export type Database = {
           description: string | null
           hourly_rate: number
           id: string
+          organization_id: string
           packing_id: string
           updated_at: string
         }
@@ -1188,6 +1189,7 @@ export type Database = {
           description?: string | null
           hourly_rate?: number
           id?: string
+          organization_id?: string
           packing_id: string
           updated_at?: string
         }
@@ -1197,10 +1199,18 @@ export type Database = {
           description?: string | null
           hourly_rate?: number
           id?: string
+          organization_id?: string
           packing_id?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "packing_budget_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "packing_budget_packing_id_fkey"
             columns: ["packing_id"]
@@ -1216,6 +1226,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          organization_id: string
           packing_id: string
         }
         Insert: {
@@ -1223,6 +1234,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          organization_id?: string
           packing_id: string
         }
         Update: {
@@ -1230,9 +1242,17 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          organization_id?: string
           packing_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "packing_comments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "packing_comments_packing_id_fkey"
             columns: ["packing_id"]
@@ -1247,6 +1267,7 @@ export type Database = {
           file_name: string
           file_type: string | null
           id: string
+          organization_id: string
           packing_id: string
           uploaded_at: string
           uploaded_by: string | null
@@ -1256,6 +1277,7 @@ export type Database = {
           file_name: string
           file_type?: string | null
           id?: string
+          organization_id?: string
           packing_id: string
           uploaded_at?: string
           uploaded_by?: string | null
@@ -1265,12 +1287,20 @@ export type Database = {
           file_name?: string
           file_type?: string | null
           id?: string
+          organization_id?: string
           packing_id?: string
           uploaded_at?: string
           uploaded_by?: string | null
           url?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "packing_files_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "packing_files_packing_id_fkey"
             columns: ["packing_id"]
@@ -1290,6 +1320,7 @@ export type Database = {
           invoice_number: string | null
           invoiced_amount: number
           notes: string | null
+          organization_id: string
           packing_id: string
           quote_id: string | null
           status: string
@@ -1304,6 +1335,7 @@ export type Database = {
           invoice_number?: string | null
           invoiced_amount?: number
           notes?: string | null
+          organization_id?: string
           packing_id: string
           quote_id?: string | null
           status?: string
@@ -1318,12 +1350,20 @@ export type Database = {
           invoice_number?: string | null
           invoiced_amount?: number
           notes?: string | null
+          organization_id?: string
           packing_id?: string
           quote_id?: string | null
           status?: string
           supplier?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "packing_invoices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "packing_invoices_packing_id_fkey"
             columns: ["packing_id"]
@@ -1348,6 +1388,7 @@ export type Database = {
           hourly_rate: number
           hours: number
           id: string
+          organization_id: string
           packing_id: string
           staff_id: string | null
           staff_name: string
@@ -1360,6 +1401,7 @@ export type Database = {
           hourly_rate?: number
           hours?: number
           id?: string
+          organization_id?: string
           packing_id: string
           staff_id?: string | null
           staff_name: string
@@ -1372,12 +1414,20 @@ export type Database = {
           hourly_rate?: number
           hours?: number
           id?: string
+          organization_id?: string
           packing_id?: string
           staff_id?: string | null
           staff_name?: string
           work_date?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "packing_labor_costs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "packing_labor_costs_packing_id_fkey"
             columns: ["packing_id"]
@@ -1400,6 +1450,7 @@ export type Database = {
           created_at: string
           id: string
           notes: string | null
+          organization_id: string
           packed_at: string | null
           packed_by: string | null
           packing_id: string
@@ -1414,6 +1465,7 @@ export type Database = {
           created_at?: string
           id?: string
           notes?: string | null
+          organization_id?: string
           packed_at?: string | null
           packed_by?: string | null
           packing_id: string
@@ -1428,6 +1480,7 @@ export type Database = {
           created_at?: string
           id?: string
           notes?: string | null
+          organization_id?: string
           packed_at?: string | null
           packed_by?: string | null
           packing_id?: string
@@ -1443,6 +1496,13 @@ export type Database = {
             columns: ["booking_product_id"]
             isOneToOne: false
             referencedRelation: "booking_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_list_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
@@ -1466,6 +1526,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          organization_id: string
           packing_id: string
           parcel_number: number
         }
@@ -1473,6 +1534,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          organization_id?: string
           packing_id: string
           parcel_number: number
         }
@@ -1480,10 +1542,18 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          organization_id?: string
           packing_id?: string
           parcel_number?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "packing_parcels_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "packing_parcels_packing_id_fkey"
             columns: ["packing_id"]
@@ -1499,6 +1569,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          organization_id: string
           project_leader: string | null
           status: string
           updated_at: string
@@ -1508,6 +1579,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          organization_id?: string
           project_leader?: string | null
           status?: string
           updated_at?: string
@@ -1517,11 +1589,20 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          organization_id?: string
           project_leader?: string | null
           status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "packing_projects_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       packing_purchases: {
         Row: {
@@ -1531,6 +1612,7 @@ export type Database = {
           created_by: string | null
           description: string
           id: string
+          organization_id: string
           packing_id: string
           purchase_date: string | null
           receipt_url: string | null
@@ -1543,6 +1625,7 @@ export type Database = {
           created_by?: string | null
           description: string
           id?: string
+          organization_id?: string
           packing_id: string
           purchase_date?: string | null
           receipt_url?: string | null
@@ -1555,12 +1638,20 @@ export type Database = {
           created_by?: string | null
           description?: string
           id?: string
+          organization_id?: string
           packing_id?: string
           purchase_date?: string | null
           receipt_url?: string | null
           supplier?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "packing_purchases_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "packing_purchases_packing_id_fkey"
             columns: ["packing_id"]
@@ -1575,6 +1666,7 @@ export type Database = {
           created_at: string
           description: string
           id: string
+          organization_id: string
           packing_id: string
           quote_date: string | null
           quote_file_url: string | null
@@ -1588,6 +1680,7 @@ export type Database = {
           created_at?: string
           description: string
           id?: string
+          organization_id?: string
           packing_id: string
           quote_date?: string | null
           quote_file_url?: string | null
@@ -1601,6 +1694,7 @@ export type Database = {
           created_at?: string
           description?: string
           id?: string
+          organization_id?: string
           packing_id?: string
           quote_date?: string | null
           quote_file_url?: string | null
@@ -1611,6 +1705,13 @@ export type Database = {
           valid_until?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "packing_quotes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "packing_quotes_packing_id_fkey"
             columns: ["packing_id"]
@@ -1627,6 +1728,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          organization_id: string
           task_id: string
         }
         Insert: {
@@ -1635,6 +1737,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          organization_id?: string
           task_id: string
         }
         Update: {
@@ -1643,6 +1746,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          organization_id?: string
           task_id?: string
         }
         Relationships: [
@@ -1651,6 +1755,13 @@ export type Database = {
             columns: ["author_id"]
             isOneToOne: false
             referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_task_comments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
@@ -1671,6 +1782,7 @@ export type Database = {
           description: string | null
           id: string
           is_info_only: boolean | null
+          organization_id: string
           packing_id: string
           sort_order: number
           title: string
@@ -1684,6 +1796,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_info_only?: boolean | null
+          organization_id?: string
           packing_id: string
           sort_order?: number
           title: string
@@ -1697,6 +1810,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_info_only?: boolean | null
+          organization_id?: string
           packing_id?: string
           sort_order?: number
           title?: string
@@ -1708,6 +1822,13 @@ export type Database = {
             columns: ["assigned_to"]
             isOneToOne: false
             referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_tasks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
