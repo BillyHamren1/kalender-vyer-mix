@@ -164,7 +164,7 @@ export const SupplierInvoicesCard = ({
                 <th className="text-left py-2 px-2 font-medium">Leverantör</th>
                 <th className="text-left py-2 px-2 font-medium">Fakturadatum</th>
                 <th className="text-right py-2 px-2 font-medium">Belopp</th>
-                <th className="text-right py-2 px-2 font-medium">Kvar att betala</th>
+                
                 {hasLinkingOptions && (
                   <>
                     <th className="text-left py-2 px-2 font-medium">Kopplad till</th>
@@ -195,9 +195,6 @@ export const SupplierInvoicesCard = ({
                     </td>
                     <td className="py-2 px-2 text-sm text-right font-medium">
                       {fmt(invoiceAmount)} kr
-                    </td>
-                    <td className="py-2 px-2 text-sm text-right">
-                      {fmt(Number(si.invoice_data?.Balance) || 0)} kr
                     </td>
                     {hasLinkingOptions && (
                       <>
