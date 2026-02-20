@@ -20,6 +20,7 @@ export type Database = {
           file_name: string | null
           file_type: string | null
           id: string
+          organization_id: string
           uploaded_at: string
           url: string
         }
@@ -28,6 +29,7 @@ export type Database = {
           file_name?: string | null
           file_type?: string | null
           id?: string
+          organization_id?: string
           uploaded_at?: string
           url: string
         }
@@ -36,6 +38,7 @@ export type Database = {
           file_name?: string | null
           file_type?: string | null
           id?: string
+          organization_id?: string
           uploaded_at?: string
           url?: string
         }
@@ -54,6 +57,13 @@ export type Database = {
             referencedRelation: "confirmed_bookings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "booking_attachments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
         ]
       }
       booking_changes: {
@@ -65,6 +75,7 @@ export type Database = {
           changed_fields: Json
           id: string
           new_values: Json | null
+          organization_id: string
           previous_values: Json | null
           version: number
         }
@@ -76,6 +87,7 @@ export type Database = {
           changed_fields: Json
           id?: string
           new_values?: Json | null
+          organization_id?: string
           previous_values?: Json | null
           version: number
         }
@@ -87,6 +99,7 @@ export type Database = {
           changed_fields?: Json
           id?: string
           new_values?: Json | null
+          organization_id?: string
           previous_values?: Json | null
           version?: number
         }
@@ -103,6 +116,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "confirmed_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_changes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -125,6 +145,7 @@ export type Database = {
           material_cost: number | null
           name: string
           notes: string | null
+          organization_id: string
           package_components: Json | null
           parent_package_id: string | null
           parent_product_id: string | null
@@ -154,6 +175,7 @@ export type Database = {
           material_cost?: number | null
           name: string
           notes?: string | null
+          organization_id?: string
           package_components?: Json | null
           parent_package_id?: string | null
           parent_product_id?: string | null
@@ -183,6 +205,7 @@ export type Database = {
           material_cost?: number | null
           name?: string
           notes?: string | null
+          organization_id?: string
           package_components?: Json | null
           parent_package_id?: string | null
           parent_product_id?: string | null
@@ -211,6 +234,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "booking_products_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "booking_products_parent_product_id_fkey"
             columns: ["parent_product_id"]
             isOneToOne: false
@@ -225,6 +255,7 @@ export type Database = {
           booking_id: string
           created_at: string
           id: string
+          organization_id: string
           staff_id: string
           team_id: string
           updated_at: string
@@ -234,6 +265,7 @@ export type Database = {
           booking_id: string
           created_at?: string
           id?: string
+          organization_id?: string
           staff_id: string
           team_id: string
           updated_at?: string
@@ -243,11 +275,20 @@ export type Database = {
           booking_id?: string
           created_at?: string
           id?: string
+          organization_id?: string
           staff_id?: string
           team_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "booking_staff_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       bookings: {
         Row: {
@@ -278,6 +319,7 @@ export type Database = {
           large_project_id: string | null
           last_calendar_sync: string | null
           map_drawing_url: string | null
+          organization_id: string
           rig_end_time: string | null
           rig_start_time: string | null
           rigdaydate: string | null
@@ -317,6 +359,7 @@ export type Database = {
           large_project_id?: string | null
           last_calendar_sync?: string | null
           map_drawing_url?: string | null
+          organization_id?: string
           rig_end_time?: string | null
           rig_start_time?: string | null
           rigdaydate?: string | null
@@ -356,6 +399,7 @@ export type Database = {
           large_project_id?: string | null
           last_calendar_sync?: string | null
           map_drawing_url?: string | null
+          organization_id?: string
           rig_end_time?: string | null
           rig_start_time?: string | null
           rigdaydate?: string | null
@@ -375,6 +419,13 @@ export type Database = {
             referencedRelation: "large_projects"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bookings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
         ]
       }
       calendar_events: {
@@ -386,6 +437,7 @@ export type Database = {
           end_time: string
           event_type: string | null
           id: string
+          organization_id: string
           resource_id: string
           start_time: string
           title: string
@@ -399,6 +451,7 @@ export type Database = {
           end_time: string
           event_type?: string | null
           id?: string
+          organization_id?: string
           resource_id: string
           start_time: string
           title: string
@@ -412,6 +465,7 @@ export type Database = {
           end_time?: string
           event_type?: string | null
           id?: string
+          organization_id?: string
           resource_id?: string
           start_time?: string
           title?: string
@@ -430,6 +484,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "confirmed_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -2070,6 +2131,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          organization_id: string
           password_hash: string
           staff_id: string
           updated_at: string
@@ -2078,6 +2140,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          organization_id?: string
           password_hash: string
           staff_id: string
           updated_at?: string
@@ -2086,12 +2149,20 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          organization_id?: string
           password_hash?: string
           staff_id?: string
           updated_at?: string
           username?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "staff_accounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "staff_accounts_staff_id_fkey"
             columns: ["staff_id"]
@@ -2106,6 +2177,7 @@ export type Database = {
           assignment_date: string
           created_at: string
           id: string
+          organization_id: string
           staff_id: string
           team_id: string
           updated_at: string
@@ -2114,6 +2186,7 @@ export type Database = {
           assignment_date: string
           created_at?: string
           id?: string
+          organization_id?: string
           staff_id: string
           team_id: string
           updated_at?: string
@@ -2122,11 +2195,19 @@ export type Database = {
           assignment_date?: string
           created_at?: string
           id?: string
+          organization_id?: string
           staff_id?: string
           team_id?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "staff_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "staff_assignments_staff_id_fkey"
             columns: ["staff_id"]
@@ -2143,6 +2224,7 @@ export type Database = {
           end_date: string
           id: string
           notes: string | null
+          organization_id: string
           staff_id: string
           start_date: string
           updated_at: string
@@ -2153,6 +2235,7 @@ export type Database = {
           end_date: string
           id?: string
           notes?: string | null
+          organization_id?: string
           staff_id: string
           start_date: string
           updated_at?: string
@@ -2163,11 +2246,19 @@ export type Database = {
           end_date?: string
           id?: string
           notes?: string | null
+          organization_id?: string
           staff_id?: string
           start_date?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "staff_availability_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "staff_availability_staff_id_fkey"
             columns: ["staff_id"]
@@ -2185,6 +2276,7 @@ export type Database = {
           id: string
           jobs_completed: number | null
           last_job_date: string | null
+          organization_id: string
           product_category: string
           staff_id: string
           staff_name: string
@@ -2198,6 +2290,7 @@ export type Database = {
           id?: string
           jobs_completed?: number | null
           last_job_date?: string | null
+          organization_id?: string
           product_category: string
           staff_id: string
           staff_name: string
@@ -2211,13 +2304,22 @@ export type Database = {
           id?: string
           jobs_completed?: number | null
           last_job_date?: string | null
+          organization_id?: string
           product_category?: string
           staff_id?: string
           staff_name?: string
           total_hours_on_category?: number | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "staff_job_affinity_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       staff_members: {
         Row: {
@@ -2235,6 +2337,7 @@ export type Database = {
           is_active: boolean
           name: string
           notes: string | null
+          organization_id: string
           overtime_rate: number | null
           phone: string | null
           postal_code: string | null
@@ -2256,6 +2359,7 @@ export type Database = {
           is_active?: boolean
           name: string
           notes?: string | null
+          organization_id?: string
           overtime_rate?: number | null
           phone?: string | null
           postal_code?: string | null
@@ -2277,13 +2381,22 @@ export type Database = {
           is_active?: boolean
           name?: string
           notes?: string | null
+          organization_id?: string
           overtime_rate?: number | null
           phone?: string | null
           postal_code?: string | null
           role?: string | null
           salary?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "staff_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sync_state: {
         Row: {
