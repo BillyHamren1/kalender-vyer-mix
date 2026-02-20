@@ -5,21 +5,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FileText, RefreshCw, AlertTriangle, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { SupplierInvoice, LinkedCostType, ProjectPurchase, ProjectBudget } from '@/types/projectEconomy';
-
-interface ProductCostItem {
-  id: string;
-  product_name?: string;
-  name?: string;
-  total?: number;
-}
+import type { SupplierInvoice, LinkedCostType, ProjectPurchase } from '@/types/projectEconomy';
 
 interface SupplierInvoicesCardProps {
   supplierInvoices: SupplierInvoice[];
   onRefresh?: () => Promise<any>;
   purchases?: ProjectPurchase[];
-  productCosts?: { products?: ProductCostItem[] } | null;
-  budget?: ProjectBudget | null;
   onLinkInvoice?: (data: { id: string; linked_cost_type: LinkedCostType; linked_cost_id: string | null; is_final_link?: boolean }) => void;
 }
 
@@ -41,8 +32,6 @@ export const SupplierInvoicesCard = ({
   supplierInvoices,
   onRefresh,
   purchases = [],
-  productCosts,
-  budget,
   onLinkInvoice,
 }: SupplierInvoicesCardProps) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -76,49 +65,23 @@ export const SupplierInvoicesCard = ({
     });
   };
 
-  const products = productCosts?.products || [];
-
   const getCostBudget = (si: SupplierInvoice): number | null => {
     if (!si.linked_cost_type || !si.linked_cost_id) return null;
-    switch (si.linked_cost_type) {
-      case 'purchase': {
-        const p = purchases.find(x => x.id === si.linked_cost_id);
-        return p ? p.amount : null;
-      }
-      case 'product': {
-        const pr = products.find(x => x.id === si.linked_cost_id);
-        return pr?.total ?? null;
-      }
-      case 'budget':
-        return budget ? budget.budgeted_hours * budget.hourly_rate : null;
-      default:
-        return null;
-    }
+    const p = purchases.find(x => x.id === si.linked_cost_id);
+    return p ? p.amount : null;
   };
 
   const getLinkLabel = (si: SupplierInvoice): string | null => {
     if (!si.linked_cost_type || !si.linked_cost_id) return null;
-    switch (si.linked_cost_type) {
-      case 'purchase': {
-        const p = purchases.find(x => x.id === si.linked_cost_id);
-        return p ? `Inköp: ${p.description}` : 'Inköp (okänd)';
-      }
-      case 'product': {
-        const pr = products.find(x => x.id === si.linked_cost_id);
-        return pr ? `Produkt: ${pr.product_name || pr.name}` : 'Produkt (okänd)';
-      }
-      case 'budget':
-        return 'Budgetpost';
-      default:
-        return null;
-    }
+    const p = purchases.find(x => x.id === si.linked_cost_id);
+    return p ? `Inköp: ${p.description}` : 'Inköp (okänd)';
   };
 
   const total = supplierInvoices.reduce(
     (sum, si) => sum + (Number(si.invoice_data?.Total) || 0), 0
   );
 
-  const hasLinkingOptions = purchases.length > 0 || products.length > 0 || !!budget;
+  const hasLinkingOptions = purchases.length > 0;
 
   if (supplierInvoices.length === 0) {
     return (
@@ -224,36 +187,11 @@ export const SupplierInvoicesCard = ({
                                     <span className="text-muted-foreground">Ingen koppling</span>
                                   </SelectItem>
 
-                                  {purchases.length > 0 && (
-                                    <SelectGroup>
-                                      <SelectLabel>Inköp</SelectLabel>
-                                      {purchases.map(p => (
-                                        <SelectItem key={`purchase::${p.id}`} value={`purchase::${p.id}`}>
-                                          {p.description} ({fmt(p.amount)} kr)
-                                        </SelectItem>
-                                      ))}
-                                    </SelectGroup>
-                                  )}
-
-                                  {products.length > 0 && (
-                                    <SelectGroup>
-                                      <SelectLabel>Produktkostnader</SelectLabel>
-                                      {products.map(pr => (
-                                        <SelectItem key={`product::${pr.id}`} value={`product::${pr.id}`}>
-                                          {pr.product_name || pr.name} ({fmt(pr.total || 0)} kr)
-                                        </SelectItem>
-                                      ))}
-                                    </SelectGroup>
-                                  )}
-
-                                  {budget && (
-                                    <SelectGroup>
-                                      <SelectLabel>Budget</SelectLabel>
-                                      <SelectItem value={`budget::${budget.id}`}>
-                                        Budgetpost ({fmt(budget.budgeted_hours * budget.hourly_rate)} kr)
-                                      </SelectItem>
-                                    </SelectGroup>
-                                  )}
+                                  {purchases.map(p => (
+                                    <SelectItem key={`purchase::${p.id}`} value={`purchase::${p.id}`}>
+                                      {p.description} ({fmt(p.amount)} kr)
+                                    </SelectItem>
+                                  ))}
                                 </SelectContent>
                               </Select>
                             </div>

@@ -4,13 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Package, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ProductCostData, ProductCostSummary } from '@/services/productCostService';
-import type { SupplierInvoice } from '@/types/projectEconomy';
+
 
 interface ProductCostsCardProps {
   productCosts: ProductCostSummary;
   isLoading?: boolean;
   onRefresh?: () => Promise<any>;
-  supplierInvoices?: SupplierInvoice[];
 }
 
 interface ProductGroup {
@@ -28,7 +27,7 @@ const fmt = (v: number) =>
 const getMarginColor = (pct: number) =>
   pct >= 50 ? 'text-green-600' : pct >= 30 ? 'text-yellow-600' : 'text-red-500';
 
-export const ProductCostsCard = ({ productCosts, onRefresh, supplierInvoices = [] }: ProductCostsCardProps) => {
+export const ProductCostsCard = ({ productCosts, onRefresh }: ProductCostsCardProps) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleRefresh = async () => {
@@ -80,21 +79,11 @@ export const ProductCostsCard = ({ productCosts, onRefresh, supplierInvoices = [
   const calcTotalCost = (p: ProductCostData) =>
     (p.assembly_cost + p.handling_cost + p.purchase_cost) * p.quantity;
 
-  const getLinkedInvoiceInfo = (productId: string) => {
-    const linked = supplierInvoices.filter(
-      si => si.linked_cost_type === 'product' && si.linked_cost_id === productId
-    );
-    if (linked.length === 0) return null;
-    const invoicedTotal = linked.reduce((s, si) => s + (Number(si.invoice_data?.Total) || 0), 0);
-    const isFinal = linked.some(si => si.is_final_link);
-    return { invoicedTotal, isFinal };
-  };
 
   const renderChildRow = (product: ProductCostData) => {
     const rev = product.total;
     const cost = calcTotalCost(product);
     const pct = rev > 0 ? Math.round(((rev - cost) / rev) * 100) : 0;
-    const invoiceInfo = getLinkedInvoiceInfo(product.id);
     return (
       <tr key={product.id} className="border-b border-border/20 bg-muted/10">
         <td className="py-1.5 pr-3 pl-6 text-xs text-muted-foreground">
@@ -111,24 +100,6 @@ export const ProductCostsCard = ({ productCosts, onRefresh, supplierInvoices = [
         <td className={`py-1.5 px-2 text-right text-xs font-semibold ${getMarginColor(pct)}`}>
           {rev > 0 ? `${pct}%` : <span className="text-muted-foreground">–</span>}
         </td>
-        <td className="py-1.5 pl-2 text-right text-xs">
-          {invoiceInfo ? (
-            <div className="flex flex-col items-end">
-              <span className="font-medium">{fmt(invoiceInfo.invoicedTotal)} kr</span>
-              {(() => {
-                const diff = cost - invoiceInfo.invoicedTotal;
-                return (
-                  <span className={diff >= 0 ? 'text-green-600' : 'text-red-500'}>
-                    {diff >= 0 ? '+' : ''}{fmt(diff)} kr
-                  </span>
-                );
-              })()}
-              {invoiceInfo.isFinal && <span className="text-[10px] text-green-600">✓</span>}
-            </div>
-          ) : (
-            <span className="text-muted-foreground">–</span>
-          )}
-        </td>
       </tr>
     );
   };
@@ -139,7 +110,6 @@ export const ProductCostsCard = ({ productCosts, onRefresh, supplierInvoices = [
     const groupRev = group.parent.total;
     const groupCost = calcTotalCost(group.parent);
     const groupPct = groupRev > 0 ? Math.round(((groupRev - groupCost) / groupRev) * 100) : 0;
-    const invoiceInfo = getLinkedInvoiceInfo(group.parent.id);
 
     const parentRow = (
       <tr
@@ -167,24 +137,6 @@ export const ProductCostsCard = ({ productCosts, onRefresh, supplierInvoices = [
         <td className="py-2 px-2 text-right text-sm font-medium">{fmt(groupCost)}</td>
         <td className={`py-2 px-2 text-right text-sm font-semibold ${getMarginColor(groupPct)}`}>
           {groupRev > 0 ? `${groupPct}%` : <span className="text-muted-foreground">–</span>}
-        </td>
-        <td className="py-2 pl-2 text-right text-sm">
-          {invoiceInfo ? (
-            <div className="flex flex-col items-end">
-              <span className="font-medium">{fmt(invoiceInfo.invoicedTotal)} kr</span>
-              {(() => {
-                const diff = groupCost - invoiceInfo.invoicedTotal;
-                return (
-                  <span className={`text-xs ${diff >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                    {diff >= 0 ? '+' : ''}{fmt(diff)} kr
-                  </span>
-                );
-              })()}
-              {invoiceInfo.isFinal && <span className="text-[10px] text-green-600">✓ Slutgiltig</span>}
-            </div>
-          ) : (
-            <span className="text-muted-foreground text-xs">–</span>
-          )}
         </td>
       </tr>
     );
@@ -254,7 +206,6 @@ export const ProductCostsCard = ({ productCosts, onRefresh, supplierInvoices = [
                 <th className="text-right py-2 px-2 font-medium">Inköp/st</th>
                 <th className="text-right py-2 px-2 font-medium">Kostn. totalt</th>
                 <th className="text-right py-2 pl-2 font-medium">Marginal</th>
-                <th className="text-right py-2 pl-2 font-medium">Lev.faktura</th>
               </tr>
             </thead>
             <tbody>
@@ -271,7 +222,6 @@ export const ProductCostsCard = ({ productCosts, onRefresh, supplierInvoices = [
                 <td className="py-2.5 px-2 text-right">{fmt(purchaseCostTotal)}</td>
                 <td className="py-2.5 px-2 text-right">{fmt(costs)}</td>
                 <td className={`py-2.5 pl-2 text-right ${getMarginColor(marginPct)}`}>{marginPct}%</td>
-                <td className="py-2.5 pl-2" />
               </tr>
             </tfoot>
           </table>
