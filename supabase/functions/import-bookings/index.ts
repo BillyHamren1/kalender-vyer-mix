@@ -2,6 +2,23 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+/**
+ * Resolve the organization_id to use for all INSERTs.
+ * Since service_role bypasses RLS and auth.uid() is null,
+ * we must set organization_id explicitly.
+ */
+async function resolveOrganizationId(supabase: any): Promise<string> {
+  const { data, error } = await supabase
+    .from('organizations')
+    .select('id')
+    .limit(1)
+    .single();
+  if (error || !data) {
+    throw new Error('Failed to resolve organization_id: ' + (error?.message || 'no organizations found'));
+  }
+  return data.id;
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -71,7 +88,8 @@ async function syncAllAttachments(
   products: any[],
   filesMetadata: any[],
   tentImages: any[],
-  results: any
+  results: any,
+  orgId: string
 ) {
   // --- 1. Fetch all existing URLs for this booking ONCE ---
   const { data: existingAttachments } = await supabase
@@ -85,7 +103,7 @@ async function syncAllAttachments(
     seenUrls.add(url);
     const { error } = await supabase
       .from('booking_attachments')
-      .insert({ booking_id: bookingId, url, file_name: fileName, file_type: fileType });
+      .insert({ booking_id: bookingId, url, file_name: fileName, file_type: fileType, organization_id: orgId });
     if (error) {
       console.error(`[Attachments] Error inserting "${fileName}" for booking ${bookingId}:`, error.message);
     } else {
@@ -170,7 +188,7 @@ async function uploadBase64ToStorage(
  * Sync warehouse calendar events for a confirmed booking
  * Creates 6 logistics events based on rig/event/rigdown dates
  */
-const syncWarehouseEventsForBooking = async (supabase: any, booking: any): Promise<number> => {
+const syncWarehouseEventsForBooking = async (supabase: any, booking: any, orgId: string): Promise<number> => {
   console.log(`[Warehouse] Syncing warehouse events for booking ${booking.id}`);
   
   // NOTE: No delete needed - upsert with onConflict handles idempotency
@@ -322,7 +340,7 @@ const syncWarehouseEventsForBooking = async (supabase: any, booking: any): Promi
  * Create packing project and tasks for a confirmed booking
  * Creates standard tasks with deadlines based on rig/event/rigdown dates
  */
-const createPackingForBooking = async (supabase: any, booking: any): Promise<boolean> => {
+const createPackingForBooking = async (supabase: any, booking: any, orgId: string): Promise<boolean> => {
   console.log(`[Packing] Checking if packing exists for booking ${booking.id}`);
   
   // Check if packing already exists for this booking
@@ -354,7 +372,8 @@ const createPackingForBooking = async (supabase: any, booking: any): Promise<boo
     .insert({
       booking_id: booking.id,
       name: packingName,
-      status: 'planning'
+      status: 'planning',
+      organization_id: orgId
     })
     .select('id')
     .single();
@@ -380,7 +399,8 @@ const createPackingForBooking = async (supabase: any, booking: any): Promise<boo
       deadline: addDays(booking.rigdaydate, -4),
       sort_order: sortOrder++,
       completed: false,
-      is_info_only: false
+      is_info_only: false,
+      organization_id: orgId
     });
     
     // Utrustning packad: rigdaydate - 1 day
@@ -391,7 +411,8 @@ const createPackingForBooking = async (supabase: any, booking: any): Promise<boo
       deadline: addDays(booking.rigdaydate, -1),
       sort_order: sortOrder++,
       completed: false,
-      is_info_only: false
+      is_info_only: false,
+      organization_id: orgId
     });
     
     // Utleverans klarmarkerad: rigdaydate
@@ -402,7 +423,8 @@ const createPackingForBooking = async (supabase: any, booking: any): Promise<boo
       deadline: booking.rigdaydate,
       sort_order: sortOrder++,
       completed: false,
-      is_info_only: false
+      is_info_only: false,
+      organization_id: orgId
     });
   }
   
@@ -416,7 +438,8 @@ const createPackingForBooking = async (supabase: any, booking: any): Promise<boo
       deadline: addDays(booking.rigdowndate, 1),
       sort_order: sortOrder++,
       completed: false,
-      is_info_only: false
+      is_info_only: false,
+      organization_id: orgId
     });
     
     // Upppackning klar: rigdowndate + 2 days
@@ -427,7 +450,8 @@ const createPackingForBooking = async (supabase: any, booking: any): Promise<boo
       deadline: addDays(booking.rigdowndate, 2),
       sort_order: sortOrder++,
       completed: false,
-      is_info_only: false
+      is_info_only: false,
+      organization_id: orgId
     });
   }
   
@@ -942,7 +966,11 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { 
+    // Resolve organization_id for all INSERTs (service_role bypasses RLS, so auth.uid() is null)
+    const organizationId = await resolveOrganizationId(supabase);
+    console.log(`Resolved organization_id: ${organizationId}`);
+
+    const {
       quiet = false, 
       syncMode = 'incremental',
       historicalMode = false,
@@ -1540,7 +1568,8 @@ serve(async (req) => {
               externalBooking.products || [],
               externalBooking.files_metadata || [],
               externalBooking.tent_images || [],
-              results
+              results,
+              organizationId
             );
             
             results.unchanged_bookings_skipped.push(bookingData.id)
@@ -1550,7 +1579,7 @@ serve(async (req) => {
           // If only warehouse recovery is needed, sync now and continue
           if (!hasChanged && !statusChanged && !needsCalendarRecovery && needsWarehouseRecovery && !needsProductRecovery) {
             console.log(`Only warehouse recovery needed for ${bookingData.id}`);
-            const warehouseEventsCreated = await syncWarehouseEventsForBooking(supabase, bookingData);
+            const warehouseEventsCreated = await syncWarehouseEventsForBooking(supabase, bookingData, organizationId);
             results.warehouse_events_created += warehouseEventsCreated;
             // Sync all attachments with shared dedup
             await syncAllAttachments(
@@ -1558,7 +1587,8 @@ serve(async (req) => {
               externalBooking.products || [],
               externalBooking.files_metadata || [],
               externalBooking.tent_images || [],
-              results
+              results,
+              organizationId
             );
             results.imported++;
             continue;
@@ -1756,7 +1786,8 @@ serve(async (req) => {
               externalBooking.products || [],
               externalBooking.files_metadata || [],
               externalBooking.tent_images || [],
-              results
+              results,
+              organizationId
             );
             results.imported++;
             results.updated_bookings.push(existingBooking.id);
@@ -2404,7 +2435,8 @@ serve(async (req) => {
           externalBooking.products || [],
           externalBooking.files_metadata || [],
           externalBooking.tent_images || [],
-          results
+          results,
+          organizationId
         );
 
         results.imported++
@@ -2518,14 +2550,14 @@ serve(async (req) => {
           if ((isNewBooking || needsWarehouseRecovery || justConfirmed) &&
               (bookingData.rigdaydate || bookingData.eventdate || bookingData.rigdowndate)) {
             console.log(`[Warehouse Sync] Syncing events for ${bookingData.id} (isNew=${isNewBooking}, needsRecovery=${needsWarehouseRecovery}, justConfirmed=${justConfirmed})`);
-            const warehouseEventsCreated = await syncWarehouseEventsForBooking(supabase, bookingData);
+            const warehouseEventsCreated = await syncWarehouseEventsForBooking(supabase, bookingData, organizationId);
             results.warehouse_events_created += warehouseEventsCreated;
           } else {
             console.log(`[Warehouse Sync] Skipping for ${bookingData.id} - dates unchanged and not new/justConfirmed`);
           }
           
           // Create packing project for confirmed bookings
-          const packingCreated = await createPackingForBooking(supabase, bookingData);
+          const packingCreated = await createPackingForBooking(supabase, bookingData, organizationId);
           if (packingCreated) {
             results.packing_projects_created++;
           }
