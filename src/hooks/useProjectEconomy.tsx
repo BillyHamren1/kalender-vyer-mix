@@ -264,8 +264,8 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
 
   // Supplier invoice linking
   const linkSupplierInvoiceMutation = useMutation({
-    mutationFn: ({ id, linked_cost_type, linked_cost_id }: { id: string; linked_cost_type: LinkedCostType; linked_cost_id: string | null }) =>
-      updateSupplierInvoiceLink(id, { linked_cost_type, linked_cost_id }),
+    mutationFn: ({ id, linked_cost_type, linked_cost_id, is_final_link }: { id: string; linked_cost_type: LinkedCostType; linked_cost_id: string | null; is_final_link?: boolean }) =>
+      updateSupplierInvoiceLink(id, { linked_cost_type, linked_cost_id, is_final_link }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['supplier-invoices', bookingId] });
       toast.success('Koppling sparad');

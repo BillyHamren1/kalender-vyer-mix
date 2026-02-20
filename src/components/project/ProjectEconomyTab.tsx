@@ -140,6 +140,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
           productCosts={productCosts}
           isLoading={isLoading}
           onRefresh={refetchProductCosts}
+          supplierInvoices={supplierInvoices}
         />
       )}
 
@@ -158,6 +159,7 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
         totalAmount={summary.purchasesTotal}
         onAddPurchase={addPurchase}
         onRemovePurchase={removePurchase}
+        supplierInvoices={supplierInvoices}
       />
 
       {/* Quotes & Invoices */}

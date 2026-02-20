@@ -69,6 +69,7 @@ export interface SupplierInvoice {
   linked_product_id: string | null;
   linked_cost_type: LinkedCostType;
   linked_cost_id: string | null;
+  is_final_link: boolean;
   fetched_at: string;
 }
 
