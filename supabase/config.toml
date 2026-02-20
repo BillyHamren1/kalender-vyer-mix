@@ -114,3 +114,6 @@ verify_jwt = false
 
 [functions.planning-api-proxy]
 verify_jwt = false
+
+[functions.receive-booking]
+verify_jwt = false
