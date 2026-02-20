@@ -13,7 +13,7 @@ export const fetchPackings = async (): Promise<PackingWithBooking[]> => {
 
   // Fetch booking info for each packing that has a booking_id
   const packingsWithBookings: PackingWithBooking[] = await Promise.all(
-    (packings || []).map(async (packing: Packing) => {
+    (packings || []).map(async (packing) => {
       if (packing.booking_id) {
         const { data: booking } = await supabase
           .from('bookings')
