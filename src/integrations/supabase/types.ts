@@ -1675,6 +1675,7 @@ export type Database = {
           description: string
           id: string
           metadata: Json | null
+          organization_id: string
           performed_by: string | null
           project_id: string
         }
@@ -1684,6 +1685,7 @@ export type Database = {
           description: string
           id?: string
           metadata?: Json | null
+          organization_id?: string
           performed_by?: string | null
           project_id: string
         }
@@ -1693,10 +1695,18 @@ export type Database = {
           description?: string
           id?: string
           metadata?: Json | null
+          organization_id?: string
           performed_by?: string | null
           project_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "project_activity_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "project_activity_log_project_id_fkey"
             columns: ["project_id"]
@@ -1713,6 +1723,7 @@ export type Database = {
           description: string | null
           hourly_rate: number
           id: string
+          organization_id: string
           project_id: string
           updated_at: string
         }
@@ -1722,6 +1733,7 @@ export type Database = {
           description?: string | null
           hourly_rate?: number
           id?: string
+          organization_id?: string
           project_id: string
           updated_at?: string
         }
@@ -1731,10 +1743,18 @@ export type Database = {
           description?: string | null
           hourly_rate?: number
           id?: string
+          organization_id?: string
           project_id?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "project_budget_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "project_budget_project_id_fkey"
             columns: ["project_id"]
@@ -1750,6 +1770,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          organization_id: string
           project_id: string
         }
         Insert: {
@@ -1757,6 +1778,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          organization_id?: string
           project_id: string
         }
         Update: {
@@ -1764,9 +1786,17 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          organization_id?: string
           project_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "project_comments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "project_comments_project_id_fkey"
             columns: ["project_id"]
@@ -1781,6 +1811,7 @@ export type Database = {
           file_name: string
           file_type: string | null
           id: string
+          organization_id: string
           project_id: string
           uploaded_at: string
           uploaded_by: string | null
@@ -1790,6 +1821,7 @@ export type Database = {
           file_name: string
           file_type?: string | null
           id?: string
+          organization_id?: string
           project_id: string
           uploaded_at?: string
           uploaded_by?: string | null
@@ -1799,12 +1831,20 @@ export type Database = {
           file_name?: string
           file_type?: string | null
           id?: string
+          organization_id?: string
           project_id?: string
           uploaded_at?: string
           uploaded_by?: string | null
           url?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "project_files_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "project_files_project_id_fkey"
             columns: ["project_id"]
@@ -1824,6 +1864,7 @@ export type Database = {
           invoice_number: string | null
           invoiced_amount: number
           notes: string | null
+          organization_id: string
           project_id: string
           quote_id: string | null
           status: string
@@ -1838,6 +1879,7 @@ export type Database = {
           invoice_number?: string | null
           invoiced_amount?: number
           notes?: string | null
+          organization_id?: string
           project_id: string
           quote_id?: string | null
           status?: string
@@ -1852,12 +1894,20 @@ export type Database = {
           invoice_number?: string | null
           invoiced_amount?: number
           notes?: string | null
+          organization_id?: string
           project_id?: string
           quote_id?: string | null
           status?: string
           supplier?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "project_invoices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "project_invoices_project_id_fkey"
             columns: ["project_id"]
@@ -1882,6 +1932,7 @@ export type Database = {
           hourly_rate: number
           hours: number
           id: string
+          organization_id: string
           project_id: string
           staff_id: string | null
           staff_name: string
@@ -1894,6 +1945,7 @@ export type Database = {
           hourly_rate?: number
           hours?: number
           id?: string
+          organization_id?: string
           project_id: string
           staff_id?: string | null
           staff_name: string
@@ -1906,12 +1958,20 @@ export type Database = {
           hourly_rate?: number
           hours?: number
           id?: string
+          organization_id?: string
           project_id?: string
           staff_id?: string | null
           staff_name?: string
           work_date?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "project_labor_costs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "project_labor_costs_project_id_fkey"
             columns: ["project_id"]
@@ -1936,6 +1996,7 @@ export type Database = {
           created_by: string | null
           description: string
           id: string
+          organization_id: string
           project_id: string
           purchase_date: string | null
           receipt_url: string | null
@@ -1948,6 +2009,7 @@ export type Database = {
           created_by?: string | null
           description: string
           id?: string
+          organization_id?: string
           project_id: string
           purchase_date?: string | null
           receipt_url?: string | null
@@ -1960,12 +2022,20 @@ export type Database = {
           created_by?: string | null
           description?: string
           id?: string
+          organization_id?: string
           project_id?: string
           purchase_date?: string | null
           receipt_url?: string | null
           supplier?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "project_purchases_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "project_purchases_project_id_fkey"
             columns: ["project_id"]
@@ -1980,6 +2050,7 @@ export type Database = {
           created_at: string
           description: string
           id: string
+          organization_id: string
           project_id: string
           quote_date: string | null
           quote_file_url: string | null
@@ -1993,6 +2064,7 @@ export type Database = {
           created_at?: string
           description: string
           id?: string
+          organization_id?: string
           project_id: string
           quote_date?: string | null
           quote_file_url?: string | null
@@ -2006,6 +2078,7 @@ export type Database = {
           created_at?: string
           description?: string
           id?: string
+          organization_id?: string
           project_id?: string
           quote_date?: string | null
           quote_file_url?: string | null
@@ -2016,6 +2089,13 @@ export type Database = {
           valid_until?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "project_quotes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "project_quotes_project_id_fkey"
             columns: ["project_id"]
@@ -2034,6 +2114,7 @@ export type Database = {
           description: string | null
           id: string
           is_info_only: boolean | null
+          organization_id: string
           project_id: string
           sort_order: number
           title: string
@@ -2047,6 +2128,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_info_only?: boolean | null
+          organization_id?: string
           project_id: string
           sort_order?: number
           title: string
@@ -2060,6 +2142,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_info_only?: boolean | null
+          organization_id?: string
           project_id?: string
           sort_order?: number
           title?: string
@@ -2071,6 +2154,13 @@ export type Database = {
             columns: ["assigned_to"]
             isOneToOne: false
             referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_tasks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
@@ -2088,6 +2178,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          organization_id: string
           project_leader: string | null
           status: string
           updated_at: string
@@ -2097,6 +2188,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          organization_id?: string
           project_leader?: string | null
           status?: string
           updated_at?: string
@@ -2106,6 +2198,7 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          organization_id?: string
           project_leader?: string | null
           status?: string
           updated_at?: string
@@ -2123,6 +2216,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "confirmed_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
