@@ -102,7 +102,6 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
 
   if (res.status === 401) {
     clearAuth();
-    window.location.href = '/m/login';
     throw new Error('Session expired');
   }
 
