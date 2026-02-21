@@ -1,115 +1,136 @@
 
 
-# Hub-integration for multi-tenant organisationer
+# Hub-integration för multi-tenant organisationer
 
 ## Bakgrund
 
-Systemet har nu full multi-tenant-isolation i databasen (RLS + triggers), men **Edge Functions ar inte redo for flera organisationer**. Alla 10+ funktioner faller tillbaka pa `SELECT id FROM organizations LIMIT 1` nar ingen `organization_id` skickas.
+Systemet har nu full multi-tenant-isolation i databasen (RLS + triggers), men **Edge Functions är inte redo för flera organisationer**. Alla 10+ funktioner faller tillbaka på `SELECT id FROM organizations LIMIT 1` när ingen `organization_id` skickas.
 
 Med bara 1 organisation ("Frans August") fungerar allt idag, men vid en andra organisation bryts det.
 
 ---
 
-## Steg 1: Ny Edge Function -- `manage-organization`
+## Ansvarsfördelning
 
-Skapar en ny endpoint som Hub anropar for att registrera organisationer i detta system.
+| System | Ansvar |
+|---|---|
+| **Hub** | Skapa/uppdatera organisationer, synka användare, SSO-inloggning |
+| **Booking (EventFlow)** | Skicka bokningar med `organization_id` i payload |
+
+Hub och EventFlow är separata system. Hub hanterar INTE bokningar.
+
+---
+
+## Steg 1: Ny Edge Function – `manage-organization` ✅
+
+Endpoint som Hub anropar för att registrera organisationer.
 
 **Endpoint:** `POST /functions/v1/manage-organization`
-**Auth:** `x-api-key` (anvander befintlig `WEBHOOK_SECRET`)
+**Auth:** `x-api-key` (använder befintlig `WEBHOOK_SECRET`)
 
-**Payload fran Hub:**
-```text
+**Payload från Hub:**
+```json
 {
   "action": "create" | "update",
   "organization": {
-    "id": "<uuid fran Hub>",
-    "name": "Nytt Foretag AB",
+    "id": "<uuid från Hub>",
+    "name": "Nytt Företag AB",
     "slug": "nytt-foretag"
   }
 }
 ```
 
-**Logik:**
-- `create`: Upsert i `organizations`-tabellen med det ID som Hub bestammer (samma UUID i bada system)
-- `update`: Uppdatera namn/slug
-- Returnerar `{ success: true, organization_id: "..." }`
+**Status:** Implementerad och deployad.
 
 ---
 
-## Steg 2: Uppdatera `receive-user-sync`
+## Steg 2: Uppdatera `receive-user-sync` ✅
 
-**Nuvarande beteende:** Accepterar `organization_id` men faller tillbaka pa `LIMIT 1`.
+- Kräver `organization_id` (med deprecation-varning vid fallback)
+- Validerar att organisationen finns
+- **Ansvarig avsändare: Hub**
 
-**Nytt beteende:**
-- Om `organization_id` saknas --> returnera `400 Bad Request` (krav pa explicit org-id)
-- Validera att organisationen finns i `organizations`-tabellen
-- Om den inte finns --> returnera `404` med tydligt felmeddelande: "Organization not found. Create it first via manage-organization."
-
----
-
-## Steg 3: Uppdatera `verify-sso-token`
-
-Samma andring som ovan:
-- Krav pa `organization_id` i SSO-payload
-- Validera mot `organizations`-tabellen
-- Failar tydligt om org saknas
+**Status:** Implementerad.
 
 ---
 
-## Steg 4: Uppdatera alla webhook-Edge Functions
+## Steg 3: Uppdatera `verify-sso-token` ✅
 
-Foljande funktioner behover uppdateras for att **krava** `organization_id` i payload istallet for `LIMIT 1`-fallback:
+- Kräver `organization_id` i SSO-payload
+- Validerar mot `organizations`-tabellen
+- **Ansvarig avsändare: Hub**
 
-| Edge Function | Nuvarande | Andring |
+**Status:** Implementerad.
+
+---
+
+## Steg 4: Uppdatera booking-relaterade Edge Functions ✅
+
+Dessa funktioner tar emot `organization_id` från **EventFlow/Booking** (inte Hub):
+
+| Edge Function | Avsändare | Status |
 |---|---|---|
-| `receive-booking` | Ingen org-hantering | Krava org_id i payload |
-| `import-bookings` | `LIMIT 1` fallback | Krava org_id i payload |
-| `receive-invoice` | `LIMIT 1` fallback | Krava org_id i payload |
-| `staff-management` | `LIMIT 1` fallback | Krava org_id i payload |
-| `mobile-app-api` | `LIMIT 1` fallback | Krava org_id i payload |
-| `time-reports` | `LIMIT 1` fallback | Krava org_id i payload |
-| `save-map-snapshot` | `LIMIT 1` fallback | Krava org_id i payload |
-
-**Migreringsperiod:** Under en overgangsperiod kan vi behalla fallbacken men logga en varning, sa Hub hinner uppdateras.
+| `receive-booking` | EventFlow | ✅ Klar |
+| `import-bookings` | Internt (via receive-booking) | ✅ Klar |
 
 ---
 
-## Steg 5: Regler for Hub
+## Steg 5: Uppdatera övriga webhook-Edge Functions ✅
 
-Hub maste folja denna ordning:
+Dessa funktioner har uppdaterats med deprecation-varning vid LIMIT 1 fallback:
 
-1. **Skapa organisation forst** via `manage-organization`
-2. **Synka anvandare** via `receive-user-sync` med `organization_id`
-3. **Skicka bokningar** via `receive-booking` / `import-bookings` med `organization_id`
-4. **SSO-inloggning** via `verify-sso-token` med `organization_id` i payload
-
-Organisation-ID:t ska vara **samma UUID** i bada systemen for att undvika mappning.
-
----
-
-## Steg 6: RLS-policy for `organizations`
-
-Tabellen har idag bara en SELECT-policy. Vi behover:
-- **INSERT-policy** for service_role (via Edge Function) -- redan implicit med service_role
-- Ingen INSERT/UPDATE for vanliga anvandare -- redan korrekt
-
-Ingen databasandring behovs har, service_role gar forbi RLS.
+| Edge Function | Status |
+|---|---|
+| `receive-invoice` | ✅ Klar |
+| `staff-management` | ✅ Klar |
+| `mobile-app-api` | ✅ Klar |
+| `time-reports` | ✅ Klar |
+| `save-map-snapshot` | ✅ Klar |
 
 ---
 
-## Sammanfattning av vad Hub behover gora
+## Regler för Hub
 
-```text
-1. POST /manage-organization   { action: "create", organization: { id, name, slug } }
-2. POST /receive-user-sync     { email, password, roles, organization_id: "<fran steg 1>" }
-3. POST /receive-booking       { booking_id, ..., organization_id: "<fran steg 1>" }
-4. SSO payload                 { ..., organization_id: "<fran steg 1>" }
+Hub måste följa denna ordning:
+
+1. **Skapa organisation först** via `manage-organization`
+2. **Synka användare** via `receive-user-sync` med `organization_id`
+3. **SSO-inloggning** via `verify-sso-token` med `organization_id` i payload
+
+Organisation-ID:t ska vara **samma UUID** i båda systemen.
+
+---
+
+## Regler för EventFlow/Booking
+
+EventFlow skickar bokningar med `organization_id`:
+
+```json
+POST /functions/v1/receive-booking
+{
+  "booking_id": "...",
+  "event_type": "...",
+  "organization_id": "<uuid>"
+}
 ```
 
-## Teknisk implementation
+---
 
-1. Skapa `supabase/functions/manage-organization/index.ts`
-2. Redigera 7 befintliga Edge Functions for att krava `organization_id`
-3. Ingen databasmigrering behovs (organizations-tabellen finns redan)
-4. Lagg till overgangsperiod-loggning sa Hub kan uppdateras stegvis
+## Sammanfattning
 
+```text
+HUB:
+1. POST /manage-organization   { action: "create", organization: { id, name, slug } }
+2. POST /receive-user-sync     { email, password, roles, organization_id }
+3. SSO payload                 { ..., organization_id }
+
+EVENTFLOW/BOOKING:
+4. POST /receive-booking       { booking_id, event_type, organization_id }
+```
+
+## Teknisk status
+
+- ✅ `manage-organization` skapad och deployad
+- ✅ 9 Edge Functions uppdaterade med organization_id-stöd
+- ✅ Övergångsperiod med LIMIT 1 fallback + deprecation-varningar
+- ✅ Ingen databasmigrering behövdes
