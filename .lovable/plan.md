@@ -1,72 +1,115 @@
 
 
-# Multi-Tenant Verifieringsresultat och Atgardsplan
+# Hub-integration for multi-tenant organisationer
 
-## Sammanfattning
+## Bakgrund
 
-Implementationen ar till 95% korrekt. Det finns **1 kritiskt sakerhetsproblem** och **1 mindre atgard** kvar.
+Systemet har nu full multi-tenant-isolation i databasen (RLS + triggers), men **Edge Functions ar inte redo for flera organisationer**. Alla 10+ funktioner faller tillbaka pa `SELECT id FROM organizations LIMIT 1` nar ingen `organization_id` skickas.
 
----
-
-## Status: Vad som fungerar
-
-- **56 tabeller** i public-schemat
-- **55 tabeller** har `organization_id` (NOT NULL, korrekt default) -- alla utom `organizations` och `confirmed_bookings` (som forvantade)
-- **RLS aktiverat** pa samtliga 56 tabeller
-- **set_org_id trigger** finns pa alla 55 relevanta tabeller (utom `profiles` som hanteras via auth-trigger)
-- **Edge functions** fungerar korrekt -- `time-reports` testad och returnerar data med `organization_id`
-- **Alla org_filter policies** har korrekt uttryck: `organization_id = get_user_organization_id(auth.uid())`
+Med bara 1 organisation ("Frans August") fungerar allt idag, men vid en andra organisation bryts det.
 
 ---
 
-## KRITISKT: staff_members har trasig RLS
+## Steg 1: Ny Edge Function -- `manage-organization`
 
-Tabellen `staff_members` har **tva PERMISSIVA policies**:
+Skapar en ny endpoint som Hub anropar for att registrera organisationer i detta system.
 
-1. `org_filter_staff_members` (PERMISSIVE) -- filtrerar pa organization_id
-2. `Authenticated users can access staff_members` (PERMISSIVE) -- `USING (true)`
+**Endpoint:** `POST /functions/v1/manage-organization`
+**Auth:** `x-api-key` (anvander befintlig `WEBHOOK_SECRET`)
 
-Problemet: Nar bada policies ar PERMISSIVE behover en anvandare bara uppfylla **en** av dem. Policyn med `true` uppfylls alltid, sa org-filtret har **ingen effekt**. Alla inloggade anvandare kan se alla organisationers personal.
+**Payload fran Hub:**
+```text
+{
+  "action": "create" | "update",
+  "organization": {
+    "id": "<uuid fran Hub>",
+    "name": "Nytt Foretag AB",
+    "slug": "nytt-foretag"
+  }
+}
+```
 
-**Atgard:** Andra `org_filter_staff_members` fran PERMISSIVE till RESTRICTIVE. Da maste anvandaren uppfylla BADE den restrictiva org-filtreringen OCH en permissiv policy.
+**Logik:**
+- `create`: Upsert i `organizations`-tabellen med det ID som Hub bestammer (samma UUID i bada system)
+- `update`: Uppdatera namn/slug
+- Returnerar `{ success: true, organization_id: "..." }`
 
 ---
 
-## Ovriga tabeller med "true"-policies (INGET PROBLEM)
+## Steg 2: Uppdatera `receive-user-sync`
 
-Foljande tabeller har ocksa `true`-policies men deras `org_filter` ar redan RESTRICTIVE, sa de ar korrekta:
+**Nuvarande beteende:** Accepterar `organization_id` men faller tillbaka pa `LIMIT 1`.
 
-- `task_comments`
-- `time_reports`
-- `transport_email_log`
-- `warehouse_calendar_events`
-- `webhook_subscriptions`
+**Nytt beteende:**
+- Om `organization_id` saknas --> returnera `400 Bad Request` (krav pa explicit org-id)
+- Validera att organisationen finns i `organizations`-tabellen
+- Om den inte finns --> returnera `404` med tydligt felmeddelande: "Organization not found. Create it first via manage-organization."
 
 ---
 
-## Linter-varningar (9 st)
+## Steg 3: Uppdatera `verify-sso-token`
 
-| Typ | Antal | Status |
+Samma andring som ovan:
+- Krav pa `organization_id` i SSO-payload
+- Validera mot `organizations`-tabellen
+- Failar tydligt om org saknas
+
+---
+
+## Steg 4: Uppdatera alla webhook-Edge Functions
+
+Foljande funktioner behover uppdateras for att **krava** `organization_id` i payload istallet for `LIMIT 1`-fallback:
+
+| Edge Function | Nuvarande | Andring |
 |---|---|---|
-| Security Definer View (`confirmed_bookings`) | 1 | Acceptabel -- enkel vy |
-| RLS "always true" policies | 6 | 5 ar OK (gated av restrictive). 1 (`staff_members`) ar bugg -- atgardas ovan |
-| Leaked password protection disabled | 1 | Supabase-installning, ej kodrelaterat |
-| Postgres version patch available | 1 | Infrastruktur, ej kodrelaterat |
+| `receive-booking` | Ingen org-hantering | Krava org_id i payload |
+| `import-bookings` | `LIMIT 1` fallback | Krava org_id i payload |
+| `receive-invoice` | `LIMIT 1` fallback | Krava org_id i payload |
+| `staff-management` | `LIMIT 1` fallback | Krava org_id i payload |
+| `mobile-app-api` | `LIMIT 1` fallback | Krava org_id i payload |
+| `time-reports` | `LIMIT 1` fallback | Krava org_id i payload |
+| `save-map-snapshot` | `LIMIT 1` fallback | Krava org_id i payload |
+
+**Migreringsperiod:** Under en overgangsperiod kan vi behalla fallbacken men logga en varning, sa Hub hinner uppdateras.
 
 ---
 
-## Teknisk atgard
+## Steg 5: Regler for Hub
 
-En enda SQL-migration som:
+Hub maste folja denna ordning:
 
-1. Droppar och aterskapar `org_filter_staff_members` som **RESTRICTIVE** istallet for PERMISSIVE
-2. Det ar allt -- resten fungerar korrekt
+1. **Skapa organisation forst** via `manage-organization`
+2. **Synka anvandare** via `receive-user-sync` med `organization_id`
+3. **Skicka bokningar** via `receive-booking` / `import-bookings` med `organization_id`
+4. **SSO-inloggning** via `verify-sso-token` med `organization_id` i payload
+
+Organisation-ID:t ska vara **samma UUID** i bada systemen for att undvika mappning.
+
+---
+
+## Steg 6: RLS-policy for `organizations`
+
+Tabellen har idag bara en SELECT-policy. Vi behover:
+- **INSERT-policy** for service_role (via Edge Function) -- redan implicit med service_role
+- Ingen INSERT/UPDATE for vanliga anvandare -- redan korrekt
+
+Ingen databasandring behovs har, service_role gar forbi RLS.
+
+---
+
+## Sammanfattning av vad Hub behover gora
 
 ```text
-DROP POLICY "org_filter_staff_members" ON public.staff_members;
-CREATE POLICY "org_filter_staff_members" ON public.staff_members
-  AS RESTRICTIVE FOR ALL TO authenticated
-  USING (organization_id = get_user_organization_id(auth.uid()))
-  WITH CHECK (organization_id = get_user_organization_id(auth.uid()));
+1. POST /manage-organization   { action: "create", organization: { id, name, slug } }
+2. POST /receive-user-sync     { email, password, roles, organization_id: "<fran steg 1>" }
+3. POST /receive-booking       { booking_id, ..., organization_id: "<fran steg 1>" }
+4. SSO payload                 { ..., organization_id: "<fran steg 1>" }
 ```
+
+## Teknisk implementation
+
+1. Skapa `supabase/functions/manage-organization/index.ts`
+2. Redigera 7 befintliga Edge Functions for att krava `organization_id`
+3. Ingen databasmigrering behovs (organizations-tabellen finns redan)
+4. Lagg till overgangsperiod-loggning sa Hub kan uppdateras stegvis
 
