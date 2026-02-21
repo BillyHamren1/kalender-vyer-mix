@@ -50,11 +50,24 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Resolve organization_id for multi-tenant
-    const { data: orgData } = await supabase.from('organizations').select('id').limit(1).single();
-    const organizationId = orgData?.id;
+    const payload: InvoicePayload & { organization_id?: string } = await req.json();
 
-    const payload: InvoicePayload = await req.json();
+    // Resolve organization_id for multi-tenant
+    let organizationId: string | undefined;
+    if (payload.organization_id) {
+      const { data: orgCheck } = await supabase.from('organizations').select('id').eq('id', payload.organization_id).single();
+      if (!orgCheck) {
+        return new Response(
+          JSON.stringify({ error: `Organization not found: ${payload.organization_id}` }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      organizationId = orgCheck.id;
+    } else {
+      console.warn('[receive-invoice] DEPRECATION WARNING: organization_id not provided, falling back to first org.');
+      const { data: orgData } = await supabase.from('organizations').select('id').limit(1).single();
+      organizationId = orgData?.id;
+    }
     console.log('[receive-invoice] Received payload:', JSON.stringify(payload, null, 2));
 
     // Validate required fields

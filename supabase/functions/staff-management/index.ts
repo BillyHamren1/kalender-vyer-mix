@@ -71,11 +71,25 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Resolve organization_id for multi-tenant
-    const { data: orgData } = await supabase.from('organizations').select('id').limit(1).single()
-    const organizationId = orgData?.id
-
     const { operation, data, options = {} } = await req.json()
+
+    // Resolve organization_id for multi-tenant
+    const explicitOrgId = data?.organization_id
+    let organizationId: string | undefined
+    if (explicitOrgId) {
+      const { data: orgCheck } = await supabase.from('organizations').select('id').eq('id', explicitOrgId).single()
+      if (!orgCheck) {
+        return new Response(JSON.stringify({ success: false, error: `Organization not found: ${explicitOrgId}` }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404
+        })
+      }
+      organizationId = orgCheck.id
+    } else {
+      console.warn('[staff-management] DEPRECATION WARNING: organization_id not provided, falling back to first org.')
+      const { data: orgData } = await supabase.from('organizations').select('id').limit(1).single()
+      organizationId = orgData?.id
+    }
+
     console.log(`Staff Management: Processing operation: ${operation}`, data)
 
     let response: OperationResponse
