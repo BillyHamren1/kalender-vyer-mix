@@ -1,49 +1,73 @@
 
-# Besiktningsflode i mobilappen (Steg 1)
+
+# Plan: Uppdatera Edge Functions + Testa Multi-Tenant
 
 ## Oversikt
-En ny "Skapa besiktning"-knapp laggs till langst ned i Info-fliken pa jobbdetaljsidan. Knappen oppnar en steg-for-steg-widget (wizard) som overlay/modal. I denna forsta fas byggs **Steg 1: Transportvag och avlastningsyta**.
 
-## Anvandargranssnittet
+Alla databastabeller har nu `organization_id`, men flera edge functions och 11 tabeller saknar fortfarande stod. Har ar de prompter du behover skicka for att slutfora och verifiera implementationen.
 
-Steg 1 innehaller:
-- Rubrik: "Dokumentera transportvag in samt yta for avlastning"
-- En kameraknapp som oppnar kameran (ateranvander befintlig `takePhotoBase64` och webbfallback)
-- Stod for bade bilder och korta videoklipp (max 10 sekunder) via `accept="image/*,video/*"`
-- Galleri med tumnaglar av sparade bilder/videos (obegransat antal)
-- Mojlighet att ta bort enskilda bilder/videos fore uppladdning
-- Ett textfalt "Transportinfo" (textarea)
-- "Nasta"-knapp for att ga vidare (forberedd for framtida steg)
-- "Avbryt"-knapp for att stanga wizarden
+---
 
-## Tekniska detaljer
+## Prompt A -- Lagg till organization_id pa resterande tabeller
 
-### Nya filer
-1. **`src/components/mobile-app/inspection/InspectionWizard.tsx`**
-   - Huvudkomponent for steg-for-steg-wizarden
-   - Hanterar state for aktuellt steg, mediafiler (lokalt som base64 fore sparning), och textdata
-   - Renderas som en fullskarmsoverlay (liknande bildforhandsvisningen i JobPhotosTab)
+Foljande 11 tabeller saknar `organization_id`:
 
-2. **`src/components/mobile-app/inspection/StepTransportRoute.tsx`**
-   - Steg 1-komponenten
-   - Kameraknapp (ateranvander `takePhotoBase64` fran `capacitorCamera.ts`)
-   - Dold fil-input med `accept="image/*,video/*"` och `capture="environment"` som webbfallback
-   - For video: begransning till 10 sekunder valideras pa klientsidan via `HTMLVideoElement.duration`
-   - Tumnaglar-grid for tillagda media
-   - Textarea for "Transportinfo"
+- `time_reports`
+- `transport_assignments`
+- `transport_email_log`
+- `vehicles`
+- `vehicle_gps_history`
+- `warehouse_calendar_events`
+- `webhook_subscriptions`
+- `sync_state`
+- `task_comments`
+- `user_roles` (special -- kopplade till auth, kan behova annorlunda hantering)
+- `confirmed_bookings` (enkel tabell med bara `id`)
 
-### Andrade filer
-3. **`src/components/mobile-app/job-tabs/JobInfoTab.tsx`**
-   - Lagg till en "Skapa besiktning"-knapp langst ned i komponenten
-   - State (`showInspection`) som togglar visning av `InspectionWizard`
+**Prompt att skicka:**
 
-### Datahantering
-- I denna fas sparas media och text lokalt i komponentens state (inget skrivs till databasen annu)
-- Wizarden ar forberedd for att i framtida steg spara data via edge function / API
-- Bilder lagras temporart som base64-strangar i en array
-- Videos lagras pa samma satt (base64 data-URL)
+> Lagg till kolumnen organization_id (uuid, REFERENCES organizations(id)) pa foljande tabeller: time_reports, transport_assignments, transport_email_log, vehicles, vehicle_gps_history, warehouse_calendar_events, webhook_subscriptions, sync_state, task_comments. Populera befintliga rader med Frans August-organisationens ID, satt NOT NULL, och skriv RLS-policies som filtrerar pa organization_id. For tabellerna user_roles och confirmed_bookings -- analysera om de behover organization_id eller inte och motivera.
 
-### Videobegransning (10 sekunder)
-- Nar en videofil valjs, laddas den i en dold `<video>`-element
-- `loadedmetadata`-eventet lasas for att kontrollera `duration`
-- Om langre an 10 sekunder visas ett felmeddelande via `toast.error`
+---
+
+## Prompt B -- Uppdatera edge functions med explicit organization_id
+
+Foljande edge functions anvander service_role_key och gor INSERT utan att satta organization_id explicit:
+
+| Edge Function | INSERT-tabeller som paverkas |
+|---|---|
+| `mobile-app-api` | time_reports, project_purchases, project_comments, project_files |
+| `receive-invoice` | project_invoices, packing_invoices |
+| `save-map-snapshot` | booking_attachments |
+| `staff-management` | staff_members, staff_assignments, booking_staff_assignments |
+| `time-reports` | time_reports |
+| `handle-transport-response` | transport_email_log |
+| `receive-user-sync` | user_roles (via service_role) |
+| `verify-sso-token` | user_roles (via service_role) |
+| `track-vehicle-gps` | vehicle_gps_history, transport_assignments (UPDATE) |
+
+**Prompt att skicka:**
+
+> Uppdatera foljande edge functions sa att alla INSERT-operationer sattar organization_id explicit. Anvand samma monster som import-bookings (resolveOrganizationId). Edge functions att uppdatera: mobile-app-api, receive-invoice, save-map-snapshot, staff-management, time-reports, handle-transport-response, track-vehicle-gps. For mobile-app-api: lagg till resolveOrganizationId och anvand det i handleCreateTimeReport, handleCreatePurchase, handleCreateComment, handleUploadFile. For receive-invoice: satt organization_id vid insert i project_invoices och packing_invoices. For save-map-snapshot: satt organization_id vid insert i booking_attachments. For staff-management: satt organization_id i alla insert-operationer for staff_members, staff_assignments och booking_staff_assignments. For time-reports: satt organization_id vid insert/update av time_reports.
+
+---
+
+## Prompt C -- Verifiera allt end-to-end
+
+> Gor en fullstandig verifiering av multi-tenant-implementationen:
+> 1. Kora en SQL-fraga som listar alla tabeller i public-schemat och visar vilka som har/saknar organization_id
+> 2. Kontrollera att RLS ar aktiverat pa ALLA tabeller med organization_id  
+> 3. Kontrollera att set_org_id-triggern finns pa alla relevanta tabeller
+> 4. Testa att mobile-app-api login-flodet fungerar (anropa edge function med curl)
+> 5. Testa att import-bookings fungerar med organization_id (anropa edge function)
+> 6. Kontrollera att inga edge functions gor INSERT utan organization_id mot tabeller som kraver det
+> 7. Kor database linter och rapportera resultatet
+
+---
+
+## Sammanfattning av ordning
+
+1. **Prompt A** -- Schema: Lagg till organization_id pa de 9-11 aterstaende tabellerna
+2. **Prompt B** -- Kod: Uppdatera alla edge functions med explicit organization_id
+3. **Prompt C** -- Test: Verifiera hela implementationen end-to-end
+
