@@ -202,9 +202,29 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Resolve organization_id for multi-tenant
-    const { data: orgData } = await adminClient.from('organizations').select('id').limit(1).single();
-    const resolvedOrgId = organization_id || orgData?.id;
+    // Resolve organization_id for multi-tenant (STRICT: require explicit org_id)
+    if (!organization_id) {
+      console.warn('[receive-user-sync] DEPRECATION WARNING: organization_id not provided, falling back to first org. Hub must send organization_id explicitly.');
+      const { data: orgData } = await adminClient.from('organizations').select('id').limit(1).single();
+      if (!orgData?.id) {
+        return new Response(
+          JSON.stringify({ error: 'organization_id is required. No fallback organization found.' }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      // Temporary fallback - will be removed once Hub sends org_id
+      var resolvedOrgId = orgData.id;
+    } else {
+      // Validate that the organization exists
+      const { data: orgCheck, error: orgError } = await adminClient.from('organizations').select('id').eq('id', organization_id).single();
+      if (orgError || !orgCheck) {
+        return new Response(
+          JSON.stringify({ error: 'Organization not found. Create it first via manage-organization.', organization_id }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      var resolvedOrgId = organization_id;
+    }
 
     const actions: SyncActions = {
       passwordUpdated: false,

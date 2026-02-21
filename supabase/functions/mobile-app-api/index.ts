@@ -37,7 +37,13 @@ function verifyPassword(inputPassword: string, storedHash: string): boolean {
   return inputHash === storedHash
 }
 
-async function resolveOrganizationId(supabase: any): Promise<string> {
+async function resolveOrganizationId(supabase: any, explicitOrgId?: string): Promise<string> {
+  if (explicitOrgId) {
+    const { data } = await supabase.from('organizations').select('id').eq('id', explicitOrgId).single()
+    if (!data) throw new Error(`Organization not found: ${explicitOrgId}`)
+    return data.id
+  }
+  console.warn('[mobile-app-api] DEPRECATION WARNING: organization_id not provided, falling back to first org.')
   const { data } = await supabase
     .from('organizations')
     .select('id')
@@ -56,7 +62,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
-    const organizationId = await resolveOrganizationId(supabase)
+    const organizationId = await resolveOrganizationId(supabase, body?.organization_id)
 
     const body = await req.json()
     const { action, token, data } = body

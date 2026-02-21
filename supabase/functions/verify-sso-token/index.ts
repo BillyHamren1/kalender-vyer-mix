@@ -126,9 +126,22 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false }
     });
 
-    // Resolve organization_id for multi-tenant
-    const { data: orgData } = await supabase.from('organizations').select('id').limit(1).single();
-    const resolvedOrgId = payload.organization_id || orgData?.id;
+    // Resolve organization_id for multi-tenant (STRICT: require explicit org_id)
+    let resolvedOrgId = payload.organization_id;
+    if (!resolvedOrgId) {
+      console.warn('[SSO] DEPRECATION WARNING: organization_id not in payload, falling back to first org. Hub must send organization_id explicitly.');
+      const { data: orgData } = await supabase.from('organizations').select('id').limit(1).single();
+      resolvedOrgId = orgData?.id;
+    } else {
+      // Validate org exists
+      const { data: orgCheck } = await supabase.from('organizations').select('id').eq('id', resolvedOrgId).single();
+      if (!orgCheck) {
+        return new Response(
+          JSON.stringify({ success: false, error_code: 'ORG_NOT_FOUND', message: 'Organization not found. Create it first via manage-organization.' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     // Normalisera email för säker sökning
     const normalizedEmail = payload.email.trim().toLowerCase();

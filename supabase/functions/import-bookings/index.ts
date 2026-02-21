@@ -7,7 +7,21 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
  * Since service_role bypasses RLS and auth.uid() is null,
  * we must set organization_id explicitly.
  */
-async function resolveOrganizationId(supabase: any): Promise<string> {
+async function resolveOrganizationId(supabase: any, explicitOrgId?: string): Promise<string> {
+  if (explicitOrgId) {
+    // Validate that the org exists
+    const { data, error } = await supabase
+      .from('organizations')
+      .select('id')
+      .eq('id', explicitOrgId)
+      .single();
+    if (error || !data) {
+      throw new Error(`Organization not found: ${explicitOrgId}. Create it first via manage-organization.`);
+    }
+    return data.id;
+  }
+  // DEPRECATION FALLBACK: will be removed once Hub sends organization_id
+  console.warn('[import-bookings] DEPRECATION WARNING: organization_id not provided, falling back to first org. Hub must send organization_id explicitly.');
   const { data, error } = await supabase
     .from('organizations')
     .select('id')
@@ -967,8 +981,11 @@ serve(async (req) => {
     )
 
     // Resolve organization_id for all INSERTs (service_role bypasses RLS, so auth.uid() is null)
-    const organizationId = await resolveOrganizationId(supabase);
-    console.log(`Resolved organization_id: ${organizationId}`);
+    // Accept explicit organization_id from payload (sent by Hub/receive-booking)
+    const explicitOrgId = body?.organization_id;
+    const organizationId = await resolveOrganizationId(supabase, explicitOrgId);
+    console.log(`Resolved organization_id: ${organizationId}${explicitOrgId ? ' (explicit)' : ' (fallback)'}`);
+
 
     const {
       quiet = false, 

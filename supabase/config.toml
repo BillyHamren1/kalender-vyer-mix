@@ -117,3 +117,6 @@ verify_jwt = false
 
 [functions.receive-booking]
 verify_jwt = false
+
+[functions.manage-organization]
+verify_jwt = false

@@ -7,7 +7,13 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 )
 
-async function resolveOrganizationId(): Promise<string | undefined> {
+async function resolveOrganizationId(explicitOrgId?: string): Promise<string | undefined> {
+  if (explicitOrgId) {
+    const { data } = await supabase.from('organizations').select('id').eq('id', explicitOrgId).single()
+    if (!data) throw new Error(`Organization not found: ${explicitOrgId}`)
+    return data.id
+  }
+  console.warn('[time-reports] DEPRECATION WARNING: organization_id not provided, falling back to first org.')
   const { data } = await supabase.from('organizations').select('id').limit(1).single()
   return data?.id
 }

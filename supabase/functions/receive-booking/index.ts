@@ -31,9 +31,13 @@ serve(async (req) => {
     }
 
     const body = await req.json()
-    const { booking_id, event_type } = body
+    const { booking_id, event_type, organization_id } = body
 
-    console.log(`receive-booking: Incoming webhook - booking_id=${booking_id}, event_type=${event_type || 'unknown'}`)
+    console.log(`receive-booking: Incoming webhook - booking_id=${booking_id}, event_type=${event_type || 'unknown'}, organization_id=${organization_id || 'NOT PROVIDED'}`)
+
+    if (!organization_id) {
+      console.warn('receive-booking: DEPRECATION WARNING: organization_id not provided. Hub must send organization_id explicitly.')
+    }
 
     if (!booking_id) {
       return new Response(
@@ -42,9 +46,12 @@ serve(async (req) => {
       )
     }
 
-    // Call import-bookings internally
+    // Call import-bookings internally, forwarding organization_id
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+
+    const importPayload: Record<string, any> = { booking_id, syncMode: 'single' }
+    if (organization_id) importPayload.organization_id = organization_id
 
     const importResponse = await fetch(`${supabaseUrl}/functions/v1/import-bookings`, {
       method: 'POST',
@@ -52,7 +59,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${serviceRoleKey}`,
       },
-      body: JSON.stringify({ booking_id, syncMode: 'single' }),
+      body: JSON.stringify(importPayload),
     })
 
     const importResult = await importResponse.json()

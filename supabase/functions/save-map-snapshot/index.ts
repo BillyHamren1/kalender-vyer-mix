@@ -20,10 +20,20 @@ serve(async (req) => {
     )
 
     // Resolve organization_id for multi-tenant
-    const { data: orgData } = await supabase.from('organizations').select('id').limit(1).single()
-    const organizationId = orgData?.id
+    const bodyJson = await req.json();
+    const { image, bookingId, bookingNumber, organization_id: explicitOrgId } = bodyJson;
+    let organizationId: string | undefined
+    if (explicitOrgId) {
+      const { data: orgCheck } = await supabase.from('organizations').select('id').eq('id', explicitOrgId).single()
+      organizationId = orgCheck?.id
+    }
+    if (!organizationId) {
+      console.warn('[save-map-snapshot] DEPRECATION WARNING: organization_id not provided, falling back to first org.')
+      const { data: orgData } = await supabase.from('organizations').select('id').limit(1).single()
+      organizationId = orgData?.id
+    }
 
-    const { image, bookingId, bookingNumber } = await req.json();
+    // image, bookingId, bookingNumber already extracted above
 
     if (!image) {
       return new Response(
