@@ -19,6 +19,10 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // Resolve organization_id for multi-tenant
+    const { data: orgData } = await supabase.from('organizations').select('id').limit(1).single()
+    const organizationId = orgData?.id
+
     const { image, bookingId, bookingNumber } = await req.json();
 
     if (!image) {
@@ -83,7 +87,8 @@ serve(async (req) => {
           booking_id: bookingId,
           file_name: fileName,
           file_type: 'image/png',
-          url: urlData.publicUrl
+          url: urlData.publicUrl,
+          organization_id: organizationId
         })
         .select()
         .single();

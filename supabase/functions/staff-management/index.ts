@@ -71,6 +71,10 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // Resolve organization_id for multi-tenant
+    const { data: orgData } = await supabase.from('organizations').select('id').limit(1).single()
+    const organizationId = orgData?.id
+
     const { operation, data, options = {} } = await req.json()
     console.log(`Staff Management: Processing operation: ${operation}`, data)
 

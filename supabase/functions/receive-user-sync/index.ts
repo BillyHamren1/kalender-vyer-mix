@@ -74,7 +74,8 @@ async function findUserByPaginatedSearch(adminClient: any, normalizedEmail: stri
 async function syncUserRoles(
   adminClient: any, 
   userId: string, 
-  roles: string[] | undefined
+  roles: string[] | undefined,
+  organizationId?: string
 ): Promise<number> {
   if (!roles || !Array.isArray(roles) || roles.length === 0) {
     return 0;
@@ -92,7 +93,7 @@ async function syncUserRoles(
     if (VALID_ROLES.includes(role as AppRole)) {
       const { error } = await adminClient
         .from('user_roles')
-        .insert({ user_id: userId, role })
+        .insert({ user_id: userId, role, organization_id: organizationId })
         .select();
       
       if (!error) {
@@ -201,6 +202,10 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
+    // Resolve organization_id for multi-tenant
+    const { data: orgData } = await adminClient.from('organizations').select('id').limit(1).single();
+    const resolvedOrgId = organization_id || orgData?.id;
+
     const actions: SyncActions = {
       passwordUpdated: false,
       profileUpdated: false,
@@ -254,7 +259,7 @@ Deno.serve(async (req) => {
       );
 
       // Sync roles
-      actions.rolesSynced = await syncUserRoles(adminClient, existingUserId, roles);
+      actions.rolesSynced = await syncUserRoles(adminClient, existingUserId, roles, resolvedOrgId);
 
       return new Response(
         JSON.stringify({ 
@@ -318,7 +323,7 @@ Deno.serve(async (req) => {
           }
           
           actions.profileUpdated = await upsertProfile(adminClient, authUser.id, normalizedEmail, full_name, organization_id);
-          actions.rolesSynced = await syncUserRoles(adminClient, authUser.id, roles);
+          actions.rolesSynced = await syncUserRoles(adminClient, authUser.id, roles, resolvedOrgId);
           
           return new Response(
             JSON.stringify({ 
@@ -365,7 +370,7 @@ Deno.serve(async (req) => {
     );
 
     // Create roles
-    actions.rolesSynced = await syncUserRoles(adminClient, newUserId, roles);
+    actions.rolesSynced = await syncUserRoles(adminClient, newUserId, roles, resolvedOrgId);
 
     return new Response(
       JSON.stringify({ 

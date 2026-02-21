@@ -37,6 +37,15 @@ function verifyPassword(inputPassword: string, storedHash: string): boolean {
   return inputHash === storedHash
 }
 
+async function resolveOrganizationId(supabase: any): Promise<string> {
+  const { data } = await supabase
+    .from('organizations')
+    .select('id')
+    .limit(1)
+    .single()
+  return data?.id
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -47,6 +56,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const organizationId = await resolveOrganizationId(supabase)
 
     const body = await req.json()
     const { action, token, data } = body
@@ -87,7 +97,7 @@ Deno.serve(async (req) => {
       case 'get_time_reports':
         return await handleGetTimeReports(supabase, staffId)
       case 'create_time_report':
-        return await handleCreateTimeReport(supabase, staffId, data)
+        return await handleCreateTimeReport(supabase, staffId, data, organizationId)
       case 'get_project':
         return await handleGetProject(supabase, data)
       case 'get_project_comments':
@@ -97,11 +107,11 @@ Deno.serve(async (req) => {
       case 'get_project_purchases':
         return await handleGetProjectPurchases(supabase, data)
       case 'create_purchase':
-        return await handleCreatePurchase(supabase, staffId, data)
+        return await handleCreatePurchase(supabase, staffId, data, organizationId)
       case 'create_comment':
-        return await handleCreateComment(supabase, staffId, data)
+        return await handleCreateComment(supabase, staffId, data, organizationId)
       case 'upload_file':
-        return await handleUploadFile(supabase, staffId, data)
+        return await handleUploadFile(supabase, staffId, data, organizationId)
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
@@ -368,7 +378,7 @@ async function handleGetTimeReports(supabase: any, staffId: string) {
   )
 }
 
-async function handleCreateTimeReport(supabase: any, staffId: string, data: any) {
+async function handleCreateTimeReport(supabase: any, staffId: string, data: any, organizationId: string) {
   const { booking_id, report_date, start_time, end_time, hours_worked, overtime_hours, break_time, description } = data
 
   if (!booking_id || !report_date || hours_worked === undefined) {
@@ -405,7 +415,8 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any)
       hours_worked: parseFloat(hours_worked),
       overtime_hours: overtime_hours ? parseFloat(overtime_hours) : 0,
       break_time: break_time ? parseFloat(break_time) : 0,
-      description: description || null
+      description: description || null,
+      organization_id: organizationId
     })
     .select()
     .single()
@@ -463,7 +474,7 @@ async function handleGetProject(supabase: any, data: { booking_id: string }) {
   )
 }
 
-async function handleCreatePurchase(supabase: any, staffId: string, data: any) {
+async function handleCreatePurchase(supabase: any, staffId: string, data: any, organizationId: string) {
   const { booking_id, description, amount, supplier, category, receipt_image } = data
 
   if (!booking_id || !description || amount === undefined) {
@@ -553,7 +564,8 @@ async function handleCreatePurchase(supabase: any, staffId: string, data: any) {
       category: category || 'other',
       receipt_url: receiptUrl,
       purchase_date: new Date().toISOString().split('T')[0],
-      created_by: staffMember?.name || 'Mobile App'
+      created_by: staffMember?.name || 'Mobile App',
+      organization_id: organizationId
     })
     .select()
     .single()
@@ -574,7 +586,7 @@ async function handleCreatePurchase(supabase: any, staffId: string, data: any) {
   )
 }
 
-async function handleCreateComment(supabase: any, staffId: string, data: any) {
+async function handleCreateComment(supabase: any, staffId: string, data: any, organizationId: string) {
   const { booking_id, content } = data
 
   if (!booking_id || !content) {
@@ -611,7 +623,8 @@ async function handleCreateComment(supabase: any, staffId: string, data: any) {
     .insert({
       project_id: project.id,
       author_name: staffMember?.name || 'Mobile App User',
-      content
+      content,
+      organization_id: organizationId
     })
     .select()
     .single()
@@ -632,7 +645,7 @@ async function handleCreateComment(supabase: any, staffId: string, data: any) {
   )
 }
 
-async function handleUploadFile(supabase: any, staffId: string, data: any) {
+async function handleUploadFile(supabase: any, staffId: string, data: any, organizationId: string) {
   const { booking_id, file_name, file_type, file_data } = data
 
   if (!booking_id || !file_name || !file_data) {
@@ -723,12 +736,13 @@ async function handleUploadFile(supabase: any, staffId: string, data: any) {
     // Create file record
     const { data: fileRecord, error: fileError } = await supabase
       .from('project_files')
-      .insert({
+    .insert({
         project_id: project.id,
         file_name,
         file_type: contentType,
         url: urlData.publicUrl,
-        uploaded_by: staffMember?.name || 'Mobile App User'
+        uploaded_by: staffMember?.name || 'Mobile App User',
+        organization_id: organizationId
       })
       .select()
       .single()

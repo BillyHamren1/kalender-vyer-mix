@@ -126,6 +126,10 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false }
     });
 
+    // Resolve organization_id for multi-tenant
+    const { data: orgData } = await supabase.from('organizations').select('id').limit(1).single();
+    const resolvedOrgId = payload.organization_id || orgData?.id;
+
     // Normalisera email för säker sökning
     const normalizedEmail = payload.email.trim().toLowerCase();
     const normalizedFullName = payload.full_name || null;
@@ -244,7 +248,7 @@ Deno.serve(async (req) => {
         console.log('[SSO] Assigning role:', role, 'to user:', userId);
         const { error: roleError } = await supabase
           .from('user_roles')
-          .insert({ user_id: userId, role })
+          .insert({ user_id: userId, role, organization_id: resolvedOrgId })
           .select()
           .single();
         
