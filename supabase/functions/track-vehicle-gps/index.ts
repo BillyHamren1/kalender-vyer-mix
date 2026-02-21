@@ -42,6 +42,10 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Resolve organization_id for multi-tenant
+    const { data: orgData } = await supabase.from('organizations').select('id').limit(1).single();
+    const organizationId = orgData?.id;
+
     const { vehicle_id, lat, lng, heading, speed_kmh }: GpsUpdate = await req.json();
 
     if (!vehicle_id || lat === undefined || lng === undefined) {
@@ -76,7 +80,8 @@ serve(async (req) => {
         lat,
         lng,
         heading: heading || null,
-        speed_kmh: speed_kmh || null
+        speed_kmh: speed_kmh || null,
+        organization_id: organizationId
       });
 
     if (historyError) {

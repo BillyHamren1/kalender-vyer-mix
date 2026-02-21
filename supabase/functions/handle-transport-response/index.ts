@@ -234,6 +234,10 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Resolve organization_id for multi-tenant
+    const { data: orgData } = await supabase.from('organizations').select('id').limit(1).single();
+    const organizationId = orgData?.id;
+
     const resendKey = Deno.env.get("RESEND_API_KEY");
     if (!resendKey) {
       console.error("[handle-transport-response] RESEND_API_KEY not configured");
@@ -374,6 +378,7 @@ Deno.serve(async (req) => {
               subject,
               email_type: "transport_confirmation",
               sent_by: "system",
+              organization_id: organizationId,
             });
           }
         }

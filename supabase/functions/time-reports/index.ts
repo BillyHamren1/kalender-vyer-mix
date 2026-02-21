@@ -7,6 +7,11 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 )
 
+async function resolveOrganizationId(): Promise<string | undefined> {
+  const { data } = await supabase.from('organizations').select('id').limit(1).single()
+  return data?.id
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -162,6 +167,11 @@ Deno.serve(async (req) => {
     if (method === 'POST') {
       // POST /time-reports - Create new time report
       const body = await req.json()
+      
+      // Ensure organization_id is set for multi-tenant
+      if (!body.organization_id) {
+        body.organization_id = await resolveOrganizationId()
+      }
       
       const { data, error } = await supabase
         .from('time_reports')

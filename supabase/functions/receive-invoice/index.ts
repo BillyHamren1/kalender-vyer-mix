@@ -50,6 +50,10 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    // Resolve organization_id for multi-tenant
+    const { data: orgData } = await supabase.from('organizations').select('id').limit(1).single();
+    const organizationId = orgData?.id;
+
     const payload: InvoicePayload = await req.json();
     console.log('[receive-invoice] Received payload:', JSON.stringify(payload, null, 2));
 
@@ -226,6 +230,7 @@ serve(async (req) => {
           status: 'unpaid',
           notes: notes || null,
           invoice_file_url: payload.InvoiceFileUrl || null,
+          organization_id: organizationId,
         })
         .select('id')
         .single();
@@ -255,6 +260,7 @@ serve(async (req) => {
           status: 'unpaid',
           notes: notes || null,
           invoice_file_url: payload.InvoiceFileUrl || null,
+          organization_id: organizationId,
         })
         .select('id')
         .single();
