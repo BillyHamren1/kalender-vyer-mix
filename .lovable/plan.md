@@ -1,136 +1,52 @@
 
 
-# Hub-integration för multi-tenant organisationer
+# Fix: Ekonomioversikten visar fel siffror
 
-## Bakgrund
+## Problem
 
-Systemet har nu full multi-tenant-isolation i databasen (RLS + triggers), men **Edge Functions är inte redo för flera organisationer**. Alla 10+ funktioner faller tillbaka på `SELECT id FROM organizations LIMIT 1` när ingen `organization_id` skickas.
+Ekonomioversikten (`/economy`) hamtar data fran **lokala Supabase-tabeller** (`project_budget`, `project_purchases`, `project_quotes`, `project_invoices`), medan varje projekts ekonomiflik hamtar data via **planning-api-proxy** fran det externa EventFlow-systemet.
 
-Med bara 1 organisation ("Frans August") fungerar allt idag, men vid en andra organisation bryts det.
+Eftersom all ekonomidata lever i EventFlow (inte lokalt) blir oversikten tom/felaktig -- budgetar visar 0 kr, inkop saknas, etc.
 
----
+## Losning
 
-## Ansvarsfördelning
+Refaktorera `ProjectEconomyView` i `EconomyOverview.tsx` sa att den anvander samma datakalla som projektvyn -- dvs. planning-api-proxy via `bookingId`.
 
-| System | Ansvar |
-|---|---|
-| **Hub** | Skapa/uppdatera organisationer, synka användare, SSO-inloggning |
-| **Booking (EventFlow)** | Skicka bokningar med `organization_id` i payload |
+## Tekniska steg
 
-Hub och EventFlow är separata system. Hub hanterar INTE bokningar.
+### 1. Skapa en ny hook: `useProjectEconomySummary`
+En lattare variant av `useProjectEconomy` som bara hamtar summerad data for ett projekt (budget, tidrapporter, inkop, offerter, fakturor, produktkostnader, leverantorsfakturor) via planning-api-proxy.
 
----
+### 2. Skapa en sammansattande hook: `useEconomyOverviewData`
+En hook som:
+- Hamtar alla aktiva projekt fran lokala `projects`-tabellen (som idag)
+- For varje projekt med `booking_id`: anropar planning-api-proxy for att hamta budget, tidrapporter, inkop, offerter, fakturor, produktkostnader och leverantorsfakturor
+- Kor `calculateEconomySummary` med **alla** parametrar (inklusive `productCosts` och `supplierInvoices` som saknas idag)
+- Returnerar samma `ProjectWithEconomy[]`-struktur
 
-## Steg 1: Ny Edge Function – `manage-organization` ✅
+### 3. Uppdatera `EconomyOverview.tsx`
+- Ersatt den stora inline `queryFn` (rad 61-189) med den nya `useEconomyOverviewData`-hooken
+- Inga andringar i UI-koden -- den renderar redan `summary`-falt korrekt
 
-Endpoint som Hub anropar för att registrera organisationer.
+### 4. Behall lokal fallback for projekt utan booking_id
+Projekt utan `booking_id` kan inte ha ekonomidata fran EventFlow. Dessa visas med 0-varden som idag, eller doljs fran listan.
 
-**Endpoint:** `POST /functions/v1/manage-organization`
-**Auth:** `x-api-key` (använder befintlig `WEBHOOK_SECRET`)
+## Vad fixas
 
-**Payload från Hub:**
-```json
-{
-  "action": "create" | "update",
-  "organization": {
-    "id": "<uuid från Hub>",
-    "name": "Nytt Företag AB",
-    "slug": "nytt-foretag"
-  }
-}
-```
-
-**Status:** Implementerad och deployad.
-
----
-
-## Steg 2: Uppdatera `receive-user-sync` ✅
-
-- Kräver `organization_id` (med deprecation-varning vid fallback)
-- Validerar att organisationen finns
-- **Ansvarig avsändare: Hub**
-
-**Status:** Implementerad.
-
----
-
-## Steg 3: Uppdatera `verify-sso-token` ✅
-
-- Kräver `organization_id` i SSO-payload
-- Validerar mot `organizations`-tabellen
-- **Ansvarig avsändare: Hub**
-
-**Status:** Implementerad.
-
----
-
-## Steg 4: Uppdatera booking-relaterade Edge Functions ✅
-
-Dessa funktioner tar emot `organization_id` från **EventFlow/Booking** (inte Hub):
-
-| Edge Function | Avsändare | Status |
+| Kolumn | Innan | Efter |
 |---|---|---|
-| `receive-booking` | EventFlow | ✅ Klar |
-| `import-bookings` | Internt (via receive-booking) | ✅ Klar |
+| Budget | 0 kr (lokal tabell tom) | Ratt varde fran EventFlow |
+| Faktisk | Bara lokala tidrapporter | Tidrapporter + inkop + leverantorsfakturor fran EventFlow |
+| Inkop | Lokal `project_purchases` | EventFlow purchases |
+| Avvikelse | Felaktig (-100%) | Korrekt beraknad |
+| Timmar | Bara lokala | Fran EventFlow tidrapporter |
+| Produktkostnader | Saknas helt | Inkluderas i budget |
+| Leverantorsfakturor | Saknas helt | Inkluderas i faktisk kostnad |
 
----
+## Prestanda
 
-## Steg 5: Uppdatera övriga webhook-Edge Functions ✅
+Eftersom varje projekt kraver ett API-anrop till planning-api-proxy, lagger vi till:
+- `staleTime: 5 * 60 * 1000` (5 min cache)
+- Parallella anrop via `Promise.all` (som idag)
+- Laddindikatorer per projekt om nodvandigt
 
-Dessa funktioner har uppdaterats med deprecation-varning vid LIMIT 1 fallback:
-
-| Edge Function | Status |
-|---|---|
-| `receive-invoice` | ✅ Klar |
-| `staff-management` | ✅ Klar |
-| `mobile-app-api` | ✅ Klar |
-| `time-reports` | ✅ Klar |
-| `save-map-snapshot` | ✅ Klar |
-
----
-
-## Regler för Hub
-
-Hub måste följa denna ordning:
-
-1. **Skapa organisation först** via `manage-organization`
-2. **Synka användare** via `receive-user-sync` med `organization_id`
-3. **SSO-inloggning** via `verify-sso-token` med `organization_id` i payload
-
-Organisation-ID:t ska vara **samma UUID** i båda systemen.
-
----
-
-## Regler för EventFlow/Booking
-
-EventFlow skickar bokningar med `organization_id`:
-
-```json
-POST /functions/v1/receive-booking
-{
-  "booking_id": "...",
-  "event_type": "...",
-  "organization_id": "<uuid>"
-}
-```
-
----
-
-## Sammanfattning
-
-```text
-HUB:
-1. POST /manage-organization   { action: "create", organization: { id, name, slug } }
-2. POST /receive-user-sync     { email, password, roles, organization_id }
-3. SSO payload                 { ..., organization_id }
-
-EVENTFLOW/BOOKING:
-4. POST /receive-booking       { booking_id, event_type, organization_id }
-```
-
-## Teknisk status
-
-- ✅ `manage-organization` skapad och deployad
-- ✅ 9 Edge Functions uppdaterade med organization_id-stöd
-- ✅ Övergångsperiod med LIMIT 1 fallback + deprecation-varningar
-- ✅ Ingen databasmigrering behövdes
