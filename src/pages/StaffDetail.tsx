@@ -255,13 +255,16 @@ const StaffDetail: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-3 p-3 rounded-lg border border-border bg-muted/30">
                 <Checkbox
                   id="employment-type"
                   checked={staffMember.employment_type === 'contracted'}
                   onCheckedChange={(checked) => handleFieldSave('employment_type', checked ? 'contracted' : 'employed')}
+                  className="h-5 w-5 border-2"
                 />
-                <label htmlFor="employment-type" className="text-sm font-medium cursor-pointer">Inhyrd personal</label>
+                <label htmlFor="employment-type" className="text-sm font-medium cursor-pointer select-none">
+                  Inhyrd personal
+                </label>
               </div>
               <DirectEditField fieldName="role" value={staffMember.role} label="Roll" icon={<Briefcase className="h-4 w-4" />} />
               <DirectEditField fieldName="department" value={staffMember.department} label="Avdelning" icon={<Building className="h-4 w-4" />} />
