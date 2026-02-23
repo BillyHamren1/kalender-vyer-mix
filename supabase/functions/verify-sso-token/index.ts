@@ -21,6 +21,7 @@ interface SsoPayload {
   timestamp: number;
   expires_at: number;
   preferences?: SsoPreferences;
+  roles?: string[];
 }
 
 interface HubVerifyResponse {
@@ -236,38 +237,42 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 3. Auto-assign roles for SSO users based on target_view
-    console.log('[SSO] Ensuring roles for user:', userId, 'target_view:', target_view);
-    
-    const rolesToAssign: AppRole[] = [];
-    
-    if (target_view === 'warehouse') {
-      rolesToAssign.push('lager');
-    } else if (target_view === 'planning') {
-      rolesToAssign.push('projekt');
+    // 3. Sync roles: prefer Hub-provided roles, fallback to target_view
+    const VALID_ROLES: AppRole[] = ['admin', 'forsaljning', 'projekt', 'lager'];
+    let rolesToSync: AppRole[] = [];
+
+    if (payload.roles && Array.isArray(payload.roles) && payload.roles.length > 0) {
+      // Hub sent explicit roles — use them (authoritative source)
+      rolesToSync = payload.roles.filter(r => VALID_ROLES.includes(r as AppRole)) as AppRole[];
+      console.log('[SSO] Using Hub-provided roles:', rolesToSync);
     } else {
-      rolesToAssign.push('projekt', 'lager');
+      // Fallback: guess from target_view (backward compat)
+      if (target_view === 'warehouse') rolesToSync = ['lager'];
+      else if (target_view === 'planning') rolesToSync = ['projekt'];
+      else rolesToSync = ['projekt', 'lager'];
+      console.log('[SSO] No Hub roles, fallback to target_view:', target_view, '→', rolesToSync);
     }
-    
-    const { data: existingRoles } = await supabase
+
+    // Full sync: delete existing + insert new (same pattern as receive-user-sync)
+    console.log('[SSO] Syncing roles for user:', userId, '→', rolesToSync);
+    const { error: deleteError } = await supabase
       .from('user_roles')
-      .select('role')
+      .delete()
       .eq('user_id', userId);
     
-    const existingRoleSet = new Set(existingRoles?.map(r => r.role) || []);
-    
-    for (const role of rolesToAssign) {
-      if (!existingRoleSet.has(role)) {
-        console.log('[SSO] Assigning role:', role, 'to user:', userId);
-        const { error: roleError } = await supabase
-          .from('user_roles')
-          .insert({ user_id: userId, role, organization_id: resolvedOrgId })
-          .select()
-          .single();
-        
-        if (roleError && !roleError.message?.includes('duplicate')) {
-          console.warn('[SSO] Failed to assign role:', role, roleError.message);
-        }
+    if (deleteError) {
+      console.warn('[SSO] Failed to delete old roles:', deleteError.message);
+    }
+
+    for (const role of rolesToSync) {
+      const { error: roleError } = await supabase
+        .from('user_roles')
+        .insert({ user_id: userId, role, organization_id: resolvedOrgId })
+        .select()
+        .single();
+      
+      if (roleError && !roleError.message?.includes('duplicate')) {
+        console.warn('[SSO] Failed to assign role:', role, roleError.message);
       }
     }
 
@@ -317,7 +322,7 @@ Deno.serve(async (req) => {
           sso_user: true,
         },
         preferences: payload.preferences || null,
-        roles: [...existingRoleSet, ...rolesToAssign.filter(r => !existingRoleSet.has(r))],
+        roles: rolesToSync,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
