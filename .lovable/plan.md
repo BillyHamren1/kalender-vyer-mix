@@ -1,44 +1,31 @@
 
 
-## Plan: Ekonomisk översikt med tidsgruppering och projektstatus
+# Ekonomisk stängning baserad på leverantörsfakturor
 
-### Vad ska byggas
+## Sammanfattning
+Projektets ekonomiska status (ÖPPEN/STÄNGD) i ekonomiöversikten ska avgöras av om **alla leverantörsfakturor** kopplade till projektet har markerats som "Slutgiltig" (`is_final_link = true`). Inga ändringar behövs på inköp eller vanliga fakturor.
 
-1. **Tidsgrupperad summering** -- En knapprad (Dag/Vecka/Manad) langst upp pa ekonomisidan som grupperar och summerar alla projektsiffror per vald tidsperiod baserat pa bokningens eventdatum.
+## Vad ändras
 
-2. **Visa projektstatus i listan** -- Varje projekt i tabellen "Alla projekt" far en tydlig badge som visar om projektet ar oppet (Planering/Pagaende) eller stangt (Avslutat/Levererat).
+### 1. Hämta leverantörsfaktura-status per projekt (`useEconomyOverviewData.ts`)
+- I `fetchProjectEconomyFromProxy` returneras redan `supplierInvoices` men sparas inte i `ProjectWithEconomy`
+- Utöka `ProjectWithEconomy`-interfacet med ett nytt fält: `economyClosed: boolean`
+- Beräkna `economyClosed` baserat på: alla leverantörsfakturor har `is_final_link === true` (och minst en faktura finns)
+- Ett projekt utan leverantörsfakturor räknas som ÖPPEN
 
-3. **Stanga projekt fran ekonomioversikten** -- En snabbknapp i tabellraden for att markera ett projekt som "Avslutat" direkt fran ekonomivyn, utan att behova navigera in i projektet.
+### 2. Uppdatera ÖPPEN/STÄNGD-logiken (`EconomyOverview.tsx`)
+- Ta bort `isProjectClosed(status)` som jämför mot `completed`/`delivered`
+- Ersätt med `project.economyClosed` direkt från datan
+- Behåll visuell stil (opacity-60 för stängda, badge-färger)
 
----
+## Tekniska detaljer
 
-### Tekniska detaljer
+**Filer som ändras:**
 
-**1. Utoka datahantningen (`useEconomyOverviewData.ts`)**
-- Hamta aven `completed` och `delivered` projekt (inte bara aktiva) -- ta bort `.in('status', ...)` filtret
-- Hamta `booking_id` + relaterat eventdatum fran `bookings`-tabellen sa att varje projekt kan kopplas till ett datum for gruppering
-- Exportera eventdate i `ProjectWithEconomy`-interfacet
+| Fil | Ändring |
+|-----|---------|
+| `src/hooks/useEconomyOverviewData.ts` | Lägg till `economyClosed` i `ProjectWithEconomy`. Beräkna värdet från `supplierInvoices` -- true om alla har `is_final_link === true` och det finns minst en. |
+| `src/pages/EconomyOverview.tsx` | Byt `isProjectClosed(project.status)` mot `project.economyClosed`. Ta bort `isProjectClosed`-funktionen. |
 
-**2. Tidsgruppering i UI (`EconomyOverview.tsx`)**
-- Lagga till state for vald period: `day | week | month`
-- Tre knappar (ToggleGroup) under KPI-korten: "Dag", "Vecka", "Manad"
-- Grupperingslogik med `date-fns`: `startOfDay`, `startOfWeek`, `startOfMonth`
-- Visa en summerad rad per tidsperiod med kollapsbar lista av projekt under varje period
-- KPI-korten uppdateras baserat pa vald period (eller visar totalt)
+**Ingen databasmigrering krävs** -- `is_final_link` finns redan på leverantörsfakturorna.
 
-**3. Projektstatus-badge i tabellen (`EconomyOverview.tsx`)**
-- Byt ut den nuvarande "Status"-kolumnen (som visar avvikelse-%) till tva kolumner: "Avvikelse" och "Status"
-- Anvand befintliga `PROJECT_STATUS_LABELS` och `PROJECT_STATUS_COLORS` fran `src/types/project.ts`
-- Badge visar: Planering (bla), Pagaende (gul), Levererat (lila), Avslutat (gron)
-
-**4. Stanga-projekt-knapp**
-- Lagg till en liten knapp/ikon (CheckCircle) pa varje rad i tabellen for att stanga projektet
-- Klick oppnar en bekraftelsedialog (AlertDialog): "Vill du markera [projektnamn] som avslutat?"
-- Vid bekraftelse: UPDATE projektet till status `completed` via Supabase, och invalidera React Query-cachen
-
-**Filer som andras:**
-- `src/hooks/useEconomyOverviewData.ts` -- utoka query, lagg till eventdate
-- `src/pages/EconomyOverview.tsx` -- tidsgruppering, statusbadge, stang-knapp
-- `src/types/project.ts` -- ingen andring behovs, statusar finns redan
-
-**Ingen databasandring kravs** -- statuset `completed` finns redan i projektmodellen.
