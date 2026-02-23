@@ -333,7 +333,7 @@ const ProjectEconomyView: React.FC = () => {
                           "text-xs",
                           closed ? "bg-muted text-muted-foreground" : "border-green-300 text-green-700 bg-green-50"
                         )}>
-                          {closed ? 'Stängt' : 'Öppet'}
+                          {closed ? 'STÄNGD' : 'ÖPPEN'}
                         </Badge>
                       </td>
                     </tr>
