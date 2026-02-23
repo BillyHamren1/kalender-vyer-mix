@@ -980,12 +980,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Resolve organization_id for all INSERTs (service_role bypasses RLS, so auth.uid() is null)
-    // Accept explicit organization_id from payload (sent by Hub/receive-booking)
-    const explicitOrgId = body?.organization_id;
-    const organizationId = await resolveOrganizationId(supabase, explicitOrgId);
-    console.log(`Resolved organization_id: ${organizationId}${explicitOrgId ? ' (explicit)' : ' (fallback)'}`);
-
+    const body = await req.json();
 
     const {
       quiet = false, 
@@ -995,7 +990,13 @@ serve(async (req) => {
       startDate,
       endDate,
       booking_id: singleBookingId = null,
-    } = await req.json()
+    } = body;
+
+    // Resolve organization_id for all INSERTs (service_role bypasses RLS, so auth.uid() is null)
+    // Accept explicit organization_id from payload (sent by Hub/receive-booking)
+    const explicitOrgId = body?.organization_id;
+    const organizationId = await resolveOrganizationId(supabase, explicitOrgId);
+    console.log(`Resolved organization_id: ${organizationId}${explicitOrgId ? ' (explicit)' : ' (fallback)'}`);
     
     const isHistoricalImport = historicalMode || forceHistoricalImport;
     const isSingleBookingRefresh = !!singleBookingId;
