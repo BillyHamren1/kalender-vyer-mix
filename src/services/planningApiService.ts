@@ -85,3 +85,18 @@ export const fetchSupplierInvoices = (bookingId: string) =>
 
 export const updateSupplierInvoiceLink = (id: string, data: { linked_cost_type: string | null; linked_cost_id: string | null; is_final_link?: boolean }) =>
   callPlanningApi({ type: 'supplier_invoices', method: 'PUT', id, data });
+
+// ===== Batch (all economy data in one call) =====
+
+export interface BatchEconomyData {
+  budget: any;
+  time_reports: any;
+  purchases: any;
+  quotes: any;
+  invoices: any;
+  product_costs: any;
+  supplier_invoices: any;
+}
+
+export const fetchAllEconomyData = (bookingId: string): Promise<BatchEconomyData> =>
+  callPlanningApi<BatchEconomyData>({ type: 'batch', booking_id: bookingId });
