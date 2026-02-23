@@ -116,17 +116,9 @@ const ProjectEconomyView: React.FC = () => {
   const { data: projectsWithEconomy, isLoading } = useEconomyOverviewData();
   const queryClient = useQueryClient();
   const [period, setPeriod] = useState<TimePeriod>('month');
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [closingProject, setClosingProject] = useState<ProjectWithEconomy | null>(null);
   const [isClosing, setIsClosing] = useState(false);
-
-  const toggleGroup = (key: string) => {
-    setExpandedGroups(prev => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
-  };
 
   const handleCloseProject = async () => {
     if (!closingProject) return;
@@ -383,118 +375,144 @@ const ProjectEconomyView: React.FC = () => {
         </Card>
       )}
 
-      {/* Grouped Projects */}
-      {grouped.map(([groupKey, projects]) => {
-        const groupKpis = aggregateProjects(projects);
-        const isExpanded = expandedGroups.has(groupKey);
-        const label = getGroupLabel(groupKey, period);
+      {/* Period list — click to select */}
+      <div className="space-y-2">
+        {grouped.map(([groupKey, projects]) => {
+          const groupKpis = aggregateProjects(projects);
+          const label = getGroupLabel(groupKey, period);
+          const isSelected = selectedGroup === groupKey;
+
+          return (
+            <Card 
+              key={groupKey} 
+              className={cn(
+                "cursor-pointer transition-all hover:shadow-md",
+                isSelected && "ring-2 ring-primary border-primary"
+              )}
+              onClick={() => setSelectedGroup(isSelected ? null : groupKey)}
+            >
+              <CardHeader className="py-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-3 text-base">
+                    {isSelected ? <ChevronDown className="w-5 h-5 text-primary" /> : <ChevronRight className="w-5 h-5" />}
+                    {label}
+                    <Badge variant="secondary" className="text-xs">{projects.length} projekt</Badge>
+                  </CardTitle>
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <span>Budget: {formatCurrency(groupKpis.totalBudget)}</span>
+                    <span>Faktisk: {formatCurrency(groupKpis.totalActual)}</span>
+                    <span className={cn(
+                      "font-medium",
+                      groupKpis.totalDeviation > 0 ? "text-destructive" : "text-green-600"
+                    )}>
+                      {groupKpis.totalDeviation > 0 ? '+' : ''}{formatCurrency(groupKpis.totalDeviation)}
+                    </span>
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Selected period project table — shown below the list */}
+      {selectedGroup && (() => {
+        const entry = grouped.find(([k]) => k === selectedGroup);
+        if (!entry) return null;
+        const [, selectedProjects] = entry;
+        const label = getGroupLabel(selectedGroup, period);
 
         return (
-          <Card key={groupKey}>
-            <CardHeader className="cursor-pointer select-none" onClick={() => toggleGroup(groupKey)}>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-3 text-base">
-                  {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
-                  {label}
-                  <Badge variant="secondary" className="text-xs">{projects.length} projekt</Badge>
-                </CardTitle>
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                  <span>Budget: {formatCurrency(groupKpis.totalBudget)}</span>
-                  <span>Faktisk: {formatCurrency(groupKpis.totalActual)}</span>
-                  <span className={cn(
-                    "font-medium",
-                    groupKpis.totalDeviation > 0 ? "text-destructive" : "text-green-600"
-                  )}>
-                    {groupKpis.totalDeviation > 0 ? '+' : ''}{formatCurrency(groupKpis.totalDeviation)}
-                  </span>
-                </div>
-              </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-3 text-base">
+                {label}
+                <Badge variant="secondary" className="text-xs">{selectedProjects.length} projekt</Badge>
+              </CardTitle>
             </CardHeader>
-            {isExpanded && (
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-3 px-2 font-medium text-muted-foreground">Projekt</th>
-                        <th className="text-right py-3 px-2 font-medium text-muted-foreground">Budget</th>
-                        <th className="text-right py-3 px-2 font-medium text-muted-foreground">Faktisk</th>
-                        <th className="text-right py-3 px-2 font-medium text-muted-foreground">Inköp</th>
-                        <th className="text-right py-3 px-2 font-medium text-muted-foreground">Avvikelse</th>
-                        <th className="text-right py-3 px-2 font-medium text-muted-foreground">Timmar</th>
-                        <th className="text-right py-3 px-2 font-medium text-muted-foreground">Personal</th>
-                        <th className="text-center py-3 px-2 font-medium text-muted-foreground">Status</th>
-                        <th className="text-center py-3 px-2 font-medium text-muted-foreground"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {projects.map(project => {
-                        const devStatus = getDeviationStatus(project.summary.totalDeviationPercent);
-                        const closed = isProjectClosed(project.status);
-                        return (
-                          <tr key={project.id} className={cn("border-b hover:bg-muted/50 transition-colors", closed && "opacity-60")}>
-                            <td className="py-3 px-2">
-                              <Link 
-                                to={`/economy/${project.id}`}
-                                className="text-primary hover:underline font-medium"
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-3 px-2 font-medium text-muted-foreground">Projekt</th>
+                      <th className="text-right py-3 px-2 font-medium text-muted-foreground">Budget</th>
+                      <th className="text-right py-3 px-2 font-medium text-muted-foreground">Faktisk</th>
+                      <th className="text-right py-3 px-2 font-medium text-muted-foreground">Inköp</th>
+                      <th className="text-right py-3 px-2 font-medium text-muted-foreground">Avvikelse</th>
+                      <th className="text-right py-3 px-2 font-medium text-muted-foreground">Timmar</th>
+                      <th className="text-right py-3 px-2 font-medium text-muted-foreground">Personal</th>
+                      <th className="text-center py-3 px-2 font-medium text-muted-foreground">Status</th>
+                      <th className="text-center py-3 px-2 font-medium text-muted-foreground"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedProjects.map(project => {
+                      const devStatus = getDeviationStatus(project.summary.totalDeviationPercent);
+                      const closed = isProjectClosed(project.status);
+                      return (
+                        <tr key={project.id} className={cn("border-b hover:bg-muted/50 transition-colors", closed && "opacity-60")}>
+                          <td className="py-3 px-2">
+                            <Link 
+                              to={`/economy/${project.id}`}
+                              className="text-primary hover:underline font-medium"
+                            >
+                              {project.name}
+                            </Link>
+                          </td>
+                          <td className="text-right py-3 px-2">
+                            {formatCurrency(project.summary.totalBudget)}
+                          </td>
+                          <td className="text-right py-3 px-2">
+                            {formatCurrency(project.summary.totalActual)}
+                          </td>
+                          <td className="text-right py-3 px-2 text-muted-foreground">
+                            {formatCurrency(project.summary.purchasesTotal)}
+                          </td>
+                          <td className={cn("text-right py-3 px-2 font-medium", getDeviationColor(devStatus))}>
+                            {project.summary.totalDeviation > 0 ? '+' : ''}
+                            {formatCurrency(project.summary.totalDeviation)}
+                          </td>
+                          <td className="text-right py-3 px-2">
+                            {formatHours(project.summary.actualHours)} / {formatHours(project.summary.budgetedHours)}
+                          </td>
+                          <td className="text-right py-3 px-2 text-muted-foreground">
+                            {project.timeReports.length} personer
+                          </td>
+                          <td className="text-center py-3 px-2">
+                            <Badge className={cn(
+                              "text-xs",
+                              PROJECT_STATUS_COLORS[project.status as ProjectStatus] || 'bg-muted text-muted-foreground'
+                            )}>
+                              {PROJECT_STATUS_LABELS[project.status as ProjectStatus] || project.status}
+                            </Badge>
+                          </td>
+                          <td className="text-center py-3 px-2">
+                            {!closed && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-green-600"
+                                title="Markera som avslutat"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setClosingProject(project);
+                                }}
                               >
-                                {project.name}
-                              </Link>
-                            </td>
-                            <td className="text-right py-3 px-2">
-                              {formatCurrency(project.summary.totalBudget)}
-                            </td>
-                            <td className="text-right py-3 px-2">
-                              {formatCurrency(project.summary.totalActual)}
-                            </td>
-                            <td className="text-right py-3 px-2 text-muted-foreground">
-                              {formatCurrency(project.summary.purchasesTotal)}
-                            </td>
-                            <td className={cn("text-right py-3 px-2 font-medium", getDeviationColor(devStatus))}>
-                              {project.summary.totalDeviation > 0 ? '+' : ''}
-                              {formatCurrency(project.summary.totalDeviation)}
-                            </td>
-                            <td className="text-right py-3 px-2">
-                              {formatHours(project.summary.actualHours)} / {formatHours(project.summary.budgetedHours)}
-                            </td>
-                            <td className="text-right py-3 px-2 text-muted-foreground">
-                              {project.timeReports.length} personer
-                            </td>
-                            <td className="text-center py-3 px-2">
-                              <Badge className={cn(
-                                "text-xs",
-                                PROJECT_STATUS_COLORS[project.status as ProjectStatus] || 'bg-muted text-muted-foreground'
-                              )}>
-                                {PROJECT_STATUS_LABELS[project.status as ProjectStatus] || project.status}
-                              </Badge>
-                            </td>
-                            <td className="text-center py-3 px-2">
-                              {!closed && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-muted-foreground hover:text-green-600"
-                                  title="Markera som avslutat"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    setClosingProject(project);
-                                  }}
-                                >
-                                  <CheckCircle className="w-4 h-4" />
-                                </Button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            )}
+                                <CheckCircle className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
           </Card>
         );
-      })}
+      })()}
 
       {/* Close project dialog */}
       <AlertDialog open={!!closingProject} onOpenChange={() => setClosingProject(null)}>
