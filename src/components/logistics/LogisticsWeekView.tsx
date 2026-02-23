@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, ChevronLeft, ChevronRight, Truck, MapPin, Package, Clock, ArrowRight, User, ExternalLink } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Truck, MapPin, Clock, ArrowRight, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format, addDays, isSameDay, startOfWeek, endOfWeek } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { useTransportAssignments, TransportAssignment } from '@/hooks/useTransportAssignments';
+import { TransportAssignment } from '@/hooks/useTransportAssignments';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -91,7 +91,6 @@ const TransportDetailDialog = ({ assignment, open, onClose }: { assignment: Tran
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Status & date */}
           <div className="flex items-center justify-between">
             <Badge variant="outline" className={cn("text-xs", statusColor)}>
               {statusLabel}
@@ -101,7 +100,6 @@ const TransportDetailDialog = ({ assignment, open, onClose }: { assignment: Tran
             </span>
           </div>
 
-          {/* Client */}
           <div className="bg-muted/50 rounded-lg p-3 space-y-1">
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Kund</div>
             <div className="font-semibold text-foreground">{assignment.booking?.client || 'Okänd'}</div>
@@ -110,7 +108,6 @@ const TransportDetailDialog = ({ assignment, open, onClose }: { assignment: Tran
             )}
           </div>
 
-          {/* Vehicle */}
           <div className="bg-muted/50 rounded-lg p-3 space-y-1">
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Fordon / Partner</div>
             <div className="font-semibold text-foreground">{assignment.vehicle?.name || 'Ej tilldelat'}</div>
@@ -119,7 +116,6 @@ const TransportDetailDialog = ({ assignment, open, onClose }: { assignment: Tran
             )}
           </div>
 
-          {/* Time & duration */}
           <div className="grid grid-cols-2 gap-3">
             {assignment.transport_time && (
               <div className="bg-muted/50 rounded-lg p-3 space-y-1">
@@ -138,7 +134,6 @@ const TransportDetailDialog = ({ assignment, open, onClose }: { assignment: Tran
             )}
           </div>
 
-          {/* Route: pickup → delivery */}
           <div className="bg-muted/50 rounded-lg p-3 space-y-3">
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Rutt</div>
             {assignment.pickup_address && (
@@ -169,7 +164,6 @@ const TransportDetailDialog = ({ assignment, open, onClose }: { assignment: Tran
             )}
           </div>
 
-          {/* Driver notes */}
           {assignment.driver_notes && (
             <div className="bg-muted/50 rounded-lg p-3 space-y-1">
               <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Anteckningar</div>
@@ -177,14 +171,12 @@ const TransportDetailDialog = ({ assignment, open, onClose }: { assignment: Tran
             </div>
           )}
 
-          {/* Partner response info */}
           {assignment.partner_responded_at && (
             <div className="text-xs text-muted-foreground">
               Partner svarade: {format(new Date(assignment.partner_responded_at), 'd MMM yyyy HH:mm', { locale: sv })}
             </div>
           )}
 
-          {/* Link to booking */}
           <Button
             variant="outline"
             className="w-full"
@@ -269,24 +261,26 @@ const DayColumn = ({
   );
 };
 
-const LogisticsWeekView: React.FC = () => {
-  const [currentDate, setCurrentDate] = useState(new Date());
+interface LogisticsWeekViewProps {
+  assignments: TransportAssignment[];
+  isLoading: boolean;
+  currentDate: Date;
+  onDateChange: (date: Date) => void;
+}
+
+const LogisticsWeekView: React.FC<LogisticsWeekViewProps> = ({ assignments, isLoading, currentDate, onDateChange }) => {
   const [selectedAssignment, setSelectedAssignment] = useState<TransportAssignment | null>(null);
   
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-  const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const weekNumber = format(weekStart, 'w');
 
-  const { assignments, isLoading } = useTransportAssignments(weekStart, weekEnd);
-
   const navigateWeek = (direction: 'prev' | 'next') => {
-    setCurrentDate(prev => addDays(prev, direction === 'prev' ? -7 : 7));
+    onDateChange(addDays(currentDate, direction === 'prev' ? -7 : 7));
   };
 
   return (
     <div className="bg-card rounded-2xl shadow-xl border overflow-hidden">
-      {/* Header */}
       <div className="bg-gradient-to-r from-primary to-primary/80 px-6 py-4">
         <div className="flex items-center justify-center">
           <div className="flex items-center gap-3">
@@ -313,7 +307,6 @@ const LogisticsWeekView: React.FC = () => {
         </div>
       </div>
       
-      {/* Week grid */}
       <div className="p-3 overflow-x-auto">
         {isLoading ? (
           <div className="flex gap-2 min-w-[1120px]">
@@ -338,7 +331,6 @@ const LogisticsWeekView: React.FC = () => {
         )}
       </div>
 
-      {/* Transport detail dialog */}
       <TransportDetailDialog
         assignment={selectedAssignment}
         open={!!selectedAssignment}

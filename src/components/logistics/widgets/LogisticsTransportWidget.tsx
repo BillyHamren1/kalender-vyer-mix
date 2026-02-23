@@ -1,43 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, Maximize2, Truck, CalendarIcon, MapPin, AlertTriangle, Clock, CheckCircle2, ChevronDown } from 'lucide-react';
+import { Package, Maximize2, Truck, CalendarIcon, MapPin, AlertTriangle, Clock, CheckCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { useTransportAssignments, TransportAssignment } from '@/hooks/useTransportAssignments';
+import { TransportAssignment } from '@/hooks/useTransportAssignments';
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, format, addWeeks, subWeeks, addMonths, subMonths, isToday, isTomorrow, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
-
 type DateMode = 'week' | 'month' | 'custom';
 
 interface Props {
   onClick: () => void;
-  vehicles: any[];
-  onShowRoute?: (assignmentId: string) => void;
+  assignments: TransportAssignment[];
+  isLoading: boolean;
+  dateMode: DateMode;
+  onDateModeChange: (mode: DateMode) => void;
+  weekOffset: number;
+  onWeekOffsetChange: (offset: number) => void;
+  monthOffset: number;
+  onMonthOffsetChange: (offset: number) => void;
+  customRange: { from: Date; to: Date } | null;
+  onCustomRangeChange: (range: { from: Date; to: Date } | null) => void;
 }
 
-export const TransportCard = ({ a, vehicles, expandedId, setExpandedId, cardBg, cardBorder }: { 
+export const TransportCard = ({ a, expandedId, setExpandedId, cardBg, cardBorder }: { 
   a: TransportAssignment; 
-  vehicles: any[]; 
   expandedId: string | null;
   setExpandedId: (id: string | null) => void;
   cardBg: string;
   cardBorder: string;
 }) => {
   const isExpanded = expandedId === a.id;
-  
-  const getVehicleName = (vehicleId: string) => {
-    const v = vehicles.find(v => v.id === vehicleId);
-    return v?.name || v?.registration_number || 'Okänt fordon';
-  };
-
-  const getVehiclePartner = (vehicleId: string) => {
-    const v = vehicles.find(v => v.id === vehicleId);
-    return v?.partner_name || v?.owner || null;
-  };
 
   const getStatusBadge = (a: TransportAssignment) => {
     if (a.status === 'delivered') return <Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal-200 text-[10px]">Levererad</Badge>;
@@ -46,19 +42,9 @@ export const TransportCard = ({ a, vehicles, expandedId, setExpandedId, cardBg, 
     return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px]">Väntar</Badge>;
   };
 
-  const formatTransportDate = (dateStr: string) => {
-    try {
-      const d = parseISO(dateStr);
-      if (isToday(d)) return 'Idag';
-      if (isTomorrow(d)) return 'Imorgon';
-      return format(d, 'EEE d MMM', { locale: sv });
-    } catch { return dateStr; }
-  };
-
   const products = a.booking?.booking_products || [];
   const totalWeight = products.reduce((sum, p) => sum + (p.estimated_weight_kg || 0) * p.quantity, 0);
   const totalVolume = products.reduce((sum, p) => sum + (p.estimated_volume_m3 || 0) * p.quantity, 0);
-  const partner = getVehiclePartner(a.vehicle_id);
   const assignmentAny = a as any;
 
   const statusLabel = a.status === 'delivered' ? 'Levererad' :
@@ -79,7 +65,6 @@ export const TransportCard = ({ a, vehicles, expandedId, setExpandedId, cardBg, 
       onClick={() => setExpandedId(isExpanded ? null : a.id)}
     >
       <div className="p-2.5">
-        {/* Header: badge + truck icon */}
         <div className="flex items-center gap-2 mb-1.5">
           <span className="px-2 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-teal-50 text-teal-700 border-teal-200">
             TRANSPORT
@@ -87,12 +72,10 @@ export const TransportCard = ({ a, vehicles, expandedId, setExpandedId, cardBg, 
           <Truck className="w-3.5 h-3.5 ml-auto text-primary/60" />
         </div>
 
-        {/* Client name */}
         <h4 className="font-semibold text-sm text-foreground line-clamp-2 mb-1">
           {a.booking?.client || 'Okänd kund'}
         </h4>
 
-        {/* Address */}
         <div className="flex items-start gap-1.5 mb-1">
           <MapPin className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
           <span className="text-xs text-muted-foreground line-clamp-1">
@@ -100,25 +83,23 @@ export const TransportCard = ({ a, vehicles, expandedId, setExpandedId, cardBg, 
           </span>
         </div>
 
-        {/* Status dot + label */}
         <div className="flex items-center gap-1.5">
           <div className={cn("w-2 h-2 rounded-full", statusDot)} />
           <span className="text-xs text-muted-foreground">{statusLabel}</span>
         </div>
       </div>
 
-      {/* Expanded transport details */}
       {isExpanded && (
         <div className="px-3 pb-3 pt-0 border-t border-border/30 space-y-2">
           <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-2 text-xs">
             <div>
               <p className="text-muted-foreground text-[10px]">Fordon</p>
-              <p className="font-medium">{getVehicleName(a.vehicle_id)}</p>
+              <p className="font-medium">{a.vehicle?.name || 'Okänt fordon'}</p>
             </div>
-            {partner && (
+            {a.vehicle?.is_external && (
               <div>
-                <p className="text-muted-foreground text-[10px]">Transportbolag</p>
-                <p className="font-medium">{partner}</p>
+                <p className="text-muted-foreground text-[10px]">Typ</p>
+                <p className="font-medium">Extern partner</p>
               </div>
             )}
             <div>
@@ -176,16 +157,24 @@ export const TransportCard = ({ a, vehicles, expandedId, setExpandedId, cardBg, 
   );
 };
 
-const LogisticsTransportWidget: React.FC<Props> = ({ onClick, vehicles }) => {
-  const [dateMode, setDateMode] = useState<DateMode>('week');
+const LogisticsTransportWidget: React.FC<Props> = ({
+  onClick,
+  assignments,
+  isLoading,
+  dateMode,
+  onDateModeChange,
+  weekOffset,
+  onWeekOffsetChange,
+  monthOffset,
+  onMonthOffsetChange,
+  customRange,
+  onCustomRangeChange,
+}) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [weekOffset, setWeekOffset] = useState(0);
-  const [monthOffset, setMonthOffset] = useState(0);
-  const [customRange, setCustomRange] = useState<{ from: Date; to: Date } | null>(null);
-
   const now = new Date();
 
-  const getRange = () => {
+  // Compute the widget's date range for filtering
+  const range = useMemo(() => {
     if (dateMode === 'week') {
       const base = weekOffset === 0 ? now : (weekOffset > 0 ? addWeeks(now, weekOffset) : subWeeks(now, Math.abs(weekOffset)));
       return { start: startOfWeek(base, { weekStartsOn: 1 }), end: endOfWeek(base, { weekStartsOn: 1 }) };
@@ -198,20 +187,23 @@ const LogisticsTransportWidget: React.FC<Props> = ({ onClick, vehicles }) => {
       return { start: customRange.from, end: customRange.to };
     }
     return { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
-  };
+  }, [dateMode, weekOffset, monthOffset, customRange]);
 
-  const range = getRange();
-  const { assignments, isLoading } = useTransportAssignments(range.start, range.end);
+  // Filter shared assignments to this widget's range
+  const filteredAssignments = useMemo(() => {
+    const startStr = format(range.start, 'yyyy-MM-dd');
+    const endStr = format(range.end, 'yyyy-MM-dd');
+    return assignments.filter(a => a.transport_date >= startStr && a.transport_date <= endStr);
+  }, [assignments, range]);
 
-  // Split into three columns
-  const actionRequired = assignments.filter(a => 
+  const actionRequired = filteredAssignments.filter(a => 
     a.partner_response === 'declined' || 
     (!a.status || a.status === 'pending') && !a.partner_response && !a.vehicle_id
   );
-  const waitingResponse = assignments.filter(a => 
+  const waitingResponse = filteredAssignments.filter(a => 
     a.status === 'pending' && a.partner_response !== 'accepted' && a.partner_response !== 'declined'
   );
-  const confirmed = assignments.filter(a => 
+  const confirmed = filteredAssignments.filter(a => 
     a.partner_response === 'accepted' || a.status === 'delivered'
   );
 
@@ -226,19 +218,6 @@ const LogisticsTransportWidget: React.FC<Props> = ({ onClick, vehicles }) => {
       return `${format(customRange.from, 'd MMM', { locale: sv })} – ${format(customRange.to, 'd MMM', { locale: sv })}`;
     }
     return '';
-  };
-
-  const navigatePrev = () => {
-    if (dateMode === 'week') setWeekOffset(p => p - 1);
-    if (dateMode === 'month') setMonthOffset(p => p - 1);
-  };
-  const navigateNext = () => {
-    if (dateMode === 'week') setWeekOffset(p => p + 1);
-    if (dateMode === 'month') setMonthOffset(p => p + 1);
-  };
-  const navigateToday = () => {
-    setWeekOffset(0);
-    setMonthOffset(0);
   };
 
   const columns = [
@@ -287,7 +266,6 @@ const LogisticsTransportWidget: React.FC<Props> = ({ onClick, vehicles }) => {
           </button>
         </CardTitle>
 
-        {/* Date controls */}
         <div className="flex items-center gap-2 mt-2 flex-wrap">
           <div className="flex gap-1">
             {(['week', 'month', 'custom'] as DateMode[]).map(mode => (
@@ -296,7 +274,7 @@ const LogisticsTransportWidget: React.FC<Props> = ({ onClick, vehicles }) => {
                 variant={dateMode === mode ? 'default' : 'secondary'}
                 size="sm"
                 className={cn("h-6 text-[10px] px-2 rounded-md", dateMode !== mode && "bg-muted/50")}
-                onClick={() => setDateMode(mode)}
+                onClick={() => onDateModeChange(mode)}
               >
                 {mode === 'week' ? 'Vecka' : mode === 'month' ? 'Månad' : 'Anpassad'}
               </Button>
@@ -305,9 +283,9 @@ const LogisticsTransportWidget: React.FC<Props> = ({ onClick, vehicles }) => {
 
           {dateMode !== 'custom' && (
             <div className="flex items-center gap-1 ml-auto">
-              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-xs" onClick={navigatePrev}>←</Button>
-              <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={navigateToday}>Idag</Button>
-              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-xs" onClick={navigateNext}>→</Button>
+              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-xs" onClick={() => dateMode === 'week' ? onWeekOffsetChange(weekOffset - 1) : onMonthOffsetChange(monthOffset - 1)}>←</Button>
+              <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={() => { onWeekOffsetChange(0); onMonthOffsetChange(0); }}>Idag</Button>
+              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-xs" onClick={() => dateMode === 'week' ? onWeekOffsetChange(weekOffset + 1) : onMonthOffsetChange(monthOffset + 1)}>→</Button>
             </div>
           )}
 
@@ -324,8 +302,8 @@ const LogisticsTransportWidget: React.FC<Props> = ({ onClick, vehicles }) => {
                   mode="range"
                   selected={customRange ? { from: customRange.from, to: customRange.to } : undefined}
                   onSelect={(range) => {
-                    if (range?.from && range?.to) setCustomRange({ from: range.from, to: range.to });
-                    else if (range?.from) setCustomRange({ from: range.from, to: range.from });
+                    if (range?.from && range?.to) onCustomRangeChange({ from: range.from, to: range.to });
+                    else if (range?.from) onCustomRangeChange({ from: range.from, to: range.from });
                   }}
                   className="p-3 pointer-events-auto"
                 />
@@ -354,7 +332,7 @@ const LogisticsTransportWidget: React.FC<Props> = ({ onClick, vehicles }) => {
                     <p className="text-[10px] text-muted-foreground text-center py-6">Inga transporter</p>
                   ) : (
                     col.items.map(a => (
-                      <TransportCard key={a.id} a={a} vehicles={vehicles} expandedId={expandedId} setExpandedId={setExpandedId} cardBg={col.cardBg} cardBorder={col.cardBorder} />
+                      <TransportCard key={a.id} a={a} expandedId={expandedId} setExpandedId={setExpandedId} cardBg={col.cardBg} cardBorder={col.cardBorder} />
                     ))
                   )}
                 </div>
