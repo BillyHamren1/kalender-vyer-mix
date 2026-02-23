@@ -8,172 +8,107 @@ interface BackgroundImportState {
   importCount: number;
 }
 
-const IMPORT_INTERVAL = 30 * 1000; // 30 seconds
-const MIN_IMPORT_GAP = 25 * 1000; // 25 seconds minimum between imports
+const IMPORT_INTERVAL = 30 * 1000;
+const MIN_IMPORT_GAP = 25 * 1000;
 const STORAGE_KEY = 'background_import_state';
 
 export const useBackgroundImport = () => {
-  const [state, setState] = useState<BackgroundImportState>({
-    isRunning: false,
-    lastImport: null,
-    nextImport: null,
-    importCount: 0
-  });
-  
-  const intervalRef = useRef<NodeJS.Timeout>();
-  const isActiveRef = useRef(true);
-
-  // Load state from localStorage
-  useEffect(() => {
-    const savedState = localStorage.getItem(STORAGE_KEY);
-    if (savedState) {
+  const [state, setState] = useState<BackgroundImportState>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
       try {
-        const parsed = JSON.parse(savedState);
-        setState(prev => ({
-          ...prev,
+        const parsed = JSON.parse(saved);
+        return {
+          isRunning: false,
           lastImport: parsed.lastImport ? new Date(parsed.lastImport) : null,
+          nextImport: null,
           importCount: parsed.importCount || 0
-        }));
-      } catch (error) {
-        console.warn('Failed to parse background import state:', error);
-      }
+        };
+      } catch { /* ignore */ }
     }
+    return { isRunning: false, lastImport: null, nextImport: null, importCount: 0 };
+  });
+
+  const intervalRef = useRef<ReturnType<typeof setInterval>>();
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  const saveToStorage = useCallback((lastImport: Date | null, importCount: number) => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      lastImport: lastImport?.toISOString() ?? null,
+      importCount
+    }));
   }, []);
 
-  // Save state to localStorage
-  const saveState = useCallback((newState: Partial<BackgroundImportState>) => {
-    setState(prev => {
-      const updated = { ...prev, ...newState };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        lastImport: updated.lastImport?.toISOString(),
-        importCount: updated.importCount
-      }));
-      return updated;
-    });
-  }, []);
+  const performImport = useCallback(async () => {
+    const s = stateRef.current;
+    if (s.isRunning) return;
+    if (s.lastImport && Date.now() - s.lastImport.getTime() < MIN_IMPORT_GAP) return;
 
-  // Check if enough time has passed since last import
-  const canImport = useCallback(() => {
-    if (!state.lastImport) return true;
-    const timeSinceLastImport = Date.now() - state.lastImport.getTime();
-    return timeSinceLastImport >= MIN_IMPORT_GAP;
-  }, [state.lastImport]);
-
-  // Perform background import (silent, no UI feedback)
-  const performBackgroundImport = useCallback(async () => {
-    if (!isActiveRef.current || !canImport() || state.isRunning) {
-      return;
-    }
-
-    console.log('🔄 Background import starting (30s interval)...');
-    
-    saveState({ 
-      isRunning: true,
-      nextImport: new Date(Date.now() + IMPORT_INTERVAL)
-    });
+    setState(prev => ({ ...prev, isRunning: true }));
 
     try {
-      // Silent import - no user feedback (silent = true)
       await importBookings({ syncMode: 'incremental' }, true);
-      
       const now = new Date();
-      saveState({
+      const newCount = stateRef.current.importCount + 1;
+      saveToStorage(now, newCount);
+      setState({
         isRunning: false,
         lastImport: now,
         nextImport: new Date(now.getTime() + IMPORT_INTERVAL),
-        importCount: state.importCount + 1
+        importCount: newCount
       });
-      
-      console.log('✅ Background import completed successfully (30s interval)');
     } catch (error) {
       console.error('❌ Background import failed:', error);
-      saveState({ 
+      setState(prev => ({
+        ...prev,
         isRunning: false,
         nextImport: new Date(Date.now() + IMPORT_INTERVAL)
-      });
+      }));
     }
-  }, [canImport, state.isRunning, state.importCount, saveState]);
+  }, [saveToStorage]);
 
-  // Start background import service
-  const startBackgroundImport = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
+  // Single stable effect for the interval — no dependency on callbacks that change
+  useEffect(() => {
+    const timer = setTimeout(() => performImport(), 1000);
+    const interval = setInterval(() => performImport(), IMPORT_INTERVAL);
+    intervalRef.current = interval;
 
-    // Run first import immediately if enough time has passed
-    if (canImport()) {
-      setTimeout(performBackgroundImport, 1000); // Small delay to avoid conflicts
-    }
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Set up periodic imports every 30 seconds
-    intervalRef.current = setInterval(() => {
-      if (isActiveRef.current) {
-        performBackgroundImport();
-      }
-    }, IMPORT_INTERVAL);
-
-    console.log('🚀 Background import service started (30s interval)');
-  }, [canImport, performBackgroundImport]);
-
-  // Stop background import service
-  const stopBackgroundImport = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = undefined;
-    }
-    console.log('🛑 Background import service stopped');
-  }, []);
-
-  // Manual import with user feedback (for manual refresh button)
   const triggerManualImport = useCallback(async () => {
-    if (state.isRunning) return false;
-
+    if (stateRef.current.isRunning) return false;
+    setState(prev => ({ ...prev, isRunning: true }));
     try {
-      setState(prev => ({ ...prev, isRunning: true }));
-      // Manual import - show feedback (silent = false)
       const result = await importBookings({ syncMode: 'incremental' }, false);
-      
       const now = new Date();
-      saveState({
+      const newCount = stateRef.current.importCount + 1;
+      saveToStorage(now, newCount);
+      setState({
         isRunning: false,
         lastImport: now,
         nextImport: new Date(now.getTime() + IMPORT_INTERVAL),
-        importCount: state.importCount + 1
+        importCount: newCount
       });
-      
       return result;
     } catch (error) {
       setState(prev => ({ ...prev, isRunning: false }));
       throw error;
     }
-  }, [state.isRunning, state.importCount, saveState]);
-
-  // Initialize on mount
-  useEffect(() => {
-    isActiveRef.current = true;
-    startBackgroundImport();
-
-    return () => {
-      isActiveRef.current = false;
-      stopBackgroundImport();
-    };
-  }, [startBackgroundImport, stopBackgroundImport]);
-
-  // Backward compatibility properties
-  const isImporting = state.isRunning;
-  const lastSyncTime = state.lastImport;
-  const syncStatus = state.isRunning ? 'running' : 'idle';
-  const performManualRefresh = triggerManualImport;
+  }, [saveToStorage]);
 
   return {
     state,
     triggerManualImport,
-    startBackgroundImport,
-    stopBackgroundImport,
-    // Backward compatibility
-    isImporting,
-    lastSyncTime,
-    syncStatus,
-    performManualRefresh
+    startBackgroundImport: () => {},
+    stopBackgroundImport: () => {},
+    isImporting: state.isRunning,
+    lastSyncTime: state.lastImport,
+    syncStatus: state.isRunning ? 'running' as const : 'idle' as const,
+    performManualRefresh: triggerManualImport
   };
 };
