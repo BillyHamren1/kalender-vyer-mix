@@ -151,10 +151,6 @@ const AppContent = () => {
                         <Route path="economy" element={<ProjectEconomyPage />} />
                       </Route>
                       <Route path="/economy" element={<ProtectedRoute><MainSystemLayout><EconomyOverview /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/economy/projects" element={<ProtectedRoute><MainSystemLayout><EconomyOverview view="projects" /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/economy/staff" element={<ProtectedRoute><MainSystemLayout><EconomyOverview view="staff" /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/economy/staff-revenue" element={<ProtectedRoute><MainSystemLayout><StaffRevenueOverview /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/economy/time-reports" element={<ProtectedRoute><MainSystemLayout><EconomyTimeReports /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/economy/:id" element={<ProtectedRoute><MainSystemLayout><ProjectEconomyDetail /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/jobs/:id" element={<ProtectedRoute><JobDetail /></ProtectedRoute>} />
                       <Route path="/large-project/:id" element={<ProtectedRoute><MainSystemLayout><LargeProjectLayout /></MainSystemLayout></ProtectedRoute>}>
