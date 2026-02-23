@@ -1,7 +1,5 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,19 +16,10 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { calculateEconomySummary } from '@/services/projectEconomyService';
-import type { EconomySummary, StaffTimeReport } from '@/types/projectEconomy';
+import type { EconomySummary } from '@/types/projectEconomy';
 import { getDeviationStatus, getDeviationColor, getDeviationBgColor } from '@/types/projectEconomy';
 import { StaffEconomyView } from '@/components/economy/StaffEconomyView';
-
-interface ProjectWithEconomy {
-  id: string;
-  name: string;
-  status: string;
-  booking_id: string | null;
-  summary: EconomySummary;
-  timeReports: StaffTimeReport[];
-}
+import { useEconomyOverviewData, type ProjectWithEconomy } from '@/hooks/useEconomyOverviewData';
 
 interface AggregatedKPIs {
   totalProjects: number;
@@ -56,138 +45,7 @@ const formatHours = (hours: number) => {
 };
 
 const ProjectEconomyView: React.FC = () => {
-  const { data: projectsWithEconomy, isLoading } = useQuery({
-    queryKey: ['economy-overview'],
-    queryFn: async (): Promise<ProjectWithEconomy[]> => {
-      // Fetch all active projects
-      const { data: projects, error: projectsError } = await supabase
-        .from('projects')
-        .select('*')
-        .in('status', ['planning', 'active', 'in_progress'])
-        .order('created_at', { ascending: false });
-
-      if (projectsError) throw projectsError;
-      if (!projects?.length) return [];
-
-      // Fetch economy data for each project
-      const projectsWithData = await Promise.all(
-        projects.map(async (project) => {
-          // Fetch budget
-          const { data: budget } = await supabase
-            .from('project_budget')
-            .select('*')
-            .eq('project_id', project.id)
-            .maybeSingle();
-
-          // Fetch purchases
-          const { data: purchases } = await supabase
-            .from('project_purchases')
-            .select('*')
-            .eq('project_id', project.id);
-
-          // Fetch quotes
-          const { data: quotes } = await supabase
-            .from('project_quotes')
-            .select('*')
-            .eq('project_id', project.id);
-
-          // Fetch invoices
-          const { data: invoices } = await supabase
-            .from('project_invoices')
-            .select('*')
-            .eq('project_id', project.id);
-
-          // Fetch time reports if booking_id exists
-          let timeReports: StaffTimeReport[] = [];
-          if (project.booking_id) {
-            const { data: reports } = await supabase
-              .from('time_reports')
-              .select(`
-                staff_id,
-                hours_worked,
-                overtime_hours,
-                staff_members!inner(name, hourly_rate, overtime_rate)
-              `)
-              .eq('booking_id', project.booking_id);
-
-            // Aggregate by staff member
-            const staffMap = new Map<string, StaffTimeReport>();
-            (reports || []).forEach((report: any) => {
-              const staffId = report.staff_id;
-              const existing = staffMap.get(staffId);
-              const staffData = report.staff_members;
-              const hourlyRate = Number(staffData?.hourly_rate) || 0;
-              const overtimeRate = Number(staffData?.overtime_rate) || hourlyRate * 1.5;
-
-              if (existing) {
-                existing.total_hours += Number(report.hours_worked) || 0;
-                existing.overtime_hours += Number(report.overtime_hours) || 0;
-                existing.total_cost = (existing.total_hours * existing.hourly_rate) + 
-                                     (existing.overtime_hours * existing.overtime_rate);
-              } else {
-                const totalHours = Number(report.hours_worked) || 0;
-                const overtimeHours = Number(report.overtime_hours) || 0;
-                staffMap.set(staffId, {
-                  staff_id: staffId,
-                  staff_name: staffData?.name || 'Okänd',
-                  total_hours: totalHours,
-                  overtime_hours: overtimeHours,
-                  hourly_rate: hourlyRate,
-                  overtime_rate: overtimeRate,
-                  total_cost: (totalHours * hourlyRate) + (overtimeHours * overtimeRate),
-                  approved: (report as any).approved === true,
-                  report_ids: [],
-                  detailed_reports: []
-                });
-              }
-            });
-            timeReports = Array.from(staffMap.values());
-          }
-
-          // Fetch labor costs
-          const { data: laborCosts } = await supabase
-            .from('project_labor_costs')
-            .select('*')
-            .eq('project_id', project.id);
-
-          // Add labor costs to time reports
-          (laborCosts || []).forEach((cost: any) => {
-            timeReports.push({
-              staff_id: cost.staff_id || 'manual',
-              staff_name: cost.staff_name,
-              total_hours: Number(cost.hours) || 0,
-              overtime_hours: 0,
-              hourly_rate: Number(cost.hourly_rate) || 0,
-              overtime_rate: 0,
-              total_cost: (Number(cost.hours) || 0) * (Number(cost.hourly_rate) || 0),
-              approved: true,
-              report_ids: [],
-              detailed_reports: []
-            });
-          });
-
-          const summary = calculateEconomySummary(
-            budget,
-            timeReports,
-            purchases || [],
-            (quotes || []) as any,
-            (invoices || []) as any
-          );
-
-          return {
-            id: project.id,
-            name: project.name,
-            status: project.status,
-            booking_id: project.booking_id,
-            summary,
-            timeReports
-          };
-        })
-      );
-
-      return projectsWithData;
-    }
-  });
+  const { data: projectsWithEconomy, isLoading } = useEconomyOverviewData();
 
   // Calculate aggregated KPIs
   const kpis: AggregatedKPIs = React.useMemo(() => {
