@@ -1,64 +1,92 @@
 
-# Optimering: En enda edge function-anrop for hela ekonomiöversikten
+# Prestandaoptimering: Logistikplanering och systemomfattande stabilisering
 
-## Problemet nu
+## Identifierade problem
 
-Batch-optimeringen fungerar korrekt -- varje projekt skickar `type: 'batch'` istallet for 7 separata anrop. Men det ar fortfarande **5 separata edge function-anrop** (ett per projekt), som alla triggar egna boot-ups och var och en gor 7 HTTP-anrop internt till det externa API:t.
+### 1. Bakgrundsimporten kraschar var 30:e sekund (hela appen)
+`sync_state`-tabellens RLS-policy ar markerad som **RESTRICTIVE** utan nagon **PERMISSIVE** policy. I PostgreSQL innebar det att ALL atkomst nekas, oavsett vad. Detta orsakar ett felflode var 30:e sekund som spammar konsolen med 5+ felmeddelanden per cykel.
 
 ```text
-Nu:  5 edge function-anrop x 7 externa anrop = 35 externa anrop + 5 boot-ups
-Mal: 1 edge function-anrop x 7 externa anrop per booking = 35 externa anrop + 1 boot-up
+Varje 30s:
+  -> updateSyncState() -> PGRST116 error (0 rows)
+  -> initializeSyncState() -> 42501 RLS violation
+  -> importBookings() -> 42501 RLS violation (kastas vidare)
+  -> updateSyncState() -> PGRST116 error (igen)
+  -> updateSyncState() -> PGRST116 error (igen)
+  = 5 felmeddelanden per 30-sekunders-cykel
 ```
 
-Den stora vinsten: **1 edge function boot istallet for 5**, plus att alla 35 externa anrop kor i en enda `Promise.all` inuti en enda funktion.
+### 2. useBackgroundImport har en omstartsloop
+`startBackgroundImport` och `stopBackgroundImport` skapas om vid varje renderingscykel pa grund av instabila callback-beroenden. Detta gor att `useEffect` stannar och startar om tjänsten kontinuerligt (syns tydligt i konsolloggarna: "stopped" -> "started" -> "stopped" -> "started"...).
 
-## Losning: `type: 'multi_batch'` med alla booking_ids
+### 3. Dubbla databashämtningar pa logistiksidan
+Bade `LogisticsWeekView` och `LogisticsTransportWidget` anropar `useTransportAssignments` var for sig med overlappande datumintervall. Det resulterar i:
+- 2 separata Supabase-querys med JOINs (transport_assignments + vehicles + bookings + booking_products)
+- 2 separata realtidsprenumerationer pa `transport_assignments`
+- Plus ytterligare en realtidsprenumeration fran `useBookingsForTransport` (om den anvands)
 
-### Steg 1: Utoka edge function (`planning-api-proxy/index.ts`)
+### 4. useVehicles laddar allt i onödan
+`useVehicles` hamtar alla fordon med realtidsprenumeration aven nar datan bara anvands for att slå upp namn i transportwidgeten.
 
-Lagg till en ny typ `multi_batch` som tar emot en array av `booking_ids` istallet for ett enda `booking_id`. Internt gor den `Promise.all` over alla bokningar, dar varje bokning i sin tur gor 7 parallella anrop.
+---
 
-**Input:**
-```json
-{
-  "type": "multi_batch",
-  "booking_ids": ["abc123", "def456", "ghi789"]
-}
+## Losningsplan
+
+### Steg 1: Fixa sync_state RLS-policy (databas)
+Andrar den RESTRICTIVE policyn till PERMISSIVE sa att autentiserade anvandare med ratt organization_id kan lasa/skriva sync_state. Detta stoppar omedelbart det felflode som kor var 30:e sekund.
+
+**SQL-migration:**
+```sql
+DROP POLICY IF EXISTS "org_filter_sync_state" ON sync_state;
+CREATE POLICY "org_filter_sync_state" ON sync_state
+  FOR ALL
+  USING (organization_id = get_user_organization_id(auth.uid()))
+  WITH CHECK (organization_id = get_user_organization_id(auth.uid()));
 ```
 
-**Output:**
-```json
-{
-  "abc123": { "budget": ..., "time_reports": [], ... },
-  "def456": { "budget": ..., "time_reports": [], ... },
-  "ghi789": { "budget": ..., "time_reports": [], ... }
-}
-```
+### Steg 2: Stabilisera useBackgroundImport
+Refaktorera hooken for att eliminera omstartsloopen:
+- Flytta `performBackgroundImport` logiken till en stabil ref-baserad approach
+- Ta bort cirkulara beroenden i useCallback-kedjan
+- Anvand en enda useEffect med stabil referens for interval-hantering
 
-### Steg 2: Ny service-funktion (`planningApiService.ts`)
+**Fil:** `src/hooks/useBackgroundImport.ts`
 
-Lagg till `fetchAllEconomyDataMulti(bookingIds: string[])` som anropar `multi_batch` med alla booking_ids och returnerar en `Record<string, BatchEconomyData>`.
+### Steg 3: Lyft upp transportdata till LogisticsPlanning
+Istallet for att bade `LogisticsWeekView` och `LogisticsTransportWidget` hamtar sin egen data:
+1. Anropa `useTransportAssignments` en gang i `LogisticsPlanning`
+2. Skicka ner assignments som props till bada komponenterna
+3. Resulterar i 1 databasfraga istallet for 2, och 1 realtidsprenumeration istallet for 2
 
-### Steg 3: Uppdatera hooken (`useEconomyOverviewData.ts`)
+**Filer:**
+- `src/pages/LogisticsPlanning.tsx` -- hamtar data, skickar ner
+- `src/components/logistics/LogisticsWeekView.tsx` -- tar emot assignments som props
+- `src/components/logistics/widgets/LogisticsTransportWidget.tsx` -- tar emot assignments som props
 
-Istallet for `Promise.all` med ett batch-anrop per projekt:
-1. Samla alla booking_ids fran projekten
-2. Gor ETT anrop med `fetchAllEconomyDataMulti(bookingIds)`
-3. Mappa resultaten till respektive projekt
+### Steg 4: Optimera useVehicles-anropet
+`LogisticsPlanning` anropar `useVehicles` som laddar alla fordon + realtid. Fordonsdata anvands bara for namnuppslag i TransportWidget. Flytta detta sa att fordonsnamn redan ar inkluderade i transport_assignments-queryn (de ar redan JOINade via `vehicle`-relationen), sa att `useVehicles` inte behovs alls pa planning-fliken.
+
+**Filer:**
+- `src/pages/LogisticsPlanning.tsx` -- ta bort useVehicles
+- `src/components/logistics/widgets/LogisticsTransportWidget.tsx` -- anvand `assignment.vehicle?.name` istallet for separat vehicles-lookup
+
+---
 
 ## Resultat
 
 | | Fore | Efter |
 |---|---|---|
-| Edge function-anrop | 5 | **1** |
-| Edge function boot-ups | 5 | **1** |
-| Externa API-anrop (internt) | 35 | 35 (men i en enda Promise.all) |
-| Uppskattat laddtid | 5-10s | **1-2s** |
+| Felmeddelanden per minut | ~10 (sync_state RLS) | 0 |
+| DB-fragor vid sidladdning | 3+ (2x transport + 1x vehicles) | 1 (transport med JOINs) |
+| Realtidsprenumerationer | 3-4 | 1 |
+| Bakgrundsimport-omstarter | Varje renderingscykel | Ingen (stabil) |
+| Upplevd laddtid | Laggig | Snabb |
 
 ## Tekniska detaljer
 
 ### Filer som andras
-
-1. `supabase/functions/planning-api-proxy/index.ts` -- ny `multi_batch`-typ
-2. `src/services/planningApiService.ts` -- ny `fetchAllEconomyDataMulti()`
-3. `src/hooks/useEconomyOverviewData.ts` -- anvand multi_batch istallet for flera batch-anrop
+1. **Databas**: Ny migration for sync_state RLS-fix
+2. `src/hooks/useBackgroundImport.ts` -- stabilisera hook, ta bort omstartsloop
+3. `src/pages/LogisticsPlanning.tsx` -- lyft data, ta bort useVehicles
+4. `src/components/logistics/LogisticsWeekView.tsx` -- ta emot props istallet for egen hook
+5. `src/components/logistics/widgets/LogisticsTransportWidget.tsx` -- anvand vehicle-data fran assignments
