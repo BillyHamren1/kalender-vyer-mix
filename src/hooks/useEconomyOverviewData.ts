@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { fetchAllEconomyData } from '@/services/planningApiService';
+import { fetchAllEconomyDataMulti, type BatchEconomyData } from '@/services/planningApiService';
 import { calculateEconomySummary } from '@/services/projectEconomyService';
 import type { EconomySummary, StaffTimeReport } from '@/types/projectEconomy';
 
@@ -16,12 +16,10 @@ export interface ProjectWithEconomy {
 }
 
 /**
- * Fetches economy data for a single project via planning-api-proxy.
+ * Processes batch economy data for a single booking.
  * Returns summary + timeReports mapped to the standard StaffTimeReport shape.
  */
-async function fetchProjectEconomyFromProxy(bookingId: string) {
-  const batchData = await fetchAllEconomyData(bookingId);
-
+function processEconomyBatchData(batchData: BatchEconomyData) {
   const budget = batchData.budget ?? null;
   const timeReportsRaw = batchData.time_reports ?? [];
   const purchases = batchData.purchases ?? [];
@@ -150,53 +148,58 @@ export const useEconomyOverviewData = () => {
         }
       }
 
-      // Fetch economy data for each project via planning-api-proxy
-      const results = await Promise.all(
-        projects.map(async (project) => {
-          const eventdate = project.booking_id ? (eventdateMap[project.booking_id] ?? null) : null;
+      // Fetch ALL economy data in a single edge function call
+      let multiBatchData: Record<string, BatchEconomyData> = {};
+      if (bookingIds.length > 0) {
+        try {
+          multiBatchData = await fetchAllEconomyDataMulti(bookingIds);
+        } catch (err) {
+          console.error('Failed to fetch multi-batch economy data:', err);
+        }
+      }
 
-          if (!project.booking_id) {
-            return {
-              id: project.id,
-              name: project.name,
-              status: project.status,
-              booking_id: project.booking_id,
-              eventdate,
-              summary: emptySummary,
-              timeReports: [] as StaffTimeReport[],
-              economyClosed: false,
-            };
-          }
+      return projects.map((project) => {
+        const eventdate = project.booking_id ? (eventdateMap[project.booking_id] ?? null) : null;
 
-          try {
-            const { summary, timeReports, economyClosed } = await fetchProjectEconomyFromProxy(project.booking_id);
-            return {
-              id: project.id,
-              name: project.name,
-              status: project.status,
-              booking_id: project.booking_id,
-              eventdate,
-              summary,
-              timeReports,
-              economyClosed,
-            };
-          } catch (err) {
-            console.error(`Failed to fetch economy for project ${project.name}:`, err);
-            return {
-              id: project.id,
-              name: project.name,
-              status: project.status,
-              booking_id: project.booking_id,
-              eventdate,
-              summary: emptySummary,
-              timeReports: [] as StaffTimeReport[],
-              economyClosed: false,
-            };
-          }
-        })
-      );
+        if (!project.booking_id || !multiBatchData[project.booking_id]) {
+          return {
+            id: project.id,
+            name: project.name,
+            status: project.status,
+            booking_id: project.booking_id,
+            eventdate,
+            summary: emptySummary,
+            timeReports: [] as StaffTimeReport[],
+            economyClosed: false,
+          };
+        }
 
-      return results;
+        try {
+          const { summary, timeReports, economyClosed } = processEconomyBatchData(multiBatchData[project.booking_id]);
+          return {
+            id: project.id,
+            name: project.name,
+            status: project.status,
+            booking_id: project.booking_id,
+            eventdate,
+            summary,
+            timeReports,
+            economyClosed,
+          };
+        } catch (err) {
+          console.error(`Failed to process economy for project ${project.name}:`, err);
+          return {
+            id: project.id,
+            name: project.name,
+            status: project.status,
+            booking_id: project.booking_id,
+            eventdate,
+            summary: emptySummary,
+            timeReports: [] as StaffTimeReport[],
+            economyClosed: false,
+          };
+        }
+      });
     },
     staleTime: 5 * 60 * 1000, // 5 min cache
   });
