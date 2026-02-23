@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -236,8 +237,19 @@ const StaffDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Content - Single scrollable page */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <Tabs defaultValue="info" className="flex-1 flex flex-col overflow-hidden">
+        <div className="px-6 border-b border-border bg-card">
+          <TabsList className="h-auto p-0 bg-transparent rounded-none">
+            <TabsTrigger value="info" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-3">
+              Information
+            </TabsTrigger>
+            <TabsTrigger value="timereports" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-3">
+              Tidrapporter
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="info" className="flex-1 overflow-y-auto p-6 space-y-6 mt-0">
         {/* Personuppgifter + Anställning + Lön - 3 columns */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Personuppgifter */}
@@ -336,102 +348,99 @@ const StaffDetail: React.FC = () => {
 
         {/* Konto */}
         <StaffAccountCard staffId={staffMember.id} staffName={staffMember.name} />
+        </TabsContent>
 
-        {/* Tidrapporter */}
-        <Card className="bg-card shadow-sm border border-border">
-          <CardHeader className="pb-4 border-b border-border/50">
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-                <Clock className="h-5 w-5 text-primary/60" />
-                Tidrapporter
-              </CardTitle>
-              <Button size="sm" onClick={() => setShowTimeReportForm(!showTimeReportForm)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Lägg till
-              </Button>
+        <TabsContent value="timereports" className="flex-1 overflow-y-auto p-6 space-y-6 mt-0">
+          <div className="flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-lg font-semibold">
+              <Clock className="h-5 w-5 text-primary/60" />
+              Tidrapporter
+            </h2>
+            <Button size="sm" onClick={() => setShowTimeReportForm(!showTimeReportForm)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Lägg till
+            </Button>
+          </div>
+
+          {/* Månadsnavigation */}
+          <TimeReportsMonthNavigation
+            currentDate={selectedDate}
+            onDateChange={setSelectedDate}
+            onRefresh={loadTrackedTimeData}
+            isLoading={timeReportsLoading}
+            lastUpdated={lastUpdated}
+          />
+
+          {/* Felmeddelande */}
+          {timeReportsError && (
+            <div className="bg-destructive/10 border border-destructive/20 rounded-md p-4">
+              <div className="text-destructive">{timeReportsError}</div>
             </div>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-6">
-            {/* Månadsnavigation */}
-            <TimeReportsMonthNavigation
-              currentDate={selectedDate}
-              onDateChange={setSelectedDate}
-              onRefresh={loadTrackedTimeData}
-              isLoading={timeReportsLoading}
-              lastUpdated={lastUpdated}
+          )}
+
+          {/* Månadsstatistik */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-muted/50 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Timmar denna månad</p>
+                  <p className="text-xl font-bold">{monthlyStats.totalHours.toFixed(1)}</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Intjäning denna månad</p>
+                  <p className="text-xl font-bold">{monthlyStats.totalEarnings.toFixed(0)} kr</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Inlämnade rapporter</p>
+                  <p className="text-xl font-bold">{monthlyStats.totalReports}</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">OB-timmar</p>
+                  <p className="text-xl font-bold">{monthlyStats.overtimeHours.toFixed(1)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Tidrapportformulär */}
+          {showTimeReportForm && (
+            <TimeReportForm
+              staffId={staffId}
+              onSuccess={handleTimeReportSubmit}
+              onCancel={() => setShowTimeReportForm(false)}
             />
+          )}
 
-            {/* Felmeddelande */}
-            {timeReportsError && (
-              <div className="bg-destructive/10 border border-destructive/20 rounded-md p-4">
-                <div className="text-destructive">{timeReportsError}</div>
-              </div>
-            )}
-
-            {/* Månadsstatistik */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-muted/50 rounded-lg p-4">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Timmar denna månad</p>
-                    <p className="text-xl font-bold">{monthlyStats.totalHours.toFixed(1)}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-muted/50 rounded-lg p-4">
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Intjäning denna månad</p>
-                    <p className="text-xl font-bold">{monthlyStats.totalEarnings.toFixed(0)} kr</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-muted/50 rounded-lg p-4">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Inlämnade rapporter</p>
-                    <p className="text-xl font-bold">{monthlyStats.totalReports}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-muted/50 rounded-lg p-4">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">OB-timmar</p>
-                    <p className="text-xl font-bold">{monthlyStats.overtimeHours.toFixed(1)}</p>
-                  </div>
-                </div>
-              </div>
+          {/* Laddning */}
+          {timeReportsLoading && (
+            <div className="flex items-center justify-center p-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <span className="ml-3 text-muted-foreground">Laddar tidrapporter...</span>
             </div>
+          )}
 
-            {/* Tidrapportformulär */}
-            {showTimeReportForm && (
-              <TimeReportForm
-                staffId={staffId}
-                onSuccess={handleTimeReportSubmit}
-                onCancel={() => setShowTimeReportForm(false)}
-              />
-            )}
-
-            {/* Laddning */}
-            {timeReportsLoading && (
-              <div className="flex items-center justify-center p-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                <span className="ml-3 text-muted-foreground">Laddar tidrapporter...</span>
-              </div>
-            )}
-
-            {/* Tidrapportlista */}
-            {!timeReportsLoading && (
-              <TimeReportListView reports={timeReports} selectedDate={selectedDate} />
-            )}
-          </CardContent>
-        </Card>
-      </div>
+          {/* Tidrapportlista */}
+          {!timeReportsLoading && (
+            <TimeReportListView reports={timeReports} selectedDate={selectedDate} />
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
