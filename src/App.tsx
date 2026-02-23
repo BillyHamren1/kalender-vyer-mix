@@ -47,9 +47,7 @@ import AuthResetPassword from "./pages/AuthResetPassword";
 import TransportResponse from "./pages/TransportResponse";
 
 // Logistics pages
-import LogisticsPlanning from "./pages/LogisticsPlanning";
-import LogisticsVehicles from "./pages/LogisticsVehicles";
-import LogisticsRoutes from "./pages/LogisticsRoutes";
+import LogisticsHub from "./pages/LogisticsHub";
 
 // Warehouse system pages
 import WarehouseDashboard from "./pages/WarehouseDashboard";
@@ -161,10 +159,10 @@ const AppContent = () => {
                       <Route path="/api-docs" element={<ProtectedRoute><MainSystemLayout><APIDocumentation /></MainSystemLayout></ProtectedRoute>} />
 
                       {/* Logistics Routes */}
-                      <Route path="/logistics" element={<ProtectedRoute><MainSystemLayout><LogisticsPlanning /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/logistics/planning" element={<ProtectedRoute><MainSystemLayout><LogisticsPlanning /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/logistics/routes" element={<ProtectedRoute><MainSystemLayout><LogisticsRoutes /></MainSystemLayout></ProtectedRoute>} />
-                      <Route path="/logistics/vehicles" element={<ProtectedRoute><MainSystemLayout><LogisticsVehicles /></MainSystemLayout></ProtectedRoute>} />
+                      <Route path="/logistics" element={<ProtectedRoute><MainSystemLayout><LogisticsHub /></MainSystemLayout></ProtectedRoute>} />
+                      <Route path="/logistics/planning" element={<ProtectedRoute><MainSystemLayout><LogisticsHub /></MainSystemLayout></ProtectedRoute>} />
+                      <Route path="/logistics/routes" element={<ProtectedRoute><MainSystemLayout><LogisticsHub /></MainSystemLayout></ProtectedRoute>} />
+                      <Route path="/logistics/vehicles" element={<ProtectedRoute><MainSystemLayout><LogisticsHub /></MainSystemLayout></ProtectedRoute>} />
 
                       {/* Warehouse System Routes */}
                       <Route path="/warehouse" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseDashboard /></WarehouseSystemLayout></ProtectedRoute>} />

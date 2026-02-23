@@ -293,18 +293,14 @@ const LogisticsVehicles: React.FC = () => {
   };
 
   return (
-    <PageContainer>
-      {/* Header */}
-      <PageHeader
-        icon={Truck}
-        title="Fordonshantering"
-        subtitle="Hantera fordon och externa transportbolag"
-        action={{
-          label: activeTab === 'external' ? 'Lägg till transportbolag' : 'Lägg till fordon',
-          icon: Plus,
-          onClick: openCreateForm
-        }}
-      />
+    <div>
+      {/* Action button */}
+      <div className="flex justify-end mb-4">
+        <Button onClick={openCreateForm} className="rounded-xl">
+          <Plus className="h-4 w-4 mr-2" />
+          {activeTab === 'external' ? 'Lägg till transportbolag' : 'Lägg till fordon'}
+        </Button>
+      </div>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'internal' | 'external')}>
@@ -536,7 +532,7 @@ const LogisticsVehicles: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </PageContainer>
+    </div>
   );
 };
 

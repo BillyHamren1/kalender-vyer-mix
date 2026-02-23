@@ -217,13 +217,9 @@ const LogisticsRoutes: React.FC = () => {
   const isLoading = vehiclesLoading || assignmentsLoading;
 
   return (
-    <PageContainer>
-      {/* Header */}
-      <PageHeader
-        icon={Route}
-        title="Ruttplanering"
-        subtitle="Optimera och följ leveransrutter"
-      >
+    <div>
+      {/* Controls */}
+      <div className="flex flex-wrap items-center gap-3 mb-6">
         <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
           <SelectTrigger className="w-[200px] rounded-xl">
             <SelectValue placeholder="Välj fordon" />
@@ -243,7 +239,7 @@ const LogisticsRoutes: React.FC = () => {
           onChange={e => setSelectedDate(new Date(e.target.value))}
           className="px-3 py-2 border rounded-xl bg-background h-10"
         />
-      </PageHeader>
+      </div>
 
       {/* Main Content */}
       <div className="grid gap-6 lg:grid-cols-3">
@@ -381,7 +377,7 @@ const LogisticsRoutes: React.FC = () => {
           </div>
         </PremiumCard>
       )}
-    </PageContainer>
+    </div>
   );
 };
 
