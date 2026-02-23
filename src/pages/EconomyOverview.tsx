@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,9 @@ import { useEconomyOverviewData, type ProjectWithEconomy } from '@/hooks/useEcon
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+
+const StaffRevenueContent = React.lazy(() => import('@/pages/StaffRevenueOverview'));
+const EconomyTimeReportsContent = React.lazy(() => import('@/pages/EconomyTimeReports'));
 
 type TimePeriod = 'day' | 'week' | 'month';
 
@@ -535,11 +539,10 @@ const ProjectEconomyView: React.FC = () => {
   );
 };
 
-interface EconomyOverviewProps {
-  view?: 'projects' | 'staff';
-}
+const tabTriggerClass =
+  "relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground";
 
-const EconomyOverview: React.FC<EconomyOverviewProps> = ({ view = 'projects' }) => {
+const EconomyOverview: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="container mx-auto px-4 py-8 max-w-[1600px]">
@@ -563,15 +566,52 @@ const EconomyOverview: React.FC<EconomyOverviewProps> = ({ view = 'projects' }) 
                   Ekonomiöversikt
                 </h1>
                 <p className="text-muted-foreground mt-0.5">
-                  {view === 'projects' ? 'Översikt över projektekonomi' : 'Översikt över personalekonomi'}
+                  Översikt över projekt- och personalekonomi
                 </p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Content based on view */}
-        {view === 'projects' ? <ProjectEconomyView /> : <StaffEconomyView />}
+        {/* Tabbed content */}
+        <Tabs defaultValue="projects" className="space-y-6">
+          <div className="border-b border-border/40 overflow-x-auto">
+            <TabsList className="h-auto p-0 bg-transparent gap-0">
+              <TabsTrigger value="projects" className={tabTriggerClass}>
+                Projekt
+              </TabsTrigger>
+              <TabsTrigger value="staff" className={tabTriggerClass}>
+                Personal
+              </TabsTrigger>
+              <TabsTrigger value="staff-revenue" className={tabTriggerClass}>
+                Personalekonomi
+              </TabsTrigger>
+              <TabsTrigger value="time-reports" className={tabTriggerClass}>
+                Rapporterad tid / Utlägg
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="projects">
+            <ProjectEconomyView />
+          </TabsContent>
+
+          <TabsContent value="staff">
+            <StaffEconomyView />
+          </TabsContent>
+
+          <TabsContent value="staff-revenue">
+            <React.Suspense fallback={<Skeleton className="h-96" />}>
+              <StaffRevenueContent />
+            </React.Suspense>
+          </TabsContent>
+
+          <TabsContent value="time-reports">
+            <React.Suspense fallback={<Skeleton className="h-96" />}>
+              <EconomyTimeReportsContent />
+            </React.Suspense>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
