@@ -1,0 +1,183 @@
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import {
+  fetchBudget,
+  fetchTimeReports,
+  fetchPurchases,
+  fetchQuotes,
+  fetchInvoices,
+  fetchProductCostsRemote,
+  fetchSupplierInvoices,
+} from '@/services/planningApiService';
+import { calculateEconomySummary } from '@/services/projectEconomyService';
+import type { EconomySummary, StaffTimeReport } from '@/types/projectEconomy';
+
+export interface ProjectWithEconomy {
+  id: string;
+  name: string;
+  status: string;
+  booking_id: string | null;
+  summary: EconomySummary;
+  timeReports: StaffTimeReport[];
+}
+
+/**
+ * Fetches economy data for a single project via planning-api-proxy.
+ * Returns summary + timeReports mapped to the standard StaffTimeReport shape.
+ */
+async function fetchProjectEconomyFromProxy(bookingId: string) {
+  const [budget, timeReportsRaw, purchases, quotes, invoices, productCosts, supplierInvoices] =
+    await Promise.all([
+      fetchBudget(bookingId).catch(() => null),
+      fetchTimeReports(bookingId).catch(() => []),
+      fetchPurchases(bookingId).catch(() => []),
+      fetchQuotes(bookingId).catch(() => []),
+      fetchInvoices(bookingId).catch(() => []),
+      fetchProductCostsRemote(bookingId).catch(() => null),
+      fetchSupplierInvoices(bookingId),
+    ]);
+
+  // Map time reports from external format to StaffTimeReport[]
+  const staffMap = new Map<string, StaffTimeReport>();
+  const reports = Array.isArray(timeReportsRaw) ? timeReportsRaw : [];
+
+  reports.forEach((r: any) => {
+    const staffId = r.staff_id || r.id || 'unknown';
+    const staffName = r.staff_name || r.name || 'Okänd';
+    const hours = Number(r.hours_worked) || Number(r.hours) || 0;
+    const overtime = Number(r.overtime_hours) || 0;
+    const rate = Number(r.hourly_rate) || 0;
+    const overtimeRate = Number(r.overtime_rate) || rate * 1.5;
+
+    const existing = staffMap.get(staffId);
+    if (existing) {
+      existing.total_hours += hours;
+      existing.overtime_hours += overtime;
+      existing.total_cost = existing.total_hours * existing.hourly_rate +
+        existing.overtime_hours * existing.overtime_rate;
+    } else {
+      staffMap.set(staffId, {
+        staff_id: staffId,
+        staff_name: staffName,
+        total_hours: hours,
+        overtime_hours: overtime,
+        hourly_rate: rate,
+        overtime_rate: overtimeRate,
+        total_cost: hours * rate + overtime * overtimeRate,
+        approved: r.approved !== false,
+        report_ids: [],
+        detailed_reports: [],
+      });
+    }
+  });
+
+  const timeReports = Array.from(staffMap.values());
+
+  // Map purchases to the expected shape
+  const purchasesMapped = (Array.isArray(purchases) ? purchases : []).map((p: any) => ({
+    ...p,
+    amount: Number(p.amount) || 0,
+  }));
+
+  // Map quotes
+  const quotesMapped = (Array.isArray(quotes) ? quotes : []).map((q: any) => ({
+    ...q,
+    quoted_amount: Number(q.quoted_amount) || 0,
+  }));
+
+  // Map invoices
+  const invoicesMapped = (Array.isArray(invoices) ? invoices : []).map((i: any) => ({
+    ...i,
+    invoiced_amount: Number(i.invoiced_amount) || 0,
+  }));
+
+  const summary = calculateEconomySummary(
+    budget,
+    timeReports,
+    purchasesMapped,
+    quotesMapped,
+    invoicesMapped,
+    productCosts,
+    Array.isArray(supplierInvoices) ? supplierInvoices : [],
+  );
+
+  return { summary, timeReports };
+}
+
+const emptySummary: EconomySummary = {
+  budgetedHours: 0,
+  actualHours: 0,
+  hourlyRate: 0,
+  staffBudget: 0,
+  staffActual: 0,
+  staffDeviation: 0,
+  staffDeviationPercent: 0,
+  purchasesTotal: 0,
+  quotesTotal: 0,
+  invoicesTotal: 0,
+  invoiceDeviation: 0,
+  supplierInvoicesTotal: 0,
+  productCostBudget: 0,
+  totalBudget: 0,
+  totalActual: 0,
+  totalDeviation: 0,
+  totalDeviationPercent: 0,
+};
+
+export const useEconomyOverviewData = () => {
+  return useQuery({
+    queryKey: ['economy-overview'],
+    queryFn: async (): Promise<ProjectWithEconomy[]> => {
+      // Fetch all active projects
+      const { data: projects, error } = await supabase
+        .from('projects')
+        .select('id, name, status, booking_id')
+        .in('status', ['planning', 'active', 'in_progress'])
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      if (!projects?.length) return [];
+
+      // Fetch economy data for each project via planning-api-proxy
+      const results = await Promise.all(
+        projects.map(async (project) => {
+          if (!project.booking_id) {
+            return {
+              id: project.id,
+              name: project.name,
+              status: project.status,
+              booking_id: project.booking_id,
+              summary: emptySummary,
+              timeReports: [] as StaffTimeReport[],
+            };
+          }
+
+          try {
+            const { summary, timeReports } = await fetchProjectEconomyFromProxy(project.booking_id);
+            return {
+              id: project.id,
+              name: project.name,
+              status: project.status,
+              booking_id: project.booking_id,
+              summary,
+              timeReports,
+            };
+          } catch (err) {
+            console.error(`Failed to fetch economy for project ${project.name}:`, err);
+            return {
+              id: project.id,
+              name: project.name,
+              status: project.status,
+              booking_id: project.booking_id,
+              summary: emptySummary,
+              timeReports: [] as StaffTimeReport[],
+            };
+          }
+        })
+      );
+
+      return results;
+    },
+    staleTime: 5 * 60 * 1000, // 5 min cache
+  });
+};
