@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { 
   Users, 
   Clock, 
-  DollarSign,
+  Banknote,
   TrendingUp,
   Briefcase,
   Calendar
@@ -209,7 +209,7 @@ export const StaffEconomyView: React.FC = () => {
                 <p className="text-2xl font-bold text-foreground">{formatCurrency(kpis.totalCostThisMonth)}</p>
               </div>
               <div className="p-3 bg-primary/20 rounded-full">
-                <DollarSign className="w-6 h-6 text-primary" />
+                <Banknote className="w-6 h-6 text-primary" />
               </div>
             </div>
             <p className="text-xs text-muted-foreground mt-2">

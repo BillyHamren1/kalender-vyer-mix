@@ -8,7 +8,7 @@ import {
   TrendingUp, 
   TrendingDown, 
   AlertTriangle, 
-  DollarSign, 
+  Banknote, 
   Clock, 
   Users, 
   ArrowRight,
@@ -112,7 +112,7 @@ const ProjectEconomyView: React.FC = () => {
                 <p className="text-2xl font-bold text-foreground">{formatCurrency(kpis.totalBudget)}</p>
               </div>
               <div className="p-3 bg-primary/20 rounded-full">
-                <DollarSign className="w-6 h-6 text-primary" />
+                <Banknote className="w-6 h-6 text-primary" />
               </div>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
@@ -385,7 +385,7 @@ const EconomyOverview: React.FC<EconomyOverviewProps> = ({ view = 'projects' }) 
                 className="relative p-3.5 rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-lg"
                 style={{ boxShadow: '0 8px 32px hsl(var(--primary) / 0.3)' }}
               >
-                <DollarSign className="h-7 w-7 text-primary-foreground" />
+                <Banknote className="h-7 w-7 text-primary-foreground" />
               </div>
               <div>
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">

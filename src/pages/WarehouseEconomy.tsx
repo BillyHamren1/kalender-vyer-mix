@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { RefreshCw, TrendingUp, TrendingDown, Clock, Package, DollarSign, Target, ChevronLeft, ChevronRight, Users } from "lucide-react";
+import { RefreshCw, TrendingUp, TrendingDown, Clock, Package, Banknote, Target, ChevronLeft, ChevronRight, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -140,7 +140,7 @@ const WarehouseEconomy = () => {
                 className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg shadow-warehouse/15"
                 style={{ background: 'linear-gradient(135deg, hsl(38 92% 55%) 0%, hsl(32 95% 40%) 100%)' }}
               >
-                <DollarSign className="h-6 w-6 text-white" />
+                <Banknote className="h-6 w-6 text-white" />
               </div>
               <div>
                 <h1 className="text-3xl font-bold tracking-tight text-[hsl(var(--heading))]">Lagerekonomi</h1>
@@ -185,7 +185,7 @@ const WarehouseEconomy = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             {[
               { icon: Target, label: 'Total budget', value: formatCurrency(totals.budget), iconGradient: 'linear-gradient(135deg, hsl(38 92% 55%) 0%, hsl(32 95% 40%) 100%)' },
-              { icon: DollarSign, label: 'Faktisk kostnad', value: formatCurrency(totals.actual), iconGradient: 'var(--gradient-icon)' },
+              { icon: Banknote, label: 'Faktisk kostnad', value: formatCurrency(totals.actual), iconGradient: 'var(--gradient-icon)' },
               { icon: totals.deviation >= 0 ? TrendingUp : TrendingDown, label: 'Avvikelse', value: `${totals.deviation >= 0 ? '+' : ''}${formatCurrency(totals.deviation)}`, iconGradient: 'var(--gradient-icon)', valueColor: getDeviationStyles(totals.deviation, totals.deviationPercent).color },
               { icon: Clock, label: 'Timmar', value: `${totals.hoursActual}h / ${totals.hoursBudgeted}h`, iconGradient: 'var(--gradient-icon)' },
             ].map((kpi, i) => (

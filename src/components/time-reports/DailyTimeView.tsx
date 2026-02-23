@@ -3,7 +3,7 @@ import React from 'react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, DollarSign } from 'lucide-react';
+import { Calendar, Clock, Banknote } from 'lucide-react';
 import { TimeReport } from '@/types/timeReport';
 
 interface DailyTimeViewProps {
@@ -17,9 +17,10 @@ const DailyTimeView: React.FC<DailyTimeViewProps> = ({ reports, selectedDate }) 
   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('sv-SE', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'SEK',
+      maximumFractionDigits: 0
     }).format(amount);
   };
 
@@ -70,14 +71,14 @@ const DailyTimeView: React.FC<DailyTimeViewProps> = ({ reports, selectedDate }) 
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-green-600" />
+              <Banknote className="h-4 w-4 text-green-600" />
               <div>
                 <p className="text-sm text-gray-600">Total Earnings</p>
                 <p className="text-xl font-bold">{formatCurrency(totalWeekCost)}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-purple-600" />
+              <Banknote className="h-4 w-4 text-purple-600" />
               <div>
                 <p className="text-sm text-gray-600">Avg Rate</p>
                 <p className="text-xl font-bold">

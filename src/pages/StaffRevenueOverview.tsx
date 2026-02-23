@@ -13,7 +13,7 @@ import {
   Users, 
   TrendingUp,
   TrendingDown,
-  DollarSign,
+  Banknote,
   Clock,
   Award,
   Target,
@@ -198,7 +198,7 @@ export default function StaffRevenueOverview() {
                 <p className="text-2xl font-bold">{formatCurrency(kpis.total_revenue || 0)}</p>
               </div>
               <div className="p-3 bg-primary/20 rounded-full">
-                <DollarSign className="w-6 h-6 text-primary" />
+                <Banknote className="w-6 h-6 text-primary" />
               </div>
             </div>
             <p className="text-xs text-muted-foreground mt-2">

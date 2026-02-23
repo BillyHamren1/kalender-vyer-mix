@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Clock, Calendar, DollarSign, Trash2 } from 'lucide-react';
+import { Clock, Calendar, Banknote, Trash2 } from 'lucide-react';
 import { TimeReport } from '@/types/timeReport';
 
 interface TimeReportListProps {
@@ -21,9 +21,10 @@ const TimeReportList: React.FC<TimeReportListProps> = ({
   showBookingInfo = true
 }) => {
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('sv-SE', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'SEK',
+      maximumFractionDigits: 0
     }).format(amount);
   };
 
@@ -104,7 +105,7 @@ const TimeReportList: React.FC<TimeReportListProps> = ({
 
                 {report.staff_members?.hourly_rate && (
                   <div className="flex items-center gap-2 mt-2">
-                    <DollarSign className="h-4 w-4 text-[#82b6c6]" />
+                    <Banknote className="h-4 w-4 text-[#82b6c6]" />
                     <span className="text-sm font-medium text-green-600">
                       Labor Cost: {formatCurrency(calculateCost(report))}
                     </span>

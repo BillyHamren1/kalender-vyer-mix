@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Calendar, Clock, DollarSign, User, Plus, Mail, Phone, MapPin, Briefcase, AlertTriangle, FileText, Building } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, Banknote, Coins, User, Plus, Mail, Phone, MapPin, Briefcase, AlertTriangle, FileText, Building } from 'lucide-react';
 import StaffAccountCard from '@/components/staff/StaffAccountCard';
 import { supabase } from '@/integrations/supabase/client';
 import TimeReportForm from '@/components/time-reports/TimeReportForm';
@@ -264,14 +264,14 @@ const StaffDetail: React.FC = () => {
           <Card className="bg-card shadow-sm border border-border">
             <CardHeader className="pb-4 border-b border-border/50">
               <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-                <DollarSign className="h-5 w-5 text-primary/60" />
+                <Coins className="h-5 w-5 text-primary/60" />
                 Lön & ersättning
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
-              <DirectEditField fieldName="hourly_rate" value={staffMember.hourly_rate} label="Timlön (kr)" type="number" isCurrency placeholder="Timlön" icon={<DollarSign className="h-4 w-4" />} />
-              <DirectEditField fieldName="overtime_rate" value={staffMember.overtime_rate} label="OB-tillägg (kr)" type="number" isCurrency placeholder="OB-tillägg" icon={<DollarSign className="h-4 w-4" />} />
-              <DirectEditField fieldName="salary" value={staffMember.salary} label="Månadslön (kr)" type="number" isCurrency placeholder="Månadslön" icon={<DollarSign className="h-4 w-4" />} />
+              <DirectEditField fieldName="hourly_rate" value={staffMember.hourly_rate} label="Timlön (kr)" type="number" isCurrency placeholder="Timlön" />
+              <DirectEditField fieldName="overtime_rate" value={staffMember.overtime_rate} label="OB-tillägg (kr)" type="number" isCurrency placeholder="OB-tillägg" />
+              <DirectEditField fieldName="salary" value={staffMember.salary} label="Månadslön (kr)" type="number" isCurrency placeholder="Månadslön" />
             </CardContent>
           </Card>
         </div>
