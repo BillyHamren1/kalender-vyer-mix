@@ -575,8 +575,8 @@ const EconomyOverview: React.FC = () => {
 
         {/* Tabbed content */}
         <Tabs defaultValue="projects" className="space-y-6">
-          <div className="border-b border-border/40 overflow-x-auto">
-            <TabsList className="h-auto p-0 bg-transparent gap-0">
+          <div className="rounded-xl border border-border/40 bg-card px-2 py-1" style={{ boxShadow: '0 1px 3px hsl(200 15% 15% / 0.04)' }}>
+            <TabsList className="h-auto p-0 bg-transparent gap-0 w-full justify-start">
               <TabsTrigger value="projects" className={tabTriggerClass}>
                 Projekt
               </TabsTrigger>
