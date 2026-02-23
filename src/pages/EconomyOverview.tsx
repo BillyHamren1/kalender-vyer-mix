@@ -288,13 +288,13 @@ const ProjectEconomyView: React.FC = () => {
                   <th className="text-right py-3 px-4 font-medium text-muted-foreground">Avvikelse</th>
                   <th className="text-right py-3 px-4 font-medium text-muted-foreground">Timmar</th>
                   <th className="text-center py-3 px-4 font-medium text-muted-foreground">Status</th>
-                  <th className="text-center py-3 px-2 font-medium text-muted-foreground w-16">Stäng</th>
+                  
                 </tr>
               </thead>
               <tbody>
                 {filteredProjects.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <td colSpan={7} className="text-center py-8 text-muted-foreground">
                       Inga projekt hittades för vald period
                     </td>
                   </tr>
@@ -329,28 +329,12 @@ const ProjectEconomyView: React.FC = () => {
                         {formatHours(project.summary.actualHours)} / {formatHours(project.summary.budgetedHours)}
                       </td>
                       <td className="text-center py-3 px-4">
-                        <Badge className={cn(
+                        <Badge variant={closed ? "secondary" : "outline"} className={cn(
                           "text-xs",
-                          PROJECT_STATUS_COLORS[project.status as ProjectStatus] || 'bg-muted text-muted-foreground'
+                          closed ? "bg-muted text-muted-foreground" : "border-green-300 text-green-700 bg-green-50"
                         )}>
-                          {PROJECT_STATUS_LABELS[project.status as ProjectStatus] || project.status}
+                          {closed ? 'Stängt' : 'Öppet'}
                         </Badge>
-                      </td>
-                      <td className="text-center py-3 px-2">
-                        {!closed && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-green-600"
-                            title="Markera som avslutat"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setClosingProject(project);
-                            }}
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                          </Button>
-                        )}
                       </td>
                     </tr>
                   );
