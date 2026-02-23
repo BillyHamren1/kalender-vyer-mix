@@ -23,19 +23,13 @@ import {
   AlertTriangle, 
   Banknote, 
   Clock, 
-  Users, 
-  ArrowRight,
   CheckCircle2,
-  AlertCircle,
   CheckCircle,
-  ChevronDown,
-  ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { startOfDay, startOfWeek, startOfMonth, format, parseISO } from 'date-fns';
+import { startOfDay, startOfWeek, startOfMonth, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import type { EconomySummary } from '@/types/projectEconomy';
-import { getDeviationStatus, getDeviationColor, getDeviationBgColor } from '@/types/projectEconomy';
+import { getDeviationStatus, getDeviationColor } from '@/types/projectEconomy';
 import { PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS, type ProjectStatus } from '@/types/project';
 import { StaffEconomyView } from '@/components/economy/StaffEconomyView';
 import { useEconomyOverviewData, type ProjectWithEconomy } from '@/hooks/useEconomyOverviewData';
@@ -71,30 +65,6 @@ const formatHours = (hours: number) => {
   return `${hours.toFixed(1)} tim`;
 };
 
-function getGroupKey(dateStr: string | null, period: TimePeriod): string {
-  if (!dateStr) return 'no-date';
-  try {
-    const date = parseISO(dateStr);
-    if (period === 'day') return format(startOfDay(date), 'yyyy-MM-dd');
-    if (period === 'week') return format(startOfWeek(date, { locale: sv, weekStartsOn: 1 }), 'yyyy-MM-dd');
-    return format(startOfMonth(date), 'yyyy-MM');
-  } catch {
-    return 'no-date';
-  }
-}
-
-function getGroupLabel(key: string, period: TimePeriod): string {
-  if (key === 'no-date') return 'Utan datum';
-  try {
-    const date = parseISO(key);
-    if (period === 'day') return format(date, 'd MMMM yyyy', { locale: sv });
-    if (period === 'week') return `Vecka ${format(date, 'w', { locale: sv })}, ${format(date, 'yyyy')}`;
-    return format(date, 'MMMM yyyy', { locale: sv });
-  } catch {
-    return key;
-  }
-}
-
 function aggregateProjects(projects: ProjectWithEconomy[]): AggregatedKPIs {
   if (!projects.length) {
     return { totalProjects: 0, projectsWithDeviation: 0, totalBudget: 0, totalActual: 0, totalDeviation: 0, totalHoursBudgeted: 0, totalHoursActual: 0, avgDeviationPercent: 0 };
@@ -120,7 +90,6 @@ const ProjectEconomyView: React.FC = () => {
   const { data: projectsWithEconomy, isLoading } = useEconomyOverviewData();
   const queryClient = useQueryClient();
   const [period, setPeriod] = useState<TimePeriod>('month');
-  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [closingProject, setClosingProject] = useState<ProjectWithEconomy | null>(null);
   const [isClosing, setIsClosing] = useState(false);
 
@@ -144,28 +113,33 @@ const ProjectEconomyView: React.FC = () => {
     }
   };
 
-  // Group projects by period
-  const grouped = React.useMemo(() => {
+  // Filter projects by selected time period
+  const filteredProjects = React.useMemo(() => {
     if (!projectsWithEconomy?.length) return [];
-    const map = new Map<string, ProjectWithEconomy[]>();
-    projectsWithEconomy.forEach(p => {
-      const key = getGroupKey(p.eventdate, period);
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(p);
+    const now = new Date();
+    let rangeStart: Date;
+    if (period === 'day') {
+      rangeStart = startOfDay(now);
+    } else if (period === 'week') {
+      rangeStart = startOfWeek(now, { locale: sv, weekStartsOn: 1 });
+    } else {
+      rangeStart = startOfMonth(now);
+    }
+    return projectsWithEconomy.filter(p => {
+      if (!p.eventdate) return true; // show projects without date
+      try {
+        const d = parseISO(p.eventdate);
+        return d >= rangeStart;
+      } catch {
+        return true;
+      }
     });
-    return Array.from(map.entries())
-      .sort(([a], [b]) => (a === 'no-date' ? 1 : b === 'no-date' ? -1 : b.localeCompare(a)));
   }, [projectsWithEconomy, period]);
 
-  // Calculate aggregated KPIs across all projects
   const kpis = React.useMemo(
-    () => aggregateProjects(projectsWithEconomy || []),
-    [projectsWithEconomy]
+    () => aggregateProjects(filteredProjects),
+    [filteredProjects]
   );
-
-  const projectsWithIssues = projectsWithEconomy?.filter(
-    p => p.summary.totalDeviationPercent > 100
-  ).sort((a, b) => b.summary.totalDeviationPercent - a.summary.totalDeviationPercent) || [];
 
   if (isLoading) {
     return (
@@ -181,6 +155,12 @@ const ProjectEconomyView: React.FC = () => {
   }
 
   const isProjectClosed = (status: string) => status === 'completed' || status === 'delivered';
+
+  const periodLabels: Record<TimePeriod, string> = {
+    day: 'Idag',
+    week: 'Denna vecka',
+    month: 'Denna månad',
+  };
 
   return (
     <div className="space-y-6">
@@ -281,242 +261,105 @@ const ProjectEconomyView: React.FC = () => {
         </Card>
       </div>
 
-      {/* Time period toggle */}
+      {/* Filter bar */}
       <div className="flex items-center gap-3">
-        <span className="text-sm font-medium text-muted-foreground">Gruppera per:</span>
+        <span className="text-sm font-medium text-muted-foreground">Visa:</span>
         <ToggleGroup type="single" value={period} onValueChange={(v) => v && setPeriod(v as TimePeriod)}>
           <ToggleGroupItem value="day" className="text-sm">Dag</ToggleGroupItem>
           <ToggleGroupItem value="week" className="text-sm">Vecka</ToggleGroupItem>
           <ToggleGroupItem value="month" className="text-sm">Månad</ToggleGroupItem>
         </ToggleGroup>
+        <Badge variant="secondary" className="text-xs ml-2">
+          {filteredProjects.length} projekt — {periodLabels[period]}
+        </Badge>
       </div>
 
-      {/* Projects with Issues */}
-      {projectsWithIssues.length > 0 && (
-        <Card className="border-destructive/20">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-destructive">
-              <AlertCircle className="w-5 h-5" />
-              Projekt med avvikelser ({projectsWithIssues.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {projectsWithIssues.map(project => {
-                const status = getDeviationStatus(project.summary.totalDeviationPercent);
-                return (
-                  <Link 
-                    key={project.id} 
-                    to={`/economy/${project.id}`}
-                    className="block"
-                  >
-                    <div className={cn(
-                      "p-4 rounded-lg border transition-all hover:shadow-md",
-                      getDeviationBgColor(status),
-                      "border-destructive/20"
-                    )}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3">
-                            <h3 className="font-semibold text-foreground">{project.name}</h3>
-                            <Badge variant="destructive">
-                              +{(project.summary.totalDeviationPercent - 100).toFixed(0)}%
-                            </Badge>
-                            <Badge className={cn("text-xs", PROJECT_STATUS_COLORS[project.status as ProjectStatus] || 'bg-muted text-muted-foreground')}>
-                              {PROJECT_STATUS_LABELS[project.status as ProjectStatus] || project.status}
-                            </Badge>
-                          </div>
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-3 text-sm">
-                            <div>
-                              <p className="text-muted-foreground">Budget</p>
-                              <p className="font-medium">{formatCurrency(project.summary.totalBudget)}</p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">Faktisk</p>
-                              <p className="font-medium">{formatCurrency(project.summary.totalActual)}</p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">Avvikelse</p>
-                              <p className={cn("font-medium", getDeviationColor(status))}>
-                                +{formatCurrency(project.summary.totalDeviation)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">Timmar</p>
-                              <p className="font-medium">
-                                {formatHours(project.summary.actualHours)} / {formatHours(project.summary.budgetedHours)}
-                              </p>
-                            </div>
-                          </div>
-                          {project.timeReports.length > 0 && (
-                            <div className="mt-3 pt-3 border-t border-destructive/20">
-                              <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
-                                <Users className="w-3 h-3" /> Registrerad tid
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {project.timeReports.slice(0, 5).map((staff, idx) => (
-                                  <Badge key={idx} variant="secondary" className="text-xs">
-                                    {staff.staff_name}: {formatHours(staff.total_hours)}
-                                  </Badge>
-                                ))}
-                                {project.timeReports.length > 5 && (
-                                  <Badge variant="outline" className="text-xs">
-                                    +{project.timeReports.length - 5} fler
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        <ArrowRight className="w-5 h-5 text-muted-foreground ml-4" />
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Period list — click to select */}
-      <div className="space-y-2">
-        {grouped.map(([groupKey, projects]) => {
-          const groupKpis = aggregateProjects(projects);
-          const label = getGroupLabel(groupKey, period);
-          const isSelected = selectedGroup === groupKey;
-
-          return (
-            <Card 
-              key={groupKey} 
-              className={cn(
-                "cursor-pointer transition-all hover:shadow-md",
-                isSelected && "ring-2 ring-primary border-primary"
-              )}
-              onClick={() => setSelectedGroup(isSelected ? null : groupKey)}
-            >
-              <CardHeader className="py-4">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-3 text-base">
-                    {isSelected ? <ChevronDown className="w-5 h-5 text-primary" /> : <ChevronRight className="w-5 h-5" />}
-                    {label}
-                    <Badge variant="secondary" className="text-xs">{projects.length} projekt</Badge>
-                  </CardTitle>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span>Budget: {formatCurrency(groupKpis.totalBudget)}</span>
-                    <span>Faktisk: {formatCurrency(groupKpis.totalActual)}</span>
-                    <span className={cn(
-                      "font-medium",
-                      groupKpis.totalDeviation > 0 ? "text-destructive" : "text-green-600"
-                    )}>
-                      {groupKpis.totalDeviation > 0 ? '+' : ''}{formatCurrency(groupKpis.totalDeviation)}
-                    </span>
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-          );
-        })}
-      </div>
-
-      {/* Selected period project table — shown below the list */}
-      {selectedGroup && (() => {
-        const entry = grouped.find(([k]) => k === selectedGroup);
-        if (!entry) return null;
-        const [, selectedProjects] = entry;
-        const label = getGroupLabel(selectedGroup, period);
-
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-3 text-base">
-                {label}
-                <Badge variant="secondary" className="text-xs">{selectedProjects.length} projekt</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-3 px-2 font-medium text-muted-foreground">Projekt</th>
-                      <th className="text-right py-3 px-2 font-medium text-muted-foreground">Budget</th>
-                      <th className="text-right py-3 px-2 font-medium text-muted-foreground">Faktisk</th>
-                      <th className="text-right py-3 px-2 font-medium text-muted-foreground">Inköp</th>
-                      <th className="text-right py-3 px-2 font-medium text-muted-foreground">Avvikelse</th>
-                      <th className="text-right py-3 px-2 font-medium text-muted-foreground">Timmar</th>
-                      <th className="text-right py-3 px-2 font-medium text-muted-foreground">Personal</th>
-                      <th className="text-center py-3 px-2 font-medium text-muted-foreground">Status</th>
-                      <th className="text-center py-3 px-2 font-medium text-muted-foreground"></th>
+      {/* Flat project table */}
+      <Card>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/30">
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground">Projekt</th>
+                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">Budget</th>
+                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">Faktisk</th>
+                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">Inköp</th>
+                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">Avvikelse</th>
+                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">Timmar</th>
+                  <th className="text-center py-3 px-4 font-medium text-muted-foreground">Status</th>
+                  <th className="text-center py-3 px-2 font-medium text-muted-foreground w-10"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredProjects.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="text-center py-8 text-muted-foreground">
+                      Inga projekt hittades för vald period
+                    </td>
+                  </tr>
+                )}
+                {filteredProjects.map(project => {
+                  const devStatus = getDeviationStatus(project.summary.totalDeviationPercent);
+                  const closed = isProjectClosed(project.status);
+                  return (
+                    <tr key={project.id} className={cn("border-b hover:bg-muted/50 transition-colors", closed && "opacity-60")}>
+                      <td className="py-3 px-4">
+                        <Link
+                          to={`/economy/${project.id}`}
+                          className="text-primary hover:underline font-medium"
+                        >
+                          {project.name}
+                        </Link>
+                      </td>
+                      <td className="text-right py-3 px-4">
+                        {formatCurrency(project.summary.totalBudget)}
+                      </td>
+                      <td className="text-right py-3 px-4">
+                        {formatCurrency(project.summary.totalActual)}
+                      </td>
+                      <td className="text-right py-3 px-4 text-muted-foreground">
+                        {formatCurrency(project.summary.purchasesTotal)}
+                      </td>
+                      <td className={cn("text-right py-3 px-4 font-medium", getDeviationColor(devStatus))}>
+                        {project.summary.totalDeviation > 0 ? '+' : ''}
+                        {formatCurrency(project.summary.totalDeviation)}
+                      </td>
+                      <td className="text-right py-3 px-4">
+                        {formatHours(project.summary.actualHours)} / {formatHours(project.summary.budgetedHours)}
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        <Badge className={cn(
+                          "text-xs",
+                          PROJECT_STATUS_COLORS[project.status as ProjectStatus] || 'bg-muted text-muted-foreground'
+                        )}>
+                          {PROJECT_STATUS_LABELS[project.status as ProjectStatus] || project.status}
+                        </Badge>
+                      </td>
+                      <td className="text-center py-3 px-2">
+                        {!closed && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-green-600"
+                            title="Markera som avslutat"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setClosingProject(project);
+                            }}
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {selectedProjects.map(project => {
-                      const devStatus = getDeviationStatus(project.summary.totalDeviationPercent);
-                      const closed = isProjectClosed(project.status);
-                      return (
-                        <tr key={project.id} className={cn("border-b hover:bg-muted/50 transition-colors", closed && "opacity-60")}>
-                          <td className="py-3 px-2">
-                            <Link 
-                              to={`/economy/${project.id}`}
-                              className="text-primary hover:underline font-medium"
-                            >
-                              {project.name}
-                            </Link>
-                          </td>
-                          <td className="text-right py-3 px-2">
-                            {formatCurrency(project.summary.totalBudget)}
-                          </td>
-                          <td className="text-right py-3 px-2">
-                            {formatCurrency(project.summary.totalActual)}
-                          </td>
-                          <td className="text-right py-3 px-2 text-muted-foreground">
-                            {formatCurrency(project.summary.purchasesTotal)}
-                          </td>
-                          <td className={cn("text-right py-3 px-2 font-medium", getDeviationColor(devStatus))}>
-                            {project.summary.totalDeviation > 0 ? '+' : ''}
-                            {formatCurrency(project.summary.totalDeviation)}
-                          </td>
-                          <td className="text-right py-3 px-2">
-                            {formatHours(project.summary.actualHours)} / {formatHours(project.summary.budgetedHours)}
-                          </td>
-                          <td className="text-right py-3 px-2 text-muted-foreground">
-                            {project.timeReports.length} personer
-                          </td>
-                          <td className="text-center py-3 px-2">
-                            <Badge className={cn(
-                              "text-xs",
-                              PROJECT_STATUS_COLORS[project.status as ProjectStatus] || 'bg-muted text-muted-foreground'
-                            )}>
-                              {PROJECT_STATUS_LABELS[project.status as ProjectStatus] || project.status}
-                            </Badge>
-                          </td>
-                          <td className="text-center py-3 px-2">
-                            {!closed && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-green-600"
-                                title="Markera som avslutat"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  setClosingProject(project);
-                                }}
-                              >
-                                <CheckCircle className="w-4 h-4" />
-                              </Button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })()}
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Close project dialog */}
       <AlertDialog open={!!closingProject} onOpenChange={() => setClosingProject(null)}>
