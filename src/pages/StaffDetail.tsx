@@ -202,7 +202,20 @@ const StaffDetail: React.FC = () => {
               {staffMember.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
             </div>
             <div>
-              <h1 className="text-3xl font-bold">{staffMember.name}</h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-3xl font-bold">{staffMember.name}</h1>
+                <div className="flex items-center space-x-2 px-3 py-1.5 rounded-lg border border-border bg-muted/30">
+                  <Checkbox
+                    id="employment-type-header"
+                    checked={staffMember.employment_type === 'contracted'}
+                    onCheckedChange={(checked) => handleFieldSave('employment_type', checked ? 'contracted' : 'employed')}
+                    className="h-5 w-5 border-2"
+                  />
+                  <label htmlFor="employment-type-header" className="text-sm font-medium cursor-pointer select-none">
+                    Inhyrd personal
+                  </label>
+                </div>
+              </div>
               <div className="flex items-center gap-2 mt-1">
                 {staffMember.role && (
                   <Badge variant="secondary">{staffMember.role}</Badge>
@@ -255,17 +268,6 @@ const StaffDetail: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
-              <div className="flex items-center space-x-3 p-3 rounded-lg border border-border bg-muted/30">
-                <Checkbox
-                  id="employment-type"
-                  checked={staffMember.employment_type === 'contracted'}
-                  onCheckedChange={(checked) => handleFieldSave('employment_type', checked ? 'contracted' : 'employed')}
-                  className="h-5 w-5 border-2"
-                />
-                <label htmlFor="employment-type" className="text-sm font-medium cursor-pointer select-none">
-                  Inhyrd personal
-                </label>
-              </div>
               <DirectEditField fieldName="role" value={staffMember.role} label="Roll" icon={<Briefcase className="h-4 w-4" />} />
               <DirectEditField fieldName="department" value={staffMember.department} label="Avdelning" icon={<Building className="h-4 w-4" />} />
               <DirectEditField fieldName="hire_date" value={staffMember.hire_date} label="Anställningsdatum" type="date" icon={<Calendar className="h-4 w-4" />} />
