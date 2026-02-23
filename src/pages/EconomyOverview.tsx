@@ -154,7 +154,7 @@ const ProjectEconomyView: React.FC = () => {
     );
   }
 
-  const isProjectClosed = (status: string) => status === 'completed' || status === 'delivered';
+  
 
   const periodLabels: Record<TimePeriod, string> = {
     day: 'Idag',
@@ -301,7 +301,7 @@ const ProjectEconomyView: React.FC = () => {
                 )}
                 {filteredProjects.map(project => {
                   const devStatus = getDeviationStatus(project.summary.totalDeviationPercent);
-                  const closed = isProjectClosed(project.status);
+                  const closed = project.economyClosed;
                   return (
                     <tr key={project.id} className={cn("border-b hover:bg-muted/50 transition-colors", closed && "opacity-60")}>
                       <td className="py-3 px-4">

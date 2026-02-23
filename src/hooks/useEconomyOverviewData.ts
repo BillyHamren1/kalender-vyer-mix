@@ -20,6 +20,7 @@ export interface ProjectWithEconomy {
   eventdate: string | null;
   summary: EconomySummary;
   timeReports: StaffTimeReport[];
+  economyClosed: boolean;
 }
 
 /**
@@ -102,7 +103,11 @@ async function fetchProjectEconomyFromProxy(bookingId: string) {
     Array.isArray(supplierInvoices) ? supplierInvoices : [],
   );
 
-  return { summary, timeReports };
+  // Economy is closed when all supplier invoices are final-linked (and at least one exists)
+  const siList = Array.isArray(supplierInvoices) ? supplierInvoices : [];
+  const economyClosed = siList.length > 0 && siList.every((si: any) => si.is_final_link === true);
+
+  return { summary, timeReports, economyClosed };
 }
 
 const emptySummary: EconomySummary = {
@@ -168,11 +173,12 @@ export const useEconomyOverviewData = () => {
               eventdate,
               summary: emptySummary,
               timeReports: [] as StaffTimeReport[],
+              economyClosed: false,
             };
           }
 
           try {
-            const { summary, timeReports } = await fetchProjectEconomyFromProxy(project.booking_id);
+            const { summary, timeReports, economyClosed } = await fetchProjectEconomyFromProxy(project.booking_id);
             return {
               id: project.id,
               name: project.name,
@@ -181,6 +187,7 @@ export const useEconomyOverviewData = () => {
               eventdate,
               summary,
               timeReports,
+              economyClosed,
             };
           } catch (err) {
             console.error(`Failed to fetch economy for project ${project.name}:`, err);
@@ -192,6 +199,7 @@ export const useEconomyOverviewData = () => {
               eventdate,
               summary: emptySummary,
               timeReports: [] as StaffTimeReport[],
+              economyClosed: false,
             };
           }
         })
