@@ -1,14 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import {
-  fetchBudget,
-  fetchTimeReports,
-  fetchPurchases,
-  fetchQuotes,
-  fetchInvoices,
-  fetchProductCostsRemote,
-  fetchSupplierInvoices,
-} from '@/services/planningApiService';
+import { fetchAllEconomyData } from '@/services/planningApiService';
 import { calculateEconomySummary } from '@/services/projectEconomyService';
 import type { EconomySummary, StaffTimeReport } from '@/types/projectEconomy';
 
@@ -28,16 +20,15 @@ export interface ProjectWithEconomy {
  * Returns summary + timeReports mapped to the standard StaffTimeReport shape.
  */
 async function fetchProjectEconomyFromProxy(bookingId: string) {
-  const [budget, timeReportsRaw, purchases, quotes, invoices, productCosts, supplierInvoices] =
-    await Promise.all([
-      fetchBudget(bookingId).catch(() => null),
-      fetchTimeReports(bookingId).catch(() => []),
-      fetchPurchases(bookingId).catch(() => []),
-      fetchQuotes(bookingId).catch(() => []),
-      fetchInvoices(bookingId).catch(() => []),
-      fetchProductCostsRemote(bookingId).catch(() => null),
-      fetchSupplierInvoices(bookingId),
-    ]);
+  const batchData = await fetchAllEconomyData(bookingId);
+
+  const budget = batchData.budget ?? null;
+  const timeReportsRaw = batchData.time_reports ?? [];
+  const purchases = batchData.purchases ?? [];
+  const quotes = batchData.quotes ?? [];
+  const invoices = batchData.invoices ?? [];
+  const productCosts = batchData.product_costs ?? null;
+  const supplierInvoices = Array.isArray(batchData.supplier_invoices) ? batchData.supplier_invoices : [];
 
   // Map time reports from external format to StaffTimeReport[]
   const staffMap = new Map<string, StaffTimeReport>();

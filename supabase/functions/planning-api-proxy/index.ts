@@ -5,6 +5,23 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+async function fetchFromExternal(
+  efUrl: string,
+  planningApiKey: string,
+  type: string,
+  bookingId: string
+): Promise<any> {
+  const qs = new URLSearchParams({ type, booking_id: bookingId });
+  const res = await fetch(`${efUrl}/functions/v1/planning-api?${qs.toString()}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': planningApiKey,
+    },
+  });
+  return res.json();
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -57,13 +74,34 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Build query string for GET requests
+    // === BATCH: fetch all economy data in one call ===
+    if (type === 'batch' && params.booking_id) {
+      const bookingId = params.booking_id;
+      const dataTypes = ['budget', 'time_reports', 'purchases', 'quotes', 'invoices', 'product_costs', 'supplier_invoices'];
+
+      const results = await Promise.all(
+        dataTypes.map((t) =>
+          fetchFromExternal(efUrl, planningApiKey, t, bookingId).catch(() => null)
+        )
+      );
+
+      const responseData: Record<string, any> = {};
+      dataTypes.forEach((t, i) => {
+        responseData[t] = results[i];
+      });
+
+      return new Response(JSON.stringify(responseData), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // === Standard single-type request ===
     const queryParams = new URLSearchParams();
     queryParams.set('type', type);
     
-    // Forward relevant params
     for (const [key, value] of Object.entries(params)) {
-      if (key === 'data') continue; // data goes in body for write operations
+      if (key === 'data') continue;
       if (value !== undefined && value !== null) {
         queryParams.set(key, String(value));
       }
@@ -71,7 +109,6 @@ Deno.serve(async (req) => {
 
     const targetUrl = `${efUrl}/functions/v1/planning-api?${queryParams.toString()}`;
 
-    // Build fetch options
     const fetchOptions: RequestInit = {
       method: method,
       headers: {
@@ -80,12 +117,10 @@ Deno.serve(async (req) => {
       },
     };
 
-    // For write operations, include data in body
     if (['POST', 'PUT', 'PATCH'].includes(method) && params.data) {
       fetchOptions.body = JSON.stringify(params.data);
     }
 
-    // Forward to external planning-api
     const response = await fetch(targetUrl, fetchOptions);
     const responseData = await response.json();
 
