@@ -1,82 +1,64 @@
 
+# Optimering: En enda edge function-anrop for hela ekonomiöversikten
 
-# Optimera laddningstiden för Ekonomiöversikten
+## Problemet nu
 
-## Problemet
-
-Ekonomiöversikten laddar extremt långsamt eftersom varje projekt triggar **7 separata Edge Function-anrop** till `planning-api-proxy`. Med 5 projekt blir det **35 nätverksanrop** som alla ska gå via edge functions till det externa EventFlow-systemet. Edge function-loggarna visar 30+ boot-events inom samma sekund.
+Batch-optimeringen fungerar korrekt -- varje projekt skickar `type: 'batch'` istallet for 7 separata anrop. Men det ar fortfarande **5 separata edge function-anrop** (ett per projekt), som alla triggar egna boot-ups och var och en gor 7 HTTP-anrop internt till det externa API:t.
 
 ```text
-Per projekt (7 anrop):
-  1. budget
-  2. time_reports
-  3. purchases
-  4. quotes
-  5. invoices
-  6. product_costs
-  7. supplier_invoices
-
-5 projekt x 7 anrop = 35 edge function-anrop
+Nu:  5 edge function-anrop x 7 externa anrop = 35 externa anrop + 5 boot-ups
+Mal: 1 edge function-anrop x 7 externa anrop per booking = 35 externa anrop + 1 boot-up
 ```
 
-## Lösning: Batch-endpoint i planning-api-proxy
+Den stora vinsten: **1 edge function boot istallet for 5**, plus att alla 35 externa anrop kor i en enda `Promise.all` inuti en enda funktion.
 
-Skapa en ny `type: 'batch'` i edge function som hämtar alla 7 datatyper för en bokning i **ett enda anrop**. Sedan behövs bara 5 anrop istället för 35 (ett per projekt).
+## Losning: `type: 'multi_batch'` med alla booking_ids
 
-### Steg 1: Utöka `planning-api-proxy` edge function
+### Steg 1: Utoka edge function (`planning-api-proxy/index.ts`)
 
-Lägg till en `batch`-typ som gör alla 7 anrop till det externa API:t i en enda edge function-invokering och returnerar allt samlat.
+Lagg till en ny typ `multi_batch` som tar emot en array av `booking_ids` istallet for ett enda `booking_id`. Internt gor den `Promise.all` over alla bokningar, dar varje bokning i sin tur gor 7 parallella anrop.
 
-**Fil:** `supabase/functions/planning-api-proxy/index.ts`
-
-- Ny case `type === 'batch'` som internt anropar alla 7 endpoints mot det externa API:t med `Promise.all`
-- Returnerar ett objekt: `{ budget, time_reports, purchases, quotes, invoices, product_costs, supplier_invoices }`
-
-### Steg 2: Ny service-funktion
-
-**Fil:** `src/services/planningApiService.ts`
-
-- Ny export `fetchAllEconomyData(bookingId)` som anropar `planning-api-proxy` med `type: 'batch'`
-- Returnerar alla 7 datamängder i ett objekt
-
-### Steg 3: Uppdatera overview-hooken
-
-**Fil:** `src/hooks/useEconomyOverviewData.ts`
-
-- Byt ut `fetchProjectEconomyFromProxy` (7 anrop) mot ett enda `fetchAllEconomyData`-anrop
-- Samma mapping-logik, bara en annan datakälla
-
-## Resultat
-
-| Före | Efter |
-|------|-------|
-| 35 edge function-anrop | 5 edge function-anrop |
-| 35 edge function boot-ups | 5 edge function boot-ups |
-| Laddtid: 5-15 sekunder | Laddtid: 1-3 sekunder |
-
-## Tekniska detaljer
-
-### Ny batch-hantering i edge function (pseudokod)
-
-```typescript
-if (type === 'batch') {
-  const [budget, time_reports, purchases, quotes, invoices, product_costs, supplier_invoices] =
-    await Promise.all([
-      fetchFromExternal('budget', booking_id),
-      fetchFromExternal('time_reports', booking_id),
-      fetchFromExternal('purchases', booking_id),
-      fetchFromExternal('quotes', booking_id),
-      fetchFromExternal('invoices', booking_id),
-      fetchFromExternal('product_costs', booking_id),
-      fetchFromExternal('supplier_invoices', booking_id),
-    ]);
-  return { budget, time_reports, purchases, quotes, invoices, product_costs, supplier_invoices };
+**Input:**
+```json
+{
+  "type": "multi_batch",
+  "booking_ids": ["abc123", "def456", "ghi789"]
 }
 ```
 
-### Filer som ändras
+**Output:**
+```json
+{
+  "abc123": { "budget": ..., "time_reports": [], ... },
+  "def456": { "budget": ..., "time_reports": [], ... },
+  "ghi789": { "budget": ..., "time_reports": [], ... }
+}
+```
 
-1. `supabase/functions/planning-api-proxy/index.ts` -- ny batch-typ
-2. `src/services/planningApiService.ts` -- ny `fetchAllEconomyData()`
-3. `src/hooks/useEconomyOverviewData.ts` -- använd batch istället för 7 enskilda anrop
+### Steg 2: Ny service-funktion (`planningApiService.ts`)
 
+Lagg till `fetchAllEconomyDataMulti(bookingIds: string[])` som anropar `multi_batch` med alla booking_ids och returnerar en `Record<string, BatchEconomyData>`.
+
+### Steg 3: Uppdatera hooken (`useEconomyOverviewData.ts`)
+
+Istallet for `Promise.all` med ett batch-anrop per projekt:
+1. Samla alla booking_ids fran projekten
+2. Gor ETT anrop med `fetchAllEconomyDataMulti(bookingIds)`
+3. Mappa resultaten till respektive projekt
+
+## Resultat
+
+| | Fore | Efter |
+|---|---|---|
+| Edge function-anrop | 5 | **1** |
+| Edge function boot-ups | 5 | **1** |
+| Externa API-anrop (internt) | 35 | 35 (men i en enda Promise.all) |
+| Uppskattat laddtid | 5-10s | **1-2s** |
+
+## Tekniska detaljer
+
+### Filer som andras
+
+1. `supabase/functions/planning-api-proxy/index.ts` -- ny `multi_batch`-typ
+2. `src/services/planningApiService.ts` -- ny `fetchAllEconomyDataMulti()`
+3. `src/hooks/useEconomyOverviewData.ts` -- anvand multi_batch istallet for flera batch-anrop
