@@ -100,3 +100,8 @@ export interface BatchEconomyData {
 
 export const fetchAllEconomyData = (bookingId: string): Promise<BatchEconomyData> =>
   callPlanningApi<BatchEconomyData>({ type: 'batch', booking_id: bookingId });
+
+// ===== Multi-Batch (all economy data for multiple bookings in one call) =====
+
+export const fetchAllEconomyDataMulti = (bookingIds: string[]): Promise<Record<string, BatchEconomyData>> =>
+  callPlanningApi<Record<string, BatchEconomyData>>({ type: 'multi_batch', booking_ids: bookingIds } as any);

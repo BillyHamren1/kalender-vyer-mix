@@ -74,6 +74,32 @@ Deno.serve(async (req) => {
       });
     }
 
+    // === MULTI_BATCH: fetch all economy data for multiple bookings in one call ===
+    if (type === 'multi_batch' && params.booking_ids) {
+      const bookingIds: string[] = params.booking_ids;
+      const dataTypes = ['budget', 'time_reports', 'purchases', 'quotes', 'invoices', 'product_costs', 'supplier_invoices'];
+
+      const allPromises = bookingIds.map(async (bid: string) => {
+        const results = await Promise.all(
+          dataTypes.map((t) =>
+            fetchFromExternal(efUrl, planningApiKey, t, bid).catch(() => null)
+          )
+        );
+        const obj: Record<string, any> = {};
+        dataTypes.forEach((t, i) => { obj[t] = results[i]; });
+        return [bid, obj] as const;
+      });
+
+      const entries = await Promise.all(allPromises);
+      const responseData: Record<string, any> = {};
+      for (const [bid, obj] of entries) { responseData[bid] = obj; }
+
+      return new Response(JSON.stringify(responseData), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // === BATCH: fetch all economy data in one call ===
     if (type === 'batch' && params.booking_id) {
       const bookingId = params.booking_id;
