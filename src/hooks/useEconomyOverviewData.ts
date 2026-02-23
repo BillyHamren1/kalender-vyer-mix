@@ -17,6 +17,7 @@ export interface ProjectWithEconomy {
   name: string;
   status: string;
   booking_id: string | null;
+  eventdate: string | null;
   summary: EconomySummary;
   timeReports: StaffTimeReport[];
 }
@@ -132,21 +133,39 @@ export const useEconomyOverviewData = () => {
       const { data: projects, error } = await supabase
         .from('projects')
         .select('id, name, status, booking_id')
-        .in('status', ['planning', 'active', 'in_progress'])
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       if (!projects?.length) return [];
 
+      // Fetch eventdates from bookings for projects that have booking_id
+      const bookingIds = projects
+        .map(p => p.booking_id)
+        .filter((id): id is string => !!id);
+
+      let eventdateMap: Record<string, string | null> = {};
+      if (bookingIds.length > 0) {
+        const { data: bookings } = await supabase
+          .from('bookings')
+          .select('id, eventdate')
+          .in('id', bookingIds);
+        if (bookings) {
+          bookings.forEach(b => { eventdateMap[b.id] = b.eventdate; });
+        }
+      }
+
       // Fetch economy data for each project via planning-api-proxy
       const results = await Promise.all(
         projects.map(async (project) => {
+          const eventdate = project.booking_id ? (eventdateMap[project.booking_id] ?? null) : null;
+
           if (!project.booking_id) {
             return {
               id: project.id,
               name: project.name,
               status: project.status,
               booking_id: project.booking_id,
+              eventdate,
               summary: emptySummary,
               timeReports: [] as StaffTimeReport[],
             };
@@ -159,6 +178,7 @@ export const useEconomyOverviewData = () => {
               name: project.name,
               status: project.status,
               booking_id: project.booking_id,
+              eventdate,
               summary,
               timeReports,
             };
@@ -169,6 +189,7 @@ export const useEconomyOverviewData = () => {
               name: project.name,
               status: project.status,
               booking_id: project.booking_id,
+              eventdate,
               summary: emptySummary,
               timeReports: [] as StaffTimeReport[],
             };
