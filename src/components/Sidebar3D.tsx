@@ -35,13 +35,8 @@ const navigationItems: NavItem[] = [
   },
   {
     title: "Logistikplanering",
-    url: "/logistics/routes",
+    url: "/logistics/planning",
     icon: Truck,
-    children: [
-      { title: "Transportbokning", url: "/logistics/planning" },
-      { title: "Ruttplanering", url: "/logistics/routes" },
-      { title: "Fordon", url: "/logistics/vehicles" },
-    ],
   },
   { title: "Personal", url: "/staff-management", icon: Users },
 ];
