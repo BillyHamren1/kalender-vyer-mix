@@ -1,31 +1,82 @@
 
 
-# Ekonomisk stängning baserad på leverantörsfakturor
+# Optimera laddningstiden för Ekonomiöversikten
 
-## Sammanfattning
-Projektets ekonomiska status (ÖPPEN/STÄNGD) i ekonomiöversikten ska avgöras av om **alla leverantörsfakturor** kopplade till projektet har markerats som "Slutgiltig" (`is_final_link = true`). Inga ändringar behövs på inköp eller vanliga fakturor.
+## Problemet
 
-## Vad ändras
+Ekonomiöversikten laddar extremt långsamt eftersom varje projekt triggar **7 separata Edge Function-anrop** till `planning-api-proxy`. Med 5 projekt blir det **35 nätverksanrop** som alla ska gå via edge functions till det externa EventFlow-systemet. Edge function-loggarna visar 30+ boot-events inom samma sekund.
 
-### 1. Hämta leverantörsfaktura-status per projekt (`useEconomyOverviewData.ts`)
-- I `fetchProjectEconomyFromProxy` returneras redan `supplierInvoices` men sparas inte i `ProjectWithEconomy`
-- Utöka `ProjectWithEconomy`-interfacet med ett nytt fält: `economyClosed: boolean`
-- Beräkna `economyClosed` baserat på: alla leverantörsfakturor har `is_final_link === true` (och minst en faktura finns)
-- Ett projekt utan leverantörsfakturor räknas som ÖPPEN
+```text
+Per projekt (7 anrop):
+  1. budget
+  2. time_reports
+  3. purchases
+  4. quotes
+  5. invoices
+  6. product_costs
+  7. supplier_invoices
 
-### 2. Uppdatera ÖPPEN/STÄNGD-logiken (`EconomyOverview.tsx`)
-- Ta bort `isProjectClosed(status)` som jämför mot `completed`/`delivered`
-- Ersätt med `project.economyClosed` direkt från datan
-- Behåll visuell stil (opacity-60 för stängda, badge-färger)
+5 projekt x 7 anrop = 35 edge function-anrop
+```
+
+## Lösning: Batch-endpoint i planning-api-proxy
+
+Skapa en ny `type: 'batch'` i edge function som hämtar alla 7 datatyper för en bokning i **ett enda anrop**. Sedan behövs bara 5 anrop istället för 35 (ett per projekt).
+
+### Steg 1: Utöka `planning-api-proxy` edge function
+
+Lägg till en `batch`-typ som gör alla 7 anrop till det externa API:t i en enda edge function-invokering och returnerar allt samlat.
+
+**Fil:** `supabase/functions/planning-api-proxy/index.ts`
+
+- Ny case `type === 'batch'` som internt anropar alla 7 endpoints mot det externa API:t med `Promise.all`
+- Returnerar ett objekt: `{ budget, time_reports, purchases, quotes, invoices, product_costs, supplier_invoices }`
+
+### Steg 2: Ny service-funktion
+
+**Fil:** `src/services/planningApiService.ts`
+
+- Ny export `fetchAllEconomyData(bookingId)` som anropar `planning-api-proxy` med `type: 'batch'`
+- Returnerar alla 7 datamängder i ett objekt
+
+### Steg 3: Uppdatera overview-hooken
+
+**Fil:** `src/hooks/useEconomyOverviewData.ts`
+
+- Byt ut `fetchProjectEconomyFromProxy` (7 anrop) mot ett enda `fetchAllEconomyData`-anrop
+- Samma mapping-logik, bara en annan datakälla
+
+## Resultat
+
+| Före | Efter |
+|------|-------|
+| 35 edge function-anrop | 5 edge function-anrop |
+| 35 edge function boot-ups | 5 edge function boot-ups |
+| Laddtid: 5-15 sekunder | Laddtid: 1-3 sekunder |
 
 ## Tekniska detaljer
 
-**Filer som ändras:**
+### Ny batch-hantering i edge function (pseudokod)
 
-| Fil | Ändring |
-|-----|---------|
-| `src/hooks/useEconomyOverviewData.ts` | Lägg till `economyClosed` i `ProjectWithEconomy`. Beräkna värdet från `supplierInvoices` -- true om alla har `is_final_link === true` och det finns minst en. |
-| `src/pages/EconomyOverview.tsx` | Byt `isProjectClosed(project.status)` mot `project.economyClosed`. Ta bort `isProjectClosed`-funktionen. |
+```typescript
+if (type === 'batch') {
+  const [budget, time_reports, purchases, quotes, invoices, product_costs, supplier_invoices] =
+    await Promise.all([
+      fetchFromExternal('budget', booking_id),
+      fetchFromExternal('time_reports', booking_id),
+      fetchFromExternal('purchases', booking_id),
+      fetchFromExternal('quotes', booking_id),
+      fetchFromExternal('invoices', booking_id),
+      fetchFromExternal('product_costs', booking_id),
+      fetchFromExternal('supplier_invoices', booking_id),
+    ]);
+  return { budget, time_reports, purchases, quotes, invoices, product_costs, supplier_invoices };
+}
+```
 
-**Ingen databasmigrering krävs** -- `is_final_link` finns redan på leverantörsfakturorna.
+### Filer som ändras
+
+1. `supabase/functions/planning-api-proxy/index.ts` -- ny batch-typ
+2. `src/services/planningApiService.ts` -- ny `fetchAllEconomyData()`
+3. `src/hooks/useEconomyOverviewData.ts` -- använd batch istället för 7 enskilda anrop
 
