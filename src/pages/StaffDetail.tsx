@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -254,6 +255,21 @@ const StaffDetail: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-muted-foreground">Anställningstyp</label>
+                <Select
+                  value={staffMember.employment_type || 'employed'}
+                  onValueChange={(val) => handleFieldSave('employment_type', val)}
+                >
+                  <SelectTrigger className="border-border bg-background hover:border-muted-foreground/30 focus:border-primary transition-colors">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="employed">Anställd</SelectItem>
+                    <SelectItem value="contracted">Inhyrd</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <DirectEditField fieldName="role" value={staffMember.role} label="Roll" icon={<Briefcase className="h-4 w-4" />} />
               <DirectEditField fieldName="department" value={staffMember.department} label="Avdelning" icon={<Building className="h-4 w-4" />} />
               <DirectEditField fieldName="hire_date" value={staffMember.hire_date} label="Anställningsdatum" type="date" icon={<Calendar className="h-4 w-4" />} />
