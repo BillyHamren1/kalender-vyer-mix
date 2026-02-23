@@ -1,52 +1,109 @@
 
 
-# Fix: Ekonomioversikten visar fel siffror
+# Omdesign: Personalsidan -- Allt pa svenska, allt pa en sida
 
-## Problem
+## Vad som andras
 
-Ekonomioversikten (`/economy`) hamtar data fran **lokala Supabase-tabeller** (`project_budget`, `project_purchases`, `project_quotes`, `project_invoices`), medan varje projekts ekonomiflik hamtar data via **planning-api-proxy** fran det externa EventFlow-systemet.
+Hela `StaffDetail.tsx` skrivs om till en **ensidig, scrollbar vy** dar ALL information visas direkt -- utan tabbar, toggler eller "Redigera"-dialoger. Alla falt ar direkt-redigerbara inline (som idag, men utan kraven pa att oppna en separat dialog).
 
-Eftersom all ekonomidata lever i EventFlow (inte lokalt) blir oversikten tom/felaktig -- budgetar visar 0 kr, inkop saknas, etc.
+## Nuvarande problem
 
-## Losning
+- All text ar pa engelska ("Personal Information", "Hours This Month", etc.)
+- Informationen ar uppdelad i tva vyer via en toggle-switch (Staff Info / Time Reports)
+- "Edit Staff"-knappen oppnar en separat dialog -- redundant eftersom falten redan ar inline-redigerbara
+- Rorigt och svart att fa en helhetsbild
 
-Refaktorera `ProjectEconomyView` i `EconomyOverview.tsx` sa att den anvander samma datakalla som projektvyn -- dvs. planning-api-proxy via `bookingId`.
+## Ny layout (en enda scrollbar sida)
+
+```text
++--------------------------------------------------+
+| <- Tillbaka              [Aktiv/Inaktiv toggle]   |
+| [Initialer]  Anna Andersson                       |
+|              Tekniker | Avdelning X               |
++--------------------------------------------------+
+|                                                    |
+| --- Personuppgifter ---                           |
+| Namn: [direkt-redigerbart]                        |
+| E-post: [direkt-redigerbart]                      |
+| Telefon: [direkt-redigerbart]                     |
+|                                                    |
+| --- Anstallning ---                               |
+| Roll: [direkt-redigerbart]                        |
+| Avdelning: [direkt-redigerbart]                   |
+| Anstallningsdatum: [direkt-redigerbart]           |
+|                                                    |
+| --- Lon & ersattning ---                          |
+| Timlon: [direkt-redigerbart]                      |
+| OB-tillagg: [direkt-redigerbart]                  |
+| Manadslon: [direkt-redigerbart]                   |
+|                                                    |
+| --- Adress ---                                    |
+| Adress / Postnummer / Stad                        |
+|                                                    |
+| --- Kontaktperson vid nodfall ---                 |
+| Namn / Telefon                                    |
+|                                                    |
+| --- Anteckningar ---                              |
+| [direkt-redigerbart textfalt]                     |
+|                                                    |
+| --- Konto ---                                     |
+| StaffAccountCard (oforandrad)                     |
+|                                                    |
+| --- Tidrapporter (feb 2026) ---  [<] [>] [+]     |
+| Manadsstatistik: Timmar | Intjaning | Antal | OB  |
+| [Lista med tidrapporter]                           |
++--------------------------------------------------+
+```
 
 ## Tekniska steg
 
-### 1. Skapa en ny hook: `useProjectEconomySummary`
-En lattare variant av `useProjectEconomy` som bara hamtar summerad data for ett projekt (budget, tidrapporter, inkop, offerter, fakturor, produktkostnader, leverantorsfakturor) via planning-api-proxy.
+### 1. Oversatt alla etiketter till svenska
+Alla hardkodade engelska strangar ersatts:
 
-### 2. Skapa en sammansattande hook: `useEconomyOverviewData`
-En hook som:
-- Hamtar alla aktiva projekt fran lokala `projects`-tabellen (som idag)
-- For varje projekt med `booking_id`: anropar planning-api-proxy for att hamta budget, tidrapporter, inkop, offerter, fakturor, produktkostnader och leverantorsfakturor
-- Kor `calculateEconomySummary` med **alla** parametrar (inklusive `productCosts` och `supplierInvoices` som saknas idag)
-- Returnerar samma `ProjectWithEconomy[]`-struktur
+| Engelska | Svenska |
+|---|---|
+| Personal Information | Personuppgifter |
+| Full Name | Namn |
+| Email | E-post |
+| Phone | Telefon |
+| Employment Details | Anstallning |
+| Role/Position | Roll |
+| Department | Avdelning |
+| Hire Date | Anstallningsdatum |
+| Financial Information | Lon och ersattning |
+| Hourly Rate (SEK) | Timlon (kr) |
+| Overtime Rate (SEK) | OB-tillagg (kr) |
+| Monthly Salary (SEK) | Manadslon (kr) |
+| Address Information | Adress |
+| Emergency Contact | Kontaktperson vid nodfall |
+| Contact Name | Namn |
+| Contact Phone | Telefon |
+| Notes | Anteckningar |
+| Hours This Month | Timmar denna manad |
+| Earnings This Month | Intjaning denna manad |
+| Reports Submitted | Inlamnade rapporter |
+| Overtime Hours | OB-timmar |
+| Staff member not found | Personal hittades inte |
+| Loading staff details... | Laddar personaluppgifter... |
 
-### 3. Uppdatera `EconomyOverview.tsx`
-- Ersatt den stora inline `queryFn` (rad 61-189) med den nya `useEconomyOverviewData`-hooken
-- Inga andringar i UI-koden -- den renderar redan `summary`-falt korrekt
+Aven toast-meddelanden och knappar oversatts.
 
-### 4. Behall lokal fallback for projekt utan booking_id
-Projekt utan `booking_id` kan inte ha ekonomidata fran EventFlow. Dessa visas med 0-varden som idag, eller doljs fran listan.
+### 2. Ta bort toggle-switchen och visa allt pa en sida
+- Ta bort `showTimeReports`-state och Switch-komponenten
+- Visa personalinformation OCH tidrapporter efter varandra i en scrollbar vy
+- Behall `DirectEditField`-komponenten (den ar bra for inline-redigering)
 
-## Vad fixas
+### 3. Ta bort "Edit Staff"-knappen och EditStaffDialog
+- All redigering sker redan inline via `DirectEditField`
+- Dialogen ar overplodig -- ta bort importen och renderingen
+- Headern forenklas: bara "Tillbaka"-knapp och eventuellt en aktiv/inaktiv-toggle
 
-| Kolumn | Innan | Efter |
-|---|---|---|
-| Budget | 0 kr (lokal tabell tom) | Ratt varde fran EventFlow |
-| Faktisk | Bara lokala tidrapporter | Tidrapporter + inkop + leverantorsfakturor fran EventFlow |
-| Inkop | Lokal `project_purchases` | EventFlow purchases |
-| Avvikelse | Felaktig (-100%) | Korrekt beraknad |
-| Timmar | Bara lokala | Fran EventFlow tidrapporter |
-| Produktkostnader | Saknas helt | Inkluderas i budget |
-| Leverantorsfakturor | Saknas helt | Inkluderas i faktisk kostnad |
+### 4. Flytta tidrapportssektionen till botten av sidan
+- Manadsnavigation, statistikkort och tidrapportslistan visas direkt under personalinfo
+- "Lagg till tidrapport"-knappen placeras vid tidrapportsrubriken
+- `TimeReportForm` visas som expanderbar sektion, inte i en separat dialog
 
-## Prestanda
-
-Eftersom varje projekt kraver ett API-anrop till planning-api-proxy, lagger vi till:
-- `staleTime: 5 * 60 * 1000` (5 min cache)
-- Parallella anrop via `Promise.all` (som idag)
-- Laddindikatorer per projekt om nodvandigt
+### 5. Filer som andras
+- **`src/pages/StaffDetail.tsx`** -- huvudsaklig omskrivning (ta bort toggle, oversatt, samla allt)
+- Inga nya filer behovs, inga andra filer paverkas
 
