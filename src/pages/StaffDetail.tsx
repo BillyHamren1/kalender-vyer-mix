@@ -11,17 +11,13 @@ import { ArrowLeft, Calendar, Clock, DollarSign, User, Plus, Mail, Phone, MapPin
 import StaffAccountCard from '@/components/staff/StaffAccountCard';
 import { supabase } from '@/integrations/supabase/client';
 import TimeReportForm from '@/components/time-reports/TimeReportForm';
-import TimeReportListView from '@/components/time-reports/TimeReportListView';
-import TimeReportsMonthNavigation from '@/components/time-reports/TimeReportsMonthNavigation';
-import { useTrackedTimeData } from '@/hooks/useTrackedTimeData';
-import { TimeReport } from '@/types/timeReport';
+import StaffTimeReportAllMonths from '@/components/time-reports/StaffTimeReportAllMonths';
 import { toast } from 'sonner';
 import { getContrastTextColor } from '@/utils/staffColors';
 
 const StaffDetail: React.FC = () => {
   const { staffId } = useParams<{ staffId: string }>();
   const navigate = useNavigate();
-  const [selectedDate, setSelectedDate] = useState(new Date());
   const [showTimeReportForm, setShowTimeReportForm] = useState(false);
 
   const { data: staffMember, isLoading: staffLoading, refetch: refetchStaff } = useQuery({
@@ -39,22 +35,9 @@ const StaffDetail: React.FC = () => {
     enabled: !!staffId
   });
 
-  const {
-    timeReports,
-    isLoading: timeReportsLoading,
-    lastUpdated,
-    error: timeReportsError,
-    loadTrackedTimeData,
-    calculateMonthlyStats
-  } = useTrackedTimeData({
-    staffId: staffId || '',
-    selectedDate
-  });
-
-  const handleTimeReportSubmit = (report: TimeReport) => {
-    loadTrackedTimeData();
+  const handleTimeReportSubmit = () => {
     setShowTimeReportForm(false);
-    toast.success('Tidrapport skickad – uppdaterar data');
+    toast.success('Tidrapport skickad');
   };
 
   const handleFieldSave = async (fieldName: string, value: string) => {
@@ -171,11 +154,6 @@ const StaffDetail: React.FC = () => {
     );
   };
 
-  const monthlyStats = calculateMonthlyStats(
-    timeReports,
-    staffMember?.hourly_rate || 0,
-    staffMember?.overtime_rate
-  );
 
   if (staffLoading) {
     return (
@@ -362,62 +340,6 @@ const StaffDetail: React.FC = () => {
             </Button>
           </div>
 
-          {/* Månadsnavigation */}
-          <TimeReportsMonthNavigation
-            currentDate={selectedDate}
-            onDateChange={setSelectedDate}
-            onRefresh={loadTrackedTimeData}
-            isLoading={timeReportsLoading}
-            lastUpdated={lastUpdated}
-          />
-
-          {/* Felmeddelande */}
-          {timeReportsError && (
-            <div className="bg-destructive/10 border border-destructive/20 rounded-md p-4">
-              <div className="text-destructive">{timeReportsError}</div>
-            </div>
-          )}
-
-          {/* Månadsstatistik */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-muted/50 rounded-lg p-4">
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Timmar denna månad</p>
-                  <p className="text-xl font-bold">{monthlyStats.totalHours.toFixed(1)}</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-muted/50 rounded-lg p-4">
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Intjäning denna månad</p>
-                  <p className="text-xl font-bold">{monthlyStats.totalEarnings.toFixed(0)} kr</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-muted/50 rounded-lg p-4">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Inlämnade rapporter</p>
-                  <p className="text-xl font-bold">{monthlyStats.totalReports}</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-muted/50 rounded-lg p-4">
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="text-xs text-muted-foreground">OB-timmar</p>
-                  <p className="text-xl font-bold">{monthlyStats.overtimeHours.toFixed(1)}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Tidrapportformulär */}
           {showTimeReportForm && (
             <TimeReportForm
@@ -427,18 +349,8 @@ const StaffDetail: React.FC = () => {
             />
           )}
 
-          {/* Laddning */}
-          {timeReportsLoading && (
-            <div className="flex items-center justify-center p-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              <span className="ml-3 text-muted-foreground">Laddar tidrapporter...</span>
-            </div>
-          )}
-
-          {/* Tidrapportlista */}
-          {!timeReportsLoading && (
-            <TimeReportListView reports={timeReports} selectedDate={selectedDate} />
-          )}
+          {/* Alla tidrapporter grupperade per månad */}
+          {staffId && <StaffTimeReportAllMonths staffId={staffId} />}
         </TabsContent>
       </Tabs>
     </div>
