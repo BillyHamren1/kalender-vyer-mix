@@ -288,7 +288,7 @@ const ProjectEconomyView: React.FC = () => {
                   <th className="text-right py-3 px-4 font-medium text-muted-foreground">Avvikelse</th>
                   <th className="text-right py-3 px-4 font-medium text-muted-foreground">Timmar</th>
                   <th className="text-center py-3 px-4 font-medium text-muted-foreground">Status</th>
-                  <th className="text-center py-3 px-2 font-medium text-muted-foreground w-10"></th>
+                  <th className="text-center py-3 px-2 font-medium text-muted-foreground w-16">Stäng</th>
                 </tr>
               </thead>
               <tbody>
