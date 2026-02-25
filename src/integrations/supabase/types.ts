@@ -1612,6 +1612,8 @@ export type Database = {
           name: string
           organization_id: string
           project_leader: string | null
+          signed_at: string | null
+          signed_by: string | null
           status: string
           updated_at: string
         }
@@ -1622,6 +1624,8 @@ export type Database = {
           name: string
           organization_id?: string
           project_leader?: string | null
+          signed_at?: string | null
+          signed_by?: string | null
           status?: string
           updated_at?: string
         }
@@ -1632,6 +1636,8 @@ export type Database = {
           name?: string
           organization_id?: string
           project_leader?: string | null
+          signed_at?: string | null
+          signed_by?: string | null
           status?: string
           updated_at?: string
         }

@@ -73,6 +73,9 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
   const [itemOrder, setItemOrder] = useState<Record<string, number>>({});
   const [tappedItemId, setTappedItemId] = useState<string | null>(null);
   const [staffFirstName, setStaffFirstName] = useState<string>('');
+  const [isSigned, setIsSigned] = useState(false);
+  const [signedInfo, setSignedInfo] = useState<{ by: string; at: string } | null>(null);
+  const [isSigning, setIsSigning] = useState(false);
 
   useEffect(() => {
     if (!user?.email) return;
@@ -97,6 +100,10 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
       ]);
 
       setPacking(packingData);
+      if (packingData?.signed_by && packingData?.signed_at) {
+        setIsSigned(true);
+        setSignedInfo({ by: packingData.signed_by, at: packingData.signed_at });
+      }
       const typedItems = itemsData as PackingItem[];
       let finalItems: PackingItem[];
       if (Object.keys(itemOrder).length === 0) {
@@ -484,21 +491,52 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
         </div>
       )}
 
-      {/* Signera-knapp visas när allt är packat */}
-      {progress.percentage === 100 && (
+      {/* Signerad-indikator eller Signera-knapp */}
+      {isSigned && signedInfo ? (
+        <div className="sticky bottom-0 pt-4 pb-2 -mx-1 px-1 bg-gradient-to-t from-background via-background to-transparent">
+          <div className="w-full h-12 rounded-md bg-primary/10 border border-primary/20 flex items-center justify-center gap-2 text-primary font-semibold">
+            <Check className="h-5 w-5" />
+            <span className="text-sm">
+              Signerad av {signedInfo.by}, {new Date(signedInfo.at).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' })} {new Date(signedInfo.at).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+        </div>
+      ) : progress.percentage === 100 && (
         <div className="sticky bottom-0 pt-4 pb-2 -mx-1 px-1 bg-gradient-to-t from-background via-background to-transparent">
           <ConfirmationDialog
             title="Signera packlista"
             description={`Har du${staffFirstName ? ` ${staffFirstName}` : ''} säkerställt att allt i listan är packat?`}
             confirmLabel="Ja"
             cancelLabel="Nej"
-            onConfirm={() => toast.success('Signering klar!')}
+            onConfirm={async () => {
+              setIsSigning(true);
+              const signerName = staffFirstName || 'Okänd';
+              const now = new Date().toISOString();
+              const { error } = await supabase
+                .from('packing_projects')
+                .update({
+                  signed_by: signerName,
+                  signed_at: now,
+                  status: 'completed'
+                } as any)
+                .eq('id', packingId);
+              setIsSigning(false);
+              if (error) {
+                console.error('Signing error:', error);
+                toast.error('Kunde inte signera packlistan');
+              } else {
+                setIsSigned(true);
+                setSignedInfo({ by: signerName, at: now });
+                toast.success('Signering klar!');
+              }
+            }}
           >
             <Button
               className="w-full h-12 text-base font-semibold bg-primary hover:bg-primary/90 text-white gap-2"
+              disabled={isSigning}
             >
               <PenLine className="h-5 w-5" />
-              Signera
+              {isSigning ? 'Signerar...' : 'Signera'}
             </Button>
           </ConfirmationDialog>
         </div>

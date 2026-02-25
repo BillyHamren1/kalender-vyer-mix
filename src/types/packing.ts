@@ -6,6 +6,8 @@ export interface Packing {
   name: string;
   status: PackingStatus;
   project_leader: string | null;
+  signed_by: string | null;
+  signed_at: string | null;
   created_at: string;
   updated_at: string;
 }
