@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import PackingCard from "@/components/packing/PackingCard";
+import PackingDashboard from "@/components/packing/PackingDashboard";
 import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
 import { fetchPackings, deletePacking } from "@/services/packingService";
 import { PackingStatus, PACKING_STATUS_LABELS } from "@/types/packing";
@@ -92,6 +93,9 @@ const PackingManagement = () => {
               </SelectContent>
             </Select>
           </div>
+
+          {/* Dashboard */}
+          <PackingDashboard packings={packings} />
 
           {/* Packing Grid */}
           {isLoading ? (
