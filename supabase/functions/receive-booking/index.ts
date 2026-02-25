@@ -36,7 +36,11 @@ serve(async (req) => {
     console.log(`receive-booking: Incoming webhook - booking_id=${booking_id}, event_type=${event_type || 'unknown'}, organization_id=${organization_id || 'NOT PROVIDED'}`)
 
     if (!organization_id) {
-      console.warn('receive-booking: DEPRECATION WARNING: organization_id not provided. Hub must send organization_id explicitly.')
+      console.error('receive-booking: organization_id is required but was not provided.')
+      return new Response(
+        JSON.stringify({ error: 'Missing required field: organization_id. Hub must send organization_id explicitly.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
     if (!booking_id) {
