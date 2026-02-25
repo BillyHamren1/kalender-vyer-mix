@@ -117,15 +117,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             Ändrad!
           </div>
         )}
-        {/* Read-only badge for protected events */}
-        {readOnly && (
-          <div 
-            className="absolute -top-1 -left-1 bg-slate-500 text-white text-[7px] px-1 py-0.5 rounded font-medium z-10"
-            title="Skrivskyddad i lagerkalendern"
-          >
-            🔒
-          </div>
-        )}
+        {/* Read-only events no longer show a badge */}
         <div className="event-title" style={{ color: '#000000' }}>
           {event.title}
         </div>
