@@ -96,59 +96,59 @@ serve(async (req) => {
 
     switch (operation) {
       case 'get_staff_members':
-        response = await getStaffMembers(supabase)
+        response = await getStaffMembers(supabase, organizationId!)
         break
       
       case 'sync_staff_member':
-        response = await syncStaffMember(supabase, data)
+        response = await syncStaffMember(supabase, data, organizationId!)
         break
       
       case 'create_staff_member':
-        response = await createStaffMember(supabase, data)
+        response = await createStaffMember(supabase, data, organizationId!)
         break
       
       case 'get_staff_assignments':
-        response = await getStaffAssignments(supabase, data.date, data.team_id)
+        response = await getStaffAssignments(supabase, data.date, data.team_id, organizationId!)
         break
       
       case 'assign_staff_to_team':
-        response = await assignStaffToTeam(supabase, data.staff_id, data.team_id, data.date)
+        response = await assignStaffToTeam(supabase, data.staff_id, data.team_id, data.date, organizationId!)
         break
       
       case 'remove_staff_assignment':
-        response = await removeStaffAssignment(supabase, data.staff_id, data.date)
+        response = await removeStaffAssignment(supabase, data.staff_id, data.date, organizationId!)
         break
       
       case 'get_available_staff':
-        response = await getAvailableStaff(supabase, data.date)
+        response = await getAvailableStaff(supabase, data.date, organizationId!)
         break
       
       case 'get_staff_calendar_events':
-        response = await getStaffCalendarEvents(supabase, data.staff_ids, data.start_date, data.end_date)
+        response = await getStaffCalendarEvents(supabase, data.staff_ids, data.start_date, data.end_date, organizationId!)
         break
       
       case 'assign_staff_to_booking':
-        response = await assignStaffToBooking(supabase, data.booking_id, data.staff_id, data.team_id, data.date)
+        response = await assignStaffToBooking(supabase, data.booking_id, data.staff_id, data.team_id, data.date, organizationId!)
         break
       
       case 'remove_staff_from_booking':
-        response = await removeStaffFromBooking(supabase, data.booking_id, data.staff_id, data.date)
+        response = await removeStaffFromBooking(supabase, data.booking_id, data.staff_id, data.date, organizationId!)
         break
       
       case 'handle_booking_move':
-        response = await handleBookingMove(supabase, data.booking_id, data.old_team_id, data.new_team_id, data.old_date, data.new_date)
+        response = await handleBookingMove(supabase, data.booking_id, data.old_team_id, data.new_team_id, data.old_date, data.new_date, organizationId!)
         break
       
       case 'bulk_assign_staff':
-        response = await bulkAssignStaff(supabase, data.assignments)
+        response = await bulkAssignStaff(supabase, data.assignments, organizationId!)
         break
       
       case 'get_staff_summary':
-        response = await getStaffSummary(supabase, data.staff_ids, data.date)
+        response = await getStaffSummary(supabase, data.staff_ids, data.date, organizationId!)
         break
       
       case 'export_staff_to_external':
-        response = await exportStaffToExternal(supabase, data.external_url, data.staff_ids, options)
+        response = await exportStaffToExternal(supabase, data.external_url, data.staff_ids, options, organizationId!)
         break
       
       default:
@@ -172,11 +172,12 @@ serve(async (req) => {
 })
 
 // Staff CRUD Operations
-async function getStaffMembers(supabase: any): Promise<OperationResponse> {
+async function getStaffMembers(supabase: any, organizationId: string): Promise<OperationResponse> {
   try {
     const { data, error } = await supabase
       .from('staff_members')
       .select('*')
+      .eq('organization_id', organizationId)
       .order('name')
 
     if (error) throw error
@@ -187,7 +188,7 @@ async function getStaffMembers(supabase: any): Promise<OperationResponse> {
   }
 }
 
-async function syncStaffMember(supabase: any, staffData: any): Promise<OperationResponse> {
+async function syncStaffMember(supabase: any, staffData: any, organizationId: string): Promise<OperationResponse> {
   try {
     const { data, error } = await supabase
       .from('staff_members')
@@ -195,14 +196,14 @@ async function syncStaffMember(supabase: any, staffData: any): Promise<Operation
         id: staffData.id,
         name: staffData.name,
         email: staffData.email,
-        phone: staffData.phone
+        phone: staffData.phone,
+        organization_id: organizationId
       }, {
         onConflict: 'id'
       })
       .select()
 
     if (error) {
-      // Handle unique constraint errors
       if (error.code === '23505' && error.message.includes('email')) {
         const { error: updateError } = await supabase
           .from('staff_members')
@@ -211,6 +212,7 @@ async function syncStaffMember(supabase: any, staffData: any): Promise<Operation
             phone: staffData.phone
           })
           .eq('email', staffData.email)
+          .eq('organization_id', organizationId)
 
         if (updateError) throw updateError
         return { success: true, data: staffData }
@@ -224,7 +226,7 @@ async function syncStaffMember(supabase: any, staffData: any): Promise<Operation
   }
 }
 
-async function createStaffMember(supabase: any, staffData: any): Promise<OperationResponse> {
+async function createStaffMember(supabase: any, staffData: any, organizationId: string): Promise<OperationResponse> {
   try {
     const id = `staff_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     
@@ -234,7 +236,8 @@ async function createStaffMember(supabase: any, staffData: any): Promise<Operati
         id,
         name: staffData.name,
         email: staffData.email,
-        phone: staffData.phone
+        phone: staffData.phone,
+        organization_id: organizationId
       })
       .select()
       .single()
@@ -248,7 +251,7 @@ async function createStaffMember(supabase: any, staffData: any): Promise<Operati
 }
 
 // Assignment Operations
-async function getStaffAssignments(supabase: any, date: string, teamId?: string): Promise<OperationResponse> {
+async function getStaffAssignments(supabase: any, date: string, teamId?: string, organizationId?: string): Promise<OperationResponse> {
   try {
     let query = supabase
       .from('staff_assignments')
@@ -262,6 +265,10 @@ async function getStaffAssignments(supabase: any, date: string, teamId?: string)
         )
       `)
       .eq('assignment_date', date)
+
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId)
+    }
 
     if (teamId) {
       query = query.eq('team_id', teamId)
@@ -277,7 +284,7 @@ async function getStaffAssignments(supabase: any, date: string, teamId?: string)
   }
 }
 
-async function assignStaffToTeam(supabase: any, staffId: string, teamId: string, date: string): Promise<OperationResponse> {
+async function assignStaffToTeam(supabase: any, staffId: string, teamId: string, date: string, organizationId?: string): Promise<OperationResponse> {
   try {
     // Check staff availability first
     const { data: availabilityData, error: availError } = await supabase
@@ -328,7 +335,7 @@ async function assignStaffToTeam(supabase: any, staffId: string, teamId: string,
   }
 }
 
-async function removeStaffAssignment(supabase: any, staffId: string, date: string): Promise<OperationResponse> {
+async function removeStaffAssignment(supabase: any, staffId: string, date: string, organizationId?: string): Promise<OperationResponse> {
   try {
     // Remove staff assignment
     const { error: assignmentError } = await supabase
@@ -354,13 +361,16 @@ async function removeStaffAssignment(supabase: any, staffId: string, date: strin
   }
 }
 
-async function getAvailableStaff(supabase: any, date: string): Promise<OperationResponse> {
+async function getAvailableStaff(supabase: any, date: string, organizationId?: string): Promise<OperationResponse> {
   try {
-    // Get all staff members
-    const { data: allStaff, error: staffError } = await supabase
+    // Get all staff members for this org
+    let staffQuery = supabase
       .from('staff_members')
       .select('*')
       .order('name')
+    if (organizationId) staffQuery = staffQuery.eq('organization_id', organizationId)
+
+    const { data: allStaff, error: staffError } = await staffQuery
 
     if (staffError) throw staffError
 
@@ -382,7 +392,7 @@ async function getAvailableStaff(supabase: any, date: string): Promise<Operation
 }
 
 // Calendar Operations - FIXED to properly validate staff assignments
-async function getStaffCalendarEvents(supabase: any, staffIds: string[], startDate: string, endDate: string): Promise<OperationResponse> {
+async function getStaffCalendarEvents(supabase: any, staffIds: string[], startDate: string, endDate: string, organizationId?: string): Promise<OperationResponse> {
   try {
     if (!staffIds || staffIds.length === 0) {
       return { success: true, data: [] }
@@ -390,11 +400,14 @@ async function getStaffCalendarEvents(supabase: any, staffIds: string[], startDa
 
     console.log(`Fetching calendar events for staff: ${staffIds.join(', ')} from ${startDate} to ${endDate}`)
 
-    // Get staff names
-    const { data: staffMembers, error: staffError } = await supabase
+    // Get staff names, filtered by org
+    let staffQuery = supabase
       .from('staff_members')
       .select('id, name')
       .in('id', staffIds)
+    if (organizationId) staffQuery = staffQuery.eq('organization_id', organizationId)
+
+    const { data: staffMembers, error: staffError } = await staffQuery
 
     if (staffError) throw staffError
 
@@ -483,7 +496,7 @@ async function getStaffCalendarEvents(supabase: any, staffIds: string[], startDa
 }
 
 // Booking Assignment Operations
-async function assignStaffToBooking(supabase: any, bookingId: string, staffId: string, teamId: string, date: string): Promise<OperationResponse> {
+async function assignStaffToBooking(supabase: any, bookingId: string, staffId: string, teamId: string, date: string, organizationId?: string): Promise<OperationResponse> {
   try {
     // Check if staff is assigned to the team on that date
     const { data: staffAssignment, error: staffError } = await supabase
@@ -522,7 +535,7 @@ async function assignStaffToBooking(supabase: any, bookingId: string, staffId: s
   }
 }
 
-async function removeStaffFromBooking(supabase: any, bookingId: string, staffId: string, date: string): Promise<OperationResponse> {
+async function removeStaffFromBooking(supabase: any, bookingId: string, staffId: string, date: string, organizationId?: string): Promise<OperationResponse> {
   try {
     const { error } = await supabase
       .from('booking_staff_assignments')
@@ -539,7 +552,7 @@ async function removeStaffFromBooking(supabase: any, bookingId: string, staffId:
   }
 }
 
-async function handleBookingMove(supabase: any, bookingId: string, oldTeamId: string, newTeamId: string, oldDate: string, newDate: string): Promise<OperationResponse> {
+async function handleBookingMove(supabase: any, bookingId: string, oldTeamId: string, newTeamId: string, oldDate: string, newDate: string, organizationId?: string): Promise<OperationResponse> {
   try {
     // Get staff who were assigned to this booking
     const { data: oldAssignments, error: oldError } = await supabase
@@ -608,7 +621,7 @@ async function handleBookingMove(supabase: any, bookingId: string, oldTeamId: st
 }
 
 // Bulk Operations
-async function bulkAssignStaff(supabase: any, assignments: any[]): Promise<OperationResponse> {
+async function bulkAssignStaff(supabase: any, assignments: any[], organizationId?: string): Promise<OperationResponse> {
   try {
     const results = []
     const errors = []
@@ -637,7 +650,7 @@ async function bulkAssignStaff(supabase: any, assignments: any[]): Promise<Opera
 }
 
 // Summary Operations
-async function getStaffSummary(supabase: any, staffIds: string[], date: string): Promise<OperationResponse> {
+async function getStaffSummary(supabase: any, staffIds: string[], date: string, organizationId?: string): Promise<OperationResponse> {
   try {
     const summary = []
 
@@ -743,7 +756,7 @@ function getEventBorderColor(eventType: string): string {
 }
 
 // New Export Function
-async function exportStaffToExternal(supabase: any, externalUrl: string, staffIds?: string[], options: any = {}): Promise<OperationResponse> {
+async function exportStaffToExternal(supabase: any, externalUrl: string, staffIds?: string[], options: any = {}, organizationId?: string): Promise<OperationResponse> {
   try {
     console.log(`Exporting staff to external system: ${externalUrl}`)
     
@@ -759,6 +772,7 @@ async function exportStaffToExternal(supabase: any, externalUrl: string, staffId
           password_hash
         )
       `)
+    if (organizationId) query = query.eq('organization_id', organizationId)
 
     // Filter by staff IDs if provided
     if (staffIds && staffIds.length > 0) {

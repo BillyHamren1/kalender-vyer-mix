@@ -7,7 +7,7 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 )
 
-async function resolveOrganizationId(explicitOrgId?: string): Promise<string | undefined> {
+async function resolveOrganizationId(explicitOrgId?: string): Promise<string> {
   if (explicitOrgId) {
     const { data } = await supabase.from('organizations').select('id').eq('id', explicitOrgId).single()
     if (!data) throw new Error(`Organization not found: ${explicitOrgId}`)
@@ -15,7 +15,8 @@ async function resolveOrganizationId(explicitOrgId?: string): Promise<string | u
   }
   console.warn('[time-reports] DEPRECATION WARNING: organization_id not provided, falling back to first org.')
   const { data } = await supabase.from('organizations').select('id').limit(1).single()
-  return data?.id
+  if (!data) throw new Error('No organizations found')
+  return data.id
 }
 
 Deno.serve(async (req) => {
@@ -30,6 +31,25 @@ Deno.serve(async (req) => {
     const pathSegments = url.pathname.split('/').filter(Boolean)
     
     console.log(`Time Reports API: ${method} ${url.pathname}`)
+
+    // Resolve organization_id from query param, body, or fallback
+    let orgId: string
+    if (method === 'GET') {
+      const orgParam = url.searchParams.get('organization_id')
+      orgId = await resolveOrganizationId(orgParam || undefined)
+    } else {
+      // For POST/PUT/DELETE, parse body to get organization_id
+      // We clone the request so the body can be read again later
+      const clonedReq = req.clone()
+      try {
+        const bodyForOrg = await clonedReq.json()
+        orgId = await resolveOrganizationId(bodyForOrg.organization_id)
+      } catch {
+        orgId = await resolveOrganizationId()
+      }
+    }
+
+    console.log(`[time-reports] Using organization_id: ${orgId}`)
     
     if (method === 'GET') {
       // GET /time-reports - Fetch time reports with optional filters
@@ -46,6 +66,7 @@ Deno.serve(async (req) => {
             staff_members!inner(id, name, hourly_rate, overtime_rate),
             bookings!inner(id, client, booking_number)
           `)
+          .eq('organization_id', orgId)
           .order('report_date', { ascending: false })
         
         if (staffId) query = query.eq('staff_id', staffId)
@@ -81,6 +102,7 @@ Deno.serve(async (req) => {
             eventdate,
             rigdowndate
           `)
+          .eq('organization_id', orgId)
           .in('status', ['COMPLETED', 'FINISHED'])
           .order('eventdate', { ascending: false })
         
@@ -101,6 +123,7 @@ Deno.serve(async (req) => {
             *,
             staff_members!inner(id, name, hourly_rate, overtime_rate)
           `)
+          .eq('organization_id', orgId)
           .in('booking_id', bookingIds)
         
         if (reportsError) {
@@ -174,10 +197,8 @@ Deno.serve(async (req) => {
       // POST /time-reports - Create new time report
       const body = await req.json()
       
-      // Ensure organization_id is set for multi-tenant
-      if (!body.organization_id) {
-        body.organization_id = await resolveOrganizationId()
-      }
+      // Ensure organization_id is set
+      body.organization_id = orgId
       
       const { data, error } = await supabase
         .from('time_reports')
@@ -204,14 +225,18 @@ Deno.serve(async (req) => {
     }
     
     if (method === 'PUT') {
-      // PUT /time-reports/{id} - Update time report
+      // PUT /time-reports/{id} - Update time report (org-scoped)
       const reportId = pathSegments[1]
       const body = await req.json()
+      
+      // Remove organization_id from update body to prevent org hopping
+      delete body.organization_id
       
       const { data, error } = await supabase
         .from('time_reports')
         .update(body)
         .eq('id', reportId)
+        .eq('organization_id', orgId)
         .select(`
           *,
           staff_members!inner(name),
@@ -233,13 +258,14 @@ Deno.serve(async (req) => {
     }
     
     if (method === 'DELETE') {
-      // DELETE /time-reports/{id} - Delete time report
+      // DELETE /time-reports/{id} - Delete time report (org-scoped)
       const reportId = pathSegments[1]
       
       const { error } = await supabase
         .from('time_reports')
         .delete()
         .eq('id', reportId)
+        .eq('organization_id', orgId)
       
       if (error) {
         console.error('Error deleting time report:', error)

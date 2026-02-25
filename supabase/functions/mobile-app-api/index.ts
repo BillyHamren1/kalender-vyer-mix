@@ -62,7 +62,6 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
-    const organizationId = await resolveOrganizationId(supabase, body?.organization_id)
 
     const body = await req.json()
     const { action, token, data } = body
@@ -92,26 +91,44 @@ Deno.serve(async (req) => {
 
     const staffId = tokenResult.staffId!
 
-    // Route to appropriate handler
+    // Resolve organization_id from the authenticated staff member
+    const { data: staffOrg } = await supabase
+      .from('staff_members')
+      .select('organization_id')
+      .eq('id', staffId)
+      .single()
+
+    const organizationId = staffOrg?.organization_id
+    if (!organizationId) {
+      console.error(`[mobile-app-api] Staff ${staffId} has no organization_id`)
+      return new Response(
+        JSON.stringify({ error: 'Staff member not associated with an organization' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    console.log(`[mobile-app-api] Staff ${staffId} org: ${organizationId}`)
+
+    // Route to appropriate handler - all receive organizationId for tenant isolation
     switch (action) {
       case 'me':
-        return await handleMe(supabase, staffId)
+        return await handleMe(supabase, staffId, organizationId)
       case 'get_bookings':
-        return await handleGetBookings(supabase, staffId)
+        return await handleGetBookings(supabase, staffId, organizationId)
       case 'get_booking_details':
-        return await handleGetBookingDetails(supabase, staffId, data)
+        return await handleGetBookingDetails(supabase, staffId, data, organizationId)
       case 'get_time_reports':
-        return await handleGetTimeReports(supabase, staffId)
+        return await handleGetTimeReports(supabase, staffId, organizationId)
       case 'create_time_report':
         return await handleCreateTimeReport(supabase, staffId, data, organizationId)
       case 'get_project':
-        return await handleGetProject(supabase, data)
+        return await handleGetProject(supabase, data, organizationId)
       case 'get_project_comments':
-        return await handleGetProjectComments(supabase, data)
+        return await handleGetProjectComments(supabase, data, organizationId)
       case 'get_project_files':
-        return await handleGetProjectFiles(supabase, data)
+        return await handleGetProjectFiles(supabase, data, organizationId)
       case 'get_project_purchases':
-        return await handleGetProjectPurchases(supabase, data)
+        return await handleGetProjectPurchases(supabase, data, organizationId)
       case 'create_purchase':
         return await handleCreatePurchase(supabase, staffId, data, organizationId)
       case 'create_comment':
@@ -247,11 +264,12 @@ async function handleLogin(supabase: any, data: { username?: string; password: s
   )
 }
 
-async function handleMe(supabase: any, staffId: string) {
+async function handleMe(supabase: any, staffId: string, organizationId: string) {
   const { data: staffMember, error } = await supabase
     .from('staff_members')
     .select('id, name, email, phone, role, department, hourly_rate, overtime_rate')
     .eq('id', staffId)
+    .eq('organization_id', organizationId)
     .single()
 
   if (error || !staffMember) {
@@ -267,12 +285,13 @@ async function handleMe(supabase: any, staffId: string) {
   )
 }
 
-async function handleGetBookings(supabase: any, staffId: string) {
-  // Get all booking assignments for this staff member
+async function handleGetBookings(supabase: any, staffId: string, organizationId: string) {
+  // Get all booking assignments for this staff member, filtered by org
   const { data: assignments, error: assignmentError } = await supabase
     .from('booking_staff_assignments')
     .select('booking_id, assignment_date, team_id')
     .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
     .gte('assignment_date', new Date().toISOString().split('T')[0]) // Only future/current dates
 
   if (assignmentError) {
@@ -346,7 +365,7 @@ async function handleGetBookings(supabase: any, staffId: string) {
   )
 }
 
-async function handleGetTimeReports(supabase: any, staffId: string) {
+async function handleGetTimeReports(supabase: any, staffId: string, organizationId: string) {
   const { data: reports, error } = await supabase
     .from('time_reports')
     .select(`
@@ -367,6 +386,7 @@ async function handleGetTimeReports(supabase: any, staffId: string) {
       )
     `)
     .eq('staff_id', staffId)
+    .eq('organization_id', organizationId)
     .order('report_date', { ascending: false })
     .limit(50)
 
@@ -443,7 +463,7 @@ async function handleCreateTimeReport(supabase: any, staffId: string, data: any,
   )
 }
 
-async function handleGetProject(supabase: any, data: { booking_id: string }) {
+async function handleGetProject(supabase: any, data: { booking_id: string }, organizationId: string) {
   const { booking_id } = data
 
   if (!booking_id) {
@@ -464,6 +484,7 @@ async function handleGetProject(supabase: any, data: { booking_id: string }) {
       created_at
     `)
     .eq('booking_id', booking_id)
+    .eq('organization_id', organizationId)
     .maybeSingle()
 
   if (error) {
@@ -778,7 +799,7 @@ async function handleUploadFile(supabase: any, staffId: string, data: any, organ
 
 // ==================== COMPREHENSIVE JOB DETAILS HANDLER ====================
 
-async function handleGetBookingDetails(supabase: any, staffId: string, data: { booking_id: string }) {
+async function handleGetBookingDetails(supabase: any, staffId: string, data: { booking_id: string }, organizationId: string) {
   const { booking_id } = data
 
   if (!booking_id) {
@@ -988,7 +1009,7 @@ async function handleGetBookingDetails(supabase: any, staffId: string, data: { b
   )
 }
 
-async function handleGetProjectComments(supabase: any, data: { booking_id: string }) {
+async function handleGetProjectComments(supabase: any, data: { booking_id: string }, organizationId: string) {
   const { booking_id } = data
 
   if (!booking_id) {
@@ -1031,7 +1052,7 @@ async function handleGetProjectComments(supabase: any, data: { booking_id: strin
   )
 }
 
-async function handleGetProjectFiles(supabase: any, data: { booking_id: string }) {
+async function handleGetProjectFiles(supabase: any, data: { booking_id: string }, organizationId: string) {
   const { booking_id } = data
 
   if (!booking_id) {
@@ -1088,7 +1109,7 @@ async function handleGetProjectFiles(supabase: any, data: { booking_id: string }
   )
 }
 
-async function handleGetProjectPurchases(supabase: any, data: { booking_id: string }) {
+async function handleGetProjectPurchases(supabase: any, data: { booking_id: string }, organizationId: string) {
   const { booking_id } = data
 
   if (!booking_id) {
