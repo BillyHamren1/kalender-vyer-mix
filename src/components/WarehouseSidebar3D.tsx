@@ -8,6 +8,8 @@ import { type LucideIcon,
   Wrench,
   ChevronDown,
   TrendingUp,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -87,6 +89,18 @@ export function WarehouseSidebar3D() {
       >
         {/* Content */}
         <div className="flex flex-col h-full px-3 py-4">
+
+          {/* Toggle button */}
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="mb-3 flex items-center justify-center w-full rounded-md py-1.5 transition-colors"
+            style={{ color: "hsl(var(--foreground) / 0.50)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = HOVER_BG)}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            title={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
+          >
+            {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
 
           {/* ── Nav ── */}
           <nav className="flex-1 space-y-px">

@@ -8,6 +8,8 @@ import { type LucideIcon,
   PieChart,
   LayoutDashboard,
   Truck,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -95,6 +97,16 @@ export function Sidebar3D() {
 
         {/* Content */}
         <div className="flex flex-col h-full px-3 py-4">
+
+          {/* Toggle button */}
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="mb-3 flex items-center justify-center w-full rounded-md py-1.5 transition-colors hover:bg-accent/50"
+            style={{ color: "hsl(var(--foreground) / 0.50)" }}
+            title={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
+          >
+            {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
 
           {/* ── Nav ── */}
           <nav className="flex-1 space-y-px">
