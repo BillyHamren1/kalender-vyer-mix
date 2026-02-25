@@ -1,32 +1,33 @@
 
 
-## Plan: Visa "Signera"-knapp när allt är checkat
+## Problem
 
-### Vad händer
-När alla produkter är fullständigt packade (progress = 100%) visas en "Signera"-knapp fixerad längst ner på skärmen.
+Two competing progress calculations:
 
-### Ändringar i `src/components/scanner/ManualChecklistView.tsx`
+- **`getVerificationProgress` (server, line 496-512)**: Counts ALL `packing_list_items` rows and checks `verified_at !== null`. This includes parent items, giving 19/20 = 95% even when all children are packed.
+- **`recalcProgress` (local, line 143-161)**: Correctly excludes parent items and checks `quantity_packed` vs `quantity_to_pack`.
 
-1. **Lägg till en "Signera"-knapp** längst ner i komponenten (innanför yttersta `<div>`), som bara renderas när `progress?.percentage === 100`.
+On initial load, the server version is used → shows 19/20 (95%). The "Signera" button checks `progress.percentage === 100` → never appears.
 
-2. **Knappen blir sticky/fixed** längst ner med tydlig grön styling så den syns direkt när allt är klart.
+## Solution
 
-3. **Klick-hantering**: Knappen visar en toast eller triggar en signeringslogik (till att börja med en placeholder `toast.success('Signering klar!')`).
+**Remove the server progress call and always use `recalcProgress`** on the loaded items.
+
+### Changes in `src/components/scanner/ManualChecklistView.tsx`
+
+1. **In `loadData` (line 80-100)**: Remove `getVerificationProgress(packingId)` from the `Promise.all` call. After setting items, call `recalcProgress(typedItems)` (or the sorted version) to compute progress locally.
+
+2. **Remove `progressData` variable** and the `setProgress(progressData)` call (line 100).
+
+This ensures the same logic is used everywhere — parents are excluded, quantities are checked — and the "Signera" button will correctly appear at 100%.
 
 ```text
-┌──────────────────────────┐
-│  Produkt A        1/1  ✓ │
-│  Produkt B        2/2  ✓ │
-│  Produkt C        1/1  ✓ │
-│                          │
-│                          │
-├──────────────────────────┤
-│     [ ✍ Signera ]        │  ← Visas bara vid 100%
-└──────────────────────────┘
+Before:
+  loadData → getVerificationProgress (counts parents) → 19/20 = 95%
+  tap +/−  → recalcProgress (excludes parents)         → 20/20 = 100%
+  
+After:
+  loadData → recalcProgress (excludes parents) → 20/20 = 100% ✓
+  tap +/−  → recalcProgress (excludes parents) → consistent ✓
 ```
-
-### Teknisk detalj
-- Kontroll: `progress?.percentage === 100`
-- Placering: Sticky bottom med padding och skugga
-- Styling: Full-width grön knapp med ikon
 
