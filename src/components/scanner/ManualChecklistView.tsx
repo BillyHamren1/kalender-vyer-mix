@@ -3,11 +3,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, RefreshCw, AlertCircle, Package, ChevronRight, X } from 'lucide-react';
+import { ArrowLeft, Check, RefreshCw, AlertCircle, Package, ChevronRight, X, Plus, Minus } from 'lucide-react';
 import { 
   fetchPackingListItems, 
   getVerificationProgress, 
   togglePackingItemManually,
+  decrementPackingItem,
   createParcel,
   assignItemToParcel,
   getItemParcels
@@ -138,34 +139,34 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
     toast.info('Kolli-läge avslutat');
   }, [loadData]);
 
-  // Handle tap — increment by 1, long-press resets
-  const handleTap = useCallback(async (itemId: string, isComplete: boolean, quantityToPack: number, isParent: boolean) => {
-    if (isParent) {
-      toast.info('Markeras automatiskt när alla delar är packade');
-      return;
-    }
-
-    // Visual feedback
+  // Handle increment
+  const handleIncrement = useCallback(async (itemId: string, quantityToPack: number, isParent: boolean) => {
+    if (isParent) return;
     setTappedItemId(itemId);
     setTimeout(() => setTappedItemId(null), 200);
 
-    const result = await togglePackingItemManually(itemId, isComplete, quantityToPack, verifierName);
-    
+    const result = await togglePackingItemManually(itemId, false, quantityToPack, verifierName);
     if (result.success) {
-      if (isComplete) {
-        toast.info('Nollställd');
-      }
-
-      if (isKolliMode && activeParcel && !isComplete) {
+      if (isKolliMode && activeParcel) {
         await assignItemToParcel(itemId, activeParcel.id);
         setItemParcelMap(prev => ({ ...prev, [itemId]: activeParcel.parcel_number }));
       }
-
       loadData();
     } else {
       toast.error(result.error || 'Kunde inte uppdatera');
     }
   }, [verifierName, loadData, isKolliMode, activeParcel]);
+
+  // Handle decrement (subtract 1)
+  const handleDecrement = useCallback(async (itemId: string, isParent: boolean) => {
+    if (isParent) return;
+    const result = await decrementPackingItem(itemId, verifierName);
+    if (result.success) {
+      loadData();
+    } else {
+      toast.error(result.error || 'Kunde inte uppdatera');
+    }
+  }, [verifierName, loadData]);
 
   // Build parent-children map
   const childrenByParent: Record<string, PackingItem[]> = {};
@@ -246,7 +247,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
 
       {/* Hint */}
       <p className="text-[10px] text-muted-foreground px-1">
-        Tryck för att räkna upp · Tryck på grön rad för att nollställa
+        Använd + och − för att räkna upp/ner varje komponent
       </p>
 
       {/* No items */}
@@ -317,27 +318,21 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
               const parcelNumber = itemParcelMap[item.id];
               
               return (
-                <button 
+                <div 
                   key={item.id}
-                  onClick={() => handleTap(item.id, isComplete, item.quantity_to_pack, isParent)}
-                  disabled={isParent}
-                  className={`w-full flex items-center gap-3 text-left transition-all select-none ${
+                  className={`w-full flex items-center gap-2 transition-all select-none ${
                     isComplete 
                       ? 'bg-green-50/70' 
                       : isPartial 
                         ? 'bg-amber-50/50' 
                         : ''
                   } ${
-                    isTapped ? 'scale-[0.97] bg-primary/10' : ''
-                  } ${
-                    isParent 
-                      ? 'cursor-default opacity-80' 
-                      : 'active:bg-primary/10 active:scale-[0.97]'
-                  } ${isChild ? 'pl-7 pr-3 py-3' : 'px-3 py-3.5'}`}
+                    isTapped ? 'bg-primary/10' : ''
+                  } ${isChild ? 'pl-7 pr-2 py-2' : 'px-3 py-2.5'}`}
                 >
-                  {/* Status circle — larger for touch */}
+                  {/* Status circle */}
                   <div className={`shrink-0 rounded-full flex items-center justify-center ${
-                    isChild ? 'w-6 h-6' : 'w-7 h-7'
+                    isChild ? 'w-5 h-5' : 'w-6 h-6'
                   } ${
                     isComplete 
                       ? 'bg-green-500' 
@@ -347,16 +342,16 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
                           ? 'border-2 border-dashed border-muted-foreground/30'
                           : 'border-2 border-muted-foreground/40'
                   }`}>
-                    {isComplete && <Check className="text-white w-3.5 h-3.5" />}
-                    {isPartial && <span className="text-white text-xs font-bold">{packed}</span>}
+                    {isComplete && <Check className="text-white w-3 h-3" />}
+                    {isPartial && <span className="text-white text-[10px] font-bold">{packed}</span>}
                   </div>
                   
                   {/* Product name */}
                   <div className="flex-1 min-w-0">
                     <span className={`block truncate ${
                       isChild 
-                        ? 'text-sm font-normal' 
-                        : 'text-sm font-semibold tracking-wide'
+                        ? 'text-xs font-normal' 
+                        : 'text-xs font-semibold tracking-wide'
                     } ${
                       isComplete 
                         ? 'text-green-700' 
@@ -370,8 +365,8 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
                       {displayName}
                     </span>
                     {isParent && (
-                      <span className="text-[10px] text-muted-foreground">
-                        Markeras när alla delar är packade
+                      <span className="text-[9px] text-muted-foreground">
+                        Auto vid alla delar packade
                       </span>
                     )}
                   </div>
@@ -384,19 +379,55 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
                     </div>
                   )}
                   
-                  {/* Quantity badge — larger */}
-                  <div className={`shrink-0 min-w-[48px] flex items-center justify-center rounded-md px-2 py-1 ${
-                    isComplete 
-                      ? 'bg-green-100 text-green-700' 
-                      : isPartial 
-                        ? 'bg-amber-100 text-amber-700'
+                  {/* +/- controls and quantity */}
+                  {!isParent ? (
+                    <div className="shrink-0 flex items-center gap-1">
+                      <button
+                        onClick={() => handleDecrement(item.id, false)}
+                        disabled={packed === 0}
+                        className={`w-9 h-9 rounded-md flex items-center justify-center border transition-colors ${
+                          packed === 0 
+                            ? 'border-muted text-muted-foreground/30 cursor-not-allowed' 
+                            : 'border-border text-foreground active:bg-muted hover:bg-muted/60'
+                        }`}
+                      >
+                        <Minus className="h-4 w-4" />
+                      </button>
+                      <div className={`min-w-[44px] flex items-center justify-center rounded-md px-1.5 py-1 ${
+                        isComplete 
+                          ? 'bg-green-100 text-green-700' 
+                          : isPartial 
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-muted/60 text-muted-foreground'
+                      }`}>
+                        <span className="font-mono font-bold text-xs">
+                          {packed}/{total}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleIncrement(item.id, item.quantity_to_pack, false)}
+                        disabled={isComplete}
+                        className={`w-9 h-9 rounded-md flex items-center justify-center border transition-colors ${
+                          isComplete 
+                            ? 'border-muted text-muted-foreground/30 cursor-not-allowed' 
+                            : 'border-primary bg-primary/10 text-primary active:bg-primary/20 hover:bg-primary/15'
+                        }`}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className={`shrink-0 min-w-[44px] flex items-center justify-center rounded-md px-1.5 py-1 ${
+                      isComplete 
+                        ? 'bg-green-100 text-green-700' 
                         : 'bg-muted/60 text-muted-foreground'
-                  }`}>
-                    <span className="font-mono font-bold text-sm">
-                      {packed}/{total}
-                    </span>
-                  </div>
-                </button>
+                    }`}>
+                      <span className="font-mono font-bold text-xs">
+                        {packed}/{total}
+                      </span>
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
