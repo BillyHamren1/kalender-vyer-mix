@@ -1,86 +1,111 @@
 
 
-# Rollsynkronisering: Hub → Planering via SSO och Sync-User
+# Audit: organization_id-isolering i alla Edge Functions
 
-## Nuläge
+## Sammanfattning
 
-Systemet har redan alla grundläggande delar på plats:
-- `app_role` enum och `user_roles`-tabell finns
-- `has_role()` och `has_planning_access()` SECURITY DEFINER-funktioner finns
-- `receive-user-sync` synkar roller korrekt från Hub (delete + insert)
-- `useUserRoles` hook läser roller korrekt på klientsidan
+Jag har granskat samtliga 26 edge functions. Flera kritiska brister har identifierats där `service_role`-nyckeln används (som kringgår RLS) utan att filtrera på `organization_id`. Detta innebär att data kan läcka mellan organisationer.
 
-**Det enda som saknas är SSO-inloggningen.** Funktionen `verify-sso-token` ignorerar `roles[]` från Hubbens payload och gissar istället roller baserat på `target_view`. Det innebär att en admin som loggar in via SSO aldrig får admin-rollen — den skrivs över med "projekt" eller "lager".
+## Identifierade problem
 
-## Åtgärder
+### KRITISK 1: `mobile-app-api` — Bugg + saknar org-filtrering
 
-### 1. Uppdatera `SsoPayload`-interface (verify-sso-token)
-Lägg till `roles?: string[]` i `SsoPayload`-interfacet så att payloaden från Hubben kan innehålla rollerna.
+**Bugg (rad 65-67):** `body` refereras INNAN `await req.json()` körs — `body` är `undefined` vid anropet till `resolveOrganizationId`. Detta kraschar funktionen.
 
-### 2. Ersätt target_view-gissningen med Hub-roller
-Nuvarande logik (rad 239-272) gör detta:
 ```text
-target_view === 'warehouse' → lager
-target_view === 'planning' → projekt
-default → projekt + lager
+Rad 65: const organizationId = await resolveOrganizationId(supabase, body?.organization_id)  // body = undefined!
+Rad 67: const body = await req.json()  // body deklareras EFTER användning
 ```
 
-Ny logik:
-```text
-Om payload.roles finns och inte är tom → synka dessa roller (delete + insert)
-Om payload.roles saknas → fallback till target_view-logiken (bakåtkompatibilitet)
-```
+**Saknar org-filtrering på alla queries:** Funktionen använder `service_role` (kringgår RLS). Inga SELECT-anrop filtrerar på `organization_id`:
+- `handleGetBookings()` — returnerar bokningar från ALLA organisationer
+- `handleGetTimeReports()` — returnerar tidrapporter från ALLA organisationer
+- `handleMe()` / `handleLogin()` — returnerar personal från ALLA organisationer
+- `handleGetProject()`, `handleGetProjectComments()`, `handleGetProjectFiles()`, `handleGetProjectPurchases()` — returnerar projektdata från ALLA organisationer
 
-Detta använder samma `syncRoles`-mönster som redan fungerar i `receive-user-sync`: radera alla befintliga roller för användaren, sedan infoga de nya.
+**Åtgärd:** Flytta `body`-parsning före `resolveOrganizationId`. Lägg till `.eq('organization_id', organizationId)` på samtliga queries. Alternativt: koppla staff_member till en org vid login och filtrera all data via den relationen.
 
-### 3. Inga databasändringar behövs
-Tabellen, enum, RLS-policies och hjälpfunktioner finns redan.
+### KRITISK 2: `staff-management` — Resolvar org men filtrerar aldrig
 
-## Tekniska detaljer
+Funktionen resolvar `organizationId` (rad 77-91) men skickar det **aldrig** vidare till någon query:
+- `getStaffMembers()` — `select('*')` utan org-filter
+- `getStaffAssignments()` — ingen org-filter
+- `getAvailableStaff()` — ingen org-filter
+- `getStaffCalendarEvents()` — ingen org-filter
+- `assignStaffToTeam()` / `removeStaffAssignment()` — ingen org-filter
+- `createStaffMember()` — saknar `organization_id` i insert
 
-### Fil som ändras
-`supabase/functions/verify-sso-token/index.ts`
+**Åtgärd:** Skicka `organizationId` som parameter till alla handler-funktioner och lägg till `.eq('organization_id', organizationId)` på alla queries samt `organization_id: organizationId` på alla inserts.
 
-**Interface-ändring:**
-```typescript
-interface SsoPayload {
-  // ...existing fields...
-  roles?: string[];  // ← Lägg till
-}
-```
+### KRITISK 3: `time-reports` — Inga org-filter på GET
 
-**Rollsynk-logik (ersätter rad 239-272):**
-```typescript
-// Determine roles: prefer Hub-provided roles, fallback to target_view
-const VALID_ROLES: AppRole[] = ['admin', 'forsaljning', 'projekt', 'lager'];
-let rolesToSync: AppRole[] = [];
+Funktionen använder `service_role` globalt. GET-anrop returnerar data från alla organisationer:
+- `GET /time-reports` (rad 42-68) — ingen org-filter
+- `GET /time-reports/summary` (rad 72-170) — ingen org-filter
+- `PUT /time-reports/{id}` (rad 206-233) — ingen org-filter (kan uppdatera annan orgs data)
+- `DELETE /time-reports/{id}` (rad 235-255) — ingen org-filter (kan radera annan orgs data)
 
-if (payload.roles && Array.isArray(payload.roles) && payload.roles.length > 0) {
-  // Hub sent explicit roles — use them (authoritative source)
-  rolesToSync = payload.roles.filter(r => VALID_ROLES.includes(r as AppRole)) as AppRole[];
-} else {
-  // Fallback: guess from target_view (backward compat)
-  if (target_view === 'warehouse') rolesToSync = ['lager'];
-  else if (target_view === 'planning') rolesToSync = ['projekt'];
-  else rolesToSync = ['projekt', 'lager'];
-}
+**Åtgärd:** Resolva org från request (header/body/auth) och filtrera alla queries med `.eq('organization_id', orgId)`.
 
-// Full sync: delete existing + insert new (same pattern as receive-user-sync)
-await supabase.from('user_roles').delete().eq('user_id', userId);
+### KRITISK 4: `import-bookings` — Warehouse events saknar organization_id
 
-for (const role of rolesToSync) {
-  await supabase.from('user_roles')
-    .insert({ user_id: userId, role, organization_id: resolvedOrgId })
-    .select().single();
-}
-```
+Funktionen `syncWarehouseEventsForBooking()` (rad 205-351) bygger en events-array men inkluderar **inte** `organization_id` i objekten. Vid upsert med `service_role` sätts inget org_id automatiskt (RLS-default `get_user_organization_id(auth.uid())` returnerar null för service_role).
 
-## Resultat
+**Åtgärd:** Lägg till `organization_id: orgId` i varje event-objekt i arrayen.
 
-| Scenario | Före | Efter |
-|---|---|---|
-| SSO med roles: ["admin"] | Får "projekt" (fel!) | Får "admin" (korrekt) |
-| SSO med roles: ["admin","lager"] | Får "projekt"+"lager" | Får "admin"+"lager" |
-| SSO utan roles (gammal Hub) | Gissar från target_view | Samma (bakåtkompatibel) |
-| sync-user med roles | Fungerar redan | Ingen ändring |
+### MEDIUM 5: `receive-booking` — org_id bör vara obligatoriskt
+
+Funktionen loggar en varning om `organization_id` saknas men fortsätter ändå (rad 38-40). Om Hub glömmer skicka org_id faller `import-bookings` tillbaka till "first org" — korrekt idag med en org, men farligt vid multi-tenant.
+
+**Åtgärd:** Returnera 400 om `organization_id` saknas istället för att bara varna.
+
+### MEDIUM 6: Alla "fallback to first org"-mönster
+
+Följande funktioner har fallback till första organisationen om org_id saknas:
+- `import-bookings` (rad 23-24)
+- `mobile-app-api` (rad 46)
+- `time-reports` (rad 16-17)
+- `staff-management` (rad 88-89)
+- `verify-sso-token` (rad 133-134)
+- `receive-user-sync` (rad 207-208)
+
+**Åtgärd (framtida):** Konvertera alla till strikta krav — returnera 400 istället för fallback. Kan göras i en senare fas.
+
+## Funktioner som redan är korrekta
+
+| Funktion | Status |
+|---|---|
+| `manage-organization` | OK — hanterar org CRUD korrekt |
+| `receive-user-sync` | OK — validerar org, synkar roller med org_id |
+| `verify-sso-token` | OK — resolvar och validerar org |
+| `planning-api-proxy` | OK — proxar till extern, JWT-validerad, ingen lokal data |
+| `fetch-tracked-time` | OK — proxar till extern, ingen lokal data |
+| `receive-booking` | Delvis OK — vidarebefordrar org men bör kräva det |
+
+## Åtgärdsplan (prioritetsordning)
+
+### Steg 1: mobile-app-api (kritisk bugg + läckage)
+- Fixa body-parsningsordningen
+- Resolva org_id från staff_members organization_id (via login)
+- Filtrera ALLA queries med org_id
+
+### Steg 2: staff-management (läckage)
+- Skicka organizationId till alla handler-funktioner
+- Lägg till `.eq('organization_id', organizationId)` på alla queries
+- Lägg till `organization_id` på alla inserts
+
+### Steg 3: time-reports (läckage)
+- Resolva org_id från request
+- Filtrera alla queries med org_id
+- Skydda PUT/DELETE med org-filter
+
+### Steg 4: import-bookings warehouse events (saknat fält)
+- Lägg till `organization_id: orgId` i warehouse events array
+
+### Steg 5: receive-booking (striktare validering)
+- Gör organization_id obligatoriskt (returnera 400 om saknas)
+
+---
+
+Ska jag implementera alla steg i en omgång, eller vill du att jag börjar med de kritiska (steg 1-4)?
 
