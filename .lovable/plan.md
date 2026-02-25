@@ -1,25 +1,52 @@
 
 
-# Plan: Lägg till toggle-knapp för att dölja/visa sidebar
+# Plan: Synka utlägg till EventFlow booking-modul
 
-## Problem
-Båda sidebars (`Sidebar3D` och `WarehouseSidebar3D`) har redan `isCollapsed`-state men saknar en knapp för att toggla den. Användaren kan inte dölja sidebaren.
+## Bakgrund
+Utlägg skapas i mobilappen och sparas lokalt i `project_purchases` -- detta ska fortsätta som idag. Därutöver ska utlägget OCKSÅ synkas till den externa EventFlow booking-modulen via `planning-api`.
 
-## Lösning
-Lägg till en liten toggle-knapp (chevron-ikon) högst upp i varje sidebar som kollapsar den till en smal 14-vy (bara ikoner) och expanderar tillbaka till full bredd.
+## Ändring
 
-### Ändringar
+**Fil: `supabase/functions/mobile-app-api/index.ts`** -- funktionen `handleCreatePurchase`
 
-**1. `src/components/Sidebar3D.tsx`**
-- Importera `PanelLeftClose` / `PanelLeftOpen` från lucide-react
-- Lägg till en toggle-knapp överst i sidebar-content (före nav), som kör `setIsCollapsed(!isCollapsed)`
-- Knappen visar `PanelLeftClose` när expanded, `PanelLeftOpen` när collapsed
+Efter rad 608 (efter att utlägget sparats lokalt och loggats), lägg till ett fire-and-forget-anrop till EventFlow:s `planning-api` via direktanrop (samma mönster som `planning-api-proxy` använder):
 
-**2. `src/components/WarehouseSidebar3D.tsx`**
-- Samma ändring som ovan, med warehouse-accentfärger på hover
+```typescript
+// Sync purchase to EventFlow booking module
+try {
+  const efUrl = Deno.env.get('EF_SUPABASE_URL');
+  const planningApiKey = Deno.env.get('PLANNING_API_KEY');
 
-Beteende:
-- Collapsed = `w-14`, bara ikoner visas (redan implementerat i koden)
-- Expanded = `w-48`, ikoner + text (redan implementerat)
-- Toggle-knappen syns i båda lägena
+  if (efUrl && planningApiKey) {
+    const qs = new URLSearchParams({ type: 'purchases', booking_id });
+    await fetch(`${efUrl}/functions/v1/planning-api?${qs.toString()}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': planningApiKey,
+      },
+      body: JSON.stringify({
+        description,
+        amount: parseFloat(amount),
+        supplier: supplier || null,
+        category: category || 'other',
+        receipt_url: receiptUrl,
+        purchase_date: new Date().toISOString().split('T')[0],
+        created_by: staffMember?.name || 'Mobile App',
+      }),
+    });
+    console.log('Purchase synced to EventFlow for booking', booking_id);
+  }
+} catch (syncErr) {
+  console.error('EventFlow sync failed (purchase saved locally):', syncErr);
+}
+```
+
+## Viktiga detaljer
+- Lokalt sparande i `project_purchases` ändras INTE -- det fungerar exakt som idag
+- Synken sker efter att lokalt sparande lyckats, som ett extra steg
+- Om synken misslyckas loggas felet men utlägget är redan sparat lokalt -- ingen data förloras
+- Secrets `EF_SUPABASE_URL` och `PLANNING_API_KEY` finns redan konfigurerade
+- Kvittobildens publika URL (`receipt_url`) skickas med så att bilden är tillgänglig i EventFlow
+- Ingen databasändring krävs
 
