@@ -326,7 +326,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
                         : ''
                   } ${
                     isTapped ? 'bg-primary/10' : ''
-                  } ${isChild ? 'pl-7 pr-2 py-2' : 'px-3 py-2.5'}`}
+                  } ${isChild ? 'pl-3 pr-2 py-2' : 'px-3 py-2.5'}`}
                 >
                   {/* Status circle */}
                   <div className={`shrink-0 rounded-full flex items-center justify-center ${
