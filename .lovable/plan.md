@@ -1,52 +1,82 @@
 
 
-# Plan: Synka utlägg till EventFlow booking-modul
+## Plan: Förbättra packlistor med dubbelt läge — Scanna & Bocka av
 
-## Bakgrund
-Utlägg skapas i mobilappen och sparas lokalt i `project_purchases` -- detta ska fortsätta som idag. Därutöver ska utlägget OCKSÅ synkas till den externa EventFlow booking-modulen via `planning-api`.
+### Bakgrund
+Idag går användaren från `/scanner` (MobileScannerApp) direkt in i en `VerificationView` som blandar QR-scanning med manuell klickning. Användaren vill ha en tydlig uppdelning:
 
-## Ändring
+1. **Från packlistsidan** → Två knappar per packlista: **Scanna** och **Bocka av**
+2. **Scanna** → Nuvarande scanner-gränssnitt (QR/RFID + manuell toggle som backup)
+3. **Bocka av** → Renodlad manuell checklista utan QR, optimerad för snabb tapping på skärmen
 
-**Fil: `supabase/functions/mobile-app-api/index.ts`** -- funktionen `handleCreatePurchase`
+### Ändringar
 
-Efter rad 608 (efter att utlägget sparats lokalt och loggats), lägg till ett fire-and-forget-anrop till EventFlow:s `planning-api` via direktanrop (samma mönster som `planning-api-proxy` använder):
+#### 1. Uppdatera packlista-kortet i `MobileScannerApp.tsx`
+Istället för att hela kortet är klickbart och öppnar scanner-läget, visa **två knappar** på varje packlista-kort:
+- **Scanna** (QR-ikon) → Öppnar `VerificationView` i scanner-läge (som idag)
+- **Bocka av** (check-ikon) → Öppnar `VerificationView` i manuellt läge
 
-```typescript
-// Sync purchase to EventFlow booking module
-try {
-  const efUrl = Deno.env.get('EF_SUPABASE_URL');
-  const planningApiKey = Deno.env.get('PLANNING_API_KEY');
+Utöka `AppState` med `'manual_verifying'` eller skicka ett `mode`-prop.
 
-  if (efUrl && planningApiKey) {
-    const qs = new URLSearchParams({ type: 'purchases', booking_id });
-    await fetch(`${efUrl}/functions/v1/planning-api?${qs.toString()}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': planningApiKey,
-      },
-      body: JSON.stringify({
-        description,
-        amount: parseFloat(amount),
-        supplier: supplier || null,
-        category: category || 'other',
-        receipt_url: receiptUrl,
-        purchase_date: new Date().toISOString().split('T')[0],
-        created_by: staffMember?.name || 'Mobile App',
-      }),
-    });
-    console.log('Purchase synced to EventFlow for booking', booking_id);
-  }
-} catch (syncErr) {
-  console.error('EventFlow sync failed (purchase saved locally):', syncErr);
-}
+#### 2. Skapa manuell checklista-vy — `ManualChecklistView.tsx`
+Ny komponent i `src/components/scanner/` som återanvänder samma data-laddning och produkthierarki som `VerificationView`, men:
+- **Ingen QR-knapp** — helt skärmbaserat
+- **Större touch-targets** — varje rad är en stor tappbar yta
+- **Tydligare kvantitetsräkning** — varje tapp ökar `quantity_packed` med 1, visuell feedback (puls/animation)
+- **Progress-bar** överst (samma som scanner-vyn)
+- **Kolli-knapp** finns kvar (fungerar likadant)
+- **Tillbaka-knapp** till packlistan
+
+Komponenten hämtar data med samma `fetchPackingListItems`, `togglePackingItemManually`, `getVerificationProgress` från `scannerService`.
+
+Skillnader mot scanner-vyn:
+- Ingen `QRScanner`-komponent
+- Ingen `lastScan`-state
+- Större radhöjd och font för enklare fingertapping
+- Eventuellt en "Markera alla"-knapp per huvudprodukt
+
+#### 3. Uppdatera `MobileScannerApp.tsx` state-hantering
+```text
+AppState: 'home' | 'verifying' | 'manual'
+
+home → Packlista med två knappar per kort
+verifying → VerificationView (QR + manuell, som idag)
+manual → ManualChecklistView (bara tapping)
 ```
 
-## Viktiga detaljer
-- Lokalt sparande i `project_purchases` ändras INTE -- det fungerar exakt som idag
-- Synken sker efter att lokalt sparande lyckats, som ett extra steg
-- Om synken misslyckas loggas felet men utlägget är redan sparat lokalt -- ingen data förloras
-- Secrets `EF_SUPABASE_URL` och `PLANNING_API_KEY` finns redan konfigurerade
-- Kvittobildens publika URL (`receipt_url`) skickas med så att bilden är tillgänglig i EventFlow
-- Ingen databasändring krävs
+#### 4. UI-layout för packlista-kortet (wireframe)
+
+```text
+┌─────────────────────────────────────────────┐
+│ 📦 A Catering Sweden AB - 2026-02-26        │
+│    A Catering Sweden AB          📅 26 feb.  │
+│                                              │
+│  ┌──────────────┐  ┌──────────────────────┐  │
+│  │ 📷 Scanna    │  │ ☑ Bocka av manuellt  │  │
+│  └──────────────┘  └──────────────────────┘  │
+└─────────────────────────────────────────────┘
+```
+
+#### 5. ManualChecklistView — touch-optimerad design
+
+```text
+← A Catering Sweden AB          🔄
+━━━━━━━━━━━━━━━━━━━━━━━━━  3/16  19%
+
+MULTIFLEX 10X24 (#1)                    0/1
+  Markeras när alla delar är packade
+────────────────────────────────────────────
+  ↳ Kassetgolv 10x24              [ 0/1 ] ← tappa
+  ↳ Nålfiltsmatta - Antracit      [ 0/2 ] ← tappa
+  ↳ M Gaveltriangel 10 m          [ 0/4 ] ← tappa
+```
+
+Varje tapp på en rad ökar count med 1. När full → grön. Lång-tryck → nollställ.
+
+### Teknisk sammanfattning
+| Fil | Ändring |
+|-----|---------|
+| `src/components/scanner/ManualChecklistView.tsx` | Ny komponent — manuell checklista |
+| `src/pages/MobileScannerApp.tsx` | Ny state `'manual'`, två knappar per kort |
+| Inga nya dependencies | Återanvänder befintlig `scannerService` |
 
