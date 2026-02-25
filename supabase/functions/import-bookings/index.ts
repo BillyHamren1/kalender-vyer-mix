@@ -1051,28 +1051,24 @@ serve(async (req) => {
       console.error('Error updating sync state:', syncStateError)
     }
 
-    // Build API URL
-    let apiUrl = 'https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings';
+    // Build API URL - always include organization_id
+    const apiParams = new URLSearchParams();
+    apiParams.append('organization_id', organizationId);
     
     if (isSingleBookingRefresh) {
-      // Fetch only the single booking by ID
-      apiUrl += `?booking_id=${encodeURIComponent(singleBookingId)}`;
+      apiParams.append('booking_id', singleBookingId);
       console.log(`Single booking refresh mode: fetching booking ${singleBookingId}`);
     } else if (syncMode === 'incremental' && lastSyncTimestamp && !isHistoricalImport) {
-      // For incremental sync (non-historical), use timestamp filtering
       const sinceDate = new Date(lastSyncTimestamp).toISOString();
-      apiUrl += `?since=${encodeURIComponent(sinceDate)}`;
+      apiParams.append('since', sinceDate);
       console.log(`Fetching bookings modified since: ${sinceDate}`);
     } else if (isHistoricalImport && (startDate || endDate)) {
-      // For historical imports with date range
-      const params = new URLSearchParams();
-      if (startDate) params.append('start_date', startDate);
-      if (endDate) params.append('end_date', endDate);
-      if (params.toString()) {
-        apiUrl += `?${params.toString()}`;
-        console.log(`Historical import with date range: ${startDate || 'beginning'} to ${endDate || 'end'}`);
-      }
+      if (startDate) apiParams.append('start_date', startDate);
+      if (endDate) apiParams.append('end_date', endDate);
+      console.log(`Historical import with date range: ${startDate || 'beginning'} to ${endDate || 'end'}`);
     }
+    
+    const apiUrl = `https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings?${apiParams.toString()}`;
 
     // Fetch bookings from export-bookings function with timeout and retry
     const fetchWithRetry = async (url: string, options: RequestInit, retries = 3): Promise<Response> => {
