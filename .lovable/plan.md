@@ -1,32 +1,40 @@
 
 
-## Fix: Bekräftelsedialog innan signering + teal-färg
+## Personlig bekräftelsefråga med inloggad användares förnamn
 
-### Ändringar i `src/components/scanner/ManualChecklistView.tsx`
+### Vad ändras
 
-1. **Ändra knappfärg** från `bg-green-600 hover:bg-green-700` till `bg-primary hover:bg-primary/90` (teal).
+Bekräftelsedialogen ska visa: **"Har du [Förnamn] säkerställt att allt i listan är packat?"**
 
-2. **Lägg till bekräftelsedialog** med `ConfirmationDialog`-komponenten (finns redan i projektet). När användaren trycker "Signera" visas frågan:
-   - Titel: "Signera packlista"
-   - Beskrivning: "Har du säkerställt att allt i listan är packat?"
-   - Bekräfta: "Ja"
-   - Avbryt: "Nej"
-   - Vid bekräftelse: `toast.success('Signering klar!')`
+### Teknisk approach
 
-3. **Wrappa knappen** med `ConfirmationDialog` som trigger.
+I `ManualChecklistView.tsx`:
 
-```text
-Tryck "Signera"
-    ↓
-┌─────────────────────────────────┐
-│  Signera packlista              │
-│                                 │
-│  Har du säkerställt att allt    │
-│  i listan är packat?            │
-│                                 │
-│            [ Nej ]  [ Ja ]      │
-└─────────────────────────────────┘
-    ↓ Ja
-  toast('Signering klar!')
+1. **Importera `useAuth`** och hämta `user` för att komma åt e-postadressen.
+2. **Hämta staff-namn från `staff_members`-tabellen** via en enkel query (`select name where email = user.email`). Extrahera förnamnet (första ordet i `name`).
+3. **Uppdatera `description`-texten** i `ConfirmationDialog` till:
+   ```
+   `Har du ${firstName} säkerställt att allt i listan är packat?`
+   ```
+
+Fallback om namn saknas: visa bara "Har du säkerställt..." som idag.
+
+### Ändring
+
+```tsx
+// Nytt state + effect
+const { user } = useAuth();
+const [staffFirstName, setStaffFirstName] = useState<string>('');
+
+useEffect(() => {
+  if (!user?.email) return;
+  supabase.from('staff_members').select('name').eq('email', user.email).maybeSingle()
+    .then(({ data }) => {
+      if (data?.name) setStaffFirstName(data.name.split(' ')[0]);
+    });
+}, [user?.email]);
+
+// I dialogen (rad 480)
+description={`Har du ${staffFirstName} säkerställt att allt i listan är packat?`}
 ```
 
