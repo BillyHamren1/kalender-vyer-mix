@@ -8,8 +8,7 @@ import { type LucideIcon,
   PieChart,
   LayoutDashboard,
   Truck,
-  PanelLeftClose,
-  PanelLeftOpen,
+   ChevronsLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -98,14 +97,17 @@ export function Sidebar3D() {
         {/* Content */}
         <div className="flex flex-col h-full px-3 py-4">
 
-          {/* Toggle button */}
+          {/* Toggle button – subtle chevron at top-right */}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="mb-3 flex items-center justify-center w-full rounded-md py-1.5 transition-colors hover:bg-accent/50"
-            style={{ color: "hsl(var(--foreground) / 0.50)" }}
+            className={cn(
+              "absolute top-3 -right-3 z-50 flex items-center justify-center",
+              "w-6 h-6 rounded-full border bg-background shadow-sm",
+              "text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            )}
             title={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
           >
-            {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            <ChevronsLeft size={14} className={cn("transition-transform", isCollapsed && "rotate-180")} />
           </button>
 
           {/* ── Nav ── */}
