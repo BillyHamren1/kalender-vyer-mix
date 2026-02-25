@@ -307,8 +307,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
               }
               
               const cleanName = cleanProductName(rawName);
-              const isPackageComponent = item.booking_products?.is_package_component || trimmedName.startsWith('⦿');
-              const prefixIndicator = isChild ? (isPackageComponent ? '⦿ ' : '↳ ') : '';
+              const displayName = isChild ? formatToTitleCase(cleanName) : cleanName.toUpperCase();
               const displayName = isChild ? formatToTitleCase(cleanName) : cleanName.toUpperCase();
               
               const isComplete = packed >= total && total > 0;
@@ -361,7 +360,6 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
                             ? 'text-muted-foreground' 
                             : 'text-foreground'
                     }`}>
-                      {isChild && <span className="text-muted-foreground/70">{prefixIndicator}</span>}
                       {displayName}
                     </span>
                     {isParent && (
