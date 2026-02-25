@@ -57,10 +57,17 @@ const PackingCard = ({ packing, onClick, onDelete }: PackingCardProps) => {
           )}
         </div>
 
-        <div className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
-          <CheckSquare className="h-4 w-4" />
-          <span>Skapad {format(new Date(packing.created_at), 'd MMM yyyy', { locale: sv })}</span>
-        </div>
+        {packing.signed_by && packing.signed_at ? (
+          <div className="flex items-center gap-1 text-sm text-primary mt-2">
+            <CheckSquare className="h-4 w-4" />
+            <span>Signerad av {packing.signed_by}, {format(new Date(packing.signed_at), 'd MMM HH:mm', { locale: sv })}</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
+            <CheckSquare className="h-4 w-4" />
+            <span>Skapad {format(new Date(packing.created_at), 'd MMM yyyy', { locale: sv })}</span>
+          </div>
+        )}
       </div>
     </div>
   );
