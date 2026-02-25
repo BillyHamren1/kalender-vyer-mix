@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, RefreshCw, AlertCircle, Package, ChevronRight, X, Plus, Minus } from 'lucide-react';
+import { ArrowLeft, Check, RefreshCw, AlertCircle, Package, ChevronRight, X, Plus, Minus, PenLine } from 'lucide-react';
 import { 
   fetchPackingListItems, 
   getVerificationProgress, 
@@ -453,6 +453,19 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* Signera-knapp visas när allt är packat */}
+      {progress.percentage === 100 && (
+        <div className="sticky bottom-0 pt-4 pb-2 -mx-1 px-1 bg-gradient-to-t from-background via-background to-transparent">
+          <Button
+            onClick={() => toast.success('Signering klar!')}
+            className="w-full h-12 text-base font-semibold bg-green-600 hover:bg-green-700 text-white gap-2"
+          >
+            <PenLine className="h-5 w-5" />
+            Signera
+          </Button>
         </div>
       )}
     </div>
