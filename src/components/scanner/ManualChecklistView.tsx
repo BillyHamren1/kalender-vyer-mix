@@ -139,10 +139,23 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
     toast.info('Kolli-läge avslutat');
   }, [loadData]);
 
-  // Recalculate progress locally from items array
+  // Recalculate progress locally from items array (excluding parent items that have children)
   const recalcProgress = useCallback((updatedItems: PackingItem[]) => {
-    const total = updatedItems.reduce((sum, i) => sum + i.quantity_to_pack, 0);
-    const verified = updatedItems.reduce((sum, i) => sum + Math.min(i.quantity_packed || 0, i.quantity_to_pack), 0);
+    // Build parent set: items that have children
+    const parentProductIds = new Set<string>();
+    updatedItems.forEach(item => {
+      const pid = item.booking_products?.parent_product_id;
+      if (pid) parentProductIds.add(pid);
+    });
+
+    // Only count non-parent items (same logic as the server-side progress)
+    const countable = updatedItems.filter(item => {
+      const productId = item.booking_products?.id;
+      return !productId || !parentProductIds.has(productId);
+    });
+
+    const total = countable.reduce((sum, i) => sum + i.quantity_to_pack, 0);
+    const verified = countable.reduce((sum, i) => sum + Math.min(i.quantity_packed || 0, i.quantity_to_pack), 0);
     const percentage = total > 0 ? Math.round((verified / total) * 100) : 0;
     setProgress({ total, verified, percentage });
   }, []);
