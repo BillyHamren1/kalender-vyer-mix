@@ -1,22 +1,32 @@
 
 
-## Problem
+## Plan: Visa "Signera"-knapp när allt är checkat
 
-Every time you tap **+** or **−**, `handleIncrement`/`handleDecrement` calls `loadData()` which sets `isLoading = true` (line 79). This triggers the full-screen spinner (lines 181-187) and re-fetches all data from the database, causing the screen to flash/blink.
+### Vad händer
+När alla produkter är fullständigt packade (progress = 100%) visas en "Signera"-knapp fixerad längst ner på skärmen.
 
-## Solution: Optimistic local state updates
+### Ändringar i `src/components/scanner/ManualChecklistView.tsx`
 
-Instead of calling `loadData()` (which shows a spinner and re-fetches everything), we update the local state immediately after a successful database operation.
+1. **Lägg till en "Signera"-knapp** längst ner i komponenten (innanför yttersta `<div>`), som bara renderas när `progress?.percentage === 100`.
 
-### Changes in `src/components/scanner/ManualChecklistView.tsx`
+2. **Knappen blir sticky/fixed** längst ner med tydlig grön styling så den syns direkt när allt är klart.
 
-1. **`handleIncrement`** — After a successful API call, update `items` state locally by incrementing `quantity_packed` for that item. Recalculate `progress` locally. Remove the `loadData()` call.
+3. **Klick-hantering**: Knappen visar en toast eller triggar en signeringslogik (till att börja med en placeholder `toast.success('Signering klar!')`).
 
-2. **`handleDecrement`** — Same approach: update `items` state locally by decrementing `quantity_packed`. Recalculate progress. Remove the `loadData()` call.
+```text
+┌──────────────────────────┐
+│  Produkt A        1/1  ✓ │
+│  Produkt B        2/2  ✓ │
+│  Produkt C        1/1  ✓ │
+│                          │
+│                          │
+├──────────────────────────┤
+│     [ ✍ Signera ]        │  ← Visas bara vid 100%
+└──────────────────────────┘
+```
 
-3. **Add a helper function** `recalcProgress(updatedItems)` that computes `{ total, verified, percentage }` from the local items array, so we don't need a server round-trip.
-
-4. **Keep `loadData()`** only for initial load and the manual refresh button — no changes there.
-
-This means tapping +/− will feel instant with no spinner or flicker.
+### Teknisk detalj
+- Kontroll: `progress?.percentage === 100`
+- Placering: Sticky bottom med padding och skugga
+- Styling: Full-width grön knapp med ikon
 
