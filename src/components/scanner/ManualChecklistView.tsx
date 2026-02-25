@@ -308,7 +308,6 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
               
               const cleanName = cleanProductName(rawName);
               const displayName = isChild ? formatToTitleCase(cleanName) : cleanName.toUpperCase();
-              const displayName = isChild ? formatToTitleCase(cleanName) : cleanName.toUpperCase();
               
               const isComplete = packed >= total && total > 0;
               const isPartial = packed > 0 && packed < total;
