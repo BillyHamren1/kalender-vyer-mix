@@ -360,10 +360,12 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
                   key={item.id}
                   className={`w-full flex items-center gap-2 transition-all select-none ${
                     isComplete 
-                      ? 'bg-green-50/70' 
+                      ? 'bg-primary/5' 
                       : isPartial 
                         ? 'bg-amber-50/50' 
                         : ''
+                  } ${
+                    isParent ? 'bg-muted/60 border-b border-t border-border' : ''
                   } ${
                     isTapped ? 'bg-primary/10' : ''
                   } ${isChild ? 'pl-3 pr-2 py-2' : 'px-3 py-2.5'}`}
@@ -373,7 +375,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
                     isChild ? 'w-5 h-5' : 'w-6 h-6'
                   } ${
                     isComplete 
-                      ? 'bg-green-500' 
+                      ? 'bg-primary' 
                       : isPartial 
                         ? 'bg-amber-500' 
                         : isParent
@@ -391,7 +393,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
                         : 'text-xs font-semibold tracking-wide'
                     } ${
                       isComplete 
-                        ? 'text-green-700' 
+                        ? 'text-primary' 
                         : isPartial 
                           ? 'text-amber-800'
                           : isChild 
@@ -431,7 +433,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
                       </button>
                       <div className={`min-w-[44px] flex items-center justify-center rounded-md px-1.5 py-1 ${
                         isComplete 
-                          ? 'bg-green-100 text-green-700' 
+                          ? 'bg-primary/10 text-primary' 
                           : isPartial 
                             ? 'bg-amber-100 text-amber-700'
                             : 'bg-muted/60 text-muted-foreground'
@@ -455,7 +457,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
                   ) : (
                     <div className={`shrink-0 min-w-[44px] flex items-center justify-center rounded-md px-1.5 py-1 ${
                       isComplete 
-                        ? 'bg-green-100 text-green-700' 
+                        ? 'bg-primary/10 text-primary' 
                         : 'bg-muted/60 text-muted-foreground'
                     }`}>
                       <span className="font-mono font-bold text-xs">
