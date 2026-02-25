@@ -460,6 +460,38 @@ export const togglePackingItemManually = async (
   return { success: true };
 };
 
+// Decrement a packing item by 1
+export const decrementPackingItem = async (
+  itemId: string,
+  verifiedBy: string
+): Promise<{ success: boolean; error?: string }> => {
+  const { data: currentItem } = await supabase
+    .from('packing_list_items')
+    .select('quantity_packed')
+    .eq('id', itemId)
+    .single();
+  
+  const currentPacked = currentItem?.quantity_packed || 0;
+  if (currentPacked <= 0) {
+    return { success: false, error: 'Redan på 0' };
+  }
+
+  const newQuantity = currentPacked - 1;
+
+  const { error } = await supabase
+    .from('packing_list_items')
+    .update({
+      quantity_packed: newQuantity,
+      verified_at: null,
+      verified_by: null,
+      ...(newQuantity === 0 ? { packed_at: null, packed_by: null } : {})
+    })
+    .eq('id', itemId);
+  
+  if (error) return { success: false, error: 'Kunde inte minska' };
+  return { success: true };
+};
+
 // Get verification progress
 export const getVerificationProgress = async (packingId: string) => {
   const { data, error } = await supabase
