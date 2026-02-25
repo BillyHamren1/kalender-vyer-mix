@@ -139,6 +139,14 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
     toast.info('Kolli-läge avslutat');
   }, [loadData]);
 
+  // Recalculate progress locally from items array
+  const recalcProgress = useCallback((updatedItems: PackingItem[]) => {
+    const total = updatedItems.reduce((sum, i) => sum + i.quantity_to_pack, 0);
+    const verified = updatedItems.reduce((sum, i) => sum + Math.min(i.quantity_packed || 0, i.quantity_to_pack), 0);
+    const percentage = total > 0 ? Math.round((verified / total) * 100) : 0;
+    setProgress({ total, verified, percentage });
+  }, []);
+
   // Handle increment
   const handleIncrement = useCallback(async (itemId: string, quantityToPack: number, isParent: boolean) => {
     if (isParent) return;
@@ -151,22 +159,40 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
         await assignItemToParcel(itemId, activeParcel.id);
         setItemParcelMap(prev => ({ ...prev, [itemId]: activeParcel.parcel_number }));
       }
-      loadData();
+      // Optimistic local update
+      setItems(prev => {
+        const updated = prev.map(i =>
+          i.id === itemId
+            ? { ...i, quantity_packed: Math.min((i.quantity_packed || 0) + 1, i.quantity_to_pack) }
+            : i
+        );
+        recalcProgress(updated);
+        return updated;
+      });
     } else {
       toast.error(result.error || 'Kunde inte uppdatera');
     }
-  }, [verifierName, loadData, isKolliMode, activeParcel]);
+  }, [verifierName, isKolliMode, activeParcel, recalcProgress]);
 
   // Handle decrement (subtract 1)
   const handleDecrement = useCallback(async (itemId: string, isParent: boolean) => {
     if (isParent) return;
     const result = await decrementPackingItem(itemId, verifierName);
     if (result.success) {
-      loadData();
+      // Optimistic local update
+      setItems(prev => {
+        const updated = prev.map(i =>
+          i.id === itemId
+            ? { ...i, quantity_packed: Math.max((i.quantity_packed || 0) - 1, 0) }
+            : i
+        );
+        recalcProgress(updated);
+        return updated;
+      });
     } else {
       toast.error(result.error || 'Kunde inte uppdatera');
     }
-  }, [verifierName, loadData]);
+  }, [verifierName, recalcProgress]);
 
   // Build parent-children map
   const childrenByParent: Record<string, PackingItem[]> = {};
