@@ -12,6 +12,7 @@ import NewPackingJobsCard from "@/components/warehouse-dashboard/NewPackingJobsC
 import ActivePackingsCard from "@/components/warehouse-dashboard/ActivePackingsCard";
 import CompletedPackingsCard from "@/components/warehouse-dashboard/CompletedPackingsCard";
 import WarehouseStaffUtilizationCard from "@/components/warehouse-dashboard/WarehouseStaffUtilizationCard";
+import TodaysTransportsCard, { TransportItem } from "@/components/warehouse-dashboard/TodaysTransportsCard";
 import BookingProductsDialog from "@/components/Calendar/BookingProductsDialog";
 import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
 import { toast } from "sonner";
@@ -234,8 +235,61 @@ const WarehouseDashboard = () => {
     }
   });
 
+  // Transport assignments query - upcoming loadings/unloadings
+  const transportsQuery = useQuery<TransportItem[]>({
+    queryKey: ['warehouse-transports'],
+    queryFn: async () => {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const sevenDaysFromNow = format(addDays(new Date(), 7), 'yyyy-MM-dd');
+
+      const { data, error } = await supabase
+        .from('transport_assignments')
+        .select('id, booking_id, vehicle_id, transport_date, transport_time, status')
+        .gte('transport_date', today)
+        .lte('transport_date', sevenDaysFromNow)
+        .order('transport_date', { ascending: true });
+
+      if (error) throw error;
+
+      // Get bookings and vehicles in parallel
+      const bookingIds = [...new Set((data || []).map(t => t.booking_id))];
+      const vehicleIds = [...new Set((data || []).map(t => t.vehicle_id).filter(Boolean))];
+
+      const [bookingsRes, vehiclesRes] = await Promise.all([
+        supabase.from('bookings')
+          .select('id, client, booking_number, deliveryaddress, rigdaydate, rigdowndate')
+          .in('id', bookingIds),
+        vehicleIds.length > 0
+          ? supabase.from('vehicles').select('id, name').in('id', vehicleIds)
+          : Promise.resolve({ data: [] })
+      ]);
+
+      const bookingMap = new Map((bookingsRes.data || []).map(b => [b.id, b]));
+      const vehicleMap = new Map((vehiclesRes.data || []).map(v => [v.id, v.name]));
+
+      return (data || []).map(t => {
+        const booking = bookingMap.get(t.booking_id);
+        const isLastning = booking?.rigdaydate === t.transport_date;
+        return {
+          id: t.id,
+          bookingId: t.booking_id,
+          client: booking?.client || 'Okänd',
+          bookingNumber: booking?.booking_number || null,
+          transportDate: t.transport_date,
+          transportTime: t.transport_time,
+          deliveryAddress: booking?.deliveryaddress || null,
+          type: isLastning ? 'lastning' : 'lossning',
+          vehicleName: vehicleMap.get(t.vehicle_id) || null,
+          status: t.status || 'pending',
+        } as TransportItem;
+      });
+    },
+    refetchInterval: 30000,
+  });
+
   const isLoading = weekPackingsQuery.isLoading || newJobsQuery.isLoading || 
-    activePackingsQuery.isLoading || completedPackingsQuery.isLoading || staffUtilizationQuery.isLoading;
+    activePackingsQuery.isLoading || completedPackingsQuery.isLoading || staffUtilizationQuery.isLoading ||
+    transportsQuery.isLoading;
 
   const refetchAll = () => {
     weekPackingsQuery.refetch();
@@ -243,6 +297,7 @@ const WarehouseDashboard = () => {
     activePackingsQuery.refetch();
     completedPackingsQuery.refetch();
     staffUtilizationQuery.refetch();
+    transportsQuery.refetch();
   };
 
   const handleCreatePacking = async (bookingId: string, bookingClient: string) => {
@@ -320,8 +375,17 @@ const WarehouseDashboard = () => {
             />
           </div>
 
-          {/* Main Grid - 5 columns */}
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          {/* Transport overview + Main Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-6 gap-6">
+            {/* Transport card - left column */}
+            <div className="lg:col-span-1">
+              <TodaysTransportsCard 
+                transports={transportsQuery.data || []}
+                isLoading={transportsQuery.isLoading}
+              />
+            </div>
+
+            {/* Existing cards */}
             <div className="lg:col-span-1">
               <NewPackingJobsCard 
                 jobs={newJobsQuery.data || []}
