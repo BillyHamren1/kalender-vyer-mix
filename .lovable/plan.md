@@ -1,33 +1,32 @@
 
 
-## Problem
+## Fix: Bekräftelsedialog innan signering + teal-färg
 
-Two competing progress calculations:
+### Ändringar i `src/components/scanner/ManualChecklistView.tsx`
 
-- **`getVerificationProgress` (server, line 496-512)**: Counts ALL `packing_list_items` rows and checks `verified_at !== null`. This includes parent items, giving 19/20 = 95% even when all children are packed.
-- **`recalcProgress` (local, line 143-161)**: Correctly excludes parent items and checks `quantity_packed` vs `quantity_to_pack`.
+1. **Ändra knappfärg** från `bg-green-600 hover:bg-green-700` till `bg-primary hover:bg-primary/90` (teal).
 
-On initial load, the server version is used → shows 19/20 (95%). The "Signera" button checks `progress.percentage === 100` → never appears.
+2. **Lägg till bekräftelsedialog** med `ConfirmationDialog`-komponenten (finns redan i projektet). När användaren trycker "Signera" visas frågan:
+   - Titel: "Signera packlista"
+   - Beskrivning: "Har du säkerställt att allt i listan är packat?"
+   - Bekräfta: "Ja"
+   - Avbryt: "Nej"
+   - Vid bekräftelse: `toast.success('Signering klar!')`
 
-## Solution
-
-**Remove the server progress call and always use `recalcProgress`** on the loaded items.
-
-### Changes in `src/components/scanner/ManualChecklistView.tsx`
-
-1. **In `loadData` (line 80-100)**: Remove `getVerificationProgress(packingId)` from the `Promise.all` call. After setting items, call `recalcProgress(typedItems)` (or the sorted version) to compute progress locally.
-
-2. **Remove `progressData` variable** and the `setProgress(progressData)` call (line 100).
-
-This ensures the same logic is used everywhere — parents are excluded, quantities are checked — and the "Signera" button will correctly appear at 100%.
+3. **Wrappa knappen** med `ConfirmationDialog` som trigger.
 
 ```text
-Before:
-  loadData → getVerificationProgress (counts parents) → 19/20 = 95%
-  tap +/−  → recalcProgress (excludes parents)         → 20/20 = 100%
-  
-After:
-  loadData → recalcProgress (excludes parents) → 20/20 = 100% ✓
-  tap +/−  → recalcProgress (excludes parents) → consistent ✓
+Tryck "Signera"
+    ↓
+┌─────────────────────────────────┐
+│  Signera packlista              │
+│                                 │
+│  Har du säkerställt att allt    │
+│  i listan är packat?            │
+│                                 │
+│            [ Nej ]  [ Ja ]      │
+└─────────────────────────────────┘
+    ↓ Ja
+  toast('Signering klar!')
 ```
 
