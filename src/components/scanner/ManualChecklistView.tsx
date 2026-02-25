@@ -377,7 +377,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
                         ? 'bg-amber-50/50' 
                         : ''
                   } ${
-                    isParent ? 'bg-muted/60 border-b border-t border-border' : ''
+                    isParent ? 'bg-muted border-b border-t border-border' : ''
                   } ${
                     isTapped ? 'bg-primary/10' : ''
                   } ${isChild ? 'pl-3 pr-2 py-2' : 'px-3 py-2.5'}`}
