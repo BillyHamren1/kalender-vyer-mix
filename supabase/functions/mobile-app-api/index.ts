@@ -607,6 +607,35 @@ async function handleCreatePurchase(supabase: any, staffId: string, data: any, o
 
   console.log(`Purchase created: ${purchase.id} for project ${project.id}`)
 
+  // Sync purchase to EventFlow booking module
+  try {
+    const efUrl = Deno.env.get('EF_SUPABASE_URL');
+    const planningApiKey = Deno.env.get('PLANNING_API_KEY');
+
+    if (efUrl && planningApiKey) {
+      const qs = new URLSearchParams({ type: 'purchases', booking_id });
+      await fetch(`${efUrl}/functions/v1/planning-api?${qs.toString()}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': planningApiKey,
+        },
+        body: JSON.stringify({
+          description,
+          amount: parseFloat(amount),
+          supplier: supplier || null,
+          category: category || 'other',
+          receipt_url: receiptUrl,
+          purchase_date: new Date().toISOString().split('T')[0],
+          created_by: staffMember?.name || 'Mobile App',
+        }),
+      });
+      console.log('Purchase synced to EventFlow for booking', booking_id);
+    }
+  } catch (syncErr) {
+    console.error('EventFlow sync failed (purchase saved locally):', syncErr);
+  }
+
   return new Response(
     JSON.stringify({ success: true, purchase }),
     { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
