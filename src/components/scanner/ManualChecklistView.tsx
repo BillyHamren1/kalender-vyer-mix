@@ -77,27 +77,27 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
   const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const [packingData, itemsData, progressData, parcelsData] = await Promise.all([
+      const [packingData, itemsData, parcelsData] = await Promise.all([
         fetchPacking(packingId),
         fetchPackingListItems(packingId),
-        getVerificationProgress(packingId),
         getItemParcels(packingId)
       ]);
 
       setPacking(packingData);
       const typedItems = itemsData as PackingItem[];
+      let finalItems: PackingItem[];
       if (Object.keys(itemOrder).length === 0) {
         const order: Record<string, number> = {};
         typedItems.forEach((item, idx) => { order[item.id] = idx; });
         setItemOrder(order);
-        setItems(typedItems);
+        finalItems = typedItems;
       } else {
-        const stableSorted = [...typedItems].sort(
+        finalItems = [...typedItems].sort(
           (a, b) => (itemOrder[a.id] ?? 9999) - (itemOrder[b.id] ?? 9999)
         );
-        setItems(stableSorted);
       }
-      setProgress(progressData);
+      setItems(finalItems);
+      recalcProgress(finalItems);
       setItemParcelMap(parcelsData);
     } catch (err) {
       console.error('Error loading packing data:', err);
