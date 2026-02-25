@@ -5,6 +5,8 @@ import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { ArrowLeft, Check, RefreshCw, AlertCircle, Package, ChevronRight, X, Plus, Minus, PenLine } from 'lucide-react';
 import ConfirmationDialog from '@/components/ConfirmationDialog';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   fetchPackingListItems, 
   getVerificationProgress, 
@@ -63,12 +65,22 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
   onBack,
   verifierName = 'Manual' 
 }) => {
+  const { user } = useAuth();
   const [packing, setPacking] = useState<PackingWithBooking | null>(null);
   const [items, setItems] = useState<PackingItem[]>([]);
   const [progress, setProgress] = useState({ total: 0, verified: 0, percentage: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [itemOrder, setItemOrder] = useState<Record<string, number>>({});
   const [tappedItemId, setTappedItemId] = useState<string | null>(null);
+  const [staffFirstName, setStaffFirstName] = useState<string>('');
+
+  useEffect(() => {
+    if (!user?.email) return;
+    supabase.from('staff_members').select('name').eq('email', user.email).maybeSingle()
+      .then(({ data }) => {
+        if (data?.name) setStaffFirstName(data.name.split(' ')[0]);
+      });
+  }, [user?.email]);
 
   // Kolli mode state
   const [isKolliMode, setIsKolliMode] = useState(false);
@@ -477,7 +489,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
         <div className="sticky bottom-0 pt-4 pb-2 -mx-1 px-1 bg-gradient-to-t from-background via-background to-transparent">
           <ConfirmationDialog
             title="Signera packlista"
-            description="Har du säkerställt att allt i listan är packat?"
+            description={`Har du${staffFirstName ? ` ${staffFirstName}` : ''} säkerställt att allt i listan är packat?`}
             confirmLabel="Ja"
             cancelLabel="Nej"
             onConfirm={() => toast.success('Signering klar!')}
