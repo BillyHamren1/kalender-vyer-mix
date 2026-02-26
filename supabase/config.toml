@@ -120,3 +120,6 @@ verify_jwt = false
 
 [functions.manage-organization]
 verify_jwt = false
+
+[functions.export-economy-data]
+verify_jwt = false
