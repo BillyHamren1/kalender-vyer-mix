@@ -79,20 +79,25 @@ Deno.serve(async (req) => {
       const bookingIds: string[] = params.booking_ids;
       const dataTypes = ['budget', 'time_reports', 'purchases', 'quotes', 'invoices', 'product_costs', 'supplier_invoices'];
 
-      const allPromises = bookingIds.map(async (bid: string) => {
-        const results = await Promise.all(
-          dataTypes.map((t) =>
-            fetchFromExternal(efUrl, planningApiKey, t, bid).catch(() => null)
-          )
-        );
-        const obj: Record<string, any> = {};
-        dataTypes.forEach((t, i) => { obj[t] = results[i]; });
-        return [bid, obj] as const;
-      });
+      // Fire ALL requests in parallel (bookings × dataTypes) instead of nesting
+      const flatPromises: Array<{ bid: string; t: string; promise: Promise<any> }> = [];
+      for (const bid of bookingIds) {
+        for (const t of dataTypes) {
+          flatPromises.push({
+            bid,
+            t,
+            promise: fetchFromExternal(efUrl, planningApiKey, t, bid).catch(() => null),
+          });
+        }
+      }
 
-      const entries = await Promise.all(allPromises);
+      const results = await Promise.all(flatPromises.map((p) => p.promise));
+
       const responseData: Record<string, any> = {};
-      for (const [bid, obj] of entries) { responseData[bid] = obj; }
+      flatPromises.forEach(({ bid, t }, i) => {
+        if (!responseData[bid]) responseData[bid] = {};
+        responseData[bid][t] = results[i];
+      });
 
       return new Response(JSON.stringify(responseData), {
         status: 200,
