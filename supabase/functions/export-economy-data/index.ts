@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
       if (!efUrl || !planningApiKey) return null;
       try {
         const qs = new URLSearchParams({ type, booking_id: bid });
-        const res = await fetch(`${efUrl}/functions/v1/planning-api?${qs.toString()}`, {
+        const res = await fetch(`${efUrl}/functions/v1/planning-api-proxy?${qs.toString()}`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json', 'x-api-key': planningApiKey },
         });
