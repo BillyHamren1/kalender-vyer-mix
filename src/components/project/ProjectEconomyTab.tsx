@@ -16,6 +16,7 @@ import { PurchasesList } from './PurchasesList';
 import { QuotesInvoicesList } from './QuotesInvoicesList';
 import { BudgetSettingsDialog } from './BudgetSettingsDialog';
 import { ProductCostsCard } from './ProductCostsCard';
+import { CostComparisonCard } from './CostComparisonCard';
 import { SupplierInvoicesCard } from './SupplierInvoicesCard';
 import BookingEconomicsCard from '@/components/booking/BookingEconomicsCard';
 import { exportToExcel, exportToPDF } from '@/services/projectEconomyExportService';
@@ -144,6 +145,14 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
           supplierInvoices={supplierInvoices}
         />
       )}
+
+      {/* Budget vs Utfall per kostnadstyp */}
+      <CostComparisonCard
+        productCosts={productCosts ?? null}
+        staffActual={summary.staffActual}
+        supplierInvoices={supplierInvoices}
+        purchases={purchases}
+      />
 
       {/* Tabbed sections */}
       <Tabs defaultValue="staff" className="w-full">
