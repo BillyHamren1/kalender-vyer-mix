@@ -95,6 +95,7 @@ export const CostComparisonCard = ({
                 <TableHead>Kostnadstyp</TableHead>
                 <TableHead className="text-right">Budget</TableHead>
                 <TableHead className="text-right">Utfall</TableHead>
+                <TableHead className="text-right">Utfall %</TableHead>
                 <TableHead className="text-right">Avvikelse</TableHead>
                 <TableHead className="text-right">%</TableHead>
               </TableRow>
@@ -105,6 +106,9 @@ export const CostComparisonCard = ({
                   <TableCell className="font-medium">{row.label}</TableCell>
                   <TableCell className="text-right">{fmt(row.budget)} kr</TableCell>
                   <TableCell className="text-right">{fmt(row.actual)} kr</TableCell>
+                  <TableCell className="text-right font-medium">
+                    {totalBudget !== 0 ? ((row.actual / totalBudget) * 100).toFixed(1) : '0.0'}%
+                  </TableCell>
                   {renderDeviation(row.budget, row.actual)}
                 </TableRow>
               ))}
@@ -114,6 +118,9 @@ export const CostComparisonCard = ({
                 <TableCell>Totalt</TableCell>
                 <TableCell className="text-right">{fmt(totalBudget)} kr</TableCell>
                 <TableCell className="text-right">{fmt(totalActual)} kr</TableCell>
+                <TableCell className="text-right font-medium">
+                  {totalBudget !== 0 ? ((totalActual / totalBudget) * 100).toFixed(1) : '0.0'}%
+                </TableCell>
                 {renderDeviation(totalBudget, totalActual)}
               </TableRow>
             </TableFooter>
