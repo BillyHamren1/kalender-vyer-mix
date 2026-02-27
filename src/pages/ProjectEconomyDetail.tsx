@@ -1,15 +1,30 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { ProjectEconomyTab } from '@/components/project/ProjectEconomyTab';
+import { toast } from 'sonner';
 
 const ProjectEconomyDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [showCloseDialog, setShowCloseDialog] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
 
   const { data: project, isLoading } = useQuery({
     queryKey: ['project-economy-detail', id],
@@ -25,6 +40,26 @@ const ProjectEconomyDetail: React.FC = () => {
     },
     enabled: !!id
   });
+
+  const handleCloseProject = async () => {
+    if (!project) return;
+    setIsClosing(true);
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .update({ status: 'completed' })
+        .eq('id', project.id);
+      if (error) throw error;
+      toast.success(`${project.name} har markerats som avslutat`);
+      queryClient.invalidateQueries({ queryKey: ['project-economy-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['economy-overview'] });
+    } catch (err) {
+      toast.error('Kunde inte stänga projektet');
+    } finally {
+      setIsClosing(false);
+      setShowCloseDialog(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -45,14 +80,14 @@ const ProjectEconomyDetail: React.FC = () => {
   }
 
   const handleBack = () => {
-    // Check if there's history to go back to
     if (window.history.length > 1) {
       navigate(-1);
     } else {
-      // Fallback to economy overview
       navigate('/economy');
     }
   };
+
+  const isClosed = project.status === 'completed';
 
   return (
     <div className="p-6 space-y-6">
@@ -65,10 +100,27 @@ const ProjectEconomyDetail: React.FC = () => {
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Ekonomi: {project.name}</h1>
+        <div className="flex-1">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-foreground">Ekonomi: {project.name}</h1>
+            <Badge variant={isClosed ? "secondary" : "outline"} className={
+              isClosed ? "bg-muted text-muted-foreground text-xs" : "border-green-300 text-green-700 bg-green-50 text-xs"
+            }>
+              {isClosed ? 'STÄNGD' : 'ÖPPEN'}
+            </Badge>
+          </div>
           <p className="text-muted-foreground">Projektets ekonomiska översikt</p>
         </div>
+        {!isClosed && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowCloseDialog(true)}
+          >
+            <Lock className="h-4 w-4 mr-1.5" />
+            Stäng projekt
+          </Button>
+        )}
       </div>
 
       {/* Economy Tab Content */}
@@ -77,6 +129,24 @@ const ProjectEconomyDetail: React.FC = () => {
         projectName={project.name}
         bookingId={project.booking_id}
       />
+
+      {/* Close project dialog */}
+      <AlertDialog open={showCloseDialog} onOpenChange={setShowCloseDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stäng projekt</AlertDialogTitle>
+            <AlertDialogDescription>
+              Vill du markera <strong>{project.name}</strong> som avslutat? Projektet kommer fortfarande synas men markeras som stängt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isClosing}>Avbryt</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCloseProject} disabled={isClosing}>
+              {isClosing ? 'Stänger...' : 'Markera som avslutat'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
