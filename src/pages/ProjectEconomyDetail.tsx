@@ -105,7 +105,9 @@ const ProjectEconomyDetail: React.FC = () => {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-foreground">Ekonomi: {project.name}</h1>
             <Badge variant={isClosed ? "secondary" : "outline"} className={
-              isClosed ? "bg-muted text-muted-foreground text-xs" : "border-green-300 text-green-700 bg-green-50 text-xs"
+              isClosed
+                ? "bg-muted-foreground/15 text-foreground font-semibold text-xs px-3 py-1"
+                : "border-green-400 text-green-700 bg-green-50 font-semibold text-xs px-3 py-1"
             }>
               {isClosed ? 'STÄNGD' : 'ÖPPEN'}
             </Badge>
