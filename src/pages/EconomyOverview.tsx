@@ -25,6 +25,7 @@ import {
   Clock, 
   CheckCircle2,
   CheckCircle,
+  Lock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { startOfDay, startOfWeek, startOfMonth, parseISO } from 'date-fns';
@@ -288,13 +289,13 @@ const ProjectEconomyView: React.FC = () => {
                   <th className="text-right py-3 px-4 font-medium text-muted-foreground">Avvikelse</th>
                   <th className="text-right py-3 px-4 font-medium text-muted-foreground">Timmar</th>
                   <th className="text-center py-3 px-4 font-medium text-muted-foreground">Status</th>
-                  
+                  <th className="text-center py-3 px-4 font-medium text-muted-foreground"></th>
                 </tr>
               </thead>
               <tbody>
                 {filteredProjects.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <td colSpan={8} className="text-center py-8 text-muted-foreground">
                       Inga projekt hittades för vald period
                     </td>
                   </tr>
@@ -335,6 +336,22 @@ const ProjectEconomyView: React.FC = () => {
                         )}>
                           {closed ? 'STÄNGD' : 'ÖPPEN'}
                         </Badge>
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        {!closed && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setClosingProject(project);
+                            }}
+                          >
+                            <Lock className="h-3.5 w-3.5 mr-1" />
+                            Stäng
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   );
