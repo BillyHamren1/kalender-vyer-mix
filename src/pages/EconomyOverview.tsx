@@ -98,6 +98,11 @@ const ProjectEconomyView: React.FC = () => {
     if (!closingProject) return;
     setIsClosing(true);
     try {
+      // Signal EventFlow before local status update
+      if (closingProject.booking_id) {
+        const { markReadyForInvoicing } = await import('@/services/planningApiService');
+        await markReadyForInvoicing(closingProject.booking_id);
+      }
       const { error } = await supabase
         .from('projects')
         .update({ status: 'completed' })
@@ -106,8 +111,8 @@ const ProjectEconomyView: React.FC = () => {
       toast.success(`${closingProject.name} har markerats som avslutat`);
       queryClient.invalidateQueries({ queryKey: ['economy-overview'] });
     } catch (err) {
-      console.error(err);
-      toast.error('Kunde inte stänga projektet');
+      console.error('Close project error:', err);
+      toast.error('Kunde inte signalera faktureringssystemet — försök igen');
     } finally {
       setIsClosing(false);
       setClosingProject(null);
