@@ -104,10 +104,10 @@ const ProjectEconomyDetail: React.FC = () => {
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-foreground">Ekonomi: {project.name}</h1>
-            <Badge variant={isClosed ? "destructive" : "outline"} className={
+            <Badge variant="outline" className={
               isClosed
-                ? "font-semibold text-xs px-3 py-1"
-                : "border-green-400 text-green-700 bg-green-50 font-semibold text-xs px-3 py-1"
+                ? "border-red-200 text-red-600 bg-red-50 text-[11px] px-2 py-0.5 font-medium"
+                : "border-emerald-200 text-emerald-600 bg-emerald-50 text-[11px] px-2 py-0.5 font-medium"
             }>
               {isClosed ? 'STÄNGD' : 'ÖPPEN'}
             </Badge>
