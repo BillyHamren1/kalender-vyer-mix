@@ -170,7 +170,7 @@ export const useEconomyOverviewData = () => {
             eventdate,
             summary: emptySummary,
             timeReports: [] as StaffTimeReport[],
-            economyClosed: false,
+            economyClosed: project.status === 'completed',
           };
         }
 
@@ -184,7 +184,7 @@ export const useEconomyOverviewData = () => {
             eventdate,
             summary,
             timeReports,
-            economyClosed,
+            economyClosed: economyClosed || project.status === 'completed',
           };
         } catch (err) {
           console.error(`Failed to process economy for project ${project.name}:`, err);
@@ -196,7 +196,7 @@ export const useEconomyOverviewData = () => {
             eventdate,
             summary: emptySummary,
             timeReports: [] as StaffTimeReport[],
-            economyClosed: false,
+            economyClosed: project.status === 'completed',
           };
         }
       });
