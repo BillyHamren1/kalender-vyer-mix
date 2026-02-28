@@ -202,5 +202,7 @@ export const useEconomyOverviewData = () => {
       });
     },
     staleTime: 5 * 60 * 1000, // 5 min cache
+    retry: 2,
+    retryDelay: 2000,
   });
 };
