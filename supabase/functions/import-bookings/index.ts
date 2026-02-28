@@ -1077,11 +1077,14 @@ serve(async (req) => {
     const apiUrl = `https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/export_bookings?${apiParams.toString()}`;
 
     // Fetch bookings from export-bookings function with timeout and retry
-    const fetchWithRetry = async (url: string, options: RequestInit, retries = 3): Promise<Response> => {
+    // Single-booking refresh: use fewer retries & longer timeout to stay within edge-function wall-clock limit
+    const maxRetries = isSingleBookingRefresh ? 1 : 3;
+    const perAttemptTimeout = isSingleBookingRefresh ? 45000 : 25000;
+    const fetchWithRetry = async (url: string, options: RequestInit, retries = maxRetries): Promise<Response> => {
       for (let attempt = 0; attempt <= retries; attempt++) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout per attempt
+          const timeoutId = setTimeout(() => controller.abort(), perAttemptTimeout);
           const resp = await fetch(url, { ...options, signal: controller.signal });
           clearTimeout(timeoutId);
           // Also retry on 5xx server errors from external API
