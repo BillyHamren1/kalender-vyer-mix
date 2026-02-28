@@ -133,8 +133,8 @@ export const ProjectEconomyTab = ({ projectId, projectName = 'Projekt', bookingI
         />
       )}
 
-      {/* Summary Card */}
-      <EconomySummaryCard summary={summary} />
+      {/* Projektresultat - Utfall */}
+      <EconomySummaryCard summary={summary} bookingEconomics={bookingEconomics} />
 
       {/* Product Costs (Budget basis) */}
       {productCosts && (
