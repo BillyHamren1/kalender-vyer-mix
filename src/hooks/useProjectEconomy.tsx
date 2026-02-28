@@ -16,12 +16,11 @@ import {
   createInvoice,
   updateInvoice,
   deleteInvoice,
-  fetchTimeReports,
   fetchProductCostsRemote,
   fetchSupplierInvoices,
   updateSupplierInvoiceLink,
 } from '@/services/planningApiService';
-import { calculateEconomySummary } from '@/services/projectEconomyService';
+import { calculateEconomySummary, fetchProjectTimeReports } from '@/services/projectEconomyService';
 import type { ProjectPurchase, ProjectQuote, ProjectInvoice, LinkedCostType } from '@/types/projectEconomy';
 import { createOptimisticCallbacks } from './useOptimisticMutation';
 
@@ -37,7 +36,7 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
 
   const { data: timeReports = [], isLoading: timeReportsLoading } = useQuery({
     queryKey: ['project-time-reports', bookingId],
-    queryFn: () => fetchTimeReports(bookingId!),
+    queryFn: () => fetchProjectTimeReports(bookingId!),
     enabled: !!bookingId,
   });
 
