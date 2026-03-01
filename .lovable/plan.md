@@ -1,41 +1,33 @@
 
 
-## Plan: Skicka faktureringsignal till EventFlow vid projektstängning
+## Plan: Sök och filter på projektsidan
 
-### Valt tillvägagångssätt: Uppdatera bokningens status via `planning-api-proxy`
+### Nuläge
+- Projektsidan har tre separata paneler (litet, medel, stort) med individuella sökfält
+- Avslutade projekt gömda i separat arkivsida (`/projects/archive`)
+- Inget sätt att söka över alla projekttyper samtidigt
 
-Detta är det säkraste och mest robusta alternativet eftersom:
-- All ekonomikommunikation redan flödar genom `planning-api-proxy` till EventFlow
-- Autentisering (JWT + PLANNING_API_KEY) redan hanteras
-- Ingen ny infrastruktur behövs — bara en ny `type` i befintlig proxy
-- Transaktionell: stängningen sker bara om API-anropet lyckas
+### Vad som ska byggas
 
-### Steg
+**Global sökrad** högst upp på projektsidan (ovanför de tre kolumnerna) med:
+1. Ett gemensamt sökfält som filtrerar alla tre paneler samtidigt
+2. En statusfilter-dropdown (Alla aktiva / Planering / Pågående / Avslutad / Alla inkl. gamla)
+3. När "Alla inkl. gamla" väljs — visas även completed-projekt i respektive panel
 
-1. **Lägg till `markReadyForInvoicing` i `planningApiService.ts`**
-   - Ny funktion som anropar `callPlanningApi({ type: 'close_project', method: 'POST', booking_id, data: { status: 'READY_FOR_INVOICING' } })`
+### Teknisk approach
 
-2. **Uppdatera `handleCloseProject` i `ProjectEconomyDetail.tsx`**
-   - Innan lokalt statusbyte: anropa `markReadyForInvoicing(project.booking_id)`
-   - Om det misslyckas: visa felmeddelande, avbryt stängning
-   - Om det lyckas: uppdatera lokal status till `completed` som idag
+1. **`ProjectManagement.tsx`** — Lägg till state för `globalSearch` och `globalStatusFilter`. Skicka dessa som props till alla tre list-paneler.
 
-3. **Felhantering**
-   - Om API-anropet till EventFlow misslyckas visas toast med "Kunde inte signalera faktureringssystemet — försök igen"
-   - Projektet förblir öppet tills signalen bekräftas
+2. **`JobsListPanel.tsx`**, **`MediumProjectsListPanel.tsx`**, **`LargeProjectsListPanel.tsx`** — Ta emot `externalSearch` och `externalStatusFilter` props. När dessa finns, dölj panelens egna sök/filter och använd de globala istället. Uppdatera filtreringslogiken så att `completed`-projekt inkluderas om filtret tillåter det (istället för att alltid dölja dem).
 
-### Teknisk detalj
+3. **Arkivknappen behålls** men den globala söken ger samma funktion snabbare.
 
-Flödet blir:
-```text
-Användare klickar "Markera som avslutat"
-  → checklist valideras
-  → POST till planning-api-proxy (type: 'close_project', booking_id)
-    → proxy vidarebefordrar till EventFlow planning-api
-    → EventFlow markerar bokning som READY_FOR_INVOICING
-  → Om OK: lokal UPDATE projects.status = 'completed'
-  → Om FEL: toast-felmeddelande, projektet förblir öppet
-```
+### Ändringar
 
-EventFlow-sidan behöver hantera `type: 'close_project'` i sin `planning-api`. Om detta inte redan finns där behöver det implementeras externt — men signaleringsflödet härifrån är klart.
+| Fil | Ändring |
+|---|---|
+| `src/pages/ProjectManagement.tsx` | Lägg till global sökrad med Input + Select ovanför grid |
+| `src/components/project/JobsListPanel.tsx` | Acceptera `externalSearch`/`externalStatusFilter` props, inkludera completed i filter |
+| `src/components/project/MediumProjectsListPanel.tsx` | Samma som ovan |
+| `src/components/project/LargeProjectsListPanel.tsx` | Samma som ovan |
 
