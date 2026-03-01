@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
 
     // --- Fetch bookings for this org (needed for external API calls) ---
     let bookings: any[] = [];
-    const needsBookings = scopes.some(s => ['all', 'bookings', 'time_reports', 'supplier_invoices', 'product_costs'].includes(s));
+    const needsBookings = scopes.some(s => ['bookings', 'time_reports', 'supplier_invoices', 'product_costs', 'budgets', 'quotes', 'invoices', 'labor_costs'].includes(s));
 
     if (needsBookings || bookingId) {
       let q = supabase
@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
       if (!efUrl || !planningApiKey) return null;
       try {
         const qs = new URLSearchParams({ type, booking_id: bid });
-        const res = await fetch(`${efUrl}/functions/v1/planning-api-proxy?${qs.toString()}`, {
+        const res = await fetch(`${efUrl}/functions/v1/planning-api?${qs.toString()}`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json', 'x-api-key': planningApiKey },
         });
@@ -129,15 +129,28 @@ Deno.serve(async (req) => {
       };
     }
 
-    // === INVOICES (local: project, packing — with file URLs) ===
+    // === INVOICES (local + external per booking) ===
     if (scopes.includes('invoices')) {
       const [projInvoices, packInvoices] = await Promise.all([
         supabase.from('project_invoices').select('*, projects:project_id(id, name, booking_id)').eq('organization_id', organizationId),
         supabase.from('packing_invoices').select('*, packing_projects:packing_id(id, name, booking_id)').eq('organization_id', organizationId),
       ]);
+      // Fetch external invoices per booking
+      const externalInvoices: any[] = [];
+      await Promise.all(
+        bookings.map(async (b) => {
+          const data = await fetchExternal('invoices', b.id);
+          if (Array.isArray(data)) {
+            externalInvoices.push(...data.map((r: any) => ({ ...r, booking_id: b.id, booking_number: b.booking_number, client: b.client, source: 'external' })));
+          } else if (data && !data.error) {
+            externalInvoices.push({ ...data, booking_id: b.id, booking_number: b.booking_number, client: b.client, source: 'external' });
+          }
+        })
+      );
       result.invoices = {
         project_invoices: projInvoices.data || [],
         packing_invoices: packInvoices.data || [],
+        external_invoices: externalInvoices,
       };
     }
 
@@ -155,41 +168,74 @@ Deno.serve(async (req) => {
       result.supplier_invoices = allSupplier;
     }
 
-    // === QUOTES (local: project, packing — with file URLs) ===
+    // === QUOTES (local + external per booking) ===
     if (scopes.includes('quotes')) {
       const [projQuotes, packQuotes] = await Promise.all([
         supabase.from('project_quotes').select('*, projects:project_id(id, name, booking_id)').eq('organization_id', organizationId),
         supabase.from('packing_quotes').select('*, packing_projects:packing_id(id, name, booking_id)').eq('organization_id', organizationId),
       ]);
+      const externalQuotes: any[] = [];
+      await Promise.all(
+        bookings.map(async (b) => {
+          const data = await fetchExternal('quotes', b.id);
+          if (Array.isArray(data)) {
+            externalQuotes.push(...data.map((r: any) => ({ ...r, booking_id: b.id, booking_number: b.booking_number, client: b.client, source: 'external' })));
+          } else if (data && !data.error) {
+            externalQuotes.push({ ...data, booking_id: b.id, booking_number: b.booking_number, client: b.client, source: 'external' });
+          }
+        })
+      );
       result.quotes = {
         project_quotes: projQuotes.data || [],
         packing_quotes: packQuotes.data || [],
+        external_quotes: externalQuotes,
       };
     }
 
-    // === BUDGETS (local: project, packing, large_project) ===
+    // === BUDGETS (local + external per booking) ===
     if (scopes.includes('budgets')) {
       const [projBudget, packBudget, lpBudget] = await Promise.all([
         supabase.from('project_budget').select('*, projects:project_id(id, name, booking_id)').eq('organization_id', organizationId),
         supabase.from('packing_budget').select('*, packing_projects:packing_id(id, name, booking_id)').eq('organization_id', organizationId),
         supabase.from('large_project_budget').select('*, large_projects:large_project_id(id, name)').eq('organization_id', organizationId),
       ]);
+      const externalBudgets: any[] = [];
+      await Promise.all(
+        bookings.map(async (b) => {
+          const data = await fetchExternal('budget', b.id);
+          if (data && !data.error && data.budgeted_hours !== undefined) {
+            externalBudgets.push({ ...data, booking_id: b.id, booking_number: b.booking_number, client: b.client, source: 'external' });
+          }
+        })
+      );
       result.budgets = {
         project_budgets: projBudget.data || [],
         packing_budgets: packBudget.data || [],
         large_project_budgets: lpBudget.data || [],
+        external_budgets: externalBudgets,
       };
     }
 
-    // === LABOR COSTS (local: project, packing) ===
+    // === LABOR COSTS (local + external time_reports as labor source) ===
     if (scopes.includes('labor_costs')) {
       const [projLabor, packLabor] = await Promise.all([
         supabase.from('project_labor_costs').select('*, projects:project_id(id, name, booking_id)').eq('organization_id', organizationId),
         supabase.from('packing_labor_costs').select('*, packing_projects:packing_id(id, name, booking_id)').eq('organization_id', organizationId),
       ]);
+      // Also fetch time reports as external labor cost source
+      const externalLabor: any[] = [];
+      await Promise.all(
+        bookings.map(async (b) => {
+          const data = await fetchExternal('time_reports', b.id);
+          if (Array.isArray(data)) {
+            externalLabor.push(...data.map((r: any) => ({ ...r, booking_id: b.id, booking_number: b.booking_number, client: b.client, source: 'external' })));
+          }
+        })
+      );
       result.labor_costs = {
         project_labor_costs: projLabor.data || [],
         packing_labor_costs: packLabor.data || [],
+        external_labor_costs: externalLabor,
       };
     }
 
