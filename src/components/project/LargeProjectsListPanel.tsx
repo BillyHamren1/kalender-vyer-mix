@@ -14,12 +14,15 @@ import { LargeProjectStatus, LARGE_PROJECT_STATUS_LABELS, LARGE_PROJECT_STATUS_C
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
+import type { GlobalStatusFilter } from '@/pages/ProjectManagement';
 
 interface LargeProjectsListPanelProps {
   completedOnly?: boolean;
+  externalSearch?: string;
+  externalStatusFilter?: GlobalStatusFilter;
 }
 
-const LargeProjectsListPanel = ({ completedOnly = false }: LargeProjectsListPanelProps) => {
+const LargeProjectsListPanel = ({ completedOnly = false, externalSearch, externalStatusFilter }: LargeProjectsListPanelProps) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -27,6 +30,10 @@ const LargeProjectsListPanel = ({ completedOnly = false }: LargeProjectsListPane
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectLocation, setNewProjectLocation] = useState('');
+
+  const hasExternalFilter = externalSearch !== undefined;
+  const activeSearch = hasExternalFilter ? externalSearch : search;
+  const activeStatusFilter = hasExternalFilter ? externalStatusFilter! : statusFilter;
 
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ['large-projects'],
@@ -60,11 +67,23 @@ const LargeProjectsListPanel = ({ completedOnly = false }: LargeProjectsListPane
   });
 
   const filteredProjects = projects.filter(project => {
-    const matchesSearch = project.name.toLowerCase().includes(search.toLowerCase()) ||
-      project.location?.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === 'all'
-      ? (completedOnly ? project.status === 'completed' : project.status !== 'completed')
-      : project.status === statusFilter;
+    const matchesSearch = project.name.toLowerCase().includes(activeSearch.toLowerCase()) ||
+      project.location?.toLowerCase().includes(activeSearch.toLowerCase());
+    
+    let matchesStatus: boolean;
+    if (hasExternalFilter) {
+      const gf = activeStatusFilter as GlobalStatusFilter;
+      if (gf === 'all') matchesStatus = true;
+      else if (gf === 'all_active') matchesStatus = project.status !== 'completed';
+      else if (gf === 'planning') matchesStatus = project.status === 'planning';
+      else if (gf === 'in_progress') matchesStatus = project.status === 'in_progress';
+      else if (gf === 'completed') matchesStatus = project.status === 'completed';
+      else matchesStatus = project.status !== 'completed';
+    } else {
+      matchesStatus = statusFilter === 'all'
+        ? (completedOnly ? project.status === 'completed' : project.status !== 'completed')
+        : project.status === statusFilter;
+    }
     return matchesSearch && matchesStatus;
   });
 
@@ -113,29 +132,31 @@ const LargeProjectsListPanel = ({ completedOnly = false }: LargeProjectsListPane
             </div>
           </div>
 
-          {/* Compact inline filters */}
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
-              <Input
-                placeholder="Sök..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-8 h-8 text-xs bg-card border-border/50 rounded-lg"
-              />
+          {/* Compact inline filters - hidden when global filter active */}
+          {!hasExternalFilter && (
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
+                <Input
+                  placeholder="Sök..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-8 h-8 text-xs bg-card border-border/50 rounded-lg"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as LargeProjectStatus | 'all')}>
+                <SelectTrigger className="h-8 w-[110px] text-xs bg-card border-border/50 rounded-lg">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alla</SelectItem>
+                  {Object.entries(LARGE_PROJECT_STATUS_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as LargeProjectStatus | 'all')}>
-              <SelectTrigger className="h-8 w-[110px] text-xs bg-card border-border/50 rounded-lg">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Alla</SelectItem>
-                {Object.entries(LARGE_PROJECT_STATUS_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          )}
         </div>
 
         {/* Projects List - compact */}
