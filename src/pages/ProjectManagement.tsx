@@ -5,14 +5,13 @@ import { Plus, FolderKanban, Archive, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { PageHeader } from "@/components/ui/PageHeader";
 import CreateProjectWizard from "@/components/project/CreateProjectWizard";
 import { IncomingBookingsList } from "@/components/project/IncomingBookingsList";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
-import JobsListPanel from "@/components/project/JobsListPanel";
-import LargeProjectsListPanel from "@/components/project/LargeProjectsListPanel";
-import MediumProjectsListPanel from "@/components/project/MediumProjectsListPanel";
+import UnifiedProjectList, { type ProjectTypeFilter } from "@/components/project/UnifiedProjectList";
 import { deleteProject } from "@/services/projectService";
 import { toast } from "sonner";
 
@@ -34,6 +33,7 @@ const ProjectManagement = () => {
   const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
   const [globalStatusFilter, setGlobalStatusFilter] = useState<GlobalStatusFilter>('all_active');
+  const [typeFilter, setTypeFilter] = useState<ProjectTypeFilter>('all');
 
   const deleteMutation = useMutation({
     mutationFn: deleteProject,
@@ -55,7 +55,6 @@ const ProjectManagement = () => {
 
   return (
     <PageContainer>
-        {/* Header */}
         <PageHeader
           icon={FolderKanban}
           title="Projekthantering"
@@ -80,7 +79,6 @@ const ProjectManagement = () => {
           </Button>
         </PageHeader>
 
-        {/* Incoming Bookings - compact */}
         <div className="mb-6">
           <IncomingBookingsList 
             onCreateProject={handleCreateProject}
@@ -88,9 +86,9 @@ const ProjectManagement = () => {
           />
         </div>
 
-        {/* Global Search & Filter */}
-        <div className="flex gap-3 mb-4">
-          <div className="relative flex-1 max-w-md">
+        {/* Search, Status Filter & Type Filter */}
+        <div className="flex flex-wrap gap-3 mb-4 items-center">
+          <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
             <Input
               placeholder="Sök i alla projekt..."
@@ -109,14 +107,25 @@ const ProjectManagement = () => {
               ))}
             </SelectContent>
           </Select>
+          <ToggleGroup 
+            type="single" 
+            value={typeFilter} 
+            onValueChange={(v) => v && setTypeFilter(v as ProjectTypeFilter)}
+            className="bg-muted/40 rounded-lg p-0.5"
+          >
+            <ToggleGroupItem value="all" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-card data-[state=on]:shadow-sm">Alla</ToggleGroupItem>
+            <ToggleGroupItem value="small" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-blue-100 data-[state=on]:text-blue-700">Litet</ToggleGroupItem>
+            <ToggleGroupItem value="medium" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-teal-100 data-[state=on]:text-teal-700">Medel</ToggleGroupItem>
+            <ToggleGroupItem value="large" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-purple-100 data-[state=on]:text-purple-700">Stort</ToggleGroupItem>
+          </ToggleGroup>
         </div>
 
-        {/* Three Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <JobsListPanel externalSearch={globalSearch} externalStatusFilter={globalStatusFilter} />
-          <MediumProjectsListPanel externalSearch={globalSearch} externalStatusFilter={globalStatusFilter} />
-          <LargeProjectsListPanel externalSearch={globalSearch} externalStatusFilter={globalStatusFilter} />
-        </div>
+        {/* Unified Project List */}
+        <UnifiedProjectList
+          search={globalSearch}
+          statusFilter={globalStatusFilter}
+          typeFilter={typeFilter}
+        />
 
         <CreateProjectWizard 
           open={isCreateOpen} 
