@@ -1,38 +1,53 @@
 
 
-## Plan: Unified project list sorted by date
+## Analys: Varför export-economy-data returnerar tomma resultat
 
-### What changes
-Replace the three-column layout on `/projects` with a single unified list that:
-1. Merges all projects (small/medium/large) into one list sorted by event date
-2. Shows a type badge per row (Litet / Medel / Stort) with distinct colors
-3. Adds a project type filter (toggle/select) alongside the existing search and status filter
-4. Keeps "Nytt projekt" button and IncomingBookingsList as-is
+### Problem 1: Fel endpoint för externa API-anrop (time_reports, product_costs, supplier_invoices)
 
-### Implementation
-
-**New component: `src/components/project/UnifiedProjectList.tsx`**
-- Fetches from all three sources: `fetchJobs`, `fetchProjects`, `fetchLargeProjects`
-- Normalizes into a common shape: `{ id, name, type: 'small'|'medium'|'large', date, status, clientOrLocation, navigateTo }`
-- Sorts by date (event date for small/medium, start_date for large)
-- Filters by: search text, status (active/planning/in_progress/completed/all), project type
-- Renders a flat list with type badge, date, name, and chevron
-- Delete functionality per row (calls the appropriate delete function based on type)
-
-**Update `src/pages/ProjectManagement.tsx`**
-- Replace the three-column grid with `<UnifiedProjectList />`
-- Move global search/status filter into the new component (or keep in page and pass as props)
-- Add a type filter (Alla / Litet / Medel / Stort)
-
-**Keep existing panels** untouched (still used by `ProjectArchive.tsx`).
-
-### UI per row
-```text
-[Type Badge] | Project Name          | Date        | [Delete] [>]
- Medel       | A Catering Sweden AB  | 26 feb 2026 |          >
- Litet       | 11 - TEST - !! #2602  | 18 feb 2026 |          >
- Stort       | Swedish game fair     | 3 bokningar |          >
+I `export-economy-data/index.ts` rad 91 anropas:
+```
+${efUrl}/functions/v1/planning-api-proxy
+```
+Men `planning-api-proxy` finns bara lokalt — på det externa systemet heter endpointen `planning-api`. Jämför med `planning-api-proxy/index.ts` rad 15 som korrekt anropar:
+```
+${efUrl}/functions/v1/planning-api
 ```
 
-Type badges: Litet = blue, Medel = teal, Stort = purple.
+Detta gör att **alla externa anrop** (time_reports, supplier_invoices, product_costs) misslyckas tyst (catch returnerar null/tom array).
+
+**Fix**: Ändra rad 91 i `export-economy-data/index.ts` från `planning-api-proxy` till `planning-api`.
+
+### Problem 2: Lokala tabeller är tomma (förväntat)
+
+Dessa tabeller har **verkligen 0 rader** i databasen:
+- `project_invoices`, `packing_invoices` → 0
+- `project_quotes`, `packing_quotes` → 0  
+- `project_budget`, `packing_budget`, `large_project_budget` → 0
+- `project_labor_costs`, `packing_labor_costs` → 0
+
+Bara `project_purchases` har 6 rader (matchar det Hubben ser).
+
+Ekonomidata för enskilda bokningar hämtas normalt via det **externa** planning-api (budget, quotes, invoices per booking). Men `export-economy-data` försöker hämta dessa från **lokala** tabeller istället — som bara innehåller manuellt skapade lokala poster.
+
+**Fix**: Hämta budget, quotes och invoices per booking från externa API:t (precis som time_reports/product_costs/supplier_invoices redan gör), som fallback/komplement till lokala tabeller.
+
+### Ändringar
+
+| Fil | Ändring |
+|---|---|
+| `supabase/functions/export-economy-data/index.ts` | 1. Fix endpoint `planning-api-proxy` → `planning-api` |
+| | 2. Lägg till externa API-anrop för budgets, quotes, invoices per booking |
+| | 3. Merga externa + lokala resultat för komplett bild |
+
+### Teknisk approach
+
+```text
+fetchExternal() → fix URL till planning-api
+
+BUDGETS:   lokala project_budget + externa budget per booking
+QUOTES:    lokala project_quotes + externa quotes per booking  
+INVOICES:  lokala project_invoices + externa invoices per booking
+```
+
+Varje scope behåller sin nuvarande lokala query men kompletteras med per-booking externa anrop via samma `fetchExternal()` helper. Resultatet mergas i response-objektet.
 
