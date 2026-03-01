@@ -1,33 +1,38 @@
 
 
-## Plan: Sök och filter på projektsidan
+## Plan: Unified project list sorted by date
 
-### Nuläge
-- Projektsidan har tre separata paneler (litet, medel, stort) med individuella sökfält
-- Avslutade projekt gömda i separat arkivsida (`/projects/archive`)
-- Inget sätt att söka över alla projekttyper samtidigt
+### What changes
+Replace the three-column layout on `/projects` with a single unified list that:
+1. Merges all projects (small/medium/large) into one list sorted by event date
+2. Shows a type badge per row (Litet / Medel / Stort) with distinct colors
+3. Adds a project type filter (toggle/select) alongside the existing search and status filter
+4. Keeps "Nytt projekt" button and IncomingBookingsList as-is
 
-### Vad som ska byggas
+### Implementation
 
-**Global sökrad** högst upp på projektsidan (ovanför de tre kolumnerna) med:
-1. Ett gemensamt sökfält som filtrerar alla tre paneler samtidigt
-2. En statusfilter-dropdown (Alla aktiva / Planering / Pågående / Avslutad / Alla inkl. gamla)
-3. När "Alla inkl. gamla" väljs — visas även completed-projekt i respektive panel
+**New component: `src/components/project/UnifiedProjectList.tsx`**
+- Fetches from all three sources: `fetchJobs`, `fetchProjects`, `fetchLargeProjects`
+- Normalizes into a common shape: `{ id, name, type: 'small'|'medium'|'large', date, status, clientOrLocation, navigateTo }`
+- Sorts by date (event date for small/medium, start_date for large)
+- Filters by: search text, status (active/planning/in_progress/completed/all), project type
+- Renders a flat list with type badge, date, name, and chevron
+- Delete functionality per row (calls the appropriate delete function based on type)
 
-### Teknisk approach
+**Update `src/pages/ProjectManagement.tsx`**
+- Replace the three-column grid with `<UnifiedProjectList />`
+- Move global search/status filter into the new component (or keep in page and pass as props)
+- Add a type filter (Alla / Litet / Medel / Stort)
 
-1. **`ProjectManagement.tsx`** — Lägg till state för `globalSearch` och `globalStatusFilter`. Skicka dessa som props till alla tre list-paneler.
+**Keep existing panels** untouched (still used by `ProjectArchive.tsx`).
 
-2. **`JobsListPanel.tsx`**, **`MediumProjectsListPanel.tsx`**, **`LargeProjectsListPanel.tsx`** — Ta emot `externalSearch` och `externalStatusFilter` props. När dessa finns, dölj panelens egna sök/filter och använd de globala istället. Uppdatera filtreringslogiken så att `completed`-projekt inkluderas om filtret tillåter det (istället för att alltid dölja dem).
+### UI per row
+```text
+[Type Badge] | Project Name          | Date        | [Delete] [>]
+ Medel       | A Catering Sweden AB  | 26 feb 2026 |          >
+ Litet       | 11 - TEST - !! #2602  | 18 feb 2026 |          >
+ Stort       | Swedish game fair     | 3 bokningar |          >
+```
 
-3. **Arkivknappen behålls** men den globala söken ger samma funktion snabbare.
-
-### Ändringar
-
-| Fil | Ändring |
-|---|---|
-| `src/pages/ProjectManagement.tsx` | Lägg till global sökrad med Input + Select ovanför grid |
-| `src/components/project/JobsListPanel.tsx` | Acceptera `externalSearch`/`externalStatusFilter` props, inkludera completed i filter |
-| `src/components/project/MediumProjectsListPanel.tsx` | Samma som ovan |
-| `src/components/project/LargeProjectsListPanel.tsx` | Samma som ovan |
+Type badges: Litet = blue, Medel = teal, Stort = purple.
 
