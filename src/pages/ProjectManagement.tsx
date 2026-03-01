@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus, FolderKanban, Archive } from "lucide-react";
+import { Plus, FolderKanban, Archive, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { PageHeader } from "@/components/ui/PageHeader";
 import CreateProjectWizard from "@/components/project/CreateProjectWizard";
@@ -14,12 +16,24 @@ import MediumProjectsListPanel from "@/components/project/MediumProjectsListPane
 import { deleteProject } from "@/services/projectService";
 import { toast } from "sonner";
 
+export type GlobalStatusFilter = 'all_active' | 'planning' | 'in_progress' | 'completed' | 'all';
+
+const GLOBAL_STATUS_OPTIONS: Record<GlobalStatusFilter, string> = {
+  all_active: 'Alla aktiva',
+  planning: 'Planering',
+  in_progress: 'Pågående',
+  completed: 'Avslutade',
+  all: 'Alla inkl. gamla',
+};
+
 const ProjectManagement = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
+  const [globalSearch, setGlobalSearch] = useState('');
+  const [globalStatusFilter, setGlobalStatusFilter] = useState<GlobalStatusFilter>('all_active');
 
   const deleteMutation = useMutation({
     mutationFn: deleteProject,
@@ -74,11 +88,34 @@ const ProjectManagement = () => {
           />
         </div>
 
+        {/* Global Search & Filter */}
+        <div className="flex gap-3 mb-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+            <Input
+              placeholder="Sök i alla projekt..."
+              value={globalSearch}
+              onChange={(e) => setGlobalSearch(e.target.value)}
+              className="pl-9 h-9 rounded-lg"
+            />
+          </div>
+          <Select value={globalStatusFilter} onValueChange={(v) => setGlobalStatusFilter(v as GlobalStatusFilter)}>
+            <SelectTrigger className="h-9 w-[160px] rounded-lg">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(GLOBAL_STATUS_OPTIONS).map(([value, label]) => (
+                <SelectItem key={value} value={value}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* Three Column Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <JobsListPanel />
-          <MediumProjectsListPanel />
-          <LargeProjectsListPanel />
+          <JobsListPanel externalSearch={globalSearch} externalStatusFilter={globalStatusFilter} />
+          <MediumProjectsListPanel externalSearch={globalSearch} externalStatusFilter={globalStatusFilter} />
+          <LargeProjectsListPanel externalSearch={globalSearch} externalStatusFilter={globalStatusFilter} />
         </div>
 
         <CreateProjectWizard 
