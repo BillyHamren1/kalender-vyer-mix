@@ -1,53 +1,31 @@
 
 
-## Analys: Varför export-economy-data returnerar tomma resultat
+## Plan: Uppdatera Capacitor-beroenden i package.json
 
-### Problem 1: Fel endpoint för externa API-anrop (time_reports, product_costs, supplier_invoices)
+### Ändringar i `package.json`
 
-I `export-economy-data/index.ts` rad 91 anropas:
-```
-${efUrl}/functions/v1/planning-api-proxy
-```
-Men `planning-api-proxy` finns bara lokalt — på det externa systemet heter endpointen `planning-api`. Jämför med `planning-api-proxy/index.ts` rad 15 som korrekt anropar:
-```
-${efUrl}/functions/v1/planning-api
-```
+| Rad | Nuvarande | Ny |
+|---|---|---|
+| 14 | `"@capacitor-community/barcode-scanner": "^4.0.1"` | **Ta bort** |
+| — | *(saknas)* | `"@capacitor/barcode-scanner": "^6.2.0"` |
+| 16 | `"@capacitor/camera": "^8.0.1"` | `"@capacitor/camera": "^6.2.1"` |
+| 55 | `"date-fns": "^4.1.0"` | `"date-fns": "^3.6.0"` |
 
-Detta gör att **alla externa anrop** (time_reports, supplier_invoices, product_costs) misslyckas tyst (catch returnerar null/tom array).
+**Notera om `@capacitor/barcode-scanner`**: Paketet `@capacitor/barcode-scanner` version 2.3.1 som du bad om existerar inte — det officiella Capacitor-paketet `@capacitor/barcode-scanner` börjar på version 6.x (matchar Capacitor 6). Community-paketet `@capacitor-community/barcode-scanner` hade version 4.x. Jag sätter `^6.2.0` som matchar era övriga Capacitor 6-paket. Om du verkligen vill ha 2.3.1 (som troligen är en annan fork), bekräfta det.
 
-**Fix**: Ändra rad 91 i `export-economy-data/index.ts` från `planning-api-proxy` till `planning-api`.
+**Inga kodändringar behövs** — barcode-scanner importeras inte i src/.
 
-### Problem 2: Lokala tabeller är tomma (förväntat)
+### Android SDK-inställningar
 
-Dessa tabeller har **verkligen 0 rader** i databasen:
-- `project_invoices`, `packing_invoices` → 0
-- `project_quotes`, `packing_quotes` → 0  
-- `project_budget`, `packing_budget`, `large_project_budget` → 0
-- `project_labor_costs`, `packing_labor_costs` → 0
+Capacitor 6 sätter redan `minSdk=22, compileSdk=34, targetSdk=34` som default. Filen `android/` genereras lokalt (inte i Lovable-repot), så SDK-inställningar görs i din lokala `android/variables.gradle`:
 
-Bara `project_purchases` har 6 rader (matchar det Hubben ser).
-
-Ekonomidata för enskilda bokningar hämtas normalt via det **externa** planning-api (budget, quotes, invoices per booking). Men `export-economy-data` försöker hämta dessa från **lokala** tabeller istället — som bara innehåller manuellt skapade lokala poster.
-
-**Fix**: Hämta budget, quotes och invoices per booking från externa API:t (precis som time_reports/product_costs/supplier_invoices redan gör), som fallback/komplement till lokala tabeller.
-
-### Ändringar
-
-| Fil | Ändring |
-|---|---|
-| `supabase/functions/export-economy-data/index.ts` | 1. Fix endpoint `planning-api-proxy` → `planning-api` |
-| | 2. Lägg till externa API-anrop för budgets, quotes, invoices per booking |
-| | 3. Merga externa + lokala resultat för komplett bild |
-
-### Teknisk approach
-
-```text
-fetchExternal() → fix URL till planning-api
-
-BUDGETS:   lokala project_budget + externa budget per booking
-QUOTES:    lokala project_quotes + externa quotes per booking  
-INVOICES:  lokala project_invoices + externa invoices per booking
+```gradle
+ext {
+    minSdkVersion = 26
+    compileSdkVersion = 35
+    targetSdkVersion = 35
+}
 ```
 
-Varje scope behåller sin nuvarande lokala query men kompletteras med per-booking externa anrop via samma `fetchExternal()` helper. Resultatet mergas i response-objektet.
+Detta steg måste göras lokalt efter `npx cap sync android`.
 
