@@ -11,8 +11,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@capacitor-community/barcode-scanner": "^4.0.1",
     "@capacitor/android": "^6.2.1",
+    "@capacitor/barcode-scanner": "^3.0.2",
     "@capacitor/camera": "^8.0.1",
     "@capacitor/cli": "^6.2.1",
     "@capacitor/core": "^6.2.1",
@@ -62,7 +62,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
-    "date-fns": "^4.1.0",
+    "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.3.0",
     "fabric": "^6.6.6",
     "html-to-image": "^1.11.13",
