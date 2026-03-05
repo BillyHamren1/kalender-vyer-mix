@@ -1,31 +1,28 @@
 
 
-## Plan: Uppdatera Capacitor-beroenden i package.json
+## Plan: Redirect `/` till `/scanner` (bara på mobil/Capacitor)
 
-### Ändringar i `package.json`
+### Approach
 
-| Rad | Nuvarande | Ny |
-|---|---|---|
-| 14 | `"@capacitor-community/barcode-scanner": "^4.0.1"` | **Ta bort** |
-| — | *(saknas)* | `"@capacitor/barcode-scanner": "^6.2.0"` |
-| 16 | `"@capacitor/camera": "^8.0.1"` | `"@capacitor/camera": "^6.2.1"` |
-| 55 | `"date-fns": "^4.1.0"` | `"date-fns": "^3.6.0"` |
+Använd `Navigate` från react-router-dom med en enkel device-detect direkt i route-elementet. Capacitor-appen identifieras redan via `window.Capacitor` (samma pattern som i `src/main.tsx`).
 
-**Notera om `@capacitor/barcode-scanner`**: Paketet `@capacitor/barcode-scanner` version 2.3.1 som du bad om existerar inte — det officiella Capacitor-paketet `@capacitor/barcode-scanner` börjar på version 6.x (matchar Capacitor 6). Community-paketet `@capacitor-community/barcode-scanner` hade version 4.x. Jag sätter `^6.2.0` som matchar era övriga Capacitor 6-paket. Om du verkligen vill ha 2.3.1 (som troligen är en annan fork), bekräfta det.
+### Ändringar i `src/App.tsx`
 
-**Inga kodändringar behövs** — barcode-scanner importeras inte i src/.
+1. **Importera** `Navigate` från `react-router-dom` (rad 5)
+2. **Ändra rad 135** — rotvägen `/` — från att alltid visa `PlanningDashboard` till att kolla om appen körs i Capacitor:
 
-### Android SDK-inställningar
-
-Capacitor 6 sätter redan `minSdk=22, compileSdk=34, targetSdk=34` som default. Filen `android/` genereras lokalt (inte i Lovable-repot), så SDK-inställningar görs i din lokala `android/variables.gradle`:
-
-```gradle
-ext {
-    minSdkVersion = 26
-    compileSdkVersion = 35
-    targetSdkVersion = 35
-}
+```tsx
+<Route path="/" element={
+  <ProtectedRoute>
+    {typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()
+      ? <Navigate to="/scanner" replace />
+      : <MainSystemLayout><PlanningDashboard /></MainSystemLayout>
+    }
+  </ProtectedRoute>
+} />
 ```
 
-Detta steg måste göras lokalt efter `npx cap sync android`.
+**Resultat:** Desktop-användare ser PlanningDashboard som vanligt. Capacitor-appen redirectas direkt till `/scanner`.
+
+Totalt: 2 rader ändras i en fil.
 
