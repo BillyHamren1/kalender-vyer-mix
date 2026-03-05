@@ -2,7 +2,7 @@ import React, { createContext, useState } from 'react';
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useBackgroundImport } from "@/hooks/useBackgroundImport";
 import { useSsoListener } from "@/hooks/useSsoListener";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -132,7 +132,14 @@ const AppContent = () => {
                 <Route path="/*" element={
                   <AuthProvider>
                     <Routes>
-                      <Route path="/" element={<ProtectedRoute><MainSystemLayout><PlanningDashboard /></MainSystemLayout></ProtectedRoute>} />
+                      <Route path="/" element={
+                        <ProtectedRoute>
+                          {typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()
+                            ? <Navigate to="/scanner" replace />
+                            : <MainSystemLayout><PlanningDashboard /></MainSystemLayout>
+                          }
+                        </ProtectedRoute>
+                      } />
                       <Route path="/dashboard" element={<ProtectedRoute><MainSystemLayout><PlanningDashboard /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/my-projects" element={<ProtectedRoute><MainSystemLayout><MyProjects /></MainSystemLayout></ProtectedRoute>} />
                       <Route path="/calendar" element={<ProtectedRoute><MainSystemLayout><CustomCalendarPage /></MainSystemLayout></ProtectedRoute>} />
