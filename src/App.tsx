@@ -182,7 +182,7 @@ const AppContent = () => {
                       <Route path="/warehouse/service" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseServicePlaceholder /></WarehouseSystemLayout></ProtectedRoute>} />
                       
                       {/* Mobile Scanner App */}
-                      <Route path="/scanner" element={<ProtectedRoute><MobileScannerApp /></ProtectedRoute>} />
+                      <Route path="/scanner" element={<MobileScannerApp />} />
 
                       {/* Fallback */}
                       <Route path="*" element={<NotFound />} />
