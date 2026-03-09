@@ -1,23 +1,28 @@
 
 
-## Plan: Fixa native-appstart till scanner
+## Plan: Redirect `/` till `/scanner` (bara på mobil/Capacitor)
 
-### Rotorsak
-`src/main.tsx` redirectar alla Capacitor-starter till `/m/login` innan React mountas. Scanner-routen (`/scanner`) finns men nås aldrig.
+### Approach
 
-### Ändring — `src/main.tsx`
+Använd `Navigate` från react-router-dom med en enkel device-detect direkt i route-elementet. Capacitor-appen identifieras redan via `window.Capacitor` (samma pattern som i `src/main.tsx`).
 
-Rad 12-13 ändras från:
-```typescript
-if (isNative && !window.location.pathname.startsWith('/m')) {
-  window.location.pathname = '/m/login';
+### Ändringar i `src/App.tsx`
+
+1. **Importera** `Navigate` från `react-router-dom` (rad 5)
+2. **Ändra rad 135** — rotvägen `/` — från att alltid visa `PlanningDashboard` till att kolla om appen körs i Capacitor:
+
+```tsx
+<Route path="/" element={
+  <ProtectedRoute>
+    {typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()
+      ? <Navigate to="/scanner" replace />
+      : <MainSystemLayout><PlanningDashboard /></MainSystemLayout>
+    }
+  </ProtectedRoute>
+} />
 ```
 
-Till:
-```typescript
-if (isNative && !window.location.pathname.startsWith('/scanner')) {
-  window.location.pathname = '/scanner';
-```
+**Resultat:** Desktop-användare ser PlanningDashboard som vanligt. Capacitor-appen redirectas direkt till `/scanner`.
 
-**En fil, två rader.** Scanner-routen är redan unprotected i App.tsx (rad 185).
+Totalt: 2 rader ändras i en fil.
 

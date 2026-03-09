@@ -9,8 +9,8 @@ const isNative = typeof (window as any).Capacitor !== 'undefined'
   && (window as any).Capacitor.isNativePlatform 
   && (window as any).Capacitor.isNativePlatform();
 
-if (isNative && !window.location.pathname.startsWith('/m')) {
-  window.location.pathname = '/m/login';
+if (isNative && !window.location.pathname.startsWith('/scanner')) {
+  window.location.pathname = '/scanner';
 } else {
   createRoot(document.getElementById("root")!).render(<App />);
 }
