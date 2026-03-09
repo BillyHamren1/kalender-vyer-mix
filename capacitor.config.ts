@@ -4,11 +4,10 @@ const config: CapacitorConfig = {
   appId: 'se.fransaugust.tidrapport',
   appName: 'Tidrapport',
   webDir: 'dist',
-  // Server block disabled - app loads from local dist/ files
-  // server: {
-  //   url: 'https://kalender-vyer-mix.lovable.app/m/login',
-  //   cleartext: true
-  // },
+  server: {
+    url: 'https://d42a96b9-4d25-4701-b40a-d3fe594418b5.lovableproject.com?forceHideBadge=true',
+    cleartext: true
+  },
   android: {
     allowMixedContent: true,
     backgroundColor: '#0A0A0B',
