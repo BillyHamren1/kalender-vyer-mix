@@ -1,31 +1,28 @@
 
 
-## Plan: Ersätt "Alla bokningar" med "Alla projekt" på dashboarden
+## Plan: Redirect `/` till `/scanner` (bara på mobil/Capacitor)
 
-### Vad ändras
+### Approach
 
-Sektionen "Alla bokningar" på dashboarden byts ut mot en "Alla projekt"-sektion som visar samtliga projekt (små, medelstora och stora) i samma tabellformat — med sök, statusfilter och datumfilter.
+Använd `Navigate` från react-router-dom med en enkel device-detect direkt i route-elementet. Capacitor-appen identifieras redan via `window.Capacitor` (samma pattern som i `src/main.tsx`).
 
-### Teknisk approach
+### Ändringar i `src/App.tsx`
 
-**Ersätt `DashboardAllBookings`-komponenten** i `PlanningDashboard.tsx` med en ny `DashboardAllProjects`-komponent som återanvänder samma datahämtning som `UnifiedProjectList` (jobs, projects, large_projects).
+1. **Importera** `Navigate` från `react-router-dom` (rad 5)
+2. **Ändra rad 135** — rotvägen `/` — från att alltid visa `PlanningDashboard` till att kolla om appen körs i Capacitor:
 
-#### Ny fil: `src/components/dashboard/DashboardAllProjects.tsx`
+```tsx
+<Route path="/" element={
+  <ProtectedRoute>
+    {typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()
+      ? <Navigate to="/scanner" replace />
+      : <MainSystemLayout><PlanningDashboard /></MainSystemLayout>
+    }
+  </ProtectedRoute>
+} />
+```
 
-- Hämtar data med samma queries som `UnifiedProjectList`: `fetchJobs`, `fetchProjects`, `fetchLargeProjects`
-- Sammanfogar till en enhetlig lista med typ-badge (Litet/Medel/Stort)
-- Tabellkolumner: **Typ** | **Namn** | **Klient** | **Status** | **Datum** | **→**
-- Filter: textsök, statusfilter (Alla/Planering/Under arbete/Levererat/Avslutat), datumintervall
-- Klick navigerar till rätt projektvy (`/jobs/:id`, `/project/:id`, `/large-project/:id`)
-- Samma visuella stil som nuvarande "Alla bokningar" (rounded card, table layout, max-height scroll)
+**Resultat:** Desktop-användare ser PlanningDashboard som vanligt. Capacitor-appen redirectas direkt till `/scanner`.
 
-#### Ändrad fil: `src/pages/PlanningDashboard.tsx`
-
-- Byt import från `DashboardAllBookings` till `DashboardAllProjects`
-- Uppdatera sektionskommentar och JSX
-
-### Filer som påverkas
-- `src/components/dashboard/DashboardAllProjects.tsx` — ny fil
-- `src/pages/PlanningDashboard.tsx` — byt komponent
-- `src/components/dashboard/DashboardAllBookings.tsx` — kan tas bort (eller behållas om den används annorstädes)
+Totalt: 2 rader ändras i en fil.
 
