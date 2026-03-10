@@ -1,21 +1,28 @@
 
 
-## Problem
+## Plan: Redirect `/` till `/scanner` (bara på mobil/Capacitor)
 
-Kalenderns veckovy (weekly/monthly) har `scroll-snap-type: x mandatory` och `scroll-behavior: smooth` i CSS. Detta gör att scrollningen "snäpps" tillbaka till närmaste kort-gräns — vilket upplevs som att den fastnar. `scroll-snap` med mandatory kräver att varje scroll-gest når halvvägs till nästa snap-punkt, annars snäpps den tillbaka.
+### Approach
 
-## Fix
+Använd `Navigate` från react-router-dom med en enkel device-detect direkt i route-elementet. Capacitor-appen identifieras redan via `window.Capacitor` (samma pattern som i `src/main.tsx`).
 
-### `src/components/Calendar/Carousel3DStyles.css`
+### Ändringar i `src/App.tsx`
 
-- Ta bort `scroll-snap-type: x mandatory` och `scroll-behavior: smooth` från `.weekly-horizontal-grid`
-- Behåll `overscroll-behavior-x: contain` och `touch-action: pan-x pan-y` (dessa skyddar mot browser-back)
+1. **Importera** `Navigate` från `react-router-dom` (rad 5)
+2. **Ändra rad 135** — rotvägen `/` — från att alltid visa `PlanningDashboard` till att kolla om appen körs i Capacitor:
 
-### `src/components/Calendar/Carousel3DStyles.css` — `.weekly-day-card`
+```tsx
+<Route path="/" element={
+  <ProtectedRoute>
+    {typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()
+      ? <Navigate to="/scanner" replace />
+      : <MainSystemLayout><PlanningDashboard /></MainSystemLayout>
+    }
+  </ProtectedRoute>
+} />
+```
 
-- Sök efter och ta bort eventuell `scroll-snap-align` på `.weekly-day-card` (om den finns)
+**Resultat:** Desktop-användare ser PlanningDashboard som vanligt. Capacitor-appen redirectas direkt till `/scanner`.
 
-### Resultat
-
-Fri horisontell scroll utan snap-effekt. `overscroll-behavior-x: contain` förhindrar fortfarande browser-back-gesten.
+Totalt: 2 rader ändras i en fil.
 
