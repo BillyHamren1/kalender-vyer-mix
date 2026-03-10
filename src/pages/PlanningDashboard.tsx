@@ -67,11 +67,14 @@ const PlanningDashboard = () => {
         <Button 
           variant="outline" 
           size="sm"
-          onClick={() => { refetchAll(); }}
-          disabled={isLoading}
+          onClick={async () => { 
+            await triggerImport(); 
+            refetchAll(); 
+          }}
+          disabled={isImporting || isLoading}
           className="rounded-xl"
         >
-          <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-4 h-4 mr-2 ${isImporting || isLoading ? 'animate-spin' : ''}`} />
           Uppdatera
         </Button>
       </PageHeader>
