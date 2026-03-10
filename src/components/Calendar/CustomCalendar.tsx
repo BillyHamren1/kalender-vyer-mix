@@ -210,10 +210,10 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     }
   }, [days.length]);
 
-  // Attach wheel listener
+  // Attach wheel listener - ONLY for carousel (day) mode, not weekly/monthly which use native scroll
   useEffect(() => {
     const container = containerRef.current;
-    if (container && (viewMode === 'weekly' || viewMode === 'monthly')) {
+    if (container && viewMode === 'day') {
       container.addEventListener('wheel', handleWheel, { passive: false });
       return () => container.removeEventListener('wheel', handleWheel);
     }
