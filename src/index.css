@@ -95,6 +95,19 @@
     --planning-rigdown: 8 90% 92%;
     --planning-rigdown-border: 8 60% 78%;
     --planning-rigdown-foreground: 8 45% 22%;
+
+    /* === PROJECT TYPE BADGES === */
+    --project-small: 184 40% 92%;
+    --project-small-foreground: 184 45% 30%;
+    --project-small-border: 184 35% 82%;
+
+    --project-medium: 184 55% 88%;
+    --project-medium-foreground: 184 55% 25%;
+    --project-medium-border: 184 45% 75%;
+
+    --project-large: 184 30% 85%;
+    --project-large-foreground: 184 35% 20%;
+    --project-large-border: 184 25% 72%;
   }
 
   .dark {
