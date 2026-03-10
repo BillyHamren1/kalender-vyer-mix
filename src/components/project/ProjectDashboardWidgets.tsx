@@ -86,9 +86,9 @@ const ProjectDashboardWidgets = () => {
 
   const statItems = [
     { label: 'Aktiva', value: activeCount, icon: FolderKanban, color: 'text-primary', bgColor: 'bg-primary/10' },
-    { label: 'Planering', value: planningCount, icon: Clock, color: 'text-amber-600', bgColor: 'bg-amber-100' },
-    { label: 'Pågående', value: inProgressCount, icon: CalendarClock, color: 'text-blue-600', bgColor: 'bg-blue-100' },
-    { label: 'Avslutade', value: completedCount, icon: CheckCircle2, color: 'text-green-600', bgColor: 'bg-green-100' },
+    { label: 'Planering', value: planningCount, icon: Clock, color: 'text-primary', bgColor: 'bg-primary/5' },
+    { label: 'Pågående', value: inProgressCount, icon: CalendarClock, color: 'text-primary', bgColor: 'bg-primary/10' },
+    { label: 'Avslutade', value: completedCount, icon: CheckCircle2, color: 'text-muted-foreground', bgColor: 'bg-muted' },
   ];
 
   if (isLoading) {
