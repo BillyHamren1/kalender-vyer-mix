@@ -12,6 +12,7 @@ import CreateProjectWizard from "@/components/project/CreateProjectWizard";
 import { IncomingBookingsList } from "@/components/project/IncomingBookingsList";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
 import UnifiedProjectList, { type ProjectTypeFilter } from "@/components/project/UnifiedProjectList";
+import ProjectDashboardWidgets from "@/components/project/ProjectDashboardWidgets";
 import { deleteProject } from "@/services/projectService";
 import { toast } from "sonner";
 
