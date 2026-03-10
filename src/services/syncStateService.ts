@@ -53,27 +53,31 @@ export const updateSyncState = async (
     last_sync_status?: SyncStatus;
     metadata?: Record<string, any>;
   }
-): Promise<SyncState> => {
-  const { data, error } = await supabase
-    .from('sync_state')
-    .update({
-      ...updates,
-      updated_at: new Date().toISOString()
-    })
-    .eq('sync_type', syncType)
-    .select()
-    .single();
+): Promise<SyncState | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('sync_state')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString()
+      })
+      .eq('sync_type', syncType)
+      .select()
+      .single();
+      
+    if (error) {
+      console.warn(`Could not update sync state for ${syncType}:`, error.message);
+      return null;
+    }
     
-  if (error) {
-    console.error(`Error updating sync state for ${syncType}:`, error);
-    throw error;
+    return {
+      ...data,
+      metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : (data.metadata as Record<string, any>) || {}
+    };
+  } catch (error) {
+    console.warn(`Sync state update failed for ${syncType}, continuing`);
+    return null;
   }
-  
-  // Transform the metadata from Json to Record<string, any>
-  return {
-    ...data,
-    metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : (data.metadata as Record<string, any>) || {}
-  };
 };
 
 /**
