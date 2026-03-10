@@ -18,24 +18,28 @@ export type SyncStatus = 'success' | 'failed' | 'in_progress' | 'pending';
  * Get sync state for a specific sync type
  */
 export const getSyncState = async (syncType: string): Promise<SyncState | null> => {
-  const { data, error } = await supabase
-    .from('sync_state')
-    .select('*')
-    .eq('sync_type', syncType)
-    .maybeSingle();
+  try {
+    const { data, error } = await supabase
+      .from('sync_state')
+      .select('*')
+      .eq('sync_type', syncType)
+      .maybeSingle();
+      
+    if (error) {
+      console.warn(`Could not fetch sync state for ${syncType}, continuing without it:`, error.message);
+      return null;
+    }
     
-  if (error) {
-    console.error(`Error fetching sync state for ${syncType}:`, error);
-    throw error;
+    if (!data) return null;
+    
+    return {
+      ...data,
+      metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : (data.metadata as Record<string, any>) || {}
+    };
+  } catch (error) {
+    console.warn(`Sync state unavailable for ${syncType}, continuing without it`);
+    return null;
   }
-  
-  if (!data) return null;
-  
-  // Transform the metadata from Json to Record<string, any>
-  return {
-    ...data,
-    metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : (data.metadata as Record<string, any>) || {}
-  };
 };
 
 /**
