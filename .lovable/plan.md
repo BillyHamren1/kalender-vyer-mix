@@ -1,31 +1,28 @@
 
 
-## Problem
+## Plan: Redirect `/` till `/scanner` (bara på mobil/Capacitor)
 
-Every time you open the staff planning view, it calls the external staff API (`fetch_staff_for_planning` Edge Function). This is unnecessary because:
+### Approach
 
-- Staff data is already stored locally in `staff_members` table
-- `useUnifiedStaffOperations` already reads and caches from that local table
-- Staff rarely changes — syncing on every view is wasteful and slow
+Använd `Navigate` från react-router-dom med en enkel device-detect direkt i route-elementet. Capacitor-appen identifieras redan via `window.Capacitor` (samma pattern som i `src/main.tsx`).
 
-There are **three redundant external API callers**:
-1. **`StaffSyncManager`** — fires on every mount + date change
-2. **`StaffCurtain`** — fires every time the curtain opens (legacy, not even used anymore — replaced by `SimpleStaffCurtain`)
-3. **`staffImportService`** — manual import functions
+### Ändringar i `src/App.tsx`
 
-## Plan
+1. **Importera** `Navigate` från `react-router-dom` (rad 5)
+2. **Ändra rad 135** — rotvägen `/` — från att alltid visa `PlanningDashboard` till att kolla om appen körs i Capacitor:
 
-### 1. Remove `StaffSyncManager` usage
-This component calls the external API on every mount. Remove it from wherever it's rendered. Staff sync should only happen as part of the booking import flow (which already runs `fetch_staff_for_planning` in the Edge Function).
+```tsx
+<Route path="/" element={
+  <ProtectedRoute>
+    {typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()
+      ? <Navigate to="/scanner" replace />
+      : <MainSystemLayout><PlanningDashboard /></MainSystemLayout>
+    }
+  </ProtectedRoute>
+} />
+```
 
-### 2. Remove the old `StaffCurtain` component
-It's been replaced by `SimpleStaffCurtain` which correctly uses cached data from `useUnifiedStaffOperations`. The old component makes a redundant external API call.
+**Resultat:** Desktop-användare ser PlanningDashboard som vanligt. Capacitor-appen redirectas direkt till `/scanner`.
 
-### 3. Add a manual "Sync Staff" option
-Keep `staffImportService` for the rare case when a user explicitly wants to refresh staff from the external system (e.g., a button in settings or on the dashboard). No automatic calls.
-
-### Result
-- Opening staff planning: **instant** (reads from cached local data)
-- Staff sync: happens automatically during booking import, or manually on demand
-- No external API calls on every page navigation
+Totalt: 2 rader ändras i en fil.
 
