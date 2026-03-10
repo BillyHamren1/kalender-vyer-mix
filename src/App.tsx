@@ -136,7 +136,7 @@ const AppContent = () => {
                         <ProtectedRoute>
                           {typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()
                             ? <Navigate to="/scanner" replace />
-                            : <MainSystemLayout><PlanningDashboard /></MainSystemLayout>
+                            : <Navigate to="/projects" replace />
                           }
                         </ProtectedRoute>
                       } />
