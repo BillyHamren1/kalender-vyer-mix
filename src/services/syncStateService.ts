@@ -87,28 +87,32 @@ export const initializeSyncState = async (
   syncType: string,
   initialMode: SyncMode = 'full',
   initialStatus: SyncStatus = 'pending'
-): Promise<SyncState> => {
-  const { data, error } = await supabase
-    .from('sync_state')
-    .insert({
-      sync_type: syncType,
-      last_sync_mode: initialMode,
-      last_sync_status: initialStatus,
-      metadata: {}
-    })
-    .select()
-    .single();
+): Promise<SyncState | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('sync_state')
+      .insert({
+        sync_type: syncType,
+        last_sync_mode: initialMode,
+        last_sync_status: initialStatus,
+        metadata: {}
+      })
+      .select()
+      .single();
+      
+    if (error) {
+      console.warn(`Could not initialize sync state for ${syncType}:`, error.message);
+      return null;
+    }
     
-  if (error) {
-    console.error(`Error initializing sync state for ${syncType}:`, error);
-    throw error;
+    return {
+      ...data,
+      metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : (data.metadata as Record<string, any>) || {}
+    };
+  } catch (error) {
+    console.warn(`Sync state initialization failed for ${syncType}, continuing`);
+    return null;
   }
-  
-  // Transform the metadata from Json to Record<string, any>
-  return {
-    ...data,
-    metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : (data.metadata as Record<string, any>) || {}
-  };
 };
 
 /**
