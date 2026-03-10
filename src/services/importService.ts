@@ -154,6 +154,7 @@ export const importBookings = async (filters: ImportFilters = {}, silent: boolea
         body: { 
           ...enhancedFilters, 
           syncMode, 
+          organization_id: organizationId,
           handleStatusChanges: true,
           preventDuplicateEvents: true,
           useTimestampFiltering: !isHistoricalMode,
