@@ -177,15 +177,35 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   };
 
   // Handle mouse wheel for horizontal scrolling through carousel (circular)
+  // Use accumulated delta + cooldown to prevent rapid-fire day changes from trackpad inertia
+  const wheelAccumRef = useRef(0);
+  const wheelCooldownRef = useRef(false);
+
   const handleWheel = useCallback((e: WheelEvent) => {
     // Only handle horizontal-like scrolling (shift+wheel or trackpad horizontal)
     if (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey) {
       e.preventDefault();
+
+      if (wheelCooldownRef.current) return;
+
       const delta = e.deltaX !== 0 ? e.deltaX : e.deltaY;
-      if (delta > 0) {
-        setCenterIndex(prev => prev === days.length - 1 ? 0 : prev + 1);
-      } else {
-        setCenterIndex(prev => prev === 0 ? days.length - 1 : prev - 1);
+      wheelAccumRef.current += delta;
+
+      const threshold = 50; // pixels of accumulated scroll before changing day
+      if (Math.abs(wheelAccumRef.current) >= threshold) {
+        const direction = wheelAccumRef.current > 0 ? 1 : -1;
+        wheelAccumRef.current = 0;
+        wheelCooldownRef.current = true;
+
+        setCenterIndex(prev => {
+          const next = prev + direction;
+          if (next < 0) return days.length - 1;
+          if (next >= days.length) return 0;
+          return next;
+        });
+
+        // Cooldown prevents rapid firing from trackpad inertia
+        setTimeout(() => { wheelCooldownRef.current = false; }, 300);
       }
     }
   }, [days.length]);
