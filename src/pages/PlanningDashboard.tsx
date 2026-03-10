@@ -135,9 +135,9 @@ const PlanningDashboard = () => {
         )}
       </div>
 
-      {/* Alla bokningar */}
+      {/* Alla projekt */}
       <div className="mb-6">
-        <DashboardAllBookings />
+        <DashboardAllProjects />
       </div>
 
       {/* Dialogs */}
