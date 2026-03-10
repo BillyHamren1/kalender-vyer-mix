@@ -21,7 +21,6 @@ interface NavItem {
 
 
 const navigationItems: NavItem[] = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Personalplanering", url: "/calendar", icon: Calendar },
   {
     title: "Projekt",
