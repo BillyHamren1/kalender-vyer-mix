@@ -85,20 +85,19 @@ export const importBookings = async (filters: ImportFilters = {}, silent: boolea
       console.log(`Using recommended sync mode: ${syncMode}`);
     }
     
-    // Update sync state to "in_progress"
-    try {
-      await updateSyncState(syncType, {
-        last_sync_status: 'in_progress',
-        metadata: { 
-          started_at: new Date().toISOString(),
-          sync_mode: syncMode,
-          filters,
-          historical_mode: isHistoricalMode
-        }
-      });
-    } catch (error) {
-      console.log('Initializing sync state for first time');
-      await initializeSyncState(syncType, syncMode, 'in_progress');
+    // Update sync state to "in_progress" (non-blocking - sync state is optional)
+    const stateResult = await updateSyncState(syncType, {
+      last_sync_status: 'in_progress',
+      metadata: { 
+        started_at: new Date().toISOString(),
+        sync_mode: syncMode,
+        filters,
+        historical_mode: isHistoricalMode
+      }
+    });
+    if (!stateResult) {
+      // Try to initialize if update found no rows
+      await initializeSyncState(syncType, syncMode!, 'in_progress');
     }
     
     // Adjust filters for incremental sync (but not for historical mode)
