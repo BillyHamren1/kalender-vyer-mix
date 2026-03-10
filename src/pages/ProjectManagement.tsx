@@ -87,6 +87,10 @@ const ProjectManagement = () => {
           />
         </div>
 
+        <div className="mb-6">
+          <ProjectDashboardWidgets />
+        </div>
+
         {/* Search, Status Filter & Type Filter */}
         <div className="flex flex-wrap gap-3 mb-4 items-center">
           <div className="relative flex-1 min-w-[200px] max-w-md">
