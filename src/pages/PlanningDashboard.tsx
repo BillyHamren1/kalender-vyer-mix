@@ -31,6 +31,7 @@ const PlanningDashboard = () => {
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
 
+  const { events, isLoading, refetchAll } = useDashboardEvents(viewMode, currentDate, activeCategories);
   const { isImporting, triggerImport } = useCalendarImport();
 
 
