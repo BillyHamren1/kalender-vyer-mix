@@ -1,27 +1,28 @@
 
 
-## Problem
+## Plan: Redirect `/` till `/scanner` (bara på mobil/Capacitor)
 
-When scrolling horizontally in the calendar's weekly view, the browser interprets overscroll as a "back" navigation gesture. This is because the scrollable container (`.weekly-horizontal-grid`) lacks `overscroll-behavior-x: contain`, so when you reach the scroll boundary, the gesture "leaks" to the browser's native back/forward navigation.
+### Approach
 
-## Fix
+Använd `Navigate` från react-router-dom med en enkel device-detect direkt i route-elementet. Capacitor-appen identifieras redan via `window.Capacitor` (samma pattern som i `src/main.tsx`).
 
-Add `overscroll-behavior-x: contain` to the horizontally scrollable containers in `src/components/Calendar/Carousel3DStyles.css`. This CSS property tells the browser to keep scroll chaining contained within the element, preventing the back-navigation gesture.
+### Ändringar i `src/App.tsx`
 
-### File: `src/components/Calendar/Carousel3DStyles.css`
+1. **Importera** `Navigate` från `react-router-dom` (rad 5)
+2. **Ändra rad 135** — rotvägen `/` — från att alltid visa `PlanningDashboard` till att kolla om appen körs i Capacitor:
 
-Add to `.weekly-horizontal-grid`:
-```css
-overscroll-behavior-x: contain;
+```tsx
+<Route path="/" element={
+  <ProtectedRoute>
+    {typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()
+      ? <Navigate to="/scanner" replace />
+      : <MainSystemLayout><PlanningDashboard /></MainSystemLayout>
+    }
+  </ProtectedRoute>
+} />
 ```
 
-Also add `touch-action: pan-x pan-y` to ensure touch gestures are handled correctly and don't trigger browser navigation.
+**Resultat:** Desktop-användare ser PlanningDashboard som vanligt. Capacitor-appen redirectas direkt till `/scanner`.
 
-### File: `src/components/Calendar/CustomCalendar.tsx`
-
-The `handleWheel` listener (line 180-200) currently only attaches when `viewMode === 'weekly'`, but the weekly grid renders for both `weekly` and `monthly` modes (`isWeeklyMode`). This means in monthly mode, the wheel handler isn't active but the scroll container still exists — leading to uncontrolled scroll that can trigger back navigation. Fix the condition to use `isWeeklyMode` logic.
-
-### Summary of changes
-- **Carousel3DStyles.css**: Add `overscroll-behavior-x: contain` and `touch-action: pan-x pan-y` to `.weekly-horizontal-grid`
-- **CustomCalendar.tsx**: Fix wheel listener to attach for both weekly and monthly modes
+Totalt: 2 rader ändras i en fil.
 

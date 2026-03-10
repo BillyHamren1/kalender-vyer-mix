@@ -193,7 +193,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   // Attach wheel listener
   useEffect(() => {
     const container = containerRef.current;
-    if (container && viewMode === 'weekly') {
+    if (container && (viewMode === 'weekly' || viewMode === 'monthly')) {
       container.addEventListener('wheel', handleWheel, { passive: false });
       return () => container.removeEventListener('wheel', handleWheel);
     }
