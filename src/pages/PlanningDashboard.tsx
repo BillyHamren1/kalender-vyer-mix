@@ -31,8 +31,8 @@ const PlanningDashboard = () => {
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
 
-  const { events, isLoading, refetchAll } = useDashboardEvents(viewMode, currentDate, activeCategories);
-  
+  const { isImporting, triggerImport } = useCalendarImport();
+
 
   // Navigation handlers
   const goToPreviousWeek = () => setCurrentDate(prev => subWeeks(prev, 1));
