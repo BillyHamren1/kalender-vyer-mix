@@ -55,6 +55,21 @@ export const importBookings = async (filters: ImportFilters = {}, silent: boolea
   let syncMode: SyncMode;
   
   try {
+    // Resolve organization_id from user profile to ensure correct tenant isolation
+    let organizationId: string | undefined;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('organization_id')
+          .eq('user_id', user.id)
+          .single();
+        organizationId = profile?.organization_id ?? undefined;
+      }
+    } catch (e) {
+      console.warn('Could not resolve organization_id for import:', e);
+    }
     // Clean up duplicates before starting import (silently for background operations)
     console.log('Cleaning up existing duplicates before import...');
     await cleanupDuplicateCalendarEvents(true);
