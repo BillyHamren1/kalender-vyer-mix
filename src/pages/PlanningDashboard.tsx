@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { format, startOfWeek, addWeeks, subWeeks, addDays, subDays, addMonths, subMonths } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useQueryClient } from "@tanstack/react-query";
+import { useCalendarImport } from "@/hooks/useCalendarImport";
 
 import { useDashboardEvents, EventCategory, DashboardViewMode } from "@/hooks/useDashboardEvents";
 import DashboardWeekView from "@/components/dashboard/DashboardWeekView";
@@ -31,7 +32,8 @@ const PlanningDashboard = () => {
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
 
   const { events, isLoading, refetchAll } = useDashboardEvents(viewMode, currentDate, activeCategories);
-  
+  const { isImporting, triggerImport } = useCalendarImport();
+
 
   // Navigation handlers
   const goToPreviousWeek = () => setCurrentDate(prev => subWeeks(prev, 1));
@@ -65,11 +67,14 @@ const PlanningDashboard = () => {
         <Button 
           variant="outline" 
           size="sm"
-          onClick={() => { refetchAll(); }}
-          disabled={isLoading}
+          onClick={async () => { 
+            await triggerImport(); 
+            refetchAll(); 
+          }}
+          disabled={isImporting || isLoading}
           className="rounded-xl"
         >
-          <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-4 h-4 mr-2 ${isImporting || isLoading ? 'animate-spin' : ''}`} />
           Uppdatera
         </Button>
       </PageHeader>
