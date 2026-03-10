@@ -1,24 +1,28 @@
 
 
-## Plan: Fix dashboard refresh after import
+## Plan: Redirect `/` till `/scanner` (bara på mobil/Capacitor)
 
-### Problem
-The import Edge Function IS running correctly — data exists in the database. The issue is that after clicking "Uppdatera", the **"New Bookings" section** doesn't refresh because its React Query key (`bookings-without-project`) is never invalidated. Only calendar event queries are refetched via `refetchAll()`.
+### Approach
 
-### Changes — `src/pages/PlanningDashboard.tsx`
+Använd `Navigate` från react-router-dom med en enkel device-detect direkt i route-elementet. Capacitor-appen identifieras redan via `window.Capacitor` (samma pattern som i `src/main.tsx`).
 
-Add `queryClient.invalidateQueries` for bookings-related queries after import + refetch:
+### Ändringar i `src/App.tsx`
 
-```typescript
-onClick={async () => { 
-  await triggerImport(); 
-  refetchAll();
-  queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
-  queryClient.invalidateQueries({ queryKey: ['bookings'] });
-  queryClient.invalidateQueries({ queryKey: ['all-bookings'] });
-  queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-}}
+1. **Importera** `Navigate` från `react-router-dom` (rad 5)
+2. **Ändra rad 135** — rotvägen `/` — från att alltid visa `PlanningDashboard` till att kolla om appen körs i Capacitor:
+
+```tsx
+<Route path="/" element={
+  <ProtectedRoute>
+    {typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()
+      ? <Navigate to="/scanner" replace />
+      : <MainSystemLayout><PlanningDashboard /></MainSystemLayout>
+    }
+  </ProtectedRoute>
+} />
 ```
 
-One file, one change. The `queryClient` is already imported and available in the component.
+**Resultat:** Desktop-användare ser PlanningDashboard som vanligt. Capacitor-appen redirectas direkt till `/scanner`.
+
+Totalt: 2 rader ändras i en fil.
 

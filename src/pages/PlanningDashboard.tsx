@@ -69,7 +69,11 @@ const PlanningDashboard = () => {
           size="sm"
           onClick={async () => { 
             await triggerImport(); 
-            refetchAll(); 
+            refetchAll();
+            queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+            queryClient.invalidateQueries({ queryKey: ['bookings'] });
+            queryClient.invalidateQueries({ queryKey: ['all-bookings'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
           }}
           disabled={isImporting || isLoading}
           className="rounded-xl"
