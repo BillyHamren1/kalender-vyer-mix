@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { format, startOfWeek, addWeeks, subWeeks, addDays, subDays, addMonths, subMonths } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useQueryClient } from "@tanstack/react-query";
+import { useCalendarImport } from "@/hooks/useCalendarImport";
 
 import { useDashboardEvents, EventCategory, DashboardViewMode } from "@/hooks/useDashboardEvents";
 import DashboardWeekView from "@/components/dashboard/DashboardWeekView";
