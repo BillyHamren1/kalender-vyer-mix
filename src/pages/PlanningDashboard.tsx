@@ -13,7 +13,7 @@ import DashboardWeekView from "@/components/dashboard/DashboardWeekView";
 import DashboardDayView from "@/components/dashboard/DashboardDayView";
 import DashboardMonthView from "@/components/dashboard/DashboardMonthView";
 import DashboardNewBookings from "@/components/dashboard/DashboardNewBookings";
-import DashboardAllBookings from "@/components/dashboard/DashboardAllBookings";
+import DashboardAllProjects from "@/components/dashboard/DashboardAllProjects";
 
 import CreateProjectWizard from "@/components/project/CreateProjectWizard";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
