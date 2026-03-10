@@ -348,7 +348,7 @@
   min-width: 400px;
   max-width: 600px;
   height: 100%;
-  scroll-snap-align: start;
+  
 }
 
 .weekly-day-card .day-card {
