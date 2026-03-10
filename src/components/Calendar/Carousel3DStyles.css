@@ -314,8 +314,6 @@
   overflow-y: hidden;
   padding: 8px 16px 16px;
   height: 100%;
-  scroll-snap-type: x mandatory;
-  scroll-behavior: smooth;
   overscroll-behavior-x: contain;
   touch-action: pan-x pan-y;
   background: linear-gradient(
