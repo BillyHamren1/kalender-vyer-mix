@@ -1435,17 +1435,17 @@ serve(async (req) => {
 
         console.log(`Processing booking ${bookingData.id} with status: ${bookingData.status} and project: ${bookingData.assigned_project_name || 'No project'}${isHistoricalImport ? ' (HISTORICAL)' : ''}`)
 
+        // Declare recovery flags at booking-level scope so they're accessible later
+        let needsCalendarRecovery = false;
+        let needsWarehouseRecovery = false;
+        let needsProductRecovery = false;
+
         if (existingBooking) {
           // EXISTING BOOKING - UPDATE ONLY IF ACTUALLY DIFFERENT
           console.log(`Found existing booking ${existingBooking.id}, checking for changes...`)
           
           const hasChanged = hasBookingChanged(bookingData, existingBooking);
           const statusChanged = existingBooking.status !== bookingData.status;
-          
-          // Check if this CONFIRMED booking is missing calendar events (recovery scenario)
-          let needsCalendarRecovery = false;
-          let needsWarehouseRecovery = false;
-          let needsProductRecovery = false;
           
           if (bookingData.status === 'CONFIRMED') {
             const { data: existingCalEvents, error: calCheckError } = await supabase
