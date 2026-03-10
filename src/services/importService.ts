@@ -55,6 +55,21 @@ export const importBookings = async (filters: ImportFilters = {}, silent: boolea
   let syncMode: SyncMode;
   
   try {
+    // Resolve organization_id from user profile to ensure correct tenant isolation
+    let organizationId: string | undefined;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('organization_id')
+          .eq('user_id', user.id)
+          .single();
+        organizationId = profile?.organization_id ?? undefined;
+      }
+    } catch (e) {
+      console.warn('Could not resolve organization_id for import:', e);
+    }
     // Clean up duplicates before starting import (silently for background operations)
     console.log('Cleaning up existing duplicates before import...');
     await cleanupDuplicateCalendarEvents(true);
@@ -139,6 +154,7 @@ export const importBookings = async (filters: ImportFilters = {}, silent: boolea
         body: { 
           ...enhancedFilters, 
           syncMode, 
+          organization_id: organizationId,
           handleStatusChanges: true,
           preventDuplicateEvents: true,
           useTimestampFiltering: !isHistoricalMode,
@@ -305,6 +321,22 @@ export const forceHistoricalSync = async (filters: Omit<ImportFilters, 'syncMode
  */
 export const quietImportBookings = async (filters: ImportFilters = {}): Promise<ImportResults> => {
   try {
+    // Resolve organization_id from user profile
+    let organizationId: string | undefined;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('organization_id')
+          .eq('user_id', user.id)
+          .single();
+        organizationId = profile?.organization_id ?? undefined;
+      }
+    } catch (e) {
+      console.warn('Could not resolve organization_id for quiet import:', e);
+    }
+
     // Determine sync mode intelligently
     const syncMode = filters.syncMode || await getRecommendedSyncMode('booking_import');
     
@@ -313,7 +345,7 @@ export const quietImportBookings = async (filters: ImportFilters = {}): Promise<
       'import-bookings',
       {
         method: 'POST',
-        body: { ...filters, quiet: true, syncMode }
+        body: { ...filters, quiet: true, syncMode, organization_id: organizationId }
       }
     );
 
