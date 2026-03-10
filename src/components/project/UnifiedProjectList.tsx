@@ -36,9 +36,9 @@ const TYPE_LABELS: Record<UnifiedProject['type'], string> = {
 };
 
 const TYPE_BADGE_CLASSES: Record<UnifiedProject['type'], string> = {
-  small: 'bg-blue-100 text-blue-700 ring-1 ring-blue-200',
-  medium: 'bg-teal-100 text-teal-700 ring-1 ring-teal-200',
-  large: 'bg-purple-100 text-purple-700 ring-1 ring-purple-200',
+  small: 'bg-[hsl(var(--project-small))] text-[hsl(var(--project-small-foreground))] ring-1 ring-[hsl(var(--project-small-border))]',
+  medium: 'bg-[hsl(var(--project-medium))] text-[hsl(var(--project-medium-foreground))] ring-1 ring-[hsl(var(--project-medium-border))]',
+  large: 'bg-[hsl(var(--project-large))] text-[hsl(var(--project-large-foreground))] ring-1 ring-[hsl(var(--project-large-border))]',
 };
 
 const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProjectListProps) => {

@@ -119,9 +119,9 @@ const ProjectManagement = () => {
             className="bg-muted/40 rounded-lg p-0.5"
           >
             <ToggleGroupItem value="all" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-card data-[state=on]:shadow-sm">Alla</ToggleGroupItem>
-            <ToggleGroupItem value="small" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-blue-100 data-[state=on]:text-blue-700">Litet</ToggleGroupItem>
-            <ToggleGroupItem value="medium" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-teal-100 data-[state=on]:text-teal-700">Medel</ToggleGroupItem>
-            <ToggleGroupItem value="large" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-purple-100 data-[state=on]:text-purple-700">Stort</ToggleGroupItem>
+            <ToggleGroupItem value="small" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-[hsl(var(--project-small))] data-[state=on]:text-[hsl(var(--project-small-foreground))]">Litet</ToggleGroupItem>
+            <ToggleGroupItem value="medium" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-[hsl(var(--project-medium))] data-[state=on]:text-[hsl(var(--project-medium-foreground))]">Medel</ToggleGroupItem>
+            <ToggleGroupItem value="large" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-[hsl(var(--project-large))] data-[state=on]:text-[hsl(var(--project-large-foreground))]">Stort</ToggleGroupItem>
           </ToggleGroup>
         </div>
 

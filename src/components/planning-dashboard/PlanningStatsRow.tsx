@@ -14,29 +14,29 @@ const PlanningStatsRow = ({ stats, isLoading }: PlanningStatsRowProps) => {
       label: "Tillgängliga idag",
       value: stats?.availableToday ?? 0,
       icon: Users,
-      color: "text-green-600",
-      bgColor: "bg-green-100"
+      color: "text-primary",
+      bgColor: "bg-primary/10"
     },
     {
       label: "På plats nu",
       value: stats?.workingNow ?? 0,
       icon: MapPin,
-      color: "text-blue-600",
-      bgColor: "bg-blue-100"
+      color: "text-primary",
+      bgColor: "bg-primary/10"
     },
     {
       label: "Pågående projekt",
       value: stats?.ongoingProjects ?? 0,
       icon: FolderKanban,
-      color: "text-purple-600",
-      bgColor: "bg-purple-100"
+      color: "text-primary",
+      bgColor: "bg-primary/10"
     },
     {
       label: "Rapporterat idag",
       value: stats?.completedToday ?? 0,
       icon: CheckCircle2,
-      color: "text-amber-600",
-      bgColor: "bg-amber-100"
+      color: "text-muted-foreground",
+      bgColor: "bg-muted"
     },
     {
       label: "Kommande rigg (7d)",

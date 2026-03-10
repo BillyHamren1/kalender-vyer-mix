@@ -24,9 +24,9 @@ interface UnifiedItem {
 
 const TYPE_LABELS: Record<string, string> = { small: 'Litet', medium: 'Medel', large: 'Stort' };
 const TYPE_BADGE_CLASSES: Record<string, string> = {
-  small: 'bg-blue-100 text-blue-700 ring-1 ring-blue-200',
-  medium: 'bg-teal-100 text-teal-700 ring-1 ring-teal-200',
-  large: 'bg-purple-100 text-purple-700 ring-1 ring-purple-200',
+  small: 'bg-[hsl(var(--project-small))] text-[hsl(var(--project-small-foreground))] ring-1 ring-[hsl(var(--project-small-border))]',
+  medium: 'bg-[hsl(var(--project-medium))] text-[hsl(var(--project-medium-foreground))] ring-1 ring-[hsl(var(--project-medium-border))]',
+  large: 'bg-[hsl(var(--project-large))] text-[hsl(var(--project-large-foreground))] ring-1 ring-[hsl(var(--project-large-border))]',
 };
 
 const ProjectDashboardWidgets = () => {
@@ -86,9 +86,9 @@ const ProjectDashboardWidgets = () => {
 
   const statItems = [
     { label: 'Aktiva', value: activeCount, icon: FolderKanban, color: 'text-primary', bgColor: 'bg-primary/10' },
-    { label: 'Planering', value: planningCount, icon: Clock, color: 'text-amber-600', bgColor: 'bg-amber-100' },
-    { label: 'Pågående', value: inProgressCount, icon: CalendarClock, color: 'text-blue-600', bgColor: 'bg-blue-100' },
-    { label: 'Avslutade', value: completedCount, icon: CheckCircle2, color: 'text-green-600', bgColor: 'bg-green-100' },
+    { label: 'Planering', value: planningCount, icon: Clock, color: 'text-primary', bgColor: 'bg-primary/5' },
+    { label: 'Pågående', value: inProgressCount, icon: CalendarClock, color: 'text-primary', bgColor: 'bg-primary/10' },
+    { label: 'Avslutade', value: completedCount, icon: CheckCircle2, color: 'text-muted-foreground', bgColor: 'bg-muted' },
   ];
 
   if (isLoading) {
