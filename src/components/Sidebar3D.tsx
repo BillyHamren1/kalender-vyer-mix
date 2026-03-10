@@ -6,7 +6,7 @@ import { type LucideIcon,
   FolderKanban,
   ChevronDown,
   PieChart,
-  LayoutDashboard,
+  Truck,
   Truck,
    ChevronsLeft,
 } from "lucide-react";
