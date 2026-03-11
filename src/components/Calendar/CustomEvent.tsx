@@ -1,7 +1,8 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
-import { useEventEditController, createDialogHandlers } from '@/hooks/useEventEditController';
+import { createDialogHandlers } from '@/hooks/useEventEditController';
+import { useGlobalEditController } from '@/contexts/EditControllerContext';
 import EventHoverCard from './EventHoverCard';
 import QuickTimeEditPopover from './QuickTimeEditPopover';
 import MoveEventDateDialog from './MoveEventDateDialog';
@@ -29,8 +30,8 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   // Add event navigation hook for context menu
   const { handleEventClick } = useEventNavigation();
   
-  // EDIT CONTROLLER: Central mutex for edit flows (stabilization layer)
-  const editController = useEventEditController();
+  // EDIT CONTROLLER: Global mutex via context — shared across all events
+  const editController = useGlobalEditController();
   const quickTimeHandlers = createDialogHandlers(editController, 'quickTime');
   const moveDateHandlers = createDialogHandlers(editController, 'moveDate');
   

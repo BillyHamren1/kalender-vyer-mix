@@ -1,10 +1,12 @@
-import React, { useRef } from 'react';
+import React, { useRef, useMemo, useCallback } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import TimeGrid from './TimeGrid';
 import { useWeekDays } from '@/hooks/useWeekDays';
 import { useCarouselState } from '@/hooks/useCarouselState';
 import { useAvailableStaffWeek } from '@/hooks/useAvailableStaffWeek';
+import { useStableEvents } from '@/hooks/useMemoizedEvents';
+import { EditControllerProvider } from '@/contexts/EditControllerContext';
 import './Carousel3DStyles.css';
 
 interface CustomCalendarProps {
@@ -51,6 +53,9 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   const weekStartTime = currentDate.getTime();
   const days = useWeekDays(currentDate);
 
+  // STABILIZATION: Deduplicate and stabilize event array reference
+  const stableEvents = useStableEvents(events);
+
   const { getAvailableStaffForDay } = useAvailableStaffWeek(
     days, weekStartTime, resources, weeklyStaffOperations
   );
@@ -60,18 +65,31 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     getPositionFromCenter, navigateCarousel, handleDayCardClick
   } = useCarouselState(days, weekStartTime, containerRef, viewMode === 'day');
 
-  const getEventsForDayAndResource = (date: Date, resourceId: string): CalendarEvent[] => {
-    const dateStr = format(date, 'yyyy-MM-dd');
-    return events.filter(event => {
-      if (!event.start) return false;
+  // MEMOIZED: Pre-index events by "date|resourceId" key once per event change
+  const eventIndex = useMemo(() => {
+    const index = new Map<string, CalendarEvent[]>();
+    for (const event of stableEvents) {
+      if (!event.start) continue;
       const eventStart = new Date(event.start);
-      if (isNaN(eventStart.getTime())) return false;
-      return format(eventStart, 'yyyy-MM-dd') === dateStr && event.resourceId === resourceId;
-    });
-  };
+      if (isNaN(eventStart.getTime())) continue;
+      const dateStr = format(eventStart, 'yyyy-MM-dd');
+      const key = `${dateStr}|${event.resourceId}`;
+      const arr = index.get(key);
+      if (arr) {
+        arr.push(event);
+      } else {
+        index.set(key, [event]);
+      }
+    }
+    return index;
+  }, [stableEvents]);
+
+  const getEventsForDayAndResource = useCallback((date: Date, resourceId: string): CalendarEvent[] => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    return eventIndex.get(`${dateStr}|${resourceId}`) || [];
+  }, [eventIndex]);
 
   const handleEventResize = async () => {
-    await refreshEvents();
     await refreshEvents();
   };
 
@@ -96,7 +114,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     return {
       day: date,
       resources: filteredResources,
-      events,
+      events: stableEvents,
       getEventsForDayAndResource,
       onStaffDrop,
       onOpenStaffSelection,
@@ -125,66 +143,70 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   // Weekly/Monthly mode
   if (isWeeklyMode) {
     return (
-      <div className="custom-calendar-container weekly-view" ref={containerRef}>
-        <div className={`weekly-horizontal-grid ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
-          {days.map((date) => {
-            const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
-            return (
-              <div key={format(date, 'yyyy-MM-dd')} className={`weekly-day-card ${isToday ? 'is-today' : ''}`}>
-                <div className={`day-card bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
-                  <TimeGrid {...buildTimeGridProps(date, false)} />
+      <EditControllerProvider>
+        <div className="custom-calendar-container weekly-view" ref={containerRef}>
+          <div className={`weekly-horizontal-grid ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
+            {days.map((date) => {
+              const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+              return (
+                <div key={format(date, 'yyyy-MM-dd')} className={`weekly-day-card ${isToday ? 'is-today' : ''}`}>
+                  <div className={`day-card bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
+                    <TimeGrid {...buildTimeGridProps(date, false)} />
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+      </EditControllerProvider>
     );
   }
 
   // Day mode: 3D Carousel
   return (
-    <div className="custom-calendar-container" ref={containerRef}>
-      <div className={`carousel-3d-wrapper ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
-        <div className="carousel-3d-container">
-          {days.map((date, index) => {
-            const position = getPositionFromCenter(index);
-            const isCenter = position === 0;
-            const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
-            return (
-              <div
-                key={format(date, 'yyyy-MM-dd')}
-                className={`carousel-3d-card ${isCenter ? 'is-center' : ''} ${isToday ? 'is-today' : ''}`}
-                data-position={position}
-              >
-                {!isCenter && (
-                  <div
-                    className="absolute inset-0 z-50 cursor-pointer"
-                    onClick={(e) => { e.stopPropagation(); handleDayCardClick(index); }}
-                  />
-                )}
-                <div className={`day-card bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
-                  <TimeGrid {...buildTimeGridProps(date, true, isCenter)} />
+    <EditControllerProvider>
+      <div className="custom-calendar-container" ref={containerRef}>
+        <div className={`carousel-3d-wrapper ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
+          <div className="carousel-3d-container">
+            {days.map((date, index) => {
+              const position = getPositionFromCenter(index);
+              const isCenter = position === 0;
+              const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+              return (
+                <div
+                  key={format(date, 'yyyy-MM-dd')}
+                  className={`carousel-3d-card ${isCenter ? 'is-center' : ''} ${isToday ? 'is-today' : ''}`}
+                  data-position={position}
+                >
+                  {!isCenter && (
+                    <div
+                      className="absolute inset-0 z-50 cursor-pointer"
+                      onClick={(e) => { e.stopPropagation(); handleDayCardClick(index); }}
+                    />
+                  )}
+                  <div className={`day-card bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
+                    <TimeGrid {...buildTimeGridProps(date, true, isCenter)} />
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-        <div className="carousel-3d-indicators">
-          {days.map((date, index) => {
-            const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
-            return (
-              <button
-                key={format(date, 'yyyy-MM-dd')}
-                className={`carousel-3d-dot ${index === centerIndex ? 'active' : ''} ${isToday ? 'is-today' : ''}`}
-                onClick={() => setCenterIndex(index)}
-                aria-label={format(date, 'EEEE d MMMM')}
-              />
-            );
-          })}
+              );
+            })}
+          </div>
+          <div className="carousel-3d-indicators">
+            {days.map((date, index) => {
+              const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+              return (
+                <button
+                  key={format(date, 'yyyy-MM-dd')}
+                  className={`carousel-3d-dot ${index === centerIndex ? 'active' : ''} ${isToday ? 'is-today' : ''}`}
+                  onClick={() => setCenterIndex(index)}
+                  aria-label={format(date, 'EEEE d MMMM')}
+                />
+              );
+            })}
+          </div>
         </div>
       </div>
-    </div>
+    </EditControllerProvider>
   );
 };
 

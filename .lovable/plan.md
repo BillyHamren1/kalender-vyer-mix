@@ -1,144 +1,87 @@
 
+# Steg 4: Regression Test Layer ✅ Klart
 
-# Systemanalys: Planner — Nuläge, Problem & Luckor
+## Nya testfiler:
+- `src/utils/__tests__/dateUtils.test.ts` — 22 tester
+- `src/hooks/__tests__/useMemoizedEvents.test.ts` — 12 tester
 
-## Arkitekturöversikt
+## Utökade testfiler:
+- `plannerStore.test.tsx` — +4 tester (rapid view switching)
+- `useEventEditController.test.ts` — +4 tester (stress/edge cases)
+- `eventUtils.test.ts` — +5 tester (edge cases)
 
-```text
-┌─────────────────────────────────────────────────────────┐
-│  App.tsx                                                │
-│  ├── CalendarContext (legacy: lastViewedDate, lastPath) │
-│  ├── PlannerStoreProvider (ny: central state)           │
-│  └── LegacyStateBridge (syncar context → store)        │
-├─────────────────────────────────────────────────────────┤
-│  Pages                                                  │
-│  ├── CustomCalendarPage (lokal useState × 8)            │
-│  └── WarehouseCalendarPage (lokal useState × N)         │
-├─────────────────────────────────────────────────────────┤
-│  Hooks (datakällor)                                     │
-│  ├── useRealTimeCalendarEvents (events, realtime sub)   │
-│  ├── useWarehouseCalendarEvents                         │
-│  ├── useDashboardEvents                                 │
-│  ├── useUnifiedStaffOperations                          │
-│  └── useTeamResources                                   │
-├─────────────────────────────────────────────────────────┤
-│  Adapters / Store                                       │
-│  ├── plannerStore (useReducer, selector hooks)          │
-│  ├── planner-event-adapters (→ PlannerEvent)            │
-│  ├── usePlannerEvents (unified wrapper)                 │
-│  ├── useMemoizedEvents (dedup + ref stability)          │
-│  ├── useEventEditController (mutex)                     │
-│  └── eventEditHelpers (shared update logic)             │
-├─────────────────────────────────────────────────────────┤
-│  Components (rendering)                                 │
-│  ├── CustomCalendar → TimeGrid → CustomEvent            │
-│  ├── custom/CustomResourceTimeGrid → ResourceColumn     │
-│  └── EventHoverCard, QuickTimeEditPopover, etc.         │
-└─────────────────────────────────────────────────────────┘
+## Totalt: 159 tester i 7 filer, alla gröna.
+
+---
+
+# Steg 1: SAFE NOW ✅ Klart
+
+- ✅ `convertToISO8601` centraliserad till `src/utils/dateUtils.ts`
+- ✅ Debug-`console.log` borttagna från `CustomEvent.tsx` och `EventHoverCard.tsx`
+- ✅ `openDelay={300}` på `EventHoverCard`
+
+---
+
+# Steg 2: SAFE NEXT ✅ Klart
+
+## 2a. Tidszons-konsistens ✅ Klart
+**Åtgärd**: Lagt till `extractUTCTime`, `extractUTCDate`, `buildUTCDateTime` i `dateUtils.ts`. `EditEventTimeDialog` använder nu samma UTC-approach som `QuickTimeEditPopover`.
+**Filer**: `src/utils/dateUtils.ts`, `src/components/Calendar/EditEventTimeDialog.tsx`
+
+## 2b. MoveEventDateDialog data-synk ✅ Klart
+**Åtgärd**: `MoveEventDateDialog` uppdaterar nu både `calendar_events` och `bookings`-tabellen (datum + tider) via samma mönster som `QuickTimeEditPopover`. Använder UTC-helpers. Tidszons-bugg med `getHours()` fixad.
+**Filer**: `src/components/Calendar/MoveEventDateDialog.tsx`
+
+## 2c. Batch staff availability ✅ Klart
+**Åtgärd**: Ny `getAvailableStaffForDateRange` i `staffAvailabilityService.ts` gör 2 queries (staff + availability) istället för 2×N. `CustomCalendar` använder batch-funktionen. Console.log-spam borttagen från availability-logik.
+**Filer**: `src/services/staffAvailabilityService.ts`, `src/components/Calendar/CustomCalendar.tsx`
+
+---
+
+# Steg 3: LATER ✅ Klart (utom 3d)
+
+## 3a. Event deduplication guard ✅ Klart
+**Åtgärd**: Realtime INSERT-handler i `useRealTimeCalendarEvents` kollar nu både `id` OCH `booking_id + event_type` combo innan ett event läggs till. Förhindrar dubbletter vid snabb sync.
+**Filer**: `src/hooks/useRealTimeCalendarEvents.tsx`
+
+## 3b. Console.log-sanering (rendervägar) ✅ Klart
+**Åtgärd**: Borttagna icke-error `console.log` från `useRealTimeCalendarEvents`, `CustomCalendar`, `CalendarEventHandlers`, `useEventOperations`, `useResourceCalendarHandlers`. Kvar: `console.error` för faktiska fel.
+
+## 3c. Borttagning av oanvända komponenter ✅ Klart
+**Åtgärd**: `DayCalendar.tsx` och `useDayCalendarEvents.tsx` borttagna — inga importer fanns.
+
+## 3d. FullCalendar-migration ✅ Klart (parallellt spår)
+**Status**: Custom-ersättningar byggda i `src/components/Calendar/custom/`. Feature flag `use_custom_calendar` i localStorage styr vilken implementation som körs.
+
+### Nya filer:
+- `src/components/Calendar/custom/useCalendarGrid.tsx` — Tidsberäkning, slot-generering, event-positionering i pixlar
+- `src/components/Calendar/custom/TimeColumn.tsx` — Tidslots-kolumn (06:00–22:00)
+- `src/components/Calendar/custom/ResourceColumn.tsx` — En team-kolumn med events, använder befintlig `CustomEvent`
+- `src/components/Calendar/custom/CustomResourceTimeGrid.tsx` — Ersätter `ResourceCalendar` (resourceTimeGrid dagvy)
+- `src/components/Calendar/custom/MonthCell.tsx` — Dag-cell i månadsvy
+- `src/components/Calendar/custom/CustomMonthGrid.tsx` — Ersätter `IndividualStaffCalendar` (månadsvy)
+- `src/components/Calendar/ResourceCalendarSwitch.tsx` — Feature flag wrapper för resource-kalender
+- `src/components/Calendar/StaffCalendarSwitch.tsx` — Feature flag wrapper för personal-kalender
+
+### Inkopplade konsumenter:
+- `MonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
+- `TestMonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
+- `StaffMemberCalendar.tsx` → `StaffCalendarSwitch`
+
+### Aktivering:
+```js
+localStorage.setItem('use_custom_calendar', 'true'); // Aktivera custom-versionen
+localStorage.removeItem('use_custom_calendar');       // Tillbaka till FullCalendar
 ```
 
----
+## 3e. Refaktorera CustomCalendar ✅ Klart
+**Åtgärd**: CustomCalendar (400→185 rader) uppdelad i tre extraherade hooks:
+- `useWeekDays` — generering av 7-dagars array
+- `useCarouselState` — karusellnavigering, scroll-hantering, centrerad dag
+- `useAvailableStaffWeek` — batch-hämtning av tillgänglig personal + team-tilldelning
+Gemensam `buildTimeGridProps`-helper eliminerar duplicerad TimeGrid-konfiguration.
+**Filer**: `src/hooks/useWeekDays.tsx`, `src/hooks/useCarouselState.tsx`, `src/hooks/useAvailableStaffWeek.tsx`, `src/components/Calendar/CustomCalendar.tsx`
 
-## PROBLEM 1: PlannerStore skapades men används inte
-
-**Status:** Storen finns, selector-hooks finns, men **ingen komponent läser från den**. Bara `usePlannerSync()` skriver till den från 3 ställen (App.tsx, CustomCalendarPage, WarehouseCalendarPage). Storen är en "write-only" dead store.
-
-**Konsekvens:** Hela investeringen i centraliserad state ger inget värde ännu. Komponenter fortsätter läsa från lokala `useState`.
-
----
-
-## PROBLEM 2: useEventEditController — per-instans, inte global
-
-`useEventEditController()` anropas **inuti varje `CustomEvent`**. Varje event-instans har sin **egen** controller med eget state. Mutex:en skyddar alltså bara mot konflikter *inom samma event-komponent*, inte mellan olika events.
-
-**Konsekvens:** Om användaren klickar quick-edit på Event A och sedan på Event B, kan båda vara öppna samtidigt — exakt det scenariot controllern var tänkt att förhindra.
-
-**Fix:** Controllern måste lyftas till en gemensam nivå (Context eller PlannerStore) och konsumeras via context i CustomEvent.
-
----
-
-## PROBLEM 3: Dubblerad datahämtning
-
-`useRealTimeCalendarEvents` hämtar **alla** events globalt (`fetchCalendarEvents()` utan datumfilter), sedan gör en andra query för alla bookings. Den returnerar alla events till CustomCalendarPage som i sin tur filtrerar per dag/resurs i `getEventsForDayAndResource`.
-
-**Konsekvens:**
-- Ingen datumavgränsning — vid 1000+ events hämtas allt
-- Booking batch-query körs även om events inte ändrats
-- `refreshEvents` anropas två gånger i `handleEventResize` (rad 73-76 i CustomCalendar.tsx)
-
----
-
-## PROBLEM 4: console.log-spam i produktion
-
-`TimeGrid.tsx` rad 156-183 har **fyra** `console.log`-anrop i `getEventPosition()` — som körs **per event per render**. Med 100 events × 7 dagar = hundratals logs per frame.
-
----
-
-## PROBLEM 5: Trippel state-lager utan klar ägare
-
-Samma datum-/vy-state existerar i tre lager:
-1. `CalendarContext` (App.tsx) — `lastViewedDate`
-2. `PlannerStore` — `selectedDate`, `viewMode`
-3. Lokal `useState` i CustomCalendarPage — `currentWeekStart`, `viewMode`
-
-Data flödar: **lokal → store** (via sync) och **context → store** (via bridge), men ingen komponent läser från store. Det finns ingen garanti att alla tre är synkade vid race conditions.
-
----
-
-## PROBLEM 6: usePlannerEvents / planner-event-adapters — oanvända
-
-Adaptrarna (`fromCalendarEvent`, `fromWarehouseEvent`, etc.) och `usePlannerEvents` har tester men **importeras inte** av någon komponent utanför test-filer. `PlannerEvent`-typen finns men inget i renderträdet använder den.
-
----
-
-## PROBLEM 7: useMemoizedEvents — oanvänd
-
-`useStableEvents` och `useResourceDateEvents` skapades men **importeras inte** av någon komponent.
-
----
-
-## PROBLEM 8: eventEditHelpers — delvis oanvända
-
-`updateEventTime()` och `moveEventToDate()` finns som shared helpers men QuickTimeEditPopover och MoveEventDateDialog verkar fortfarande använda sin egna logik internt. Bara `validateTimeRange` och `validateDate` är testade.
-
----
-
-## PROBLEM 9: Brist i TimeGrid — O(n) filter per resurs per dag
-
-`getEventsForDayAndResource` i CustomCalendar.tsx (rad 63-71) gör `events.filter()` för **varje** resurs × dag-kombination. Med 7 dagar × 5 resurser × 200 events = 7000 iterationer per render, utan memoization.
-
----
-
-## PROBLEM 10: CustomEvent skapar nya hook-instanser per render
-
-Varje `CustomEvent` anropar:
-- `useEventNavigation()` — skapar ny instans
-- `useEventEditController()` — skapar ny instans (problem 2)
-
-Med 100 synliga events = 200 hook-instanser som alla skapar egna refs, callbacks, state.
-
----
-
-## Sammanfattning: Vad som bör åtgärdas
-
-| Prioritet | Problem | Svårighetsgrad |
-|-----------|---------|----------------|
-| **Kritisk** | EditController per-instans (ingen verklig mutex) | Medel — lyft till context |
-| **Hög** | PlannerStore write-only (ingen läser) | Medel — börja läsa från store |
-| **Hög** | console.log-spam i TimeGrid | Trivial — ta bort |
-| **Hög** | getEventsForDayAndResource utan memo | Låg — memoize med useMemo |
-| **Medel** | Oanvända abstraktioner (adapters, memoized hooks) | Koppla in eller ta bort |
-| **Medel** | Dubbel refreshEvents i handleEventResize | Trivial |
-| **Låg** | Trippel date-state utan tydlig ägare | Kräver migrationsstrategi |
-| **Låg** | Obegränsad datahämtning (alla events) | Kräver backend/query-ändring |
-
----
-
-## Vad som FUNGERAR bra
-
-- **Dedup-guard** i realtime-synken (rad 150-156) — skyddar mot INSERT-dubbletter
-- **dateUtils.ts** — solid, centraliserad UTC-hantering
-- **Testlagret** — 159 tester täcker adapters, store, utils, controller
-- **React.memo** på CustomEvent, EventHoverCard, ResourceColumn
-- **Batch booking-query** istället för N+1
-
+## 3f. Optimistic updates drag & drop ✅ Klart
+**Åtgärd**: FullCalendar hanterar redan optimistic UI nativt (DOM uppdateras direkt vid drag). `useEventOperations` har rensats till att enbart: (1) persist:a ändringen till DB, (2) visa toast, (3) revert:a via `info.revert()` vid fel. Alla redundanta `console.log` borttagna. `CalendarEventHandlers` förenklad — passthrough utan loggning.
+**Filer**: `src/hooks/useEventOperations.tsx`, `src/components/Calendar/CalendarEventHandlers.tsx`, `src/hooks/useResourceCalendarHandlers.tsx`

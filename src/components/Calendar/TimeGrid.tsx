@@ -153,25 +153,13 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     const startTime = new Date(event.start);
     const endTime = new Date(event.end);
     
-    console.log('🔍 Event Duration Debug:', {
-      eventId: event.id,
-      bookingNumber: event.booking_number,
-      rawStart: event.start,
-      rawEnd: event.end,
-      parsedStart: startTime.toISOString(),
-      parsedEnd: endTime.toISOString()
-    });
-    
     // CRITICAL: Use UTC hours, not local hours!
     let startHour = startTime.getUTCHours() + startTime.getUTCMinutes() / 60;
     let endHour = endTime.getUTCHours() + endTime.getUTCMinutes() / 60;
     
-    console.log('🔍 Calculated hours (UTC):', { startHour, endHour, duration: endHour - startHour });
-    
     // Handle events that span into next day (convert to 24+ hour format)
     if (endHour < startHour) {
       endHour += 24;
-      console.log('🔍 Event spans midnight, adjusted endHour:', endHour);
     }
     
     // Calculate position in pixels (25px per hour)
@@ -180,22 +168,16 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     
     const height = Math.max(12, (endHour - startHour) * 25);
     
-    console.log('🔍 Final position:', { top, height, duration: endHour - startHour });
-    
     return { top, height };
   };
 
   // Handle event click - format event data for navigation hook OR use custom handler
   const handleBookingEventClick = (event: CalendarEvent) => {
-    console.log('TimeGrid: Event clicked:', event);
-    
-    // If a custom onEventClick handler is provided, use that instead
     if (onEventClick) {
       onEventClick(event);
       return;
     }
     
-    // Otherwise, use the default navigation behavior
     const formattedEventInfo = {
       event: {
         id: event.id,
@@ -208,7 +190,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
       }
     };
     
-    console.log('TimeGrid: Formatted event for navigation:', formattedEventInfo);
     handleEventClick(formattedEventInfo);
   };
 
@@ -220,7 +201,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   };
 
   const handleStaffSelectionClick = (resourceId: string, resourceTitle: string, event: React.MouseEvent<HTMLButtonElement>) => {
-    console.log('TimeGrid: Opening staff selection for', { resourceId, resourceTitle, day });
     if (onOpenStaffSelection) {
       onOpenStaffSelection(resourceId, resourceTitle, day, event.currentTarget);
     }
