@@ -72,7 +72,6 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
 
   const handleEventResize = async () => {
     await refreshEvents();
-    await refreshEvents();
   };
 
   const getFilteredResourcesForDay = (date: Date): Resource[] => {

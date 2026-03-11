@@ -1,7 +1,8 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
-import { useEventEditController, createDialogHandlers } from '@/hooks/useEventEditController';
+import { createDialogHandlers } from '@/hooks/useEventEditController';
+import { useGlobalEditController } from '@/contexts/EditControllerContext';
 import EventHoverCard from './EventHoverCard';
 import QuickTimeEditPopover from './QuickTimeEditPopover';
 import MoveEventDateDialog from './MoveEventDateDialog';
