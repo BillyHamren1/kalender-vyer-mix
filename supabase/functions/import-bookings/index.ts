@@ -2320,7 +2320,7 @@ serve(async (req) => {
           // ─────────────────────────────────────────────────────────────────────
           
           // EXPAND package_components JSONB into individual rows (shared function)
-          const mainExpanded = await expandPackageComponents(supabase, bookingData.id);
+          const mainExpanded = await expandPackageComponents(supabase, bookingData.id, organizationId);
           if (mainExpanded > 0) {
             results.products_imported += mainExpanded;
             console.log(`[Main Flow] Expanded ${mainExpanded} package components for booking ${bookingData.id}`);
