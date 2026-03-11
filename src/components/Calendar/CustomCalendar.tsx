@@ -1,10 +1,12 @@
-import React, { useRef } from 'react';
+import React, { useRef, useMemo, useCallback } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import TimeGrid from './TimeGrid';
 import { useWeekDays } from '@/hooks/useWeekDays';
 import { useCarouselState } from '@/hooks/useCarouselState';
 import { useAvailableStaffWeek } from '@/hooks/useAvailableStaffWeek';
+import { useStableEvents } from '@/hooks/useMemoizedEvents';
+import { EditControllerProvider } from '@/contexts/EditControllerContext';
 import './Carousel3DStyles.css';
 
 interface CustomCalendarProps {
