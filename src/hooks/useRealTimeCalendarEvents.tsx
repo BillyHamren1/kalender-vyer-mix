@@ -246,7 +246,7 @@ export const useRealTimeCalendarEvents = () => {
           toast.success('Booking dates updated in calendar');
         }
       } else if (eventType === 'INSERT' && newRecord?.status === 'CONFIRMED') {
-        console.log(`New confirmed booking ${newRecord.id} created, syncing to calendar...`);
+        
         await smartUpdateBookingCalendar(newRecord.id, {}, newRecord);
         toast.success('New confirmed booking added to calendar');
       } else if (eventType === 'DELETE' && oldRecord?.status === 'CONFIRMED') {
