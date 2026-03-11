@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { usePlannerSync } from '@/stores/plannerStore';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
