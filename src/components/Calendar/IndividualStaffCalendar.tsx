@@ -76,9 +76,6 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
       };
     });
 
-  console.log('Formatted booking events for calendar:', formattedEvents);
-  console.log('Staff resources:', staffResources);
-  console.log('Current date prop:', format(currentDate, 'yyyy-MM-dd'));
 
   return (
     <div className="staff-calendar-container relative bg-white rounded-lg border border-gray-200 overflow-hidden">
