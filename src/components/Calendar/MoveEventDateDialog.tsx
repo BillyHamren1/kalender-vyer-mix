@@ -4,9 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
-import { format, setHours, setMinutes, setSeconds, setMilliseconds } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
+import { format } from 'date-fns';
 import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { extractUTCTime, extractUTCDate, buildUTCDateTime } from '@/utils/dateUtils';
 
 interface MoveEventDateDialogProps {
   open: boolean;
@@ -48,27 +50,42 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
     setIsSubmitting(true);
 
     try {
-      const eventStart = typeof event.start === 'string' ? new Date(event.start) : event.start;
-      const eventEnd = typeof event.end === 'string' ? new Date(event.end) : event.end;
-      
-      // Calculate duration
-      const duration = eventEnd.getTime() - eventStart.getTime();
+      // Extract original times in UTC to preserve them
+      const startTimeStr = extractUTCTime(event.start);
+      const endTimeStr = extractUTCTime(event.end);
 
-      // Create new start date with selected date but keeping original time
-      let newStart = new Date(selectedDate);
-      newStart = setHours(newStart, eventStart.getHours());
-      newStart = setMinutes(newStart, eventStart.getMinutes());
-      newStart = setSeconds(newStart, 0);
-      newStart = setMilliseconds(newStart, 0);
+      // Build new date string from selected calendar date (YYYY-MM-DD)
+      const newDateStr = format(selectedDate, 'yyyy-MM-dd');
 
-      // Create new end date by adding duration
-      const newEnd = new Date(newStart.getTime() + duration);
+      // Build new UTC ISO strings preserving original times
+      const newStartISO = buildUTCDateTime(newDateStr, startTimeStr);
+      const newEndISO = buildUTCDateTime(newDateStr, endTimeStr);
 
-      // Update event in database
+      // Update calendar event in database
       await updateCalendarEvent(event.id, {
-        start: newStart.toISOString(),
-        end: newEnd.toISOString()
+        start: newStartISO,
+        end: newEndISO
       });
+
+      // CRITICAL: Also update the booking date/time fields to keep data in sync
+      if (event.bookingId && event.eventType) {
+        const bookingFields = {
+          'rig': { date: 'rigdaydate', start: 'rig_start_time', end: 'rig_end_time' },
+          'event': { date: 'eventdate', start: 'event_start_time', end: 'event_end_time' },
+          'rigDown': { date: 'rigdowndate', start: 'rigdown_start_time', end: 'rigdown_end_time' }
+        }[event.eventType];
+
+        if (bookingFields) {
+          await supabase
+            .from('bookings')
+            .update({
+              [bookingFields.date]: newDateStr,
+              [bookingFields.start]: newStartISO,
+              [bookingFields.end]: newEndISO
+            })
+            .eq('id', event.bookingId);
+        }
+      }
 
       toast.success('Event moved', {
         description: `${event.title} moved to ${format(selectedDate, 'MMM d, yyyy')}`
@@ -110,7 +127,7 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
               Current date: {format(typeof event.start === 'string' ? new Date(event.start) : event.start, 'MMM d, yyyy')}
             </div>
             <div className="text-xs text-muted-foreground">
-              Time: {format(typeof event.start === 'string' ? new Date(event.start) : event.start, 'HH:mm')} - {format(typeof event.end === 'string' ? new Date(event.end) : event.end, 'HH:mm')}
+              Time: {extractUTCTime(event.start)} - {extractUTCTime(event.end)}
             </div>
           </div>
 
