@@ -41,6 +41,9 @@ const CalendarHeader = ({
   onCategoriesChange,
 }: CalendarHeaderProps) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [useCustomCalendar, setUseCustomCalendar] = useState(() =>
+    typeof window !== 'undefined' && localStorage.getItem('use_custom_calendar') === 'true'
+  );
   const dropdownRef = useRef<HTMLDivElement>(null);
   const allActive = activeCategories.length === 3;
 
