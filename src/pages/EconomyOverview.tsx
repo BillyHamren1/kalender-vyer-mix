@@ -446,11 +446,6 @@ const EconomyOverview: React.FC = () => {
             <StaffEconomyView />
           </TabsContent>
 
-          <TabsContent value="staff-revenue">
-            <React.Suspense fallback={<Skeleton className="h-96" />}>
-              <StaffRevenueContent />
-            </React.Suspense>
-          </TabsContent>
 
           <TabsContent value="time-reports">
             <React.Suspense fallback={<Skeleton className="h-96" />}>
