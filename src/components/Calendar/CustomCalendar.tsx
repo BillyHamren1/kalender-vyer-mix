@@ -3,7 +3,7 @@ import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import TimeGrid from './TimeGrid';
 import { useQuery } from '@tanstack/react-query';
-import { getAvailableStaffForDate } from '@/services/staffAvailabilityService';
+import { getAvailableStaffForDateRange } from '@/services/staffAvailabilityService';
 import { supabase } from '@/integrations/supabase/client';
 import './Carousel3DStyles.css';
 
