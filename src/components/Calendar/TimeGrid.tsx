@@ -201,7 +201,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   };
 
   const handleStaffSelectionClick = (resourceId: string, resourceTitle: string, event: React.MouseEvent<HTMLButtonElement>) => {
-    console.log('TimeGrid: Opening staff selection for', { resourceId, resourceTitle, day });
     if (onOpenStaffSelection) {
       onOpenStaffSelection(resourceId, resourceTitle, day, event.currentTarget);
     }
