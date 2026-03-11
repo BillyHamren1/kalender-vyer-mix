@@ -40,7 +40,6 @@ const EditEventTimeDialog: React.FC<EditEventTimeDialogProps> = ({
 
   const handleSave = async () => {
     const eventStart = typeof event.start === 'string' ? new Date(event.start) : event.start;
-    const eventEnd = typeof event.end === 'string' ? new Date(event.end) : event.end;
     
     // Validate times
     const startDate = parse(startTime, 'HH:mm', eventStart);
@@ -56,20 +55,10 @@ const EditEventTimeDialog: React.FC<EditEventTimeDialogProps> = ({
     setIsSubmitting(true);
 
     try {
-      // Create new dates with updated times
-      const newStart = new Date(typeof event.start === 'string' ? event.start : event.start);
-      const [startHours, startMinutes] = startTime.split(':').map(Number);
-      newStart.setHours(startHours, startMinutes, 0, 0);
-
-      const newEnd = new Date(typeof event.end === 'string' ? event.end : event.end);
-      const [endHours, endMinutes] = endTime.split(':').map(Number);
-      newEnd.setHours(endHours, endMinutes, 0, 0);
-
-      // Update event in database
-      await updateCalendarEvent(event.id, {
-        start: newStart.toISOString(),
-        end: newEnd.toISOString()
-      });
+      // Use UTC date extraction to stay consistent with QuickTimeEditPopover
+      const datePart = extractUTCDate(event.start);
+      const newStartISO = buildUTCDateTime(datePart, startTime);
+      const newEndISO = buildUTCDateTime(datePart, endTime);
 
       toast.success('Event time updated', {
         description: `${event.title} has been rescheduled`
