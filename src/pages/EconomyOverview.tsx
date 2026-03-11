@@ -38,7 +38,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
-const StaffRevenueContent = React.lazy(() => import('@/pages/StaffRevenueOverview'));
+
 const EconomyTimeReportsContent = React.lazy(() => import('@/pages/EconomyTimeReports'));
 
 type TimePeriod = 'day' | 'week' | 'month';
