@@ -5,7 +5,7 @@ import { ProjectStaffTab } from "@/components/project/ProjectStaffTab";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 
 const tabTriggerClass =
-  "relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground";
+  "relative px-5 py-3.5 rounded-none border-b-[3px] border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-foreground/60 data-[state=active]:text-primary text-base font-semibold transition-colors hover:text-foreground";
 
 const ProjectEconomyPage = () => {
   const { projectId } = useParams<{ projectId: string }>();
