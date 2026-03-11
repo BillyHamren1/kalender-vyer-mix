@@ -55,9 +55,7 @@ export const useResourceCalendarHandlers = (
     }
   };
 
-  // Handler for delete button click
   const handleDeleteButtonClick = (eventId: string) => {
-    console.log('Delete button clicked for event:', eventId);
     const event = events.find(event => event.id === eventId);
     if (event) {
       setEventToDelete({ id: event.id, title: event.title });
