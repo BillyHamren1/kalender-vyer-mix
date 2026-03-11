@@ -433,7 +433,7 @@ const EconomyOverview: React.FC = () => {
                 Personal
               </TabsTrigger>
               <TabsTrigger value="time-reports" className={tabTriggerClass}>
-                Rapporterad tid / Utlägg
+                Utlägg
               </TabsTrigger>
             </TabsList>
           </div>
