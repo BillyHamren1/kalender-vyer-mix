@@ -7,12 +7,11 @@
 
 ---
 
-# Steg 2: SAFE NEXT (rekommenderas härnäst)
+# Steg 2: SAFE NEXT
 
-## 2a. Tidszons-konsistens
-**Problem**: `EditEventTimeDialog` använder lokal tid, `QuickTimeEditPopover` använder UTC. Kan ge tidsförskjutning vid redigering.
-**Åtgärd**: Skapa adapter-funktioner i `dateUtils.ts` (`toLocalInputValue`, `fromLocalInputValue`) som båda komponenterna använder. Ingen ändring av API-kontrakt.
-**Filer**: `src/utils/dateUtils.ts`, `src/components/Calendar/EditEventTimeDialog.tsx`, `src/components/Calendar/QuickTimeEditPopover.tsx`
+## 2a. Tidszons-konsistens ✅ Klart
+**Åtgärd**: Lagt till `extractUTCTime`, `extractUTCDate`, `buildUTCDateTime` i `dateUtils.ts`. `EditEventTimeDialog` använder nu samma UTC-approach som `QuickTimeEditPopover`.
+**Filer**: `src/utils/dateUtils.ts`, `src/components/Calendar/EditEventTimeDialog.tsx`
 
 ## 2b. MoveEventDateDialog data-synk
 **Problem**: `MoveEventDateDialog` uppdaterar bara `calendar_events`, inte `bookings`-tabellen. Events hoppar tillbaka vid nästa sync.
