@@ -38,7 +38,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
-const StaffRevenueContent = React.lazy(() => import('@/pages/StaffRevenueOverview'));
+
 const EconomyTimeReportsContent = React.lazy(() => import('@/pages/EconomyTimeReports'));
 
 type TimePeriod = 'day' | 'week' | 'month';
@@ -425,15 +425,12 @@ const EconomyOverview: React.FC = () => {
         {/* Tabbed content */}
         <Tabs defaultValue="projects" className="space-y-6">
           <div className="rounded-xl border border-border/40 bg-card px-2 py-1" style={{ boxShadow: '0 1px 3px hsl(200 15% 15% / 0.04)' }}>
-            <TabsList className="h-auto p-0 bg-transparent gap-0 w-full grid grid-cols-4">
+            <TabsList className="h-auto p-0 bg-transparent gap-0 w-full grid grid-cols-3">
               <TabsTrigger value="projects" className={tabTriggerClass}>
                 Projekt
               </TabsTrigger>
               <TabsTrigger value="staff" className={tabTriggerClass}>
                 Personal
-              </TabsTrigger>
-              <TabsTrigger value="staff-revenue" className={tabTriggerClass}>
-                Personalekonomi
               </TabsTrigger>
               <TabsTrigger value="time-reports" className={tabTriggerClass}>
                 Rapporterad tid / Utlägg
@@ -449,11 +446,6 @@ const EconomyOverview: React.FC = () => {
             <StaffEconomyView />
           </TabsContent>
 
-          <TabsContent value="staff-revenue">
-            <React.Suspense fallback={<Skeleton className="h-96" />}>
-              <StaffRevenueContent />
-            </React.Suspense>
-          </TabsContent>
 
           <TabsContent value="time-reports">
             <React.Suspense fallback={<Skeleton className="h-96" />}>
