@@ -500,6 +500,7 @@ const createPackingForBooking = async (supabase: any, booking: any, orgId: strin
 
 interface ProductData {
   booking_id: string;
+  organization_id: string;
   name: string;
   quantity: number;
   notes?: string;
