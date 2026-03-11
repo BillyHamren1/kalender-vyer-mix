@@ -191,3 +191,46 @@ describe('groupEventsByDate', () => {
     expect(groupEventsByDate([]).size).toBe(0);
   });
 });
+
+// ─── Edge Cases: Display Data ─────────────────────────────
+
+describe('getEventDisplayData: edge cases', () => {
+  it('handles event with no extendedProps at all', () => {
+    const ev = makeEvent();
+    delete (ev as any).extendedProps;
+    const data = getEventDisplayData(ev);
+    expect(data.title).toBe('Test');
+    expect(data.bookingNumber).toBe('');
+    expect(data.deliveryCity).toBe('');
+    expect(data.hasSourceChanges).toBe(false);
+  });
+
+  it('handles event with empty extendedProps', () => {
+    const data = getEventDisplayData(makeEvent({ extendedProps: {} }));
+    expect(data.bookingNumber).toBe('');
+    expect(data.deliveryCity).toBe('');
+  });
+
+  it('handles event with null bookingId and no extendedProps', () => {
+    const ev = makeEvent({ bookingId: undefined });
+    delete (ev as any).extendedProps;
+    const data = getEventDisplayData(ev);
+    expect(data.bookingId).toBeNull();
+  });
+});
+
+// ─── Edge Cases: Dedup with same id+resource but different times ──
+
+describe('deduplicateEvents: edge cases', () => {
+  it('keeps events with same id+resource but different start times', () => {
+    const a = makeEvent({ id: '1', resourceId: 'r1', start: '2025-06-10T08:00:00Z', end: '2025-06-10T10:00:00Z' });
+    const b = makeEvent({ id: '1', resourceId: 'r1', start: '2025-06-10T14:00:00Z', end: '2025-06-10T16:00:00Z' });
+    expect(deduplicateEvents([a, b])).toHaveLength(2);
+  });
+
+  it('removes true duplicates (same id+resource+start+end)', () => {
+    const a = makeEvent({ id: '1', resourceId: 'r1', start: '2025-06-10T08:00:00Z', end: '2025-06-10T10:00:00Z' });
+    const b = { ...a }; // shallow copy, same values
+    expect(deduplicateEvents([a, b])).toHaveLength(1);
+  });
+});

@@ -310,7 +310,6 @@ describe('PlannerStore: legacy sync', () => {
 
 describe('PlannerStore: provider requirement', () => {
   it('throws when used outside provider', () => {
-    // Suppress console.error for this test
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     
     expect(() => {
@@ -318,5 +317,72 @@ describe('PlannerStore: provider requirement', () => {
     }).toThrow('usePlannerStore must be used within a PlannerStoreProvider');
 
     spy.mockRestore();
+  });
+});
+
+// ─── Rapid View Switching ──────────────────────────────────
+
+describe('PlannerStore: rapid view switching stability', () => {
+  it('handles rapid sequential view mode changes', () => {
+    const { result } = renderHook(() => usePlannerViewMode(), { wrapper });
+
+    const modes: Array<'day' | 'weekly' | 'monthly' | 'list'> = ['day', 'monthly', 'weekly', 'list', 'day', 'monthly'];
+    modes.forEach(mode => {
+      act(() => result.current.setViewMode(mode));
+    });
+
+    expect(result.current.viewMode).toBe('monthly');
+  });
+
+  it('rapid date + view mode changes do not corrupt state', () => {
+    const { result } = renderHook(
+      () => ({ date: usePlannerDate(), view: usePlannerViewMode() }),
+      { wrapper }
+    );
+
+    act(() => result.current.view.setViewMode('monthly'));
+    act(() => result.current.date.setDate(new Date('2025-01-15')));
+    act(() => result.current.view.setViewMode('day'));
+    act(() => result.current.date.setDate(new Date('2025-06-20')));
+    act(() => result.current.view.setViewMode('weekly'));
+
+    expect(result.current.view.viewMode).toBe('weekly');
+    expect(result.current.date.selectedDate.toISOString()).toContain('2025-06-20');
+    expect(result.current.date.weekStart.getDay()).toBe(1); // Monday
+  });
+
+  it('all views handle empty state without crashing', () => {
+    const modes: Array<'day' | 'weekly' | 'monthly' | 'list'> = ['day', 'weekly', 'monthly', 'list'];
+    
+    modes.forEach(mode => {
+      const { result } = renderHook(
+        () => ({
+          view: usePlannerViewMode(),
+          event: usePlannerSelectedEvent(),
+          filter: usePlannerResourceFilter(),
+        }),
+        { wrapper }
+      );
+
+      act(() => result.current.view.setViewMode(mode));
+      
+      // All state should be valid
+      expect(result.current.view.viewMode).toBe(mode);
+      expect(result.current.event.selectedEventId).toBeNull();
+      expect(result.current.filter.activeResourceFilter).toBeNull();
+    });
+  });
+
+  it('selected event persists across view switches', () => {
+    const { result } = renderHook(
+      () => ({ view: usePlannerViewMode(), event: usePlannerSelectedEvent() }),
+      { wrapper }
+    );
+
+    act(() => result.current.event.selectEvent('ev-42'));
+    act(() => result.current.view.setViewMode('monthly'));
+    act(() => result.current.view.setViewMode('day'));
+
+    expect(result.current.event.selectedEventId).toBe('ev-42');
   });
 });
