@@ -109,7 +109,7 @@ export function Sidebar3D() {
           </button>
 
           {/* ── Nav ── */}
-          <nav className="flex-1 space-y-px">
+          <nav className="flex-1 space-y-px pt-6">
             {navigationItems.map((item) => {
               const hasChildren = !!item.children?.length;
               const active = isItemActive(item);
