@@ -106,12 +106,15 @@ const AppContent = () => {
   };
 
   return (
-    <CalendarContext.Provider value={contextValue}>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <Toaster />
-           <BrowserRouter>
-              <Routes>
+    <PlannerStoreProvider>
+      <CalendarContext.Provider value={contextValue}>
+        {/* Bridge: sync legacy CalendarContext state into PlannerStore */}
+        <LegacyStateBridge lastViewedDate={lastViewedDate} lastPath={lastPath} />
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <Toaster />
+             <BrowserRouter>
+                <Routes>
                 {/* Auth Routes - Not Protected */}
                 <Route path="/auth" element={<AuthProvider><Auth /></AuthProvider>} />
                 <Route path="/auth/reset" element={<AuthProvider><AuthResetPassword /></AuthProvider>} />
