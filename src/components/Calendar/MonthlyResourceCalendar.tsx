@@ -148,7 +148,7 @@ const MonthlyResourceCalendar: React.FC<MonthlyResourceCalendarProps> = ({
                 {format(date, 'EEE d')}
               </div>
               <div className="weekly-view-calendar">
-                <ResourceCalendar
+                <ResourceCalendarSwitch
                   events={events}
                   resources={resources}
                   isLoading={isLoading}

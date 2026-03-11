@@ -103,7 +103,7 @@ const StaffMemberCalendar: React.FC<StaffMemberCalendarProps> = ({ staffId, staf
             <span className="ml-3 text-gray-600">Loading calendar...</span>
           </div>
         ) : (
-          <IndividualStaffCalendar
+          <StaffCalendarSwitch
             events={calendarEvents}
             staffResources={[staffResource]}
             currentDate={currentDate}

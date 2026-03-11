@@ -230,7 +230,7 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
                   <div className="day-number">{format(date, 'd')}</div>
                 </div>
                 <div className="dynamic-calendar">
-                  <ResourceCalendar
+                  <ResourceCalendarSwitch
                     events={events}
                     resources={resources}
                     isLoading={isLoading}
