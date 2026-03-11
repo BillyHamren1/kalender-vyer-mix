@@ -1,10 +1,10 @@
-import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import TimeGrid from './TimeGrid';
-import { useQuery } from '@tanstack/react-query';
-import { getAvailableStaffForDateRange } from '@/services/staffAvailabilityService';
-import { supabase } from '@/integrations/supabase/client';
+import { useWeekDays } from '@/hooks/useWeekDays';
+import { useCarouselState } from '@/hooks/useCarouselState';
+import { useAvailableStaffWeek } from '@/hooks/useAvailableStaffWeek';
 import './Carousel3DStyles.css';
 
 interface CustomCalendarProps {
@@ -30,11 +30,6 @@ interface CustomCalendarProps {
   onEventClick?: (event: CalendarEvent) => void;
 }
 
-interface CarouselNavProps {
-  onNavigateLeft: () => void;
-  onNavigateRight: () => void;
-}
-
 const CustomCalendar: React.FC<CustomCalendarProps> = ({
   events,
   resources,
@@ -52,195 +47,26 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   isEventReadOnly,
   onEventClick
 }) => {
-  const currentWeekStart = currentDate;
   const containerRef = useRef<HTMLDivElement>(null);
+  const weekStartTime = currentDate.getTime();
+  const days = useWeekDays(currentDate);
 
-  // IMPORTANT: memoize days so carousel state doesn't reset on every re-render
-  // Always generate 7 days for both day (carousel) and weekly/monthly (grid) modes
-  const weekStartTime = currentWeekStart.getTime();
-  const days = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => {
-      const date = new Date(currentWeekStart);
-      date.setDate(currentWeekStart.getDate() + i);
-      return date;
-    });
-  }, [weekStartTime]);
+  const { getAvailableStaffForDay } = useAvailableStaffWeek(
+    days, weekStartTime, resources, weeklyStaffOperations
+  );
 
-  // Fetch available staff for the entire week in a single batch query
-  const { data: weekAvailableStaff } = useQuery({
-    queryKey: ['available-staff-week', weekStartTime, days.map(d => format(d, 'yyyy-MM-dd')).join(',')],
-    queryFn: async () => {
-      const results: Record<string, Array<{ id: string; name: string; color?: string }>> = {};
-      
-      // Single batch call instead of N sequential calls
-      const availableByDate = await getAvailableStaffForDateRange(days);
-      
-      // Collect all unique staff IDs across all dates
-      const allStaffIds = new Set<string>();
-      for (const ids of Object.values(availableByDate)) {
-        ids.forEach(id => allStaffIds.add(id));
-      }
-
-      // Single query for staff details
-      let staffLookup: Record<string, { id: string; name: string; color?: string }> = {};
-      if (allStaffIds.size > 0) {
-        const { data: staffData } = await supabase
-          .from('staff_members' as any)
-          .select('id, name, color')
-          .in('id', Array.from(allStaffIds))
-          .eq('is_active', true);
-        
-        for (const s of (staffData as any[]) || []) {
-          staffLookup[s.id] = { id: s.id, name: s.name, color: s.color || undefined };
-        }
-      }
-
-      // Map results
-      for (const day of days) {
-        const dateStr = format(day, 'yyyy-MM-dd');
-        const ids = availableByDate[dateStr] || [];
-        results[dateStr] = ids.map(id => staffLookup[id]).filter(Boolean);
-      }
-      
-      return results;
-    },
-    staleTime: 30000,
-  });
-
-  // Build available staff with assignment info for a specific day
-  const getAvailableStaffForDay = useCallback((date: Date) => {
-    const dateStr = format(date, 'yyyy-MM-dd');
-    const availableStaff = weekAvailableStaff?.[dateStr] || [];
-    
-    if (!weeklyStaffOperations) return availableStaff.map(s => ({ ...s, assignedTeamId: undefined, assignedTeamName: undefined }));
-    
-    // Check which staff are assigned to teams
-    return availableStaff.map(staff => {
-      // Find which team this staff is assigned to
-      for (const resource of resources) {
-        const teamStaff = weeklyStaffOperations.getStaffForTeamAndDate(resource.id, date);
-        if (teamStaff.some(ts => ts.id === staff.id)) {
-          return {
-            ...staff,
-            assignedTeamId: resource.id,
-            assignedTeamName: resource.title
-          };
-        }
-      }
-      return { ...staff, assignedTeamId: undefined, assignedTeamName: undefined };
-    });
-  }, [weekAvailableStaff, weeklyStaffOperations, resources]);
-
-  // Find today's index in the days array
-  const getTodayIndex = useCallback(() => {
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const index = days.findIndex(d => format(d, 'yyyy-MM-dd') === todayStr);
-    return index >= 0 ? index : 3; // Fallback to middle of week
-  }, [days]);
-
-  // 3D Carousel state - centerIndex determines which day is in focus
-  const [centerIndex, setCenterIndex] = useState(() => getTodayIndex());
-
-  // Update centerIndex when week changes (to focus on today if it exists in the new week)
-  useEffect(() => {
-    setCenterIndex(getTodayIndex());
-  }, [weekStartTime, getTodayIndex]);
-
-  // Get position relative to center (-3 to +3) with circular wrapping
-  const getPositionFromCenter = (index: number): number => {
-    const totalDays = days.length;
-    let diff = index - centerIndex;
-    
-    // Wrap around for circular carousel
-    if (diff > totalDays / 2) {
-      diff -= totalDays;
-    } else if (diff < -totalDays / 2) {
-      diff += totalDays;
-    }
-    
-    // Clamp to -3 to +3 range for visual positions
-    return Math.max(-3, Math.min(3, diff));
-  };
-
-  // Navigate carousel with circular wrapping
-  const navigateCarousel = (direction: 'left' | 'right') => {
-    setCenterIndex(prev => {
-      if (direction === 'left') {
-        return prev === 0 ? days.length - 1 : prev - 1;
-      } else {
-        return prev === days.length - 1 ? 0 : prev + 1;
-      }
-    });
-  };
-
-  // Handle click on a day card to bring it to center
-  const handleDayCardClick = (index: number) => {
-    if (index !== centerIndex) {
-      setCenterIndex(index);
-    }
-  };
-
-  // Handle mouse wheel for horizontal scrolling through carousel (circular)
-  // Use accumulated delta + cooldown to prevent rapid-fire day changes from trackpad inertia
-  const wheelAccumRef = useRef(0);
-  const wheelCooldownRef = useRef(false);
-
-  const handleWheel = useCallback((e: WheelEvent) => {
-    // Only handle horizontal-like scrolling (shift+wheel or trackpad horizontal)
-    if (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey) {
-      e.preventDefault();
-
-      if (wheelCooldownRef.current) return;
-
-      const delta = e.deltaX !== 0 ? e.deltaX : e.deltaY;
-      wheelAccumRef.current += delta;
-
-      const threshold = 50; // pixels of accumulated scroll before changing day
-      if (Math.abs(wheelAccumRef.current) >= threshold) {
-        const direction = wheelAccumRef.current > 0 ? 1 : -1;
-        wheelAccumRef.current = 0;
-        wheelCooldownRef.current = true;
-
-        setCenterIndex(prev => {
-          const next = prev + direction;
-          if (next < 0) return days.length - 1;
-          if (next >= days.length) return 0;
-          return next;
-        });
-
-        // Cooldown prevents rapid firing from trackpad inertia
-        setTimeout(() => { wheelCooldownRef.current = false; }, 300);
-      }
-    }
-  }, [days.length]);
-
-  // Attach wheel listener - ONLY for carousel (day) mode, not weekly/monthly which use native scroll
-  useEffect(() => {
-    const container = containerRef.current;
-    if (container && viewMode === 'day') {
-      container.addEventListener('wheel', handleWheel, { passive: false });
-      return () => container.removeEventListener('wheel', handleWheel);
-    }
-  }, [handleWheel, viewMode]);
+  const {
+    centerIndex, setCenterIndex,
+    getPositionFromCenter, navigateCarousel, handleDayCardClick
+  } = useCarouselState(days, weekStartTime, containerRef, viewMode === 'day');
 
   const getEventsForDayAndResource = (date: Date, resourceId: string): CalendarEvent[] => {
     const dateStr = format(date, 'yyyy-MM-dd');
-    
     return events.filter(event => {
-      if (!event.start) {
-        console.warn('Event missing start time:', event.id);
-        return false;
-      }
-      
+      if (!event.start) return false;
       const eventStart = new Date(event.start);
-      
-      if (isNaN(eventStart.getTime())) {
-        console.error('Invalid event start date:', event.id, event.start);
-        return false;
-      }
-      
-      const eventDateStr = format(eventStart, 'yyyy-MM-dd');
-      return eventDateStr === dateStr && event.resourceId === resourceId;
+      if (isNaN(eventStart.getTime())) return false;
+      return format(eventStart, 'yyyy-MM-dd') === dateStr && event.resourceId === resourceId;
     });
   };
 
@@ -251,14 +77,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
 
   const getFilteredResourcesForDay = (date: Date): Resource[] => {
     if (!getVisibleTeamsForDay) return resources;
-    const visibleTeams = getVisibleTeamsForDay(date);
-    return resources.filter(resource => visibleTeams.includes(resource.id));
-  };
-
-  const getDayWidth = (numTeams: number) => {
-    const timeColumnWidth = 80;
-    const minTeamColumnWidth = 128;
-    return timeColumnWidth + (numTeams * minTeamColumnWidth);
+    return resources.filter(r => getVisibleTeamsForDay(date).includes(r.id));
   };
 
   if (isLoading) {
@@ -271,43 +90,49 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
 
   const isWeeklyMode = viewMode === 'weekly' || viewMode === 'monthly';
 
-  // Weekly/Monthly mode: Side-by-side grid of 7 day cards with horizontal scroll
+  const buildTimeGridProps = (date: Date, fullWidth: boolean, isCenter?: boolean) => {
+    const filteredResources = getFilteredResourcesForDay(date);
+    const visibleTeams = getVisibleTeamsForDay ? getVisibleTeamsForDay(date) : [];
+    return {
+      day: date,
+      resources: filteredResources,
+      events,
+      getEventsForDayAndResource,
+      onStaffDrop,
+      onOpenStaffSelection,
+      dayWidth: undefined,
+      weeklyStaffOperations,
+      onEventResize: handleEventResize,
+      teamVisibilityProps: allTeams && onToggleTeamForDay ? {
+        allTeams,
+        visibleTeams,
+        onToggleTeam: (teamId: string) => onToggleTeamForDay!(teamId, date)
+      } : undefined,
+      variant,
+      isEventReadOnly,
+      onEventClick,
+      fullWidth,
+      availableStaff: getAvailableStaffForDay(date),
+      ...(isCenter ? {
+        carouselNav: {
+          onNavigateLeft: () => navigateCarousel('left'),
+          onNavigateRight: () => navigateCarousel('right')
+        }
+      } : {})
+    };
+  };
+
+  // Weekly/Monthly mode
   if (isWeeklyMode) {
     return (
       <div className="custom-calendar-container weekly-view" ref={containerRef}>
         <div className={`weekly-horizontal-grid ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
           {days.map((date) => {
-            const filteredResources = getFilteredResourcesForDay(date);
-            const visibleTeams = getVisibleTeamsForDay ? getVisibleTeamsForDay(date) : [];
             const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
-
             return (
-              <div 
-                key={format(date, 'yyyy-MM-dd')} 
-                className={`weekly-day-card ${isToday ? 'is-today' : ''}`}
-              >
+              <div key={format(date, 'yyyy-MM-dd')} className={`weekly-day-card ${isToday ? 'is-today' : ''}`}>
                 <div className={`day-card bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
-                  <TimeGrid
-                    day={date}
-                    resources={filteredResources}
-                    events={events}
-                    getEventsForDayAndResource={getEventsForDayAndResource}
-                    onStaffDrop={onStaffDrop}
-                    onOpenStaffSelection={onOpenStaffSelection}
-                    dayWidth={undefined}
-                    weeklyStaffOperations={weeklyStaffOperations}
-                    onEventResize={handleEventResize}
-                    teamVisibilityProps={allTeams && onToggleTeamForDay ? {
-                      allTeams,
-                      visibleTeams,
-                      onToggleTeam: (teamId: string) => onToggleTeamForDay(teamId, date)
-                    } : undefined}
-                    variant={variant}
-                    isEventReadOnly={isEventReadOnly}
-                    onEventClick={onEventClick}
-                    fullWidth={false}
-                    availableStaff={getAvailableStaffForDay(date)}
-                  />
+                  <TimeGrid {...buildTimeGridProps(date, false)} />
                 </div>
               </div>
             );
@@ -317,68 +142,34 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     );
   }
 
-  // Day mode: 3D Carousel with single focused day card and side cards behind
+  // Day mode: 3D Carousel
   return (
     <div className="custom-calendar-container" ref={containerRef}>
       <div className={`carousel-3d-wrapper ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
-        {/* 3D Carousel container */}
         <div className="carousel-3d-container">
           {days.map((date, index) => {
-            const filteredResources = getFilteredResourcesForDay(date);
-            const visibleTeams = getVisibleTeamsForDay ? getVisibleTeamsForDay(date) : [];
             const position = getPositionFromCenter(index);
             const isCenter = position === 0;
             const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
-
             return (
-              <div 
-                key={format(date, 'yyyy-MM-dd')} 
+              <div
+                key={format(date, 'yyyy-MM-dd')}
                 className={`carousel-3d-card ${isCenter ? 'is-center' : ''} ${isToday ? 'is-today' : ''}`}
                 data-position={position}
               >
-                {/* Clickable overlay for non-center cards */}
                 {!isCenter && (
-                  <div 
+                  <div
                     className="absolute inset-0 z-50 cursor-pointer"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDayCardClick(index);
-                    }}
+                    onClick={(e) => { e.stopPropagation(); handleDayCardClick(index); }}
                   />
                 )}
                 <div className={`day-card bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
-                  <TimeGrid
-                    day={date}
-                    resources={filteredResources}
-                    events={events}
-                    getEventsForDayAndResource={getEventsForDayAndResource}
-                    onStaffDrop={onStaffDrop}
-                    onOpenStaffSelection={onOpenStaffSelection}
-                    dayWidth={undefined}
-                    weeklyStaffOperations={weeklyStaffOperations}
-                    onEventResize={handleEventResize}
-                    teamVisibilityProps={allTeams && onToggleTeamForDay ? {
-                      allTeams,
-                      visibleTeams,
-                      onToggleTeam: (teamId: string) => onToggleTeamForDay(teamId, date)
-                    } : undefined}
-                    variant={variant}
-                    isEventReadOnly={isEventReadOnly}
-                    onEventClick={onEventClick}
-                    fullWidth={true}
-                    availableStaff={getAvailableStaffForDay(date)}
-                    carouselNav={isCenter ? {
-                      onNavigateLeft: () => navigateCarousel('left'),
-                      onNavigateRight: () => navigateCarousel('right')
-                    } : undefined}
-                  />
+                  <TimeGrid {...buildTimeGridProps(date, true, isCenter)} />
                 </div>
               </div>
             );
           })}
         </div>
-
-        {/* Indicator dots */}
         <div className="carousel-3d-indicators">
           {days.map((date, index) => {
             const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');

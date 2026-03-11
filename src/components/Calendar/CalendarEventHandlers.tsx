@@ -16,37 +16,11 @@ export const getEventHandlers = (
   handleEventClick: (info: any) => void,
   handleEventReceive?: (info: any) => void
 ) => {
-  // Custom handler for event drops - REMOVED the team-6 blocking logic
   const handleEventDrop = (info: any) => {
-    // Log detailed information about the drop operation
-    console.log('Event drop detected:', {
-      eventId: info.event.id,
-      oldResource: info.oldResource?.id,
-      newResource: info.newResource?.id,
-      oldStart: info.oldEvent.start?.toISOString(),
-      newStart: info.event.start?.toISOString(),
-      oldEnd: info.oldEvent.end?.toISOString(),
-      newEnd: info.event.end?.toISOString(),
-      delta: info.delta,
-    });
-    
-    // Allow all events to be dropped, including team-6 events
     handleEventChange(info);
   };
 
-  // Custom handler for event resizing (time changes)
   const handleEventResize = (info: any) => {
-    console.log('Event resize detected:', {
-      eventId: info.event.id,
-      resourceId: info.event.getResources?.()?.[0]?.id,
-      oldStart: info.oldEvent.start?.toISOString(),
-      newStart: info.event.start?.toISOString(),
-      oldEnd: info.oldEvent.end?.toISOString(),
-      newEnd: info.event.end?.toISOString(),
-      delta: info.delta,
-    });
-    
-    // Allow all events to be resized, including team-6 events
     handleEventChange(info);
   };
 
