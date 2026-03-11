@@ -1801,7 +1801,7 @@ serve(async (req) => {
             }
             
             // EXPAND package_components JSONB into individual rows
-            const recoveryExpanded = await expandPackageComponents(supabase, existingBooking.id);
+            const recoveryExpanded = await expandPackageComponents(supabase, existingBooking.id, organizationId);
             if (recoveryExpanded > 0) {
               results.products_imported += recoveryExpanded;
               console.log(`[Product Recovery] Expanded ${recoveryExpanded} package components for booking ${bookingData.id}`);
