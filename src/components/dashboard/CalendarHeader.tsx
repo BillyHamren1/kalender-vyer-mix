@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect } from "react";
 import { 
   Calendar, CalendarDays, CalendarRange,
   Users, Package, Truck, LayoutGrid,
-  ChevronLeft, ChevronRight, SlidersHorizontal, Check
+  ChevronLeft, ChevronRight, SlidersHorizontal, Check, FlaskConical
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { EventCategory, DashboardViewMode } from "@/hooks/useDashboardEvents";
 
