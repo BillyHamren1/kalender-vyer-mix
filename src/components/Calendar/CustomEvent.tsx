@@ -168,17 +168,36 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         <QuickTimeEditPopover
           event={event}
           onUpdate={onEventResize}
-          onMoveDate={() => setShowDateDialog(true)}
-          onOpenChange={setIsPopoverOpen}
+          onMoveDate={() => {
+            // EDIT CONTROLLER: Gate move-date behind mutex
+            const granted = moveDateHandlers.onOpen(event);
+            if (granted) {
+              setShowDateDialog(true);
+            }
+          }}
+          onOpenChange={(open) => {
+            setIsPopoverOpen(open);
+            // EDIT CONTROLLER: Track quick-time edit state
+            if (open) {
+              quickTimeHandlers.onOpen(event, true); // force — popover is primary
+            } else {
+              quickTimeHandlers.onClose();
+            }
+          }}
         >
           {eventCardContent}
         </QuickTimeEditPopover>
       </EventHoverCard>
       
-      {/* Date Move Dialog */}
+      {/* Date Move Dialog — LEGACY local state, gated by editController */}
       <MoveEventDateDialog
         open={showDateDialog}
-        onOpenChange={setShowDateDialog}
+        onOpenChange={(open) => {
+          setShowDateDialog(open);
+          if (!open) {
+            moveDateHandlers.onClose();
+          }
+        }}
         event={event}
         onUpdate={onEventResize}
       />
