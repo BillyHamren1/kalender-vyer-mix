@@ -1,65 +1,72 @@
 
+# Steg 1: SAFE NOW ✅ Klart
 
-# Plan: Parallell FullCalendar-migration med feature flag
+- ✅ `convertToISO8601` centraliserad till `src/utils/dateUtils.ts`
+- ✅ Debug-`console.log` borttagna från `CustomEvent.tsx` och `EventHoverCard.tsx`
+- ✅ `openDelay={300}` på `EventHoverCard`
 
-## Sammanfattning
+---
 
-Ja, det är fullt möjligt. Vi bygger custom-ersättningar för de två FullCalendar-komponenterna i en separat mapp, testar dem via en feature flag, och byter över när allt fungerar.
+# Steg 2: SAFE NEXT ✅ Klart
 
-## Komponenter att ersätta
+## 2a. Tidszons-konsistens ✅ Klart
+**Åtgärd**: Lagt till `extractUTCTime`, `extractUTCDate`, `buildUTCDateTime` i `dateUtils.ts`. `EditEventTimeDialog` använder nu samma UTC-approach som `QuickTimeEditPopover`.
+**Filer**: `src/utils/dateUtils.ts`, `src/components/Calendar/EditEventTimeDialog.tsx`
 
-1. **ResourceCalendar** — Resurs-tidsgrid (dagvy med team-kolumner och tidslots 06–22). Används av `MonthlyResourceCalendar` och `TestMonthlyResourceCalendar`.
-2. **IndividualStaffCalendar** — Månadskalender (dayGrid) med bokningshändelser per personal. Används av `StaffMemberCalendar`.
+## 2b. MoveEventDateDialog data-synk ✅ Klart
+**Åtgärd**: `MoveEventDateDialog` uppdaterar nu både `calendar_events` och `bookings`-tabellen (datum + tider) via samma mönster som `QuickTimeEditPopover`. Använder UTC-helpers. Tidszons-bugg med `getHours()` fixad.
+**Filer**: `src/components/Calendar/MoveEventDateDialog.tsx`
 
-## Arkitektur
+## 2c. Batch staff availability ✅ Klart
+**Åtgärd**: Ny `getAvailableStaffForDateRange` i `staffAvailabilityService.ts` gör 2 queries (staff + availability) istället för 2×N. `CustomCalendar` använder batch-funktionen. Console.log-spam borttagen från availability-logik.
+**Filer**: `src/services/staffAvailabilityService.ts`, `src/components/Calendar/CustomCalendar.tsx`
 
-```text
-src/components/Calendar/
-├── custom/                          ← NY mapp
-│   ├── CustomResourceTimeGrid.tsx   ← Ersätter ResourceCalendar
-│   ├── CustomMonthGrid.tsx          ← Ersätter IndividualStaffCalendar
-│   ├── TimeColumn.tsx               ← Tidslots-kolumn (06:00–22:00)
-│   ├── ResourceColumn.tsx           ← En team-kolumn med events
-│   ├── MonthCell.tsx                ← En dag-cell i månadsvy
-│   └── useCalendarGrid.tsx          ← Gemensam hook för tidsberäkning
-├── ResourceCalendarSwitch.tsx       ← NY: feature-flag wrapper
-└── StaffCalendarSwitch.tsx          ← NY: feature-flag wrapper
+---
+
+# Steg 3: LATER ✅ Klart (utom 3d)
+
+## 3a. Event deduplication guard ✅ Klart
+**Åtgärd**: Realtime INSERT-handler i `useRealTimeCalendarEvents` kollar nu både `id` OCH `booking_id + event_type` combo innan ett event läggs till. Förhindrar dubbletter vid snabb sync.
+**Filer**: `src/hooks/useRealTimeCalendarEvents.tsx`
+
+## 3b. Console.log-sanering (rendervägar) ✅ Klart
+**Åtgärd**: Borttagna icke-error `console.log` från `useRealTimeCalendarEvents`, `CustomCalendar`, `CalendarEventHandlers`, `useEventOperations`, `useResourceCalendarHandlers`. Kvar: `console.error` för faktiska fel.
+
+## 3c. Borttagning av oanvända komponenter ✅ Klart
+**Åtgärd**: `DayCalendar.tsx` och `useDayCalendarEvents.tsx` borttagna — inga importer fanns.
+
+## 3d. FullCalendar-migration ✅ Klart (parallellt spår)
+**Status**: Custom-ersättningar byggda i `src/components/Calendar/custom/`. Feature flag `use_custom_calendar` i localStorage styr vilken implementation som körs.
+
+### Nya filer:
+- `src/components/Calendar/custom/useCalendarGrid.tsx` — Tidsberäkning, slot-generering, event-positionering i pixlar
+- `src/components/Calendar/custom/TimeColumn.tsx` — Tidslots-kolumn (06:00–22:00)
+- `src/components/Calendar/custom/ResourceColumn.tsx` — En team-kolumn med events, använder befintlig `CustomEvent`
+- `src/components/Calendar/custom/CustomResourceTimeGrid.tsx` — Ersätter `ResourceCalendar` (resourceTimeGrid dagvy)
+- `src/components/Calendar/custom/MonthCell.tsx` — Dag-cell i månadsvy
+- `src/components/Calendar/custom/CustomMonthGrid.tsx` — Ersätter `IndividualStaffCalendar` (månadsvy)
+- `src/components/Calendar/ResourceCalendarSwitch.tsx` — Feature flag wrapper för resource-kalender
+- `src/components/Calendar/StaffCalendarSwitch.tsx` — Feature flag wrapper för personal-kalender
+
+### Inkopplade konsumenter:
+- `MonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
+- `TestMonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
+- `StaffMemberCalendar.tsx` → `StaffCalendarSwitch`
+
+### Aktivering:
+```js
+localStorage.setItem('use_custom_calendar', 'true'); // Aktivera custom-versionen
+localStorage.removeItem('use_custom_calendar');       // Tillbaka till FullCalendar
 ```
 
-## Feature flag
+## 3e. Refaktorera CustomCalendar ✅ Klart
+**Åtgärd**: CustomCalendar (400→185 rader) uppdelad i tre extraherade hooks:
+- `useWeekDays` — generering av 7-dagars array
+- `useCarouselState` — karusellnavigering, scroll-hantering, centrerad dag
+- `useAvailableStaffWeek` — batch-hämtning av tillgänglig personal + team-tilldelning
+Gemensam `buildTimeGridProps`-helper eliminerar duplicerad TimeGrid-konfiguration.
+**Filer**: `src/hooks/useWeekDays.tsx`, `src/hooks/useCarouselState.tsx`, `src/hooks/useAvailableStaffWeek.tsx`, `src/components/Calendar/CustomCalendar.tsx`
 
-En enkel `localStorage`-flagga: `use_custom_calendar`. Switch-komponenterna renderar antingen FullCalendar- eller custom-versionen:
-
-```tsx
-// ResourceCalendarSwitch.tsx
-const useCustom = localStorage.getItem('use_custom_calendar') === 'true';
-return useCustom ? <CustomResourceTimeGrid {...props} /> : <ResourceCalendar {...props} />;
-```
-
-`MonthlyResourceCalendar` och `StaffMemberCalendar` byter import till Switch-varianten.
-
-## Steg
-
-1. **Skapa `useCalendarGrid` hook** — Beräknar timeslots, positionerar events i pixlar baserat på start/slut-tid. Återanvänder `dateUtils.ts`.
-
-2. **Bygga `CustomResourceTimeGrid`** — Ren React/Tailwind-grid med team-kolumner. Samma props-interface som `ResourceCalendar`. Stöd för: tidskolumn, resource-headers med personal, event-rendering via befintlig `CustomEvent`.
-
-3. **Bygga `CustomMonthGrid`** — Månadskalender-grid. Samma props som `IndividualStaffCalendar`. Stöd för: veckodagar-header, dag-celler, event-lista med max 3 + "more"-länk, today-markering.
-
-4. **Skapa Switch-wrappers** — `ResourceCalendarSwitch` och `StaffCalendarSwitch` med localStorage-flagga.
-
-5. **Koppla in** — Uppdatera imports i `MonthlyResourceCalendar`, `TestMonthlyResourceCalendar` och `StaffMemberCalendar` till Switch-komponenterna.
-
-6. **Rensa console.log** i `IndividualStaffCalendar` (5 st kvar).
-
-## Vad som INTE ändras
-
-- Inga API/service-ändringar
-- Inga route-ändringar
-- Befintliga FullCalendar-komponenter förblir intakta
-- Design och färger replikeras exakt från nuvarande implementation
-
-## Risk
-
-Låg. FullCalendar-koden rörs inte. Feature flag gör att man kan testa custom-versionen och växla tillbaka omedelbart.
-
+## 3f. Optimistic updates drag & drop ✅ Klart
+**Åtgärd**: FullCalendar hanterar redan optimistic UI nativt (DOM uppdateras direkt vid drag). `useEventOperations` har rensats till att enbart: (1) persist:a ändringen till DB, (2) visa toast, (3) revert:a via `info.revert()` vid fel. Alla redundanta `console.log` borttagna. `CalendarEventHandlers` förenklad — passthrough utan loggning.
+**Filer**: `src/hooks/useEventOperations.tsx`, `src/components/Calendar/CalendarEventHandlers.tsx`, `src/hooks/useResourceCalendarHandlers.tsx`

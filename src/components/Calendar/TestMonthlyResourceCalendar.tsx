@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
-import ResourceCalendar from './ResourceCalendar';
+import ResourceCalendarSwitch from './ResourceCalendarSwitch';
 import { format, startOfWeek, addWeeks, subWeeks, addDays, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
 import './DynamicColumnStyles.css';
 import { useNavigate } from 'react-router-dom';
@@ -230,7 +230,7 @@ const TestMonthlyResourceCalendar: React.FC<TestMonthlyResourceCalendarProps> = 
                   <div className="day-number">{format(date, 'd')}</div>
                 </div>
                 <div className="dynamic-calendar">
-                  <ResourceCalendar
+                  <ResourceCalendarSwitch
                     events={events}
                     resources={resources}
                     isLoading={isLoading}

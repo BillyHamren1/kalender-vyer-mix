@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
-import ResourceCalendar from './ResourceCalendar';
+import ResourceCalendarSwitch from './ResourceCalendarSwitch';
 import { format, getDaysInMonth, startOfMonth } from 'date-fns';
 import './WeeklyCalendarStyles.css';
 
@@ -148,7 +148,7 @@ const MonthlyResourceCalendar: React.FC<MonthlyResourceCalendarProps> = ({
                 {format(date, 'EEE d')}
               </div>
               <div className="weekly-view-calendar">
-                <ResourceCalendar
+                <ResourceCalendarSwitch
                   events={events}
                   resources={resources}
                   isLoading={isLoading}

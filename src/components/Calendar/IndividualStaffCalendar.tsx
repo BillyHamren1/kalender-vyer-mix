@@ -36,7 +36,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
       
       // Only update if the date actually changed
       if (lastProcessedDate !== dateStr) {
-        console.log('IndividualStaffCalendar: Updating calendar to date:', dateStr);
+        // Date updated
         calendarApi.gotoDate(currentDate);
         setLastProcessedDate(dateStr);
       }
@@ -46,14 +46,6 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
   // Updated event click handler to use navigation hook
   const handleStaffEventClick = (clickInfo: any) => {
     const event = clickInfo.event;
-    
-    console.log('Staff Calendar Event Clicked:', {
-      title: event.title,
-      staff: event.extendedProps.staffName,
-      date: format(event.start, 'yyyy-MM-dd'),
-      bookingId: event.extendedProps.bookingId,
-      details: event.extendedProps
-    });
 
     // Use the event navigation hook to handle booking navigation
     handleEventClick(clickInfo);
@@ -63,7 +55,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
   const formattedEvents = events
     .filter(event => event.eventType === 'booking_event') // Only show actual booking events
     .map(event => {
-      console.log('Formatting booking event:', event.title, 'for staff:', event.staffName);
+      
       
       return {
         id: event.id,
@@ -84,9 +76,6 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
       };
     });
 
-  console.log('Formatted booking events for calendar:', formattedEvents);
-  console.log('Staff resources:', staffResources);
-  console.log('Current date prop:', format(currentDate, 'yyyy-MM-dd'));
 
   return (
     <div className="staff-calendar-container relative bg-white rounded-lg border border-gray-200 overflow-hidden">
