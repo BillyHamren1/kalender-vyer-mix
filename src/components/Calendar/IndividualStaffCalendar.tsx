@@ -55,7 +55,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
   const formattedEvents = events
     .filter(event => event.eventType === 'booking_event') // Only show actual booking events
     .map(event => {
-      console.log('Formatting booking event:', event.title, 'for staff:', event.staffName);
+      
       
       return {
         id: event.id,
