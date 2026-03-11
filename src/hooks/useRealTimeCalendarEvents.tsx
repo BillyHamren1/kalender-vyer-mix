@@ -147,29 +147,36 @@ export const useRealTimeCalendarEvents = () => {
       
       switch (eventType) {
         case 'INSERT':
-          if (newRecord && !updatedEvents.find(e => e.id === newRecord.id)) {
-            const newEvent: CalendarEvent = {
-              id: newRecord.id,
-              resourceId: newRecord.resource_id,
-              title: newRecord.title,
-              start: convertToISO8601(newRecord.start_time),
-              end: convertToISO8601(newRecord.end_time),
-              eventType: newRecord.event_type as 'rig' | 'event' | 'rigDown',
-              bookingId: newRecord.booking_id || '',
-              bookingNumber: newRecord.booking_number || newRecord.booking_id || 'No ID',
-              deliveryAddress: newRecord.delivery_address || 'No address provided',
-              extendedProps: {
-                bookingId: newRecord.booking_id,
-                booking_id: newRecord.booking_id,
+          // Deduplication guard: check by ID AND by booking_id+event_type combo
+          if (newRecord) {
+            const alreadyExistsById = updatedEvents.some(e => e.id === newRecord.id);
+            const alreadyExistsByBooking = newRecord.booking_id && newRecord.event_type
+              ? updatedEvents.some(e => e.bookingId === newRecord.booking_id && e.eventType === newRecord.event_type)
+              : false;
+
+            if (!alreadyExistsById && !alreadyExistsByBooking) {
+              const newEvent: CalendarEvent = {
+                id: newRecord.id,
                 resourceId: newRecord.resource_id,
-                deliveryAddress: newRecord.delivery_address,
-                bookingNumber: newRecord.booking_number,
-                eventType: newRecord.event_type,
-                deliveryCity: newRecord.delivery_city
-              }
-            };
-            updatedEvents.push(newEvent);
-            console.log('Added new event:', newEvent.title, 'to team:', newEvent.resourceId);
+                title: newRecord.title,
+                start: convertToISO8601(newRecord.start_time),
+                end: convertToISO8601(newRecord.end_time),
+                eventType: newRecord.event_type as 'rig' | 'event' | 'rigDown',
+                bookingId: newRecord.booking_id || '',
+                bookingNumber: newRecord.booking_number || newRecord.booking_id || 'No ID',
+                deliveryAddress: newRecord.delivery_address || 'No address provided',
+                extendedProps: {
+                  bookingId: newRecord.booking_id,
+                  booking_id: newRecord.booking_id,
+                  resourceId: newRecord.resource_id,
+                  deliveryAddress: newRecord.delivery_address,
+                  bookingNumber: newRecord.booking_number,
+                  eventType: newRecord.event_type,
+                  deliveryCity: newRecord.delivery_city
+                }
+              };
+              updatedEvents.push(newEvent);
+            }
           }
           break;
           
