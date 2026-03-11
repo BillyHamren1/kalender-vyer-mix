@@ -500,6 +500,7 @@ const createPackingForBooking = async (supabase: any, booking: any, orgId: strin
 
 interface ProductData {
   booking_id: string;
+  organization_id: string;
   name: string;
   quantity: number;
   notes?: string;
@@ -832,7 +833,8 @@ const hasBookingChanged = (externalBooking: any, existingBooking: any): boolean 
  */
 const expandPackageComponents = async (
   supabase: any,
-  bookingId: string
+  bookingId: string,
+  orgId?: string
 ): Promise<number> => {
   // Fetch all products for this booking
   const { data: products, error } = await supabase
@@ -881,6 +883,7 @@ const expandPackageComponents = async (
 
       const componentData: ProductData = {
         booking_id: bookingId,
+        organization_id: orgId || '',
         name: `  -- ${comp.name || 'Okänd komponent'}`,
         quantity: comp.quantity || 1,
         unit_price: 0,
@@ -1704,6 +1707,7 @@ serve(async (req) => {
                   // which don't exist in our database. Only use lastParentProductId which we track locally.
                   const productData: ProductData = {
                     booking_id: existingBooking.id,
+                    organization_id: organizationId,
                     name: productName,
                     quantity: quantity,
                     notes: product.notes || product.description || null,
@@ -1797,7 +1801,7 @@ serve(async (req) => {
             }
             
             // EXPAND package_components JSONB into individual rows
-            const recoveryExpanded = await expandPackageComponents(supabase, existingBooking.id);
+            const recoveryExpanded = await expandPackageComponents(supabase, existingBooking.id, organizationId);
             if (recoveryExpanded > 0) {
               results.products_imported += recoveryExpanded;
               console.log(`[Product Recovery] Expanded ${recoveryExpanded} package components for booking ${bookingData.id}`);
@@ -2192,6 +2196,7 @@ serve(async (req) => {
               // which don't exist in our database. Only use lastParentProductId which we track locally.
               const productData: ProductData = {
                 booking_id: bookingData.id,
+                organization_id: organizationId,
                 name: productName,
                 quantity: quantity,
                 notes: product.notes || product.description || null,
@@ -2315,7 +2320,7 @@ serve(async (req) => {
           // ─────────────────────────────────────────────────────────────────────
           
           // EXPAND package_components JSONB into individual rows (shared function)
-          const mainExpanded = await expandPackageComponents(supabase, bookingData.id);
+          const mainExpanded = await expandPackageComponents(supabase, bookingData.id, organizationId);
           if (mainExpanded > 0) {
             results.products_imported += mainExpanded;
             console.log(`[Main Flow] Expanded ${mainExpanded} package components for booking ${bookingData.id}`);
