@@ -833,7 +833,8 @@ const hasBookingChanged = (externalBooking: any, existingBooking: any): boolean 
  */
 const expandPackageComponents = async (
   supabase: any,
-  bookingId: string
+  bookingId: string,
+  orgId?: string
 ): Promise<number> => {
   // Fetch all products for this booking
   const { data: products, error } = await supabase
