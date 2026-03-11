@@ -883,6 +883,7 @@ const expandPackageComponents = async (
 
       const componentData: ProductData = {
         booking_id: bookingId,
+        organization_id: orgId || '',
         name: `  -- ${comp.name || 'Okänd komponent'}`,
         quantity: comp.quantity || 1,
         unit_price: 0,
