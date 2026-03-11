@@ -214,7 +214,6 @@ export const useRealTimeCalendarEvents = () => {
         case 'DELETE':
           if (oldRecord) {
             updatedEvents = updatedEvents.filter(e => e.id !== oldRecord.id);
-            console.log('Removed event:', oldRecord.title);
           }
           break;
       }
