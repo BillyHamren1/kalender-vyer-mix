@@ -245,7 +245,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   };
 
   const handleEventResize = async () => {
-    console.log('CustomCalendar: Manual refresh after resize');
+    await refreshEvents();
     await refreshEvents();
   };
 
