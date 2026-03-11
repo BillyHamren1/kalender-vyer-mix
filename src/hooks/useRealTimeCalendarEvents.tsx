@@ -98,7 +98,7 @@ export const useRealTimeCalendarEvents = () => {
         // Check if we need to fix any titles (only run once per session)
         const titleFixKey = 'title-fix-attempted';
         if (!sessionStorage.getItem(titleFixKey)) {
-          console.log('Checking if event titles need fixing...');
+          
           
           const hasUuidTitles = enhancedEvents.some(event => 
             event.title && event.title.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)
