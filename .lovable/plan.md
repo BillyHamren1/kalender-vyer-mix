@@ -7,21 +7,19 @@
 
 ---
 
-# Steg 2: SAFE NEXT
+# Steg 2: SAFE NEXT ✅ Klart
 
 ## 2a. Tidszons-konsistens ✅ Klart
 **Åtgärd**: Lagt till `extractUTCTime`, `extractUTCDate`, `buildUTCDateTime` i `dateUtils.ts`. `EditEventTimeDialog` använder nu samma UTC-approach som `QuickTimeEditPopover`.
 **Filer**: `src/utils/dateUtils.ts`, `src/components/Calendar/EditEventTimeDialog.tsx`
 
-## 2b. MoveEventDateDialog data-synk
-**Problem**: `MoveEventDateDialog` uppdaterar bara `calendar_events`, inte `bookings`-tabellen. Events hoppar tillbaka vid nästa sync.
-**Åtgärd**: Lägg till ett kompletterande `bookings`-update i samma transaktion, via adapter i `eventService.ts`.
-**Filer**: `src/components/Calendar/MoveEventDateDialog.tsx`, `src/services/eventService.ts`
+## 2b. MoveEventDateDialog data-synk ✅ Klart
+**Åtgärd**: `MoveEventDateDialog` uppdaterar nu både `calendar_events` och `bookings`-tabellen (datum + tider) via samma mönster som `QuickTimeEditPopover`. Använder UTC-helpers. Tidszons-bugg med `getHours()` fixad.
+**Filer**: `src/components/Calendar/MoveEventDateDialog.tsx`
 
-## 2c. N+1 staff availability
-**Problem**: Staff-availability hämtas per dag/resurs istället för i batch.
-**Åtgärd**: Batch-fetch i `useRealTimeCalendarEvents` eller i en ny `useStaffAvailability`-hook.
-**Filer**: Analysera `src/components/Calendar/CustomCalendar.tsx` för exakt scope.
+## 2c. Batch staff availability ✅ Klart
+**Åtgärd**: Ny `getAvailableStaffForDateRange` i `staffAvailabilityService.ts` gör 2 queries (staff + availability) istället för 2×N. `CustomCalendar` använder batch-funktionen. Console.log-spam borttagen från availability-logik.
+**Filer**: `src/services/staffAvailabilityService.ts`, `src/components/Calendar/CustomCalendar.tsx`
 
 ---
 
