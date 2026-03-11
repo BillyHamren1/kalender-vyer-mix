@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getStaffCalendarEvents } from '@/services/staffCalendarService';
 import { startOfMonth, endOfMonth, addMonths, subMonths, format } from 'date-fns';
-import IndividualStaffCalendar from '@/components/Calendar/IndividualStaffCalendar';
+import StaffCalendarSwitch from '@/components/Calendar/StaffCalendarSwitch';
 
 interface StaffMemberCalendarProps {
   staffId: string;
