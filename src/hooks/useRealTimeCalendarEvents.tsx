@@ -27,7 +27,7 @@ export const useRealTimeCalendarEvents = () => {
   // Enhanced event loading with batch fetching (replaces N+1 queries)
   const loadEvents = useCallback(async () => {
     try {
-      console.log('Loading calendar events...');
+      // Load events silently
       setIsLoading(true);
       
       const calendarEvents = await fetchCalendarEvents();
@@ -39,7 +39,7 @@ export const useRealTimeCalendarEvents = () => {
           .map(e => e.bookingId);
         
         const uniqueBookingIds = [...new Set(bookingIds)];
-        console.log(`Batch fetching ${uniqueBookingIds.length} bookings (instead of ${bookingIds.length} individual queries)`);
+        
         
         // Single batch query for all bookings
         let bookingMap = new Map<string, any>();
@@ -59,7 +59,6 @@ export const useRealTimeCalendarEvents = () => {
             console.error('Error batch fetching bookings:', error);
           } else {
             bookingMap = new Map(bookings?.map(b => [b.id, b]) || []);
-            console.log(`Fetched ${bookingMap.size} bookings in one query`);
           }
         }
         
@@ -94,19 +93,19 @@ export const useRealTimeCalendarEvents = () => {
         });
 
         setEvents(enhancedEvents);
-        console.log(`Loaded ${enhancedEvents.length} calendar events with enhanced data`);
+        
         
         // Check if we need to fix any titles (only run once per session)
         const titleFixKey = 'title-fix-attempted';
         if (!sessionStorage.getItem(titleFixKey)) {
-          console.log('Checking if event titles need fixing...');
+          
           
           const hasUuidTitles = enhancedEvents.some(event => 
             event.title && event.title.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)
           );
           
           if (hasUuidTitles) {
-            console.log('Found events with UUID titles, attempting to fix...');
+            
             try {
               await fixAllEventTitles();
               const updatedEvents = await fetchCalendarEvents();
@@ -136,7 +135,7 @@ export const useRealTimeCalendarEvents = () => {
 
   // Enhanced real-time calendar event handler
   const handleCalendarEventChange = useCallback((payload: any) => {
-    console.log('Real-time calendar event change:', payload.eventType);
+    // Process real-time event silently (errors still logged)
     
     if (!activeRef.current) return;
 
@@ -147,29 +146,36 @@ export const useRealTimeCalendarEvents = () => {
       
       switch (eventType) {
         case 'INSERT':
-          if (newRecord && !updatedEvents.find(e => e.id === newRecord.id)) {
-            const newEvent: CalendarEvent = {
-              id: newRecord.id,
-              resourceId: newRecord.resource_id,
-              title: newRecord.title,
-              start: convertToISO8601(newRecord.start_time),
-              end: convertToISO8601(newRecord.end_time),
-              eventType: newRecord.event_type as 'rig' | 'event' | 'rigDown',
-              bookingId: newRecord.booking_id || '',
-              bookingNumber: newRecord.booking_number || newRecord.booking_id || 'No ID',
-              deliveryAddress: newRecord.delivery_address || 'No address provided',
-              extendedProps: {
-                bookingId: newRecord.booking_id,
-                booking_id: newRecord.booking_id,
+          // Deduplication guard: check by ID AND by booking_id+event_type combo
+          if (newRecord) {
+            const alreadyExistsById = updatedEvents.some(e => e.id === newRecord.id);
+            const alreadyExistsByBooking = newRecord.booking_id && newRecord.event_type
+              ? updatedEvents.some(e => e.bookingId === newRecord.booking_id && e.eventType === newRecord.event_type)
+              : false;
+
+            if (!alreadyExistsById && !alreadyExistsByBooking) {
+              const newEvent: CalendarEvent = {
+                id: newRecord.id,
                 resourceId: newRecord.resource_id,
-                deliveryAddress: newRecord.delivery_address,
-                bookingNumber: newRecord.booking_number,
-                eventType: newRecord.event_type,
-                deliveryCity: newRecord.delivery_city
-              }
-            };
-            updatedEvents.push(newEvent);
-            console.log('Added new event:', newEvent.title, 'to team:', newEvent.resourceId);
+                title: newRecord.title,
+                start: convertToISO8601(newRecord.start_time),
+                end: convertToISO8601(newRecord.end_time),
+                eventType: newRecord.event_type as 'rig' | 'event' | 'rigDown',
+                bookingId: newRecord.booking_id || '',
+                bookingNumber: newRecord.booking_number || newRecord.booking_id || 'No ID',
+                deliveryAddress: newRecord.delivery_address || 'No address provided',
+                extendedProps: {
+                  bookingId: newRecord.booking_id,
+                  booking_id: newRecord.booking_id,
+                  resourceId: newRecord.resource_id,
+                  deliveryAddress: newRecord.delivery_address,
+                  bookingNumber: newRecord.booking_number,
+                  eventType: newRecord.event_type,
+                  deliveryCity: newRecord.delivery_city
+                }
+              };
+              updatedEvents.push(newEvent);
+            }
           }
           break;
           
@@ -199,7 +205,6 @@ export const useRealTimeCalendarEvents = () => {
                   deliveryCity: newRecord.delivery_city
                 }
               };
-              console.log('Updated event:', newRecord.title, 'moved to team:', updatedEvents[index].resourceId);
             }
           }
           break;
@@ -207,7 +212,6 @@ export const useRealTimeCalendarEvents = () => {
         case 'DELETE':
           if (oldRecord) {
             updatedEvents = updatedEvents.filter(e => e.id !== oldRecord.id);
-            console.log('Removed event:', oldRecord.title);
           }
           break;
       }
@@ -218,7 +222,7 @@ export const useRealTimeCalendarEvents = () => {
 
   // Handle real-time booking changes with smart calendar updates
   const handleBookingChange = useCallback(async (payload: any) => {
-    console.log('Real-time booking change:', payload.eventType);
+    // Process booking change
     
     if (!activeRef.current) return;
 
@@ -242,11 +246,11 @@ export const useRealTimeCalendarEvents = () => {
           toast.success('Booking dates updated in calendar');
         }
       } else if (eventType === 'INSERT' && newRecord?.status === 'CONFIRMED') {
-        console.log(`New confirmed booking ${newRecord.id} created, syncing to calendar...`);
+        
         await smartUpdateBookingCalendar(newRecord.id, {}, newRecord);
         toast.success('New confirmed booking added to calendar');
       } else if (eventType === 'DELETE' && oldRecord?.status === 'CONFIRMED') {
-        console.log(`Confirmed booking ${oldRecord.id} deleted, removing from calendar...`);
+        
         await smartUpdateBookingCalendar(oldRecord.id, oldRecord, { status: 'DELETED' });
         toast.info('Deleted booking events removed from calendar');
       }
