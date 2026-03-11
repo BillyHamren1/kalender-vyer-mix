@@ -62,6 +62,9 @@ const CustomCalendarPage = () => {
   const isMobile = useIsMobile();
   // Default to 'weekly' - the full 7-day view with all teams
   const [viewMode, setViewMode] = useState<'day' | 'weekly' | 'monthly' | 'list'>('weekly');
+
+  // STORE SYNC: Bridge local state → central PlannerStore (legacy compatibility)
+  const syncToStore = usePlannerSync();
   
   // Monthly view state (for desktop) - now used for the month tabs
   const [monthlyDate, setMonthlyDate] = useState<Date>(startOfMonth(new Date()));

@@ -108,6 +108,9 @@ const WarehouseCalendarPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<'day' | 'weekly' | 'monthly' | 'list'>('weekly');
+
+  // STORE SYNC: Bridge local state → central PlannerStore (legacy compatibility)
+  const syncToStore = usePlannerSync();
   
   // Booking products dialog state
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
