@@ -12,7 +12,11 @@ interface EventHoverCardProps {
   disabled?: boolean;
 }
 
-const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event, onClick = undefined, onDoubleClick = undefined, disabled = false }) => {
+/**
+ * STABILIZATION: Wrapped in React.memo to prevent re-renders when
+ * parent re-renders but event data hasn't changed.
+ */
+const EventHoverCard: React.FC<EventHoverCardProps> = React.memo(({ children, event, onClick = undefined, onDoubleClick = undefined, disabled = false }) => {
   const products = event.extendedProps?.products || [];
   const deliveryAddress = event.extendedProps?.deliveryAddress;
   const internalNotes = event.extendedProps?.internalNotes;
