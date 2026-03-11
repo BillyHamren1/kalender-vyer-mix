@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
-import ResourceCalendar from './ResourceCalendar';
+import ResourceCalendarSwitch from './ResourceCalendarSwitch';
 import { format, getDaysInMonth, startOfMonth } from 'date-fns';
 import './WeeklyCalendarStyles.css';
 
