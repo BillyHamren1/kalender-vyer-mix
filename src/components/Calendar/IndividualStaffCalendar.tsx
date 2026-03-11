@@ -46,14 +46,6 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
   // Updated event click handler to use navigation hook
   const handleStaffEventClick = (clickInfo: any) => {
     const event = clickInfo.event;
-    
-    console.log('Staff Calendar Event Clicked:', {
-      title: event.title,
-      staff: event.extendedProps.staffName,
-      date: format(event.start, 'yyyy-MM-dd'),
-      bookingId: event.extendedProps.bookingId,
-      details: event.extendedProps
-    });
 
     // Use the event navigation hook to handle booking navigation
     handleEventClick(clickInfo);
