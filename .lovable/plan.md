@@ -23,25 +23,29 @@
 
 ---
 
-# Steg 3: LATER — delvis klart
+# Steg 3: LATER ✅ Klart (utom 3d)
 
 ## 3a. Event deduplication guard ✅ Klart
 **Åtgärd**: Realtime INSERT-handler i `useRealTimeCalendarEvents` kollar nu både `id` OCH `booking_id + event_type` combo innan ett event läggs till. Förhindrar dubbletter vid snabb sync.
 **Filer**: `src/hooks/useRealTimeCalendarEvents.tsx`
 
 ## 3b. Console.log-sanering (rendervägar) ✅ Klart
-**Åtgärd**: Borttagna icke-error `console.log` från `useRealTimeCalendarEvents`, `CustomCalendar`. Kvar: `console.error` för faktiska fel.
-**Filer**: `src/hooks/useRealTimeCalendarEvents.tsx`, `src/components/Calendar/CustomCalendar.tsx`
+**Åtgärd**: Borttagna icke-error `console.log` från `useRealTimeCalendarEvents`, `CustomCalendar`, `CalendarEventHandlers`, `useEventOperations`, `useResourceCalendarHandlers`. Kvar: `console.error` för faktiska fel.
 
 ## 3c. Borttagning av oanvända komponenter ✅ Klart
 **Åtgärd**: `DayCalendar.tsx` och `useDayCalendarEvents.tsx` borttagna — inga importer fanns.
-**Filer**: (borttagna)
 
 ## 3d. FullCalendar-beroende ⏳ Ej möjligt ännu
 **Status**: `ResourceCalendar.tsx` importeras av `UnifiedResourceCalendar`, `MonthlyResourceCalendar`, `TestMonthlyResourceCalendar`. `IndividualStaffCalendar` använder FullCalendar direkt. Kräver migrering av 4 komponenter till custom grid — stort scope, rekommenderas som separat projekt.
 
-## 3e. Refaktorera CustomCalendar ⏳ Ej påbörjat
-**Status**: CustomCalendar (400 rader) hanterar carousel, weekly grid, event filtering. Kan delas till sub-komponenter men ingen risk idag. Rekommenderas vid nästa funktionsutökning.
+## 3e. Refaktorera CustomCalendar ✅ Klart
+**Åtgärd**: CustomCalendar (400→185 rader) uppdelad i tre extraherade hooks:
+- `useWeekDays` — generering av 7-dagars array
+- `useCarouselState` — karusellnavigering, scroll-hantering, centrerad dag
+- `useAvailableStaffWeek` — batch-hämtning av tillgänglig personal + team-tilldelning
+Gemensam `buildTimeGridProps`-helper eliminerar duplicerad TimeGrid-konfiguration.
+**Filer**: `src/hooks/useWeekDays.tsx`, `src/hooks/useCarouselState.tsx`, `src/hooks/useAvailableStaffWeek.tsx`, `src/components/Calendar/CustomCalendar.tsx`
 
-## 3f. Optimistic updates drag & drop ⏳ Ej påbörjat
-**Status**: Kräver analys av befintligt drag & drop-flöde i TimeGrid/ResourceCalendar. Medelhög risk. Rekommenderas efter stabilisering av alla edit-flows.
+## 3f. Optimistic updates drag & drop ✅ Klart
+**Åtgärd**: FullCalendar hanterar redan optimistic UI nativt (DOM uppdateras direkt vid drag). `useEventOperations` har rensats till att enbart: (1) persist:a ändringen till DB, (2) visa toast, (3) revert:a via `info.revert()` vid fel. Alla redundanta `console.log` borttagna. `CalendarEventHandlers` förenklad — passthrough utan loggning.
+**Filer**: `src/hooks/useEventOperations.tsx`, `src/components/Calendar/CalendarEventHandlers.tsx`, `src/hooks/useResourceCalendarHandlers.tsx`
