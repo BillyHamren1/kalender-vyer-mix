@@ -16,7 +16,6 @@
  *   ✅ loadingStates — centralized
  *   ✅ interactionState — drag/edit tracking
  *   🔄 events — still owned by source hooks (useRealTimeCalendarEvents, etc.)
- *      Access normalized events via usePlannerEvents hook.
  * 
  * IMPORTANT: This store coexists with legacy state. Components can
  * gradually migrate by reading from the store while keeping their
