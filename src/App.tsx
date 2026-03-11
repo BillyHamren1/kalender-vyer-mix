@@ -198,7 +198,23 @@ const AppContent = () => {
         </TooltipProvider>
       </QueryClientProvider>
     </CalendarContext.Provider>
+    </PlannerStoreProvider>
   );
+};
+
+/**
+ * Bridge component: syncs legacy CalendarContext state into PlannerStore.
+ * This ensures the store stays in sync during the gradual migration.
+ * LEGACY — remove once CalendarContext is fully replaced by PlannerStore.
+ */
+const LegacyStateBridge: React.FC<{ lastViewedDate: Date; lastPath: string }> = ({ lastViewedDate, lastPath }) => {
+  const syncToStore = usePlannerSync();
+  
+  useEffect(() => {
+    syncToStore({ selectedDate: lastViewedDate, lastPath });
+  }, [lastViewedDate, lastPath, syncToStore]);
+  
+  return null;
 };
 
 // Wrapper component to ensure hooks work correctly
