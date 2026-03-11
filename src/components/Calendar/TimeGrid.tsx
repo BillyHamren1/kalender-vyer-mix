@@ -173,15 +173,11 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   // Handle event click - format event data for navigation hook OR use custom handler
   const handleBookingEventClick = (event: CalendarEvent) => {
-    console.log('TimeGrid: Event clicked:', event);
-    
-    // If a custom onEventClick handler is provided, use that instead
     if (onEventClick) {
       onEventClick(event);
       return;
     }
     
-    // Otherwise, use the default navigation behavior
     const formattedEventInfo = {
       event: {
         id: event.id,
@@ -194,7 +190,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
       }
     };
     
-    console.log('TimeGrid: Formatted event for navigation:', formattedEventInfo);
     handleEventClick(formattedEventInfo);
   };
 
