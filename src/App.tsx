@@ -1,4 +1,5 @@
-import React, { createContext, useState } from 'react';
+import React, { createContext, useState, useEffect } from 'react';
+import { PlannerStoreProvider, usePlannerSync } from '@/stores/plannerStore';
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -105,12 +106,15 @@ const AppContent = () => {
   };
 
   return (
-    <CalendarContext.Provider value={contextValue}>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <Toaster />
-           <BrowserRouter>
-              <Routes>
+    <PlannerStoreProvider>
+      <CalendarContext.Provider value={contextValue}>
+        {/* Bridge: sync legacy CalendarContext state into PlannerStore */}
+        <LegacyStateBridge lastViewedDate={lastViewedDate} lastPath={lastPath} />
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <Toaster />
+             <BrowserRouter>
+                <Routes>
                 {/* Auth Routes - Not Protected */}
                 <Route path="/auth" element={<AuthProvider><Auth /></AuthProvider>} />
                 <Route path="/auth/reset" element={<AuthProvider><AuthResetPassword /></AuthProvider>} />
@@ -194,7 +198,23 @@ const AppContent = () => {
         </TooltipProvider>
       </QueryClientProvider>
     </CalendarContext.Provider>
+    </PlannerStoreProvider>
   );
+};
+
+/**
+ * Bridge component: syncs legacy CalendarContext state into PlannerStore.
+ * This ensures the store stays in sync during the gradual migration.
+ * LEGACY — remove once CalendarContext is fully replaced by PlannerStore.
+ */
+const LegacyStateBridge: React.FC<{ lastViewedDate: Date; lastPath: string }> = ({ lastViewedDate, lastPath }) => {
+  const syncToStore = usePlannerSync();
+  
+  useEffect(() => {
+    syncToStore({ selectedDate: lastViewedDate, lastPath });
+  }, [lastViewedDate, lastPath, syncToStore]);
+  
+  return null;
 };
 
 // Wrapper component to ensure hooks work correctly

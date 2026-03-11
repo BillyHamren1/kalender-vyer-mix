@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { usePlannerSync } from '@/stores/plannerStore';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useWarehouseCalendarEvents, WarehouseEvent } from '@/hooks/useWarehouseCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -107,6 +108,9 @@ const WarehouseCalendarPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<'day' | 'weekly' | 'monthly' | 'list'>('weekly');
+
+  // STORE SYNC: Bridge local state → central PlannerStore (legacy compatibility)
+  const syncToStore = usePlannerSync();
   
   // Booking products dialog state
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
@@ -148,6 +152,11 @@ const WarehouseCalendarPage = () => {
     return startOfMonth(new Date(hookCurrentDate));
   });
   
+  // STORE SYNC: Keep PlannerStore in sync with local state (legacy bridge)
+  useEffect(() => {
+    syncToStore({ selectedDate: currentWeekStart, viewMode });
+  }, [currentWeekStart, viewMode, syncToStore]);
+
   // Warehouse-specific events
   const {
     events: warehouseEvents,

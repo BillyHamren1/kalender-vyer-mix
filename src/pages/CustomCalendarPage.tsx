@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { usePlannerSync } from '@/stores/plannerStore';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
@@ -61,6 +62,9 @@ const CustomCalendarPage = () => {
   const isMobile = useIsMobile();
   // Default to 'weekly' - the full 7-day view with all teams
   const [viewMode, setViewMode] = useState<'day' | 'weekly' | 'monthly' | 'list'>('weekly');
+
+  // STORE SYNC: Bridge local state → central PlannerStore (legacy compatibility)
+  const syncToStore = usePlannerSync();
   
   // Monthly view state (for desktop) - now used for the month tabs
   const [monthlyDate, setMonthlyDate] = useState<Date>(startOfMonth(new Date()));
@@ -92,6 +96,11 @@ const CustomCalendarPage = () => {
       setMonthlyDate(startOfMonth(currentWeekStart));
     }
   }, [viewMode]);
+
+  // STORE SYNC: Keep PlannerStore in sync with local state (legacy bridge)
+  useEffect(() => {
+    syncToStore({ selectedDate: currentWeekStart, viewMode });
+  }, [currentWeekStart, viewMode, syncToStore]);
 
   // Visible teams state - per day { [dateString]: teamIds[] }
   const [visibleTeamsByDay, setVisibleTeamsByDay] = useState<{ [key: string]: string[] }>(() => {
