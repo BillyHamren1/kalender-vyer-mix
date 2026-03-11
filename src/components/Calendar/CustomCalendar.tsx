@@ -53,6 +53,9 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   const weekStartTime = currentDate.getTime();
   const days = useWeekDays(currentDate);
 
+  // STABILIZATION: Deduplicate and stabilize event array reference
+  const stableEvents = useStableEvents(events);
+
   const { getAvailableStaffForDay } = useAvailableStaffWeek(
     days, weekStartTime, resources, weeklyStaffOperations
   );
@@ -62,15 +65,29 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     getPositionFromCenter, navigateCarousel, handleDayCardClick
   } = useCarouselState(days, weekStartTime, containerRef, viewMode === 'day');
 
-  const getEventsForDayAndResource = (date: Date, resourceId: string): CalendarEvent[] => {
-    const dateStr = format(date, 'yyyy-MM-dd');
-    return events.filter(event => {
-      if (!event.start) return false;
+  // MEMOIZED: Pre-index events by "date|resourceId" key once per event change
+  const eventIndex = useMemo(() => {
+    const index = new Map<string, CalendarEvent[]>();
+    for (const event of stableEvents) {
+      if (!event.start) continue;
       const eventStart = new Date(event.start);
-      if (isNaN(eventStart.getTime())) return false;
-      return format(eventStart, 'yyyy-MM-dd') === dateStr && event.resourceId === resourceId;
-    });
-  };
+      if (isNaN(eventStart.getTime())) continue;
+      const dateStr = format(eventStart, 'yyyy-MM-dd');
+      const key = `${dateStr}|${event.resourceId}`;
+      const arr = index.get(key);
+      if (arr) {
+        arr.push(event);
+      } else {
+        index.set(key, [event]);
+      }
+    }
+    return index;
+  }, [stableEvents]);
+
+  const getEventsForDayAndResource = useCallback((date: Date, resourceId: string): CalendarEvent[] => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    return eventIndex.get(`${dateStr}|${resourceId}`) || [];
+  }, [eventIndex]);
 
   const handleEventResize = async () => {
     await refreshEvents();
