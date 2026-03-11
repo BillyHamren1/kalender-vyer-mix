@@ -332,3 +332,72 @@ describe('getBookingFields', () => {
     expect(Object.keys(BOOKING_DATE_FIELDS)).toEqual(['rig', 'event', 'rigDown']);
   });
 });
+
+// ─── Stress Tests: Rapid Sequential Operations ─────────────
+
+describe('useEventEditController: stress tests', () => {
+  it('handles rapid requestEdit/endEdit cycles correctly', () => {
+    const { result } = renderHook(() => useEventEditController());
+
+    for (let i = 0; i < 20; i++) {
+      act(() => {
+        result.current.requestEdit({ mode: 'quickTime', event: makeEvent({ id: `ev-${i}` }) });
+      });
+      act(() => {
+        result.current.endEdit();
+      });
+    }
+
+    // Should be clean after all cycles
+    expect(result.current.state.isEditing).toBe(false);
+    expect(result.current.state.activeMode).toBeNull();
+    expect(result.current.state.editingEvent).toBeNull();
+  });
+
+  it('final state is correct after rapid mode switches', () => {
+    const { result } = renderHook(() => useEventEditController());
+    const modes: EditMode[] = ['quickTime', 'editTime', 'moveDate', 'addRigDay', 'duplicate', 'delete'];
+
+    // Start one edit, then try to force-override rapidly
+    act(() => {
+      result.current.requestEdit({ mode: 'quickTime', event: makeEvent() });
+    });
+
+    modes.forEach((mode, i) => {
+      act(() => {
+        result.current.requestEdit({ mode, event: makeEvent({ id: `ev-${i}` }) }, true);
+      });
+    });
+
+    expect(result.current.state.isEditing).toBe(true);
+    expect(result.current.state.activeMode).toBe('delete');
+  });
+
+  it('handles null/undefined-like event gracefully', () => {
+    const { result } = renderHook(() => useEventEditController());
+
+    // Event with minimal data
+    let granted: boolean;
+    act(() => {
+      granted = result.current.requestEdit({
+        mode: 'quickTime',
+        event: { id: '', title: '', start: '', end: '', bookingId: '', eventType: '' },
+      });
+    });
+
+    // Should still grant (controller doesn't validate event content)
+    expect(granted!).toBe(true);
+    expect(result.current.state.isEditing).toBe(true);
+  });
+
+  it('endEdit is idempotent', () => {
+    const { result } = renderHook(() => useEventEditController());
+
+    // End without starting — should be safe
+    act(() => result.current.endEdit());
+    act(() => result.current.endEdit());
+    act(() => result.current.endEdit());
+
+    expect(result.current.state.isEditing).toBe(false);
+  });
+});
