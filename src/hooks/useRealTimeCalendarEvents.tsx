@@ -250,7 +250,7 @@ export const useRealTimeCalendarEvents = () => {
         await smartUpdateBookingCalendar(newRecord.id, {}, newRecord);
         toast.success('New confirmed booking added to calendar');
       } else if (eventType === 'DELETE' && oldRecord?.status === 'CONFIRMED') {
-        console.log(`Confirmed booking ${oldRecord.id} deleted, removing from calendar...`);
+        
         await smartUpdateBookingCalendar(oldRecord.id, oldRecord, { status: 'DELETED' });
         toast.info('Deleted booking events removed from calendar');
       }
