@@ -97,7 +97,7 @@ const EditEventTimeDialog: React.FC<EditEventTimeDialogProps> = ({
           <div className="space-y-2">
             <div className="text-sm font-medium">{event.title}</div>
             <div className="text-xs text-muted-foreground">
-              Current: {format(typeof event.start === 'string' ? new Date(event.start) : event.start, 'HH:mm')} - {format(typeof event.end === 'string' ? new Date(event.end) : event.end, 'HH:mm')}
+              Current: {extractUTCTime(event.start)} - {extractUTCTime(event.end)}
             </div>
           </div>
 
