@@ -36,7 +36,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
       
       // Only update if the date actually changed
       if (lastProcessedDate !== dateStr) {
-        console.log('IndividualStaffCalendar: Updating calendar to date:', dateStr);
+        // Date updated
         calendarApi.gotoDate(currentDate);
         setLastProcessedDate(dateStr);
       }
