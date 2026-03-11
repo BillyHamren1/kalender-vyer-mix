@@ -206,7 +206,7 @@ export const useRealTimeCalendarEvents = () => {
                   deliveryCity: newRecord.delivery_city
                 }
               };
-              console.log('Updated event:', newRecord.title, 'moved to team:', updatedEvents[index].resourceId);
+              updatedEvents[index] = updatedEvent;
             }
           }
           break;
