@@ -24,13 +24,6 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event, onClic
   const client = event.extendedProps?.client || 'Unknown Client';
   const city = event.extendedProps?.deliveryCity || event.extendedProps?.city || 'Unknown City';
   
-  // Debug specific fields
-  console.log('EventHoverCard - Products:', products);
-  console.log('EventHoverCard - Internal notes:', internalNotes);
-  console.log('EventHoverCard - Delivery address:', deliveryAddress);
-  console.log('EventHoverCard - Client:', client);
-  console.log('EventHoverCard - City:', city);
-  
   // Build full address string
   const fullAddress = [deliveryAddress, deliveryCity, deliveryPostalCode]
     .filter(Boolean)
