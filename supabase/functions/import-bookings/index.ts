@@ -1707,6 +1707,7 @@ serve(async (req) => {
                   // which don't exist in our database. Only use lastParentProductId which we track locally.
                   const productData: ProductData = {
                     booking_id: existingBooking.id,
+                    organization_id: organizationId,
                     name: productName,
                     quantity: quantity,
                     notes: product.notes || product.description || null,
