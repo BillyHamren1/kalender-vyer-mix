@@ -117,6 +117,25 @@ const CalendarHeader = ({
         </Button>
       </div>
 
+      {/* Beta toggle */}
+      <div className="flex items-center gap-1.5">
+        <FlaskConical className="w-3.5 h-3.5 text-primary-foreground/70" />
+        <span className="text-xs text-primary-foreground/70 font-medium">Beta</span>
+        <Switch
+          checked={useCustomCalendar}
+          onCheckedChange={(checked) => {
+            setUseCustomCalendar(checked);
+            if (checked) {
+              localStorage.setItem('use_custom_calendar', 'true');
+            } else {
+              localStorage.removeItem('use_custom_calendar');
+            }
+            window.location.reload();
+          }}
+          className="scale-75"
+        />
+      </div>
+
       {/* Right: filter dropdown */}
       <div className="relative" ref={dropdownRef}>
         <button
