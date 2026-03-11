@@ -30,8 +30,8 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   // Add event navigation hook for context menu
   const { handleEventClick } = useEventNavigation();
   
-  // EDIT CONTROLLER: Central mutex for edit flows (stabilization layer)
-  const editController = useEventEditController();
+  // EDIT CONTROLLER: Global mutex via context — shared across all events
+  const editController = useGlobalEditController();
   const quickTimeHandlers = createDialogHandlers(editController, 'quickTime');
   const moveDateHandlers = createDialogHandlers(editController, 'moveDate');
   
