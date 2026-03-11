@@ -84,18 +84,18 @@ export function Sidebar3D() {
         className={cn(
           "relative z-40 h-screen shrink-0 transition-all duration-500 ease-out",
           "hidden md:flex flex-col",
-          isCollapsed ? "w-14" : "w-48"
+          isCollapsed ? "w-16" : "w-56"
         )}
         style={{
           background: "hsl(var(--sidebar-background))",
-          borderRight: "1px solid hsl(200 18% 66%)",
+          borderRight: "1px solid hsl(var(--border) / 0.4)",
         }}
       >
 
         {/* Content */}
         <div className="flex flex-col h-full px-3 py-4">
 
-          {/* Toggle button – circular with primary border */}
+          {/* Toggle button */}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
             className={cn(
@@ -109,55 +109,12 @@ export function Sidebar3D() {
           </button>
 
           {/* ── Nav ── */}
-          <nav className="flex-1 space-y-px pt-6">
+          <nav className="flex-1 space-y-1 pt-8">
             {navigationItems.map((item) => {
               const hasChildren = !!item.children?.length;
               const active = isItemActive(item);
               const expanded = expandedItems.includes(item.url);
               const hovered = hoveredUrl === item.url;
-
-              const itemStyle: React.CSSProperties = {
-                borderLeft: active
-                  ? "2.5px solid hsl(184 55% 38%)"
-                  : "2px solid transparent",
-                paddingTop: 9,
-                paddingBottom: 9,
-                paddingLeft: active ? 9 : 11,
-                paddingRight: 12,
-                borderRadius: "0.375rem",
-                background: active
-                  ? "hsl(200 14% 93%)"
-                  : hovered
-                  ? "hsl(200 14% 50% / 0.08)"
-                  : "transparent",
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
-                gap: isCollapsed ? 0 : 8,
-                cursor: "pointer",
-                transition: "background 150ms",
-                justifyContent: isCollapsed ? "center" : "flex-start",
-                textAlign: "left",
-                boxSizing: "border-box",
-              };
-
-              const iconStyle: React.CSSProperties = {
-                color: active
-                  ? "hsl(184 60% 38%)"
-                  : "hsl(var(--foreground) / 0.60)",
-                flexShrink: 0,
-              };
-
-              const labelStyle: React.CSSProperties = {
-                fontSize: 13,
-                lineHeight: 1,
-                letterSpacing: "-0.005em",
-                fontWeight: active ? 600 : 500,
-                color: active
-                  ? "hsl(var(--foreground))"
-                  : "hsl(var(--foreground) / 0.72)",
-                flex: 1,
-              };
 
               const sharedMouseProps = {
                 onMouseEnter: () => setHoveredUrl(item.url),
@@ -165,14 +122,46 @@ export function Sidebar3D() {
               };
 
               const iconEl = (
-                <div className="w-4 h-4 flex items-center justify-center shrink-0">
+                <div
+                  className={cn(
+                    "flex items-center justify-center shrink-0 rounded-xl transition-colors",
+                    isCollapsed ? "w-10 h-10" : "w-10 h-10",
+                    active
+                      ? "bg-primary/10"
+                      : "bg-muted/60"
+                  )}
+                >
                   <item.icon
-                    size={14}
-                    color={active ? "hsl(184 60% 38%)" : "hsl(var(--foreground) / 0.60)"}
+                    size={18}
+                    strokeWidth={1.8}
+                    color={active ? "hsl(184 60% 38%)" : "hsl(var(--foreground) / 0.45)"}
                   />
                 </div>
               );
 
+              const labelEl = !isCollapsed && (
+                <span
+                  className="transition-colors"
+                  style={{
+                    fontSize: 15,
+                    lineHeight: 1.2,
+                    letterSpacing: "-0.01em",
+                    fontWeight: active ? 600 : 500,
+                    color: active
+                      ? "hsl(var(--foreground))"
+                      : "hsl(var(--foreground) / 0.55)",
+                    flex: 1,
+                  }}
+                >
+                  {item.title}
+                </span>
+              );
+
+              const itemClassName = cn(
+                "relative flex items-center gap-3 w-full rounded-2xl transition-all duration-150",
+                isCollapsed ? "justify-center px-1 py-1.5" : "px-2 py-2",
+                active && "bg-primary/[0.06]"
+              );
 
               return (
                 <div key={item.url}>
@@ -182,56 +171,52 @@ export function Sidebar3D() {
                         navigate(item.url);
                         toggleExpanded(item.url);
                       }}
-                      style={itemStyle}
+                      className={itemClassName}
+                      style={{
+                        background: active
+                          ? "hsl(184 60% 38% / 0.06)"
+                          : hovered
+                          ? "hsl(var(--foreground) / 0.03)"
+                          : "transparent",
+                      }}
                       {...sharedMouseProps}
                     >
                       {iconEl}
+                      {labelEl}
                       {!isCollapsed && (
-                        <>
-                          <span style={labelStyle}>{item.title}</span>
-                          <ChevronDown
-                            size={14}
-                            strokeWidth={2}
-                            style={{
-                              color: "hsl(var(--foreground) / 0.40)",
-                              transition: "transform 200ms",
-                              transform: expanded
-                                ? "rotate(180deg)"
-                                : "rotate(0deg)",
-                              flexShrink: 0,
-                            }}
-                          />
-                        </>
-                      )}
-                      {/* Collapsed tooltip */}
-                      {isCollapsed && (
-                        <div className="absolute left-full ml-3 px-3 py-1.5 rounded-lg bg-popover text-popover-foreground text-sm font-medium opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 shadow-lg border border-border whitespace-nowrap z-50">
-                          {item.title}
-                        </div>
+                        <ChevronDown
+                          size={14}
+                          strokeWidth={2}
+                          style={{
+                            color: "hsl(var(--foreground) / 0.35)",
+                            transition: "transform 200ms",
+                            transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
+                            flexShrink: 0,
+                          }}
+                        />
                       )}
                     </button>
                   ) : (
                     <NavLink
                       to={item.url}
-                      style={itemStyle}
+                      className={itemClassName}
+                      style={{
+                        background: active
+                          ? "hsl(184 60% 38% / 0.06)"
+                          : hovered
+                          ? "hsl(var(--foreground) / 0.03)"
+                          : "transparent",
+                      }}
                       {...sharedMouseProps}
                     >
                       {iconEl}
-                      {!isCollapsed && (
-                        <span style={labelStyle}>{item.title}</span>
-                      )}
-                      {/* Collapsed tooltip */}
-                      {isCollapsed && (
-                        <div className="absolute left-full ml-3 px-3 py-1.5 rounded-lg bg-popover text-popover-foreground text-sm font-medium opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 shadow-lg border border-border whitespace-nowrap z-50">
-                          {item.title}
-                        </div>
-                      )}
+                      {labelEl}
                     </NavLink>
                   )}
 
                   {/* Sub-items */}
                   {hasChildren && !isCollapsed && expanded && (
-                    <div className="ml-7 mt-px space-y-px">
+                    <div className="ml-14 mt-0.5 space-y-0.5">
                       {item.children!.map((child) => {
                         const childActive = location.pathname === child.url;
                         const childHovered = hoveredUrl === child.url;
@@ -239,25 +224,18 @@ export function Sidebar3D() {
                           <NavLink
                             key={child.url}
                             to={child.url}
+                            className="block rounded-lg px-3 py-2 transition-colors"
                             style={{
-                              display: "flex",
-                              alignItems: "center",
-                              paddingTop: 7,
-                              paddingBottom: 7,
-                              paddingLeft: 10,
-                              paddingRight: 10,
-                              borderRadius: "0.375rem",
-                              fontSize: 12,
+                              fontSize: 13,
                               fontWeight: childActive ? 600 : 500,
                               color: childActive
                                 ? "hsl(184 60% 38%)"
-                                : "hsl(var(--foreground) / 0.65)",
+                                : "hsl(var(--foreground) / 0.50)",
                               background: childActive
-                                ? "hsl(200 14% 93%)"
+                                ? "hsl(184 60% 38% / 0.06)"
                                 : childHovered
-                                ? "hsl(200 14% 50% / 0.08)"
+                                ? "hsl(var(--foreground) / 0.03)"
                                 : "transparent",
-                              transition: "background 150ms",
                             }}
                             onMouseEnter={() => setHoveredUrl(child.url)}
                             onMouseLeave={() => setHoveredUrl(null)}
@@ -285,10 +263,10 @@ export function Sidebar3D() {
               )}
             >
               <div
-                className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
                 style={{ background: "hsl(184 55% 38% / 0.12)" }}
               >
-                <Users size={14} style={{ color: "hsl(184 60% 38%)" }} />
+                <Users size={15} style={{ color: "hsl(184 60% 38%)" }} />
               </div>
               {!isCollapsed && (
                 <span
