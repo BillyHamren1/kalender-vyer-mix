@@ -164,47 +164,49 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
 
   // Day mode: 3D Carousel
   return (
-    <div className="custom-calendar-container" ref={containerRef}>
-      <div className={`carousel-3d-wrapper ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
-        <div className="carousel-3d-container">
-          {days.map((date, index) => {
-            const position = getPositionFromCenter(index);
-            const isCenter = position === 0;
-            const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
-            return (
-              <div
-                key={format(date, 'yyyy-MM-dd')}
-                className={`carousel-3d-card ${isCenter ? 'is-center' : ''} ${isToday ? 'is-today' : ''}`}
-                data-position={position}
-              >
-                {!isCenter && (
-                  <div
-                    className="absolute inset-0 z-50 cursor-pointer"
-                    onClick={(e) => { e.stopPropagation(); handleDayCardClick(index); }}
-                  />
-                )}
-                <div className={`day-card bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
-                  <TimeGrid {...buildTimeGridProps(date, true, isCenter)} />
+    <EditControllerProvider>
+      <div className="custom-calendar-container" ref={containerRef}>
+        <div className={`carousel-3d-wrapper ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
+          <div className="carousel-3d-container">
+            {days.map((date, index) => {
+              const position = getPositionFromCenter(index);
+              const isCenter = position === 0;
+              const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+              return (
+                <div
+                  key={format(date, 'yyyy-MM-dd')}
+                  className={`carousel-3d-card ${isCenter ? 'is-center' : ''} ${isToday ? 'is-today' : ''}`}
+                  data-position={position}
+                >
+                  {!isCenter && (
+                    <div
+                      className="absolute inset-0 z-50 cursor-pointer"
+                      onClick={(e) => { e.stopPropagation(); handleDayCardClick(index); }}
+                    />
+                  )}
+                  <div className={`day-card bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
+                    <TimeGrid {...buildTimeGridProps(date, true, isCenter)} />
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-        <div className="carousel-3d-indicators">
-          {days.map((date, index) => {
-            const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
-            return (
-              <button
-                key={format(date, 'yyyy-MM-dd')}
-                className={`carousel-3d-dot ${index === centerIndex ? 'active' : ''} ${isToday ? 'is-today' : ''}`}
-                onClick={() => setCenterIndex(index)}
-                aria-label={format(date, 'EEEE d MMMM')}
-              />
-            );
-          })}
+              );
+            })}
+          </div>
+          <div className="carousel-3d-indicators">
+            {days.map((date, index) => {
+              const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+              return (
+                <button
+                  key={format(date, 'yyyy-MM-dd')}
+                  className={`carousel-3d-dot ${index === centerIndex ? 'active' : ''} ${isToday ? 'is-today' : ''}`}
+                  onClick={() => setCenterIndex(index)}
+                  aria-label={format(date, 'EEEE d MMMM')}
+                />
+              );
+            })}
+          </div>
         </div>
       </div>
-    </div>
+    </EditControllerProvider>
   );
 };
 
