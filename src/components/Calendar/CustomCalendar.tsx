@@ -143,20 +143,22 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   // Weekly/Monthly mode
   if (isWeeklyMode) {
     return (
-      <div className="custom-calendar-container weekly-view" ref={containerRef}>
-        <div className={`weekly-horizontal-grid ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
-          {days.map((date) => {
-            const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
-            return (
-              <div key={format(date, 'yyyy-MM-dd')} className={`weekly-day-card ${isToday ? 'is-today' : ''}`}>
-                <div className={`day-card bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
-                  <TimeGrid {...buildTimeGridProps(date, false)} />
+      <EditControllerProvider>
+        <div className="custom-calendar-container weekly-view" ref={containerRef}>
+          <div className={`weekly-horizontal-grid ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
+            {days.map((date) => {
+              const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+              return (
+                <div key={format(date, 'yyyy-MM-dd')} className={`weekly-day-card ${isToday ? 'is-today' : ''}`}>
+                  <div className={`day-card bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
+                    <TimeGrid {...buildTimeGridProps(date, false)} />
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+      </EditControllerProvider>
     );
   }
 
