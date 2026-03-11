@@ -105,7 +105,7 @@ export const useRealTimeCalendarEvents = () => {
           );
           
           if (hasUuidTitles) {
-            console.log('Found events with UUID titles, attempting to fix...');
+            
             try {
               await fixAllEventTitles();
               const updatedEvents = await fetchCalendarEvents();
