@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { CalendarEvent, Resource, getEventColor } from './ResourceData';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
+import { useEventEditController, createDialogHandlers } from '@/hooks/useEventEditController';
 import EventHoverCard from './EventHoverCard';
 import QuickTimeEditPopover from './QuickTimeEditPopover';
 import MoveEventDateDialog from './MoveEventDateDialog';
@@ -28,7 +29,13 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   // Add event navigation hook for context menu
   const { handleEventClick } = useEventNavigation();
   
-  // Dialog state for date move
+  // EDIT CONTROLLER: Central mutex for edit flows (stabilization layer)
+  const editController = useEventEditController();
+  const quickTimeHandlers = createDialogHandlers(editController, 'quickTime');
+  const moveDateHandlers = createDialogHandlers(editController, 'moveDate');
+  
+  // Dialog state for date move — LEGACY: still uses local state,
+  // but now gated by editController for conflict prevention
   const [showDateDialog, setShowDateDialog] = useState(false);
 
   const eventColor = getEventColor(event.eventType);
@@ -161,17 +168,36 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         <QuickTimeEditPopover
           event={event}
           onUpdate={onEventResize}
-          onMoveDate={() => setShowDateDialog(true)}
-          onOpenChange={setIsPopoverOpen}
+          onMoveDate={() => {
+            // EDIT CONTROLLER: Gate move-date behind mutex
+            const granted = moveDateHandlers.onOpen(event);
+            if (granted) {
+              setShowDateDialog(true);
+            }
+          }}
+          onOpenChange={(open) => {
+            setIsPopoverOpen(open);
+            // EDIT CONTROLLER: Track quick-time edit state
+            if (open) {
+              quickTimeHandlers.onOpen(event, true); // force — popover is primary
+            } else {
+              quickTimeHandlers.onClose();
+            }
+          }}
         >
           {eventCardContent}
         </QuickTimeEditPopover>
       </EventHoverCard>
       
-      {/* Date Move Dialog */}
+      {/* Date Move Dialog — LEGACY local state, gated by editController */}
       <MoveEventDateDialog
         open={showDateDialog}
-        onOpenChange={setShowDateDialog}
+        onOpenChange={(open) => {
+          setShowDateDialog(open);
+          if (!open) {
+            moveDateHandlers.onClose();
+          }
+        }}
         event={event}
         onUpdate={onEventResize}
       />
