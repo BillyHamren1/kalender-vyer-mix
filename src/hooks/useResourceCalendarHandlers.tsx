@@ -40,32 +40,22 @@ export const useResourceCalendarHandlers = (
   // Get event handlers - using our enhanced handleEventChange
   const { handleEventDrop } = getEventHandlers(handleEventChange, handleEventClick, handleEventReceive);
 
-  // Handler for duplicate button click - FIXED to pass full event data
   const handleDuplicateButtonClick = (eventId: string) => {
-    console.log('Duplicate button clicked for event:', eventId);
-    // Find the event in the events array
     const event = events.find(event => event.id === eventId);
     if (event) {
-      console.log('Found event for duplication:', event);
-      
-      // Create and dispatch a custom event with the FULL event data
       const customEvent = new CustomEvent('openDuplicateDialog', { 
         detail: { 
           id: event.id,
           title: event.title,
           resourceId: event.resourceId,
-          fullEvent: event // Pass the complete event object
+          fullEvent: event
         } 
       });
       document.dispatchEvent(customEvent);
-    } else {
-      console.error('Event not found for duplication:', eventId);
     }
   };
 
-  // Handler for delete button click
   const handleDeleteButtonClick = (eventId: string) => {
-    console.log('Delete button clicked for event:', eventId);
     const event = events.find(event => event.id === eventId);
     if (event) {
       setEventToDelete({ id: event.id, title: event.title });
