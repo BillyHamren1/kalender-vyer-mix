@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
-import { format, parse, isAfter } from 'date-fns';
+import { parse, isAfter } from 'date-fns';
 import { Clock } from 'lucide-react';
+import { extractUTCTime, extractUTCDate, buildUTCDateTime } from '@/utils/dateUtils';
 
 interface EditEventTimeDialogProps {
   open: boolean;
