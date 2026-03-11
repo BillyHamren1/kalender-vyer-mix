@@ -222,7 +222,7 @@ export const useRealTimeCalendarEvents = () => {
 
   // Handle real-time booking changes with smart calendar updates
   const handleBookingChange = useCallback(async (payload: any) => {
-    console.log('Real-time booking change:', payload.eventType);
+    // Process booking change
     
     if (!activeRef.current) return;
 
