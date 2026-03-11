@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { updateCalendarEvent } from '@/services/calendarService';
-import { format, parse, isAfter } from 'date-fns';
+import { parse, isAfter } from 'date-fns';
 import { Clock } from 'lucide-react';
+import { extractUTCTime, extractUTCDate, buildUTCDateTime } from '@/utils/dateUtils';
 
 interface EditEventTimeDialogProps {
   open: boolean;
@@ -32,16 +33,13 @@ const EditEventTimeDialog: React.FC<EditEventTimeDialogProps> = ({
   // Initialize times when dialog opens
   useEffect(() => {
     if (open && event) {
-      const eventStart = typeof event.start === 'string' ? new Date(event.start) : event.start;
-      const eventEnd = typeof event.end === 'string' ? new Date(event.end) : event.end;
-      setStartTime(format(eventStart, 'HH:mm'));
-      setEndTime(format(eventEnd, 'HH:mm'));
+      setStartTime(extractUTCTime(event.start));
+      setEndTime(extractUTCTime(event.end));
     }
   }, [open, event]);
 
   const handleSave = async () => {
     const eventStart = typeof event.start === 'string' ? new Date(event.start) : event.start;
-    const eventEnd = typeof event.end === 'string' ? new Date(event.end) : event.end;
     
     // Validate times
     const startDate = parse(startTime, 'HH:mm', eventStart);
@@ -57,19 +55,15 @@ const EditEventTimeDialog: React.FC<EditEventTimeDialogProps> = ({
     setIsSubmitting(true);
 
     try {
-      // Create new dates with updated times
-      const newStart = new Date(typeof event.start === 'string' ? event.start : event.start);
-      const [startHours, startMinutes] = startTime.split(':').map(Number);
-      newStart.setHours(startHours, startMinutes, 0, 0);
-
-      const newEnd = new Date(typeof event.end === 'string' ? event.end : event.end);
-      const [endHours, endMinutes] = endTime.split(':').map(Number);
-      newEnd.setHours(endHours, endMinutes, 0, 0);
+      // Use UTC date extraction to stay consistent with QuickTimeEditPopover
+      const datePart = extractUTCDate(event.start);
+      const newStartISO = buildUTCDateTime(datePart, startTime);
+      const newEndISO = buildUTCDateTime(datePart, endTime);
 
       // Update event in database
       await updateCalendarEvent(event.id, {
-        start: newStart.toISOString(),
-        end: newEnd.toISOString()
+        start: newStartISO,
+        end: newEndISO
       });
 
       toast.success('Event time updated', {
@@ -109,7 +103,7 @@ const EditEventTimeDialog: React.FC<EditEventTimeDialogProps> = ({
           <div className="space-y-2">
             <div className="text-sm font-medium">{event.title}</div>
             <div className="text-xs text-muted-foreground">
-              Current: {format(typeof event.start === 'string' ? new Date(event.start) : event.start, 'HH:mm')} - {format(typeof event.end === 'string' ? new Date(event.end) : event.end, 'HH:mm')}
+              Current: {extractUTCTime(event.start)} - {extractUTCTime(event.end)}
             </div>
           </div>
 
