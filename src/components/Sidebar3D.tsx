@@ -20,13 +20,13 @@ interface NavItem {
 
 
 const navigationItems: NavItem[] = [
-  { title: "Personalplanering", url: "/calendar", icon: Calendar },
   {
     title: "Projekt",
     url: "/projects",
     icon: FolderKanban,
     children: [{ title: "Mina projekt", url: "/my-projects" }],
   },
+  { title: "Personalplanering", url: "/calendar", icon: Calendar },
   {
     title: "Ekonomiöversikt",
     url: "/economy",
