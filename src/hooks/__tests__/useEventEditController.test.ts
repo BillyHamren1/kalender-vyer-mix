@@ -184,10 +184,12 @@ describe('useEventEditController: query methods', () => {
 describe('createDialogHandlers', () => {
   it('onOpen delegates to requestEdit', () => {
     const { result } = renderHook(() => useEventEditController());
-    const handlers = createDialogHandlers(result.current, 'quickTime');
 
-    const granted = handlers.onOpen(makeEvent());
-    expect(granted).toBe(true);
+    act(() => {
+      const handlers = createDialogHandlers(result.current, 'quickTime');
+      const granted = handlers.onOpen(makeEvent());
+      expect(granted).toBe(true);
+    });
   });
 
   it('onClose only ends edit if mode matches', () => {
@@ -197,9 +199,11 @@ describe('createDialogHandlers', () => {
       result.current.requestEdit({ mode: 'quickTime', event: makeEvent() });
     });
 
-    // Create handlers for a DIFFERENT mode
-    const moveDateHandlers = createDialogHandlers(result.current, 'moveDate');
-    moveDateHandlers.onClose(); // Should NOT end the quickTime edit
+    // Create handlers for a DIFFERENT mode and close — should NOT end quickTime
+    act(() => {
+      const moveDateHandlers = createDialogHandlers(result.current, 'moveDate');
+      moveDateHandlers.onClose();
+    });
 
     expect(result.current.state.isEditing).toBe(true);
     expect(result.current.state.activeMode).toBe('quickTime');
@@ -212,25 +216,24 @@ describe('createDialogHandlers', () => {
       result.current.requestEdit({ mode: 'quickTime', event: makeEvent() });
     });
 
-    const quickTimeHandlers = createDialogHandlers(result.current, 'quickTime');
-    quickTimeHandlers.onClose();
+    act(() => {
+      const quickTimeHandlers = createDialogHandlers(result.current, 'quickTime');
+      quickTimeHandlers.onClose();
+    });
 
     expect(result.current.state.isEditing).toBe(false);
   });
 
   it('canOpen reflects current state', () => {
     const { result } = renderHook(() => useEventEditController());
-    const handlers = createDialogHandlers(result.current, 'moveDate');
 
-    expect(handlers.canOpen()).toBe(true);
+    expect(createDialogHandlers(result.current, 'moveDate').canOpen()).toBe(true);
 
     act(() => {
       result.current.requestEdit({ mode: 'quickTime', event: makeEvent() });
     });
 
-    // Re-check with updated controller state
-    const updatedHandlers = createDialogHandlers(result.current, 'moveDate');
-    expect(updatedHandlers.canOpen()).toBe(false);
+    expect(createDialogHandlers(result.current, 'moveDate').canOpen()).toBe(false);
   });
 });
 
