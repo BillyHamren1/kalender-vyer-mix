@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
-import ResourceCalendar from './ResourceCalendar';
+import ResourceCalendarSwitch from './ResourceCalendarSwitch';
 import { format, startOfWeek, addWeeks, subWeeks, addDays, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
 import './DynamicColumnStyles.css';
 import { useNavigate } from 'react-router-dom';
