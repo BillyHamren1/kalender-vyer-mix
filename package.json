@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
-    "@capacitor/barcode-scanner": "^3.0.2",
     "@capacitor/camera": "^8.0.1",
     "@capacitor/cli": "^8.1.0",
     "@capacitor/core": "^8.1.0",

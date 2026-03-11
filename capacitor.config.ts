@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'se.fransaugust.tidrapport',
-  appName: 'Tidrapport',
+  appId: 'se.eventflow.scanner',
+  appName: 'EventFlow Scanner',
   webDir: 'dist',
   server: {
     url: 'https://d42a96b9-4d25-4701-b40a-d3fe594418b5.lovableproject.com?forceHideBadge=true',
