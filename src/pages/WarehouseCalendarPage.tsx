@@ -152,6 +152,11 @@ const WarehouseCalendarPage = () => {
     return startOfMonth(new Date(hookCurrentDate));
   });
   
+  // STORE SYNC: Keep PlannerStore in sync with local state (legacy bridge)
+  useEffect(() => {
+    syncToStore({ selectedDate: currentWeekStart, viewMode });
+  }, [currentWeekStart, viewMode, syncToStore]);
+
   // Warehouse-specific events
   const {
     events: warehouseEvents,
