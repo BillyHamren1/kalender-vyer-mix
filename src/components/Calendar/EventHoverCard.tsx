@@ -181,4 +181,4 @@ const EventHoverCard: React.FC<EventHoverCardProps> = React.memo(({ children, ev
 
 EventHoverCard.displayName = 'EventHoverCard';
 
-export default React.memo(EventHoverCard);
+export default EventHoverCard;
