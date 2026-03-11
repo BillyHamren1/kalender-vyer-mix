@@ -136,7 +136,7 @@ export const useRealTimeCalendarEvents = () => {
 
   // Enhanced real-time calendar event handler
   const handleCalendarEventChange = useCallback((payload: any) => {
-    console.log('Real-time calendar event change:', payload.eventType);
+    // Process real-time event silently (errors still logged)
     
     if (!activeRef.current) return;
 
