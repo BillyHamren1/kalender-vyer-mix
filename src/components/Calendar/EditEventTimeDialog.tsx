@@ -60,6 +60,12 @@ const EditEventTimeDialog: React.FC<EditEventTimeDialogProps> = ({
       const newStartISO = buildUTCDateTime(datePart, startTime);
       const newEndISO = buildUTCDateTime(datePart, endTime);
 
+      // Update event in database
+      await updateCalendarEvent(event.id, {
+        start: newStartISO,
+        end: newEndISO
+      });
+
       toast.success('Event time updated', {
         description: `${event.title} has been rescheduled`
       });
