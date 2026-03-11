@@ -29,7 +29,13 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   // Add event navigation hook for context menu
   const { handleEventClick } = useEventNavigation();
   
-  // Dialog state for date move
+  // EDIT CONTROLLER: Central mutex for edit flows (stabilization layer)
+  const editController = useEventEditController();
+  const quickTimeHandlers = createDialogHandlers(editController, 'quickTime');
+  const moveDateHandlers = createDialogHandlers(editController, 'moveDate');
+  
+  // Dialog state for date move — LEGACY: still uses local state,
+  // but now gated by editController for conflict prevention
   const [showDateDialog, setShowDateDialog] = useState(false);
 
   const eventColor = getEventColor(event.eventType);
