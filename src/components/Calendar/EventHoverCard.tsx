@@ -13,10 +13,6 @@ interface EventHoverCardProps {
 }
 
 const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event, onClick = undefined, onDoubleClick = undefined, disabled = false }) => {
-  // Debug logging to see what data we're receiving
-  console.log('EventHoverCard - Event data:', event);
-  console.log('EventHoverCard - Extended props:', event.extendedProps);
-  
   const products = event.extendedProps?.products || [];
   const deliveryAddress = event.extendedProps?.deliveryAddress;
   const internalNotes = event.extendedProps?.internalNotes;
