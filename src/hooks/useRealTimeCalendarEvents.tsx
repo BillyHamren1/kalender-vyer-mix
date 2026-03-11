@@ -93,7 +93,7 @@ export const useRealTimeCalendarEvents = () => {
         });
 
         setEvents(enhancedEvents);
-        console.log(`Loaded ${enhancedEvents.length} calendar events with enhanced data`);
+        
         
         // Check if we need to fix any titles (only run once per session)
         const titleFixKey = 'title-fix-attempted';
