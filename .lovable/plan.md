@@ -35,8 +35,29 @@
 ## 3c. Borttagning av oanvända komponenter ✅ Klart
 **Åtgärd**: `DayCalendar.tsx` och `useDayCalendarEvents.tsx` borttagna — inga importer fanns.
 
-## 3d. FullCalendar-beroende ⏳ Ej möjligt ännu
-**Status**: `ResourceCalendar.tsx` importeras av `UnifiedResourceCalendar`, `MonthlyResourceCalendar`, `TestMonthlyResourceCalendar`. `IndividualStaffCalendar` använder FullCalendar direkt. Kräver migrering av 4 komponenter till custom grid — stort scope, rekommenderas som separat projekt.
+## 3d. FullCalendar-migration ✅ Klart (parallellt spår)
+**Status**: Custom-ersättningar byggda i `src/components/Calendar/custom/`. Feature flag `use_custom_calendar` i localStorage styr vilken implementation som körs.
+
+### Nya filer:
+- `src/components/Calendar/custom/useCalendarGrid.tsx` — Tidsberäkning, slot-generering, event-positionering i pixlar
+- `src/components/Calendar/custom/TimeColumn.tsx` — Tidslots-kolumn (06:00–22:00)
+- `src/components/Calendar/custom/ResourceColumn.tsx` — En team-kolumn med events, använder befintlig `CustomEvent`
+- `src/components/Calendar/custom/CustomResourceTimeGrid.tsx` — Ersätter `ResourceCalendar` (resourceTimeGrid dagvy)
+- `src/components/Calendar/custom/MonthCell.tsx` — Dag-cell i månadsvy
+- `src/components/Calendar/custom/CustomMonthGrid.tsx` — Ersätter `IndividualStaffCalendar` (månadsvy)
+- `src/components/Calendar/ResourceCalendarSwitch.tsx` — Feature flag wrapper för resource-kalender
+- `src/components/Calendar/StaffCalendarSwitch.tsx` — Feature flag wrapper för personal-kalender
+
+### Inkopplade konsumenter:
+- `MonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
+- `TestMonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
+- `StaffMemberCalendar.tsx` → `StaffCalendarSwitch`
+
+### Aktivering:
+```js
+localStorage.setItem('use_custom_calendar', 'true'); // Aktivera custom-versionen
+localStorage.removeItem('use_custom_calendar');       // Tillbaka till FullCalendar
+```
 
 ## 3e. Refaktorera CustomCalendar ✅ Klart
 **Åtgärd**: CustomCalendar (400→185 rader) uppdelad i tre extraherade hooks:
