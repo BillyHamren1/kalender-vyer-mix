@@ -1,4 +1,19 @@
 
+# Steg 4: Regression Test Layer ✅ Klart
+
+## Nya testfiler:
+- `src/utils/__tests__/dateUtils.test.ts` — 22 tester
+- `src/hooks/__tests__/useMemoizedEvents.test.ts` — 12 tester
+
+## Utökade testfiler:
+- `plannerStore.test.tsx` — +4 tester (rapid view switching)
+- `useEventEditController.test.ts` — +4 tester (stress/edge cases)
+- `eventUtils.test.ts` — +5 tester (edge cases)
+
+## Totalt: 159 tester i 7 filer, alla gröna.
+
+---
+
 # Steg 1: SAFE NOW ✅ Klart
 
 - ✅ `convertToISO8601` centraliserad till `src/utils/dateUtils.ts`
