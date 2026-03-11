@@ -23,9 +23,25 @@
 
 ---
 
-# Steg 3: LATER
+# Steg 3: LATER — delvis klart
 
-- Avveckla FullCalendar-beroende om `ResourceCalendar` inte längre används
-- Refaktorera `CustomCalendar` till mindre sub-komponenter (header, grid, event-layer)
-- Lägg till optimistic updates för drag & drop
-- Event deduplication guard i realtime-handler
+## 3a. Event deduplication guard ✅ Klart
+**Åtgärd**: Realtime INSERT-handler i `useRealTimeCalendarEvents` kollar nu både `id` OCH `booking_id + event_type` combo innan ett event läggs till. Förhindrar dubbletter vid snabb sync.
+**Filer**: `src/hooks/useRealTimeCalendarEvents.tsx`
+
+## 3b. Console.log-sanering (rendervägar) ✅ Klart
+**Åtgärd**: Borttagna icke-error `console.log` från `useRealTimeCalendarEvents`, `CustomCalendar`. Kvar: `console.error` för faktiska fel.
+**Filer**: `src/hooks/useRealTimeCalendarEvents.tsx`, `src/components/Calendar/CustomCalendar.tsx`
+
+## 3c. Borttagning av oanvända komponenter ✅ Klart
+**Åtgärd**: `DayCalendar.tsx` och `useDayCalendarEvents.tsx` borttagna — inga importer fanns.
+**Filer**: (borttagna)
+
+## 3d. FullCalendar-beroende ⏳ Ej möjligt ännu
+**Status**: `ResourceCalendar.tsx` importeras av `UnifiedResourceCalendar`, `MonthlyResourceCalendar`, `TestMonthlyResourceCalendar`. `IndividualStaffCalendar` använder FullCalendar direkt. Kräver migrering av 4 komponenter till custom grid — stort scope, rekommenderas som separat projekt.
+
+## 3e. Refaktorera CustomCalendar ⏳ Ej påbörjat
+**Status**: CustomCalendar (400 rader) hanterar carousel, weekly grid, event filtering. Kan delas till sub-komponenter men ingen risk idag. Rekommenderas vid nästa funktionsutökning.
+
+## 3f. Optimistic updates drag & drop ⏳ Ej påbörjat
+**Status**: Kräver analys av befintligt drag & drop-flöde i TimeGrid/ResourceCalendar. Medelhög risk. Rekommenderas efter stabilisering av alla edit-flows.
