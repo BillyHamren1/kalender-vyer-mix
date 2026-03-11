@@ -59,7 +59,6 @@ export const useRealTimeCalendarEvents = () => {
             console.error('Error batch fetching bookings:', error);
           } else {
             bookingMap = new Map(bookings?.map(b => [b.id, b]) || []);
-            console.log(`Fetched ${bookingMap.size} bookings in one query`);
           }
         }
         
