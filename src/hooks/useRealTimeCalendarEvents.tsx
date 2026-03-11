@@ -27,7 +27,7 @@ export const useRealTimeCalendarEvents = () => {
   // Enhanced event loading with batch fetching (replaces N+1 queries)
   const loadEvents = useCallback(async () => {
     try {
-      console.log('Loading calendar events...');
+      // Load events silently
       setIsLoading(true);
       
       const calendarEvents = await fetchCalendarEvents();
