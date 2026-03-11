@@ -206,7 +206,6 @@ export const useRealTimeCalendarEvents = () => {
                   deliveryCity: newRecord.delivery_city
                 }
               };
-              updatedEvents[index] = updatedEvent;
             }
           }
           break;
