@@ -161,75 +161,78 @@ export const isStaffAvailableOnDate = async (
  * Get all available staff for a specific date
  */
 export const getAvailableStaffForDate = async (date: Date): Promise<string[]> => {
+  const result = await getAvailableStaffForDateRange([date]);
   const dateStr = format(date, 'yyyy-MM-dd');
-  
-  console.log('🔍 [getAvailableStaffForDate] Checking availability for date:', dateStr);
+  return result[dateStr] || [];
+};
 
-  // Get all active staff members
+/**
+ * Batch-fetch available staff for multiple dates in a single query.
+ * Replaces N sequential calls to getAvailableStaffForDate with 1 staff query + 1 availability query.
+ */
+export const getAvailableStaffForDateRange = async (
+  dates: Date[]
+): Promise<Record<string, string[]>> => {
+  if (dates.length === 0) return {};
+
+  const dateStrs = dates.map(d => format(d, 'yyyy-MM-dd'));
+  const minDate = dateStrs.reduce((a, b) => (a < b ? a : b));
+  const maxDate = dateStrs.reduce((a, b) => (a > b ? a : b));
+
+  // Single query: all active staff
   const { data: activeStaff, error: staffError } = await supabase
     .from('staff_members' as any)
     .select('id, name')
     .eq('is_active', true);
 
-  if (staffError) {
-    console.error('❌ [getAvailableStaffForDate] Error fetching active staff:', staffError);
-    return [];
-  }
-
-  if (!activeStaff || activeStaff.length === 0) {
-    console.log('⚠️ [getAvailableStaffForDate] No active staff found');
-    return [];
+  if (staffError || !activeStaff || activeStaff.length === 0) {
+    return Object.fromEntries(dateStrs.map(d => [d, []]));
   }
 
   const activeStaffIds = (activeStaff as any[]).map((s: any) => s.id);
-  console.log('📋 [getAvailableStaffForDate] Active staff:', activeStaff.map((s: any) => s.name).join(', '));
 
-  // Get availability periods that cover this date
+  // Single query: all availability periods that overlap the date range
   const { data: availabilityData, error: availError } = await supabase
     .from('staff_availability' as any)
     .select('*')
     .in('staff_id', activeStaffIds)
-    .lte('start_date', dateStr)
-    .gte('end_date', dateStr);
+    .lte('start_date', maxDate)
+    .gte('end_date', minDate);
 
   if (availError) {
-    console.error('❌ [getAvailableStaffForDate] Error fetching availability:', availError);
-    return [];
+    console.error('Error fetching batch availability:', availError);
+    return Object.fromEntries(dateStrs.map(d => [d, []]));
   }
 
-  console.log('📅 [getAvailableStaffForDate] Found', availabilityData?.length || 0, 'availability periods covering this date:', availabilityData);
+  const periods = (availabilityData as any[]) || [];
 
-  // Filter staff based on availability
-  const availableStaffIds: string[] = [];
+  // Build result per date
+  const result: Record<string, string[]> = {};
 
-  for (const staffId of activeStaffIds) {
-    const staffName = (activeStaff as any[]).find((s: any) => s.id === staffId)?.name || staffId;
-    const staffPeriods = ((availabilityData as any[]) || []).filter((p: any) => p.staff_id === staffId);
+  for (const dateStr of dateStrs) {
+    const available: string[] = [];
 
-    console.log(`👤 [getAvailableStaffForDate] Checking ${staffName}:`, staffPeriods.length, 'periods');
+    for (const staffId of activeStaffIds) {
+      const staffPeriods = periods.filter(
+        (p: any) => p.staff_id === staffId && p.start_date <= dateStr && p.end_date >= dateStr
+      );
 
-    if (staffPeriods.length === 0) {
-      console.log(`  ⚠️ No availability records for ${staffName} - NOT AVAILABLE`);
-      continue;
+      if (staffPeriods.length === 0) continue; // No records = not available
+
+      const hasUnavailable = staffPeriods.some(
+        (p: any) => p.availability_type === 'unavailable' || p.availability_type === 'blocked'
+      );
+      const hasAvailable = staffPeriods.some((p: any) => p.availability_type === 'available');
+
+      if (!hasUnavailable && hasAvailable) {
+        available.push(staffId);
+      }
     }
 
-    const hasUnavailable = staffPeriods.some(
-      (p: any) => p.availability_type === 'unavailable' || p.availability_type === 'blocked'
-    );
-    const hasAvailable = staffPeriods.some((p: any) => p.availability_type === 'available');
-
-    console.log(`  📊 ${staffName}: hasAvailable=${hasAvailable}, hasUnavailable=${hasUnavailable}`);
-
-    if (!hasUnavailable && hasAvailable) {
-      console.log(`  ✅ ${staffName} is AVAILABLE`);
-      availableStaffIds.push(staffId);
-    } else {
-      console.log(`  ❌ ${staffName} is NOT AVAILABLE (blocked or no available period)`);
-    }
+    result[dateStr] = available;
   }
 
-  console.log('✅ [getAvailableStaffForDate] Final result:', availableStaffIds.length, 'staff available');
-  return availableStaffIds;
+  return result;
 };
 
 /**
