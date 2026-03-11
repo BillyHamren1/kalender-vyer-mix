@@ -33,10 +33,8 @@ const EditEventTimeDialog: React.FC<EditEventTimeDialogProps> = ({
   // Initialize times when dialog opens
   useEffect(() => {
     if (open && event) {
-      const eventStart = typeof event.start === 'string' ? new Date(event.start) : event.start;
-      const eventEnd = typeof event.end === 'string' ? new Date(event.end) : event.end;
-      setStartTime(format(eventStart, 'HH:mm'));
-      setEndTime(format(eventEnd, 'HH:mm'));
+      setStartTime(extractUTCTime(event.start));
+      setEndTime(extractUTCTime(event.end));
     }
   }, [open, event]);
 
