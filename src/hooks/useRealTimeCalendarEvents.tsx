@@ -39,7 +39,7 @@ export const useRealTimeCalendarEvents = () => {
           .map(e => e.bookingId);
         
         const uniqueBookingIds = [...new Set(bookingIds)];
-        console.log(`Batch fetching ${uniqueBookingIds.length} bookings (instead of ${bookingIds.length} individual queries)`);
+        
         
         // Single batch query for all bookings
         let bookingMap = new Map<string, any>();
