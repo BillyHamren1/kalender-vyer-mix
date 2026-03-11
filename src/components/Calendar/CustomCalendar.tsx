@@ -114,7 +114,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     return {
       day: date,
       resources: filteredResources,
-      events,
+      events: stableEvents,
       getEventsForDayAndResource,
       onStaffDrop,
       onOpenStaffSelection,
