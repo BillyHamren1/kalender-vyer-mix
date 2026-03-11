@@ -2,10 +2,9 @@ import React, { useState, useRef, useEffect } from "react";
 import { 
   Calendar, CalendarDays, CalendarRange,
   Users, Package, Truck, LayoutGrid,
-  ChevronLeft, ChevronRight, SlidersHorizontal, Check, FlaskConical
+  ChevronLeft, ChevronRight, SlidersHorizontal, Check
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { EventCategory, DashboardViewMode } from "@/hooks/useDashboardEvents";
 
@@ -41,9 +40,6 @@ const CalendarHeader = ({
   onCategoriesChange,
 }: CalendarHeaderProps) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [useCustomCalendar, setUseCustomCalendar] = useState(() =>
-    typeof window !== 'undefined' && localStorage.getItem('use_custom_calendar') === 'true'
-  );
   const dropdownRef = useRef<HTMLDivElement>(null);
   const allActive = activeCategories.length === 3;
 
@@ -115,25 +111,6 @@ const CalendarHeader = ({
         >
           <ChevronRight className="w-4 h-4" />
         </Button>
-      </div>
-
-      {/* Beta toggle */}
-      <div className="flex items-center gap-1.5">
-        <FlaskConical className="w-3.5 h-3.5 text-primary-foreground/70" />
-        <span className="text-xs text-primary-foreground/70 font-medium">Beta</span>
-        <Switch
-          checked={useCustomCalendar}
-          onCheckedChange={(checked) => {
-            setUseCustomCalendar(checked);
-            if (checked) {
-              localStorage.setItem('use_custom_calendar', 'true');
-            } else {
-              localStorage.removeItem('use_custom_calendar');
-            }
-            window.location.reload();
-          }}
-          className="scale-75"
-        />
       </div>
 
       {/* Right: filter dropdown */}
