@@ -179,6 +179,7 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({
         </div>
       </HoverCardContent>
     </HoverCard>
+  );
 };
 
 EventHoverCard.displayName = 'EventHoverCard';
