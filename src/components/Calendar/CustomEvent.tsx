@@ -93,14 +93,6 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   const bookingNumber = rawBookingId.length > 20 ? rawBookingId.slice(-8) : rawBookingId;
   const deliveryCity = event.extendedProps?.deliveryCity || event.extendedProps?.delivery_city || '';
 
-  console.log('CustomEvent data:', {
-    eventId: event.id,
-    title: event.title,
-    bookingNumber,
-    deliveryCity,
-    extendedProps: event.extendedProps
-  });
-
   // Render the event card content
   const eventCardContent = (
     <div
