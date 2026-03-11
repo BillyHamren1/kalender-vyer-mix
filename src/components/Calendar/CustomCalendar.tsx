@@ -66,36 +66,40 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     });
   }, [weekStartTime]);
 
-  // Fetch available staff for each day in the week
+  // Fetch available staff for the entire week in a single batch query
   const { data: weekAvailableStaff } = useQuery({
     queryKey: ['available-staff-week', weekStartTime, days.map(d => format(d, 'yyyy-MM-dd')).join(',')],
     queryFn: async () => {
       const results: Record<string, Array<{ id: string; name: string; color?: string }>> = {};
       
+      // Single batch call instead of N sequential calls
+      const availableByDate = await getAvailableStaffForDateRange(days);
+      
+      // Collect all unique staff IDs across all dates
+      const allStaffIds = new Set<string>();
+      for (const ids of Object.values(availableByDate)) {
+        ids.forEach(id => allStaffIds.add(id));
+      }
+
+      // Single query for staff details
+      let staffLookup: Record<string, { id: string; name: string; color?: string }> = {};
+      if (allStaffIds.size > 0) {
+        const { data: staffData } = await supabase
+          .from('staff_members' as any)
+          .select('id, name, color')
+          .in('id', Array.from(allStaffIds))
+          .eq('is_active', true);
+        
+        for (const s of (staffData as any[]) || []) {
+          staffLookup[s.id] = { id: s.id, name: s.name, color: s.color || undefined };
+        }
+      }
+
+      // Map results
       for (const day of days) {
         const dateStr = format(day, 'yyyy-MM-dd');
-        try {
-          const availableStaffIds = await getAvailableStaffForDate(day);
-          
-          if (availableStaffIds.length > 0) {
-            const { data: staffData } = await supabase
-              .from('staff_members')
-              .select('id, name, color')
-              .in('id', availableStaffIds)
-              .eq('is_active', true);
-            
-            results[dateStr] = (staffData || []).map(s => ({
-              id: s.id,
-              name: s.name,
-              color: s.color || undefined
-            }));
-          } else {
-            results[dateStr] = [];
-          }
-        } catch (error) {
-          console.error('Error fetching available staff for', dateStr, error);
-          results[dateStr] = [];
-        }
+        const ids = availableByDate[dateStr] || [];
+        results[dateStr] = ids.map(id => staffLookup[id]).filter(Boolean);
       }
       
       return results;
