@@ -93,8 +93,8 @@ describe('extractUTCTime', () => {
     expect(extractUTCTime(d)).toBe('14:30');
   });
 
-  it('returns 00:00 for malformed input', () => {
-    expect(extractUTCTime('no-T-separator')).toBe('00:00');
+  it('returns 00:00 for input without T separator', () => {
+    expect(extractUTCTime('2025-06-10')).toBe('00:00');
   });
 });
 
