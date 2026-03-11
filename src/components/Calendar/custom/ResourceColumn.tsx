@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { CalendarEvent, Resource } from '../ResourceData';
 import { PositionedEvent, GRID_TOTAL_HEIGHT, positionEvents } from './useCalendarGrid';
 import CustomEvent from '../CustomEvent';
+import { getEventKey } from '@/utils/eventUtils';
 
 interface ResourceColumnProps {
   resource: Resource;
@@ -12,6 +13,11 @@ interface ResourceColumnProps {
   staffList?: Array<{ id: string; name: string; color?: string }>;
 }
 
+/**
+ * STABILIZATION: positionEvents is now memoized per (events, resourceId, dateStr).
+ * Previously it ran on every render even when events hadn't changed.
+ * refreshEvents callback is stabilized to prevent CustomEvent re-renders.
+ */
 const ResourceColumn: React.FC<ResourceColumnProps> = React.memo(({
   resource,
   events,
@@ -20,7 +26,17 @@ const ResourceColumn: React.FC<ResourceColumnProps> = React.memo(({
   refreshEvents,
   staffList = [],
 }) => {
-  const positioned = positionEvents(events, resource.id, dateStr);
+  // MEMOIZED: Only recompute positions when events/resource/date change
+  const positioned = useMemo(
+    () => positionEvents(events, resource.id, dateStr),
+    [events, resource.id, dateStr]
+  );
+
+  // STABILIZED: Single callback reference for all CustomEvent instances
+  const handleEventResize = useCallback(
+    async () => { await refreshEvents(); },
+    [refreshEvents]
+  );
 
   return (
     <div className="flex flex-col flex-1 min-w-[80px]">
@@ -45,7 +61,7 @@ const ResourceColumn: React.FC<ResourceColumnProps> = React.memo(({
 
       {/* Time grid body */}
       <div className="relative border-r border-border" style={{ height: GRID_TOTAL_HEIGHT }}>
-        {/* Slot lines */}
+        {/* Slot lines — STABILIZED: slots array is already memoized via useTimeSlots */}
         {slots.map((slot, i) => (
           <div
             key={i}
@@ -54,14 +70,14 @@ const ResourceColumn: React.FC<ResourceColumnProps> = React.memo(({
           />
         ))}
 
-        {/* Events */}
+        {/* Events — STABILIZED: Uses getEventKey for stable React keys */}
         {positioned.map((ev: PositionedEvent) => {
           const widthPercent = 100 / ev.totalColumns;
           const leftPercent = ev.columnIndex * widthPercent;
 
           return (
             <div
-              key={ev.id}
+              key={getEventKey(ev)}
               className="absolute px-0.5"
               style={{
                 top: ev.topPx,
@@ -73,7 +89,7 @@ const ResourceColumn: React.FC<ResourceColumnProps> = React.memo(({
               <CustomEvent
                 event={ev}
                 resource={resource}
-                onEventResize={async () => { await refreshEvents(); }}
+                onEventResize={handleEventResize}
               />
             </div>
           );

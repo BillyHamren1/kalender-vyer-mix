@@ -3,7 +3,7 @@ import { CalendarEvent, Resource } from '../ResourceData';
 import { useTimeSlots } from './useCalendarGrid';
 import TimeColumn from './TimeColumn';
 import ResourceColumn from './ResourceColumn';
-import { format } from 'date-fns';
+import { deduplicateEvents } from '@/utils/eventUtils';
 
 interface CustomResourceTimeGridProps {
   events: CalendarEvent[];
@@ -24,6 +24,11 @@ interface CustomResourceTimeGridProps {
   };
 }
 
+/**
+ * STABILIZATION: Events are deduplicated once at the grid level
+ * before distribution to ResourceColumns. Date string is memoized
+ * to prevent unnecessary recalculations in children.
+ */
 const CustomResourceTimeGrid: React.FC<CustomResourceTimeGridProps> = ({
   events,
   resources,
@@ -34,12 +39,18 @@ const CustomResourceTimeGrid: React.FC<CustomResourceTimeGridProps> = ({
   staffOperations,
 }) => {
   const effectiveDate = targetDate || currentDate;
+
+  // MEMOIZED: Date string computed once per date change
   const dateStr = useMemo(() => {
     const d = effectiveDate;
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }, [effectiveDate]);
 
   const slots = useTimeSlots();
+
+  // STABILIZATION: Deduplicate events once at grid level
+  // Prevents duplicate rendering across all resource columns
+  const stableEvents = useMemo(() => deduplicateEvents(events), [events]);
 
   if (isLoading) {
     return (
@@ -62,7 +73,7 @@ const CustomResourceTimeGrid: React.FC<CustomResourceTimeGridProps> = ({
             <ResourceColumn
               key={resource.id}
               resource={resource}
-              events={events}
+              events={stableEvents}
               dateStr={dateStr}
               slots={slots}
               refreshEvents={refreshEvents}
