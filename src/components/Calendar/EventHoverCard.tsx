@@ -13,10 +13,6 @@ interface EventHoverCardProps {
 }
 
 const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event, onClick = undefined, onDoubleClick = undefined, disabled = false }) => {
-  // Debug logging to see what data we're receiving
-  console.log('EventHoverCard - Event data:', event);
-  console.log('EventHoverCard - Extended props:', event.extendedProps);
-  
   const products = event.extendedProps?.products || [];
   const deliveryAddress = event.extendedProps?.deliveryAddress;
   const internalNotes = event.extendedProps?.internalNotes;
@@ -28,20 +24,13 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({ children, event, onClic
   const client = event.extendedProps?.client || 'Unknown Client';
   const city = event.extendedProps?.deliveryCity || event.extendedProps?.city || 'Unknown City';
   
-  // Debug specific fields
-  console.log('EventHoverCard - Products:', products);
-  console.log('EventHoverCard - Internal notes:', internalNotes);
-  console.log('EventHoverCard - Delivery address:', deliveryAddress);
-  console.log('EventHoverCard - Client:', client);
-  console.log('EventHoverCard - City:', city);
-  
   // Build full address string
   const fullAddress = [deliveryAddress, deliveryCity, deliveryPostalCode]
     .filter(Boolean)
     .join(', ');
 
   return (
-    <HoverCard openDelay={0} closeDelay={100} open={disabled ? false : undefined}>
+    <HoverCard openDelay={300} closeDelay={100} open={disabled ? false : undefined}>
       <HoverCardTrigger asChild>
         {onClick || onDoubleClick ? (
           <div 
