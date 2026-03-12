@@ -1,87 +1,49 @@
 
-# Steg 4: Regression Test Layer ✅ Klart
 
-## Nya testfiler:
-- `src/utils/__tests__/dateUtils.test.ts` — 22 tester
-- `src/hooks/__tests__/useMemoizedEvents.test.ts` — 12 tester
+# Scanner med inloggning och persistent session
 
-## Utökade testfiler:
-- `plannerStore.test.tsx` — +4 tester (rapid view switching)
-- `useEventEditController.test.ts` — +4 tester (stress/edge cases)
-- `eventUtils.test.ts` — +5 tester (edge cases)
+## Problem
+Utan inloggning kan scanner-api:n antingen visa alla organisationers data (säkerhetsrisk) eller vara hårdkodad till en org (fungerar inte multi-tenant). Användaren vill ha inloggning men att enheten hålls inloggad permanent.
 
-## Totalt: 159 tester i 7 filer, alla gröna.
+## Lösning
+Återanvänd det befintliga **MobileAuth-systemet** (`staff_accounts` + `mobile-app-api` login) för scannern. Personalen loggar in en gång, sedan sparas token/staff i localStorage och enheten förblir inloggad.
 
----
+### Ändringar
 
-# Steg 1: SAFE NOW ✅ Klart
+**1. Skapa `ScannerLoginPage.tsx`**
+- Enkel login-sida specifikt för scannern (kan återanvända MobileLogin-designen)
+- Använder `MobileAuthContext` för login
+- Redirect till `/scanner` efter lyckad inloggning
 
-- ✅ `convertToISO8601` centraliserad till `src/utils/dateUtils.ts`
-- ✅ Debug-`console.log` borttagna från `CustomEvent.tsx` och `EventHoverCard.tsx`
-- ✅ `openDelay={300}` på `EventHoverCard`
+**2. Wrappa scanner-routen med auth**
+- I `App.tsx`: wrappa `/scanner` med `MobileAuthProvider` + `MobileProtectedRoute`
+- Ny route `/scanner/login` för inloggningssidan
+- `MobileProtectedRoute` redirectar till `/scanner/login` (inte `/m/login`)
 
----
+**3. Uppdatera `scanner-api` edge function**
+- Ta bort hårdkodad `ORG_ID`
+- Kräv `token` i request body (samma JWT som `mobile-app-api` genererar)
+- Verifiera token via `staff_accounts`-tabellen
+- Hämta `organization_id` från den inloggade personalens staff-record
+- Filtrera all data på den organisationen
 
-# Steg 2: SAFE NEXT ✅ Klart
+**4. Uppdatera `scannerService.ts`**
+- Skicka med `getToken()` från `mobileApiService` i varje API-anrop
+- `callScannerApi` inkluderar `token` i request body
 
-## 2a. Tidszons-konsistens ✅ Klart
-**Åtgärd**: Lagt till `extractUTCTime`, `extractUTCDate`, `buildUTCDateTime` i `dateUtils.ts`. `EditEventTimeDialog` använder nu samma UTC-approach som `QuickTimeEditPopover`.
-**Filer**: `src/utils/dateUtils.ts`, `src/components/Calendar/EditEventTimeDialog.tsx`
+**5. Uppdatera `main.tsx` redirect**
+- Ändra native redirect från `/scanner` till `/scanner` (oförändrat — `MobileProtectedRoute` hanterar redirect till login om ej inloggad)
 
-## 2b. MoveEventDateDialog data-synk ✅ Klart
-**Åtgärd**: `MoveEventDateDialog` uppdaterar nu både `calendar_events` och `bookings`-tabellen (datum + tider) via samma mönster som `QuickTimeEditPopover`. Använder UTC-helpers. Tidszons-bugg med `getHours()` fixad.
-**Filer**: `src/components/Calendar/MoveEventDateDialog.tsx`
-
-## 2c. Batch staff availability ✅ Klart
-**Åtgärd**: Ny `getAvailableStaffForDateRange` i `staffAvailabilityService.ts` gör 2 queries (staff + availability) istället för 2×N. `CustomCalendar` använder batch-funktionen. Console.log-spam borttagen från availability-logik.
-**Filer**: `src/services/staffAvailabilityService.ts`, `src/components/Calendar/CustomCalendar.tsx`
-
----
-
-# Steg 3: LATER ✅ Klart (utom 3d)
-
-## 3a. Event deduplication guard ✅ Klart
-**Åtgärd**: Realtime INSERT-handler i `useRealTimeCalendarEvents` kollar nu både `id` OCH `booking_id + event_type` combo innan ett event läggs till. Förhindrar dubbletter vid snabb sync.
-**Filer**: `src/hooks/useRealTimeCalendarEvents.tsx`
-
-## 3b. Console.log-sanering (rendervägar) ✅ Klart
-**Åtgärd**: Borttagna icke-error `console.log` från `useRealTimeCalendarEvents`, `CustomCalendar`, `CalendarEventHandlers`, `useEventOperations`, `useResourceCalendarHandlers`. Kvar: `console.error` för faktiska fel.
-
-## 3c. Borttagning av oanvända komponenter ✅ Klart
-**Åtgärd**: `DayCalendar.tsx` och `useDayCalendarEvents.tsx` borttagna — inga importer fanns.
-
-## 3d. FullCalendar-migration ✅ Klart (parallellt spår)
-**Status**: Custom-ersättningar byggda i `src/components/Calendar/custom/`. Feature flag `use_custom_calendar` i localStorage styr vilken implementation som körs.
-
-### Nya filer:
-- `src/components/Calendar/custom/useCalendarGrid.tsx` — Tidsberäkning, slot-generering, event-positionering i pixlar
-- `src/components/Calendar/custom/TimeColumn.tsx` — Tidslots-kolumn (06:00–22:00)
-- `src/components/Calendar/custom/ResourceColumn.tsx` — En team-kolumn med events, använder befintlig `CustomEvent`
-- `src/components/Calendar/custom/CustomResourceTimeGrid.tsx` — Ersätter `ResourceCalendar` (resourceTimeGrid dagvy)
-- `src/components/Calendar/custom/MonthCell.tsx` — Dag-cell i månadsvy
-- `src/components/Calendar/custom/CustomMonthGrid.tsx` — Ersätter `IndividualStaffCalendar` (månadsvy)
-- `src/components/Calendar/ResourceCalendarSwitch.tsx` — Feature flag wrapper för resource-kalender
-- `src/components/Calendar/StaffCalendarSwitch.tsx` — Feature flag wrapper för personal-kalender
-
-### Inkopplade konsumenter:
-- `MonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
-- `TestMonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
-- `StaffMemberCalendar.tsx` → `StaffCalendarSwitch`
-
-### Aktivering:
-```js
-localStorage.setItem('use_custom_calendar', 'true'); // Aktivera custom-versionen
-localStorage.removeItem('use_custom_calendar');       // Tillbaka till FullCalendar
+### Flöde
+```text
+Enhet startar → /scanner → MobileProtectedRoute
+  ├─ Ingen token → /scanner/login → logga in → sparas i localStorage → /scanner
+  └─ Token finns → verifiera i bakgrund → visa packlistor (filtrerade på org)
 ```
 
-## 3e. Refaktorera CustomCalendar ✅ Klart
-**Åtgärd**: CustomCalendar (400→185 rader) uppdelad i tre extraherade hooks:
-- `useWeekDays` — generering av 7-dagars array
-- `useCarouselState` — karusellnavigering, scroll-hantering, centrerad dag
-- `useAvailableStaffWeek` — batch-hämtning av tillgänglig personal + team-tilldelning
-Gemensam `buildTimeGridProps`-helper eliminerar duplicerad TimeGrid-konfiguration.
-**Filer**: `src/hooks/useWeekDays.tsx`, `src/hooks/useCarouselState.tsx`, `src/hooks/useAvailableStaffWeek.tsx`, `src/components/Calendar/CustomCalendar.tsx`
+### Säkerhet
+- Varje request autentiseras med token
+- `organization_id` hämtas server-side från staff-record — kan inte manipuleras
+- Token sparas persistent i localStorage — enheten förblir inloggad
+- Om token blir ogiltig → redirect till login automatiskt
 
-## 3f. Optimistic updates drag & drop ✅ Klart
-**Åtgärd**: FullCalendar hanterar redan optimistic UI nativt (DOM uppdateras direkt vid drag). `useEventOperations` har rensats till att enbart: (1) persist:a ändringen till DB, (2) visa toast, (3) revert:a via `info.revert()` vid fel. Alla redundanta `console.log` borttagna. `CalendarEventHandlers` förenklad — passthrough utan loggning.
-**Filer**: `src/hooks/useEventOperations.tsx`, `src/components/Calendar/CalendarEventHandlers.tsx`, `src/hooks/useResourceCalendarHandlers.tsx`
