@@ -514,14 +514,14 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
               const now = new Date().toISOString();
               try {
                 await callScannerApi('sign_packing', { packingId, signedBy: signerName });
-              setIsSigning(false);
-              if (error) {
-                console.error('Signing error:', error);
-                toast.error('Kunde inte signera packlistan');
-              } else {
+                setIsSigning(false);
                 setIsSigned(true);
                 setSignedInfo({ by: signerName, at: now });
                 toast.success('Signering klar!');
+              } catch (err) {
+                setIsSigning(false);
+                console.error('Signing error:', err);
+                toast.error('Kunde inte signera packlistan');
               }
             }}
           >
