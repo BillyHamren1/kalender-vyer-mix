@@ -5,7 +5,35 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const ORG_ID = 'f5e5cade-f08b-4833-a105-56461f15b191'
+// Verify token and return staff record with organization_id
+async function authenticateRequest(supabase: any, token: string | undefined) {
+  if (!token) {
+    throw { status: 401, message: 'Token required' }
+  }
+
+  const { data: staff, error } = await supabase
+    .from('staff_accounts')
+    .select('staff_id, organization_id')
+    .eq('token', token)
+    .single()
+
+  if (error || !staff) {
+    throw { status: 401, message: 'Invalid or expired token' }
+  }
+
+  // Get staff name for logging
+  const { data: staffMember } = await supabase
+    .from('staff_members')
+    .select('name')
+    .eq('id', staff.staff_id)
+    .single()
+
+  return {
+    staffId: staff.staff_id,
+    organizationId: staff.organization_id,
+    staffName: staffMember?.name || 'Unknown'
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -18,7 +46,20 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    const { action, ...params } = await req.json()
+    const { action, token, ...params } = await req.json()
+
+    // Authenticate and get organization_id
+    let auth: { staffId: string; organizationId: string; staffName: string }
+    try {
+      auth = await authenticateRequest(supabase, token)
+    } catch (authErr: any) {
+      return new Response(
+        JSON.stringify({ error: authErr.message || 'Unauthorized' }),
+        { status: authErr.status || 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const ORG_ID = auth.organizationId
 
     switch (action) {
       case 'list_active_packings': {
@@ -77,7 +118,6 @@ Deno.serve(async (req) => {
       case 'get_packing_items': {
         const { packingId } = params
 
-        // Get packing to find booking_id
         const { data: packing } = await supabase
           .from('packing_projects')
           .select('booking_id')
@@ -86,7 +126,6 @@ Deno.serve(async (req) => {
           .single()
 
         if (packing?.booking_id) {
-          // Check counts and auto-generate if needed
           const [itemsCount, productsCount] = await Promise.all([
             supabase.from('packing_list_items').select('id', { count: 'exact', head: true }).eq('packing_id', packingId).eq('organization_id', ORG_ID),
             supabase.from('booking_products').select('id', { count: 'exact', head: true }).eq('booking_id', packing.booking_id).eq('organization_id', ORG_ID)
@@ -96,7 +135,6 @@ Deno.serve(async (req) => {
           const productCount = productsCount.count || 0
 
           if (existingCount === 0 && productCount > 0) {
-            // Generate items
             const { data: products } = await supabase
               .from('booking_products')
               .select('id, quantity')
@@ -115,7 +153,6 @@ Deno.serve(async (req) => {
               )
             }
           } else if (existingCount < productCount) {
-            // Sync missing
             const [{ data: products }, { data: existingItems }] = await Promise.all([
               supabase.from('booking_products').select('id, quantity').eq('booking_id', packing.booking_id).eq('organization_id', ORG_ID),
               supabase.from('packing_list_items').select('booking_product_id').eq('packing_id', packingId).eq('organization_id', ORG_ID)
