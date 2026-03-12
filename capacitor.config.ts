@@ -4,10 +4,6 @@ const config: CapacitorConfig = {
   appId: 'se.eventflow.scanner',
   appName: 'EventFlow Scanner',
   webDir: 'dist',
-  server: {
-    url: 'https://d42a96b9-4d25-4701-b40a-d3fe594418b5.lovableproject.com?forceHideBadge=true',
-    cleartext: true
-  },
   android: {
     allowMixedContent: true,
     backgroundColor: '#0A0A0B',
