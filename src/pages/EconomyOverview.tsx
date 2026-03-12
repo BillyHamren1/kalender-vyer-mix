@@ -394,7 +394,7 @@ const ProjectEconomyView: React.FC = () => {
                   return (
                     <div key={p.id} className="flex items-center gap-3">
                       <Link 
-                        to={`/economy/${p.id}`}
+                        to={p.navigateTo}
                         className="text-sm font-medium text-primary hover:underline truncate flex-1 min-w-0"
                       >
                         {p.name}
