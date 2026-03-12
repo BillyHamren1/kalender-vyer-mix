@@ -514,7 +514,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
               const signerName = staffFirstName || 'Okänd';
               const now = new Date().toISOString();
               try {
-                await callScannerApi('sign_packing', { packingId, signedBy: signerName });
+                await signPacking(packingId, signerName);
                 setIsSigning(false);
                 setIsSigned(true);
                 setSignedInfo({ by: signerName, at: now });
