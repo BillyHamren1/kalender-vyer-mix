@@ -15,7 +15,8 @@ import {
   createParcel,
   assignItemToParcel,
   getItemParcels,
-  fetchPackingForScanner
+  fetchPackingForScanner,
+  signPacking
 } from '@/services/scannerService';
 import { PackingWithBooking, PackingParcel } from '@/types/packing';
 
