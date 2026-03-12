@@ -510,11 +510,21 @@ const ProjectEconomyView: React.FC = () => {
                     <tr key={project.id} className={cn("border-b hover:bg-muted/50 transition-colors", closed && "opacity-60")}>
                       <td className="py-3 px-4">
                         <Link
-                          to={`/economy/${project.id}`}
+                          to={project.projectSize === 'medium' ? `/economy/${project.id}` : project.navigateTo}
                           className="text-primary hover:underline font-medium"
                         >
                           {project.name}
                         </Link>
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        <Badge variant="outline" className={cn(
+                          "text-[10px] font-medium",
+                          project.projectSize === 'small' && "bg-[hsl(var(--project-small))] text-[hsl(var(--project-small-foreground))] ring-1 ring-[hsl(var(--project-small-border))]",
+                          project.projectSize === 'medium' && "bg-[hsl(var(--project-medium))] text-[hsl(var(--project-medium-foreground))] ring-1 ring-[hsl(var(--project-medium-border))]",
+                          project.projectSize === 'large' && "bg-[hsl(var(--project-large))] text-[hsl(var(--project-large-foreground))] ring-1 ring-[hsl(var(--project-large-border))]",
+                        )}>
+                          {project.projectSize === 'small' ? 'Litet' : project.projectSize === 'medium' ? 'Medel' : 'Stort'}
+                        </Badge>
                       </td>
                       <td className="text-right py-3 px-4">
                         {formatCurrency(project.summary.totalBudget)}
