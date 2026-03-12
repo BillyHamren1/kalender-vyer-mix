@@ -91,7 +91,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       setIsLoading(true);
       
       const [packingData, itemsData, progressData, parcelsData] = await Promise.all([
-        fetchPacking(packingId),
+        fetchPackingForScanner(packingId),
         fetchPackingListItems(packingId),
         getVerificationProgress(packingId),
         getItemParcels(packingId)

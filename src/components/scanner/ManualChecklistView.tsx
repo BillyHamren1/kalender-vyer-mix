@@ -94,7 +94,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
     try {
       setIsLoading(true);
       const [packingData, itemsData, parcelsData] = await Promise.all([
-        fetchPacking(packingId),
+        fetchPackingForScanner(packingId),
         fetchPackingListItems(packingId),
         getItemParcels(packingId)
       ]);
