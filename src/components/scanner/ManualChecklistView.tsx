@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { ArrowLeft, Check, RefreshCw, AlertCircle, Package, ChevronRight, X, Plus, Minus, PenLine } from 'lucide-react';
 import ConfirmationDialog from '@/components/ConfirmationDialog';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client'; // still used for staff lookup
 import { 
   fetchPackingListItems, 
   getVerificationProgress, 
