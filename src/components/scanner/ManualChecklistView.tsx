@@ -512,14 +512,8 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
               setIsSigning(true);
               const signerName = staffFirstName || 'Okänd';
               const now = new Date().toISOString();
-              const { error } = await supabase
-                .from('packing_projects')
-                .update({
-                  signed_by: signerName,
-                  signed_at: now,
-                  status: 'completed'
-                } as any)
-                .eq('id', packingId);
+              try {
+                await callScannerApi('sign_packing', { packingId, signedBy: signerName });
               setIsSigning(false);
               if (error) {
                 console.error('Signing error:', error);
