@@ -229,13 +229,13 @@ const ProjectEconomyView: React.FC = () => {
   const kpis = React.useMemo(() => aggregateProjects(filteredProjects), [filteredProjects]);
   const allKpis = React.useMemo(() => aggregateProjects(categorized.all), [categorized.all]);
 
-  // Top deviating projects (for widget)
+  // Top deviating projects — only completed projects are meaningful
   const topDeviating = React.useMemo(() => {
-    return [...filteredProjects]
+    return [...categorized.completed]
       .filter(p => p.summary.totalBudget > 0)
       .sort((a, b) => b.summary.totalDeviationPercent - a.summary.totalDeviationPercent)
       .slice(0, 5);
-  }, [filteredProjects]);
+  }, [categorized.completed]);
 
   // Budget health distribution
   const budgetHealth = React.useMemo(() => {
