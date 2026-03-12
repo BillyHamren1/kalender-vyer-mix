@@ -12,9 +12,9 @@ import {
   togglePackingItemManually,
   createParcel,
   assignItemToParcel,
-  getItemParcels
+  getItemParcels,
+  fetchPackingForScanner
 } from '@/services/scannerService';
-import { fetchPacking } from '@/services/packingService';
 import { PackingWithBooking, PackingParcel } from '@/types/packing';
 import { QRScanner } from './QRScanner';
 
@@ -91,7 +91,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
       setIsLoading(true);
       
       const [packingData, itemsData, progressData, parcelsData] = await Promise.all([
-        fetchPacking(packingId),
+        fetchPackingForScanner(packingId),
         fetchPackingListItems(packingId),
         getVerificationProgress(packingId),
         getItemParcels(packingId)

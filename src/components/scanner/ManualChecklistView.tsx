@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { ArrowLeft, Check, RefreshCw, AlertCircle, Package, ChevronRight, X, Plus, Minus, PenLine } from 'lucide-react';
 import ConfirmationDialog from '@/components/ConfirmationDialog';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client'; // still used for staff lookup
 import { 
   fetchPackingListItems, 
   getVerificationProgress, 
@@ -14,9 +14,10 @@ import {
   decrementPackingItem,
   createParcel,
   assignItemToParcel,
-  getItemParcels
+  getItemParcels,
+  fetchPackingForScanner,
+  signPacking
 } from '@/services/scannerService';
-import { fetchPacking } from '@/services/packingService';
 import { PackingWithBooking, PackingParcel } from '@/types/packing';
 
 interface ManualChecklistViewProps {
@@ -94,7 +95,7 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
     try {
       setIsLoading(true);
       const [packingData, itemsData, parcelsData] = await Promise.all([
-        fetchPacking(packingId),
+        fetchPackingForScanner(packingId),
         fetchPackingListItems(packingId),
         getItemParcels(packingId)
       ]);
@@ -512,22 +513,16 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
               setIsSigning(true);
               const signerName = staffFirstName || 'Okänd';
               const now = new Date().toISOString();
-              const { error } = await supabase
-                .from('packing_projects')
-                .update({
-                  signed_by: signerName,
-                  signed_at: now,
-                  status: 'completed'
-                } as any)
-                .eq('id', packingId);
-              setIsSigning(false);
-              if (error) {
-                console.error('Signing error:', error);
-                toast.error('Kunde inte signera packlistan');
-              } else {
+              try {
+                await signPacking(packingId, signerName);
+                setIsSigning(false);
                 setIsSigned(true);
                 setSignedInfo({ by: signerName, at: now });
                 toast.success('Signering klar!');
+              } catch (err) {
+                setIsSigning(false);
+                console.error('Signing error:', err);
+                toast.error('Kunde inte signera packlistan');
               }
             }}
           >
