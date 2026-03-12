@@ -123,3 +123,6 @@ verify_jwt = false
 
 [functions.export-economy-data]
 verify_jwt = false
+
+[functions.scanner-api]
+verify_jwt = false
