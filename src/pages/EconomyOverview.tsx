@@ -380,7 +380,7 @@ const ProjectEconomyView: React.FC = () => {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
-              Största avvikelser — {filterLabels[statusFilter]}
+              Största avvikelser — Avslutade projekt
             </CardTitle>
           </CardHeader>
           <CardContent>
