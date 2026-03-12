@@ -497,7 +497,7 @@ const ProjectEconomyView: React.FC = () => {
               <tbody>
                 {filteredProjects.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="text-center py-8 text-muted-foreground">
+                    <td colSpan={10} className="text-center py-8 text-muted-foreground">
                       Inga projekt i kategorin "{filterLabels[statusFilter]}"
                     </td>
                   </tr>
