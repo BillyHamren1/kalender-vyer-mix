@@ -12,9 +12,9 @@ import {
   togglePackingItemManually,
   createParcel,
   assignItemToParcel,
-  getItemParcels
+  getItemParcels,
+  fetchPackingForScanner
 } from '@/services/scannerService';
-import { fetchPacking } from '@/services/packingService';
 import { PackingWithBooking, PackingParcel } from '@/types/packing';
 import { QRScanner } from './QRScanner';
 
