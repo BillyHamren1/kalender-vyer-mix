@@ -22,3 +22,4 @@ const ScannerProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
 };
 
 export default ScannerProtectedRoute;
+
