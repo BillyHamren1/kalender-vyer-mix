@@ -179,3 +179,8 @@ export const decrementPackingItem = async (
 export const getVerificationProgress = async (packingId: string) => {
   return callScannerApi('get_progress', { packingId });
 };
+
+// Sign a packing project
+export const signPacking = async (packingId: string, signedBy: string): Promise<void> => {
+  await callScannerApi('sign_packing', { packingId, signedBy });
+};
