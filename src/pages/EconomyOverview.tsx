@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Progress } from '@/components/ui/progress';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,24 +25,28 @@ import {
   Banknote, 
   Clock, 
   CheckCircle2,
-  CheckCircle,
   Lock,
+  PlayCircle,
+  CalendarClock,
+  BarChart3,
+  ArrowUpRight,
+  ArrowDownRight,
+  Wallet,
+  Users,
+  Target,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { startOfDay, startOfWeek, startOfMonth, parseISO } from 'date-fns';
-import { sv } from 'date-fns/locale';
+import { parseISO, isAfter, isBefore, startOfDay } from 'date-fns';
 import { getDeviationStatus, getDeviationColor } from '@/types/projectEconomy';
-import { PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS, type ProjectStatus } from '@/types/project';
 import { StaffEconomyView } from '@/components/economy/StaffEconomyView';
 import { useEconomyOverviewData, type ProjectWithEconomy } from '@/hooks/useEconomyOverviewData';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
-
 const EconomyTimeReportsContent = React.lazy(() => import('@/pages/EconomyTimeReports'));
 
-type TimePeriod = 'day' | 'week' | 'month';
+type StatusFilter = 'all' | 'ongoing' | 'completed' | 'upcoming';
 
 interface AggregatedKPIs {
   totalProjects: number;
@@ -52,6 +57,11 @@ interface AggregatedKPIs {
   totalHoursBudgeted: number;
   totalHoursActual: number;
   avgDeviationPercent: number;
+  totalPurchases: number;
+  avgMargin: number;
+  projectsOnBudget: number;
+  projectsOverBudget: number;
+  projectsUnderBudget: number;
 }
 
 const formatCurrency = (value: number) => {
@@ -66,15 +76,31 @@ const formatHours = (hours: number) => {
   return `${hours.toFixed(1)} tim`;
 };
 
+function categorizeProject(p: ProjectWithEconomy): 'ongoing' | 'completed' | 'upcoming' {
+  if (p.economyClosed || p.status === 'completed') return 'completed';
+  if (!p.eventdate) return 'ongoing';
+  try {
+    const eventDate = parseISO(p.eventdate);
+    const today = startOfDay(new Date());
+    if (isAfter(eventDate, today)) return 'upcoming';
+  } catch {}
+  return 'ongoing';
+}
+
 function aggregateProjects(projects: ProjectWithEconomy[]): AggregatedKPIs {
   if (!projects.length) {
-    return { totalProjects: 0, projectsWithDeviation: 0, totalBudget: 0, totalActual: 0, totalDeviation: 0, totalHoursBudgeted: 0, totalHoursActual: 0, avgDeviationPercent: 0 };
+    return { totalProjects: 0, projectsWithDeviation: 0, totalBudget: 0, totalActual: 0, totalDeviation: 0, totalHoursBudgeted: 0, totalHoursActual: 0, avgDeviationPercent: 0, totalPurchases: 0, avgMargin: 0, projectsOnBudget: 0, projectsOverBudget: 0, projectsUnderBudget: 0 };
   }
   const totalBudget = projects.reduce((s, p) => s + p.summary.totalBudget, 0);
   const totalActual = projects.reduce((s, p) => s + p.summary.totalActual, 0);
   const totalHoursBudgeted = projects.reduce((s, p) => s + p.summary.budgetedHours, 0);
   const totalHoursActual = projects.reduce((s, p) => s + p.summary.actualHours, 0);
+  const totalPurchases = projects.reduce((s, p) => s + p.summary.purchasesTotal, 0);
   const projectsWithDeviation = projects.filter(p => p.summary.totalDeviationPercent > 100).length;
+  const projectsOverBudget = projects.filter(p => p.summary.totalDeviation > 0).length;
+  const projectsUnderBudget = projects.filter(p => p.summary.totalDeviation < 0 && p.summary.totalBudget > 0).length;
+  const projectsOnBudget = projects.length - projectsOverBudget - projectsUnderBudget;
+  
   return {
     totalProjects: projects.length,
     projectsWithDeviation,
@@ -84,13 +110,79 @@ function aggregateProjects(projects: ProjectWithEconomy[]): AggregatedKPIs {
     totalHoursBudgeted,
     totalHoursActual,
     avgDeviationPercent: totalBudget > 0 ? (totalActual / totalBudget) * 100 : 0,
+    totalPurchases,
+    avgMargin: totalBudget > 0 ? ((totalBudget - totalActual) / totalBudget) * 100 : 0,
+    projectsOnBudget,
+    projectsOverBudget,
+    projectsUnderBudget,
   };
 }
+
+const StatusFilterButton: React.FC<{
+  filter: StatusFilter;
+  active: boolean;
+  count: number;
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  color: string;
+}> = ({ active, count, icon, label, onClick, color }) => (
+  <button
+    onClick={onClick}
+    className={cn(
+      "flex items-center gap-3 px-4 py-3 rounded-xl border transition-all duration-200 text-left min-w-[140px]",
+      active
+        ? "border-primary/30 bg-primary/5 shadow-sm ring-1 ring-primary/20"
+        : "border-border/50 bg-card hover:bg-muted/50 hover:border-border"
+    )}
+  >
+    <div className={cn("p-2 rounded-lg", color)}>
+      {icon}
+    </div>
+    <div>
+      <p className="text-xl font-bold text-foreground">{count}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
+    </div>
+  </button>
+);
+
+const MiniWidget: React.FC<{
+  title: string;
+  value: string;
+  subtitle?: string;
+  icon: React.ReactNode;
+  trend?: 'up' | 'down' | 'neutral';
+  className?: string;
+}> = ({ title, value, subtitle, icon, trend, className }) => (
+  <Card className={cn("border-border/40", className)}>
+    <CardContent className="pt-5 pb-4">
+      <div className="flex items-start justify-between">
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{title}</p>
+          <p className="text-2xl font-bold text-foreground">{value}</p>
+          {subtitle && (
+            <p className={cn(
+              "text-xs flex items-center gap-1",
+              trend === 'up' ? "text-destructive" : trend === 'down' ? "text-green-600" : "text-muted-foreground"
+            )}>
+              {trend === 'up' && <ArrowUpRight className="h-3 w-3" />}
+              {trend === 'down' && <ArrowDownRight className="h-3 w-3" />}
+              {subtitle}
+            </p>
+          )}
+        </div>
+        <div className="p-2.5 rounded-xl bg-muted/60">
+          {icon}
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+);
 
 const ProjectEconomyView: React.FC = () => {
   const { data: projectsWithEconomy, isLoading } = useEconomyOverviewData();
   const queryClient = useQueryClient();
-  const [period, setPeriod] = useState<TimePeriod>('month');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [closingProject, setClosingProject] = useState<ProjectWithEconomy | null>(null);
   const [isClosing, setIsClosing] = useState(false);
 
@@ -98,7 +190,6 @@ const ProjectEconomyView: React.FC = () => {
     if (!closingProject) return;
     setIsClosing(true);
     try {
-      // Signal EventFlow before local status update
       if (closingProject.booking_id) {
         const { markReadyForInvoicing } = await import('@/services/planningApiService');
         await markReadyForInvoicing(closingProject.booking_id);
@@ -119,169 +210,273 @@ const ProjectEconomyView: React.FC = () => {
     }
   };
 
-  // Filter projects by selected time period
-  const filteredProjects = React.useMemo(() => {
-    if (!projectsWithEconomy?.length) return [];
-    const now = new Date();
-    let rangeStart: Date;
-    if (period === 'day') {
-      rangeStart = startOfDay(now);
-    } else if (period === 'week') {
-      rangeStart = startOfWeek(now, { locale: sv, weekStartsOn: 1 });
-    } else {
-      rangeStart = startOfMonth(now);
-    }
-    return projectsWithEconomy.filter(p => {
-      if (!p.eventdate) return true; // show projects without date
-      try {
-        const d = parseISO(p.eventdate);
-        return d >= rangeStart;
-      } catch {
-        return true;
-      }
+  // Categorize projects
+  const categorized = React.useMemo(() => {
+    if (!projectsWithEconomy?.length) return { all: [], ongoing: [], completed: [], upcoming: [] };
+    const ongoing: ProjectWithEconomy[] = [];
+    const completed: ProjectWithEconomy[] = [];
+    const upcoming: ProjectWithEconomy[] = [];
+    projectsWithEconomy.forEach(p => {
+      const cat = categorizeProject(p);
+      if (cat === 'ongoing') ongoing.push(p);
+      else if (cat === 'completed') completed.push(p);
+      else upcoming.push(p);
     });
-  }, [projectsWithEconomy, period]);
+    return { all: projectsWithEconomy, ongoing, completed, upcoming };
+  }, [projectsWithEconomy]);
 
-  const kpis = React.useMemo(
-    () => aggregateProjects(filteredProjects),
-    [filteredProjects]
-  );
+  const filteredProjects = categorized[statusFilter];
+  const kpis = React.useMemo(() => aggregateProjects(filteredProjects), [filteredProjects]);
+  const allKpis = React.useMemo(() => aggregateProjects(categorized.all), [categorized.all]);
+
+  // Top deviating projects (for widget)
+  const topDeviating = React.useMemo(() => {
+    return [...filteredProjects]
+      .filter(p => p.summary.totalBudget > 0)
+      .sort((a, b) => b.summary.totalDeviationPercent - a.summary.totalDeviationPercent)
+      .slice(0, 5);
+  }, [filteredProjects]);
+
+  // Budget health distribution
+  const budgetHealth = React.useMemo(() => {
+    if (!filteredProjects.length) return { onBudget: 0, warning: 0, critical: 0 };
+    const onBudget = filteredProjects.filter(p => p.summary.totalDeviationPercent <= 100).length;
+    const warning = filteredProjects.filter(p => p.summary.totalDeviationPercent > 100 && p.summary.totalDeviationPercent <= 110).length;
+    const critical = filteredProjects.filter(p => p.summary.totalDeviationPercent > 110).length;
+    return { onBudget, warning, critical };
+  }, [filteredProjects]);
 
   if (isLoading) {
     return (
       <div className="space-y-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => (
-            <Skeleton key={i} className="h-32" />
-          ))}
+          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-28" />)}
         </div>
         <Skeleton className="h-96" />
       </div>
     );
   }
 
-  
-
-  const periodLabels: Record<TimePeriod, string> = {
-    day: 'Idag',
-    week: 'Denna vecka',
-    month: 'Denna månad',
+  const filterLabels: Record<StatusFilter, string> = {
+    all: 'Alla projekt',
+    ongoing: 'Pågående',
+    completed: 'Avslutade',
+    upcoming: 'Kommande',
   };
 
   return (
     <div className="space-y-6">
-      {/* KPI Cards */}
+      {/* Status filter cards */}
+      <div className="flex flex-wrap gap-3">
+        <StatusFilterButton
+          filter="all"
+          active={statusFilter === 'all'}
+          count={categorized.all.length}
+          icon={<BarChart3 className="h-4 w-4 text-primary" />}
+          label="Alla"
+          onClick={() => setStatusFilter('all')}
+          color="bg-primary/10"
+        />
+        <StatusFilterButton
+          filter="ongoing"
+          active={statusFilter === 'ongoing'}
+          count={categorized.ongoing.length}
+          icon={<PlayCircle className="h-4 w-4 text-blue-600" />}
+          label="Pågående"
+          onClick={() => setStatusFilter('ongoing')}
+          color="bg-blue-100"
+        />
+        <StatusFilterButton
+          filter="upcoming"
+          active={statusFilter === 'upcoming'}
+          count={categorized.upcoming.length}
+          icon={<CalendarClock className="h-4 w-4 text-amber-600" />}
+          label="Kommande"
+          onClick={() => setStatusFilter('upcoming')}
+          color="bg-amber-100"
+        />
+        <StatusFilterButton
+          filter="completed"
+          active={statusFilter === 'completed'}
+          count={categorized.completed.length}
+          icon={<CheckCircle2 className="h-4 w-4 text-green-600" />}
+          label="Avslutade"
+          onClick={() => setStatusFilter('completed')}
+          color="bg-green-100"
+        />
+      </div>
+
+      {/* KPI Widgets Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total budget</p>
-                <p className="text-2xl font-bold text-foreground">{formatCurrency(kpis.totalBudget)}</p>
+        <MiniWidget
+          title="Total budget"
+          value={formatCurrency(kpis.totalBudget)}
+          subtitle={`Faktisk: ${formatCurrency(kpis.totalActual)}`}
+          icon={<Banknote className="w-5 h-5 text-primary" />}
+          trend={kpis.totalActual > kpis.totalBudget ? 'up' : 'down'}
+        />
+        <MiniWidget
+          title="Avvikelse"
+          value={`${kpis.totalDeviation > 0 ? '+' : ''}${formatCurrency(kpis.totalDeviation)}`}
+          subtitle={`${kpis.avgDeviationPercent.toFixed(0)}% av budget`}
+          icon={kpis.totalDeviation > 0 
+            ? <TrendingUp className="w-5 h-5 text-destructive" /> 
+            : <TrendingDown className="w-5 h-5 text-green-600" />}
+          trend={kpis.totalDeviation > 0 ? 'up' : 'down'}
+        />
+        <MiniWidget
+          title="Timmar"
+          value={formatHours(kpis.totalHoursActual)}
+          subtitle={`Budget: ${formatHours(kpis.totalHoursBudgeted)}`}
+          icon={<Clock className="w-5 h-5 text-muted-foreground" />}
+          trend={kpis.totalHoursActual > kpis.totalHoursBudgeted ? 'up' : 'neutral'}
+        />
+        <MiniWidget
+          title="Inköp totalt"
+          value={formatCurrency(kpis.totalPurchases)}
+          subtitle={`${kpis.totalProjects} projekt`}
+          icon={<Wallet className="w-5 h-5 text-muted-foreground" />}
+        />
+      </div>
+
+      {/* Dashboard Widgets Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Budget Health Widget */}
+        <Card className="border-border/40">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Target className="h-4 w-4" />
+              Budgetstatus
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-green-600 font-medium">Inom budget</span>
+                <span className="font-bold">{budgetHealth.onBudget}</span>
               </div>
-              <div className="p-3 bg-primary/20 rounded-full">
-                <Banknote className="w-6 h-6 text-primary" />
+              <Progress value={filteredProjects.length ? (budgetHealth.onBudget / filteredProjects.length) * 100 : 0} className="h-2 [&>div]:bg-green-500" />
+              
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-amber-600 font-medium">Varning (0-10%)</span>
+                <span className="font-bold">{budgetHealth.warning}</span>
               </div>
+              <Progress value={filteredProjects.length ? (budgetHealth.warning / filteredProjects.length) * 100 : 0} className="h-2 [&>div]:bg-amber-500" />
+              
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-destructive font-medium">Kritisk (&gt;10%)</span>
+                <span className="font-bold">{budgetHealth.critical}</span>
+              </div>
+              <Progress value={filteredProjects.length ? (budgetHealth.critical / filteredProjects.length) * 100 : 0} className="h-2 [&>div]:bg-destructive" />
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Faktisk: {formatCurrency(kpis.totalActual)}
-            </p>
           </CardContent>
         </Card>
 
+        {/* Top Deviating Projects Widget */}
+        <Card className="border-border/40 lg:col-span-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Största avvikelser — {filterLabels[statusFilter]}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {topDeviating.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">Inga projekt med budgetdata</p>
+            ) : (
+              <div className="space-y-2.5">
+                {topDeviating.map(p => {
+                  const devPercent = p.summary.totalDeviationPercent;
+                  const devStatus = getDeviationStatus(devPercent);
+                  return (
+                    <div key={p.id} className="flex items-center gap-3">
+                      <Link 
+                        to={`/economy/${p.id}`}
+                        className="text-sm font-medium text-primary hover:underline truncate flex-1 min-w-0"
+                      >
+                        {p.name}
+                      </Link>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="w-24">
+                          <Progress 
+                            value={Math.min(devPercent, 150)} 
+                            className={cn(
+                              "h-2",
+                              devPercent <= 100 ? "[&>div]:bg-green-500" :
+                              devPercent <= 110 ? "[&>div]:bg-amber-500" :
+                              "[&>div]:bg-destructive"
+                            )}
+                          />
+                        </div>
+                        <span className={cn("text-xs font-mono font-bold w-12 text-right", getDeviationColor(devStatus))}>
+                          {devPercent.toFixed(0)}%
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Margin & Summary Widgets */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className={cn(
-          "border",
-          kpis.totalDeviation > 0 ? "bg-destructive/10 border-destructive/20" : "bg-green-50 border-green-200"
+          "border-border/40",
+          kpis.avgMargin >= 0 ? "bg-green-50/50 border-green-200/50" : "bg-destructive/5 border-destructive/20"
         )}>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total avvikelse</p>
-                <p className={cn(
-                  "text-2xl font-bold",
-                  kpis.totalDeviation > 0 ? "text-destructive" : "text-green-600"
-                )}>
-                  {kpis.totalDeviation > 0 ? '+' : ''}{formatCurrency(kpis.totalDeviation)}
-                </p>
-              </div>
-              <div className={cn(
-                "p-3 rounded-full",
-                kpis.totalDeviation > 0 ? "bg-destructive/20" : "bg-green-200"
-              )}>
-                {kpis.totalDeviation > 0 ? (
-                  <TrendingUp className="w-6 h-6 text-destructive" />
-                ) : (
-                  <TrendingDown className="w-6 h-6 text-green-600" />
-                )}
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              {kpis.avgDeviationPercent.toFixed(0)}% av budget
+          <CardContent className="pt-5 pb-4">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Genomsnittlig marginal</p>
+            <p className={cn("text-3xl font-bold mt-1", kpis.avgMargin >= 0 ? "text-green-600" : "text-destructive")}>
+              {kpis.avgMargin.toFixed(1)}%
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {kpis.projectsOverBudget} projekt över budget
             </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Timmar</p>
-                <p className="text-2xl font-bold text-foreground">{formatHours(kpis.totalHoursActual)}</p>
-              </div>
-              <div className="p-3 bg-muted rounded-full">
-                <Clock className="w-6 h-6 text-muted-foreground" />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Budget: {formatHours(kpis.totalHoursBudgeted)}
+        <Card className="border-border/40">
+          <CardContent className="pt-5 pb-4">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Personal kostnader</p>
+            <p className="text-3xl font-bold text-foreground mt-1">
+              {formatCurrency(filteredProjects.reduce((s, p) => s + p.summary.staffActual, 0))}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+              <Users className="h-3 w-3" />
+              Budget: {formatCurrency(filteredProjects.reduce((s, p) => s + p.summary.staffBudget, 0))}
             </p>
           </CardContent>
         </Card>
 
-        <Card className={cn(
-          kpis.projectsWithDeviation > 0 ? "bg-amber-50 border-amber-200" : "bg-green-50 border-green-200"
-        )}>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Projekt med avvikelse</p>
-                <p className="text-2xl font-bold text-foreground">
-                  {kpis.projectsWithDeviation} / {kpis.totalProjects}
-                </p>
-              </div>
-              <div className={cn(
-                "p-3 rounded-full",
-                kpis.projectsWithDeviation > 0 ? "bg-amber-200" : "bg-green-200"
-              )}>
-                {kpis.projectsWithDeviation > 0 ? (
-                  <AlertTriangle className="w-6 h-6 text-amber-600" />
-                ) : (
-                  <CheckCircle2 className="w-6 h-6 text-green-600" />
-                )}
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              {kpis.totalProjects - kpis.projectsWithDeviation} inom budget
+        <Card className="border-border/40">
+          <CardContent className="pt-5 pb-4">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Leverantörsfakturor</p>
+            <p className="text-3xl font-bold text-foreground mt-1">
+              {formatCurrency(filteredProjects.reduce((s, p) => s + p.summary.supplierInvoicesTotal, 0))}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Offerter: {formatCurrency(filteredProjects.reduce((s, p) => s + p.summary.quotesTotal, 0))}
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filter bar */}
-      <div className="flex items-center gap-3">
-        <span className="text-sm font-medium text-muted-foreground">Visa:</span>
-        <ToggleGroup type="single" value={period} onValueChange={(v) => v && setPeriod(v as TimePeriod)}>
-          <ToggleGroupItem value="day" className="text-sm">Dag</ToggleGroupItem>
-          <ToggleGroupItem value="week" className="text-sm">Vecka</ToggleGroupItem>
-          <ToggleGroupItem value="month" className="text-sm">Månad</ToggleGroupItem>
-        </ToggleGroup>
-        <Badge variant="secondary" className="text-xs ml-2">
-          {filteredProjects.length} projekt — {periodLabels[period]}
-        </Badge>
-      </div>
-
-      {/* Flat project table */}
-      <Card>
+      {/* Project table */}
+      <Card className="border-border/40">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold flex items-center justify-between">
+            <span>{filterLabels[statusFilter]} — Projektlista</span>
+            <Badge variant="secondary" className="text-xs font-normal">
+              {filteredProjects.length} projekt
+            </Badge>
+          </CardTitle>
+        </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -293,6 +488,7 @@ const ProjectEconomyView: React.FC = () => {
                   <th className="text-right py-3 px-4 font-medium text-muted-foreground">Inköp</th>
                   <th className="text-right py-3 px-4 font-medium text-muted-foreground">Avvikelse</th>
                   <th className="text-right py-3 px-4 font-medium text-muted-foreground">Timmar</th>
+                  <th className="text-center py-3 px-4 font-medium text-muted-foreground">Fas</th>
                   <th className="text-center py-3 px-4 font-medium text-muted-foreground">Status</th>
                   <th className="text-center py-3 px-4 font-medium text-muted-foreground"></th>
                 </tr>
@@ -300,14 +496,15 @@ const ProjectEconomyView: React.FC = () => {
               <tbody>
                 {filteredProjects.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="text-center py-8 text-muted-foreground">
-                      Inga projekt hittades för vald period
+                    <td colSpan={9} className="text-center py-8 text-muted-foreground">
+                      Inga projekt i kategorin "{filterLabels[statusFilter]}"
                     </td>
                   </tr>
                 )}
                 {filteredProjects.map(project => {
                   const devStatus = getDeviationStatus(project.summary.totalDeviationPercent);
                   const closed = project.economyClosed;
+                  const category = categorizeProject(project);
                   return (
                     <tr key={project.id} className={cn("border-b hover:bg-muted/50 transition-colors", closed && "opacity-60")}>
                       <td className="py-3 px-4">
@@ -333,6 +530,16 @@ const ProjectEconomyView: React.FC = () => {
                       </td>
                       <td className="text-right py-3 px-4">
                         {formatHours(project.summary.actualHours)} / {formatHours(project.summary.budgetedHours)}
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        <Badge variant="outline" className={cn(
+                          "text-[10px] font-medium",
+                          category === 'ongoing' && "border-blue-300 text-blue-700 bg-blue-50",
+                          category === 'upcoming' && "border-amber-300 text-amber-700 bg-amber-50",
+                          category === 'completed' && "border-green-300 text-green-700 bg-green-50",
+                        )}>
+                          {category === 'ongoing' ? 'PÅGÅENDE' : category === 'upcoming' ? 'KOMMANDE' : 'AVSLUTAD'}
+                        </Badge>
                       </td>
                       <td className="text-center py-3 px-4">
                         <Badge variant={closed ? "secondary" : "outline"} className={cn(
@@ -445,7 +652,6 @@ const EconomyOverview: React.FC = () => {
           <TabsContent value="staff">
             <StaffEconomyView />
           </TabsContent>
-
 
           <TabsContent value="time-reports">
             <React.Suspense fallback={<Skeleton className="h-96" />}>
