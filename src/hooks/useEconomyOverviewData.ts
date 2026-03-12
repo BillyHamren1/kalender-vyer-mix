@@ -4,6 +4,8 @@ import { fetchAllEconomyDataMulti, type BatchEconomyData } from '@/services/plan
 import { calculateEconomySummary } from '@/services/projectEconomyService';
 import type { EconomySummary, StaffTimeReport } from '@/types/projectEconomy';
 
+export type ProjectSize = 'small' | 'medium' | 'large';
+
 export interface ProjectWithEconomy {
   id: string;
   name: string;
@@ -13,6 +15,8 @@ export interface ProjectWithEconomy {
   summary: EconomySummary;
   timeReports: StaffTimeReport[];
   economyClosed: boolean;
+  projectSize: ProjectSize;
+  navigateTo: string;
 }
 
 /**
@@ -123,26 +127,87 @@ export const useEconomyOverviewData = () => {
   return useQuery({
     queryKey: ['economy-overview'],
     queryFn: async (): Promise<ProjectWithEconomy[]> => {
-      // Fetch all active projects
-      const { data: projects, error } = await supabase
-        .from('projects')
-        .select('id, name, status, booking_id')
-        .order('created_at', { ascending: false });
+      // Fetch all three project types in parallel
+      const [projectsRes, jobsRes, largeRes] = await Promise.all([
+        supabase
+          .from('projects')
+          .select('id, name, status, booking_id')
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('jobs')
+          .select('id, name, status, booking_id')
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('large_projects')
+          .select('id, name, status, large_project_bookings(booking_id)')
+          .order('created_at', { ascending: false }),
+      ]);
 
-      if (error) throw error;
-      if (!projects?.length) return [];
+      if (projectsRes.error) throw projectsRes.error;
+      if (jobsRes.error) throw jobsRes.error;
+      if (largeRes.error) throw largeRes.error;
 
-      // Fetch eventdates from bookings for projects that have booking_id
-      const bookingIds = projects
-        .map(p => p.booking_id)
-        .filter((id): id is string => !!id);
+      // Build unified list with booking IDs
+      interface RawEntry {
+        id: string;
+        name: string;
+        status: string;
+        booking_ids: string[];
+        projectSize: ProjectSize;
+        navigateTo: string;
+      }
 
+      const entries: RawEntry[] = [];
+
+      // Medium projects
+      (projectsRes.data || []).forEach(p => {
+        entries.push({
+          id: p.id,
+          name: p.name,
+          status: p.status,
+          booking_ids: p.booking_id ? [p.booking_id] : [],
+          projectSize: 'medium',
+          navigateTo: `/project/${p.id}`,
+        });
+      });
+
+      // Small projects (jobs)
+      (jobsRes.data || []).forEach(j => {
+        entries.push({
+          id: j.id,
+          name: j.name,
+          status: j.status === 'planned' ? 'planning' : j.status,
+          booking_ids: j.booking_id ? [j.booking_id] : [],
+          projectSize: 'small',
+          navigateTo: `/jobs/${j.id}`,
+        });
+      });
+
+      // Large projects (can have multiple bookings)
+      (largeRes.data || []).forEach((lp: any) => {
+        const bIds = (lp.large_project_bookings || []).map((b: any) => b.booking_id).filter(Boolean);
+        entries.push({
+          id: lp.id,
+          name: lp.name,
+          status: lp.status,
+          booking_ids: bIds,
+          projectSize: 'large',
+          navigateTo: `/large-project/${lp.id}`,
+        });
+      });
+
+      if (!entries.length) return [];
+
+      // Collect all unique booking IDs
+      const allBookingIds = [...new Set(entries.flatMap(e => e.booking_ids))];
+
+      // Fetch eventdates from bookings
       let eventdateMap: Record<string, string | null> = {};
-      if (bookingIds.length > 0) {
+      if (allBookingIds.length > 0) {
         const { data: bookings } = await supabase
           .from('bookings')
           .select('id, eventdate')
-          .in('id', bookingIds);
+          .in('id', allBookingIds);
         if (bookings) {
           bookings.forEach(b => { eventdateMap[b.id] = b.eventdate; });
         }
@@ -150,53 +215,108 @@ export const useEconomyOverviewData = () => {
 
       // Fetch ALL economy data in a single edge function call
       let multiBatchData: Record<string, BatchEconomyData> = {};
-      if (bookingIds.length > 0) {
+      if (allBookingIds.length > 0) {
         try {
-          multiBatchData = await fetchAllEconomyDataMulti(bookingIds);
+          multiBatchData = await fetchAllEconomyDataMulti(allBookingIds);
         } catch (err) {
           console.error('Failed to fetch multi-batch economy data:', err);
         }
       }
 
-      return projects.map((project) => {
-        const eventdate = project.booking_id ? (eventdateMap[project.booking_id] ?? null) : null;
+      return entries.map((entry) => {
+        // For projects with a single booking
+        const primaryBookingId = entry.booking_ids[0] ?? null;
+        const eventdate = primaryBookingId ? (eventdateMap[primaryBookingId] ?? null) : null;
 
-        if (!project.booking_id || !multiBatchData[project.booking_id]) {
+        if (!entry.booking_ids.length || !entry.booking_ids.some(id => multiBatchData[id])) {
           return {
-            id: project.id,
-            name: project.name,
-            status: project.status,
-            booking_id: project.booking_id,
+            id: entry.id,
+            name: entry.name,
+            status: entry.status,
+            booking_id: primaryBookingId,
             eventdate,
             summary: emptySummary,
             timeReports: [] as StaffTimeReport[],
-            economyClosed: project.status === 'completed',
+            economyClosed: entry.status === 'completed',
+            projectSize: entry.projectSize,
+            navigateTo: entry.navigateTo,
           };
         }
 
         try {
-          const { summary, timeReports, economyClosed } = processEconomyBatchData(multiBatchData[project.booking_id]);
+          // For large projects with multiple bookings, aggregate summaries
+          if (entry.booking_ids.length > 1) {
+            const summaries = entry.booking_ids
+              .filter(id => multiBatchData[id])
+              .map(id => processEconomyBatchData(multiBatchData[id]));
+
+            const aggregated: EconomySummary = { ...emptySummary };
+            let allTimeReports: StaffTimeReport[] = [];
+            let allClosed = summaries.length > 0;
+
+            summaries.forEach(s => {
+              aggregated.budgetedHours += s.summary.budgetedHours;
+              aggregated.actualHours += s.summary.actualHours;
+              aggregated.staffBudget += s.summary.staffBudget;
+              aggregated.staffActual += s.summary.staffActual;
+              aggregated.purchasesTotal += s.summary.purchasesTotal;
+              aggregated.quotesTotal += s.summary.quotesTotal;
+              aggregated.invoicesTotal += s.summary.invoicesTotal;
+              aggregated.supplierInvoicesTotal += s.summary.supplierInvoicesTotal;
+              aggregated.productCostBudget += s.summary.productCostBudget;
+              aggregated.totalBudget += s.summary.totalBudget;
+              aggregated.totalActual += s.summary.totalActual;
+              allTimeReports = [...allTimeReports, ...s.timeReports];
+              if (!s.economyClosed) allClosed = false;
+            });
+
+            aggregated.staffDeviation = aggregated.staffActual - aggregated.staffBudget;
+            aggregated.staffDeviationPercent = aggregated.staffBudget > 0 ? (aggregated.staffActual / aggregated.staffBudget) * 100 : 0;
+            aggregated.invoiceDeviation = aggregated.invoicesTotal - aggregated.quotesTotal;
+            aggregated.totalDeviation = aggregated.totalActual - aggregated.totalBudget;
+            aggregated.totalDeviationPercent = aggregated.totalBudget > 0 ? (aggregated.totalActual / aggregated.totalBudget) * 100 : 0;
+
+            return {
+              id: entry.id,
+              name: entry.name,
+              status: entry.status,
+              booking_id: primaryBookingId,
+              eventdate,
+              summary: aggregated,
+              timeReports: allTimeReports,
+              economyClosed: allClosed || entry.status === 'completed',
+              projectSize: entry.projectSize,
+              navigateTo: entry.navigateTo,
+            };
+          }
+
+          // Single booking project
+          const { summary, timeReports, economyClosed } = processEconomyBatchData(multiBatchData[primaryBookingId!]);
           return {
-            id: project.id,
-            name: project.name,
-            status: project.status,
-            booking_id: project.booking_id,
+            id: entry.id,
+            name: entry.name,
+            status: entry.status,
+            booking_id: primaryBookingId,
             eventdate,
             summary,
             timeReports,
-            economyClosed: economyClosed || project.status === 'completed',
+            economyClosed: economyClosed || entry.status === 'completed',
+            projectSize: entry.projectSize,
+            navigateTo: entry.navigateTo,
           };
         } catch (err) {
-          console.error(`Failed to process economy for project ${project.name}:`, err);
+          console.error(`Failed to process economy for project ${entry.name}:`, err);
           return {
-            id: project.id,
-            name: project.name,
-            status: project.status,
-            booking_id: project.booking_id,
+            id: entry.id,
+            name: entry.name,
+            status: entry.status,
+            booking_id: primaryBookingId,
             eventdate,
             summary: emptySummary,
             timeReports: [] as StaffTimeReport[],
-            economyClosed: project.status === 'completed',
+            economyClosed: entry.status === 'completed',
+            projectSize: entry.projectSize,
+            navigateTo: entry.navigateTo,
           };
         }
       });

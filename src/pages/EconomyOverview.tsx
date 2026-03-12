@@ -39,7 +39,7 @@ import { cn } from '@/lib/utils';
 import { parseISO, isAfter, isBefore, startOfDay } from 'date-fns';
 import { getDeviationStatus, getDeviationColor } from '@/types/projectEconomy';
 import { StaffEconomyView } from '@/components/economy/StaffEconomyView';
-import { useEconomyOverviewData, type ProjectWithEconomy } from '@/hooks/useEconomyOverviewData';
+import { useEconomyOverviewData, type ProjectWithEconomy, type ProjectSize } from '@/hooks/useEconomyOverviewData';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -394,7 +394,7 @@ const ProjectEconomyView: React.FC = () => {
                   return (
                     <div key={p.id} className="flex items-center gap-3">
                       <Link 
-                        to={`/economy/${p.id}`}
+                        to={p.navigateTo}
                         className="text-sm font-medium text-primary hover:underline truncate flex-1 min-w-0"
                       >
                         {p.name}
@@ -483,6 +483,7 @@ const ProjectEconomyView: React.FC = () => {
               <thead>
                 <tr className="border-b bg-muted/30">
                   <th className="text-left py-3 px-4 font-medium text-muted-foreground">Projekt</th>
+                  <th className="text-center py-3 px-4 font-medium text-muted-foreground">Typ</th>
                   <th className="text-right py-3 px-4 font-medium text-muted-foreground">Budget</th>
                   <th className="text-right py-3 px-4 font-medium text-muted-foreground">Faktisk</th>
                   <th className="text-right py-3 px-4 font-medium text-muted-foreground">Inköp</th>
@@ -496,7 +497,7 @@ const ProjectEconomyView: React.FC = () => {
               <tbody>
                 {filteredProjects.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="text-center py-8 text-muted-foreground">
+                    <td colSpan={10} className="text-center py-8 text-muted-foreground">
                       Inga projekt i kategorin "{filterLabels[statusFilter]}"
                     </td>
                   </tr>
@@ -509,11 +510,21 @@ const ProjectEconomyView: React.FC = () => {
                     <tr key={project.id} className={cn("border-b hover:bg-muted/50 transition-colors", closed && "opacity-60")}>
                       <td className="py-3 px-4">
                         <Link
-                          to={`/economy/${project.id}`}
+                          to={project.projectSize === 'medium' ? `/economy/${project.id}` : project.navigateTo}
                           className="text-primary hover:underline font-medium"
                         >
                           {project.name}
                         </Link>
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        <Badge variant="outline" className={cn(
+                          "text-[10px] font-medium",
+                          project.projectSize === 'small' && "bg-[hsl(var(--project-small))] text-[hsl(var(--project-small-foreground))] ring-1 ring-[hsl(var(--project-small-border))]",
+                          project.projectSize === 'medium' && "bg-[hsl(var(--project-medium))] text-[hsl(var(--project-medium-foreground))] ring-1 ring-[hsl(var(--project-medium-border))]",
+                          project.projectSize === 'large' && "bg-[hsl(var(--project-large))] text-[hsl(var(--project-large-foreground))] ring-1 ring-[hsl(var(--project-large-border))]",
+                        )}>
+                          {project.projectSize === 'small' ? 'Litet' : project.projectSize === 'medium' ? 'Medel' : 'Stort'}
+                        </Badge>
                       </td>
                       <td className="text-right py-3 px-4">
                         {formatCurrency(project.summary.totalBudget)}
