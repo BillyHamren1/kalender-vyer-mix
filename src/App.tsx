@@ -60,6 +60,8 @@ import WarehouseEconomy from "./pages/WarehouseEconomy";
 import WarehouseInventoryPlaceholder from "./pages/WarehouseInventoryPlaceholder";
 import WarehouseServicePlaceholder from "./pages/WarehouseServicePlaceholder";
 import MobileScannerApp from "./pages/MobileScannerApp";
+import ScannerLogin from "./pages/scanner/ScannerLogin";
+import ScannerProtectedRoute from "./components/scanner/ScannerProtectedRoute";
 
 // Mobile staff app pages
 import MobileLogin from "./pages/mobile/MobileLogin";
