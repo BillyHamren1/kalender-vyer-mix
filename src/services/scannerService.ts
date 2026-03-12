@@ -1,4 +1,5 @@
 import { PackingWithBooking, PackingParcel } from "@/types/packing";
+import { getToken, clearAuth } from "@/services/mobileApiService";
 
 export interface ScanResult {
   type: 'packing_id' | 'product_sku' | 'unknown';
@@ -6,16 +7,22 @@ export interface ScanResult {
   packingId?: string;
 }
 
-// Helper to call the scanner-api edge function
+// Helper to call the scanner-api edge function with auth token
 const callScannerApi = async (action: string, params: Record<string, any> = {}) => {
   const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
   const url = `https://${projectId}.supabase.co/functions/v1/scanner-api`;
+  const token = getToken();
   
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, ...params })
+    body: JSON.stringify({ action, token, ...params })
   });
+
+  if (response.status === 401) {
+    clearAuth();
+    throw new Error('Session expired');
+  }
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));

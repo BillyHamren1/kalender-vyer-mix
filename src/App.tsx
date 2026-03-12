@@ -185,8 +185,9 @@ const AppContent = () => {
                       <Route path="/warehouse/inventory" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseInventoryPlaceholder /></WarehouseSystemLayout></ProtectedRoute>} />
                       <Route path="/warehouse/service" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseServicePlaceholder /></WarehouseSystemLayout></ProtectedRoute>} />
                       
-                      {/* Mobile Scanner App */}
-                      <Route path="/scanner" element={<MobileScannerApp />} />
+                      {/* Mobile Scanner App - uses MobileAuth */}
+                      <Route path="/scanner" element={<MobileAuthProvider><ScannerProtectedRoute><MobileScannerApp /></ScannerProtectedRoute></MobileAuthProvider>} />
+                      <Route path="/scanner/login" element={<MobileAuthProvider><ScannerLogin /></MobileAuthProvider>} />
 
                       {/* Fallback */}
                       <Route path="*" element={<NotFound />} />
