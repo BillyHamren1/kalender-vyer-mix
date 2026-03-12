@@ -61,7 +61,7 @@ import WarehouseInventoryPlaceholder from "./pages/WarehouseInventoryPlaceholder
 import WarehouseServicePlaceholder from "./pages/WarehouseServicePlaceholder";
 import MobileScannerApp from "./pages/MobileScannerApp";
 import ScannerLogin from "./pages/scanner/ScannerLogin";
-import ScannerProtectedRoute from "./components/scanner/ScannerProtectedRoute";
+import ScannerRouteGuard from "./components/scanner/ScannerProtectedRoute";
 
 // Mobile staff app pages
 import MobileLogin from "./pages/mobile/MobileLogin";
@@ -188,7 +188,7 @@ const AppContent = () => {
                       <Route path="/warehouse/service" element={<ProtectedRoute><WarehouseSystemLayout><WarehouseServicePlaceholder /></WarehouseSystemLayout></ProtectedRoute>} />
                       
                       {/* Mobile Scanner App - uses MobileAuth */}
-                      <Route path="/scanner" element={<MobileAuthProvider><ScannerProtectedRoute><MobileScannerApp /></ScannerProtectedRoute></MobileAuthProvider>} />
+                      <Route path="/scanner" element={<MobileAuthProvider><ScannerRouteGuard><MobileScannerApp /></ScannerRouteGuard></MobileAuthProvider>} />
                       <Route path="/scanner/login" element={<MobileAuthProvider><ScannerLogin /></MobileAuthProvider>} />
 
                       {/* Fallback */}
