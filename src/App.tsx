@@ -126,6 +126,9 @@ const AppContent = () => {
                 {/* Public transport partner response page - no auth */}
                 <Route path="/transport-svar" element={<TransportResponse />} />
 
+                {/* Native app entry – module chooser */}
+                <Route path="/native-start" element={<MobileAuthProvider><NativeAppEntry /></MobileAuthProvider>} />
+
                 {/* Mobile Staff App - Completely isolated system (own auth) */}
                 <Route path="/m/login" element={<MobileAuthProvider><MobileLogin /></MobileAuthProvider>} />
                 <Route path="/m" element={<MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileJobs /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider>} />
