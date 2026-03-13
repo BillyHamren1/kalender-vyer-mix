@@ -21,6 +21,9 @@ export interface ReviewChecklist {
   additions_registered?: boolean;
   client_info_correct?: boolean;
   deviation_checked?: boolean;
+  invoice_info_complete?: boolean;
+  internal_note_added?: boolean;
+  ready_for_invoicing?: boolean;
 }
 
 export interface ProjectBilling {

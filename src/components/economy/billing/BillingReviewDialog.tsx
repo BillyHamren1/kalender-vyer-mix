@@ -87,7 +87,13 @@ const BillingReviewDialog: React.FC<Props> = ({ billing, open, onClose, onSave, 
     }
   }, [billing?.id]);
 
-  if (!billing) return null;
+  if (!billing) {
+    return (
+      <Dialog open={false} onOpenChange={() => {}}>
+        <DialogContent className="hidden"><DialogHeader><DialogTitle /></DialogHeader></DialogContent>
+      </Dialog>
+    );
+  }
 
   const completedChecks = CHECKLIST_ITEMS.filter(c => checklist[c.key]).length;
   const allChecked = completedChecks === CHECKLIST_ITEMS.length;
