@@ -245,8 +245,8 @@ const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
   );
 
   const orderYoY = useMemo(
-    () => computeOrderIntakeYoY(projects, dateRange.from, dateRange.to),
-    [projects, dateRange],
+    () => computeOrderIntakeYoY(projects, selectedYears),
+    [projects, selectedYears],
   );
 
   const summary = useMemo(() => {
