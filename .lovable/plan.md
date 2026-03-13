@@ -1,87 +1,113 @@
 
-# Steg 4: Regression Test Layer ✅ Klart
 
-## Nya testfiler:
-- `src/utils/__tests__/dateUtils.test.ts` — 22 tester
-- `src/hooks/__tests__/useMemoizedEvents.test.ts` — 12 tester
+# Fakturagranskningspanel — Fullständig ombyggnad
 
-## Utökade testfiler:
-- `plannerStore.test.tsx` — +4 tester (rapid view switching)
-- `useEventEditController.test.ts` — +4 tester (stress/edge cases)
-- `eventUtils.test.ts` — +5 tester (edge cases)
+## Nuläge
 
-## Totalt: 159 tester i 7 filer, alla gröna.
+Den befintliga `BillingReviewPanel` är en enkel sidopanel (Sheet, 540px bred) med grundläggande info, en kort checklista, interna anteckningar och statusåtgärder. Den saknar:
 
----
+- Detaljerat fakturaunderlag (timmar, material, transport, tillägg, underleverantörer)
+- Kund- och fakturainfo med validering
+- Avvikelseanalys med automatiska varningar
+- Faktureringshistorik / tidslinje
+- Utökad checklista (9 punkter istället för 6)
+- Ekonomisk sammanfattning med moms, rabatter, tillägg
 
-# Steg 1: SAFE NOW ✅ Klart
+## Arkitektur
 
-- ✅ `convertToISO8601` centraliserad till `src/utils/dateUtils.ts`
-- ✅ Debug-`console.log` borttagna från `CustomEvent.tsx` och `EventHoverCard.tsx`
-- ✅ `openDelay={300}` på `EventHoverCard`
+Ersätt den nuvarande Sheet-baserade panelen med en **fullskärmsvy** som öppnas via en Dialog (max-w-5xl) eller som en dedikerad route. En Dialog är bättre för att bevara kontext i ekonomiöversikten.
 
----
-
-# Steg 2: SAFE NEXT ✅ Klart
-
-## 2a. Tidszons-konsistens ✅ Klart
-**Åtgärd**: Lagt till `extractUTCTime`, `extractUTCDate`, `buildUTCDateTime` i `dateUtils.ts`. `EditEventTimeDialog` använder nu samma UTC-approach som `QuickTimeEditPopover`.
-**Filer**: `src/utils/dateUtils.ts`, `src/components/Calendar/EditEventTimeDialog.tsx`
-
-## 2b. MoveEventDateDialog data-synk ✅ Klart
-**Åtgärd**: `MoveEventDateDialog` uppdaterar nu både `calendar_events` och `bookings`-tabellen (datum + tider) via samma mönster som `QuickTimeEditPopover`. Använder UTC-helpers. Tidszons-bugg med `getHours()` fixad.
-**Filer**: `src/components/Calendar/MoveEventDateDialog.tsx`
-
-## 2c. Batch staff availability ✅ Klart
-**Åtgärd**: Ny `getAvailableStaffForDateRange` i `staffAvailabilityService.ts` gör 2 queries (staff + availability) istället för 2×N. `CustomCalendar` använder batch-funktionen. Console.log-spam borttagen från availability-logik.
-**Filer**: `src/services/staffAvailabilityService.ts`, `src/components/Calendar/CustomCalendar.tsx`
-
----
-
-# Steg 3: LATER ✅ Klart (utom 3d)
-
-## 3a. Event deduplication guard ✅ Klart
-**Åtgärd**: Realtime INSERT-handler i `useRealTimeCalendarEvents` kollar nu både `id` OCH `booking_id + event_type` combo innan ett event läggs till. Förhindrar dubbletter vid snabb sync.
-**Filer**: `src/hooks/useRealTimeCalendarEvents.tsx`
-
-## 3b. Console.log-sanering (rendervägar) ✅ Klart
-**Åtgärd**: Borttagna icke-error `console.log` från `useRealTimeCalendarEvents`, `CustomCalendar`, `CalendarEventHandlers`, `useEventOperations`, `useResourceCalendarHandlers`. Kvar: `console.error` för faktiska fel.
-
-## 3c. Borttagning av oanvända komponenter ✅ Klart
-**Åtgärd**: `DayCalendar.tsx` och `useDayCalendarEvents.tsx` borttagna — inga importer fanns.
-
-## 3d. FullCalendar-migration ✅ Klart (parallellt spår)
-**Status**: Custom-ersättningar byggda i `src/components/Calendar/custom/`. Feature flag `use_custom_calendar` i localStorage styr vilken implementation som körs.
-
-### Nya filer:
-- `src/components/Calendar/custom/useCalendarGrid.tsx` — Tidsberäkning, slot-generering, event-positionering i pixlar
-- `src/components/Calendar/custom/TimeColumn.tsx` — Tidslots-kolumn (06:00–22:00)
-- `src/components/Calendar/custom/ResourceColumn.tsx` — En team-kolumn med events, använder befintlig `CustomEvent`
-- `src/components/Calendar/custom/CustomResourceTimeGrid.tsx` — Ersätter `ResourceCalendar` (resourceTimeGrid dagvy)
-- `src/components/Calendar/custom/MonthCell.tsx` — Dag-cell i månadsvy
-- `src/components/Calendar/custom/CustomMonthGrid.tsx` — Ersätter `IndividualStaffCalendar` (månadsvy)
-- `src/components/Calendar/ResourceCalendarSwitch.tsx` — Feature flag wrapper för resource-kalender
-- `src/components/Calendar/StaffCalendarSwitch.tsx` — Feature flag wrapper för personal-kalender
-
-### Inkopplade konsumenter:
-- `MonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
-- `TestMonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
-- `StaffMemberCalendar.tsx` → `StaffCalendarSwitch`
-
-### Aktivering:
-```js
-localStorage.setItem('use_custom_calendar', 'true'); // Aktivera custom-versionen
-localStorage.removeItem('use_custom_calendar');       // Tillbaka till FullCalendar
+```text
+BillingReviewDialog (Dialog, max-w-5xl)
+├── Header: projektinfo + statusbadgar + actions
+├── Tab 1: Sammanfattning
+│   ├── EconomySummaryCards (offert, fakturerbart, marginal)
+│   └── AvvikelseIndikator
+├── Tab 2: Fakturaunderlag
+│   ├── TimmarBlock
+│   ├── MaterialBlock
+│   ├── TransportBlock
+│   ├── TilläggBlock
+│   └── UnderleverantörerBlock
+├── Tab 3: Kund & Faktura
+│   ├── KundInfo (med varningar för saknade fält)
+│   └── FakturaInfo (referens, betalvillkor, moms)
+├── Tab 4: Granskning
+│   ├── Checklista (9 punkter)
+│   ├── InternaAnteckningar
+│   └── Avvikelser & Varningar
+└── Sidebar/Footer: Historik-tidslinje
 ```
 
-## 3e. Refaktorera CustomCalendar ✅ Klart
-**Åtgärd**: CustomCalendar (400→185 rader) uppdelad i tre extraherade hooks:
-- `useWeekDays` — generering av 7-dagars array
-- `useCarouselState` — karusellnavigering, scroll-hantering, centrerad dag
-- `useAvailableStaffWeek` — batch-hämtning av tillgänglig personal + team-tilldelning
-Gemensam `buildTimeGridProps`-helper eliminerar duplicerad TimeGrid-konfiguration.
-**Filer**: `src/hooks/useWeekDays.tsx`, `src/hooks/useCarouselState.tsx`, `src/hooks/useAvailableStaffWeek.tsx`, `src/components/Calendar/CustomCalendar.tsx`
+## Databas
 
-## 3f. Optimistic updates drag & drop ✅ Klart
-**Åtgärd**: FullCalendar hanterar redan optimistic UI nativt (DOM uppdateras direkt vid drag). `useEventOperations` har rensats till att enbart: (1) persist:a ändringen till DB, (2) visa toast, (3) revert:a via `info.revert()` vid fel. Alla redundanta `console.log` borttagna. `CalendarEventHandlers` förenklad — passthrough utan loggning.
-**Filer**: `src/hooks/useEventOperations.tsx`, `src/components/Calendar/CalendarEventHandlers.tsx`, `src/hooks/useResourceCalendarHandlers.tsx`
+Inga nya tabeller behövs. `project_billing`-tabellen har redan alla nödvändiga fält. Checklist-strukturen utökas med fler nycklar i JSONB (`review_checklist`).
+
+Befintliga fält som redan stöder framtida integration:
+- `external_invoice_id`, `invoice_number`, `invoice_date`, `due_date`
+- `invoice_sent_at`, `invoice_paid_at`, `review_completed_at`, `approved_for_invoicing_at`
+- `internal_notes`, `review_checklist` (JSONB)
+
+## Datahämtning för fakturaunderlag
+
+Fakturaunderlagets detaljer (timmar, material, transport) hämtas från befintliga tabeller baserat på `booking_id` och `project_id`:
+
+- **Timmar**: `time_reports` (lokala) via befintliga hooks
+- **Material/produkter**: `booking_products` via `booking_id`
+- **Transport/inköp**: `project_purchases` / `packing_purchases` beroende på `project_type`
+- **Underleverantörer**: `planning-api-proxy` (supplier invoices) via befintlig ekonomihook
+
+En ny hook `useBillingInvoiceData(billing)` samlar all data.
+
+## Implementeringsplan
+
+### 1. Skapa `useBillingInvoiceData` hook
+Hook som tar en `ProjectBilling` och hämtar alla underlagsposter (timmar, material, transport, tillägg, underleverantörer) från respektive datakällor.
+
+### 2. Ersätt `BillingReviewPanel` med `BillingReviewDialog`
+Fullständig dialog med header, tabs och alla 8 sektioner enligt specifikationen. Byggd som en stor komponent med interna subkomponenter.
+
+### 3. Utökad checklista
+Lägg till 3 nya kontrollpunkter:
+- `invoice_info_complete` — Fakturauppgifter kompletta
+- `internal_note_added` — Intern notering tillagd vid behov
+- `ready_for_invoicing` — Projekt klart för fakturering
+
+### 4. Historik-tidslinje
+Renderar timestamps från `project_billing`-fälten (`closed_at`, `review_completed_at`, `approved_for_invoicing_at`, `invoice_sent_at`, `invoice_paid_at`) som en vertikal tidslinje.
+
+### 5. Automatiska varningar
+Beräknas från data: saknade timmar, material, kunduppgifter, 0-belopp, avvikelse >10%, saknat stängningsdatum, ej genomförd internkontroll.
+
+### 6. Uppdatera `BillingSection` och `BillingPipeline`
+Byt referens från `BillingReviewPanel` till `BillingReviewDialog`.
+
+## Statuslogik
+
+Behåller befintlig `useAdvanceBillingStatus` med förstärkt validering:
+- `under_review` → `ready_to_invoice`: kräver alla checklist-bockar
+- `ready_to_invoice` → `invoice_created`: kräver kunduppgifter
+- `invoice_created` → `invoiced`: kräver fakturanummer
+- `invoiced` → `paid`: sätter `invoice_paid_at`
+- Automatisk `overdue` beräknas redan i `groupByBillingStatus`
+
+Bakåtsteg (`needs_completion`) tillåts bara från `under_review`.
+
+## Designprinciper
+
+- Tabs istället för lång scroll — snabb navigering
+- Sammanfattning alltid synlig i header
+- Varningar visas som diskreta amber-badges, inte aggressivt rött
+- Konsekvent med befintlig ekonomiöversiktens typografi och spacing
+- Actions alltid synliga i header, inte gömd längst ner
+
+## Filer som skapas/ändras
+
+| Fil | Åtgärd |
+|-----|--------|
+| `src/hooks/useBillingInvoiceData.ts` | Ny |
+| `src/components/economy/billing/BillingReviewDialog.tsx` | Ny (ersätter Panel) |
+| `src/components/economy/billing/BillingSection.tsx` | Uppdatera import |
+| `src/components/economy/billing/BillingReviewPanel.tsx` | Ta bort |
+| `src/hooks/useProjectBilling.ts` | Utöka `ReviewChecklist` |
+
