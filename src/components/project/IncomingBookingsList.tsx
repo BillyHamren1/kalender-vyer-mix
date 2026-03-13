@@ -151,7 +151,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                 title="Litet projekt"
               >
                 <Briefcase className="w-3.5 h-3.5" />
-                <span className="hidden xl:inline">Litet</span>
+                <span>Litet</span>
               </Button>
               <Button
                 variant="ghost"
