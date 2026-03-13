@@ -27,7 +27,15 @@ const navigationItems: NavItem[] = [
     icon: FolderKanban,
     children: [{ title: "Mina projekt", url: "/my-projects" }],
   },
-  { title: "Personalplanering", url: "/calendar", icon: Calendar },
+  {
+    title: "Personal",
+    url: "/staff-dashboard",
+    icon: Users,
+    children: [
+      { title: "Kalender", url: "/calendar" },
+      { title: "Personalhantering", url: "/staff-management" },
+    ],
+  },
   {
     title: "Ekonomiöversikt",
     url: "/economy",
@@ -38,8 +46,6 @@ const navigationItems: NavItem[] = [
     url: "/logistics/planning",
     icon: Truck,
   },
-  { title: "Personal", url: "/staff-management", icon: Users },
-  { title: "Personalöversikt", url: "/staff-dashboard", icon: LayoutDashboard },
 ];
 
 export function Sidebar3D() {
