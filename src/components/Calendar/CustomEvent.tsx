@@ -3,6 +3,7 @@ import { CalendarEvent, Resource, getEventColor } from './ResourceData';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
 import { createDialogHandlers } from '@/hooks/useEventEditController';
 import { useGlobalEditController } from '@/contexts/EditControllerContext';
+import { DRAG_DATA_TYPE, type DraggedEventData } from '@/hooks/useEventDragDrop';
 import EventHoverCard from './EventHoverCard';
 import QuickTimeEditPopover from './QuickTimeEditPopover';
 import MoveEventDateDialog from './MoveEventDateDialog';
