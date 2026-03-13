@@ -460,8 +460,22 @@ const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
 
           {/* ── Orderingång Tab (YoY by created_at) ── */}
           <TabsContent value="orderingang" className="space-y-4 mt-0">
-            <div className={cn("grid gap-3", orderYoY.years.length <= 2 ? "grid-cols-2" : `grid-cols-${Math.min(orderYoY.years.length, 4)}`)}>
-              {orderYoY.years.map((y, i) => (
+            {/* Year selector */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-medium text-muted-foreground">Jämför år:</span>
+              <div className="flex bg-muted/50 rounded-lg p-0.5 gap-0.5">
+                {orderYoY.availableYears.map(y => {
+                  const isActive = orderYoY.years.includes(y);
+                  return (
+                    <button key={y} onClick={() => toggleYear(y)}
+                      className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all",
+                        isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                      {y}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
                 <div key={y} className={cn("rounded-xl border p-4", i === orderYoY.years.length - 1 ? "border-primary/20 bg-primary/5" : "border-border/40 bg-muted/10")}>
                   <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">{y}</p>
                   <p className="text-2xl font-bold text-foreground">{formatCurrency(orderSummary[y] || 0)} kr</p>
