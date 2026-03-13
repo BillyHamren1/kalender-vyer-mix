@@ -1,87 +1,106 @@
 
-# Steg 4: Regression Test Layer ✅ Klart
 
-## Nya testfiler:
-- `src/utils/__tests__/dateUtils.test.ts` — 22 tester
-- `src/hooks/__tests__/useMemoizedEvents.test.ts` — 12 tester
+# Granskning: Tidrapporteringsappen — Fullständig genomgång
 
-## Utökade testfiler:
-- `plannerStore.test.tsx` — +4 tester (rapid view switching)
-- `useEventEditController.test.ts` — +4 tester (stress/edge cases)
-- `eventUtils.test.ts` — +5 tester (edge cases)
+## Sammanfattning
 
-## Totalt: 159 tester i 7 filer, alla gröna.
+Jag har gått igenom hela mobilappens kodbas: routing, auth, edge function, alla sidor och tabbar. Nedan identifierar jag problem och förbättringsåtgärder, sorterade efter allvarlighet.
 
 ---
 
-# Steg 1: SAFE NOW ✅ Klart
+## Identifierade problem
 
-- ✅ `convertToISO8601` centraliserad till `src/utils/dateUtils.ts`
-- ✅ Debug-`console.log` borttagna från `CustomEvent.tsx` och `EventHoverCard.tsx`
-- ✅ `openDelay={300}` på `EventHoverCard`
+### 1. Kommentarer kan inte skapas från appen (SAKNAD FUNKTION)
+`mobileApi.createComment()` existerar i `mobileApiService.ts` och edge-funktionen stöder `create_comment`, men **ingen UI-komponent anropar den**. Det finns ingen kommentarsflik eller kommentarsfält i `MobileJobDetail`. Kommentarer visas alltså aldrig och kan inte skrivas av fältpersonal.
+
+**Fix:** Lägg till en "Kommentarer"-sektion i `JobInfoTab` (eller som egen tab) med befintlig data från `bookingData.project?.comments` och möjlighet att skriva nya via `mobileApi.createComment()`.
+
+### 2. Bilder i utlägg (kvitto) — `capture="environment"` på web
+`MobileExpenses.tsx` rad 176 använder `<input capture="environment">` men har **ingen Capacitor Camera-integration** som `JobCostsTab` och `JobPhotosTab` har (via `takePhotoBase64`). På native (iOS/Android) bör den använda Capacitor Camera API för bättre tillförlitlighet (se memory om `CameraResultType.Uri` på Android).
+
+**Fix:** Byt `MobileExpenses.tsx` kvittofotologik till att använda `takePhotoBase64()` med web-fallback, precis som `JobCostsTab` redan gör.
+
+### 3. Intern information visas — men bara i Info-tabben
+`booking.internalnotes` visas korrekt i `JobInfoTab.tsx` rad 211-221. Detta fungerar.
+
+### 4. Timer-baserade tidrapporter saknar övertid
+I `MobileJobDetail.tsx` (rad 62-69) och `MobileTimeReport.tsx` (rad 118-129) skapas tidrapporter vid timer-stopp **utan `overtime_hours`**. Den manuella rapporten i `MobileTimeReport` har övertidsfält men timer-logiken beräknar bara `hours_worked` med rastautomatik.
+
+**Fix:** Lägg till enkel övertidsberäkning vid timer-stopp (t.ex. >8h = övertid) eller visa en kort dialog efter stopp där användaren kan ange övertid.
+
+### 5. `get_time_reports` hämtar ALLA rapporter — filtreras lokalt
+`JobTimeTab.tsx` rad 16-19 anropar `mobileApi.getTimeReports()` (alla rapporter, limit 50) och filtrerar sedan lokalt på `booking_id`. Om en personal har >50 rapporter totalt kan äldre rapporter för detta specifika jobb falla bort.
+
+**Fix:** Antingen lägg till `booking_id`-parameter i edge-funktionens `get_time_reports`, eller använd `bookingData.my_time_reports` från `get_booking_details` (som redan hämtas).
+
+### 6. Ingen kommentarsvy i mobilen trots API-stöd
+Se punkt 1. Edge-funktionen har `create_comment` och `get_project_comments`, men ingen mobilvy anropar dem.
+
+### 7. MobileAuthProvider dupliceras per route
+Varje `/m/*`-route i `App.tsx` (rad 133-139) wrappar med egen `<MobileAuthProvider>`. Det innebär att `useEffect` i auth-kontexten körs om vid varje navigation. Inte en bugg per se (localStorage caching gör det snabbt), men suboptimalt.
+
+**Fix (låg prio):** Flytta `MobileAuthProvider` till en gemensam layout-wrapper.
+
+### 8. Utläggshistorik — saknar `booking_client` i `JobCostsTab`
+`JobCostsTab` visar utlägg men `MobilePurchase`-typen saknar `booking_client`, vilket inte behövs här (redan i jobb-kontext). Fungerar korrekt.
 
 ---
 
-# Steg 2: SAFE NEXT ✅ Klart
+## Vad som fungerar korrekt
 
-## 2a. Tidszons-konsistens ✅ Klart
-**Åtgärd**: Lagt till `extractUTCTime`, `extractUTCDate`, `buildUTCDateTime` i `dateUtils.ts`. `EditEventTimeDialog` använder nu samma UTC-approach som `QuickTimeEditPopover`.
-**Filer**: `src/utils/dateUtils.ts`, `src/components/Calendar/EditEventTimeDialog.tsx`
-
-## 2b. MoveEventDateDialog data-synk ✅ Klart
-**Åtgärd**: `MoveEventDateDialog` uppdaterar nu både `calendar_events` och `bookings`-tabellen (datum + tider) via samma mönster som `QuickTimeEditPopover`. Använder UTC-helpers. Tidszons-bugg med `getHours()` fixad.
-**Filer**: `src/components/Calendar/MoveEventDateDialog.tsx`
-
-## 2c. Batch staff availability ✅ Klart
-**Åtgärd**: Ny `getAvailableStaffForDateRange` i `staffAvailabilityService.ts` gör 2 queries (staff + availability) istället för 2×N. `CustomCalendar` använder batch-funktionen. Console.log-spam borttagen från availability-logik.
-**Filer**: `src/services/staffAvailabilityService.ts`, `src/components/Calendar/CustomCalendar.tsx`
+| Funktion | Status |
+|---|---|
+| Login/Logout | OK — token-baserat, 24h expiry |
+| Auth-guard (`MobileProtectedRoute`) | OK — redirect till `/m/login` |
+| Jobblistning med assignment-datum | OK |
+| Timer start/stopp med tidrapport-skapande | OK (men saknar övertid) |
+| Manuell tidrapportering | OK |
+| Utlägg med kvittofoto (i `JobCostsTab`) | OK — Capacitor Camera + web fallback |
+| Utlägg (global vy `MobileExpenses`) | OK men saknar native camera |
+| Bilduppladdning i `JobPhotosTab` | OK — Capacitor + web fallback |
+| Intern info (`internalnotes`) | OK — visas i Info-tab |
+| Produktlista med hierarki | OK |
+| Teamvy med kontaktinfo | OK |
+| Tidrapporthistorik med kalender/lista | OK |
+| PDF-export av tidrapporter | OK (öppnar HTML i ny flik) |
+| Geofencing-stöd | OK |
+| EventFlow-synk av utlägg | OK |
+| Multi-tenant isolation | OK — `organization_id` på alla queries |
 
 ---
 
-# Steg 3: LATER ✅ Klart (utom 3d)
+## Rekommenderad åtgärdsplan
 
-## 3a. Event deduplication guard ✅ Klart
-**Åtgärd**: Realtime INSERT-handler i `useRealTimeCalendarEvents` kollar nu både `id` OCH `booking_id + event_type` combo innan ett event läggs till. Förhindrar dubbletter vid snabb sync.
-**Filer**: `src/hooks/useRealTimeCalendarEvents.tsx`
+### Prioritet 1 — Buggfixar
+1. **Lägg till kommentarsfunktion i jobbdetaljen** — ny sektion/tab med read + write
+2. **Använd `takePhotoBase64()` i MobileExpenses** — konsekvent native camera
 
-## 3b. Console.log-sanering (rendervägar) ✅ Klart
-**Åtgärd**: Borttagna icke-error `console.log` från `useRealTimeCalendarEvents`, `CustomCalendar`, `CalendarEventHandlers`, `useEventOperations`, `useResourceCalendarHandlers`. Kvar: `console.error` för faktiska fel.
+### Prioritet 2 — Förbättringar  
+3. **Övertidshantering vid timer-stopp** — enkel dialog eller automatisk beräkning
+4. **JobTimeTab: Använd `my_time_reports` från booking details** — undvik limit-problem
+5. **Konsolidera MobileAuthProvider** — en wrapper istället för per-route
 
-## 3c. Borttagning av oanvända komponenter ✅ Klart
-**Åtgärd**: `DayCalendar.tsx` och `useDayCalendarEvents.tsx` borttagna — inga importer fanns.
+### Prioritet 3 — Övrigt
+6. **Filuppladdnings-errorhantering i JobPhotosTab** — `finally`-blocket körs för tidigt (rad 78, `setIsUploading(false)` körs innan `reader.onload` är klar)
 
-## 3d. FullCalendar-migration ✅ Klart (parallellt spår)
-**Status**: Custom-ersättningar byggda i `src/components/Calendar/custom/`. Feature flag `use_custom_calendar` i localStorage styr vilken implementation som körs.
+---
 
-### Nya filer:
-- `src/components/Calendar/custom/useCalendarGrid.tsx` — Tidsberäkning, slot-generering, event-positionering i pixlar
-- `src/components/Calendar/custom/TimeColumn.tsx` — Tidslots-kolumn (06:00–22:00)
-- `src/components/Calendar/custom/ResourceColumn.tsx` — En team-kolumn med events, använder befintlig `CustomEvent`
-- `src/components/Calendar/custom/CustomResourceTimeGrid.tsx` — Ersätter `ResourceCalendar` (resourceTimeGrid dagvy)
-- `src/components/Calendar/custom/MonthCell.tsx` — Dag-cell i månadsvy
-- `src/components/Calendar/custom/CustomMonthGrid.tsx` — Ersätter `IndividualStaffCalendar` (månadsvy)
-- `src/components/Calendar/ResourceCalendarSwitch.tsx` — Feature flag wrapper för resource-kalender
-- `src/components/Calendar/StaffCalendarSwitch.tsx` — Feature flag wrapper för personal-kalender
+## Tekniska detaljer
 
-### Inkopplade konsumenter:
-- `MonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
-- `TestMonthlyResourceCalendar.tsx` → `ResourceCalendarSwitch`
-- `StaffMemberCalendar.tsx` → `StaffCalendarSwitch`
+### Kommentarsfunktion (Prioritet 1)
+Skapa ny komponent eller sektion i `JobInfoTab`:
+- Hämta kommentarer från `bookingData.project?.comments` (redan i `get_booking_details`-responsen)
+- Visa kommentarslista med `author_name`, `content`, `created_at`
+- Textfält + skicka-knapp som anropar `mobileApi.createComment({ booking_id, content })`
+- Uppdatera lokalt state efter lyckad post
 
-### Aktivering:
-```js
-localStorage.setItem('use_custom_calendar', 'true'); // Aktivera custom-versionen
-localStorage.removeItem('use_custom_calendar');       // Tillbaka till FullCalendar
+### MobileExpenses camera-fix
+Ersätt rad 33-43 i `MobileExpenses.tsx` med samma mönster som `JobCostsTab`:
+```typescript
+import { takePhotoBase64 } from '@/utils/capacitorCamera';
+// onClick: await takePhotoBase64() → if null → fileInputRef fallback
 ```
 
-## 3e. Refaktorera CustomCalendar ✅ Klart
-**Åtgärd**: CustomCalendar (400→185 rader) uppdelad i tre extraherade hooks:
-- `useWeekDays` — generering av 7-dagars array
-- `useCarouselState` — karusellnavigering, scroll-hantering, centrerad dag
-- `useAvailableStaffWeek` — batch-hämtning av tillgänglig personal + team-tilldelning
-Gemensam `buildTimeGridProps`-helper eliminerar duplicerad TimeGrid-konfiguration.
-**Filer**: `src/hooks/useWeekDays.tsx`, `src/hooks/useCarouselState.tsx`, `src/hooks/useAvailableStaffWeek.tsx`, `src/components/Calendar/CustomCalendar.tsx`
+### JobPhotosTab race condition
+Rad 63-80: `setIsUploading(false)` i `finally` körs synkront, men `reader.onload` är async. Bör flytta `setIsUploading(false)` till efter upload-completion inuti `reader.onload`.
 
-## 3f. Optimistic updates drag & drop ✅ Klart
-**Åtgärd**: FullCalendar hanterar redan optimistic UI nativt (DOM uppdateras direkt vid drag). `useEventOperations` har rensats till att enbart: (1) persist:a ändringen till DB, (2) visa toast, (3) revert:a via `info.revert()` vid fel. Alla redundanta `console.log` borttagna. `CalendarEventHandlers` förenklad — passthrough utan loggning.
-**Filer**: `src/hooks/useEventOperations.tsx`, `src/components/Calendar/CalendarEventHandlers.tsx`, `src/hooks/useResourceCalendarHandlers.tsx`
