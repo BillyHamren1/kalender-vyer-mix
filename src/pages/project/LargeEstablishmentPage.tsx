@@ -190,19 +190,123 @@ const LargeEstablishmentPage = () => {
         </Card>
       </div>
 
-      {/* Timeline span */}
-      {stats.earliest && stats.latest && (
-        <Card className="border-border/40">
-          <CardContent className="p-4 flex items-center gap-3 text-sm">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium">Projektperiod:</span>
-            <span>{format(stats.earliest, 'd MMM yyyy', { locale: sv })}</span>
-            <span className="text-muted-foreground">→</span>
-            <span>{format(stats.latest, 'd MMM yyyy', { locale: sv })}</span>
-            <Badge variant="secondary" className="ml-auto">{stats.spanDays} dagar</Badge>
-          </CardContent>
-        </Card>
-      )}
+      {/* Timeline span - editable project dates */}
+      {(() => {
+        const projectStart = project?.start_date ? parseISO(project.start_date) : stats.earliest;
+        const projectEnd = project?.end_date ? parseISO(project.end_date) : stats.latest;
+        const spanDays = projectStart && projectEnd && isValid(projectStart) && isValid(projectEnd)
+          ? differenceInDays(projectEnd, projectStart) + 1
+          : stats.spanDays;
+
+        return (projectStart || projectEnd) ? (
+          <Card className="border-border/40">
+            <CardContent className="p-4 flex items-center gap-3 text-sm">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <span className="font-medium">Projektperiod:</span>
+
+              {/* Start date picker */}
+              <Popover open={startDateOpen} onOpenChange={setStartDateOpen}>
+                <PopoverTrigger asChild>
+                  <button className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md hover:bg-muted/60 transition-colors group">
+                    <span>{projectStart && isValid(projectStart) ? format(projectStart, 'd MMM yyyy', { locale: sv }) : 'Välj datum'}</span>
+                    <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarWidget
+                    mode="single"
+                    selected={projectStart && isValid(projectStart) ? projectStart : undefined}
+                    onSelect={(date) => {
+                      if (date) {
+                        updateProject({ start_date: format(date, 'yyyy-MM-dd') });
+                        setStartDateOpen(false);
+                      }
+                    }}
+                    locale={sv}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+
+              <span className="text-muted-foreground">→</span>
+
+              {/* End date picker */}
+              <Popover open={endDateOpen} onOpenChange={setEndDateOpen}>
+                <PopoverTrigger asChild>
+                  <button className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md hover:bg-muted/60 transition-colors group">
+                    <span>{projectEnd && isValid(projectEnd) ? format(projectEnd, 'd MMM yyyy', { locale: sv }) : 'Välj datum'}</span>
+                    <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarWidget
+                    mode="single"
+                    selected={projectEnd && isValid(projectEnd) ? projectEnd : undefined}
+                    onSelect={(date) => {
+                      if (date) {
+                        updateProject({ end_date: format(date, 'yyyy-MM-dd') });
+                        setEndDateOpen(false);
+                      }
+                    }}
+                    locale={sv}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+
+              <Badge variant="secondary" className="ml-auto">{spanDays} dagar</Badge>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="border-border/40">
+            <CardContent className="p-4 flex items-center gap-3 text-sm">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <span className="font-medium">Projektperiod:</span>
+              <Popover open={startDateOpen} onOpenChange={setStartDateOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                    <Pencil className="h-3 w-3" /> Ange startdatum
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarWidget
+                    mode="single"
+                    onSelect={(date) => {
+                      if (date) {
+                        updateProject({ start_date: format(date, 'yyyy-MM-dd') });
+                        setStartDateOpen(false);
+                      }
+                    }}
+                    locale={sv}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+              <span className="text-muted-foreground">→</span>
+              <Popover open={endDateOpen} onOpenChange={setEndDateOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                    <Pencil className="h-3 w-3" /> Ange slutdatum
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarWidget
+                    mode="single"
+                    onSelect={(date) => {
+                      if (date) {
+                        updateProject({ end_date: format(date, 'yyyy-MM-dd') });
+                        setEndDateOpen(false);
+                      }
+                    }}
+                    locale={sv}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Search + filter */}
       <div className="flex flex-col sm:flex-row gap-3">
