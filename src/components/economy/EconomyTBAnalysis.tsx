@@ -83,34 +83,34 @@ interface OrderYoYBucket {
   [key: string]: number | string; // year keys like "2025", "2026"
 }
 
-function computeOrderIntakeYoY(projects: EconomyProjectInsight[], from: Date, to: Date): { buckets: OrderYoYBucket[]; years: number[] } {
-  // Group by booking created_at month+year
-  const yearMonthMap = new Map<string, number>(); // "2025-03" -> sum
+function computeOrderIntakeYoY(projects: EconomyProjectInsight[], selectedYears: number[]): { buckets: OrderYoYBucket[]; years: number[]; availableYears: number[] } {
+  const yearMonthMap = new Map<string, number>();
 
   projects.forEach(p => {
     const dateStr = p.bookingCreatedAt;
     if (!dateStr) return;
     try {
       const d = parseISO(dateStr);
-      if (isBefore(d, from) && isBefore(to, d)) return; // skip if completely outside
       const key = `${getYear(d)}-${String(getMonth(d)).padStart(2, '0')}`;
       yearMonthMap.set(key, (yearMonthMap.get(key) || 0) + p.quotedAmount);
     } catch { return; }
   });
 
-  // Determine years present
-  const yearsSet = new Set<number>();
-  yearMonthMap.forEach((_, key) => yearsSet.add(parseInt(key.split('-')[0])));
-  
-  // If no data, use current + previous year
+  // All available years from data
+  const availableYearsSet = new Set<number>();
+  yearMonthMap.forEach((_, key) => availableYearsSet.add(parseInt(key.split('-')[0])));
   const currentYear = new Date().getFullYear();
-  if (yearsSet.size === 0) {
-    yearsSet.add(currentYear - 1);
-    yearsSet.add(currentYear);
+  if (availableYearsSet.size === 0) {
+    availableYearsSet.add(currentYear - 1);
+    availableYearsSet.add(currentYear);
   }
-  const years = Array.from(yearsSet).sort();
+  const availableYears = Array.from(availableYearsSet).sort();
 
-  // Build 12-month buckets
+  // Use selected years or default to last 2
+  const years = selectedYears.length > 0
+    ? selectedYears.filter(y => availableYears.includes(y)).sort()
+    : availableYears.slice(-2);
+
   const buckets: OrderYoYBucket[] = MONTH_NAMES.map((name, i) => {
     const bucket: OrderYoYBucket = { monthIndex: i, monthName: name };
     years.forEach(y => {
@@ -120,7 +120,7 @@ function computeOrderIntakeYoY(projects: EconomyProjectInsight[], from: Date, to
     return bucket;
   });
 
-  return { buckets, years };
+  return { buckets, years, availableYears };
 }
 
 // ── CSV helpers ──
