@@ -17,7 +17,7 @@ import {
   fetchLargeProjectGanttSteps,
   saveLargeProjectGanttSteps,
 } from "@/services/largeProjectService";
-import { LargeProjectStatus, LARGE_PROJECT_STATUS_LABELS } from "@/types/largeProject";
+import { LargeProject, LargeProjectStatus, LARGE_PROJECT_STATUS_LABELS } from "@/types/largeProject";
 import { ProjectTask, ProjectFile, ProjectComment } from "@/types/project";
 import { toast } from "sonner";
 import { GanttStep } from "@/components/project/LargeProjectGanttChart";
