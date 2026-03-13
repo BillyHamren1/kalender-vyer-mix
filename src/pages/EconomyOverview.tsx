@@ -17,21 +17,11 @@ import {
 } from '@/components/ui/alert-dialog';
 
 import { 
-  TrendingUp, 
-  TrendingDown, 
-  AlertTriangle, 
   Banknote, 
-  Clock, 
   CheckCircle2,
   Lock,
   PlayCircle,
   CalendarClock,
-  BarChart3,
-  ArrowUpRight,
-  ArrowDownRight,
-  Wallet,
-  Users,
-  Target,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { parseISO, isAfter, isBefore, startOfDay } from 'date-fns';
