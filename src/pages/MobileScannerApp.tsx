@@ -199,15 +199,31 @@ const MobileScannerApp: React.FC = () => {
           <h1 className="text-lg font-bold">Lagerscanner</h1>
           <p className="text-xs opacity-80">QR & RFID-verifiering</p>
         </div>
-        <Button 
-          variant="secondary" 
-          size="sm"
-          className="gap-1.5"
-          onClick={() => setIsQRActive(true)}
-        >
-          <QrCode className="h-4 w-4" />
-          <span className="text-xs">Skanna</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          {isNativePlatform() && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => {
+                setLastModule('report');
+                navigate('/m');
+              }}
+            >
+              <Clock className="h-4 w-4" />
+              <span className="text-xs">Tid</span>
+            </Button>
+          )}
+          <Button 
+            variant="secondary" 
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setIsQRActive(true)}
+          >
+            <QrCode className="h-4 w-4" />
+            <span className="text-xs">Skanna</span>
+          </Button>
+        </div>
       </header>
 
       {/* Search */}
