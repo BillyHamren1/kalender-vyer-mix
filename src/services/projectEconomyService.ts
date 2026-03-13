@@ -282,7 +282,11 @@ export const calculateEconomySummary = (
   );
 
   const productCostBudget = productCosts?.summary?.costs || 0;
-  const productRevenue = productCosts?.summary?.revenue || 0;
+  // Revenue: use summary.revenue if available, otherwise compute from products array
+  const productRevenue = productCosts?.summary?.revenue
+    || (productCosts?.products || []).reduce(
+      (sum, p) => sum + (Number(p.total) || Number(p.unit_price) * Number(p.quantity) || 0), 0
+    );
   
   const totalBudget = staffBudget + quotesTotal + productCostBudget;
   const totalActual = staffActual + purchasesTotal + invoicesTotal + supplierInvoicesTotal;
