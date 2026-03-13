@@ -224,6 +224,7 @@ const EconomyTBAnalysis: React.FC<Props> = ({ projects }) => {
   const [customTo, setCustomTo] = useState<Date | undefined>(undefined);
   const [fromOpen, setFromOpen] = useState(false);
   const [toOpen, setToOpen] = useState(false);
+  const [selectedYears, setSelectedYears] = useState<number[]>([]);
 
   const dateRange = useMemo(() => {
     if (quickRange === 'custom' && customFrom && customTo) {
