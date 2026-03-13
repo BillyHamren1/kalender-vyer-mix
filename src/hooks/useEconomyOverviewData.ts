@@ -117,6 +117,7 @@ const emptySummary: EconomySummary = {
   invoiceDeviation: 0,
   supplierInvoicesTotal: 0,
   productCostBudget: 0,
+  productRevenue: 0,
   totalBudget: 0,
   totalActual: 0,
   totalDeviation: 0,

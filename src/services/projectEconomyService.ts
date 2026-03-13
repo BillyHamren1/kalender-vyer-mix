@@ -282,6 +282,7 @@ export const calculateEconomySummary = (
   );
 
   const productCostBudget = productCosts?.summary?.costs || 0;
+  const productRevenue = productCosts?.summary?.revenue || 0;
   
   const totalBudget = staffBudget + quotesTotal + productCostBudget;
   const totalActual = staffActual + purchasesTotal + invoicesTotal + supplierInvoicesTotal;
@@ -304,6 +305,7 @@ export const calculateEconomySummary = (
     invoiceDeviation,
     supplierInvoicesTotal,
     productCostBudget,
+    productRevenue,
     totalBudget,
     totalActual,
     totalDeviation,
