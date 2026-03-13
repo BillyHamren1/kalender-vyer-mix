@@ -7,6 +7,7 @@ import { useCarouselState } from '@/hooks/useCarouselState';
 import { useAvailableStaffWeek } from '@/hooks/useAvailableStaffWeek';
 import { useStableEvents } from '@/hooks/useMemoizedEvents';
 import { EditControllerProvider } from '@/contexts/EditControllerContext';
+import { useEventDragDrop } from '@/hooks/useEventDragDrop';
 import './Carousel3DStyles.css';
 
 interface CustomCalendarProps {
@@ -52,6 +53,17 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const weekStartTime = currentDate.getTime();
   const days = useWeekDays(currentDate);
+
+  // Drag-and-drop for moving events between days
+  const {
+    isDragging,
+    dragOverDate,
+    isMoving,
+    handleDragOver,
+    handleDragEnter,
+    handleDragLeave,
+    handleDrop,
+  } = useEventDragDrop(refreshEvents);
 
   // STABILIZATION: Deduplicate and stabilize event array reference
   const stableEvents = useStableEvents(events);
@@ -147,10 +159,21 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         <div className="custom-calendar-container weekly-view" ref={containerRef}>
           <div className={`weekly-horizontal-grid ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
             {days.map((date) => {
-              const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+              const dateStr = format(date, 'yyyy-MM-dd');
+              const isToday = dateStr === format(new Date(), 'yyyy-MM-dd');
+              const isDropTarget = isDragging && dragOverDate === dateStr;
               return (
-                <div key={format(date, 'yyyy-MM-dd')} className={`weekly-day-card ${isToday ? 'is-today' : ''}`}>
-                  <div className={`day-card bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
+                <div
+                  key={dateStr}
+                  className={`weekly-day-card ${isToday ? 'is-today' : ''}`}
+                  onDragOver={handleDragOver}
+                  onDragEnter={(e) => handleDragEnter(e, dateStr)}
+                  onDragLeave={(e) => handleDragLeave(e, dateStr)}
+                  onDrop={(e) => handleDrop(e, dateStr)}
+                >
+                  <div className={`day-card bg-background rounded-2xl shadow-lg border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''} ${isDropTarget ? 'border-primary border-2 ring-2 ring-primary/30' : 'border-border'}`}
+                    style={isDropTarget ? { transition: 'all 150ms ease' } : undefined}
+                  >
                     <TimeGrid {...buildTimeGridProps(date, false)} />
                   </div>
                 </div>
@@ -169,14 +192,20 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
         <div className={`carousel-3d-wrapper ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
           <div className="carousel-3d-container">
             {days.map((date, index) => {
+              const dateStr = format(date, 'yyyy-MM-dd');
               const position = getPositionFromCenter(index);
               const isCenter = position === 0;
-              const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+              const isToday = dateStr === format(new Date(), 'yyyy-MM-dd');
+              const isDropTarget = isDragging && dragOverDate === dateStr;
               return (
                 <div
-                  key={format(date, 'yyyy-MM-dd')}
+                  key={dateStr}
                   className={`carousel-3d-card ${isCenter ? 'is-center' : ''} ${isToday ? 'is-today' : ''}`}
                   data-position={position}
+                  onDragOver={handleDragOver}
+                  onDragEnter={(e) => handleDragEnter(e, dateStr)}
+                  onDragLeave={(e) => handleDragLeave(e, dateStr)}
+                  onDrop={(e) => handleDrop(e, dateStr)}
                 >
                   {!isCenter && (
                     <div
@@ -184,7 +213,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
                       onClick={(e) => { e.stopPropagation(); handleDayCardClick(index); }}
                     />
                   )}
-                  <div className={`day-card bg-background rounded-2xl shadow-lg border border-border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
+                  <div className={`day-card bg-background rounded-2xl shadow-lg border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''} ${isDropTarget ? 'border-primary border-2 ring-2 ring-primary/30' : 'border-border'}`}>
                     <TimeGrid {...buildTimeGridProps(date, true, isCenter)} />
                   </div>
                 </div>
