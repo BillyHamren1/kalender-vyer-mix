@@ -167,6 +167,18 @@ export function useEconomyDashboard(
     [projectInsights],
   );
 
+  // 11. Forecast drivers
+  const forecastDrivers = useMemo(
+    () => getForecastDrivers(projectInsights),
+    [projectInsights],
+  );
+
+  // 12. Leadership metrics
+  const leadershipMetrics = useMemo(
+    () => getLeadershipMetrics(forecasts, projectInsights),
+    [forecasts, projectInsights],
+  );
+
   // 10. Group by status
   const byStatus = useMemo(() => {
     const map: Record<EconomyProjectStatus, EconomyProjectInsight[]> = {
