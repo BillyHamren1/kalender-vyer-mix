@@ -102,32 +102,11 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   const bookingNumber = rawBookingId.length > 20 ? rawBookingId.slice(-8) : rawBookingId;
   const deliveryCity = event.extendedProps?.deliveryCity || event.extendedProps?.delivery_city || '';
 
-  // Drag start handler
-  const handleDragStart = useCallback((e: React.DragEvent) => {
-    if (readOnly) {
-      e.preventDefault();
-      return;
-    }
-    const data: DraggedEventData = {
-      id: event.id,
-      title: event.title,
-      start: typeof event.start === 'string' ? event.start : new Date(event.start).toISOString(),
-      end: typeof event.end === 'string' ? event.end : new Date(event.end).toISOString(),
-      bookingId: event.bookingId,
-      eventType: event.eventType,
-      resourceId: event.resourceId,
-    };
-    e.dataTransfer.setData(DRAG_DATA_TYPE, JSON.stringify(data));
-    e.dataTransfer.effectAllowed = 'move';
-  }, [event, readOnly]);
-
   // Render the event card content
   const eventCardContent = (
     <div
       ref={eventRef}
-      draggable={!readOnly}
-      onDragStart={handleDragStart}
-      className={`custom-event hover:scale-105 ${hasSourceChanges ? 'warehouse-changed' : ''} ${readOnly ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'}`}
+      className={`custom-event hover:scale-105 ${hasSourceChanges ? 'warehouse-changed' : ''} ${readOnly ? 'cursor-default' : ''}`}
       style={getDynamicStyles()}
     >
       <div className="event-content" style={{ color: '#000000', pointerEvents: 'auto' }}>
