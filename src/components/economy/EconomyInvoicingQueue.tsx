@@ -36,8 +36,8 @@ interface Props {
 const InvoiceRow: React.FC<{ project: EnrichedProject; onClose?: () => void }> = ({ project, onClose }) => {
   const navigate = useNavigate();
   const link = project.projectSize === 'medium' ? `/economy/${project.id}` : project.navigateTo;
-  const marginColor = project.projectedMarginPercent >= 20 ? 'text-green-600' : 
-                       project.projectedMarginPercent >= 0 ? 'text-foreground' : 'text-destructive';
+  const marginColor = project.forecastMarginPercent >= 20 ? 'text-green-600' : 
+                       project.forecastMarginPercent >= 0 ? 'text-foreground' : 'text-destructive';
 
   return (
     <tr className="border-b border-border/30 hover:bg-muted/30 transition-colors group">
