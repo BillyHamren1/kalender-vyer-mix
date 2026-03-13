@@ -32,10 +32,10 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 const EconomyForecastPanel: React.FC<Props> = ({ forecasts }) => {
   const chartData = forecasts.map(f => ({
     name: f.label,
-    Säker: f.secure,
-    Trolig: f.probable,
-    Pipeline: f.pipeline,
-    Total: f.secure + f.probable + f.pipeline,
+    Säker: f.safeRevenue,
+    Trolig: f.likelyRevenue,
+    Pipeline: f.pipelineRevenue,
+    Total: f.safeRevenue + f.likelyRevenue + f.pipelineRevenue,
   }));
 
   const maxVal = Math.max(...chartData.map(d => d.Total));
