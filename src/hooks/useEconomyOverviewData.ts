@@ -12,6 +12,7 @@ export interface ProjectWithEconomy {
   status: string;
   booking_id: string | null;
   eventdate: string | null;
+  bookingCreatedAt: string | null;
   summary: EconomySummary;
   timeReports: StaffTimeReport[];
   economyClosed: boolean;
