@@ -11,6 +11,7 @@ import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 
 interface PendingTimeReport {
   id: string;
