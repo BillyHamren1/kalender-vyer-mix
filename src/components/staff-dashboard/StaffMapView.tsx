@@ -80,9 +80,9 @@ const StaffMapView = ({ locations, isLoading }: StaffMapViewProps) => {
       const popup = new mapboxgl.Popup({ offset: 20, closeButton: false }).setHTML(`
         <div style="padding:4px 0;">
           <div style="font-weight:700;font-size:13px;">${loc.name}</div>
-          <div style="font-size:11px;color:#666;margin-top:2px;">${loc.team}</div>
-          ${loc.client ? `<div style="font-size:11px;color:#888;margin-top:2px;">${loc.client}</div>` : ''}
-          ${loc.address ? `<div style="font-size:10px;color:#999;margin-top:2px;">${loc.address}</div>` : ''}
+          <div style="font-size:11px;color:#666;margin-top:2px;">${loc.teamName || ''}</div>
+          ${loc.bookingClient ? `<div style="font-size:11px;color:#888;margin-top:2px;">${loc.bookingClient}</div>` : ''}
+          ${loc.deliveryAddress ? `<div style="font-size:10px;color:#999;margin-top:2px;">${loc.deliveryAddress}</div>` : ''}
           <div style="font-size:10px;margin-top:4px;padding:2px 6px;border-radius:8px;display:inline-block;${
             loc.isWorking ? 'background:#dcfce7;color:#166534;' : 'background:#fef3c7;color:#92400e;'
           }">${loc.isWorking ? 'Arbetar' : 'Schemalagd'}</div>

@@ -100,6 +100,22 @@ const MobileProfile = () => {
           <ChevronRight className="w-4 h-4 text-muted-foreground" />
         </button>
 
+        {/* Send message */}
+        <SendMessageDialog
+          trigger={
+            <button className="w-full rounded-2xl border border-primary/20 bg-card px-4 py-3 shadow-md flex items-center gap-3 active:scale-[0.98] transition-all">
+              <div className="p-1.5 rounded-lg bg-primary/8">
+                <MessageSquare className="w-4 h-4 text-primary" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-sm font-semibold text-foreground">Skicka meddelande</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Till kontoret</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            </button>
+          }
+        />
+
         {/* GPS Settings */}
         <div className="rounded-2xl border border-primary/20 bg-card px-4 py-3 space-y-2 shadow-md">
           <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">GPS & Geofencing</h2>

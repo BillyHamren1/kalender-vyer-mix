@@ -39,6 +39,7 @@ const navigationItems: NavItem[] = [
     icon: Truck,
   },
   { title: "Personal", url: "/staff-management", icon: Users },
+  { title: "Personalöversikt", url: "/staff-dashboard", icon: LayoutDashboard },
 ];
 
 export function Sidebar3D() {
