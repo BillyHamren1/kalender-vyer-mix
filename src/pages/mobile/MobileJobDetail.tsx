@@ -22,7 +22,7 @@ const MobileJobDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: bookingData, isLoading } = useMobileBookingDetails(id);
-  const { invalidateTimeReports } = useInvalidateMobileData();
+  const { invalidateTimeReports, invalidateBookingDetails } = useInvalidateMobileData();
   const booking = bookingData?.booking ?? null;
   const [activeTab, setActiveTab] = useState<TabKey>('Info');
   const [timerElapsed, setTimerElapsed] = useState(0);
