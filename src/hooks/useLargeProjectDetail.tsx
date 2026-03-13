@@ -109,6 +109,17 @@ export const useLargeProjectDetail = (projectId: string) => {
     onError: () => toast.error('Kunde inte uppdatera status'),
   });
 
+  // General project update mutation
+  const updateProjectMutation = useMutation({
+    mutationFn: (updates: Partial<LargeProject>) => updateLargeProject(projectId, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['large-project', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['large-projects'] });
+      toast.success('Projektet uppdaterat');
+    },
+    onError: () => toast.error('Kunde inte uppdatera projektet'),
+  });
+
   // Task mutations
   const addTaskMutation = useMutation({
     mutationFn: (task: { title: string; description?: string; assigned_to?: string | null; deadline?: string | null }) =>
