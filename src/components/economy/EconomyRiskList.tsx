@@ -26,7 +26,7 @@ const EconomyRiskList: React.FC<Props> = ({ risks }) => {
       <CardContent className="p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <ShieldAlert className={cn("h-5 w-5", risks.length > 0 ? "text-destructive" : "text-muted-foreground")} />
+            <ShieldAlert className="h-5 w-5 text-muted-foreground" />
             <h2 className="text-base font-semibold">Projekt som kräver uppmärksamhet</h2>
           </div>
           {risks.length > 0 && (
