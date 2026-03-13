@@ -2852,6 +2852,42 @@ export type Database = {
           },
         ]
       }
+      staff_messages: {
+        Row: {
+          booking_id: string | null
+          content: string
+          created_at: string
+          id: string
+          is_read: boolean
+          message_type: string
+          organization_id: string
+          staff_id: string
+          staff_name: string
+        }
+        Insert: {
+          booking_id?: string | null
+          content: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message_type?: string
+          organization_id?: string
+          staff_id: string
+          staff_name: string
+        }
+        Update: {
+          booking_id?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message_type?: string
+          organization_id?: string
+          staff_id?: string
+          staff_name?: string
+        }
+        Relationships: []
+      }
       sync_state: {
         Row: {
           created_at: string
