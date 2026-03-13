@@ -4,9 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarWidget } from "@/components/ui/calendar";
 import {
   Calendar, MapPin, Search, ChevronDown, ChevronUp,
-  Hammer, PartyPopper, Truck, Clock, Filter, ArrowUpDown
+  Hammer, PartyPopper, Truck, Clock, Filter, ArrowUpDown, Pencil
 } from "lucide-react";
 import { format, parseISO, differenceInDays, isValid } from "date-fns";
 import { sv } from "date-fns/locale";
