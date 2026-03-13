@@ -184,11 +184,11 @@ const MobileJobDetail = () => {
 
       {/* Tab content */}
       <div className="flex-1 px-4 py-3">
-        {activeTab === 'Info' && <JobInfoTab booking={booking} bookingId={booking.id} />}
+        {activeTab === 'Info' && <JobInfoTab booking={booking} bookingId={booking.id} onCommentsUpdated={() => invalidateBookingDetails(booking.id)} />}
         {activeTab === 'Team' && <JobTeamTab bookingId={booking.id} />}
         {activeTab === 'Bilder' && <JobPhotosTab bookingId={booking.id} />}
         {activeTab === 'Kostnader' && <JobCostsTab bookingId={booking.id} />}
-        {activeTab === 'Tid' && <JobTimeTab bookingId={booking.id} />}
+        {activeTab === 'Tid' && <JobTimeTab bookingId={booking.id} timeReports={bookingData?.my_time_reports} />}
       </div>
     </div>
   );
